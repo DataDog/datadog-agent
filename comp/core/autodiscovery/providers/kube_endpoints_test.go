@@ -43,10 +43,11 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	for _, tc := range []struct {
-		name        string
-		service     *v1.Service
-		expectedOut []configInfo
-		hybrid      bool
+		name           string
+		service        *v1.Service
+		expectedOut    []configInfo
+		expectedErrors map[string]providerTypes.ErrorMsgSet
+		hybrid         bool
 	}{
 		{
 			name:        "nil",
@@ -192,7 +193,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "adv2 check + adv1 annotation + hybrid",
+			name: "hybrid mode applies the standalone ignore_autodiscovery_tags",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
@@ -232,7 +233,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 			hybrid: true,
 		},
 		{
-			name: "adv2 check + adv1 annotation but not hybrid",
+			name: "non-hybrid mode reports the standalone ignore_autodiscovery_tags",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
@@ -269,6 +270,11 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 					name:      "myservice",
 				},
 			},
+			expectedErrors: map[string]providerTypes.ErrorMsgSet{
+				"kube_endpoint_uid://default/myservice/": {
+					"ad.datadoghq.com/endpoints.checks takes precedence, ignoring ad.datadoghq.com/endpoints.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)": {},
+				},
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -277,10 +283,17 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 				cfg.SetInTest("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}
 			provider := kubeEndpointsConfigProvider{
+				configErrors:   map[string]providerTypes.ErrorMsgSet{},
 				telemetryStore: telemetryStore,
 			}
 			cfgs := provider.parseServiceAnnotationsForEndpoints([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
+
+			expectedErrors := tc.expectedErrors
+			if expectedErrors == nil {
+				expectedErrors = map[string]providerTypes.ErrorMsgSet{}
+			}
+			assert.Equal(t, expectedErrors, provider.configErrors)
 		})
 	}
 }

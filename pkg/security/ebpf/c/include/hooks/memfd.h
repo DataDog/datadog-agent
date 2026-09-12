@@ -150,7 +150,7 @@ static int __attribute__((always_inline)) handle_memfd_fcntl(ctx_t *ctx) {
     event.fd = *fd;
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    // We don't call fill_span_context(&event.span) to avoid issues with the
+    // We don't call fill_span_context(&event.span, &event.go_labels) to avoid issues with the
     // verifier on 4.14. We know that we don't need the span context for these
     // internal events.
     fill_cgroup_context(entry, &event.cgroup);

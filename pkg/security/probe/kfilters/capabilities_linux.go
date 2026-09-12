@@ -142,4 +142,5 @@ func init() {
 	allCapabilities["prctl"] = prctlCapabilities
 	allCapabilities["setsockopt"] = setsockoptCapabilities
 	allCapabilities["socket"] = socketCapabilities
+	allCapabilities["unshare"] = unshareCapabilities
 }

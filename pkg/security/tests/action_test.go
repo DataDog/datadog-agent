@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -200,6 +201,8 @@ func TestActionKill(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+var _ = declareInlineConfig(TestActionKillExcludeBinary)
 
 func TestActionKillExcludeBinary(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -523,6 +526,20 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	})
 }
 
+// enforcementDisarmerPeriod is shared between TestActionKillDisarm's declared
+// config and its body, which waits out the period it configures.
+const enforcementDisarmerPeriod = 4 * time.Second
+
+var _ = declare(TestActionKillDisarm, testOpts{
+	enforcementDisarmerContainerEnabled:     true,
+	enforcementDisarmerContainerMaxAllowed:  1,
+	enforcementDisarmerContainerPeriod:      enforcementDisarmerPeriod,
+	enforcementDisarmerExecutableEnabled:    true,
+	enforcementDisarmerExecutableMaxAllowed: 1,
+	enforcementDisarmerExecutablePeriod:     enforcementDisarmerPeriod,
+	eventServerRetention:                    1 * time.Nanosecond,
+})
+
 func TestActionKillDisarm(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -543,10 +560,6 @@ func TestActionKillDisarm(t *testing.T) {
 	})
 
 	sleep := which(t, "sleep")
-
-	const (
-		enforcementDisarmerPeriod = 4 * time.Second
-	)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -573,15 +586,7 @@ func TestActionKillDisarm(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		enforcementDisarmerContainerEnabled:     true,
-		enforcementDisarmerContainerMaxAllowed:  1,
-		enforcementDisarmerContainerPeriod:      enforcementDisarmerPeriod,
-		enforcementDisarmerExecutableEnabled:    true,
-		enforcementDisarmerExecutableMaxAllowed: 1,
-		enforcementDisarmerExecutablePeriod:     enforcementDisarmerPeriod,
-		eventServerRetention:                    1 * time.Nanosecond,
-	}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1381,6 +1386,8 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	containerKilled = true
 }
 
+var _ = declare(TestRemediationCustomEvents, testOpts{networkRawPacketEnabled: true})
+
 func TestRemediationCustomEvents(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1453,7 +1460,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			{
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "port 53",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 					Scope:     "process",
 				},
 			},
@@ -1467,7 +1474,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1742,6 +1749,19 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 }
 
+func remediationStatusSourceRuleID(data []byte) string {
+	var obj interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return ""
+	}
+	if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.rule_id`); err == nil {
+		if ruleID, ok := el.(string); ok {
+			return ruleID
+		}
+	}
+	return ""
+}
+
 func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1785,7 +1805,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	}
 	noEventRule := &rules.RuleDefinition{
 
-		ID:         "kill_remediation_not_triggering",
+		ID:         "kill_remediation_not_triggering_no_remediation_tag",
 		Expression: `exec.file.name == "there-is-again-no-file-like-that"`,
 		Actions: []*rules.ActionDefinition{
 			{
@@ -1794,6 +1814,9 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 					Scope:  "process",
 				},
 			},
+		},
+		Tags: map[string]string{
+			"rule_id": "kill_remediation_not_triggering_no_remediation_tag",
 		},
 	}
 
@@ -1875,6 +1898,11 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
+				if sourceRuleID := remediationStatusSourceRuleID(msg.Data); sourceRuleID != noEventRule.ID {
+					// Stale remediation_status from another test still in the queue.
+					test.msgSender.flush()
+					return errors.New("retry")
+				}
 				t.Error("should not find remediation_status message, got event : " + string(msg.Data))
 				return nil
 			}

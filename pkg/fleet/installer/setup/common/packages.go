@@ -110,8 +110,9 @@ type Packages struct {
 }
 
 type packageWithVersion struct {
-	name    string
-	version string
+	name         string
+	version      string
+	forceInstall bool
 }
 
 // Install marks a package to be installed

@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -20,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -32,8 +34,10 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
@@ -60,6 +64,20 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
+func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
+	if containerized {
+		return envValue == "true"
+	}
+	return configEnabled
+}
+
+func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
+	if fipsEnabled {
+		return false
+	}
+	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
+}
+
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
@@ -67,6 +85,7 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
+	KeysManager   taskverifier.KeysManager
 	Hostname      hostname.Component
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
@@ -105,7 +124,8 @@ type PrivateActionRunner struct {
 	executorDone    chan struct{}
 	shutdowner      compdef.Shutdowner
 
-	telemetry *telemetry.Telemetry
+	telemetry   *telemetry.Telemetry
+	keysManager taskverifier.KeysManager
 
 	started     bool
 	startOnce   sync.Once
@@ -121,6 +141,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
+	if splitDeploymentEnabled(
+		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		configenv.IsContainerized(),
+		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	) {
+		fipsEnabled := reqs.Config.GetBool("fips.enabled")
+		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
+			fipsEnabled = fipsEnabled || buildFIPSEnabled
+		}
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
+			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+			reqs.Log.Flush()
+			return Provides{}, privateactionrunner.ErrSplitDeployment
+		}
+		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
+	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
 	// the Agent's configured endpoint (it runs alongside a node Agent listener).
@@ -134,6 +170,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
+	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -161,6 +199,8 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
+	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -210,7 +250,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -294,7 +334,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
 	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
@@ -343,6 +383,13 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
+	if p.keysManager == nil {
+		p.keysManager = taskverifier.NewKeyManager(p.rcClient)
+	}
+	return p.keysManager
 }
 
 func executorIdleTimeout(idleSeconds int) time.Duration {
@@ -424,7 +471,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 

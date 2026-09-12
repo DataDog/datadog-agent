@@ -244,7 +244,7 @@ def run(
 
 
 @task
-def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
+def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent", force: bool = False):
     """
     Follow a pipeline's progress in the CLI.
     Use --here to follow the latest pipeline on your current branch.
@@ -257,6 +257,30 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     dda inv pipeline.follow --here
     dda inv pipeline.follow --id 1234567
     """
+    if not force:
+        different_repo = '' if project_name == 'DataDog/datadog-agent' else f"cd {project_name.split('/')[-1]} && "
+        if id is not None:
+            # `--follow` rebinds to newer pipelines on a ref, which contradicts pinning one by ID.
+            selector = f" --pipeline {id}"
+            follow_hint = ""
+        else:
+            # `ddgl attach` resolves the current branch on its own, which is what --here did.
+            selector = f" --ref {git_ref}" if git_ref is not None else ""
+            selector = f" --follow{selector}"
+            follow_hint = (
+                "`--follow` rebinds to a newer pipeline if one appears for the ref, which this task cannot do.\n"
+            )
+        text = (
+            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
+            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
+            + f"     {different_repo}ddgl attach{selector}     \n"
+            + follow_hint
+            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
+            + "by prefixing with `dda env dev run --`.\n"
+            + "Re-run with `--force` to force execution of this task."
+        )
+        print(color_message(text, Color.ORANGE))
+        return
 
     repo = get_gitlab_repo(project_name)
 

@@ -7,7 +7,7 @@
 // journald logs into the observer without requiring the logs agent to be enabled.
 package logssource
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 // Component is the component type.
 type Component interface{}

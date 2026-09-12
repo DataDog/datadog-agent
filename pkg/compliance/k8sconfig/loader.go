@@ -213,6 +213,9 @@ func flagDefault(config *K8sConfigFileMeta, cli, file string) string {
 	return file
 }
 
+// loadMeta stats name under the host root and, if loadContent is set, reads it.
+// The content is nil when the read failed. An empty file yields an empty slice,
+// so the two stay apart.
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
 	name = filepath.Join(l.hostroot, name)
 	info, err := os.Stat(name)
@@ -234,6 +237,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
+				b = nil
 			}
 		}
 	}
@@ -321,17 +325,19 @@ func (l *loader) configFileMetaHasField(meta *K8sConfigFileMeta, path string) bo
 
 func (l *loader) loadKubeletConfigFileMeta(name, dropinDir string) *K8sConfigFileMeta {
 	meta, ok := l.loadConfigFileMeta(name)
-	if !ok {
-		return &K8sConfigFileMeta{Path: name}
+	if !ok || meta.Content == nil {
+		return meta
 	}
 	content, ok := meta.Content.(map[string]interface{})
 	if !ok {
 		l.pushError(fmt.Errorf("kubelet configuration loaded from %q is not a valid configuration", name))
-		return &K8sConfigFileMeta{Path: name}
+		meta.Content = nil
+		return meta
 	}
 	if kind := content["kind"]; kind != "KubeletConfiguration" {
 		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
-		return &K8sConfigFileMeta{Path: name}
+		meta.Content = nil
+		return meta
 	}
 	// The drop-ins of --config-dir land on top of the file given to --config,
 	// so they have to be folded in before anything reads a setting.
@@ -559,6 +565,16 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 		return &K8sKubeconfigMeta{Path: name}, false
 	}
 
+	meta := &K8sKubeconfigMeta{
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
+	}
+	if b == nil {
+		return meta, true
+	}
+
 	var source k8SKubeconfigSource
 	erru := json.Unmarshal(b, &source)
 	if erru != nil {
@@ -566,7 +582,7 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 	}
 	if erru != nil {
 		l.pushError(erru)
-		return &K8sKubeconfigMeta{Path: name}, false
+		return meta, false
 	}
 
 	content := &K8SKubeconfig{
@@ -632,13 +648,8 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 		}
 	}
 
-	return &K8sKubeconfigMeta{
-		Path:       name,
-		User:       utils.GetFileUser(info),
-		Group:      utils.GetFileGroup(info),
-		Mode:       uint32(info.Mode()),
-		Kubeconfig: content,
-	}, true
+	meta.Kubeconfig = content
+	return meta, true
 }
 
 // in OpenSSH >= 2.6, a fingerprint is now displayed as base64 SHA256.

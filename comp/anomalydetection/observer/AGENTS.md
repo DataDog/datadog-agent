@@ -34,7 +34,7 @@ and the testbench use the same engine.
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
-| `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
+| `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
@@ -156,6 +156,19 @@ e.emitter.reset()
 
 The scorer uses a different path (`EpisodeStarted` / `EpisodeEnded` events) and does
 not embed a `correlationEmitter`.
+
+### Detector-output deduplication vs replay history
+
+The engine deduplicates detector outputs across advances before feeding them to
+correlators. Live mode keeps only a fixed-size dedup cache;
+it does not retain full raw anomalies because reporters receive advance-local
+anomalies and correlator events directly. `StorageConfig.TrackAnomalyHistory` is
+false by default and is enabled only by testbench/replay configuration so
+`StateView.Anomalies` can display the complete finite replay. Do not couple a new
+production consumer to raw anomaly history; add an explicitly bounded diagnostic
+surface if that use case emerges. Route every storage-series removal through the
+engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
+reported by `observer.anomaly_dedup.evicted{reason}`.
 
 ## Common Pitfalls
 

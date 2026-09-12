@@ -134,9 +134,10 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          base: ${{ github.ref_name }}
           branch: ${{ inputs.branch }}
           sign-commits: true
-          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          title: ${{ github.ref_name == 'main' && steps.update_build_images.outputs.MESSAGE || format('[Backport {0}] {1}', github.ref_name, steps.update_build_images.outputs.MESSAGE) }}
           body: ${{ steps.update_build_images.outputs.BODY }}
           draft: true
           labels: go-update,team/agent-runtimes

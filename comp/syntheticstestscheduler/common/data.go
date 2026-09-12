@@ -74,9 +74,17 @@ func (i ICMPConfigRequest) GetSubType() payload.Protocol {
 	return payload.ProtocolICMP
 }
 
-// RunTypeScheduled is the value of SyntheticsTestConfig.RunType for scheduled
-// tests. Used to identify tests that should be cached for fallback execution.
-const RunTypeScheduled = "scheduled"
+const (
+	// RunTypeScheduled is the value of SyntheticsTestConfig.RunType for scheduled
+	// tests. Used to identify tests that should be cached for fallback execution.
+	RunTypeScheduled = "scheduled"
+	// RunTypeFast is the value of SyntheticsTestConfig.RunType for fast tests.
+	RunTypeFast = "fast"
+	// RunTypeCI is the value of SyntheticsTestConfig.RunType for CI tests.
+	RunTypeCI = "ci"
+	// RunTypeTriggered is the value of SyntheticsTestConfig.RunType for triggered tests.
+	RunTypeTriggered = "triggered"
+)
 
 // SyntheticsTestConfig represents the whole config of a network test.
 type SyntheticsTestConfig struct {

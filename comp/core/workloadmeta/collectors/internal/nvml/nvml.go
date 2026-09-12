@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -116,7 +115,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
@@ -134,7 +133,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
+		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
@@ -170,13 +169,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
-}
-
-func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
-	// NVML exposes domain, bus, and device as numeric fields, but not the PCI
-	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
-	// functions, when present, represent auxiliary devices such as audio.
-	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
 }
 
 func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
@@ -441,21 +433,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
-	switch nvmlVirtMode {
-	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
-		return "none"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
-		return "host_vgpu"
-	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
-		return "passthrough"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
-		return "host_vsga"
-	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
-		return "vgpu"
-	default:
-		return "unknown"
-	}
 }

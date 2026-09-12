@@ -17,6 +17,13 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// Keep the Operator Secrets separate from Agent components because they can be installed in
+// the same namespace and are independently owned Pulumi resources.
+const (
+	operatorCredentialsSecretName = "operator-datadog-credentials"
+	operatorImagePullSecretName   = "operator-registry-credentials"
+)
+
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
 type HelmInstallationArgs struct {
 	// KubeProvider is the Kubernetes provider to use
@@ -69,7 +76,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{
 		Metadata: metav1.ObjectMetaArgs{
 			Namespace: ns.Metadata.Name(),
-			Name:      pulumi.String("dda-datadog-credentials"),
+			Name:      pulumi.String(operatorCredentialsSecretName),
 		},
 		StringData: pulumi.StringMap{
 			"api-key": apiKey,
@@ -84,7 +91,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	// Create image pull secret if necessary
 	var imgPullSecret *corev1.Secret
 	if e.ImagePullRegistry() != "" {
-		imgPullSecret, err = utils.NewImagePullSecret(e, args.Namespace, opts...)
+		imgPullSecret, err = utils.NewImagePullSecretWithName(e, args.Namespace, operatorImagePullSecretName, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -140,8 +147,8 @@ type HelmValues pulumi.Map
 
 func buildLinuxHelmValues(operatorImagePath string, operatorImageTag string) HelmValues {
 	return HelmValues{
-		"apiKeyExistingSecret": pulumi.String("dda-datadog-credentials"),
-		"appKeyExistingSecret": pulumi.String("dda-datadog-credentials"),
+		"apiKeyExistingSecret": pulumi.String(operatorCredentialsSecretName),
+		"appKeyExistingSecret": pulumi.String(operatorCredentialsSecretName),
 		"image": pulumi.Map{
 			"repository":    pulumi.String(operatorImagePath),
 			"tag":           pulumi.String(operatorImageTag),

@@ -342,6 +342,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
+	// The v3beta sketches shadow validates the upcoming v3 sketch payload against
+	// core Agent traffic; DDOT is out of scope for that validation, so opt out of
+	// the non-zero default sample rate.
+	pkgconfig.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)

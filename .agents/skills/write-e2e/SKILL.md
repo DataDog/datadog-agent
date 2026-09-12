@@ -199,7 +199,7 @@ Needs `dda`, `pulumi`, `~/.test_infra_config.yaml` (created by `dda inv e2e.setu
 |---|---|---|
 | G1 | `dda inv linter.go --module=test/new-e2e --targets=./tests/<area>` | Compile errors, including nonexistent provisioner options |
 | G2 | `grep -rn -e 'docker\.io' -e 'apt-get install' -e 'apt install' -e 'yum install' -e 'curl http' test/new-e2e/tests/<area>/` | External dependencies and unpinned installs |
-| G3 | `grep -rn 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml .gitlab/windows/test/` and the JOBOWNERS entry | A test that never runs, or fails silently to no owner |
+| G3 | `grep -rn 'TARGETS:.*<area>' .gitlab/test/e2e/*.yml .gitlab/windows/test/e2e/*.yml .gitlab/windows/test/e2e_install_packages/*.yml` and the JOBOWNERS entry | A test that never runs, or fails silently to no owner |
 | G4 | The dev-mode session below | Provisioning, timing, real Agent behavior, hidden inter-test dependencies, missing cleanup |
 | G5 | Compare G4's wall time to 15 min (PR-gated) and 30–40 min (main/nightly) | A suite that will slow every pipeline |
 

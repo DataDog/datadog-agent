@@ -33,6 +33,10 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
   if [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ]; then
+    if [ -z "${BUILDBARN_ID_TOKEN-}" ]; then
+      >&2 echo "🔴 BUILDBARN_ID_TOKEN must be populated in CI!"
+      exit 2
+    fi
     extra_args+=(--config=ci)
     # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
     if [ "$(uname -s)" = Linux ]; then

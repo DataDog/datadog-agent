@@ -19,6 +19,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,74 +39,75 @@ const (
 
 var eventSetWaitTimeout = defaultEventSetWaitTimeout
 
-// helps mocking an actual events gatherer in tests
-type deviceEventsCollectorCache interface {
-	GetEvents(deviceUUID string) ([]ddnvml.DeviceEventData, error)
-	RegisterDevice(device ddnvml.Device) error
-	SupportsDevice(device ddnvml.Device) (bool, error)
+// DriverEventsSource provides batches of system-probe driver events.
+type DriverEventsSource interface {
+	Refresh() error
+	Get() []model.DriverEvent
 }
 
 type deviceEventsCollector struct {
 	registered           bool
 	registrationAttempts int
 	device               ddnvml.Device
-	eventsCache          deviceEventsCollectorCache
+	eventsCache          *DeviceEventsGatherer
 	accumulatedCounts    map[uint64]int
+	driverEventsEnabled  bool
 }
 
 func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
-	return newDeviceEventsCollectorWithCache(device, deps.DeviceEventsGatherer)
-}
-
-// used internally for testing
-func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsCollectorCache) (c Collector, err error) {
+	driverEventsEnabled := deps.Config.Enabled && deps.Config.DriverEventsEnabled
+	cache := deps.DeviceEventsGatherer
 	if cache == nil {
 		return nil, errors.New("device events gatherer cannot be nil")
 	}
 
-	if supported, err := cache.SupportsDevice(device); err != nil {
-		return nil, err
-	} else if !supported {
+	nvmlEventsSupported, err := cache.SupportsDevice(device)
+	if err != nil {
+		if !driverEventsEnabled {
+			return nil, err
+		}
+		log.Warnf("could not query NVML event support for device %s; collecting driver events only: %v", device.GetDeviceInfo().UUID, err)
+		nvmlEventsSupported = false
+	}
+	if !nvmlEventsSupported && !driverEventsEnabled {
 		return nil, errUnsupportedDevice
 	}
 
 	return &deviceEventsCollector{
-		device:            device,
-		eventsCache:       cache,
-		accumulatedCounts: map[uint64]int{},
+		registered:          !nvmlEventsSupported,
+		device:              device,
+		eventsCache:         cache,
+		accumulatedCounts:   map[uint64]int{},
+		driverEventsEnabled: driverEventsEnabled,
 	}, nil
 }
 
-func (c *deviceEventsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *deviceEventsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *deviceEventsCollector) Name() CollectorName {
 	return deviceEvents
 }
 
-func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
-	if !c.ensureDeviceRegistered() {
+func (c *deviceEventsCollector) Collect() ([]Sample, error) {
+	// NVML registration only gates collection when NVML is the sole event source.
+	// When system-probe driver events are enabled, continue collecting them even if NVML registration fails.
+	if !c.ensureDeviceRegistered() && !c.driverEventsEnabled {
 		return nil, nil
 	}
 
-	events, err := c.eventsCache.GetEvents(c.DeviceUUID())
-	if err != nil {
-		return nil, fmt.Errorf("failed collecting device events: %w", err)
-	}
+	events := c.eventsCache.getXIDEvents(c.Device().GetDeviceInfo().UUID)
 
 	intervalCounts := make(map[uint64]int)
+	var samples []Sample
 	for _, evt := range events {
-		if evt.EventType != nvml.EventTypeXidCriticalError {
-			// currently considering only xid events
-			continue
-		}
-
-		intervalCounts[evt.EventData]++
-		c.accumulatedCounts[evt.EventData]++
+		intervalCounts[evt.XIDCode]++
+		c.accumulatedCounts[evt.XIDCode]++
+		samples = append(samples, evt.toSample())
 	}
 
-	var metricsOut []*Metric
 	// iterate through accumulated counts so that we always emit metrics for XID codes we have seen previously, even
 	// if they were not seen in the current interval
 	for xidCode, accumulatedCount := range c.accumulatedCounts {
@@ -119,24 +121,22 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 			"origin:" + xidOrigin,
 		}
 
-		metricsOut = append(metricsOut, &Metric{
-			Name:     xidErrorsCountMetricName,
-			Value:    float64(intervalCounts[xidCode]),
-			Type:     metrics.CountType,
-			Priority: Medium,
-			Tags:     tags,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: tags},
+			Name:       xidErrorsCountMetricName,
+			Value:      float64(intervalCounts[xidCode]),
+			Type:       metrics.CountType,
 		})
 
-		metricsOut = append(metricsOut, &Metric{
-			Name:     xidErrorsTotalMetricName,
-			Value:    float64(accumulatedCount),
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     tags,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: tags},
+			Name:       xidErrorsTotalMetricName,
+			Value:      float64(accumulatedCount),
+			Type:       metrics.GaugeType,
 		})
 	}
 
-	return metricsOut, nil
+	return samples, nil
 }
 
 // note: watching device events seems to require specific permission/status with the NVIDIA driver,
@@ -156,9 +156,9 @@ func (c *deviceEventsCollector) ensureDeviceRegistered() bool {
 	c.registrationAttempts++
 	if err := c.eventsCache.RegisterDevice(c.device); err != nil {
 		if c.registrationAttempts == 1 {
-			log.Warnf("could not register %s to device events gatherer, will retry up to %d times: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+			log.Warnf("could not register %s to device events gatherer, will retry up to %d times: %v", c.Device().GetDeviceInfo().UUID, deviceMaxRegistrationAttempts, err)
 		} else if c.registrationAttempts >= deviceMaxRegistrationAttempts {
-			log.Warnf("could not register %s to device events gatherer after %d attempts, skipping collection: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+			log.Warnf("could not register %s to device events gatherer after %d attempts, skipping collection: %v", c.Device().GetDeviceInfo().UUID, deviceMaxRegistrationAttempts, err)
 		}
 		return false
 	}
@@ -167,16 +167,32 @@ func (c *deviceEventsCollector) ensureDeviceRegistered() bool {
 	return true
 }
 
-// NewDeviceEventsGatherer creates a new cache that gathers NVML device events
-func NewDeviceEventsGatherer() *DeviceEventsGatherer {
+// NewDeviceEventsGatherer creates a new cache that gathers device events.
+func NewDeviceEventsGatherer(source DriverEventsSource) *DeviceEventsGatherer {
 	return &DeviceEventsGatherer{
-		devices: map[string]*deviceEventsEventsCache{},
+		devices:            map[string]*deviceEventsEventsCache{},
+		driverEventsSource: source,
+		xidMergers:         map[string]*xidEventMerger{},
+		seenDevices:        map[string]bool{},
 	}
 }
 
+type observedDeviceEvent struct {
+	ddnvml.DeviceEventData
+	ObservedAt time.Time
+}
+
 type deviceEventsEventsCache struct {
-	latestEvents  []ddnvml.DeviceEventData
-	pendingEvents chan ddnvml.DeviceEventData
+	latestEvents  []observedDeviceEvent
+	pendingEvents chan observedDeviceEvent
+}
+
+func (c *deviceEventsEventsCache) refresh() {
+	c.latestEvents = nil
+	nPending := len(c.pendingEvents)
+	for range nPending {
+		c.latestEvents = append(c.latestEvents, <-c.pendingEvents)
+	}
 }
 
 // DeviceEventsGatherer asynchronously collects nvidia device events through the nvmlEventSetWait api
@@ -188,6 +204,10 @@ type DeviceEventsGatherer struct {
 	evtSet     nvml.EventSet
 	devicesMtx sync.Mutex
 	devices    map[string]*deviceEventsEventsCache // uuid -> cache
+	// driverEventsSource is nil when the system-probe driver-event source is disabled.
+	driverEventsSource DriverEventsSource
+	xidMergers         map[string]*xidEventMerger
+	seenDevices        map[string]bool
 }
 
 // Started returns true if event collection has been started
@@ -243,6 +263,7 @@ func (c *DeviceEventsGatherer) Stop() error {
 		close(cache.pendingEvents)
 	}
 	clear(c.devices)
+	clear(c.xidMergers)
 
 	return nil
 }
@@ -267,34 +288,66 @@ func (c *DeviceEventsGatherer) GetRegisteredDeviceUUIDs() []string {
 	return uuids
 }
 
-// Refresh consumes the pending events (gathered in async) and populates the cache
-// of latest events for each device, retrievable through GetEvents. In case
-// there is no event pending since the last invocation of Refresh, GetEvents will
-// return an empty event slice.
-func (c *DeviceEventsGatherer) Refresh() error {
+// Refresh independently refreshes the NVML and system-probe event sources, then merges their XIDs.
+func (c *DeviceEventsGatherer) Refresh(queryTime time.Time) error {
+	var driverEventsErr error
+	driverEventsByDevice := make(map[string][]model.DriverEvent)
+	if c.driverEventsSource != nil {
+		if err := c.driverEventsSource.Refresh(); err != nil {
+			driverEventsErr = fmt.Errorf("failed to refresh system-probe driver events: %w", err)
+		}
+
+		for _, event := range c.driverEventsSource.Get() {
+			driverEventsByDevice[event.DeviceUUID] = append(driverEventsByDevice[event.DeviceUUID], event)
+			c.seenDevices[event.DeviceUUID] = true
+		}
+	}
+
+	nvmlEventsByDevice := make(map[string][]observedDeviceEvent)
 	for _, uuid := range c.GetRegisteredDeviceUUIDs() {
 		cache := c.getDeviceCache(uuid)
 		if cache == nil {
 			log.Debugf("event set gatherer: could not find cache for %s while refreshing", uuid)
 			continue
 		}
-		cache.latestEvents = nil
-		nPending := len(cache.pendingEvents)
-		for range nPending {
-			cache.latestEvents = append(cache.latestEvents, <-cache.pendingEvents)
-		}
+		cache.refresh()
+		nvmlEventsByDevice[uuid] = cache.latestEvents
+		c.seenDevices[uuid] = true
 	}
-	return nil
+
+	// refresh all devices that have been seen in this or previous refresh
+	for uuid := range c.seenDevices {
+		c.getOrCreateXIDMerger(uuid).Refresh(queryTime, nvmlEventsByDevice[uuid], driverEventsByDevice[uuid], c.driverEventsSource != nil)
+	}
+
+	return driverEventsErr
 }
 
-// GetEvents returns the latest batch of cached events for the given device UUID.
-// Calls to GetEvents are idempotent up until the next invocation of Refresh.
-func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEventData, error) {
+func (c *DeviceEventsGatherer) getOrCreateXIDMerger(deviceUUID string) *xidEventMerger {
+	if merger := c.xidMergers[deviceUUID]; merger != nil {
+		return merger
+	}
+	merger := newXIDEventMerger(xidEventMergeWindow)
+	c.xidMergers[deviceUUID] = merger
+	return merger
+}
+
+// getEvents returns the latest batch of cached events for the given device UUID.
+// Calls to getEvents are idempotent up until the next invocation of Refresh.
+func (c *DeviceEventsGatherer) getEvents(deviceUUID string) ([]observedDeviceEvent, error) {
 	if cache := c.getDeviceCache(deviceUUID); cache != nil {
 		return c.getDeviceCache(deviceUUID).latestEvents, nil
 	}
 	log.Debugf("event set gatherer: could not find cache for %s while getting events", deviceUUID)
 	return nil, nil
+}
+
+// getXIDEvents returns the latest finalized XID event batch for a device.
+func (c *DeviceEventsGatherer) getXIDEvents(deviceUUID string) []xidEvent {
+	if merger := c.xidMergers[deviceUUID]; merger != nil {
+		return merger.GetEvents()
+	}
+	return nil
 }
 
 // SupportsDevice returns true if the gatherer supports the given device
@@ -337,7 +390,7 @@ func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	c.devicesMtx.Lock()
 	defer c.devicesMtx.Unlock()
 	c.devices[device.GetDeviceInfo().UUID] = &deviceEventsEventsCache{
-		pendingEvents: make(chan ddnvml.DeviceEventData, devicePendingEventQueueSize),
+		pendingEvents: make(chan observedDeviceEvent, devicePendingEventQueueSize),
 	}
 
 	return nil
@@ -356,6 +409,7 @@ func (c *DeviceEventsGatherer) asyncFetchWorker() {
 
 		c.evtSetMtx.Lock()
 		evt, err := c.lib.EventSetWait(c.evtSet, eventSetWaitTimeout)
+		observedAt := time.Now()
 		c.evtSetMtx.Unlock()
 		if ddnvml.IsTimeout(err) {
 			continue
@@ -375,7 +429,7 @@ func (c *DeviceEventsGatherer) asyncFetchWorker() {
 		}
 
 		select {
-		case devCache.pendingEvents <- evt:
+		case devCache.pendingEvents <- observedDeviceEvent{DeviceEventData: evt, ObservedAt: observedAt}:
 		default:
 			log.Debugf("event set gatherer: event discarded for device %s", evt.DeviceUUID)
 		}

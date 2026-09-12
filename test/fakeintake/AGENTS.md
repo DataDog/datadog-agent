@@ -24,7 +24,9 @@ test/fakeintake/
 
 | Route | Aggregator | Client method |
 |-------|-----------|---------------|
+| `/api/v1/series` | MetricAggregator (V1 parser) | `FilterMetrics()` |
 | `/api/v2/series` | MetricAggregator | `FilterMetrics()` |
+| `/api/intake/metrics/v3/series` | MetricAggregator (V3 parser) | `FilterMetrics()` |
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
@@ -47,6 +49,9 @@ test/fakeintake/
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
 | `/api/v0.1/org` | (Remote Config) | — |
 | `/api/v0.1/status` | (Remote Config) | — |
+| `/api/unstable/on_prem_runners` | PAR enrollment | `GetPAREnrollmentCount()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR task queue | `EnqueuePARTask()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR task results | `GetPARTaskResult()` |
 
 ## Client usage
 
@@ -86,6 +91,8 @@ provides control endpoints for tests:
 
 | Route | Purpose |
 |-------|---------|
+| `POST /api/unstable/on_prem_runners` | PAR self-enrolls and receives a runner ID |
+| `POST /api/unstable/on_prem_runners/api_key_only` | PAR self-enrolls with only an API key |
 | `POST /api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR dequeues a task |
 | `POST /api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR publishes a result |
 | `POST /api/v2/on-prem-management-service/workflow-tasks/heartbeat` | PAR sends a task heartbeat |
@@ -94,7 +101,7 @@ provides control endpoints for tests:
 | `GET /fakeintake/par/result` | Read a task result |
 | `POST /fakeintake/par/signing-key` | Register the signing identity used for dequeued tasks |
 | `POST /fakeintake/par/flush` | Clear queued tasks and results |
-| `GET /fakeintake/par/stats` | Read the dequeue count |
+| `GET /fakeintake/par/stats` | Read the dequeue, health-check, and enrollment counts |
 
 By default, dequeued tasks have unsigned envelopes. To exercise real task
 verification, first push the matching public key through the `AP_RUNNER_KEYS`
@@ -129,6 +136,7 @@ Routes added when enabled:
 | `GET  /api/v0.1/org` | Returns org UUID |
 | `GET  /api/v0.1/status` | Reports RC enabled/authorized |
 | `POST /fakeintake/rc/config` | Push/replace a config (control) |
+| `POST /fakeintake/rc/expiration` | Change non-root TUF expiry for expiration tests |
 | `GET  /fakeintake/rc/configs` | List stored configs (control) |
 | `DELETE /fakeintake/rc/config/<key>` | Delete a config (control) |
 | `GET  /fakeintake/rc/stats` | Poll counter, version, signing key info |
@@ -141,6 +149,11 @@ Push configs from a test:
 ```go
 err := fakeintake.RCAddConfig("42", "METRIC_CONTROL", "abc", "filterlist",
     []byte(`{"blocked_metrics":{"by_name":{"values":[{"metric_name":"foo"}]}}}`))
+
+// Publish a short-lived authoritative snapshot, then restore a fresh horizon
+// after the Agent has accepted it and observed its expiration.
+err = fakeintake.RCSetExpiration(time.Now().Add(30 * time.Second))
+err = fakeintake.RCSetExpiration(time.Now().Add(24 * time.Hour))
 ```
 
 Or via CLI:

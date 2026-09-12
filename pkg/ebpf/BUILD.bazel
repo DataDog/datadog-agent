@@ -188,7 +188,6 @@ go_library(
         "time.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
@@ -312,6 +311,7 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "ksyms_test",
     srcs = ["ksyms_test.go"],
+    data = glob(["testdata/kallsyms.*"]),
     embed = [":ebpf"],
     gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],

@@ -116,6 +116,23 @@ properties:
     default: false
     comment: Splits batches and runs queries with errors individually with an exponential
       backoff
+  startup_retry_delay:
+    node_type: setting
+    type: string
+    default: 2s
+    format: duration
+    comment: Initial delay between External Metrics Provider startup retries.
+  startup_retry_max_delay:
+    node_type: setting
+    type: string
+    default: 30s
+    format: duration
+    comment: Maximum delay between External Metrics Provider startup retries.
+  startup_retries:
+    node_type: setting
+    type: integer
+    default: 5
+    comment: Number of attempts to set up the External Metrics Provider.
   use_datadogmetric_crd:
     node_type: setting
     type: boolean
