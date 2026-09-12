@@ -21,6 +21,11 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
+// defaultStatusInstance duplicates remoteconfig.DefaultStatusInstance rather
+// than importing it: that package drags uptane and bbolt into every binary
+// linking this one, which is far more expensive than repeating one string.
+const defaultStatusInstance = "Remote Config"
+
 // Requires holds the dependencies for the rcstatus component.
 type Requires struct {
 	compdef.In
@@ -96,6 +101,21 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
 		}
 
+	}
+
+	// Split the extra clients out of the instances map so the template can render
+	// them as a list, and so the heading only appears when there is one.
+	if instances, ok := status["instances"].(map[string]interface{}); ok {
+		additional := make(map[string]interface{}, len(instances))
+		for name, instance := range instances {
+			if name == defaultStatusInstance {
+				continue
+			}
+			additional[name] = instance
+		}
+		if len(additional) > 0 {
+			status["additionalInstances"] = additional
+		}
 	}
 
 	stats["remoteConfiguration"] = status

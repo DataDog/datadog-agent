@@ -1,0 +1,34 @@
+<div class="stat">
+  <span class="stat_title">Workload Autoscaling</span>
+  <span class="stat_data">
+    {{- with .workloadAutoscaling }}
+    {{- if .Disabled }}
+      {{ .Disabled }}
+{{- else if not .Started }}
+      Workload autoscaling is enabled but has not started yet.
+    {{- else }}
+      DatadogPodAutoscalers: {{ .PodAutoscalerCount }}
+      <br>Leader: {{ if .IsLeader }}true{{ else }}false{{ end }}
+      <br>Remote Config connection: {{ if .RemoteConfigConnected }}Receiving updates{{ else }}No update received yet{{ end }}
+      {{- if .RemoteConfigInstance }}
+      <br>Remote Config client: {{ .RemoteConfigInstance }}
+      {{- end }}
+      {{- range .RemoteConfigProducts }}
+      <br>
+      <br>{{ .Product }}
+      {{- if not .Received }}
+      <br>&nbsp;&nbsp;No update received yet
+      {{- else }}
+      <br>&nbsp;&nbsp;Last config version: {{ .LastVersion }}
+      <br>&nbsp;&nbsp;Last update: {{ .LastUpdate }} ({{ .LastUpdateAge }} ago)
+      <br>&nbsp;&nbsp;Configs in last update: {{ .ConfigCount }}
+      <br>&nbsp;&nbsp;Updates received: {{ .UpdateCount }}
+      {{- if .LastError }}
+      <br>&nbsp;&nbsp;Last error: {{ .LastError }} (at {{ .LastErrorTime }})
+      {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+  </span>
+</div>

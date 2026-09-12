@@ -206,6 +206,24 @@ func (r *remoteConfigClientRegistry) ClientForProducts(products ...string) (*rcc
 	return r.clientForInstanceLocked(selectedInstance)
 }
 
+// InstanceNameForProducts returns the name of the client serving the given
+// products, for reporting in the status output. It mirrors the routing done by
+// ClientForProducts but creates nothing, and returns "default" when the
+// products are not owned by an additional client.
+func (r *remoteConfigClientRegistry) InstanceNameForProducts(products ...string) string {
+	if r == nil {
+		return ""
+	}
+	for _, product := range products {
+		if instance, found := r.byProduct[product]; found {
+			// Matches the key used in the Remote Configuration status section,
+			// so the two sections can be cross-referenced.
+			return instance.name
+		}
+	}
+	return remoteconfig.DefaultStatusInstance
+}
+
 func (r *remoteConfigClientRegistry) clientForInstanceLocked(instance *remoteConfigClientInstance) (*rcclient.Client, error) {
 	if instance == nil {
 		return nil, nil
