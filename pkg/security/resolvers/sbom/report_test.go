@@ -84,3 +84,47 @@ func TestToCycloneDXRuntimeProperties(t *testing.T) {
 		})
 	}
 }
+
+// TestHostReportIsMarkedAsHost checks that the host report says so and carries the
+// same runtime properties as a container report. The gRPC server reads the mark to
+// set the message kind, so a report that lost it would be merged onto an image.
+func TestHostReportIsMarkedAsHost(t *testing.T) {
+	report := NewHostPackagesReport([]sbomtypes.Package{{
+		Name:           "shadow-utils",
+		Version:        "4.15.1",
+		SuidBit:        true,
+		AccessedByRoot: true,
+		LastAccess:     time.Unix(1770000000, 0),
+	}})
+
+	if !report.IsHost() {
+		t.Errorf("host report is not marked as the host's")
+	}
+	if container := NewPackagesReport(nil, "container-id"); container.IsHost() {
+		t.Errorf("container report is marked as the host's")
+	}
+	if got, want := report.ID(), NewHostPackagesReport(nil).ID(); got != want {
+		t.Errorf("ID = %q, want the host id %q regardless of the packages", got, want)
+	}
+
+	bom := report.ToCycloneDX()
+	if len(bom.Components) != 1 {
+		t.Fatalf("bom has %d components, want 1", len(bom.Components))
+	}
+	want := map[string]string{
+		LastAccessProperty:    "1770000000",
+		HasSetSuidBitProperty: "true",
+		RunningAsRootProperty: "true",
+	}
+	for _, prop := range bom.Components[0].Properties {
+		if expected, ok := want[prop.Name]; ok {
+			if prop.GetValue() != expected {
+				t.Errorf("%s = %q, want %q", prop.Name, prop.GetValue(), expected)
+			}
+			delete(want, prop.Name)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("missing properties: %v", want)
+	}
+}
