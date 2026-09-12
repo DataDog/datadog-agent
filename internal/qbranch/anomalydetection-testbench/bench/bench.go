@@ -492,12 +492,8 @@ func (tb *Bench) loadParquetDir(dir string) error {
 				droppedCount++
 				continue
 			}
-			tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
-				name:      m.Name,
-				value:     m.Value,
-				tags:      m.Tags,
-				timestamp: m.Timestamp,
-			})
+			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp)
+			tb.rawMetrics = append(tb.rawMetrics, &view)
 		}
 		if droppedCount > 0 {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
@@ -542,17 +538,12 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				return nil
 			}
 
-			sort.Strings(metric.Tags)
-			tb.streamInputMetricSeries[metricSeriesHash(metric.Name, metric.Tags)] = struct{}{}
+			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp)
+			sort.Strings(view.tags)
+			tb.streamInputMetricSeries[metricSeriesHash(view.name, view.host, view.tags)] = struct{}{}
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
-			view := parquetMetricView{
-				name:      metric.Name,
-				value:     metric.Value,
-				tags:      metric.Tags,
-				timestamp: metric.Timestamp,
-			}
 			tb.debug.IngestMetricSync("parquet", &view)
 			return nil
 		}
@@ -634,11 +625,40 @@ func (tb *Bench) feedRawMetrics() {
 type parquetMetricView struct {
 	name      string
 	value     float64
+	host      string
 	tags      []string
 	timestamp int64
 }
 
-func metricSeriesHash(name string, sortedTags []string) uint64 {
+// newParquetMetricView resolves the recorder's legacy host:* tag into the
+// separate host dimension. The remaining tags stay raw for later tag resolution.
+func newParquetMetricView(name string, value float64, tags []string, timestamp int64) parquetMetricView {
+	host, metricTags := resolveParquetMetricHostAndTags(tags)
+	return parquetMetricView{name: name, value: value, host: host, tags: metricTags, timestamp: timestamp}
+}
+
+func resolveParquetMetricHostAndTags(tags []string) (string, []string) {
+	var host string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "host:") {
+			host = strings.TrimPrefix(tag, "host:")
+			break
+		}
+	}
+	if host == "" {
+		return "", tags
+	}
+
+	metricTags := make([]string, 0, len(tags)-1)
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag, "host:") {
+			metricTags = append(metricTags, tag)
+		}
+	}
+	return host, metricTags
+}
+
+func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 	const (
 		offset64 = 14695981039346656037
 		prime64  = 1099511628211
@@ -653,6 +673,7 @@ func metricSeriesHash(name string, sortedTags []string) uint64 {
 		hash *= prime64
 	}
 	add(name)
+	add(host)
 	for _, tag := range sortedTags {
 		add(tag)
 	}
@@ -662,6 +683,7 @@ func metricSeriesHash(name string, sortedTags []string) uint64 {
 func (m *parquetMetricView) GetName() string         { return m.name }
 func (m *parquetMetricView) GetValue() float64       { return m.value }
 func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
+func (m *parquetMetricView) GetHost() string         { return m.host }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
@@ -898,7 +920,7 @@ func (tb *Bench) collectReplayResultsLocked() {
 	for _, metric := range tb.rawMetrics {
 		tags := append([]string(nil), metric.tags...)
 		sort.Strings(tags)
-		inputMetricSeries[metricSeriesHash(metric.name, tags)] = struct{}{}
+		inputMetricSeries[metricSeriesHash(metric.name, metric.host, tags)] = struct{}{}
 	}
 	replayStats := &ReplayStats{
 		DetectorStats:           detectorStats,
@@ -1376,12 +1398,8 @@ func (tb *Bench) loadDemoScenario() error {
 				{"connection.errors", getDemoConnectionErrorsValue(elapsed) * 0.6, []string{"service:worker"}},
 			}
 			for _, obs := range observations {
-				tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
-					name:      obs.name,
-					value:     obs.value,
-					tags:      obs.tags,
-					timestamp: timestamp,
-				})
+				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp)
+				tb.rawMetrics = append(tb.rawMetrics, &view)
 			}
 		}
 		fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)

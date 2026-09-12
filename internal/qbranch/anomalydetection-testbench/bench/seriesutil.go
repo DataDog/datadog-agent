@@ -20,31 +20,29 @@ func aggSuffix(agg observerdef.Aggregate) string {
 }
 
 // seriesKey returns a canonical string key for a series:
-// "namespace|name:agg|tag1,tag2,..."
-func seriesKey(namespace, nameWithAgg string, tags []string) string {
-	if len(tags) == 0 {
-		return namespace + "|" + nameWithAgg + "|"
-	}
+// "namespace|name:agg|host|tag1,tag2,..."
+func seriesKey(namespace, nameWithAgg, host string, tags []string) string {
 	sorted := make([]string, len(tags))
 	copy(sorted, tags)
 	sort.Strings(sorted)
-	return namespace + "|" + nameWithAgg + "|" + strings.Join(sorted, ",")
+	return namespace + "|" + nameWithAgg + "|" + host + "|" + strings.Join(sorted, ",")
 }
 
 // parseSeriesKey parses a seriesKey back into its components.
 // Returns ok=false if the key doesn't have the expected format.
-func parseSeriesKey(key string) (namespace, name string, tags []string, ok bool) {
-	// Format: "namespace|name:agg|tags"
-	parts := strings.SplitN(key, "|", 3)
-	if len(parts) != 3 {
-		return "", "", nil, false
+func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
+	// Format: "namespace|name:agg|host|tags"
+	parts := strings.SplitN(key, "|", 4)
+	if len(parts) != 4 {
+		return "", "", "", nil, false
 	}
 	namespace = parts[0]
 	name = parts[1]
-	if parts[2] != "" {
-		tags = strings.Split(parts[2], ",")
+	host = parts[2]
+	if parts[3] != "" {
+		tags = strings.Split(parts[3], ",")
 	}
-	return namespace, name, tags, true
+	return namespace, name, host, tags, true
 }
 
 // stateViewStorage adapts a StateView to provide compact series ID lookups and
@@ -94,7 +92,7 @@ func (s *stateViewStorage) getSeriesMeta(ref observerdef.SeriesRef) *observerdef
 // compactSeriesID maps a full seriesKey to a compact numeric ID ("42:avg").
 // Returns the original key if not found (to match the original behavior).
 func (s *stateViewStorage) compactSeriesID(fullKey string) string {
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(fullKey)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
 	if !ok {
 		return fullKey
 	}
@@ -116,7 +114,7 @@ func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	sort.Strings(sortedTags)
 
 	for _, m := range series {
-		if m.Name != name {
+		if m.Name != name || m.Host != host {
 			continue
 		}
 		// Compare tags.

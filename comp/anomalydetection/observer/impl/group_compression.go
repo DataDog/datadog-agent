@@ -37,6 +37,7 @@ type MetricPattern struct {
 type seriesCompact struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 }
 
@@ -267,7 +268,7 @@ func CompressGroup(correlatorName, groupID, title string, members []seriesCompac
 	for _, m := range members {
 		stripped := stripAggSuffix(m.Name)
 		memberNameSet[stripped] = struct{}{}
-		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Tags))
+		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Host, m.Tags))
 	}
 	memberNames := make([]string, 0, len(memberNameSet))
 	for name := range memberNameSet {

@@ -11,10 +11,11 @@
 //           - type: exclude_at_match
 //             name: drop_dev_dogstatsd
 //             source: dogstatsd
+//             host: noisy-host
 //             tags: ["env:dev"]
 //
 //   code:
-//     if rules.isAllowed(sample.GetName(), source, sample.GetRawTags()) { ... }
+//     if rules.isAllowedWithHost(sample.GetName(), source, sample.GetHost(), sample.GetRawTags()) { ... }
 
 package observerimpl
 
@@ -44,6 +45,7 @@ type metricsProcessingRule struct {
 	NamePattern string   `mapstructure:"name_pattern"`
 	Tags        []string `mapstructure:"tags"`
 	Source      string   `mapstructure:"source"`
+	Host        string   `mapstructure:"host"`
 }
 
 // metricsFilterRules evaluates the ordered rule list against incoming metrics.
@@ -61,6 +63,7 @@ type metricsCompiledRule struct {
 	namePrefix string
 	tags       []string
 	source     string
+	host       string
 }
 
 // newMetricsFilterRules parses, validates, and compiles rules.
@@ -98,6 +101,7 @@ func newMetricsFilterRules(rules []metricsProcessingRule) (*metricsFilterRules, 
 			namePrefix: namePrefix,
 			tags:       tags,
 			source:     strings.TrimSpace(rule.Source),
+			host:       strings.TrimSpace(rule.Host),
 		})
 	}
 
@@ -184,13 +188,13 @@ type metricFilterPrecheck struct {
 // tags for the mute check and storage. If the first name/source candidate has
 // tag conditions, firstCandidate lets the tag-aware pass resume there without
 // rescanning rules that cannot match.
-func (f *metricsFilterRules) precheck(name, source string) metricFilterPrecheck {
+func (f *metricsFilterRules) precheck(name, source, host string) metricFilterPrecheck {
 	if f == nil || source == LogMetricsExtractorName {
 		return metricFilterPrecheck{}
 	}
 
 	for i, rule := range f.rules {
-		if !rule.matchesNameAndSource(name, source) {
+		if !rule.matchesNameSourceAndHost(name, source, host) {
 			continue
 		}
 		if len(rule.tags) > 0 {
@@ -205,6 +209,10 @@ func (f *metricsFilterRules) precheck(name, source string) metricFilterPrecheck 
 // isAllowed returns true if the metric should be ingested.
 // tags must be sorted so the mute hash matches seriesKeyHash in storage.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
+	return f.isAllowedWithHost(name, source, "", tags)
+}
+
+func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags []string) bool {
 	if f == nil {
 		return true
 	}
@@ -213,29 +221,29 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 		return true
 	}
 
-	if f.isMuted(name, source, tags) {
+	if f.isMutedWithHost(name, source, host, tags) {
 		return false
 	}
 
-	return f.isAllowedByRulesFrom(name, source, tags, 0)
+	return f.isAllowedByRulesFromWithHost(name, source, host, tags, 0)
 }
 
-func (f *metricsFilterRules) isMuted(name, source string, tags []string) bool {
+func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
 	if f == nil || source == LogMetricsExtractorName {
 		return false
 	}
 
 	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
+		if _, ok := (*m)[seriesKeyHash(source, name, host, tags)]; ok {
 			return true
 		}
 	}
 	return false
 }
 
-func (f *metricsFilterRules) isAllowedByRulesFrom(name, source string, tags []string, start int) bool {
+func (f *metricsFilterRules) isAllowedByRulesFromWithHost(name, source, host string, tags []string, start int) bool {
 	for _, rule := range f.rules[start:] {
-		if rule.matches(name, source, tags) {
+		if rule.matchesWithHost(name, source, host, tags) {
 			return !rule.exclude
 		}
 	}
@@ -250,14 +258,15 @@ func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 	f.muted.Store(&m)
 }
 
-// matches reports whether the rule applies to the given metric.
-// tags must be sorted in ascending order (guaranteed by canonicalizeTags in prepareMetricIngest).
-func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
-	return r.matchesNameAndSource(name, source) && containsAllTagsSorted(tags, r.tags)
+func (r metricsCompiledRule) matchesWithHost(name, source, host string, tags []string) bool {
+	return r.matchesNameSourceAndHost(name, source, host) && containsAllTagsSorted(tags, r.tags)
 }
 
-func (r metricsCompiledRule) matchesNameAndSource(name, source string) bool {
+func (r metricsCompiledRule) matchesNameSourceAndHost(name, source, host string) bool {
 	if r.source != "" && source != r.source {
+		return false
+	}
+	if r.host != "" && host != r.host {
 		return false
 	}
 
