@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "oracle",
@@ -58,4 +59,13 @@ go_library(
         "@com_github_patrickmn_go_cache//:go-cache",
         "@com_github_sijms_go_ora_v2//:go-ora",
     ],
+)
+
+dd_agent_go_test(
+    name = "oracle_test",
+    srcs = ["custom_query_schedule_test.go"],
+    embed = [":oracle"],
+    gotags_sets = [["oracle"]],
+    include_default = False,
+    deps = ["@com_github_stretchr_testify//assert"],
 )

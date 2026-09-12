@@ -364,6 +364,7 @@ dd_agent_go_test(
         "consts_test.go",
         "dns_helpers_linux_test.go",
         "event_deep_copy_test.go",
+        "event_zeroer_unix_test.go",
         "events_test.go",
         "marshallers_test.go",
         "model_test.go",
