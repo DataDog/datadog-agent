@@ -119,6 +119,10 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+The agent-internal logger callback performs only self/severity gates and a
+bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
+and Observer ingestion run on the `agent_logs` worker; never add that work back
+under `pkg/util/log`'s global logger lock.
 
 ### Logging convention
 
