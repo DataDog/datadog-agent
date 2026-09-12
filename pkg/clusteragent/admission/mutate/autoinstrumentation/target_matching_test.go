@@ -60,7 +60,7 @@ func newMatchMutator(t *testing.T, yamlCfg string, wmeta workloadmeta.Component)
 	mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+	m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 	require.NoError(t, err)
 	return m
 }
@@ -224,10 +224,11 @@ apm_config:
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
 	})
 
-	t.Run("ssi on / enabledNamespaces / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+	t.Run("ssi on / enabledNamespaces / RC / static target wins, else remote policy", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnEnabledNamespaces, newMatchTestWmeta(t))
 		require.NoError(t, m.SetRemotePolicies(rcPolicies))
 		assertMatch(t, m, "app-ns", map[string]string{"app": "legacy"}, helm("default"))
+		assertMatch(t, m, "app-ns", map[string]string{"app": "db"}, helm("default"))
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
 		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
 		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
@@ -239,7 +240,7 @@ apm_config:
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
 	})
 
-	t.Run("ssi on / targets / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+	t.Run("ssi on / targets / RC / static target wins, else remote policy", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
 		require.NoError(t, m.SetRemotePolicies(rcPolicies))
 		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
