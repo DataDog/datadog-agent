@@ -33,9 +33,9 @@ def _get_profiler_agent_version(ctx):
     Two deployment contexts are handled:
       - Nightly (same condition as nightly relenv trigger):
           DDR_WORKFLOW_ID set + CI_COMMIT_BRANCH == "main" + BUCKET_BRANCH in nightly set
-          → "7.79.0-nightly_git.101.89faa04"
+          → "7.79.0-nightly-git.101.89faa04"
       - Dev branch (BUCKET_BRANCH == "dev", covers both branch standalone and devtest):
-          → "7.79.0-devel_git.101.89faa04.<branch_slug>"
+          → "7.79.0-devel-git.101.89faa04.<branch_slug>"
 
     Returns None for stable/beta/release builds and local builds.
     """
@@ -55,11 +55,11 @@ def _get_profiler_agent_version(ctx):
     version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
 
     if is_nightly:
-        return f"{version}-nightly_git.{commits}.{git_sha}"
+        return f"{version}-nightly-git.{commits}.{git_sha}"
 
     branch = os.environ.get("CI_COMMIT_REF_SLUG")
     pre_label = pre if pre else "devel"
-    return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
+    return f"{version}-{pre_label}-git.{commits}.{git_sha}.{branch}"
 
 
 @task

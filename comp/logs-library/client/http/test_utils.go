@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-
-	"golang.org/x/net/http2"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -105,15 +103,8 @@ func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	// Configure the server to support HTTP/2
-	if !forceHTTP1 {
-		err := http2.ConfigureServer(testServer.Config, &http2.Server{})
-		if err != nil {
-			panic(err)
-		}
-		testServer.TLS = testServer.Config.TLSConfig
-	}
-	// Start the server with TLS
+	// Enable HTTP/2 support unless HTTP/1 is forced
+	testServer.EnableHTTP2 = !forceHTTP1
 	testServer.StartTLS()
 
 	return testServer

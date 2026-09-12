@@ -82,7 +82,7 @@ flate2 = "1.1"
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
-windows-registry = "0.6"
+windows-registry = "0.100"
 windows-sys = { version = "0.61", features = [] }
 
 # dev-dependencies

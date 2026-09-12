@@ -170,6 +170,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -198,6 +199,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	runner.shutdowner = reqs.Shutdowner

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for configuring collection intervals on individual Oracle custom queries.

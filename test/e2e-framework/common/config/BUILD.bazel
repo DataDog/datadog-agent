@@ -15,7 +15,7 @@ go_library(
         "@com_github_masterminds_semver_v3//:semver",
         "@com_github_pulumi_pulumi_awsx_sdk_v3//go/awsx",
         "@com_github_pulumi_pulumi_command_sdk//go/command",
-        "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
+        "@com_github_pulumi_pulumi_docker_sdk_v5//go/docker",
         "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
         "@com_github_pulumi_pulumi_gcp_sdk_v9//go/gcp",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
