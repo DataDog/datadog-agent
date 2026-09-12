@@ -47,6 +47,7 @@ def dd_procmgrd_isolated_integration_tests(name_prefix, tests, env):
     declared = []
     for suffix, filter_arg in tests:
         target = "{}_{}_test".format(name_prefix, suffix)
+
         # Substring filter: libtest --exact requires the full module::path::name,
         # but we only keep the function name in BUILD.bazel.
         dd_procmgrd_lib_test(
