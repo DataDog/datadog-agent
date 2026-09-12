@@ -18,7 +18,7 @@ import (
 	componentsos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 
-	compute "github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
+	compute "github.com/pulumi/pulumi-azure-native-sdk/compute/v3"
 	network "github.com/pulumi/pulumi-azure-native-sdk/network/v2"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"

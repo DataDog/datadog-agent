@@ -14,7 +14,7 @@ go_library(
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/resources/azure",
-        "@com_github_pulumi_pulumi_azure_native_sdk_compute_v2//:compute",
+        "@com_github_pulumi_pulumi_azure_native_sdk_compute_v3//:compute",
         "@com_github_pulumi_pulumi_azure_native_sdk_network_v2//:network",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
