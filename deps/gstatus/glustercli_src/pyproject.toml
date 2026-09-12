@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datadog-gstatus"
+version = "1.0.9"
+description = "Vendored glustercli + gstatus status collection (no paramiko dependency)"
+license = "GPL-2.0-only"
+requires-python = ">=3.8"
+
+[tool.hatch.build.targets.wheel]
+packages = ["glustercli", "glusterlib"]

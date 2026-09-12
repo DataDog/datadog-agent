@@ -38,6 +38,7 @@ entrypoints_dirname = select({
 install_wheels(
     name = "integrations",
     srcs = [
+        "//deps/gstatus:gstatus_wheel",
         "@integration_source_packages//:all_wheels",
         "@pip//file",
     ] + select(
