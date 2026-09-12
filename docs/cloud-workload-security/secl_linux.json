@@ -4024,6 +4024,11 @@
           "property_doc_link": "imds-cloud_provider-doc"
         },
         {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event, either imds or eks_pod_identity",
+          "property_doc_link": "imds-credential_source-doc"
+        },
+        {
           "name": "imds.host",
           "definition": "the host of the HTTP protocol",
           "property_doc_link": "imds-host-doc"
@@ -16196,6 +16201,18 @@
       "link": "imds-cloud_provider-doc",
       "type": "string",
       "definition": "the intended cloud provider of the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "string",
+      "definition": "the credential endpoint that served the IMDS event, either imds or eks_pod_identity",
       "prefixes": [
         "imds"
       ],
