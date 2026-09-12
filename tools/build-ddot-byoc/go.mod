@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/tools/build-ddot-byoc
 go 1.26.0
 
 require (
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/klauspost/compress v1.20.0
 )
 
