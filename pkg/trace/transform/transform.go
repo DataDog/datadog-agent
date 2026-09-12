@@ -409,6 +409,10 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// dropped counts attributes discarded by this function. It is accumulated
+		// locally rather than written back to the span event, because the input pdata
+		// may be shared read-only with other consumers of the same pipeline.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -452,15 +456,14 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					j++
 				} else {
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}
