@@ -88,7 +88,7 @@ func TestTraceWriter(t *testing.T) {
 			// One payload flushes due to overflowing the threshold, and the second one
 			// because of stop.
 			assert.Equal(t, 2, srv.Accepted())
-			payloadsContain(t, srv.Payloads(), testSpans, tc.compressor)
+			payloadsContain(t, srv, 2, testSpans, tc.compressor)
 		})
 	}
 }
@@ -114,6 +114,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		numWorkers      = 10
 		numOpsPerWorker = 100
 	)
+	defer srv.Close()
 
 	testSpans := []*SampledChunks{
 		randomSampledSpans(20, 8),
@@ -137,7 +138,11 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+	// Two endpoints share this server and 10 workers x 100 ops each write
+	// concurrently, so the number of payloads that reach the server is not
+	// deterministic (it depends on flush-threshold timing); skip the count
+	// check via the -1 sentinel.
+	payloadsContain(t, srv, -1, testSpans, tw.compressor)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -160,13 +165,25 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 	}
 }
 
-// payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks, compressor compression.Component) {
+// payloadsContain checks that the requests the server recorded contain the given
+// set of sampled spans. It takes the server rather than its payloads so that a
+// body which fails to decompress can be reported with its provenance: an
+// undecodable body here has previously turned out to be a request that belonged
+// to a different test. expected is the number of requests the server should have
+// recorded; pass -1 to skip that check when the count is not deterministic.
+func payloadsContain(t *testing.T, srv *testServer, expected int, sampledSpans []*SampledChunks, compressor compression.Component) {
 	t.Helper()
+	received := srv.Received()
+	if expected >= 0 {
+		require.Len(t, received, expected,
+			"unexpected number of requests reached the test server; recorded: %s", describeReceived(received))
+	}
+	require.Empty(t, srv.ReadErrors(),
+		"the test server failed to read a request body, which means a request was in flight when it closed")
 	var all pb.AgentPayload
-	for _, p := range payloads {
+	for _, p := range received {
 		reader, err := compressor.NewReader(p.body)
-		require.NoError(t, err, "payload body is not valid %s", compressor.Encoding())
+		require.NoError(t, err, "payload body is not valid %s: %s", compressor.Encoding(), p.describe())
 
 		slurp, readErr := io.ReadAll(reader)
 		closeErr := reader.Close()
@@ -216,6 +233,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(40, 5),
 		}
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		defer tw.Stop()
 		for _, ss := range testSpans {
 			tw.WriteChunks(ss)
 		}
@@ -225,7 +243,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContain(t, srv, 1, testSpans, tw.compressor)
 	})
 }
 
@@ -244,6 +262,7 @@ func TestResetBuffer(t *testing.T) {
 	}
 
 	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer w.Stop()
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -300,7 +319,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContain(t, srv, 1, testSpans, tw.compressor)
 	})
 }
 
@@ -319,6 +338,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 	}
 	t.Run("ok", func(t *testing.T) {
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		defer tw.Stop()
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -346,13 +366,13 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool, compressor compression.Component) {
-		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0], compressor)
+		require.Len(t, srv.Payloads(), 1)
+		ap, err := deserializePayload(*srv.Payloads()[0], compressor)
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)
 		assert.Equal(t, rareEnabled, ap.RareSamplerEnabled)
-		srv.payloads = nil
+		srv.ResetPayloads()
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
@@ -424,8 +444,8 @@ func TestTraceWriterAPMMode(t *testing.T) {
 			assert.Nil(t, err)
 
 			// Verify the AgentPayload has the correct APMMode
-			require.Len(t, srv.payloads, 1)
-			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			require.Len(t, srv.Payloads(), 1)
+			ap, err := deserializePayload(*srv.Payloads()[0], tw.compressor)
 			assert.Nil(t, err)
 			v, ok := ap.Tags[tagAPMMode]
 			// If APMMode is not set, the tag should not be present
@@ -478,8 +498,8 @@ func TestTraceWriterOTelGateway(t *testing.T) {
 			err := tw.FlushSync()
 			assert.Nil(t, err)
 
-			require.Len(t, srv.payloads, 1)
-			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			require.Len(t, srv.Payloads(), 1)
+			ap, err := deserializePayload(*srv.Payloads()[0], tw.compressor)
 			assert.Nil(t, err)
 			v, ok := ap.Tags[tagOTelGateway]
 			if tc.otelGateway {
@@ -559,7 +579,7 @@ func TestTraceWriterInfo(t *testing.T) {
 	// One payload flushes due to overflowing the threshold, and the second one
 	// because of the sync flush
 	assert.Equal(t, 2, srv.Accepted())
-	payloadsContain(t, srv.Payloads(), testSpans, zstd.NewComponent())
+	payloadsContain(t, srv, 2, testSpans, zstd.NewComponent())
 
 	assert.Equal(t, int64(70), tw.statsLastMinute.Spans.Load())
 	assert.Equal(t, int64(13), tw.statsLastMinute.Events.Load())
