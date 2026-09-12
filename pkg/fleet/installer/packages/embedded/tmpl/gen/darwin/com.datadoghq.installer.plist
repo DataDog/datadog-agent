@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.installer</string>
+        <!-- RunAtLoad starts the daemon at boot, with no login session. -->
+        <key>RunAtLoad</key>
+        <true/>
+        <!-- SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when
+             remote_updates is off without launchd relaunching it, while a crash is relaunched. -->
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+            <key>DD_FLEET_POLICIES_DIR</key>
+            <string>/opt/datadog-agent/etc/managed/datadog-agent/stable</string>
+        </dict>
+        <!-- The program is the façade, never the pool: this definition is written by both
+             install paths and must be correct for every version, forever. -->
+        <key>ProgramArguments</key>
+        <array>
+            <string>/opt/datadog-agent/embedded/bin/installer</string>
+            <string>run</string>
+            <string>-c</string>
+            <string>/opt/datadog-agent/etc</string>
+            <string>-p</string>
+            <string>/opt/datadog-agent/run/installer.pid</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>/opt/datadog-agent/logs/launchd_installer.log</string>
+        <key>StandardErrorPath</key>
+        <string>/opt/datadog-agent/logs/launchd_installer.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <!-- No UserName: the daemon runs as root throughout. -->
+    </dict>
+</plist>

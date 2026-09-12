@@ -1,4 +1,3 @@
-import plistlib
 import unittest
 from pathlib import Path
 
@@ -47,56 +46,33 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn('"@platforms//os:macos": [\n            "//deps/agent_data_plane:all_files"', dependencies)
         self.assertEqual(dependencies.count("//deps/agent_data_plane:all_files"), 4)
 
-    def test_macos_app_installs_adp_launchdaemon_template(self):
-        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
-
-        self.assertIn('name = "launchd_data_plane_plist_example"', build_file)
-        self.assertIn('out = "etc/com.datadoghq.data-plane.plist.example"', build_file)
-        self.assertIn('":launchd_data_plane_plist_example"', build_file)
-
-    def test_adp_launchdaemon_invokes_adp_with_macos_config(self):
-        plist_path = REPO_ROOT / "packages/macos/app/launchd.data-plane.plist.example.in"
-        plist = plistlib.loads(plist_path.read_bytes())
-
-        self.assertEqual(plist["Label"], "com.datadoghq.data-plane")
-        self.assertEqual(
-            plist["ProgramArguments"],
-            [
-                "/opt/datadog-agent/embedded/bin/agent-data-plane",
-                "--config",
-                "/opt/datadog-agent/etc/datadog.yaml",
-                "run",
-                "--pidfile",
-                "/opt/datadog-agent/run/agent-data-plane.pid",
-            ],
-        )
-        self.assertEqual(plist["UserName"], "_dd-agent")
-        self.assertEqual(plist["GroupName"], "daemon")
-
     def test_system_launchdaemons_are_managed_consistently(self):
-        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
+        # The agent/sysprobe/data-plane LaunchDaemons are no longer shipped as static plist XML
+        # for postinst to cp into place: postinst installs all four stable jobs (including the
+        # installer daemon) from the same embedded copies a Fleet configuration experiment swaps
+        # between, via a single installer subcommand -- see InstallStableJobs in
+        # pkg/fleet/installer/packages/datadog_agent_darwin.go. Go-side coverage for the rendered
+        # job content itself lives in
+        # pkg/fleet/installer/packages/launchd/jobset_test.go's
+        # TestTheTwoVariantsDifferInExactlyFourWays.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
-        services = [
-            ("agent", "launchd_plist_example", "com.datadoghq.agent"),
-            ("sysprobe", "launchd_sysprobe_plist_example", "com.datadoghq.sysprobe"),
-            ("data-plane", "launchd_data_plane_plist_example", "com.datadoghq.data-plane"),
-        ]
-        for name, build_target, label in services:
-            with self.subTest(service=name):
-                plist = f"/Library/LaunchDaemons/{label}.plist"
-                example_plist = f"{label}.plist.example"
+        self.assertIn("install-stable-jobs", postinst)
 
-                self.assertIn(f'":{build_target}"', build_file)
+        labels = [
+            "com.datadoghq.agent",
+            "com.datadoghq.sysprobe",
+            "com.datadoghq.data-plane",
+        ]
+        for label in labels:
+            with self.subTest(service=label):
+                plist = f"/Library/LaunchDaemons/{label}.plist"
+                # postinst still ships the GUI LaunchAgent and the AI usage desktop monitor this
+                # way, so only the three jobs InstallStableJobs now owns are asserted absent here.
+                self.assertNotIn(f"{label}.plist.example", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", preinst)
-                self.assertIn(example_plist, postinst)
-                self.assertIn(plist, postinst)
-                self.assertIn(f"chown root:wheel {plist}", postinst)
-                self.assertIn(f"chmod 644 {plist}", postinst)
-                self.assertIn(f"launchctl enable system/{label}", postinst)
-                self.assertIn(f"launchctl bootstrap system {plist}", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", uninstall)
                 self.assertIn(plist, uninstall)
 

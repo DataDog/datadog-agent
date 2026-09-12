@@ -587,9 +587,21 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// newTestConfigDirs lays out a stable and an experiment path as siblings, with the experiment path
+// not yet created. Both are required by the macOS layout: the promote is a rename within one
+// parent, and an experiment path that already exists as a real directory reads as a deployed
+// experiment.
+func newTestConfigDirs(t *testing.T) (stableDir string, experimentDir string) {
+	t.Helper()
+
+	root := t.TempDir()
+	stableDir = filepath.Join(root, "stable")
+	assert.NoError(t, os.MkdirAll(stableDir, 0755))
+	return stableDir, filepath.Join(root, "experiment")
+}
+
 func TestConfig_SimpleStartPromote(t *testing.T) {
-	stableDir := t.TempDir()     // This acts as the 'Stable' config directory
-	experimentDir := t.TempDir() // This acts as the 'Experiment' config directory
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	// Place a simple base config in the stable directory
 	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
@@ -633,8 +645,7 @@ func TestConfig_SimpleStartPromote(t *testing.T) {
 }
 
 func TestConfig_SimpleStartStop(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	// Place a simple base config in the stable directory
 	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
@@ -703,8 +714,7 @@ service:
 `
 
 func TestConfig_OTelConfigStartPromote(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
 
@@ -733,8 +743,7 @@ func TestConfig_OTelConfigStartPromote(t *testing.T) {
 }
 
 func TestConfig_OTelConfigStartStop(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
 	original, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))

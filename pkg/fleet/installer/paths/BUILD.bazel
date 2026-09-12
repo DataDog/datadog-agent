@@ -5,6 +5,7 @@ go_library(
     name = "paths",
     srcs = [
         "installer_paths.go",
+        "installer_paths_darwin.go",
         "installer_paths_utils.go",
         "installer_paths_windows.go",
         "rename_other.go",
@@ -30,11 +31,18 @@ go_library(
 dd_agent_go_test(
     name = "paths_test",
     srcs = [
+        "installer_paths_darwin_test.go",
         "paths_windows_test.go",
         "rename_windows_test.go",
     ],
     embed = [":paths"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+        ],
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
             "@com_github_stretchr_testify//assert",

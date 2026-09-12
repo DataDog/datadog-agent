@@ -50,30 +50,13 @@ pkg_files(
 # command "$(xcrun --find swift-stdlib-tool) --copy --scan-executable \"#{app_temp_dir}/MacOS/gui\" --scan-folder \"#{app_temp_dir}/Frameworks\" --platform macosx --destination \"#{app_temp_dir}/Frameworks\" --strip-bitcode"
 
 # Launchd service definitions
-dd_agent_expand_template(
-    name = "launchd_plist_example",
-    out = "etc/com.datadoghq.agent.plist.example",
-    attributes = pkg_attributes(mode = "0644"),
-    template = "launchd.plist.example.in",
-)
-
-dd_agent_expand_template(
-    name = "launchd_sysprobe_plist_example",
-    out = "etc/com.datadoghq.sysprobe.plist.example",
-    attributes = pkg_attributes(mode = "0644"),
-    substitutions = {
-        "{conf_dir}": "etc",
-    },
-    template = "launchd.sysprobe.plist.example.in",
-)
-
-dd_agent_expand_template(
-    name = "launchd_data_plane_plist_example",
-    out = "etc/com.datadoghq.data-plane.plist.example",
-    attributes = pkg_attributes(mode = "0644"),
-    template = "launchd.data-plane.plist.example.in",
-)
-
+#
+# The agent/sysprobe/data-plane LaunchDaemons are deliberately not shipped as .plist.example
+# files here: postinst writes and loads them from the copy embedded in the installer binary (the
+# same one the Fleet config-experiment path uses), so the two cannot drift apart. See
+# pkg/fleet/installer/packages/embedded/tmpl for the templates and
+# pkg/fleet/installer/packages/datadog_agent_darwin.go's installStableJobs for the loader. The GUI
+# LaunchAgent below has no such runtime owner, so it is still shipped this way.
 dd_agent_expand_template(
     name = "launchd_gui_plist_example",
     out = "etc/com.datadoghq.gui.plist.example",
@@ -85,10 +68,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":info_plist",
-        ":launchd_data_plane_plist_example",
         ":launchd_gui_plist_example",
-        ":launchd_plist_example",
-        ":launchd_sysprobe_plist_example",
         ":resources",
     ],
 )

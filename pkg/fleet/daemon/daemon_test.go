@@ -282,6 +282,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		secretsPubKey,
 		secretsPrivKey,
 	)
+	openMethodGate(daemon)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,
@@ -531,6 +532,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		secretsPubKey,
 		secretsPrivKey,
 	)
+	openMethodGate(daemon)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,
@@ -671,4 +673,15 @@ func TestDecryptSecrets(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
+}
+
+// openMethodGate opens the gate for every method. These tests exercise task dispatch, not the
+// per-platform supported set, so a platform that declines a method would otherwise fail them for
+// the wrong reason. The gate itself is covered by method_gate_test.go.
+func openMethodGate(d *daemonImpl) {
+	gate := make(supportedMethods, len(allMethods))
+	for _, method := range allMethods {
+		gate[method] = true
+	}
+	d.gate = gate
 }
