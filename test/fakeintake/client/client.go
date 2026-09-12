@@ -1252,6 +1252,19 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 	return ndmflows, nil
 }
 
+// GetNetpathEvents returns all received netpath events.
+func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
+	err := c.getNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	var netpaths []*aggregator.Netpath
+	for _, name := range c.netpathAggregator.GetNames() {
+		netpaths = append(netpaths, c.netpathAggregator.GetPayloadsByName(name)...)
+	}
+	return netpaths, nil
+}
+
 // GetLatestNetpathEvents returns the latest netpath events by destination
 func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 	err := c.getNetpathEvents()

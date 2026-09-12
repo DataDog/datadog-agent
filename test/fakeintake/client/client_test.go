@@ -770,6 +770,10 @@ func TestClient(t *testing.T) {
 		err := client.getNetpathEvents()
 		require.NoError(t, err)
 		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu:443 TCP"))
+
+		netpaths, err := client.GetNetpathEvents()
+		require.NoError(t, err)
+		require.NotEmpty(t, netpaths)
 	})
 
 	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {
