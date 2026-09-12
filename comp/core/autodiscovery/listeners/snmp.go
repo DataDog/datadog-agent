@@ -50,6 +50,10 @@ const (
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
 	tagSeparator             = ","
+	// warnWorkersThreshold is the worker count above which we warn. It is not a hard cap: very
+	// large pools multiply concurrent SNMP sessions and in-flight cache writes, which degrades
+	// the whole listener when the scanned devices are slow or unreachable.
+	warnWorkersThreshold = 100
 )
 
 // SNMPListener implements SNMP discovery
@@ -63,6 +67,24 @@ type SNMPListener struct {
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
+
+	// Service transitions are queued here and published by a single goroutine. Autodiscovery
+	// reads additions and deletions from two independent channels and selects between them, so
+	// it can observe them in either order: publishing from the discovery workers directly would
+	// let a device's re-addition overtake its pending deletion, leaving it in l.services but
+	// unscheduled, and never re-registered because registerDevice skips known entities.
+	// Enqueuing happens under the listener lock so the queue order matches the order in which
+	// l.services was mutated, while the blocking channel sends stay off the lock.
+	eventsMu      sync.Mutex
+	eventsCond    *sync.Cond
+	pendingEvents []serviceEvent
+	publisherOnce sync.Once
+}
+
+// serviceEvent is a queued service transition awaiting publication to autodiscovery.
+type serviceEvent struct {
+	svc     *SNMPService
+	removed bool
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -78,12 +100,18 @@ type SNMPService struct {
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
+// snmpSubnet holds the discovery state of a single configured network. It is always shared
+// between the discovery workers through a pointer and must never be copied: `devicesMu` and
+// `devicesScannedCounter` are only meaningful when every worker refers to the same instance.
 type snmpSubnet struct {
-	adIdentifier          string
-	config                snmp.Config
-	startingIP            net.IP
-	network               net.IPNet
-	cacheKey              string
+	adIdentifier string
+	config       snmp.Config
+	startingIP   net.IP
+	network      net.IPNet
+	cacheKey     string
+	// devicesMu guards `devices` and the persistent cache entry stored at `cacheKey`.
+	// When both are needed, the listener lock is always taken before devicesMu.
+	devicesMu             sync.Mutex
 	devices               map[string]deviceCache
 	devicesScannedCounter atomic.Uint32
 	index                 int
@@ -118,12 +146,81 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}, nil
 }
 
+// startPublisher brings up the publication goroutine, at most once. It is called both from
+// Listen and from the first enqueue, so that callers wiring the service channels up directly
+// do not have to know about it.
+func (l *SNMPListener) startPublisher() {
+	l.publisherOnce.Do(func() {
+		l.eventsMu.Lock()
+		l.eventsCond = sync.NewCond(&l.eventsMu)
+		l.eventsMu.Unlock()
+		go l.publishServices()
+	})
+}
+
+// stopped reports whether Stop has been called.
+func (l *SNMPListener) stopped() bool {
+	select {
+	case <-l.stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// enqueueService queues a service transition for publication. It never blocks, so it is safe to
+// call with the listener lock held, which is how the queue stays ordered consistently with the
+// mutations of l.services.
+func (l *SNMPListener) enqueueService(svc *SNMPService, removed bool) {
+	if svc == nil {
+		return
+	}
+
+	l.startPublisher()
+
+	l.eventsMu.Lock()
+	l.pendingEvents = append(l.pendingEvents, serviceEvent{svc: svc, removed: removed})
+	l.eventsCond.Signal()
+	l.eventsMu.Unlock()
+}
+
+// publishServices drains the queue in order, one event at a time. It runs on its own goroutine
+// and holds no listener lock while sending, so a slow autodiscovery consumer cannot stall
+// device discovery.
+func (l *SNMPListener) publishServices() {
+	for {
+		l.eventsMu.Lock()
+		for len(l.pendingEvents) == 0 {
+			if l.stopped() {
+				l.eventsMu.Unlock()
+				return
+			}
+			l.eventsCond.Wait()
+		}
+		event := l.pendingEvents[0]
+		l.pendingEvents = l.pendingEvents[1:]
+		l.eventsMu.Unlock()
+
+		ch := l.newService
+		if event.removed {
+			ch = l.delService
+		}
+
+		select {
+		case ch <- event.svc:
+		case <-l.stop:
+			return
+		}
+	}
+}
+
 // Listen periodically refreshes devices
 func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
 
+	l.startPublisher()
 	go l.checkDevices()
 }
 
@@ -184,8 +281,9 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 }
 
-func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
-	// We don't lock the subnet for now, because the listener ought to be already locked
+// writeCacheLocked persists the subnet's known devices. The caller must hold subnet.devicesMu:
+// this function iterates `devices`, so any concurrent write to that map is a fatal runtime error.
+func (l *SNMPListener) writeCacheLocked(subnet *snmpSubnet) {
 	devices := make([]deviceCache, 0, len(subnet.devices))
 	for _, device := range subnet.devices {
 		devices = append(devices, device)
@@ -230,13 +328,15 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 
+		job.subnet.devicesMu.Lock()
 		device, exists := job.subnet.devices[entityID]
 		if exists && device.Failures != 0 {
 			device.Failures = 0
 			job.subnet.devices[entityID] = device
 
-			l.writeCache(job.subnet)
+			l.writeCacheLocked(job.subnet)
 		}
+		job.subnet.devicesMu.Unlock()
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
@@ -250,7 +350,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		l.deleteService(entityID, job.subnet)
 	}
 
-	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(job.subnet.cacheKey), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
 	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.index), &autodiscoveryStatus)
 }
 
@@ -340,21 +440,21 @@ func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port 
 	return devicededuper.DeviceInfo{Name: sysName, Description: sysDescr, BootTimeMs: bootTimestamp, SysObjectID: sysObjectID}
 }
 
-func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
-	l.Lock()
-	defer l.Unlock()
+func (l *SNMPListener) getDevicesFoundInSubnet(cacheKey string) []string {
+	l.RLock()
+	defer l.RUnlock()
 
 	ipsFound := []string{}
 	for _, svc := range l.services {
-		if svc.subnet.cacheKey == subnet.cacheKey && !svc.pending {
+		if svc.subnet.cacheKey == cacheKey && !svc.pending {
 			ipsFound = append(ipsFound, svc.deviceIP)
 		}
 	}
 	return ipsFound
 }
 
-func (l *SNMPListener) initializeSubnets() []snmpSubnet {
-	subnets := []snmpSubnet{}
+func (l *SNMPListener) initializeSubnets() []*snmpSubnet {
+	subnets := []*snmpSubnet{}
 	for index, config := range l.config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
 		if err != nil {
@@ -371,7 +471,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 			adIdentifier = "snmp"
 		}
 
-		subnet := snmpSubnet{
+		subnet := &snmpSubnet{
 			adIdentifier: adIdentifier,
 			config:       config,
 			startingIP:   startingIP,
@@ -382,7 +482,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 		}
 		subnets = append(subnets, subnet)
 
-		l.loadCache(&subnet)
+		l.loadCache(subnet)
 	}
 
 	return subnets
@@ -413,8 +513,16 @@ func migrateCache(config snmp.Config) string {
 }
 
 func (l *SNMPListener) checkDevices() {
-	if l.config.Workers == 0 {
+	switch {
+	case l.config.Workers == 0:
 		l.config.Workers = defaultWorkers
+	case l.config.Workers < 0:
+		log.Errorf("Invalid network_devices.autodiscovery.workers value %d, falling back to %d", l.config.Workers, defaultWorkers)
+		l.config.Workers = defaultWorkers
+	case l.config.Workers > warnWorkersThreshold:
+		log.Warnf("network_devices.autodiscovery.workers is set to %d, which is far above the recommended maximum of %d. "+
+			"Very large worker pools open that many concurrent SNMP sessions and can make device discovery unresponsive, "+
+			"especially over high-latency links. Consider lowering it.", l.config.Workers, warnWorkersThreshold)
 	}
 
 	if l.config.AllowedFailures == 0 {
@@ -449,10 +557,7 @@ func (l *SNMPListener) checkDevices() {
 			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
 		}
 
-		var subnet *snmpSubnet
-		for i := range subnets {
-			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
-			subnet = &subnets[i]
+		for _, subnet := range subnets {
 			subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
@@ -540,12 +645,12 @@ func (l *SNMPListener) createService(
 	}
 
 	if deviceInfo == (devicededuper.DeviceInfo{}) {
-		l.registerService(pendingDevice)
+		l.registerServiceLocked(pendingDevice)
 		return
 	}
 
 	if addedFromCache {
-		l.registerService(pendingDevice)
+		l.registerServiceLocked(pendingDevice)
 	}
 
 	l.deviceDeduper.AddPendingDevice(pendingDevice)
@@ -555,12 +660,19 @@ func (l *SNMPListener) registerDedupedDevices() {
 	if !l.config.Deduplicate {
 		return
 	}
+
+	l.Lock()
+	defer l.Unlock()
+
 	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
-		l.registerService(pendingSvc)
+		l.registerServiceLocked(pendingSvc)
 	}
 }
 
-func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice) {
+// registerServiceLocked marks a pending service as registered and queues its publication.
+// The listener lock must be held, so that the queued event is ordered against the other
+// transitions of l.services.
+func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.PendingDevice) {
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
 	svc, ok := l.services[entityID]
@@ -569,46 +681,73 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 	}
 	svc.pending = false
 
+	// Lock order is always listener -> subnet. The cache write stays here, under both locks:
+	// snapshotting and writing must be atomic, or a slower goroutine holding an older snapshot
+	// could overwrite the file after a newer one and drop a device from the cache. This path
+	// only runs the first time a device is seen, so it is not the hot one.
+	svc.subnet.devicesMu.Lock()
 	svc.subnet.devices[svc.entityID] = deviceCache{
 		IP:        net.ParseIP(svc.deviceIP),
 		AuthIndex: pendingDevice.AuthIndex,
 		Failures:  pendingDevice.Failures,
 	}
 	if !pendingDevice.AddedFromCache {
-		l.writeCache(svc.subnet)
+		l.writeCacheLocked(svc.subnet)
 	}
-	l.newService <- svc
+	svc.subnet.devicesMu.Unlock()
+
+	l.enqueueService(svc, false)
 }
 
 func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
-	l.Lock()
-	defer l.Unlock()
-
-	svc, exists := l.services[entityID]
-	if !exists {
+	l.RLock()
+	_, known := l.services[entityID]
+	l.RUnlock()
+	if !known {
 		return
 	}
 
+	// Account the failure under the subnet lock only. The cache write is disk I/O and must not
+	// run while the listener lock is held, or every worker serialises behind it.
+	subnet.devicesMu.Lock()
 	device, exists := subnet.devices[entityID]
 	if !exists {
+		subnet.devicesMu.Unlock()
 		return
 	}
 
 	device.Failures++
-	subnet.devices[entityID] = device
-
-	if l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures {
-		l.delService <- svc
-		delete(l.services, entityID)
+	evict := l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures
+	if evict {
 		delete(subnet.devices, entityID)
+	} else {
+		subnet.devices[entityID] = device
+	}
+	l.writeCacheLocked(subnet)
+	subnet.devicesMu.Unlock()
+
+	if !evict {
+		return
 	}
 
-	l.writeCache(subnet)
+	l.Lock()
+	if svc, stillPresent := l.services[entityID]; stillPresent {
+		delete(l.services, entityID)
+		l.enqueueService(svc, true)
+	}
+	l.Unlock()
 }
 
 // Stop queues a shutdown of SNMPListener
 func (l *SNMPListener) Stop() {
 	close(l.stop)
+
+	// Wake the publisher so it observes the stop instead of blocking on an empty queue.
+	l.eventsMu.Lock()
+	if l.eventsCond != nil {
+		l.eventsCond.Broadcast()
+	}
+	l.eventsMu.Unlock()
 }
 
 // Equal returns whether the two SNMPService are equal
