@@ -4482,6 +4482,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceive
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.159.0/go.mod h1:rCoIJlwZorCdoqwUAfBxi/nh0qmZyE6VWNynBvUd31I=
 github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20260707164515-95762bcf44f3 h1:Ju6ndkEf4UFVWDiRX8bcRXs+4E+NX1CY0RUZIFoft9Q=
 github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20260707164515-95762bcf44f3/go.mod h1:WPdgk1BinVdvYdkbt1KIkgDw6qUiK8CnGq+ftaJ41Ns=
+github.com/openconfig/gnmi v0.14.1 h1:qKMuFvhIRR2/xxCOsStPQ25aKpbMDdWr3kI+nP9bhMs=
+github.com/openconfig/gnmi v0.14.1/go.mod h1:whr6zVq9PCU8mV1D0K9v7Ajd3+swoN6Yam9n8OH3eT0=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
