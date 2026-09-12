@@ -1,0 +1,41 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:exclude postgres_provisioner.go
+
+# postgres_provisioner.go is excluded above (it uses test-only symbols), so it is
+# listed in the go_test srcs and its deps kept by hand.
+dd_agent_go_test(
+    name = "data-security_test",
+    srcs = [
+        "postgres_provisioner.go",  # keep
+        "postgres_scan_test.go",
+    ],
+    data = [
+        "fixtures/datadog-agent.yaml",
+        "fixtures/datasecurity.yaml",
+    ],
+    embedsrcs = [
+        "fixtures/datadog-agent.yaml",
+        "fixtures/datasecurity.yaml",
+    ],
+    # keep
+    deps = [
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/integration/postgres",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/fakeintake",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/testcommon/check",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
