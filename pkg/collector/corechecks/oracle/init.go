@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/benbjohnson/clock"
 )
 
 type vInstance struct {
@@ -178,7 +177,6 @@ func (c *Check) init() error {
 
 	c.fqtEmitted = getFqtEmittedCache()
 	c.planEmitted = getPlanEmittedCache(c)
-	c.clock = clock.New()
 	c.initialized = true
 
 	return nil
