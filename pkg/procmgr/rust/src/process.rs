@@ -102,6 +102,8 @@ pub struct ManagedProcess {
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
     agent_credential: Option<platform::SpawnCredential>,
 }
 
@@ -139,6 +141,8 @@ impl ManagedProcess {
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
+            user_profile: None,
+            #[cfg(windows)]
             agent_credential,
         }
     }
@@ -173,8 +177,14 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
+    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
+        self.user_profile = Some(profile);
+    }
+
+    #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
+        self.user_profile = None;
     }
 
     pub(crate) fn profile(&self) -> SpawnProfile {
@@ -536,13 +546,12 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_spawn_watcher_owns_handle() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
-        let _exit_rx = spawn_ok(&mut proc);
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
         assert!(proc.is_running());
         assert!(proc.pid().is_some());
@@ -550,16 +559,18 @@ pub mod tests {
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for watcher after external kill");
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_works_after_spawn() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
 
@@ -612,11 +623,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "sleeper".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
 
         assert!(!proc.is_running());
@@ -624,8 +634,8 @@ pub mod tests {
         assert!(proc.is_running());
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
@@ -640,16 +650,15 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
 
         let mut bad_cfg = proc.config().clone();
@@ -785,14 +794,10 @@ pub mod tests {
     async fn test_spawn_with_environment_file() {
         let dir = tempfile::tempdir().unwrap();
         let env_file = dir.path().join("env");
-        std::fs::write(&env_file, "# comment\nFROM_FILE=hello\nPATH=/usr/bin\n\n").unwrap();
+        std::fs::write(&env_file, "# comment\nEXIT_CODE=42\n\n").unwrap();
 
-        let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
-        let script = "test \"$FROM_FILE\" = 'hello' && echo $PATH";
-        #[cfg(windows)]
-        let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%) else (exit 1)";
-        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        let (cmd, args) = test_helpers::exit_env_cmd("EXIT_CODE");
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
         let mut proc = ManagedProcess::new_config("envfile".into(), test_helpers::test_uuid(), cfg);
@@ -800,7 +805,7 @@ pub mod tests {
         let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
-            Some(0),
+            Some(42),
             "child should see vars from env file"
         );
     }
@@ -1034,26 +1039,24 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_transitions_to_stopped() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::OnFailure;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
@@ -1063,8 +1066,14 @@ runtime_success_sec: 5
         let _ = exit_rx.try_recv();
 
         let mut exit_rx = spawn_ok(&mut proc);
-        test_helpers::cleanup_process(proc.pid().expect("running pid"));
-        let status = exit_rx.recv().await.expect("exit event").status;
+        if let Some(pid) = proc.pid() {
+            test_helpers::cleanup_process(pid);
+        }
+        let status = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for external kill exit")
+            .expect("exit event")
+            .status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -1076,15 +1085,14 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_skips_restart() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::Always;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(

@@ -130,14 +130,14 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
 /// Command that ignores graceful-stop and sleeps forever.
 /// Used to test forced-kill (TerminateProcess) on timeout.
 ///
-/// PowerShell ignores CTRL_BREAK_EVENT by default, so the process
-/// outlives any stop_timeout and forces escalation to TerminateProcess.
+/// Long-running child that ignores graceful stop on Windows.
+///
+/// Uses `ping` (same as other sleep helpers): it ignores CTRL_BREAK_EVENT, so
+/// `wait_for_stop` must escalate to TerminateProcess. Avoids `powershell.exe`,
+/// which is not always on PATH in minimal CI containers.
 #[cfg(windows)]
 pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
-    (
-        "powershell.exe",
-        vec!["-Command".into(), "while($true){Start-Sleep 60}".into()],
-    )
+    sleep_cmd(60)
 }
 
 /// Shell command that exits with the value of the given environment variable.
@@ -240,6 +240,78 @@ pub fn test_uuid() -> String {
 /// Best-effort teardown: force-kill a process group so tests don't leak children.
 pub fn cleanup_process(pid: u32) {
     let _ = crate::platform::send_force_kill(pid);
+}
+
+/// Check if a PID is still alive.
+#[cfg(unix)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid as i32), None).is_ok()
+}
+
+/// Uses `WaitForSingleObject` with a zero timeout instead of `GetExitCodeProcess`
+/// to avoid false positives when a process exits with code 259 (`STILL_ACTIVE`).
+#[cfg(windows)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+    };
+    const WAIT_TIMEOUT: u32 = 258;
+    unsafe {
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let ret = WaitForSingleObject(handle, 0);
+        CloseHandle(handle);
+        ret == WAIT_TIMEOUT
+    }
+}
+
+/// Wait until a PID is no longer alive, or timeout.
+pub fn wait_for_pid_gone(pid: u32, timeout: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    while pid_is_alive(pid) {
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    true
+}
+
+/// Sleep duration for long-running test children.
+///
+/// On Windows, tests use `ping -n` as a sleep substitute. This must stay well
+/// above typical CI scheduling jitter: if ping exits naturally before
+/// `request_stop`, `wait_for_stop` returns early and the process stays `Exited`
+/// instead of `Stopped`. Stop tests still finish in ~`stop_timeout` (1s) via
+/// force-kill, so a larger value here does not slow them down.
+#[cfg(windows)]
+pub const TEST_SLEEP_SECS: u32 = 30;
+
+#[cfg(unix)]
+pub const TEST_SLEEP_SECS: u32 = 60;
+
+/// Alternate sleep duration for reload tests that need a different command line.
+pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
+
+/// `ProcessConfig` for a long-running child used in stop/reload/shutdown tests.
+///
+/// Uses a short `stop_timeout` on all platforms: Windows `ping` ignores graceful
+/// stop, so `wait_for_stop` must escalate to force-kill quickly.
+pub fn sleep_test_config(secs: u32) -> crate::config::ProcessConfig {
+    let (cmd, args) = sleep_cmd(secs);
+    crate::config::ProcessConfig {
+        command: cmd.to_string(),
+        args,
+        stop_timeout: Some(1),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
 }
 
 /// Build a `ProcessConfig` with null stdio, suitable for tests.

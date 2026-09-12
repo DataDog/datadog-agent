@@ -35,6 +35,7 @@ fn account_domain_sid(sid: &[u8]) -> Result<Vec<u8>> {
         );
         if ok == 0 {
             let err = std::io::Error::last_os_error();
+            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
             if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
                 return Err(err).context("GetWindowsAccountDomainSid(size)");
             }

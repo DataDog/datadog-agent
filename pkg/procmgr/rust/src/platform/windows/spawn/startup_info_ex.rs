@@ -10,24 +10,39 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, HANDLE};
 use windows_sys::Win32::System::Threading::{
     DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
-    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW,
-    UpdateProcThreadAttribute,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST, STARTF_USESTDHANDLES,
+    STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute,
 };
 
+/// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.
+///
+/// If you are not familiar with Windows: `STARTUPINFOEX` carries extra create-time attributes
+/// (which stdio HANDLEs to inherit, which job object to join). Attribute pointers must remain
+/// valid until `CreateProcess*` returns, so this type owns those arrays.
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
+    /// Deduped inheritable stdio handles for `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`.
+    stdio_handles: Vec<HANDLE>,
+    job_handles: [HANDLE; 1],
 }
 
 impl StartupInfoEx {
-    /// Builds startup info with a restricted stdio handle inheritance list.
-    ///
-    /// `handles` must stay alive until `CreateProcessW` returns: the handle list attribute
-    /// stores a pointer to that array, not a copy.
-    pub(crate) fn with_stdio_handles(handles: &[HANDLE; 3]) -> Result<Self> {
+    /// Builds startup info with a restricted stdio handle inheritance list only.
+    pub(crate) fn with_stdio_handles(
+        stdin: HANDLE,
+        stdout: HANDLE,
+        stderr: HANDLE,
+    ) -> Result<Self> {
+        const ATTRIBUTE_COUNT: u32 = 1;
         let mut attribute_list_size = 0usize;
         unsafe {
-            InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attribute_list_size);
+            InitializeProcThreadAttributeList(
+                ptr::null_mut(),
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            );
         }
         if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
         {
@@ -40,7 +55,12 @@ impl StartupInfoEx {
         let mut attribute_list_storage = vec![0u8; attribute_list_size];
         let attribute_list = attribute_list_storage.as_mut_ptr() as *mut std::ffi::c_void;
         let ok = unsafe {
-            InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_list_size)
+            InitializeProcThreadAttributeList(
+                attribute_list,
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            )
         };
         if ok == 0 {
             bail!(
@@ -50,37 +70,104 @@ impl StartupInfoEx {
         }
 
         let mut startup = Self {
-            siex: new_siex(handles[0], handles[1], handles[2], attribute_list),
+            siex: new_siex(stdin, stdout, stderr, attribute_list),
             attribute_list_storage,
+            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
+            job_handles: [ptr::null_mut()],
         };
-        startup.attach_stdio_handle_list(handles)?;
+        startup.attach_stdio_handle_list()?;
         Ok(startup)
     }
 
-    fn attach_stdio_handle_list(&mut self, handles: &[HANDLE; 3]) -> Result<()> {
-        let ok = unsafe {
-            UpdateProcThreadAttribute(
-                self.siex.lpAttributeList,
+    /// Builds startup info with stdio inheritance and job membership at create time.
+    pub(crate) fn with_stdio_and_job(
+        stdin: HANDLE,
+        stdout: HANDLE,
+        stderr: HANDLE,
+        job: HANDLE,
+    ) -> Result<Self> {
+        const ATTRIBUTE_COUNT: u32 = 2;
+        let mut attribute_list_size = 0usize;
+        unsafe {
+            InitializeProcThreadAttributeList(
+                ptr::null_mut(),
+                ATTRIBUTE_COUNT,
                 0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                handles.as_ptr().cast(),
-                handles.len() * mem::size_of::<HANDLE>(),
-                ptr::null_mut(),
-                ptr::null_mut(),
+                &mut attribute_list_size,
+            );
+        }
+        // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
+        if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
+        {
+            bail!(
+                "InitializeProcThreadAttributeList sizing failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+
+        let mut attribute_list_storage = vec![0u8; attribute_list_size];
+        let attribute_list = attribute_list_storage.as_mut_ptr() as *mut std::ffi::c_void;
+        let ok = unsafe {
+            InitializeProcThreadAttributeList(
+                attribute_list,
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
             )
         };
         if ok == 0 {
             bail!(
-                "UpdateProcThreadAttribute(HANDLE_LIST) failed: {}",
+                "InitializeProcThreadAttributeList failed: {}",
                 std::io::Error::last_os_error()
             );
         }
-        Ok(())
+
+        let mut startup = Self {
+            siex: new_siex(stdin, stdout, stderr, attribute_list),
+            attribute_list_storage,
+            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
+            job_handles: [job],
+        };
+        // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
+        startup.attach_job_list()?;
+        startup.attach_stdio_handle_list()?;
+        Ok(startup)
+    }
+
+    fn attach_stdio_handle_list(&mut self) -> Result<()> {
+        update_attribute(
+            self.siex.lpAttributeList,
+            PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+            self.stdio_handles.as_ptr().cast(),
+            self.stdio_handles.len() * mem::size_of::<HANDLE>(),
+            "HANDLE_LIST",
+        )
+    }
+
+    fn attach_job_list(&mut self) -> Result<()> {
+        update_attribute(
+            self.siex.lpAttributeList,
+            PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
+            self.job_handles.as_ptr().cast(),
+            self.job_handles.len() * mem::size_of::<HANDLE>(),
+            "JOB_LIST",
+        )
     }
 
     pub(crate) fn startup_info(&mut self) -> &mut STARTUPINFOW {
         &mut self.siex.StartupInfo
     }
+}
+
+/// `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` rejects duplicate handles with `ERROR_INVALID_PARAMETER`.
+fn inheritable_stdio_handle_list(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HANDLE> {
+    let mut handles = Vec::with_capacity(3);
+    for handle in [stdin, stdout, stderr] {
+        if !handles.contains(&handle) {
+            handles.push(handle);
+        }
+    }
+    handles
 }
 
 fn new_siex(
@@ -97,6 +184,33 @@ fn new_siex(
     siex.StartupInfo.hStdError = stderr;
     siex.lpAttributeList = attribute_list;
     siex
+}
+
+fn update_attribute(
+    attribute_list: *mut std::ffi::c_void,
+    attribute: usize,
+    value: *const std::ffi::c_void,
+    size: usize,
+    label: &str,
+) -> Result<()> {
+    let ok = unsafe {
+        UpdateProcThreadAttribute(
+            attribute_list,
+            0,
+            attribute,
+            value,
+            size,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "UpdateProcThreadAttribute({label}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
 impl Drop for StartupInfoEx {

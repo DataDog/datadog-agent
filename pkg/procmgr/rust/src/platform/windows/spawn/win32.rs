@@ -5,9 +5,17 @@
 
 use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
+use std::ptr;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
+use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
+use windows_sys::Win32::System::Threading::ResumeThread;
+use windows_sys::Win32::System::Threading::{
+    CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
+    CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+};
 
 use super::super::child_env::merge_legacy_scm_env;
 use super::super::merge_env_overrides;
@@ -40,6 +48,27 @@ pub(crate) fn env_block_from_baseline_plus_overrides(
     let baseline = super::super::baseline_env_vars_for_spawn(process_name, token);
     let vars = build_child_env_vars(process_name, baseline, overrides);
     Ok(env_vars_to_wide_block(&vars))
+}
+
+pub(crate) fn duplicate_primary_token(context: &str, token: HANDLE) -> Result<HANDLE> {
+    let mut primary_token: HANDLE = ptr::null_mut();
+    let ok = unsafe {
+        DuplicateTokenEx(
+            token,
+            MAXIMUM_ALLOWED,
+            ptr::null(),
+            SecurityDelegation,
+            TokenPrimary,
+            &mut primary_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{context}] DuplicateTokenEx failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(primary_token)
 }
 
 pub(crate) fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {
@@ -89,6 +118,53 @@ fn windows_command_line_arg(s: &str) -> String {
     out.push_str(&"\\".repeat(backslashes * 2));
     out.push('"');
     out
+}
+
+/// `CreateProcess*` flags shared by managed child spawn paths.
+///
+/// `CREATE_NO_WINDOW` spawns hidden console children. `CREATE_NEW_CONSOLE` is omitted:
+/// with both set, Windows ignores `CREATE_NO_WINDOW` and the child gets a visible console.
+pub(crate) fn managed_process_creation_flags() -> u32 {
+    CREATE_NEW_PROCESS_GROUP
+        | CREATE_NO_WINDOW
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT
+}
+
+/// Flags for create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` assignment.
+///
+/// When the supervisor already belongs to a job (GitLab CI sets
+/// `FF_USE_WINDOWS_JOB_OBJECT`), the child must break away before joining our job.
+pub(crate) fn managed_process_creation_flags_for_job_list() -> u32 {
+    managed_process_creation_flags() | CREATE_BREAKAWAY_FROM_JOB
+}
+
+/// Flags for post-create job assignment when the parent is already in a foreign job.
+///
+/// Matches the pre-`JOB_LIST` spawn path: create suspended, assign to our job, then resume.
+pub(crate) fn managed_process_creation_flags_for_post_assign() -> u32 {
+    CREATE_SUSPENDED
+        | CREATE_NEW_PROCESS_GROUP
+        | CREATE_NEW_CONSOLE
+        | CREATE_NO_WINDOW
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT
+}
+
+/// Resumes the primary thread of a child created with `CREATE_SUSPENDED`.
+pub(crate) fn resume_child_primary_thread(
+    process_name: &str,
+    pid: u32,
+    thread: HANDLE,
+) -> Result<()> {
+    let previous_count = unsafe { ResumeThread(thread) };
+    if previous_count == u32::MAX {
+        bail!(
+            "[{process_name}] ResumeThread({pid}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]

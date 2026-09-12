@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Windows: the process manager can spawn agent-profile children as the installed
+    Datadog agent account when it is not already running as that account. Default
+    installs, where the process manager runs as the agent account, are unchanged.
