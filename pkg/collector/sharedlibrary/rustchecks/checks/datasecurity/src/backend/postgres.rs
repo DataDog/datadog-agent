@@ -1,12 +1,15 @@
 //! Postgres scan engine.
 
 use anyhow::{Context, Result, bail};
+use postgres::config::SslMode as PgSslMode;
 use postgres::types::Type;
 use postgres::{Client, Config, NoTls, Row};
 use serde_json::{Map, Value};
 
 use crate::backend::{ScanData, ScanEngine, ScannedColumn};
-use crate::config::SubTask;
+use crate::config::{SslMode, SubTask};
+
+mod tls;
 
 pub struct PostgresEngine;
 pub const ENGINE: PostgresEngine = PostgresEngine;
@@ -53,6 +56,7 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
+        .ssl_mode(pg_ssl_mode(conn.ssl)?)
         .options(&format!(
             "-c statement_timeout={} -c default_transaction_read_only=on",
             timeout.as_millis()
@@ -64,8 +68,22 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         config.host(&conn.host);
     }
 
-    // TODO(dsec-156): add TLS support; connections are unencrypted for now.
-    config.connect(NoTls).context("connecting to postgres")
+    match tls::connector(conn)? {
+        Some(tls) => config.connect(tls),
+        None => config.connect(NoTls),
+    }
+    .context("connecting to postgres")
+}
+
+fn pg_ssl_mode(mode: SslMode) -> Result<PgSslMode> {
+    Ok(match mode {
+        SslMode::Disable => PgSslMode::Disable,
+        // rust-postgres has no `allow` (plaintext first, then TLS).
+        SslMode::Allow | SslMode::Prefer => PgSslMode::Prefer,
+        SslMode::Require => PgSslMode::Require,
+        SslMode::VerifyCa => bail!("ssl mode `verify-ca` is unsupported"),
+        SslMode::VerifyFull => bail!("ssl mode `verify-full` is unsupported"),
+    })
 }
 
 /// Turns query rows into the scanner input plus scan metadata. The values are a

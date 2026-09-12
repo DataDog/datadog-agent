@@ -333,6 +333,12 @@ dd_cc_packaged(
     }),
 )
 
+filegroup(
+    name = "gen_dir",
+    srcs = [":openssl"],
+    output_group = "gen_dir",
+)
+
 # The dynamic library built with configure/make. Even though the name
 # is libssl.so, it is not actually the same folder, so we can have our
 # own libssl.so shadow it.

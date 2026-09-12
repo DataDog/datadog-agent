@@ -1,0 +1,21 @@
+use anyhow::{Context, Result, bail};
+use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+use postgres_openssl::MakeTlsConnector;
+
+use crate::config::{Connection, SslMode};
+
+/// OpenSSL connector, or `None` for `disable` (`NoTls`).
+pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
+    match conn.ssl {
+        SslMode::Disable => return Ok(None),
+        // TODO(DATASEC-318): verify-ca / verify-full (SslVerifyMode::PEER + CA).
+        SslMode::VerifyCa => bail!("ssl mode `verify-ca` is unsupported"),
+        SslMode::VerifyFull => bail!("ssl mode `verify-full` is unsupported"),
+        _ => {}
+    }
+
+    let mut builder =
+        SslConnector::builder(SslMethod::tls()).context("creating the OpenSSL connector")?;
+    builder.set_verify(SslVerifyMode::NONE);
+    Ok(Some(MakeTlsConnector::new(builder.build())))
+}

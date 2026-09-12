@@ -1,0 +1,18 @@
+# Necessary to link rust checks to Agent OpenSSL.
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+inject_repo(crate, "openssl")
+
+# Point OPENSSL_DIR at @openssl's install prefix (its built lib/ and include/, not
+# source) so openssl-sys finds and dynamically links the Agent's OpenSSL instead of
+# the system one. See the "Manual" build docs for more info:
+# https://docs.rs/openssl/latest/openssl/#manual
+crate.annotation(
+    build_script_data = [
+        "@openssl//:gen_dir",
+    ],
+    build_script_env = {
+        "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
+    },
+    crate = "openssl-sys",
+)
