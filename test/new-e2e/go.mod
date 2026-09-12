@@ -301,7 +301,7 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
