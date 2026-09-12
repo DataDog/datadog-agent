@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_debug")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "AGENT_TAGS")
 
@@ -156,7 +157,7 @@ go_library(
 )
 
 dd_agent_go_binary(
-    name = "agent",
+    name = "agent_unstripped",
     # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/agent/windows_resources:rsrc"],
@@ -164,5 +165,12 @@ dd_agent_go_binary(
     }),
     embed = [":agent_lib"],
     gotags = AGENT_TAGS,
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+dd_strip_debug(
+    name = "agent",
+    input = ":agent_unstripped",
     visibility = ["//visibility:public"],
 )
