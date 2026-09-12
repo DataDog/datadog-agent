@@ -728,6 +728,28 @@ properties:
         node_type: section
         type: object
         properties:
+          anomaly_stabilization:
+            node_type: section
+            type: object
+            properties:
+              period:
+                node_type: setting
+                type: string
+                default: 0s
+                description: |
+                  Duration after a security profile starts before anomaly
+                  detection events are emitted. Only used when
+                  use_time_based is true. 0s emits anomalies as soon as the
+                  profile starts.
+              use_time_based:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  When false (default), anomaly detection events are withheld
+                  until the security profile has been persisted at least once.
+                  When true, anomalies are withheld for period after the
+                  profile starts, independent of persistence.
           enabled:
             node_type: setting
             type: boolean
@@ -756,6 +778,16 @@ properties:
             node_type: setting
             type: string
             default: 30s
+          startup_delay:
+            node_type: setting
+            type: string
+            default: 0s
+            description: |
+              Duration after system-probe starts during which v2 workload
+              profiling ignores events, so profiles don't learn noisy activity
+              while system-probe is still stabilizing (resyncing from the OS,
+              loading rules, pushing approvers and discarders to the kernel).
+              0s (default) disables the delay.
       watch_dir:
         node_type: setting
         type: boolean

@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -65,6 +66,46 @@ func createDir(dir string) error {
 func fileHasProfileExtension(path string) bool {
 	format, err := config.ParseStorageFormat(filepath.Ext(path))
 	return err == nil && format == config.Profile
+}
+
+func fileHasStorageExtension(path string) bool {
+	name := strings.TrimSuffix(filepath.Base(path), ".gz")
+	_, err := config.ParseStorageFormat(filepath.Ext(name))
+	return err == nil
+}
+
+// ClearLocalProfilesOnStartEnv, when set to a truthy value, makes the agent delete every locally
+// stored security profile on startup. It is a testing aid and has no matching config setting.
+const ClearLocalProfilesOnStartEnv = "DD_RUNTIME_SECURITY_CONFIG_SECURITY_PROFILE_V2_CLEAR_LOCAL_PROFILES_ON_START"
+
+// ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath when
+// ClearLocalProfilesOnStartEnv is truthy, and is a no-op otherwise. Unlike a persisted marker it
+// clears on every start, which is the behavior wanted for tests.
+func ClearLocalProfilesOnStart(directoryPath string) error {
+	if enabled, _ := strconv.ParseBool(os.Getenv(ClearLocalProfilesOnStartEnv)); !enabled {
+		return nil
+	}
+
+	entries, err := os.ReadDir(directoryPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("couldn't list files in [%s]: %w", directoryPath, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !fileHasStorageExtension(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(directoryPath, entry.Name())
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("couldn't delete local security profile [%s]: %w", path, err)
+		}
+		seclog.Infof("deleted local security profile [%s] (%s set)", path, ClearLocalProfilesOnStartEnv)
+	}
+
+	return nil
 }
 
 // profileNameFromFile returns the profile name encoded in a storage filename. Persist writes

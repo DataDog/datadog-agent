@@ -110,6 +110,8 @@ type ManagerV2 struct {
 
 	hostname string
 
+	startTime time.Time
+
 	profiles     map[cgroupModel.WorkloadSelector]*profile.Profile
 	profilesLock sync.Mutex
 	pathsReducer *activity_tree.PathsReducer
@@ -163,6 +165,10 @@ type ManagerV2 struct {
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+
+	if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory); err != nil {
+		return nil, fmt.Errorf("couldn't clear local security profiles: %w", err)
+	}
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -220,6 +226,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		remoteStorage:               remoteStorage,
 		configuredStorageRequests:   perFormatStorageRequests(configuredStorageRequests),
 		hostname:                    hostname,
+		startTime:                   time.Now(),
 		sendAnomalyDetection:        sendAnomalyDetection,
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
@@ -553,7 +560,16 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 	pm.persistedProfiles.Inc()
 }
 
+func (m *ManagerV2) withinStartupDelay(now time.Time) bool {
+	delay := m.config.RuntimeSecurity.SecurityProfileV2StartupDelay
+	return delay > 0 && now.Sub(m.startTime) < delay
+}
+
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	if m.withinStartupDelay(time.Now()) {
+		return
+	}
+
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
@@ -694,10 +710,27 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	m.queueSize.Inc()
 }
 
+func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time) bool {
+	if !m.config.RuntimeSecurity.SecurityProfileV2UseTimeBasedAnomalyStabilization {
+		return p.HasAlreadyBeenSent()
+	}
+
+	start := p.Metadata.Start
+	if start.IsZero() {
+		start = p.StartedAt()
+	}
+
+	elapsed := now.Sub(start)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return elapsed >= m.config.RuntimeSecurity.SecurityProfileV2AnomalyStabilizationPeriod
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !profile.HasAlreadyBeenSent() {
+	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, time.Now()) {
 		return
 	}
 

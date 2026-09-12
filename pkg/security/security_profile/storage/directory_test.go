@@ -143,3 +143,43 @@ func TestDirectory(t *testing.T) {
 		}
 	})
 }
+
+func TestClearLocalProfilesOnStart(t *testing.T) {
+	write := func(t *testing.T, dir, name, contents string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+		return path
+	}
+
+	t.Run("unset env leaves stored profiles in place", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "keep.profile", "profile")
+		require.NoError(t, ClearLocalProfilesOnStart(dir))
+		_, err := os.Stat(profilePath)
+		require.NoError(t, err)
+	})
+
+	t.Run("truthy env deletes stored profiles but keeps unrelated files", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "old.profile", "profile")
+		gzPath := write(t, dir, "old.profile.gz", "gz")
+		jsonPath := write(t, dir, "old.json", "json")
+		notesPath := write(t, dir, "notes.txt", "keep me")
+
+		t.Setenv(ClearLocalProfilesOnStartEnv, "true")
+		require.NoError(t, ClearLocalProfilesOnStart(dir))
+
+		for _, p := range []string{profilePath, gzPath, jsonPath} {
+			_, err := os.Stat(p)
+			assert.ErrorIs(t, err, os.ErrNotExist)
+		}
+		_, err := os.Stat(notesPath)
+		require.NoError(t, err, "unrelated files must not be deleted")
+	})
+
+	t.Run("missing directory is a no-op", func(t *testing.T) {
+		t.Setenv(ClearLocalProfilesOnStartEnv, "true")
+		require.NoError(t, ClearLocalProfilesOnStart(filepath.Join(t.TempDir(), "profiles")))
+	})
+}
