@@ -98,10 +98,10 @@ func TestMetricValidatorValidate(t *testing.T) {
 		}
 
 		require.NoError(t, validator.validateDefinition())
-		require.NoError(t, validator.Validate(0))
-		require.NoError(t, validator.Validate(100))
-		require.Error(t, validator.Validate(-1))
-		require.Error(t, validator.Validate(101))
+		require.NoError(t, validator.Validate(0, nil))
+		require.NoError(t, validator.Validate(100, nil))
+		require.Error(t, validator.Validate(-1, nil))
+		require.Error(t, validator.Validate(101, nil))
 	})
 
 	t.Run("values", func(t *testing.T) {
@@ -110,10 +110,18 @@ func TestMetricValidatorValidate(t *testing.T) {
 		}
 
 		require.NoError(t, validator.validateDefinition())
-		require.NoError(t, validator.Validate(0))
-		require.NoError(t, validator.Validate(1))
-		require.Error(t, validator.Validate(2))
+		require.NoError(t, validator.Validate(0, nil))
+		require.NoError(t, validator.Validate(1, nil))
+		require.Error(t, validator.Validate(2, nil))
 	})
+}
+
+func TestValidateConfigRequirements(t *testing.T) {
+	require.NoError(t, validateConfigRequirements("metric", []ConfigFeature{
+		ConfigFeatureSystemProbeEBPF,
+		ConfigFeatureSystemProbePRM,
+	}))
+	require.ErrorContains(t, validateConfigRequirements("metric", []ConfigFeature{"unknown"}), `metric "metric" references unknown config feature "unknown"`)
 }
 
 func TestMetricValidatorValidateDefinition(t *testing.T) {
@@ -150,6 +158,26 @@ func TestMetricValidatorValidateDefinition(t *testing.T) {
 				Values: []float64{nonFinite},
 			},
 		},
+		{
+			name:      "external source missing tolerance",
+			validator: &MetricValidator{NvidiaSMI: true},
+		},
+		{
+			name:      "tolerance without external source",
+			validator: &MetricValidator{ValueTolerance: &MetricValueTolerance{Absolute: ptrTo(1.0)}},
+		},
+		{
+			name:      "empty tolerance",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{}},
+		},
+		{
+			name:      "negative absolute tolerance",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{Absolute: ptrTo(-1.0)}},
+		},
+		{
+			name:      "relative tolerance greater than 100",
+			validator: &MetricValidator{NvidiaSMI: true, ValueTolerance: &MetricValueTolerance{Relative: ptrTo(101.0)}},
+		},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +185,32 @@ func TestMetricValidatorValidateDefinition(t *testing.T) {
 			require.Error(t, tt.validator.validateDefinition())
 		})
 	}
+}
+
+func TestMetricValidatorValidateKnownGood(t *testing.T) {
+	knownGood := 100.0
+	validator := &MetricValidator{
+		NvidiaSMI: true,
+		ValueTolerance: &MetricValueTolerance{
+			Absolute: ptrTo(10.0),
+			Relative: ptrTo(5.0),
+		},
+	}
+	require.NoError(t, validator.validateDefinition())
+	require.NoError(t, validator.Validate(104, &knownGood))
+	require.ErrorContains(t, validator.Validate(106, &knownGood), "relative tolerance")
+	require.ErrorContains(t, validator.Validate(100, nil), "known-good value is required")
+
+	t.Run("zero known-good uses zero relative allowance", func(t *testing.T) {
+		zero := 0.0
+		relativeOnly := &MetricValidator{
+			NvidiaSMI:      true,
+			ValueTolerance: &MetricValueTolerance{Relative: ptrTo(5.0)},
+		}
+		require.NoError(t, relativeOnly.validateDefinition())
+		require.NoError(t, relativeOnly.Validate(0, &zero))
+		require.Error(t, relativeOnly.Validate(0.1, &zero))
+	})
 }
 
 func TestMetricValidatorUnmarshalRejectsInvalidRange(t *testing.T) {

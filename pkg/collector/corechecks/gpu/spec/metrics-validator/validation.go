@@ -62,12 +62,12 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		State:  validationStateMissing,
 	}
 
-	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
-	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
-	// as errors if they're workload-only.
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	validationOptions := gpuspec.ValidationOptions{
+		WorkloadActive:  true,
+		ConfigFeatures:  gpuspec.AllConfigFeatures(),
+		WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+	}
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, validationOptions)
 	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
 	tagInventoryFilters := tagInventoryFiltersForConfig(config, metricFilter)
 
@@ -90,17 +90,15 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 	for metricName, metricSpec := range expectedMetricsMap {
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
-		validatesValues := metricSpec.Validator != nil
-		requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
+		validatesValues := metricSpec.Validator.HasStaticValueValidation()
+		expectedTags, err := gpuspec.ExpectedTagsForMetricWithOptions(specs.Tags, metricSpec, validationOptions)
 		if err != nil {
-			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
+			return result, fmt.Errorf("derive expected tags for %s: %w", metricName, err)
 		}
-
-		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
 
 		// Get the metric values
 		group.Go(func() error {
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, queryFilter, fromTS, toTS, validatesValues)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTags, queryFilter, fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
@@ -118,7 +116,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
 
-		tagInventoryPrefixes := tagInventoryPrefixesForMetric(requiredTags)
+		tagInventoryPrefixes := tagInventoryPrefixesForMetric(expectedTags)
 
 		// Also get tag values for the metric. Physical GPU configs use multiple positive
 		// all-tags scopes because the endpoint does not handle NOT filters like scalar queries do.
@@ -173,9 +171,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, validationOptions)
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
 	}
@@ -223,8 +219,8 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilter string) 
 	return []string{combineMetricFilters(strings.Join(baseParts, " AND "), extraFilter)}
 }
 
-func tagInventoryPrefixesForMetric(requiredTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
-	prefixes := maps.Clone(requiredTags)
+func tagInventoryPrefixesForMetric(expectedTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
+	prefixes := maps.Clone(expectedTags)
 	prefixes["gpu_"] = gpuspec.TagSpec{}
 	return prefixes
 }
