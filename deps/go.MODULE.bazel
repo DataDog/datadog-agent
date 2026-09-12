@@ -331,7 +331,7 @@ use_repo(
     "com_github_secure_systems_lab_go_securesystemslib",
     "com_github_shirou_gopsutil_v4",
     "com_github_shirou_w32",
-    "com_github_sijms_go_ora_v2",
+    "com_github_sijms_go_ora_v3",
     "com_github_sirupsen_logrus",
     "com_github_skydive_project_go_debouncer",
     "com_github_smira_go_xz",
