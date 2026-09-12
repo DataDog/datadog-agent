@@ -109,7 +109,8 @@ pkg_install(
 # Note that the the system directory (etc) is included as well. During
 # the migration from omnibus, we maintain the practice of installing system
 # configuration to /opt/datadog/etc/... and then moving the files to /etc
-# later in the packaging process.
+# later in the packaging process. We can eliminate that hack when we move
+# to pkg_{deb,rpm} as the actual packager.
 pkg_mkdirs(
     name = "dirs",
     attributes = pkg_attributes(mode = "755"),

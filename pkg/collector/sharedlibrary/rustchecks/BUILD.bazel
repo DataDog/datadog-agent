@@ -38,5 +38,6 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [":enabled_checks"],
+    tags = ["manual"],
     visibility = ["//visibility:private"],
 )
