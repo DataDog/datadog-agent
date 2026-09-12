@@ -20,8 +20,10 @@ import (
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -101,6 +103,8 @@ type agentCrashComponent struct {
 type Requires struct {
 	Config    compsysconfig.Component
 	Atel      agenttelemetry.Component
+	Etw       etw.Component
+	Log       corelog.Component
 	Lifecycle compdef.Lifecycle
 }
 
@@ -235,6 +239,7 @@ func (wcd *AgentCrashDetect) Run() error {
 // NewComponent creates a new agentcrashdetect component.
 func NewComponent(reqs Requires) Provides {
 	instance := &agentCrashComponent{}
+	ddInjectorListener := newDDInjectorCrashListener(reqs.Config, reqs.Atel, reqs.Etw, reqs.Log)
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(CheckName, option.New(func() check.Check {
@@ -246,8 +251,9 @@ func NewComponent(reqs Requires) Provides {
 				}
 				return checkInstance
 			}))
-			return nil
+			return ddInjectorListener.start()
 		},
+		OnStop: ddInjectorListener.stop,
 	})
 	return Provides{Comp: instance}
 }

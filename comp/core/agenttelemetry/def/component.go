@@ -22,6 +22,10 @@ type Component interface {
 	//    payload     - de-serializable into JSON
 	SendEvent(eventType string, eventPayload []byte) error
 
+	// SendLogs sends log records to the internal agent telemetry intake as an
+	// agent-logs payload.
+	SendLogs(payload LogsPayload) error
+
 	// SubmitErrorLog accepts a single error log record from the
 	// pkg/util/log slog handler and enqueues it for asynchronous flush
 	// to the internal agent telemetry intake. Implementations
