@@ -76,10 +76,14 @@ go_library(
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
+            "//pkg/config/setup",
             "//pkg/metrics/servicecheck",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
             "//pkg/util/log",
             "//pkg/util/option",
             "//pkg/util/pdhutil",
+            "//pkg/vdi/model",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "//conditions:default": [],
@@ -93,5 +97,13 @@ dd_agent_go_test(
         "check_windows_test.go",
     ],
     embed = [":vdi"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/metrics/servicecheck",
+            "//pkg/vdi/model",
+        ],
+        "//conditions:default": [],
+    }),
 )

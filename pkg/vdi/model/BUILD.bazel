@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = ["model.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/vdi/model",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "model_test",
+    srcs = ["model_test.go"],
+    embed = [":model"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
