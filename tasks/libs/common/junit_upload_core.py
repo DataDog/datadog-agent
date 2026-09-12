@@ -17,6 +17,7 @@ from invoke.exceptions import Exit
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import gitlab_section
+from tasks.libs.pipeline.data import FAKEINTAKE_TIMEOUT_PANIC, FAKEINTAKE_UNREACHABLE_RE
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -284,11 +285,15 @@ def group_per_tags(team_dir: Path, additional_tags: list):
 
 def is_e2e_internal_failure(xml_path: Path):
     """
-    Check if the given JUnit XML file contains E2E INTERAL ERROR string.
+    Check whether the given JUnit XML file shows E2E test infrastructure flakiness rather
+    than a real product bug: an E2E INTERNAL ERROR from provisioning, or a network-level
+    failure reaching fakeintake.
     """
     with xml_path.open(encoding="utf8") as f:
         filecontent = f.read()
-    return E2E_INTERNAL_ERROR_STRING in filecontent
+    if E2E_INTERNAL_ERROR_STRING in filecontent or FAKEINTAKE_TIMEOUT_PANIC in filecontent:
+        return True
+    return bool(FAKEINTAKE_UNREACHABLE_RE.search(filecontent))
 
 
 def is_kitchen_version(tags):
