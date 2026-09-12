@@ -56,6 +56,7 @@ dd_agent_go_test(
     srcs = ["gpu_test.go"],
     data = glob(["testdata/**"]),
     embed = [":gpu"],
+    tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",

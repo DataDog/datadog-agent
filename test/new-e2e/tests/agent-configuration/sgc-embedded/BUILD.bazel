@@ -19,6 +19,7 @@ dd_agent_go_test(
         "fixtures/secrets.yaml",
         "fixtures/secrets_merged.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",

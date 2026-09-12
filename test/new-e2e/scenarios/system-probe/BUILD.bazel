@@ -58,5 +58,9 @@ go_library(
 go_binary(
     name = "system-probe",
     embed = [":system-probe_lib"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
