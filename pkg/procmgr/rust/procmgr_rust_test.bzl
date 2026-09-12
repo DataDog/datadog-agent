@@ -37,7 +37,8 @@ def dd_procmgrd_isolated_integration_tests(name_prefix, tests, env):
 
     Args:
         name_prefix: Target name prefix, e.g. "dd-procmgrd".
-        tests: List of (suffix, filter) tuples. filter is an exact rust test name.
+        tests: List of (suffix, filter) tuples. filter is the Rust test function
+            name (unique substring matched against module::path::name).
         env: Environment dict for every isolated target.
 
     Returns:
@@ -46,9 +47,11 @@ def dd_procmgrd_isolated_integration_tests(name_prefix, tests, env):
     declared = []
     for suffix, filter_arg in tests:
         target = "{}_{}_test".format(name_prefix, suffix)
+        # Substring filter: libtest --exact requires the full module::path::name,
+        # but we only keep the function name in BUILD.bazel.
         dd_procmgrd_lib_test(
             name = target,
-            args = ["--exact", filter_arg],
+            args = [filter_arg],
             env = env,
         )
         declared.append(target)
@@ -62,9 +65,9 @@ def dd_procmgrd_skip_args_for_isolated(tests):
             dd_procmgrd_isolated_integration_tests.
 
     Returns:
-        List of rust_test args with --exact and one --skip per filter name.
+        List of rust_test args with one --skip per filter name (substring match).
     """
-    args = ["--exact"]
+    args = []
     for _, filter_arg in tests:
         args.extend(["--skip", filter_arg])
     return args
