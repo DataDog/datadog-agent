@@ -35,7 +35,6 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-nginx", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
-	{Name: "datadog-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
 	{Name: "datadog-apm-library-iis", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-iis-rum", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
@@ -180,10 +179,4 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 
 func agentVersion(_ Package, e *env.Env) string {
 	return e.GetAgentVersion()
-}
-
-// ddotEnabled returns true if DDOT should be installed
-// DDOT is installed when otel-collector is enabled or when explicitly requested
-func ddotEnabled(_ Package, e *env.Env) bool {
-	return e.OTelCollectorEnabled
 }
