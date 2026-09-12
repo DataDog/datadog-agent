@@ -159,6 +159,7 @@ dd_agent_go_test(
             "@com_github_spf13_afero//:afero",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
@@ -174,6 +175,7 @@ dd_agent_go_test(
             "@com_github_spf13_afero//:afero",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [

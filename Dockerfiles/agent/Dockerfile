@@ -101,11 +101,8 @@ ENV DOCKER_DD_AGENT=true \
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt update \
   && apt full-upgrade -y \
-  # Install iproute2 package for the ss utility that is used by the network check.
-  # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
-  # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y libseccomp2 tzdata adduser
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS

@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -1184,56 +1185,44 @@ type MockCommandRunner struct {
 	mock.Mock
 }
 
-func (m *MockCommandRunner) FakeRunCommand(cmd []string, _ []string) (string, error) {
-	if slices.Contains(cmd, "netstat") {
-		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
-tcp         0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
-tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     TIME_WAIT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     TIME_WAIT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
-tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
-udp         0      0 46.105.75.4:143         90.56.111.177:56867
-udp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-udp6        0      0 46.105.75.4:143         90.56.111.177:56867
-`, nil
-	} else if slices.ContainsFunc(cmd, func(s string) bool {
-		return strings.Contains(s, "ss")
-	}) {
-		return `State     Recv-Q    Send-Q    Local Address           Foreign Address
-ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
-TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342
-`, nil
-	}
+func (m *MockCommandRunner) FakeRunCommand(_ []string, _ []string) (string, error) {
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 drop=1 early_drop=0 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 drop=1 early_drop=0 search_restart=36983181`, nil
+}
+
+const (
+	procNetTestHeader = `  sl  local_address rem_address   st tx_queue:rx_queue tr tm->when retrnsmt uid timeout inode
+`
+	procNetAllTCPStates = `   0: 0100007F:1F90 00000000:0000 01 00000000:00000000
+   1: 0100007F:1F91 00000000:0000 02 00000000:00000000
+   2: 0100007F:1F92 00000000:0000 03 00000000:00000000
+   3: 0100007F:1F93 00000000:0000 04 00000000:00000000
+   4: 0100007F:1F94 00000000:0000 05 00000000:00000000
+   5: 0100007F:1F95 00000000:0000 06 00000000:00000000
+   6: 0100007F:1F96 00000000:0000 07 00000000:00000000
+   7: 0100007F:1F97 00000000:0000 08 00000000:00000000
+   8: 0100007F:1F98 00000000:0000 09 00000000:00000000
+   9: 0100007F:1F99 00000000:0000 0A 00000000:00000000
+  10: 0100007F:1F9A 00000000:0000 0B 00000000:00000000
+`
+	procNetQueueTCPStates = `   0: 0100007F:1F90 00000000:0000 01 0000000A:00000014
+   1: 0100007F:1F91 00000000:0000 06 0000001E:00000028
+`
+	procNetUDPEntry = `   0: 00000000:0035 00000000:0000 07 00000000:00000000
+`
+)
+
+func writeProcNetTestFiles(t *testing.T, procfsPath, tcp4, tcp6, udp4, udp6 string) {
+	t.Helper()
+	require.NoError(t, filesystem.MkdirAll(filepath.Join(procfsPath, "net"), 0755))
+	for filename, entries := range map[string]string{
+		"tcp":  tcp4,
+		"tcp6": tcp6,
+		"udp":  udp4,
+		"udp6": udp6,
+	} {
+		require.NoError(t, afero.WriteFile(filesystem, filepath.Join(procfsPath, "net", filename), []byte(procNetTestHeader+entries), 0644))
+	}
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
@@ -1308,6 +1297,7 @@ func TestGlobalProcfsPathUsedWhenInContainer(t *testing.T) {
 
 func TestNetworkCheck(t *testing.T) {
 	net := &fakeNetworkStats{
+		getProcPath: "/mocked/procfs",
 		counterStats: []net.IOCountersStat{
 			{
 				Name:        "eth0",
@@ -1394,12 +1384,6 @@ func TestNetworkCheck(t *testing.T) {
 		return mockEthtool, nil
 	}
 
-	ssAvailableFunction = func() bool { return false }
-
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
 	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
@@ -1418,6 +1402,7 @@ collect_ethtool_metrics: true
 	mockSender.On("Commit").Return()
 
 	filesystem = afero.NewMemMapFs()
+	writeProcNetTestFiles(t, "/mocked/procfs", procNetAllTCPStates, strings.Repeat(procNetAllTCPStates, 2), procNetUDPEntry, strings.Repeat(procNetUDPEntry, 2))
 	fs := filesystem
 	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
 		`10000`),
@@ -2321,8 +2306,9 @@ whitelist_conntrack_metrics: ["max", "include"]
 	mockSender.AssertMetric(t, "Gauge", "system.net.conntrack.include", float64(14), "", []string{})
 }
 
-func TestFetchQueueStatsSS(t *testing.T) {
+func TestFetchQueueStatsProcfs(t *testing.T) {
 	net := &fakeNetworkStats{
+		getProcPath: "/mocked/procfs",
 		counterStats: []net.IOCountersStat{
 			{
 				Name:        "eth0",
@@ -2338,19 +2324,12 @@ func TestFetchQueueStatsSS(t *testing.T) {
 		},
 	}
 
-	ssAvailableFunction = func() bool { return true }
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
 	networkCheck := createTestNetworkCheck(net)
-
 	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
 	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
+	require.NoError(t, networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider"))
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2358,326 +2337,145 @@ collect_connection_queues: true`)
 	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err := networkCheck.Run()
-	assert.Nil(t, err)
+	filesystem = afero.NewMemMapFs()
+	writeProcNetTestFiles(t, "/mocked/procfs", procNetQueueTCPStates, procNetQueueTCPStates, "", "")
+	require.NoError(t, networkCheck.Run())
 
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(10), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(20), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(30), "", []string{"state:time_wait"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(40), "", []string{"state:time_wait"})
 }
 
-func TestFetchQueueStatsNetstat(t *testing.T) {
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "eth0",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
+func TestSubmitConnectionStateMetricsUsesProcfs(t *testing.T) {
+	originalFilesystem := filesystem
+	t.Cleanup(func() { filesystem = originalFilesystem })
 
-	ssAvailableFunction = func() bool { return false }
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
+	filesystem = afero.NewMemMapFs()
+	filePath := "/mocked/procfs/net/tcp"
+	require.NoError(t, filesystem.MkdirAll(filepath.Dir(filePath), 0755))
+	require.NoError(t, afero.WriteFile(filesystem, filePath, []byte(`  sl  local_address rem_address   st tx_queue:rx_queue
+   0: 0100007F:1F90 00000000:0000 01 0000000A:00000014
+`), 0644))
 
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck := createTestNetworkCheck(net)
-	fakeInstanceConfig := []byte(`conntrack_path: ""
-collect_connection_state: true
-collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
-
+	mockSender := mocksender.NewMockSender(t, "network-procfs-test")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
 
-	err := networkCheck.Run()
-	assert.Nil(t, err)
+	submitConnectionStateMetrics(mockSender, "tcp4", true, true, "/mocked/procfs")
 
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.established", float64(1), "", []string(nil))
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(10), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(20), "", []string{"state:established"})
 }
 
-func TestParseSocketStatMetrics(t *testing.T) {
-	testcases := []struct {
-		name     string
-		protocol string
-		input    string
-		want     map[string]*connectionStateEntry
-	}{
-		{
-			name:     "initializes tcp4 states",
-			protocol: "tcp4",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
-`,
-			want: map[string]*connectionStateEntry{
-				"established": emptyConnectionStateEntry(),
-				"opening":     emptyConnectionStateEntry(),
-				"closing":     emptyConnectionStateEntry(),
-				"time_wait":   emptyConnectionStateEntry(),
-				"listening":   emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes tcp6 states",
-			protocol: "tcp6",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
-`,
-			want: map[string]*connectionStateEntry{
-				"established": emptyConnectionStateEntry(),
-				"opening":     emptyConnectionStateEntry(),
-				"closing":     emptyConnectionStateEntry(),
-				"time_wait":   emptyConnectionStateEntry(),
-				"listening":   emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes udp4 states",
-			protocol: "udp4",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes udp6 states",
-			protocol: "udp6",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "collects tcp4 states correctly",
-			protocol: "tcp4",
-			input: `
-State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
-LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
-LISTEN         1024        0                   0.0.0.0:27500          0.0.0.0:*
-LISTEN         0           4096              127.0.0.54:53             0.0.0.0:*
-ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
-TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
-`,
-			want: map[string]*connectionStateEntry{
-				"established": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-				"opening": emptyConnectionStateEntry(),
-				"closing": emptyConnectionStateEntry(),
-				"time_wait": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-				"listening": {
-					count: 3,
-					recvQ: []uint64{0, 1024, 0},
-					sendQ: []uint64{4096, 0, 4096},
-				},
-			},
-		},
-		{
-			name:     "collects tcp6 states correctly",
-			protocol: "tcp6",
-			input: `
-State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
-LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
-LISTEN         1024           0                   0.0.0.0:27500          0.0.0.0:*
-ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
-TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
-`,
-			want: map[string]*connectionStateEntry{
-				"established": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-				"opening": emptyConnectionStateEntry(),
-				"closing": emptyConnectionStateEntry(),
-				"time_wait": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-				"listening": {
-					count: 2,
-					recvQ: []uint64{0, 1024},
-					sendQ: []uint64{4096, 0},
-				},
-			},
-		},
-		{
-			name:     "collects udp4 states correctly",
-			protocol: "udp4",
-			input: `
-State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
-UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
-UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
-UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
-UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": {
-					count: 4,
-					recvQ: []uint64{0, 0, 0, 0},
-					sendQ: []uint64{0, 0, 0, 0},
-				},
-			},
-		},
-		{
-			name:     "collects udp6 states correctly",
-			protocol: "udp6",
-			input: `
-State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
-UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
-UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
-UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
-UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": {
-					count: 4,
-					recvQ: []uint64{0, 0, 0, 0},
-					sendQ: []uint64{0, 0, 0, 0},
-				},
-			},
-		},
-	}
+func TestGetProcNetStateMetrics(t *testing.T) {
+	originalFilesystem := filesystem
+	filesystem = afero.NewMemMapFs()
+	t.Cleanup(func() { filesystem = originalFilesystem })
 
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseSocketStatsMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMapping["ss"])
-			assert.NoError(t, err)
-			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
-				t.Errorf("socket statistics result parsing diff (-want +got):\n%s", diff)
-			}
+	const input = `  sl  local_address rem_address   st tx_queue:rx_queue
+   0: 0100007F:1F90 00000000:0000 01 00000001:00000002
+`
+	for _, tc := range []struct {
+		protocol string
+		filename string
+		suffix   string
+	}{
+		{protocol: "tcp4", filename: "tcp", suffix: "established"},
+		{protocol: "tcp6", filename: "tcp6", suffix: "established"},
+		{protocol: "udp4", filename: "udp", suffix: "connections"},
+		{protocol: "udp6", filename: "udp6", suffix: "connections"},
+	} {
+		t.Run(tc.protocol, func(t *testing.T) {
+			filePath := filepath.Join("/mocked/procfs", "net", tc.filename)
+			require.NoError(t, filesystem.MkdirAll(filepath.Dir(filePath), 0755))
+			require.NoError(t, afero.WriteFile(filesystem, filePath, []byte(input), 0644))
+
+			got, err := getProcNetStateMetrics(tc.protocol, "/mocked/procfs", tcpStateMetricsSuffixMapping)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), got[tc.suffix].count)
 		})
 	}
+
+	_, err := getProcNetStateMetrics("tcp4", "/missing/procfs", tcpStateMetricsSuffixMapping)
+	require.Error(t, err)
 }
 
-func TestParseSocketStatMetricsUncombined(t *testing.T) {
+func TestParseProcNetMetrics(t *testing.T) {
+	const tcpInput = `  sl  local_address rem_address   st tx_queue:rx_queue tr tm->when retrnsmt uid timeout inode
+   0: 0100007F:1F90 00000000:0000 01 00000001:0000000B 00:00000000 00000000 0 0 1
+   1: 0100007F:1F91 00000000:0000 02 00000002:0000000C 00:00000000 00000000 0 0 2
+   2: 0100007F:1F92 00000000:0000 03 00000003:0000000D 00:00000000 00000000 0 0 3
+   3: 0100007F:1F93 00000000:0000 04 00000004:0000000E 00:00000000 00000000 0 0 4
+   4: 0100007F:1F94 00000000:0000 05 00000005:0000000F 00:00000000 00000000 0 0 5
+   5: 0100007F:1F95 00000000:0000 06 00000006:00000010 00:00000000 00000000 0 0 6
+   6: 0100007F:1F96 00000000:0000 07 00000007:00000011 00:00000000 00000000 0 0 7
+   7: 0100007F:1F97 00000000:0000 08 00000008:00000012 00:00000000 00000000 0 0 8
+   8: 0100007F:1F98 00000000:0000 09 00000009:00000013 00:00000000 00000000 0 0 9
+   9: 0100007F:1F99 00000000:0000 0A 0000000A:0000001A 00:00000000 00000000 0 0 10
+  10: 0100007F:1F9A 00000000:0000 0B 0000000B:0000001B 00:00000000 00000000 0 0 11
+`
+
 	testcases := []struct {
-		name     string
-		protocol string
-		input    string
-		want     map[string]*connectionStateEntry
+		name          string
+		protocol      string
+		input         string
+		suffixMapping map[string]string
+		want          map[string]*connectionStateEntry
 	}{
 		{
-			name:     "initializes tcp4 states",
-			protocol: "tcp4",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
-`,
+			name:          "combines TCP states and decodes hexadecimal queues",
+			protocol:      "tcp4",
+			input:         tcpInput,
+			suffixMapping: tcpStateMetricsSuffixMapping,
 			want: map[string]*connectionStateEntry{
-				"estab":      emptyConnectionStateEntry(),
-				"syn_sent":   emptyConnectionStateEntry(),
-				"syn_recv":   emptyConnectionStateEntry(),
-				"fin_wait_1": emptyConnectionStateEntry(),
-				"fin_wait_2": emptyConnectionStateEntry(),
-				"time_wait":  emptyConnectionStateEntry(),
-				"close_wait": emptyConnectionStateEntry(),
-				"listen":     emptyConnectionStateEntry(),
-				"closing":    emptyConnectionStateEntry(),
-				"unconn":     emptyConnectionStateEntry(),
+				"established": {count: 1, recvQ: []uint64{11}, sendQ: []uint64{1}},
+				"opening":     {count: 2, recvQ: []uint64{12, 13}, sendQ: []uint64{2, 3}},
+				"closing":     {count: 6, recvQ: []uint64{14, 15, 17, 18, 19, 27}, sendQ: []uint64{4, 5, 7, 8, 9, 11}},
+				"time_wait":   {count: 1, recvQ: []uint64{16}, sendQ: []uint64{6}},
+				"listening":   {count: 1, recvQ: []uint64{26}, sendQ: []uint64{10}},
 			},
 		},
 		{
-			name:     "collects tcp4 states individually",
-			protocol: "tcp4",
-			input: `
-State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
-LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
-LISTEN         0           4096               0.0.0.0:27500          0.0.0.0:*
-ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
-SYN-SENT       0           1               192.168.64.6:46118   169.254.169.254:80
-FIN-WAIT-1     0           0               192.168.64.6:45000    34.107.243.93:443
-CLOSE-WAIT     0           0               192.168.64.6:45001    34.107.243.93:443
-TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
-`,
+			name:          "keeps TCP states separate",
+			protocol:      "tcp6",
+			input:         tcpInput,
+			suffixMapping: tcpStateMetricsSuffixMappingUncombined,
 			want: map[string]*connectionStateEntry{
-				"estab": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-				"syn_sent": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{1},
-				},
-				"syn_recv":   emptyConnectionStateEntry(),
-				"fin_wait_1": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"fin_wait_2": emptyConnectionStateEntry(),
-				"time_wait":  {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"close_wait": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"listen": {
-					count: 2,
-					recvQ: []uint64{0, 0},
-					sendQ: []uint64{4096, 4096},
-				},
-				"closing": emptyConnectionStateEntry(),
-				"unconn":  emptyConnectionStateEntry(),
+				"estab":      {count: 1, recvQ: []uint64{11}, sendQ: []uint64{1}},
+				"syn_sent":   {count: 1, recvQ: []uint64{12}, sendQ: []uint64{2}},
+				"syn_recv":   {count: 1, recvQ: []uint64{13}, sendQ: []uint64{3}},
+				"fin_wait_1": {count: 1, recvQ: []uint64{14}, sendQ: []uint64{4}},
+				"fin_wait_2": {count: 1, recvQ: []uint64{15}, sendQ: []uint64{5}},
+				"time_wait":  {count: 2, recvQ: []uint64{16, 19}, sendQ: []uint64{6, 9}},
+				"unconn":     {count: 1, recvQ: []uint64{17}, sendQ: []uint64{7}},
+				"close_wait": {count: 1, recvQ: []uint64{18}, sendQ: []uint64{8}},
+				"listen":     {count: 1, recvQ: []uint64{26}, sendQ: []uint64{10}},
+				"closing":    {count: 1, recvQ: []uint64{27}, sendQ: []uint64{11}},
 			},
 		},
 		{
-			name:     "initializes udp4 states",
+			name:     "counts all UDP entries",
 			protocol: "udp4",
-			input: `
-State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+			input: `  sl  local_address rem_address   st tx_queue:rx_queue tr tm->when retrnsmt uid timeout inode
+   0: 00000000:0035 00000000:0000 07 00000001:00000002 00:00000000 00000000 0 0 1
+   1: 0100007F:1F90 00000000:0000 01 00000003:00000004 00:00000000 00000000 0 0 2
 `,
+			suffixMapping: tcpStateMetricsSuffixMapping,
 			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
+				"connections": {count: 2, recvQ: []uint64{2, 4}, sendQ: []uint64{1, 3}},
 			},
 		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseSocketStatsMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMappingUncombined["ss"])
-			assert.NoError(t, err)
-			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
-				t.Errorf("socket statistics uncombined result parsing diff (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestParseNetstatMetrics(t *testing.T) {
-	testcases := []struct {
-		name     string
-		protocol string
-		input    string
-		want     map[string]*connectionStateEntry
-	}{
 		{
-			name:     "initializes tcp4 states",
+			name:     "skips malformed and unknown entries",
 			protocol: "tcp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
+			input: `  sl  local_address rem_address   st tx_queue:rx_queue
+malformed
+   0: 0100007F:1F90 00000000:0000 0C 00000001:00000002
+   1: 0100007F:1F91 00000000:0000 01 malformed
 `,
+			suffixMapping: tcpStateMetricsSuffixMapping,
 			want: map[string]*connectionStateEntry{
 				"established": emptyConnectionStateEntry(),
 				"opening":     emptyConnectionStateEntry(),
@@ -2686,229 +2484,14 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State
 				"listening":   emptyConnectionStateEntry(),
 			},
 		},
-		{
-			name:     "initializes tcp6 states",
-			protocol: "tcp6",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-`,
-			want: map[string]*connectionStateEntry{
-				"established": emptyConnectionStateEntry(),
-				"opening":     emptyConnectionStateEntry(),
-				"closing":     emptyConnectionStateEntry(),
-				"time_wait":   emptyConnectionStateEntry(),
-				"listening":   emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes udp4 states",
-			protocol: "udp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes udp6 states",
-			protocol: "udp6",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "collects tcp4 states correctly",
-			protocol: "tcp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        1024      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
-tcp        0      1024 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp6       0      1024 :::5355                 :::*                    LISTEN
-tcp6       1024      0 ::1:631                 :::*                    LISTEN
-udp        0      0 127.0.0.53:53           0.0.0.0:*
-udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
-udp6       0      0 :::5353                 :::*
-`,
-			want: map[string]*connectionStateEntry{
-				"established": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{1024},
-				},
-				"opening": emptyConnectionStateEntry(),
-				"closing": emptyConnectionStateEntry(),
-				"time_wait": {
-					count: 1,
-					recvQ: []uint64{1024},
-					sendQ: []uint64{0},
-				},
-				"listening": emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "collects tcp6 states correctly",
-			protocol: "tcp6",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        1024      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
-tcp        0      1024 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp6       0      1024 :::5355                 :::*                    LISTEN
-tcp6       1024      0 ::1:631                 :::*                    LISTEN
-udp        0      0 127.0.0.53:53           0.0.0.0:*
-udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
-udp6       0      0 :::5353                 :::*
-`,
-			want: map[string]*connectionStateEntry{
-				"established": emptyConnectionStateEntry(),
-				"opening":     emptyConnectionStateEntry(),
-				"closing":     emptyConnectionStateEntry(),
-				"time_wait":   emptyConnectionStateEntry(),
-				"listening": {
-					count: 2,
-					recvQ: []uint64{0, 1024},
-					sendQ: []uint64{1024, 0},
-				},
-			},
-		},
-		{
-			name:     "collects udp4 states correctly",
-			protocol: "udp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
-tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp6       0      0 :::5355                 :::*                    LISTEN
-tcp6       0      0 ::1:631                 :::*                    LISTEN
-udp        0      0 127.0.0.53:53           0.0.0.0:*
-udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
-udp6       0      0 :::5353                 :::*
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": {
-					count: 2,
-					recvQ: []uint64{0, 0},
-					sendQ: []uint64{0, 0},
-				},
-			},
-		},
-		{
-			name:     "collects udp6 states correctly",
-			protocol: "udp6",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
-tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp6       0      0 :::5355                 :::*                    LISTEN
-tcp6       0      0 ::1:631                 :::*                    LISTEN
-udp        0      0 127.0.0.53:53           0.0.0.0:*
-udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
-udp6       0      0 :::5353                 :::*
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": {
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{0},
-				},
-			},
-		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseNetstatMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMapping["netstat"])
-			assert.NoError(t, err)
+			got, err := parseProcNetMetrics(tc.protocol, strings.NewReader(tc.input), tc.suffixMapping)
+			require.NoError(t, err)
 			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
-				t.Errorf("netstat result parsing diff (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestParseNetstatMetricsUncombined(t *testing.T) {
-	testcases := []struct {
-		name     string
-		protocol string
-		input    string
-		want     map[string]*connectionStateEntry
-	}{
-		{
-			name:     "initializes tcp4 states",
-			protocol: "tcp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-`,
-			want: map[string]*connectionStateEntry{
-				"estab":      emptyConnectionStateEntry(),
-				"syn_sent":   emptyConnectionStateEntry(),
-				"syn_recv":   emptyConnectionStateEntry(),
-				"fin_wait_1": emptyConnectionStateEntry(),
-				"fin_wait_2": emptyConnectionStateEntry(),
-				"time_wait":  emptyConnectionStateEntry(),
-				"close":      emptyConnectionStateEntry(),
-				"close_wait": emptyConnectionStateEntry(),
-				"listen":     emptyConnectionStateEntry(),
-				"closing":    emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "collects tcp4 states individually",
-			protocol: "tcp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
-tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp        0      0 192.168.64.6:33853      34.107.243.93:443       CLOSE_WAIT
-tcp        0      0 192.168.64.6:33854      34.107.243.93:443       SYN_SENT
-tcp        0      0 192.168.64.6:33855      34.107.243.93:443       FIN_WAIT1
-tcp        0      0 192.168.64.6:33856      34.107.243.93:443       LAST_ACK
-tcp6       0      0 :::5355                 :::*                    LISTEN
-`,
-			want: map[string]*connectionStateEntry{
-				"estab":      {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"syn_sent":   {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"syn_recv":   emptyConnectionStateEntry(),
-				"fin_wait_1": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"fin_wait_2": emptyConnectionStateEntry(),
-				"time_wait":  {count: 2, recvQ: []uint64{0, 0}, sendQ: []uint64{0, 0}}, // TIME_WAIT + LAST_ACK both fold into time_wait
-				"close":      emptyConnectionStateEntry(),
-				"close_wait": {count: 1, recvQ: []uint64{0}, sendQ: []uint64{0}},
-				"listen":     emptyConnectionStateEntry(), // tcp6 entry filtered out for tcp4 protocol
-				"closing":    emptyConnectionStateEntry(),
-			},
-		},
-		{
-			name:     "initializes udp4 states",
-			protocol: "udp4",
-			input: `
-Active Internet connections (servers and established)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-`,
-			want: map[string]*connectionStateEntry{
-				"connections": emptyConnectionStateEntry(),
-			},
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseNetstatMetrics(tc.protocol, tc.input, tcpStateMetricsSuffixMappingUncombined["netstat"])
-			assert.NoError(t, err)
-			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
-				t.Errorf("netstat uncombined result parsing diff (-want +got):\n%s", diff)
+				t.Errorf("proc network statistics result parsing diff (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -2916,14 +2499,10 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State
 
 func TestNetworkCheckUncombinedConnectionStates(t *testing.T) {
 	net := &fakeNetworkStats{
+		getProcPath:                  "/mocked/procfs",
 		counterStats:                 []net.IOCountersStat{},
 		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{},
 	}
-
-	ssAvailableFunction = func() bool { return false }
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-	// MockCommandRunner.FakeRunCommand returns full netstat data when "netstat" is in cmd
 
 	networkCheck := createTestNetworkCheck(net)
 	networkCheck.config.instance.CombineConnectionStates = false
@@ -2943,14 +2522,13 @@ combine_connection_states: false
 	mockSender.On("Commit").Return()
 
 	filesystem = afero.NewMemMapFs()
+	writeProcNetTestFiles(t, "/mocked/procfs", procNetAllTCPStates, strings.Repeat(procNetAllTCPStates, 2), procNetUDPEntry, strings.Repeat(procNetUDPEntry, 2))
 
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
 	var customTags []string
 
-	// MockCommandRunner returns 1 ESTABLISHED, 1 SYN_SENT, 1 SYN_RECV, 1 FIN_WAIT1, 1 FIN_WAIT2,
-	// 1 TIME_WAIT, 1 CLOSE, 1 CLOSE_WAIT, 1 LAST_ACK, 1 LISTEN, 1 CLOSING for tcp4.
 	// Expect granular metrics, NOT combined ones.
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(1), "", customTags)
@@ -2958,7 +2536,7 @@ combine_connection_states: false
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_1", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_2", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(2), "", customTags) // TIME_WAIT(1) + LAST_ACK(1)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.unconn", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(1), "", customTags)
@@ -2970,7 +2548,7 @@ combine_connection_states: false
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_1", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_2", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(4), "", customTags) // TIME_WAIT(2) + LAST_ACK(2)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.unconn", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close_wait", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listen", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(2), "", customTags)
@@ -2984,55 +2562,6 @@ combine_connection_states: false
 	// UDP should still emit "connections"
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", customTags)
-
-	mockSender.AssertCalled(t, "Commit")
-}
-
-func TestNetworkCheckUncombinedConnectionStatesSS(t *testing.T) {
-	net := &fakeNetworkStats{
-		counterStats:                 []net.IOCountersStat{},
-		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{},
-	}
-
-	ssAvailableFunction = func() bool { return true }
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-	// MockCommandRunner returns ss data with ESTAB and TIME-WAIT for ss commands
-
-	networkCheck := createTestNetworkCheck(net)
-
-	rawInstanceConfig := []byte(`
-collect_connection_state: true
-combine_connection_states: false
-`)
-	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
-	assert.Nil(t, err)
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	var customTags []string
-
-	// MockCommandRunner ss data has 1 ESTAB and 1 TIME-WAIT per protocol call.
-	// Uncombined: ESTAB → estab, TIME-WAIT → time_wait; all others are 0.
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(1), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(0), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(0), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(0), "", customTags)
-
-	// Combined metrics must NOT be emitted
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.established", mock.Anything, mock.Anything, mock.Anything)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.opening", mock.Anything, mock.Anything, mock.Anything)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.listening", mock.Anything, mock.Anything, mock.Anything)
 
 	mockSender.AssertCalled(t, "Commit")
 }

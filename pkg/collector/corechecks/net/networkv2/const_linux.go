@@ -467,70 +467,54 @@ var (
 )
 
 var (
+	// procNetTCPStateNames maps the stable values from include/net/tcp_states.h to
+	// the state labels used by the connection-state metric mappings.
+	procNetTCPStateNames = map[string]string{
+		"01": "ESTAB",
+		"02": "SYN-SENT",
+		"03": "SYN-RECV",
+		"04": "FIN-WAIT-1",
+		"05": "FIN-WAIT-2",
+		"06": "TIME-WAIT",
+		"07": "UNCONN",
+		"08": "CLOSE-WAIT",
+		"09": "LAST-ACK",
+		"0A": "LISTEN",
+		"0B": "CLOSING",
+	}
+
 	// tcpStateMetricsSuffixMapping combines multiple TCP states into broader categories
 	// (the default behavior, matching combine_connection_states: true).
-	tcpStateMetricsSuffixMapping = map[string]map[string]string{
-		"ss": {
-			"ESTAB":      "established",
-			"SYN-SENT":   "opening",
-			"SYN-RECV":   "opening",
-			"FIN-WAIT-1": "closing",
-			"FIN-WAIT-2": "closing",
-			"TIME-WAIT":  "time_wait",
-			"CLOSE-WAIT": "closing",
-			"LAST-ACK":   "closing",
-			"LISTEN":     "listening",
-			"CLOSING":    "closing",
-			"UNCONN":     "closing",
-			"NONE":       "connections", // sole UDP mapping
-		},
-		"netstat": {
-			"ESTABLISHED": "established",
-			"SYN_SENT":    "opening",
-			"SYN_RECV":    "opening",
-			"FIN_WAIT1":   "closing",
-			"FIN_WAIT2":   "closing",
-			"TIME_WAIT":   "time_wait",
-			"CLOSE":       "closing",
-			"CLOSE_WAIT":  "closing",
-			"LAST_ACK":    "closing",
-			"LISTEN":      "listening",
-			"CLOSING":     "closing",
-			"NONE":        "connections", // sole UDP mapping
-		},
+	tcpStateMetricsSuffixMapping = map[string]string{
+		"ESTAB":      "established",
+		"SYN-SENT":   "opening",
+		"SYN-RECV":   "opening",
+		"FIN-WAIT-1": "closing",
+		"FIN-WAIT-2": "closing",
+		"TIME-WAIT":  "time_wait",
+		"CLOSE-WAIT": "closing",
+		"LAST-ACK":   "closing",
+		"LISTEN":     "listening",
+		"CLOSING":    "closing",
+		"UNCONN":     "closing",
+		"NONE":       "connections", // sole UDP mapping
 	}
 
 	// tcpStateMetricsSuffixMappingUncombined maps each TCP state to its own individual
 	// metric suffix (matching combine_connection_states: false, mirroring the Python check).
-	tcpStateMetricsSuffixMappingUncombined = map[string]map[string]string{
-		"ss": {
-			"ESTAB":      "estab",
-			"SYN-SENT":   "syn_sent",
-			"SYN-RECV":   "syn_recv",
-			"FIN-WAIT-1": "fin_wait_1",
-			"FIN-WAIT-2": "fin_wait_2",
-			"TIME-WAIT":  "time_wait",
-			"CLOSE-WAIT": "close_wait",
-			"LAST-ACK":   "time_wait", // matches Python: last_ack is folded into time_wait
-			"LISTEN":     "listen",
-			"CLOSING":    "closing",
-			"UNCONN":     "unconn",
-			"NONE":       "connections", // sole UDP mapping
-		},
-		"netstat": {
-			"ESTABLISHED": "estab",
-			"SYN_SENT":    "syn_sent",
-			"SYN_RECV":    "syn_recv",
-			"FIN_WAIT1":   "fin_wait_1",
-			"FIN_WAIT2":   "fin_wait_2",
-			"TIME_WAIT":   "time_wait",
-			"CLOSE":       "close",
-			"CLOSE_WAIT":  "close_wait",
-			"LAST_ACK":    "time_wait", // matches Python: last_ack is folded into time_wait
-			"LISTEN":      "listen",
-			"CLOSING":     "closing",
-			"NONE":        "connections", // sole UDP mapping
-		},
+	tcpStateMetricsSuffixMappingUncombined = map[string]string{
+		"ESTAB":      "estab",
+		"SYN-SENT":   "syn_sent",
+		"SYN-RECV":   "syn_recv",
+		"FIN-WAIT-1": "fin_wait_1",
+		"FIN-WAIT-2": "fin_wait_2",
+		"TIME-WAIT":  "time_wait",
+		"CLOSE-WAIT": "close_wait",
+		"LAST-ACK":   "time_wait", // matches Python: last_ack is folded into time_wait
+		"LISTEN":     "listen",
+		"CLOSING":    "closing",
+		"UNCONN":     "unconn",
+		"NONE":       "connections", // sole UDP mapping
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}

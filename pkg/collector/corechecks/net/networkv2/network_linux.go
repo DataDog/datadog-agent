@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -39,8 +40,7 @@ var (
 
 	getNewEthtool = newEthtool
 
-	runCommandFunction  = runCommand
-	ssAvailableFunction = checkSSExecutable
+	runCommandFunction = runCommand
 )
 
 // conntrackPathAllowlist contains the exact conntrack_path values allowed
@@ -526,203 +526,75 @@ func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats
 	}
 }
 
-// Try using `ss` for increased performance over `netstat`
-func checkSSExecutable() bool {
-	_, err := exec.LookPath("ss")
+func getProcNetStateMetrics(protocol string, procfsPath string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
+	filename := strings.TrimSuffix(protocol, "4")
+	filePath := filepath.Join(procfsPath, "net", filename)
+	file, err := filesystem.Open(filePath)
 	if err != nil {
-		log.Debug("`ss` executable not found in system PATH")
-		return false
+		return nil, fmt.Errorf("unable to open %s: %w", filePath, err)
 	}
-	return true
+	defer file.Close()
+
+	return parseProcNetMetrics(protocol, file, suffixMapping)
 }
 
-func getSocketStateMetrics(protocol string, procfsPath string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
-	env := []string{"PROC_ROOT=" + procfsPath}
-	// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
-	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
-	// The `-H` flag isn't available on old versions of `ss`.
-
-	ipFlag := "--ipv" + protocol[len(protocol)-1:]
-	protocolFlag := "--" + protocol[:len(protocol)-1]
-	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
-	cmd := fmt.Sprintf("ss --numeric %s --all %s", protocolFlag, ipFlag)
-	output, err := runCommandFunction([]string{"sh", "-c", cmd}, env)
-	if err != nil {
-		return nil, fmt.Errorf("error executing ss command: %v", err)
-	}
-	return parseSocketStatsMetrics(protocol, output, suffixMapping)
-}
-
-func getNetstatStateMetrics(protocol string, _ string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
-	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
-	if err != nil {
-		return nil, fmt.Errorf("error executing netstat command: %v", err)
-	}
-	return parseNetstatMetrics(protocol, output, suffixMapping)
-}
-
-// why not sum here
-func parseSocketStatsMetrics(protocol, output string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
+func parseProcNetMetrics(protocol string, reader io.Reader, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
 	results := make(map[string]*connectionStateEntry)
-
-	if protocol[:3] == "udp" {
-		results["connections"] = &connectionStateEntry{
-			count: 0,
-			recvQ: []uint64{},
-			sendQ: []uint64{},
-		}
+	isUDP := strings.HasPrefix(protocol, "udp")
+	if isUDP {
+		results["connections"] = &connectionStateEntry{recvQ: []uint64{}, sendQ: []uint64{}}
 	} else {
-		for _, state := range suffixMapping {
-			if state == "connections" {
-				continue
-			}
-			if _, exists := results[state]; !exists {
-				results[state] = &connectionStateEntry{
-					count: 0,
-					recvQ: []uint64{},
-					sendQ: []uint64{},
+		for _, suffix := range suffixMapping {
+			if suffix != "connections" {
+				if _, exists := results[suffix]; !exists {
+					results[suffix] = &connectionStateEntry{recvQ: []uint64{}, sendQ: []uint64{}}
 				}
 			}
 		}
 	}
 
-	// State       Recv-Q   Send-Q     Local Address:Port          Peer Address:Port
-	// LISTEN      0        4096       127.0.0.53%lo:53                 0.0.0.0:*
-	// LISTEN      0        4096           127.0.0.1:5001               0.0.0.0:*
-	// LISTEN      0        4096           127.0.0.1:5000               0.0.0.0:*
-	// LISTEN      0        10               0.0.0.0:27500              0.0.0.0:*
-	// LISTEN      0        4096          127.0.0.54:53                 0.0.0.0:*
-	// LISTEN      0        4096             0.0.0.0:5355               0.0.0.0:*
-	// LISTEN      0        4096           127.0.0.1:631                0.0.0.0:*
-	// SYN-SENT    0        1           192.168.64.6:46118      169.254.169.254:80
-	// ESTAB       0        0           192.168.64.6:50204        3.233.157.145:443
-	// ESTAB       0        0              127.0.0.1:51064            127.0.0.1:5001
-	// ESTAB       0        0           192.168.64.6:50522        34.107.243.93:443
-	// SYN-SENT    0        1           192.168.64.6:46104      169.254.169.254:80
-	// SYN-SENT    0        1           192.168.64.6:46124      169.254.169.254:80
-	// SYN-SENT    0        1           192.168.64.6:56644      169.254.169.254:80
-	// ESTAB       0        0           192.168.64.6:55976         3.233.158.71:443
-	// TIME-WAIT   0        0           192.168.64.6:38964        3.233.157.100:443
-	// SYN-SENT    0        1           192.168.64.6:56654      169.254.169.254:80
-	// ESTAB       0        0              127.0.0.1:5001             127.0.0.1:51064
-	// SYN-SENT    0        1           192.168.64.6:56650      169.254.169.254:80
-	// SYN-SENT    0        1           192.168.64.6:53594      100.100.100.200:80
-
-	lines := strings.SplitSeq(output, "\n")
-	for line := range lines {
-		fields := strings.Fields(line)
-		// skip malformed ss entry result
-		if len(fields) < 3 {
-			continue
-		}
-
-		var stateField string
-		// skip the header
-		if fields[0] == "State" {
-			continue
-		}
-		if protocol[:3] == "udp" {
-			// all UDP suffixes resolve to connections
-			stateField = "NONE"
-		} else {
-			stateField = fields[0]
-		}
-		// skip connection states we do not have mappings for
-		state, ok := suffixMapping[stateField]
-		if !ok {
-			continue
-		}
-
-		recvQ := parseQueue(fields[1])
-		sendQ := parseQueue(fields[2])
-		if entry, exists := results[state]; exists {
-			entry.count = entry.count + 1
-			entry.recvQ = append(entry.recvQ, recvQ)
-			entry.sendQ = append(entry.sendQ, sendQ)
-		}
-	}
-	return results, nil
-}
-
-func parseNetstatMetrics(protocol, output string, suffixMapping map[string]string) (map[string]*connectionStateEntry, error) {
-	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
-	results := make(map[string]*connectionStateEntry)
-	if protocol[:3] == "udp" {
-		results["connections"] = &connectionStateEntry{
-			count: 0,
-			recvQ: []uint64{},
-			sendQ: []uint64{},
-		}
-	} else {
-		for _, state := range suffixMapping {
-			if state == "connections" {
-				continue
-			}
-			if _, exists := results[state]; !exists {
-				results[state] = &connectionStateEntry{
-					count: 0,
-					recvQ: []uint64{},
-					sendQ: []uint64{},
-				}
-			}
-		}
-	}
-
-	// Active Internet connections (w/o servers)
-	// Proto Recv-Q Send-Q Local Address           Foreign Address         State
-	// tcp        0      0 46.105.75.4:80          79.220.227.193:2032     SYN_RECV
-	// tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-	// tcp        0      0 46.105.75.4:50468       107.20.207.175:443      TIME_WAIT
-	// tcp6       0      0 46.105.75.4:80          93.15.237.188:58038     FIN_WAIT2
-	// tcp6       0      0 46.105.75.4:80          79.220.227.193:2029     ESTABLISHED
-	// udp        0      0 0.0.0.0:123             0.0.0.0:*
-	// udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
-	// udp6       0      0 :::41458                :::*
-	lines := strings.SplitSeq(output, "\n")
-	for line := range lines {
-		fields := strings.Fields(line)
-
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
 		if len(fields) < 5 {
 			continue
 		}
 
-		// filter out the rows that do not match the current protocol enumeration
-		entryProtocol := fields[0]
-		if protocol != entryProtocol {
+		stateName := "NONE"
+		if !isUDP {
+			var exists bool
+			stateName, exists = procNetTCPStateNames[fields[3]]
+			if !exists {
+				continue
+			}
+		}
+		suffix, exists := suffixMapping[stateName]
+		if !exists {
 			continue
 		}
 
-		var stateField string
-		if protocol[:3] == "udp" {
-			// all UDP suffixes resolve to connections
-			stateField = "NONE"
-		} else {
-			stateField = fields[5]
+		txQueue, rxQueue, found := strings.Cut(fields[4], ":")
+		if !found {
+			continue
 		}
-		// skip connection states we do not have mappings for
-		state, ok := suffixMapping[stateField]
-		if !ok {
+		sendQ, err := strconv.ParseUint(txQueue, 16, 64)
+		if err != nil {
+			continue
+		}
+		recvQ, err := strconv.ParseUint(rxQueue, 16, 64)
+		if err != nil {
 			continue
 		}
 
-		recvQ := parseQueue(fields[1])
-		sendQ := parseQueue(fields[2])
-		if entry, exists := results[state]; exists {
-			entry.count = entry.count + 1
-			entry.recvQ = append(entry.recvQ, recvQ)
-			entry.sendQ = append(entry.sendQ, sendQ)
-		}
+		entry := results[suffix]
+		entry.count++
+		entry.recvQ = append(entry.recvQ, recvQ)
+		entry.sendQ = append(entry.sendQ, sendQ)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return results, nil
-}
-
-func parseQueue(queueStr string) uint64 {
-	var queue uint64
-	_, err := fmt.Sscanf(queueStr, "%d", &queue)
-	if err != nil {
-		return 0
-	}
-	return queue
 }
 
 func submitConnectionStateMetrics(
@@ -732,26 +604,14 @@ func submitConnectionStateMetrics(
 	combineConnectionStates bool,
 	procfsPath string,
 ) {
-	var getStateMetrics func(string, string, map[string]string) (map[string]*connectionStateEntry, error)
-	var tool string
-	if ssAvailableFunction() {
-		log.Debug("Using `ss` for connection state metrics")
-		getStateMetrics = getSocketStateMetrics
-		tool = "ss"
-	} else {
-		log.Debug("Using `netstat` for connection state metrics")
-		getStateMetrics = getNetstatStateMetrics
-		tool = "netstat"
-	}
-
 	var suffixMapping map[string]string
 	if combineConnectionStates {
-		suffixMapping = tcpStateMetricsSuffixMapping[tool]
+		suffixMapping = tcpStateMetricsSuffixMapping
 	} else {
-		suffixMapping = tcpStateMetricsSuffixMappingUncombined[tool]
+		suffixMapping = tcpStateMetricsSuffixMappingUncombined
 	}
 
-	results, err := getStateMetrics(protocolName, procfsPath, suffixMapping)
+	results, err := getProcNetStateMetrics(protocolName, procfsPath, suffixMapping)
 	if err != nil {
 		log.Debug("Error getting connection state metrics:", err)
 		return
