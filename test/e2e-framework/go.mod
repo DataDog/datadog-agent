@@ -35,7 +35,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
@@ -246,6 +246,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/redis/go-redis/v9 v9.22.0 // indirect

@@ -609,6 +609,8 @@ github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 h1:2KDmUosKtet/+k16
 github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3/go.mod h1:m1sK7EotKq0Xxx3oWAoit9aTDIzSMt5xmS+30f0a9HY=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 h1:3pSh/GqQ5NO7Pb0GuJE5pMHlE+moAoLmAt4FljPD7jI=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3/go.mod h1:WJK7jjxUHZh1j7ItxBop/wF02t4vtmmtDN9MJzW2BsI=
+github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0 h1:rTCyJYfFg34xOKqz7WqxvenoBCz22/rn3pmqjMtYu2A=
+github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0/go.mod h1:uama5sNC6cETJlZo8yeAQYoNl/LXe5LifboTthg9+Wo=
 github.com/pulumi/pulumi-command/sdk v1.2.1 h1:mAziZ91a/9U+5IjZH5Skcar80OSmpBSYljeQNRblTWQ=
 github.com/pulumi/pulumi-command/sdk v1.2.1/go.mod h1:hQxv9DXg6bFjcd9BEiNdMImQ/V1rnC9D115q5VXYNps=
 github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 h1:NxCXxRvzhUJP9dIvlpNlZKt/A3NHu3i9pC5XO+i8bR0=
