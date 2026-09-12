@@ -10,6 +10,7 @@ import (
 	"errors"
 	"time"
 
+	googleGrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -68,6 +69,13 @@ type serverSecure struct {
 // (registration and refresh) and the reporting of operational events back to the Core Agent.
 type remoteAgentServer struct {
 	pb.UnimplementedRemoteAgentServer
+	remoteAgentRegistry remoteagentregistry.Component
+}
+
+// remoteCommandProviderServer implements the RemoteCommandProvider gRPC service, which allows the Core Agent CLI
+// to discover and execute commands exposed by registered remote agents.
+type remoteCommandProviderServer struct {
+	pb.UnimplementedRemoteCommandProviderServer
 	remoteAgentRegistry remoteagentregistry.Component
 }
 
@@ -380,4 +388,26 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 
 func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
+}
+
+// ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.
+func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	return &pb.ListCommandsResponse{Providers: s.remoteAgentRegistry.ListCommands(ctx)}, nil
+}
+
+// ExecuteCommand routes a command execution request to the selected remote provider and forwards its output frames.
+func (s *remoteCommandProviderServer) ExecuteCommand(in *pb.ExecuteCommandRequest, stream googleGrpc.ServerStreamingServer[pb.ExecuteCommandResponse]) error {
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	if len(in.GetCommandPath()) == 0 {
+		return status.Error(codes.InvalidArgument, "command_path is required")
+	}
+
+	return s.remoteAgentRegistry.ExecuteCommand(stream.Context(), in, stream.Send)
 }
