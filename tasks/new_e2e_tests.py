@@ -1577,16 +1577,17 @@ def _is_local_state(pulumi_about: dict) -> bool:
 
 
 def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
+
     ecr_password_res = ctx.run(
-        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
+        hide=True,
+        warn=True,
     )
     if ecr_password_res.exited != 0:
-        ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin-8h -- aws ecr get-login-password", hide=True, warn=True
-        )
-    if ecr_password_res.exited != 0:
         print(
-            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
+            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
         )
         return ""
     return ecr_password_res.stdout.strip()
