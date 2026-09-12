@@ -281,6 +281,70 @@ func TestActivityDumps(t *testing.T) {
 		}, nil)
 	})
 
+	t.Run("activity-dump-cgroup-dns-response", func(t *testing.T) {
+		// TODO(CWS-6919): the activity tree can hold and serialize DNS answers, but nothing
+		// feeds them to it yet, so this cannot pass.
+		//
+		// A DNS response is never attributed to the process that asked the question when the
+		// query comes from a container: responses arrive inbound on the network softirq path,
+		// where there is no current process, so fill_network_process_context_from_pkt yields
+		// pid 0 (confirmed in KMT: host-side lookups report real pids, the container's
+		// nslookup reports pid=0). lookup_or_delete_traced_pid can therefore never match a
+		// traced pid, EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE is never set on the response, and
+		// Manager.ProcessEvent drops it before it reaches the tree.
+		//
+		// Fixing this needs the response correlated back to its request rather than attributed
+		// independently — the DNS transaction ID is already tracked in-kernel in the
+		// dns_responses_sent_to_userspace LRU. That is a CWS network-path design change,
+		// tracked in CWS-6919; removing this skip is that ticket's acceptance test.
+		t.Skip("CWS-6919: DNS responses are not attributed to a traced process for container queries")
+
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
+
+		dockerInstance, ad, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(ad.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// The resolved IPs come from the DNS response packet, which reaches the tree as a
+		// regular DNS event carrying DNS.Response (see FullDNSResponseEventType in probe_ebpf.go).
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
+			if nodes == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+			for _, node := range nodes {
+				dnsNode, ok := node.DNSNames["one.one.one.one"]
+				if !ok {
+					continue
+				}
+				for _, req := range dnsNode.Requests {
+					if req.Response != nil && len(req.Response.IPs) > 0 {
+						return true
+					}
+				}
+			}
+			return false
+		}, nil)
+	})
+
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
