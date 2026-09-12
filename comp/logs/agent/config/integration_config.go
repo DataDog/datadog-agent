@@ -546,6 +546,10 @@ func (c *LogsConfig) Validate() error {
 		log.Warn("non-UTF-8 encodings are not currently supported by the syslog format. The encoding setting will be ignored.")
 	}
 
+	if c.FingerprintConfig != nil && len(c.FingerprintConfig.OpenFlags) > 0 && c.Type != FileType {
+		return fmt.Errorf("fingerprint open_flags are only supported for %s sources, got %s", FileType, c.Type)
+	}
+
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
