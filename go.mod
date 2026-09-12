@@ -493,21 +493,21 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
-	k8s.io/api v0.35.5
-	k8s.io/apiextensions-apiserver v0.35.5
-	k8s.io/apimachinery v0.35.6
+	k8s.io/api v0.37.0
+	k8s.io/apiextensions-apiserver v0.37.0
+	k8s.io/apimachinery v0.37.0
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
-	k8s.io/cli-runtime v0.35.5
-	k8s.io/client-go v0.35.5
-	k8s.io/component-base v0.35.5
-	k8s.io/cri-api v0.35.5
-	k8s.io/cri-client v0.35.5
+	k8s.io/cli-runtime v0.37.0
+	k8s.io/client-go v0.37.0
+	k8s.io/component-base v0.37.0
+	k8s.io/cri-api v0.37.0
+	k8s.io/cri-client v0.37.0
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kube-aggregator v0.35.5
+	k8s.io/kube-aggregator v0.37.0
 	k8s.io/kube-state-metrics/v2 v2.18.0
-	k8s.io/kubectl v0.35.5
-	k8s.io/kubelet v0.35.5
-	k8s.io/metrics v0.35.5
+	k8s.io/kubectl v0.37.0
+	k8s.io/kubelet v0.37.0
+	k8s.io/metrics v0.37.0
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	mvdan.cc/sh/v3 v3.14.0
 	pgregory.net/rapid v1.3.0
@@ -1061,9 +1061,9 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
-	go.etcd.io/etcd/api/v3 v3.6.11 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.11 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
+	go.etcd.io/etcd/api/v3 v3.7.0 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.7.0 // indirect
+	go.etcd.io/etcd/client/v3 v3.7.0 // indirect
 	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -1159,17 +1159,18 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
-	k8s.io/apiserver v0.35.5 // indirect
+	k8s.io/apiserver v0.37.0 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
-	k8s.io/component-helpers v0.35.5 // indirect
+	k8s.io/component-helpers v0.37.0 // indirect
 	k8s.io/csi-translation-lib v0.35.3 // indirect
-	k8s.io/kms v0.35.5 // indirect
+	k8s.io/kms v0.37.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/streaming v0.37.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.53.0 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.36.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
