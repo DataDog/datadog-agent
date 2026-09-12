@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
@@ -69,33 +70,37 @@ var GPUMonitoring = &module.Factory{
 			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
 		}
 
-		deviceCache := ddnvml.NewDeviceCache()
+		deviceCache := ddnvml.NewDeviceCache() // note: deviceCache constructor does not allocate resources/do NVML calls
+		var deviceCacheRefreshErr error
+		if c.EnableEBPFProbes || c.DriverEventsEnabled {
+			deviceCacheRefreshErr = deviceCache.Refresh()
+			if deviceCacheRefreshErr != nil {
+				log.Errorf("unable to refresh GPU device cache: %v", deviceCacheRefreshErr)
+			} else {
+				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
+			}
+		}
+
 		var p *gpu.Probe
 		var driverEventSubscriber driverEventSubscriber
-		startDriverEvents := c.DriverEventsEnabled
 		var err error
 		if c.EnableEBPFProbes {
+			ebpfConfig := ebpf.NewConfig()
 			probeDeps := gpu.ProbeDependencies{
+				EBPFConfig:     ebpfConfig,
 				Telemetry:      deps.Telemetry,
 				ProcessMonitor: processEventConsumer,
 				WorkloadMeta:   deps.WMeta,
+				DeviceCache:    deviceCache,
 			}
 			p, err = gpu.NewProbe(c, probeDeps)
 			if err != nil {
 				cancel()
 				return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 			}
-			deviceCache = p.GetDeviceCache()
 		}
-		if c.EnableEBPFProbes || c.DriverEventsEnabled {
-			if err := deviceCache.Refresh(); err != nil {
-				log.Errorf("unable to refresh GPU device cache: %v", err)
-				startDriverEvents = false
-			} else {
-				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
-			}
-		}
-		if startDriverEvents {
+
+		if c.DriverEventsEnabled && deviceCacheRefreshErr == nil {
 			subscriber, err := gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
 				QueueSize: driverEventQueueSize,
 			})
@@ -104,6 +109,8 @@ var GPUMonitoring = &module.Factory{
 			} else {
 				driverEventSubscriber = subscriber
 			}
+		} else if c.DriverEventsEnabled {
+			log.Errorf("unable to start GPU driver event subscriber due to device cache refresh error %v", deviceCacheRefreshErr)
 		}
 
 		return &GPUMonitoringModule{

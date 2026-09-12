@@ -199,6 +199,15 @@ func createFullyPopulatedEvent() *Event {
 		TraceID: utils.TraceID{Lo: 0x0102030405060708, Hi: 0x090a0b0c0d0e0f10},
 	}
 
+	// GoLabels
+	e.GoLabels = GoLabelsContext{
+		ID:       42,
+		Resolved: true,
+	}
+
+	// Signature
+	e.Signature = "test-signature"
+
 	// NetworkContext
 	e.NetworkContext = NetworkContext{
 		Device: NetworkDeviceContext{

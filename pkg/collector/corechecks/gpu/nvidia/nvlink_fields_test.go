@@ -332,7 +332,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 			}
 			device := setupMockDevice(t, opts...)
 
-			collector, err := newNVLinkFieldsCollector(device, nil)
+			collector, err := newNVLinkFieldsCollector(device, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			collected, err := collector.Collect()
@@ -360,7 +360,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithInvalidArgumentFields(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), testutil.WithNVLinkLinkCount(1))
 
-	collector, err := newNVLinkFieldsCollector(device, nil)
+	collector, err := newNVLinkFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	fc, ok := collector.(*nvlinkFieldsCollector)

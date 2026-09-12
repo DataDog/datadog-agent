@@ -258,6 +258,19 @@ func GetCheckWithContext[T any](ctx context.Context, client *CheckClient, module
 	return request[T](ctx, client, http.MethodGet, "/check", nil, module)
 }
 
+// GetEndpoint makes a GET request to a module endpoint and returns data unmarshalled
+// from JSON to T. The endpoint parameter should be the path relative to the
+// module (e.g., "/check", "/services").
+func GetEndpoint[T any](client *CheckClient, endpoint string, module types.ModuleName) (T, error) {
+	return GetEndpointWithContext[T](context.Background(), client, endpoint, module)
+}
+
+// GetEndpointWithContext makes a GET request to a module endpoint and cancels all
+// startup and module HTTP work when ctx is canceled.
+func GetEndpointWithContext[T any](ctx context.Context, client *CheckClient, endpoint string, module types.ModuleName) (T, error) {
+	return request[T](ctx, client, http.MethodGet, endpoint, nil, module)
+}
+
 // Post makes a POST request to a module endpoint with an optional JSON
 // request body and returns data unmarshalled from JSON to T.  The endpoint
 // parameter should be the path relative to the module (e.g., "/check",

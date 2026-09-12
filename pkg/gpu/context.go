@@ -75,6 +75,7 @@ type systemContextOptions struct {
 	tm                   telemetry.Component
 	fatbinParsingEnabled bool
 	config               *config.Config
+	deviceCache          ddnvml.DeviceCache
 }
 
 type systemContextOption func(*systemContextOptions)
@@ -109,6 +110,12 @@ func withConfig(config *config.Config) systemContextOption {
 	}
 }
 
+func withDeviceCache(deviceCache ddnvml.DeviceCache) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.deviceCache = deviceCache
+	}
+}
+
 func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
 	opts := &systemContextOptions{
 		fatbinParsingEnabled: false,
@@ -117,6 +124,11 @@ func newSystemContextOptions(optList ...systemContextOption) *systemContextOptio
 	for _, opt := range optList {
 		opt(opts)
 	}
+
+	if opts.deviceCache == nil {
+		opts.deviceCache = ddnvml.NewDeviceCache()
+	}
+
 	return opts
 }
 
@@ -129,7 +141,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
 		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
-		deviceCache:                  ddnvml.NewDeviceCache(),
+		deviceCache:                  opts.deviceCache,
 		deviceCacheRefreshInterval:   opts.config.DeviceCacheRefreshInterval,
 		lastDeviceCacheRefreshTime:   time.Now(),
 	}
