@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    On Windows, installing the ``datadog-apm-inject`` package no longer fails
+    when it cannot update ``system-probe.yaml`` to enable crash detection
+    reporting (for example because of a malformed existing config or a
+    permissions issue). This step is now best-effort: the failure is reported
+    through telemetry and installation continues normally.
