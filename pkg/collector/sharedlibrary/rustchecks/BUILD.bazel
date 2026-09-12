@@ -1,9 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
-# Rust shared-library checks are Linux-only.
-_LINUX = ["@platforms//os:linux"]
-
 # Map of check name -> cdylib target for each Rust check we ship. Add an entry
 # here to ship a new check.
 ENABLED_CHECKS = {
@@ -14,21 +11,33 @@ ENABLED_CHECKS = {
 # (libdatadog-agent-<check_name>.so). Root + root-group read/exec, no "other" —
 # group-readable so init containers can copy them on OpenShift, where
 # containers run with a random UID in the root group.
+#
 pkg_files(
     name = "enabled_checks",
-    srcs = ENABLED_CHECKS.values(),
+    # Rust shared-library checks are Linux-only; srcs resolves to [] elsewhere so
+    # this composes as a no-op component of //packages/agent/product:conf_dir_files.
+    srcs = select({
+        "@platforms//os:linux": ENABLED_CHECKS.values(),
+        "//conditions:default": [],
+    }),
     attributes = pkg_attributes(mode = "0550"),
     prefix = "checks.d",
-    renames = {target: "libdatadog-agent-" + check_name + ".so" for check_name, target in ENABLED_CHECKS.items()},
-    target_compatible_with = _LINUX,
+    renames = select({
+        "@platforms//os:linux": {
+            target: "libdatadog-agent-" + check_name + ".so"
+            for check_name, target in ENABLED_CHECKS.items()
+        },
+        "//conditions:default": {},
+    }),
     visibility = ["//visibility:public"],
 )
 
+# DO NOT USE. This is only left as a vestage for hacky-image-build.
 # `bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>`
 # stages every enabled check into <dir>/checks.d with root/root-group-only (0550) perms.
 pkg_install(
     name = "install",
     srcs = [":enabled_checks"],
-    target_compatible_with = _LINUX,
-    visibility = ["//visibility:public"],
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
 )

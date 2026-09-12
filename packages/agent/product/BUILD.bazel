@@ -104,7 +104,13 @@ pkg_install(
     destdir_flag = "//:install_dir",
 )
 
-# Dirs that should exist with particular permissions.
+# Dirs that should exist with particular permissions. These are relative to
+# the install dir which is normally /opt/datadog-agent
+# Note that the the system directory (etc) is included as well. During
+# the migration from omnibus, we maintain the practice of installing system
+# configuration to /opt/datadog/etc/... and then moving the files to /etc
+# later in the packaging process. We can eliminate that hack when we move
+# to pkg_{deb,rpm} as the actual packager.
 pkg_mkdirs(
     name = "dirs",
     attributes = pkg_attributes(mode = "755"),
@@ -137,6 +143,25 @@ pkg_files(
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
+)
+
+# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
+# which stages relative to install_dir). Add more conf_dir-relative files here as they
+# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+pkg_filegroup(
+    name = "conf_dir_files",
+    srcs = select({
+        "@platforms//os:linux": [
+            "//pkg/collector/sharedlibrary/rustchecks:enabled_checks",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Temporary during migration. Only called from omnibus scripts.
+pkg_install(
+    name = "install_conf_dir_files",
+    srcs = [":conf_dir_files"],
 )
 
 pkg_files(

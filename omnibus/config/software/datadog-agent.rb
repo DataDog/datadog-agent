@@ -119,13 +119,9 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
-  # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
-  if linux_target?
-    command "bazel run #{omnibazel_flags} //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=\"#{conf_dir}\"",
-      env: env,
-      :live_stream => Omnibus.logger.live_stream(:info)
-  end
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+    :live_stream => Omnibus.logger.live_stream(:info)
+
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
   # Now we place them into the pacakge via the //packages/agent/product:post_build_install
