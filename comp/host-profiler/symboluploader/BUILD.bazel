@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load(":symbol_uploader_test.bzl", "objcopy_go_fixture")
 
 # gazelle:go_test file
 
@@ -67,15 +68,127 @@ dd_agent_go_test(
     }),
 )
 
-# TODO: This test can't work from CI as written because it depends on direct
-# access to the go compiler outside of bazel control. It does work from the
-# developer command line.
+go_binary(
+    name = "helloworld_no_symbols_raw",
+    srcs = ["testdata/helloworld.go"],
+    linkmode = "normal",
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_binary(
+    name = "helloworld_external_raw",
+    srcs = ["testdata/helloworld.go"],
+    gc_linkopts = ["-linkmode=external"],
+    linkmode = "normal",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_no_symbols",
+    src = ":helloworld_no_symbols_raw",
+    out = "helloworld_no_symbols.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+        "-S",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_dynsym",
+    src = ":helloworld_external_raw",
+    out = "helloworld_dynsym.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+        "-S",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_symtab",
+    src = ":helloworld_external_raw",
+    out = "helloworld_symtab.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+        "-g",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_debug_infos",
+    src = ":helloworld_external_raw",
+    out = "helloworld_debug_infos.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_dynsym_corrupt_gopclntab",
+    src = ":helloworld_external_raw",
+    out = "helloworld_dynsym_corrupt_gopclntab.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+        "-S",
+        "-R",
+        ".gopclntab",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+objcopy_go_fixture(
+    name = "helloworld_debug_infos_corrupt_gopclntab",
+    src = ":helloworld_external_raw",
+    out = "helloworld_debug_infos_corrupt_gopclntab.out",
+    objcopy_args = [
+        "-R",
+        ".note.gnu.build-id",
+        "-R",
+        ".gopclntab",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Note: these tests are still not hermetic because they rely on system objcopy for the code
+# under test itself.
 dd_agent_go_test(
     name = "symbol_uploader_test",
     srcs = ["symbol_uploader_test.go"],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/**"]) + select({
+        "@platforms//os:linux": [
+            ":helloworld_debug_infos",
+            ":helloworld_debug_infos_corrupt_gopclntab",
+            ":helloworld_dynsym",
+            ":helloworld_dynsym_corrupt_gopclntab",
+            ":helloworld_no_symbols",
+            ":helloworld_symtab",
+        ],
+        "//conditions:default": [],
+    }),
     embed = [":symboluploader"],
-    tags = ["manual"],
+    env = select({
+        "@platforms//os:linux": {
+            "SYMBOL_UPLOADER_FIXTURE_DEBUG_INFOS": "$(rlocationpath :helloworld_debug_infos)",
+            "SYMBOL_UPLOADER_FIXTURE_DEBUG_INFOS_CORRUPT_GOPCLNTAB": "$(rlocationpath :helloworld_debug_infos_corrupt_gopclntab)",
+            "SYMBOL_UPLOADER_FIXTURE_DYNSYM": "$(rlocationpath :helloworld_dynsym)",
+            "SYMBOL_UPLOADER_FIXTURE_DYNSYM_CORRUPT_GOPCLNTAB": "$(rlocationpath :helloworld_dynsym_corrupt_gopclntab)",
+            "SYMBOL_UPLOADER_FIXTURE_NO_SYMBOLS": "$(rlocationpath :helloworld_no_symbols)",
+            "SYMBOL_UPLOADER_FIXTURE_SYMTAB": "$(rlocationpath :helloworld_symtab)",
+        },
+        "//conditions:default": {},
+    }),
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/host-profiler/symboluploader/symbol",
@@ -90,6 +203,7 @@ dd_agent_go_test(
             "@io_opentelemetry_go_ebpf_profiler//process",
             "@io_opentelemetry_go_ebpf_profiler//remotememory",
             "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@rules_go//go/runfiles",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/symboluploader/symbol",
@@ -104,6 +218,7 @@ dd_agent_go_test(
             "@io_opentelemetry_go_ebpf_profiler//process",
             "@io_opentelemetry_go_ebpf_profiler//remotememory",
             "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),

@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/jsonapi"
 	"github.com/DataDog/zstd"
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -300,11 +301,69 @@ func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUplo
 	return NewDatadogSymbolUploader(ctx, cfg)
 }
 
+type fixtureKind string
+
+const (
+	fixtureNoSymbols                  fixtureKind = "NO_SYMBOLS"
+	fixtureDynsym                     fixtureKind = "DYNSYM"
+	fixtureSymtab                     fixtureKind = "SYMTAB"
+	fixtureDebugInfos                 fixtureKind = "DEBUG_INFOS"
+	fixtureDynsymCorruptGoPCLnTab     fixtureKind = "DYNSYM_CORRUPT_GOPCLNTAB"
+	fixtureDebugInfosCorruptGoPCLnTab fixtureKind = "DEBUG_INFOS_CORRUPT_GOPCLNTAB"
+)
+
 type buildOptions struct {
 	dynsym           bool
 	symtab           bool
 	debugInfos       bool
 	corruptGoPCLnTab bool
+}
+
+func (kind fixtureKind) buildOptions(t *testing.T) buildOptions {
+	t.Helper()
+
+	switch kind {
+	case fixtureNoSymbols:
+		return buildOptions{dynsym: false, symtab: false, debugInfos: false}
+	case fixtureDynsym:
+		return buildOptions{dynsym: true, symtab: false, debugInfos: false}
+	case fixtureSymtab:
+		return buildOptions{dynsym: true, symtab: true, debugInfos: false}
+	case fixtureDebugInfos:
+		return buildOptions{dynsym: true, symtab: true, debugInfos: true}
+	case fixtureDynsymCorruptGoPCLnTab:
+		return buildOptions{dynsym: true, symtab: false, debugInfos: false, corruptGoPCLnTab: true}
+	case fixtureDebugInfosCorruptGoPCLnTab:
+		return buildOptions{dynsym: true, symtab: true, debugInfos: true, corruptGoPCLnTab: true}
+	default:
+		require.Failf(t, "unknown Go fixture", "unknown Go fixture kind %q", kind)
+		return buildOptions{}
+	}
+}
+
+func isBazelTest() bool {
+	return os.Getenv("TEST_SRCDIR") != "" || os.Getenv("RUNFILES_DIR") != "" || os.Getenv("RUNFILES_MANIFEST_FILE") != ""
+}
+
+func bazelGoFixture(t *testing.T, kind fixtureKind) string {
+	t.Helper()
+
+	envName := "SYMBOL_UPLOADER_FIXTURE_" + string(kind)
+	loc := os.Getenv(envName)
+	require.NotEmptyf(t, loc, "expected %s to be set by the Bazel test rule", envName)
+
+	fixture, err := runfiles.Rlocation(loc)
+	require.NoError(t, err)
+	return fixture
+}
+
+func goFixture(t *testing.T, tmpDir, buildID string, kind fixtureKind) string {
+	t.Helper()
+
+	if isBazelTest() {
+		return bazelGoFixture(t, kind)
+	}
+	return buildGo(t, tmpDir, buildID, kind.buildOptions(t))
 }
 
 func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions) string {
@@ -420,12 +479,12 @@ func TestSymbolUpload(t *testing.T) {
 		checkUploadsWithEncoding(t, expectedSymbolSource, expectedGoPCLnTab, expectedUploads, expectedEncoding)
 	}
 
-	goExeNoSymbols := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: false, symtab: false, debugInfos: false})
-	goExeyDynsym := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: false, debugInfos: false})
-	goExeSymtab := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: true, debugInfos: false})
-	goExeDebugInfos := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: true, debugInfos: true})
-	goExeyDynsymCorruptGoPCLnTab := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: false, debugInfos: false, corruptGoPCLnTab: true})
-	goExeDebugInfosCorruptGoPCLnTab := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: true, debugInfos: true, corruptGoPCLnTab: true})
+	goExeNoSymbols := goFixture(t, t.TempDir(), buildID, fixtureNoSymbols)
+	goExeyDynsym := goFixture(t, t.TempDir(), buildID, fixtureDynsym)
+	goExeSymtab := goFixture(t, t.TempDir(), buildID, fixtureSymtab)
+	goExeDebugInfos := goFixture(t, t.TempDir(), buildID, fixtureDebugInfos)
+	goExeyDynsymCorruptGoPCLnTab := goFixture(t, t.TempDir(), buildID, fixtureDynsymCorruptGoPCLnTab)
+	goExeDebugInfosCorruptGoPCLnTab := goFixture(t, t.TempDir(), buildID, fixtureDebugInfosCorruptGoPCLnTab)
 
 	t.Run("No symbol upload if no symbols", func(t *testing.T) {
 		httpmock.ZeroCallCounters()
