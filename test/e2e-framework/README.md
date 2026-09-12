@@ -45,7 +45,7 @@ aws-vault login sso-agent-sandbox-account-admin-8h
 dda inv e2e.setup
 ```
 
-This task creates an EC2 keypair (using your existing aws-vault session) and generates a random Pulumi passphrase (stored in `~/.test_infra_config.yaml`, `chmod 0600`). It asks at most one question — the GitHub team to tag your AWS resources with — and is idempotent (safe to re-run).
+This task creates an EC2 keypair (using your existing aws-vault session) and generates a random Pulumi passphrase (stored in `~/.test_infra_config.yaml`, `chmod 0600`). It asks at most one question — the GitHub team to tag your AWS resources with — unless you pass `--team=<github-team>`, which makes the whole setup non-interactive (recommended for AI agents and CI). The task is idempotent (safe to re-run). If the SSH key cannot be added to ssh-agent, a non-blocking warning with the fix commands is printed — setup still succeeds.
 
 After this, you can run E2E tests directly without `aws-vault exec` wrapping or an exported `PULUMI_CONFIG_PASSPHRASE` — the task runner reads the passphrase from your config and auto-wraps the test command with `aws-vault exec` for you.
 

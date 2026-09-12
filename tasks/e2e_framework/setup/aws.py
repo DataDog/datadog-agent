@@ -39,13 +39,14 @@ def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
 
 
-def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
+def setup_aws_config(ctx: Context, config: Config, account: str | None = None, team: str | None = None):
     """
     Configure AWS keypair, SSO profile and team tag with computed defaults.
 
     Idempotent: re-running on a fully configured machine prints "✓ already configured"
     lines and exits without prompts. The only interactive step is the team tag, asked
-    once on first setup.
+    once on first setup — and skipped entirely when `team` is passed explicitly
+    (e.g. `dda inv e2e.setup --team=agent-platform` for non-interactive runs).
     """
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
@@ -71,20 +72,26 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
-    setup_aws_sso_config(config)
+    # The wizard path never prompts: the profile is a pure default, safe to append
+    # unconditionally. The interactive yes/no confirmations only live in the
+    # standalone `e2e.setup.aws-sso` task.
+    setup_aws_sso_config(config, interactive=False)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
     # output if the session is not valid.
     _ensure_aws_keypair(ctx, config)
 
-    # Team tag — single prompt, only on first setup.
+    # Team tag — passed explicitly via --team (non-interactive), else asked once on
+    # first setup only. Falls back to 'unspecified' when the user just hits enter.
+    if team:
+        aws.teamTag = team.strip()
     if not aws.teamTag:
-        team = ask(
+        team_answer = ask(
             "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
             color="cyan",
         ).strip()
-        aws.teamTag = team or "unspecified"
+        aws.teamTag = team_answer or "unspecified"
         if aws.teamTag == "unspecified":
             warn(
                 "Team tag set to 'unspecified' — update aws.teamTag in ~/.test_infra_config.yaml later for cost attribution"
