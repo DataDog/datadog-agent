@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -25,6 +27,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func TestAddDelegatedAuthInstanceContinuesAfterDeadline(t *testing.T) {
+	backgroundCall := make(chan delegatedauth.InstanceParams, 1)
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		backgroundCall <- params
+		return nil
+	}}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	params := delegatedauth.InstanceParams{APIKeyConfigKey: "api_key"}
+
+	require.NoError(t, addDelegatedAuthInstance(ctx, comp, params))
+	select {
+	case got := <-backgroundCall:
+		assert.Equal(t, params.APIKeyConfigKey, got.APIKeyConfigKey)
+	case <-time.After(time.Second):
+		t.Fatal("background registration did not run")
+	}
+}
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)

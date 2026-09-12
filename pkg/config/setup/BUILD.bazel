@@ -94,6 +94,7 @@ dd_agent_go_test(
     ],
     embed = [":setup"],
     deps = [
+        "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
         "//pkg/config/model",

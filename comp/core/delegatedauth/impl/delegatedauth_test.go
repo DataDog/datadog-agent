@@ -539,25 +539,54 @@ func TestAddInstanceRespectsContextCancellation(t *testing.T) {
 }
 
 func TestWaitForOldGoroutineRespectsContextCancellation(t *testing.T) {
-	// Test that when waiting for an old goroutine to exit, we respect context cancellation
-	// This prevents hanging if the old goroutine is stuck
+	existing := &authInstance{done: make(chan struct{}), refreshCancel: func() {}}
+	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
 
-	oldDone := make(chan struct{})
-	// Don't close oldDone - simulate a stuck goroutine
-
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer waitCancel()
-
-	// Simulate the select pattern used in AddInstance when waiting for old goroutine
-	start := time.Now()
-	select {
-	case <-oldDone:
-		t.Fatal("Old goroutine should not have exited")
-	case <-waitCtx.Done():
-		// Expected - context timed out
-		elapsed := time.Since(start)
-		assert.Less(t, elapsed, 200*time.Millisecond, "Should have timed out quickly")
+	replacementCtx, cancelReplacement := context.WithCancel(context.Background())
+	replacement := &authInstance{
+		refreshCtx:    replacementCtx,
+		refreshCancel: cancelReplacement,
+		done:          make(chan struct{}),
 	}
+	waitCtx, cancelWait := context.WithCancel(context.Background())
+	cancelWait()
+
+	require.ErrorIs(t, comp.replaceInstance(waitCtx, "api_key", replacement), context.Canceled)
+	assert.Same(t, existing, comp.instances["api_key"])
+	assert.ErrorIs(t, replacement.refreshCtx.Err(), context.Canceled)
+}
+
+func TestClosedOldGoroutineDoesNotHideContextCancellation(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	existing := &authInstance{done: done, refreshCancel: func() {}}
+	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
+
+	replacementCtx, cancelReplacement := context.WithCancel(context.Background())
+	replacement := &authInstance{refreshCtx: replacementCtx, refreshCancel: cancelReplacement}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.ErrorIs(t, comp.replaceInstance(ctx, "api_key", replacement), context.Canceled)
+	assert.Same(t, existing, comp.instances["api_key"])
+	assert.ErrorIs(t, replacement.refreshCtx.Err(), context.Canceled)
+}
+
+func TestRemoveInstanceWaitsForRefreshLoop(t *testing.T) {
+	refreshCtx, cancelRefresh := context.WithCancel(context.Background())
+	existing := &authInstance{
+		refreshCtx:    refreshCtx,
+		refreshCancel: cancelRefresh,
+		done:          make(chan struct{}),
+	}
+	go func() {
+		<-refreshCtx.Done()
+		close(existing.done)
+	}()
+	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
+
+	require.NoError(t, comp.replaceInstance(context.Background(), "api_key", nil))
+	assert.NotContains(t, comp.instances, "api_key")
 }
 
 // Refresh Interval Validation Tests
@@ -1605,4 +1634,35 @@ func TestInitializeIfNeeded_DetectionFailureIsRecorded(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, providerConfig)
 	assert.Contains(t, comp.disabledReason, "no supported cloud provider detected")
+}
+
+func TestInitializeIfNeeded_DetectionTimeoutCanRetry(t *testing.T) {
+	original := detectAWSCredentialSource
+	calls := 0
+	detectAWSCredentialSource = func(ctx context.Context) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", ctx.Err()
+		}
+		return "environment", nil
+	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
+
+	mockConfig := mock.New(t)
+	mockConfig.Set("delegated_auth.aws.region", "us-east-1", pkgconfigmodel.SourceFile)
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	params := delegatedauth.InstanceParams{Config: mockConfig, OrgUUID: "test-org", APIKeyConfigKey: "api_key"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	providerConfig, err := comp.initializeIfNeeded(ctx, params)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, providerConfig)
+	assert.False(t, comp.initialized)
+
+	providerConfig, err = comp.initializeIfNeeded(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, providerConfig)
+	assert.Equal(t, 2, calls)
+	assert.True(t, comp.initialized)
 }

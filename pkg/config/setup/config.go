@@ -422,10 +422,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		return err
 	}
 
-	// Configure delegated auth after secrets are resolved but before other components initialize
-	// Cloud provider detection happens automatically within the delegatedauth component
-	// Use a background context since LoadDatadog doesn't take a context parameter.
-	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
+	// Configure delegated auth after secrets are resolved but before other components initialize.
 	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
@@ -489,6 +486,13 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		// region itself once detection picks AWS.
 	}
 
+	startupCtx := ctx
+	cancelStartup := func() {}
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	defer cancelStartup()
+
 	// Scan all registered prefixes to find which ones have delegated auth enabled
 	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
@@ -499,9 +503,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
-		// Call AddInstance - the component auto-initializes on the first call
-		// Config and ProviderConfig are only used on the first call
-		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+		err := addDelegatedAuthInstance(startupCtx, delegatedAuthComp, delegatedauth.InstanceParams{
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
@@ -513,6 +515,22 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
+	return ctx.Err()
+}
+
+// addDelegatedAuthInstance lets startup continue when synchronous initialization times out.
+func addDelegatedAuthInstance(ctx context.Context, delegatedAuthComp delegatedauth.Component, params delegatedauth.InstanceParams) error {
+	err := delegatedAuthComp.AddInstance(ctx, params)
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+
+	log.Warnf("Delegated auth startup timed out for '%s'; continuing in the background", params.APIKeyConfigKey)
+	go func() {
+		if retryErr := delegatedAuthComp.AddInstance(context.Background(), params); retryErr != nil {
+			log.Errorf("Failed to configure delegated auth for '%s' in the background: %v", params.APIKeyConfigKey, retryErr)
+		}
+	}()
 	return nil
 }
 
