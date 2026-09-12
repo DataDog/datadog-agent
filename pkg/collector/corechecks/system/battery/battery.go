@@ -39,6 +39,7 @@ type batteryInfo struct {
 	voltage            option.Option[float64] // mV
 	chargeRate         option.Option[float64] // mW (positive = charging, negative = discharging)
 	powerState         []string               // power state tags
+	tags               []string               // battery identity tags
 }
 
 // Check is the battery check
@@ -84,37 +85,42 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	info, err := getBatteryInfoFunc()
+	infos, err := getBatteryInfoFunc()
 	if err != nil {
 		return err
 	}
 
-	if v, ok := info.designedCapacity.Get(); ok {
-		sender.Gauge("system.battery.designed_capacity", v, "", nil)
-	}
-	if v, ok := info.maximumCapacity.Get(); ok {
-		sender.Gauge("system.battery.maximum_capacity", v, "", nil)
-	}
-	if v, ok := info.maximumCapacityPct.Get(); ok {
-		sender.Gauge("system.battery.maximum_capacity_pct", v, "", nil)
-	}
-	if v, ok := info.cycleCount.Get(); ok {
-		sender.Gauge("system.battery.cycle_count", v, "", nil)
-	}
-	if v, ok := info.currentChargePct.Get(); ok {
-		sender.Gauge("system.battery.current_charge_pct", v, "", nil)
-	}
-	if v, ok := info.voltage.Get(); ok {
-		sender.Gauge("system.battery.voltage", v, "", nil)
-	}
-	if v, ok := info.chargeRate.Get(); ok {
-		sender.Gauge("system.battery.charge_rate", v, "", nil)
-	}
+	for _, info := range infos {
+		if v, ok := info.designedCapacity.Get(); ok {
+			sender.Gauge("system.battery.designed_capacity", v, "", info.tags)
+		}
+		if v, ok := info.maximumCapacity.Get(); ok {
+			sender.Gauge("system.battery.maximum_capacity", v, "", info.tags)
+		}
+		if v, ok := info.maximumCapacityPct.Get(); ok {
+			sender.Gauge("system.battery.maximum_capacity_pct", v, "", info.tags)
+		}
+		if v, ok := info.cycleCount.Get(); ok {
+			sender.Gauge("system.battery.cycle_count", v, "", info.tags)
+		}
+		if v, ok := info.currentChargePct.Get(); ok {
+			sender.Gauge("system.battery.current_charge_pct", v, "", info.tags)
+		}
+		if v, ok := info.voltage.Get(); ok {
+			sender.Gauge("system.battery.voltage", v, "", info.tags)
+		}
+		if v, ok := info.chargeRate.Get(); ok {
+			sender.Gauge("system.battery.charge_rate", v, "", info.tags)
+		}
 
-	if len(info.powerState) > 0 {
-		sender.Gauge("system.battery.power_state", 1, "", info.powerState)
-	} else {
-		sender.Gauge("system.battery.power_state", 0, "", []string{"power_state:unknown"})
+		powerStateTags := append([]string{}, info.tags...)
+		if len(info.powerState) > 0 {
+			powerStateTags = append(powerStateTags, info.powerState...)
+			sender.Gauge("system.battery.power_state", 1, "", powerStateTags)
+		} else {
+			powerStateTags = append(powerStateTags, "power_state:unknown")
+			sender.Gauge("system.battery.power_state", 0, "", powerStateTags)
+		}
 	}
 
 	sender.Commit()
