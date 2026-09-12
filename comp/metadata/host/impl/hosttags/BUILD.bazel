@@ -5,6 +5,7 @@ go_library(
     name = "hosttags",
     srcs = [
         "eudm.go",
+        "infra_modes.go",
         "tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags",
