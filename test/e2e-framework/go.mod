@@ -16,8 +16,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.328.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.95.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.97.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.110.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
@@ -25,8 +25,8 @@ require (
 	github.com/docker/cli v29.7.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.55.0
-	github.com/moby/moby/client v0.5.1
+	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/client v0.6.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
@@ -37,14 +37,14 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3
 	github.com/pulumi/pulumi-command/sdk v1.2.1
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2
+	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0
-	github.com/pulumi/pulumi/sdk/v3 v3.260.0
+	github.com/pulumi/pulumi/sdk/v3 v3.261.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -200,7 +200,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -247,6 +247,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/redis/go-redis/v9 v9.22.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
