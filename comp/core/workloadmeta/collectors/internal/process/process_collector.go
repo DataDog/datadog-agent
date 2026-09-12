@@ -261,19 +261,25 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
+	useCachedServiceCollection := c.isProcessDataCollectionEnabled()
+	var processesReady chan struct{}
+	if c.isServiceDiscoveryEnabled() && useCachedServiceCollection {
+		processesReady = make(chan struct{})
+	}
+
 	if c.isProcessDataCollectionEnabled() {
-		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
+		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()), processesReady)
 	}
 
 	if c.isServiceDiscoveryEnabled() {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
 
-		if c.isProcessDataCollectionEnabled() {
+		if useCachedServiceCollection {
 			log.Debug("Starting cached service collection (process data collection enabled)")
-			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
+			go c.collectServicesCached(ctx, c.clock.Timer(serviceCollectionInterval), serviceCollectionInterval, processesReady)
 		} else {
 			log.Debug("Starting non-cached service collection (process data collection disabled)")
-			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
+			go c.collectServicesNoCache(ctx, c.clock.Timer(serviceCollectionInterval), serviceCollectionInterval)
 		}
 	}
 
@@ -890,13 +896,20 @@ func (c *collector) collectProcessesOnce() *Event {
 }
 
 // collectProcesses captures all the required process data for the process check
-func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
+func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker, processesReady chan<- struct{}) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
 	for {
 		if event := c.collectProcessesOnce(); event != nil {
-			c.processEventsCh <- event
+			if processesReady != nil {
+				close(processesReady)
+				processesReady = nil
+			}
+			if !c.sendProcessEvent(ctx, event) {
+				log.Infof("The %s collector has stopped", collectorID)
+				return
+			}
 		}
 
 		select {
@@ -909,39 +922,49 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 	}
 }
 
-func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker *clock.Ticker) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer collectionTicker.Stop()
-	defer cancel()
+// serviceCollectionTimer lets tests observe when Reset completes before advancing the mock clock.
+type serviceCollectionTimer interface {
+	C() <-chan time.Time
+	Reset(time.Duration) bool
+	Stop() bool
+}
+
+type clockServiceCollectionTimer struct {
+	*clock.Timer
+}
+
+func (t clockServiceCollectionTimer) C() <-chan time.Time {
+	return t.Timer.C
+}
+
+// collectServicesWithTimer runs one collection as soon as its startup prerequisites are
+// ready, then waits the configured interval after each collection before
+// collecting again. If the initial timer expires before startup readiness,
+// periodic collection takes over.
+func (c *collector) collectServicesWithTimer(ctx context.Context, collectionTimer serviceCollectionTimer, collectionInterval time.Duration, processesReady <-chan struct{}, waitForSystemProbe func(context.Context) error, collectOnce func(context.Context)) {
+	defer collectionTimer.Stop()
+
+	startupCtx, cancelStartup := context.WithCancel(ctx)
+	defer cancelStartup()
+	startupReady := waitForServiceStartup(startupCtx, processesReady, waitForSystemProbe)
+
 	for {
 		select {
-		case <-collectionTicker.C:
-			alivePids, procs, err := c.getProcessDataForServices()
-			if err != nil {
-				log.Errorf("Error getting processes for service discovery: %v", err)
-				continue
+		case err := <-startupReady:
+			startupReady = nil
+			cancelStartup()
+			if err == nil {
+				collectOnce(ctx)
+				// The real clock wraps time.Timer, whose Reset discards stale values since Go 1.23.
+				collectionTimer.Reset(collectionInterval)
+			} else if !errors.Is(err, context.Canceled) {
+				log.Debugf("startup service collection readiness check stopped: %v", err)
 			}
-			if len(alivePids) == 0 {
-				continue // no processes to check
-			}
-
-			wlmServiceEntities := c.updateServicesNoCache(ctx, alivePids, procs)
-			deletedProcesses := c.findDeletedProcesses(procs)
-
-			if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
-				c.processEventsCh <- &Event{
-					Type:    EventTypeServiceDiscovery,
-					Created: wlmServiceEntities,
-					Deleted: deletedProcesses,
-				}
-			}
-
-			c.mux.Lock()
-			c.lastCollectedProcesses = procs
-			c.mux.Unlock()
-
-			c.cleanDiscoveryMaps(alivePids)
-			c.updateDiscoveredServicesMetric()
+		case <-collectionTimer.C():
+			cancelStartup()
+			startupReady = nil
+			collectOnce(ctx)
+			collectionTimer.Reset(collectionInterval)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -949,64 +972,125 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 	}
 }
 
-// collectServices captures service discovery data for alive processes
-func (c *collector) collectServicesCached(ctx context.Context, collectionTicker *clock.Ticker) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer collectionTicker.Stop()
-	defer cancel()
-	for {
-		select {
-		case <-collectionTicker.C:
-			alivePids, procs, err := c.getCachedProcessData()
-			if err != nil {
-				log.Errorf("Error getting processes for service discovery: %v", err)
-				continue
+func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}, collectOnce func(context.Context)) {
+	c.collectServicesWithTimer(ctx, clockServiceCollectionTimer{collectionTimer}, collectionInterval, processesReady, c.sysProbeClient.WaitForStartup, collectOnce)
+}
+
+func waitForServiceStartup(ctx context.Context, processesReady <-chan struct{}, waitForSystemProbe func(context.Context) error) <-chan error {
+	ready := make(chan error, 1)
+	go func() {
+		if processesReady != nil {
+			select {
+			case <-ctx.Done():
+				ready <- ctx.Err()
+				return
+			case <-processesReady:
 			}
+		}
+		ready <- waitForSystemProbe(ctx)
+	}()
+	return ready
+}
 
-			var wlmDeletedProcs []*workloadmeta.Process
-			for pid := range c.pidHeartbeats {
-				if alivePids.Has(pid) {
-					continue
-				}
+func (c *collector) collectServicesNoCache(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration) {
+	c.collectServices(ctx, collectionTimer, collectionInterval, nil, c.collectServicesNoCacheOnce)
+}
 
-				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   strconv.Itoa(int(pid)),
-					},
-				})
-			}
+// collectServicesNoCacheOnce performs one non-cached service collection.
+func (c *collector) collectServicesNoCacheOnce(ctx context.Context) {
+	alivePids, procs, err := c.getProcessDataForServices()
+	if err != nil {
+		log.Errorf("Error getting processes for service discovery: %v", err)
+		return
+	}
+	if len(alivePids) == 0 {
+		return // no processes to check
+	}
 
-			// Check for deleted processes whose injection status we reported (but had no service)
-			for pid := range c.knownInjectionStatusPids {
-				if alivePids.Has(pid) {
-					continue
-				}
+	wlmServiceEntities := c.updateServicesNoCache(ctx, alivePids, procs)
+	deletedProcesses := c.findDeletedProcesses(procs)
 
-				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   strconv.Itoa(int(pid)),
-					},
-				})
-			}
-
-			wlmServiceEntities, _ := c.updateServices(ctx, alivePids, procs)
-
-			if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
-				c.processEventsCh <- &Event{
-					Type:    EventTypeServiceDiscovery,
-					Created: wlmServiceEntities,
-					Deleted: wlmDeletedProcs,
-				}
-			}
-
-			c.cleanDiscoveryMaps(alivePids)
-			c.updateDiscoveredServicesMetric()
-		case <-ctx.Done():
-			log.Infof("The %s service collector has stopped", collectorID)
+	if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
+		if !c.sendProcessEvent(ctx, &Event{
+			Type:    EventTypeServiceDiscovery,
+			Created: wlmServiceEntities,
+			Deleted: deletedProcesses,
+		}) {
 			return
 		}
+	}
+
+	c.mux.Lock()
+	c.lastCollectedProcesses = procs
+	c.mux.Unlock()
+
+	c.cleanDiscoveryMaps(alivePids)
+	c.updateDiscoveredServicesMetric()
+}
+
+// collectServices captures service discovery data for alive processes
+func (c *collector) collectServicesCached(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}) {
+	c.collectServices(ctx, collectionTimer, collectionInterval, processesReady, c.collectServicesCachedOnce)
+}
+
+// collectServicesCachedOnce performs one cached service collection.
+func (c *collector) collectServicesCachedOnce(ctx context.Context) {
+	alivePids, procs, err := c.getCachedProcessData()
+	if err != nil {
+		log.Errorf("Error getting processes for service discovery: %v", err)
+		return
+	}
+
+	var wlmDeletedProcs []*workloadmeta.Process
+	for pid := range c.pidHeartbeats {
+		if alivePids.Has(pid) {
+			continue
+		}
+
+		wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+		})
+	}
+
+	// Check for deleted processes whose injection status we reported (but had no service)
+	for pid := range c.knownInjectionStatusPids {
+		if alivePids.Has(pid) {
+			continue
+		}
+
+		wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+		})
+	}
+
+	wlmServiceEntities, _ := c.updateServices(ctx, alivePids, procs)
+
+	if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
+		if !c.sendProcessEvent(ctx, &Event{
+			Type:    EventTypeServiceDiscovery,
+			Created: wlmServiceEntities,
+			Deleted: wlmDeletedProcs,
+		}) {
+			return
+		}
+	}
+
+	c.cleanDiscoveryMaps(alivePids)
+	c.updateDiscoveredServicesMetric()
+}
+
+func (c *collector) sendProcessEvent(ctx context.Context, event *Event) bool {
+	select {
+	case c.processEventsCh <- event:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
