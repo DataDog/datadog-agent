@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
@@ -443,6 +444,35 @@ collectLoop:
 	}
 
 	s.Require().Equal(newEvents, receivedEvents, "Should receive all %d new events", newEvents)
+}
+
+func TestForwardMessagesConfiguredTagsAppearOnce(t *testing.T) {
+	source := sources.NewLogSource("", &logconfig.LogsConfig{
+		Tags: []string{"team:infra", "env:prod"},
+	})
+	out := make(chan *message.Message, 1)
+	evtAPI := winevtapi.New()
+	tailer := NewTailer(evtAPI, source, &Config{}, out, auditormock.NewMockAuditor(), publishermetadatacache.New(evtAPI))
+	tailer.done = make(chan struct{})
+
+	go tailer.forwardMessages()
+	tailer.decoder.Start()
+
+	origin := message.NewOrigin(source)
+	msg := message.NewMessageWithParsingExtra(
+		[]byte("windows event text"),
+		origin,
+		message.StatusInfo,
+		0,
+		message.ParsingExtra{Tags: []string{"truncated:true"}},
+	)
+	tailer.decoder.InputChan() <- msg
+
+	received := <-out
+	require.Equal(t, []string{"truncated:true", "team:infra", "env:prod"}, received.Origin.Tags())
+
+	tailer.decoder.Stop()
+	<-tailer.done
 }
 
 func BenchmarkReadEvents(b *testing.B) {
