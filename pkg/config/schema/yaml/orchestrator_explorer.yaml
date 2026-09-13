@@ -11,6 +11,16 @@ properties:
         node_type: setting
         type: boolean
         default: true
+  collect_dra_resources:
+    node_type: setting
+    type: boolean
+    default: false
+    description: |
+      Collect Dynamic Resource Allocation ResourceClaim and ResourceSlice
+      objects with the orchestrator check. Off by default: the collectors need
+      get/list/watch on the resource.k8s.io group, and activating them without
+      that permission stalls informer synchronisation until the cache-sync
+      timeout expires.
   container_scrubbing:
     node_type: section
     type: object
