@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v2"
+	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	config "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
