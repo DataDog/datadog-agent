@@ -53,17 +53,3 @@ pub(super) fn spawn_as_primary_token(
 
     Ok((handle, profile_guard))
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::platform::windows::spawn::win32::build_windows_command_line;
-
-    #[test]
-    fn command_line_preserves_args_without_spaces() {
-        let line = build_windows_command_line(
-            "ping.exe",
-            &["-n".to_string(), "61".to_string(), "127.0.0.1".to_string()],
-        );
-        assert_eq!(line, "ping.exe -n 61 127.0.0.1");
-    }
-}

@@ -121,35 +121,37 @@ fn windows_command_line_arg(s: &str) -> String {
     out
 }
 
-/// `CreateProcess*` flags shared by managed child spawn paths.
-///
-/// `CREATE_NO_WINDOW` spawns hidden console children. `CREATE_NEW_CONSOLE` is omitted:
-/// with both set, Windows ignores `CREATE_NO_WINDOW` and the child gets a visible console.
-pub(crate) fn managed_process_creation_flags() -> u32 {
-    CREATE_NEW_PROCESS_GROUP
-        | CREATE_NO_WINDOW
-        | CREATE_UNICODE_ENVIRONMENT
-        | EXTENDED_STARTUPINFO_PRESENT
+/// `CreateProcess*` flags for managed child spawn (`create_process.rs`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ManagedProcessCreationFlags {
+    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` with breakaway from a foreign parent job.
+    JobListAtCreate,
+    /// Suspended create for post-create job assignment and `ResumeThread`.
+    PostAssign,
 }
 
-/// Flags for create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` assignment.
-///
-/// When the supervisor already belongs to a job (GitLab CI sets
-/// `FF_USE_WINDOWS_JOB_OBJECT`), the child must break away before joining our job.
-pub(crate) fn managed_process_creation_flags_for_job_list() -> u32 {
-    managed_process_creation_flags() | CREATE_BREAKAWAY_FROM_JOB
-}
-
-/// Flags for post-create job assignment when the parent is already in a foreign job.
-///
-/// Matches the pre-`JOB_LIST` spawn path: create suspended, assign to our job, then resume.
-pub(crate) fn managed_process_creation_flags_for_post_assign() -> u32 {
-    CREATE_SUSPENDED
-        | CREATE_NEW_PROCESS_GROUP
-        | CREATE_NEW_CONSOLE
-        | CREATE_NO_WINDOW
-        | CREATE_UNICODE_ENVIRONMENT
-        | EXTENDED_STARTUPINFO_PRESENT
+impl ManagedProcessCreationFlags {
+    pub(crate) fn bits(self) -> u32 {
+        match self {
+            Self::JobListAtCreate => {
+                // `CREATE_NO_WINDOW` without `CREATE_NEW_CONSOLE`: both set and Windows
+                // ignores `CREATE_NO_WINDOW`, giving the child a visible console.
+                CREATE_NEW_PROCESS_GROUP
+                    | CREATE_NO_WINDOW
+                    | CREATE_UNICODE_ENVIRONMENT
+                    | EXTENDED_STARTUPINFO_PRESENT
+                    | CREATE_BREAKAWAY_FROM_JOB
+            }
+            Self::PostAssign => {
+                CREATE_SUSPENDED
+                    | CREATE_NEW_PROCESS_GROUP
+                    | CREATE_NEW_CONSOLE
+                    | CREATE_NO_WINDOW
+                    | CREATE_UNICODE_ENVIRONMENT
+                    | EXTENDED_STARTUPINFO_PRESENT
+            }
+        }
+    }
 }
 
 /// Resumes the primary thread of a child created with `CREATE_SUSPENDED`.
@@ -171,6 +173,15 @@ pub(crate) fn resume_child_primary_thread(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_line_preserves_args_without_spaces() {
+        let line = build_windows_command_line(
+            "ping.exe",
+            &["-n".to_string(), "61".to_string(), "127.0.0.1".to_string()],
+        );
+        assert_eq!(line, "ping.exe -n 61 127.0.0.1");
+    }
 
     #[test]
     fn command_line_quotes_only_when_needed_for_cmd_c() {

@@ -20,10 +20,7 @@ use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
 use super::inputs::SpawnInputs;
 use super::startup_info_ex::StartupInfoEx;
-use super::win32::{
-    managed_process_creation_flags_for_job_list, managed_process_creation_flags_for_post_assign,
-    resume_child_primary_thread,
-};
+use super::win32::{ManagedProcessCreationFlags, resume_child_primary_thread};
 
 /// Which Win32 create API to invoke for a managed child spawn.
 pub(super) enum CreateProcessInvoker {
@@ -101,7 +98,7 @@ pub(super) fn spawn_managed_child(
             invoker.invoke(
                 inputs,
                 startup_info.startup_info(),
-                managed_process_creation_flags_for_job_list(),
+                ManagedProcessCreationFlags::JobListAtCreate.bits(),
                 &mut process_info,
             )
         };
@@ -134,7 +131,7 @@ fn spawn_post_assign(
         invoker.invoke(
             inputs,
             startup_info.startup_info(),
-            managed_process_creation_flags_for_post_assign(),
+            ManagedProcessCreationFlags::PostAssign.bits(),
             &mut process_info,
         )
     };

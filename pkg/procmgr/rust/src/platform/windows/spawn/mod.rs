@@ -5,25 +5,13 @@
 
 //! Windows child spawn.
 //!
-//! Comments here are written for readers who are not familiar with Windows: we spell out
-//! Win32 concepts (access tokens, job objects, user profiles) as they appear.
+//! Entry: `ManagedProcess::spawn_child_handle` in `managed.rs` (from `try_spawn`).
+//! Routing lives in `managed.rs`; shared `CreateProcess*` job attach and resume logic
+//! in `create_process.rs`.
 //!
-//! Entry: `ManagedProcess::spawn_child_handle` in `managed.rs` (called from `try_spawn`).
-//!
-//! Three paths, chosen by `SpawnProfile` and whether the supervisor token already
-//! matches the installed agent account. All three attach the job at `CreateProcess*`
-//! via `STARTUPINFOEX` + `PROC_THREAD_ATTRIBUTE_JOB_LIST`. Windows does not use
-//! Tokio `Command::spawn`.
-//!
-//! - **Privileged** (`datadog-agent-process`) and **agent inherit**: child runs as
-//!   dd-procmgrd. `CreateProcessW` in `inherit_supervisor` (not
-//!   `CreateProcessAsUserW`: that API needs `SeIncreaseQuotaPrivilege`, which the
-//!   installed agent account does not hold).
-//! - **Agent logon**: supervisor token does not match the agent account. `LogonUser` +
-//!   `CreateProcessAsUserW` in `primary_token`, with the user profile kept loaded
-//!   until the child exits.
-//!
-//! Access tokens: <https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens>
+//! Three paths (see `managed.rs`):
+//! - **Privileged** and **agent inherit**: `CreateProcessW` via `inherit_supervisor`
+//! - **Agent logon**: `LogonUser` + `CreateProcessAsUserW` via `primary_token`
 
 mod create_process;
 mod credential;
