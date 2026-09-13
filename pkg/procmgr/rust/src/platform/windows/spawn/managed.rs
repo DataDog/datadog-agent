@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::{info, warn};
+use log::info;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
@@ -14,24 +14,6 @@ use super::super::JobObject;
 use super::credential::SpawnCredential;
 use super::inherit_supervisor::spawn_inherit_supervisor;
 use super::primary_token::spawn_as_primary_token;
-
-const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
-
-pub(crate) fn resolve_spawn_identity(
-    process_name: &str,
-    profile: SpawnProfile,
-) -> (String, Option<SpawnCredential>) {
-    match profile {
-        SpawnProfile::Privileged => (PRIVILEGED_INTENDED_USER.to_string(), None),
-        SpawnProfile::Agent => match SpawnCredential::resolve_agent() {
-            Ok(credential) => (credential.display_name(), Some(credential)),
-            Err(e) => {
-                warn!("[{process_name}] could not resolve intended spawn user: {e:#}");
-                ("unknown".to_string(), None)
-            }
-        },
-    }
-}
 
 impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
@@ -100,19 +82,5 @@ impl ManagedProcess {
 
         self.set_job_object(job);
         Ok(handle)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::spawn::SpawnProfile;
-
-    #[test]
-    fn privileged_profile_spawn_user_is_local_system() {
-        assert_eq!(
-            resolve_spawn_identity("datadog-agent-process", SpawnProfile::Privileged).0,
-            PRIVILEGED_INTENDED_USER
-        );
     }
 }

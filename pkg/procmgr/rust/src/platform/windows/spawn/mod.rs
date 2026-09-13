@@ -37,5 +37,4 @@ mod test_harness;
 pub(crate) mod user_profile;
 pub(crate) mod win32;
 
-pub(crate) use credential::SpawnCredential;
-pub(crate) use managed::resolve_spawn_identity;
+pub(crate) use credential::{SpawnCredential, resolve_initial_spawn_identity};

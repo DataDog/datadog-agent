@@ -122,9 +122,9 @@ impl ManagedProcess {
         let restarts = RestartTracker::new(config.restart_delay());
         let profile = SpawnProfile::profile_for(&name);
         #[cfg(windows)]
-        let (user, agent_credential) = platform::resolve_spawn_identity(&name, profile);
+        let (user, agent_credential) = platform::initial_spawn_identity(&name, profile);
         #[cfg(not(windows))]
-        let user = platform::intended_spawn_user(&name, profile);
+        let user = platform::initial_spawn_identity(&name, profile);
         Self {
             name,
             uuid,

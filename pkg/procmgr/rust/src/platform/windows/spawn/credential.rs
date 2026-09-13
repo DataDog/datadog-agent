@@ -4,7 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
+use log::warn;
 use windows_sys::Win32::Foundation::HANDLE;
+
+use crate::spawn::SpawnProfile;
 
 use super::super::local_agent_account::AgentAccount;
 #[cfg(not(test))]
@@ -18,6 +21,41 @@ use super::win32::duplicate_primary_token;
 /// already runs as the target account) or call `LogonUser` for a primary token. Password
 /// retrieval is a follow-up (A4-lsa). This type only holds the resolved account and which
 /// path to take.
+const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
+
+fn intended_user_for_profile(profile: SpawnProfile) -> String {
+    match profile {
+        SpawnProfile::Privileged => PRIVILEGED_INTENDED_USER.to_string(),
+        SpawnProfile::Agent => "unknown".to_string(),
+    }
+}
+
+fn resolve_agent_credential(process_name: &str) -> Option<SpawnCredential> {
+    match SpawnCredential::resolve_agent() {
+        Ok(credential) => Some(credential),
+        Err(error) => {
+            warn!("[{process_name}] could not resolve intended spawn user: {error:#}");
+            None
+        }
+    }
+}
+
+/// Status user and optional cached agent credential when a `ManagedProcess` is created.
+pub(crate) fn resolve_initial_spawn_identity(
+    process_name: &str,
+    profile: SpawnProfile,
+) -> (String, Option<SpawnCredential>) {
+    let agent_credential = match profile {
+        SpawnProfile::Agent => resolve_agent_credential(process_name),
+        SpawnProfile::Privileged => None,
+    };
+    let user = agent_credential
+        .as_ref()
+        .map(SpawnCredential::display_name)
+        .unwrap_or_else(|| intended_user_for_profile(profile));
+    (user, agent_credential)
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct SpawnCredential {
     account: AgentAccount,
@@ -91,6 +129,23 @@ impl SpawnCredential {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::spawn::SpawnProfile;
+
+    #[test]
+    fn privileged_profile_intended_user_is_local_system() {
+        assert_eq!(
+            intended_user_for_profile(SpawnProfile::Privileged),
+            PRIVILEGED_INTENDED_USER
+        );
+    }
+
+    #[test]
+    fn resolve_initial_spawn_identity_for_privileged_process() {
+        let (user, credential) =
+            resolve_initial_spawn_identity("datadog-agent-process", SpawnProfile::Privileged);
+        assert_eq!(user, PRIVILEGED_INTENDED_USER);
+        assert!(credential.is_none());
+    }
 
     #[test]
     fn agent_profile_in_unit_tests_never_logons_installer_account() {
