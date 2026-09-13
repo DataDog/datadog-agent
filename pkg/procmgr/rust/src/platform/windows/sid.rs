@@ -6,6 +6,7 @@
 use anyhow::{Result, bail};
 use std::ptr;
 use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{CreateWellKnownSid, LookupAccountNameW, WELL_KNOWN_SID_TYPE};
 
 use super::wide;
@@ -87,5 +88,21 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         }
         sid.truncate(sid_size as usize);
         Ok(sid)
+    }
+}
+
+#[cfg(not(test))]
+pub(crate) fn sid_to_string(sid: &[u8]) -> Result<String> {
+    unsafe {
+        let mut sid_string: *mut u16 = ptr::null_mut();
+        if ConvertSidToStringSidW(sid.as_ptr() as *mut _, &mut sid_string) == 0 {
+            bail!(
+                "ConvertSidToStringSidW: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        let sid_str = wide::from_ptr(sid_string);
+        windows_sys::Win32::Foundation::LocalFree(sid_string as _);
+        Ok(sid_str)
     }
 }
