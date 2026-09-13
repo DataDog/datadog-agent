@@ -8,7 +8,7 @@
 //! Comments here are written for readers who are not familiar with Windows: we spell out
 //! Win32 concepts (access tokens, job objects, user profiles) as they appear.
 //!
-//! Entry: `managed::spawn_child_handle` (called from `ManagedProcess::spawn`).
+//! Entry: `ManagedProcess::spawn_child_handle` in `managed.rs` (called from `try_spawn`).
 //!
 //! Three paths, chosen by `SpawnProfile` and whether the supervisor token already
 //! matches the installed agent account. All three attach the job at `CreateProcess*`
@@ -38,4 +38,4 @@ pub(crate) mod user_profile;
 pub(crate) mod win32;
 
 pub(crate) use credential::SpawnCredential;
-pub(crate) use managed::{resolve_spawn_identity, spawn_child_handle};
+pub(crate) use managed::resolve_spawn_identity;

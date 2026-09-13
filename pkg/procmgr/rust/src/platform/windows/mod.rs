@@ -21,7 +21,7 @@ use std::sync::OnceLock;
 use tokio::sync::Notify;
 
 pub(crate) use spawn::user_profile::UserProfileGuard;
-pub(crate) use spawn::{SpawnCredential, resolve_spawn_identity, spawn_child_handle};
+pub(crate) use spawn::{SpawnCredential, resolve_spawn_identity};
 
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 pub(crate) use console::console_lock;

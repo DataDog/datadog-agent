@@ -300,7 +300,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let handle = platform::spawn_child_handle(self)?;
+        let handle = self.spawn_child_handle()?;
 
         self.pid = handle.id();
         info!(
