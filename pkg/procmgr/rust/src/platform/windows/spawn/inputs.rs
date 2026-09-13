@@ -11,14 +11,31 @@ use crate::spawn::SpawnRequest;
 
 use super::super::wide::{NullTerminatedWide, WideEnvBlock};
 use super::credential::SpawnCredential;
-use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
+use super::stdio::{MappedStdioHandle, map_stdio_handle_nul, map_stdio_setting};
 use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
 
 /// Inheritable stdio handles passed to `CreateProcess*`.
+///
+/// Owns [`MappedStdioHandle`] wrappers so handles stay open until after `CreateProcess*`
+/// returns (the wrappers close them on drop).
 pub(crate) struct SpawnStdio {
-    pub stdin: HANDLE,
-    pub stdout: HANDLE,
-    pub stderr: HANDLE,
+    stdin: MappedStdioHandle,
+    stdout: MappedStdioHandle,
+    stderr: MappedStdioHandle,
+}
+
+impl SpawnStdio {
+    pub(crate) fn stdin(&self) -> HANDLE {
+        self.stdin.raw()
+    }
+
+    pub(crate) fn stdout(&self) -> HANDLE {
+        self.stdout.raw()
+    }
+
+    pub(crate) fn stderr(&self) -> HANDLE {
+        self.stderr.raw()
+    }
 }
 
 /// Win32-owned inputs for `CreateProcessW` / `CreateProcessAsUserW`.
@@ -69,9 +86,9 @@ impl SpawnInputs {
             current_dir,
             env_block,
             stdio: SpawnStdio {
-                stdin: stdin_handle.raw(),
-                stdout: stdout_handle.raw(),
-                stderr: stderr_handle.raw(),
+                stdin: stdin_handle,
+                stdout: stdout_handle,
+                stderr: stderr_handle,
             },
         })
     }

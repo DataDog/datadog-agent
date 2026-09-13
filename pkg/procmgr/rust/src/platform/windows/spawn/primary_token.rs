@@ -57,9 +57,9 @@ pub(super) fn spawn_as_primary_token(
 
     if !current_process_in_job() {
         let mut startup_info = StartupInfoEx::with_stdio_and_job(
-            inputs.stdio.stdin,
-            inputs.stdio.stdout,
-            inputs.stdio.stderr,
+            inputs.stdio.stdin(),
+            inputs.stdio.stdout(),
+            inputs.stdio.stderr(),
             job.raw_handle(),
         )?;
         let ok = unsafe {
@@ -103,9 +103,9 @@ fn spawn_post_assign_primary_token(
     profile_guard: UserProfileGuard,
 ) -> Result<(ProcessHandle, UserProfileGuard)> {
     let mut startup_info = StartupInfoEx::with_stdio_handles(
-        inputs.stdio.stdin,
-        inputs.stdio.stdout,
-        inputs.stdio.stderr,
+        inputs.stdio.stdin(),
+        inputs.stdio.stdout(),
+        inputs.stdio.stderr(),
     )?;
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {

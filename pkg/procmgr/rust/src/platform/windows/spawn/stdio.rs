@@ -74,10 +74,10 @@ pub(super) fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
     MappedStdioHandle::nul()
 }
 
-pub(super) struct MappedStdioHandle(HANDLE);
+pub(crate) struct MappedStdioHandle(HANDLE);
 
 impl MappedStdioHandle {
-    pub(super) fn raw(&self) -> HANDLE {
+    pub(crate) fn raw(&self) -> HANDLE {
         self.0
     }
 

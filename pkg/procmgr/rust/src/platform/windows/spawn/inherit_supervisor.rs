@@ -56,9 +56,9 @@ pub(super) fn spawn_inherit_supervisor(
 
     if !current_process_in_job() {
         let mut startup_info = StartupInfoEx::with_stdio_and_job(
-            inputs.stdio.stdin,
-            inputs.stdio.stdout,
-            inputs.stdio.stderr,
+            inputs.stdio.stdin(),
+            inputs.stdio.stdout(),
+            inputs.stdio.stderr(),
             job.raw_handle(),
         )?;
         let ok = unsafe {
@@ -93,9 +93,9 @@ fn spawn_post_assign_inherit_supervisor(
     job: &JobObject,
 ) -> Result<ProcessHandle> {
     let mut startup_info = StartupInfoEx::with_stdio_handles(
-        inputs.stdio.stdin,
-        inputs.stdio.stdout,
-        inputs.stdio.stderr,
+        inputs.stdio.stdin(),
+        inputs.stdio.stdout(),
+        inputs.stdio.stderr(),
     )?;
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {

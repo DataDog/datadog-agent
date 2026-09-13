@@ -32,10 +32,6 @@ pub(crate) fn trim_wide_nul(wide: &[u16]) -> String {
 pub(crate) struct NullTerminatedWide(Vec<u16>);
 
 impl NullTerminatedWide {
-    pub(crate) fn from_str(value: &str) -> Self {
-        Self(null_terminated(value))
-    }
-
     pub(crate) fn from_os_str(value: &OsStr) -> Self {
         Self(value.encode_wide().chain([0]).collect())
     }
@@ -61,6 +57,7 @@ impl WideEnvBlock {
         self.0.as_ptr() as *const c_void
     }
 
+    #[cfg(test)]
     pub(crate) fn as_wide_slice(&self) -> &[u16] {
         &self.0
     }
