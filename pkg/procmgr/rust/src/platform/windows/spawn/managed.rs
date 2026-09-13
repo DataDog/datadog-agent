@@ -36,18 +36,19 @@ pub(crate) fn resolve_spawn_identity(
 impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
         let profile = self.profile();
-        let request = SpawnRequest::from_config(self.name(), self.config())?;
-
         info!("[{}] spawn profile: {profile}", self.name());
 
-        if matches!(profile, SpawnProfile::Privileged) {
-            return self.spawn_privileged(request);
+        match profile {
+            SpawnProfile::Privileged => self.spawn_privileged(),
+            SpawnProfile::Agent => self.spawn_agent(),
         }
-
-        self.spawn_agent(request)
     }
 
-    fn spawn_agent(&mut self, request: SpawnRequest) -> Result<ProcessHandle> {
+    fn spawn_request(&self) -> Result<SpawnRequest> {
+        SpawnRequest::from_config(self.name(), self.config())
+    }
+
+    fn spawn_agent(&mut self) -> Result<ProcessHandle> {
         let credential = match self.agent_credential().cloned() {
             Some(credential) => credential,
             None => {
@@ -59,17 +60,14 @@ impl ManagedProcess {
         };
 
         if credential.reuses_supervisor_token() {
-            return self.spawn_with_supervisor_inherit(request, &credential);
+            return self.spawn_with_supervisor_inherit(&credential);
         }
 
-        self.spawn_agent_logon(request, &credential)
+        self.spawn_agent_logon(&credential)
     }
 
-    fn spawn_agent_logon(
-        &mut self,
-        request: SpawnRequest,
-        credential: &SpawnCredential,
-    ) -> Result<ProcessHandle> {
+    fn spawn_agent_logon(&mut self, credential: &SpawnCredential) -> Result<ProcessHandle> {
+        let request = self.spawn_request()?;
         let job = JobObject::new().with_context(|| {
             format!("[{}] create job object for child supervision", self.name())
         })?;
@@ -84,15 +82,15 @@ impl ManagedProcess {
         Ok(handle)
     }
 
-    fn spawn_privileged(&mut self, request: SpawnRequest) -> Result<ProcessHandle> {
-        self.spawn_with_supervisor_inherit(request, &SpawnCredential::privileged())
+    fn spawn_privileged(&mut self) -> Result<ProcessHandle> {
+        self.spawn_with_supervisor_inherit(&SpawnCredential::privileged())
     }
 
     fn spawn_with_supervisor_inherit(
         &mut self,
-        request: SpawnRequest,
         credential: &SpawnCredential,
     ) -> Result<ProcessHandle> {
+        let request = self.spawn_request()?;
         let job = JobObject::new().with_context(|| {
             format!("[{}] create job object for child supervision", self.name())
         })?;
