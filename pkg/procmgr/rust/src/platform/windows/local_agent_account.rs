@@ -17,6 +17,7 @@ use super::agent_service_sid::lookup_installed_user_sid;
 use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
 #[cfg(not(test))]
 use super::installer_lsa_password::read_installer_agent_password;
+#[cfg(not(test))]
 use super::local_account::is_local_account;
 use super::secure_utf16::SecureUtf16String;
 use super::sid::create_well_known_sid;
