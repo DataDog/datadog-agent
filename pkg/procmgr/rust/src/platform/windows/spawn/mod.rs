@@ -25,6 +25,7 @@
 //!
 //! Access tokens: <https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens>
 
+mod create_process;
 mod credential;
 mod inherit_supervisor;
 mod inputs;
