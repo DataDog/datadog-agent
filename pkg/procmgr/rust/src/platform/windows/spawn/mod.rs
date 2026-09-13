@@ -27,6 +27,7 @@
 
 mod credential;
 mod inherit_supervisor;
+mod inputs;
 mod logon;
 mod managed;
 mod primary_token;

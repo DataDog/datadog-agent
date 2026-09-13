@@ -4,12 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 use std::mem;
-use std::os::windows::ffi::OsStrExt;
 
 use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER};
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
-use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{CreateProcessW, PROCESS_INFORMATION};
 
 use crate::handle::ProcessHandle;
@@ -19,12 +17,10 @@ use super::super::JobObject;
 use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
 use super::super::token_identity::open_current_process_token;
-use super::super::wide;
 use super::credential::SpawnCredential;
+use super::inputs::SpawnInputs;
 use super::startup_info_ex::StartupInfoEx;
-use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::win32::{
-    build_windows_command_line, env_block_from_baseline_plus_overrides,
     managed_process_creation_flags_for_job_list, managed_process_creation_flags_for_post_assign,
     resume_child_primary_thread,
 };
@@ -45,64 +41,36 @@ pub(super) fn spawn_inherit_supervisor(
     credential: &SpawnCredential,
     job: &JobObject,
 ) -> Result<ProcessHandle> {
-    let stdout_handle = map_stdio_setting(
-        process_name,
-        request.stdout_setting(),
-        windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
-        credential,
-    )?;
-    let stderr_handle = map_stdio_setting(
-        process_name,
-        request.stderr_setting(),
-        STD_ERROR_HANDLE,
-        credential,
-    )?;
-    let stdin_handle = map_stdio_handle_nul()?;
-
-    let command_line = build_windows_command_line(request.command(), request.args());
-    let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
-        .encode_wide()
-        .chain([0])
-        .collect();
-
-    let current_dir_w = request
-        .working_dir()
-        .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
-
     let supervisor_token =
         open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
             anyhow::anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
         })?;
-    let env_block = env_block_from_baseline_plus_overrides(
+    let mut inputs = SpawnInputs::prepare(
         process_name,
+        request,
+        credential,
         supervisor_token.as_handle(),
-        request.env(),
     )?;
-    let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
-
-    let stdin = stdin_handle.raw();
-    let stdout = stdout_handle.raw();
-    let stderr = stderr_handle.raw();
-    let current_dir_ptr = current_dir_w
-        .as_ref()
-        .map(|w| w.as_ptr())
-        .unwrap_or(std::ptr::null());
 
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
 
     if !current_process_in_job() {
-        let mut startup_info =
-            StartupInfoEx::with_stdio_and_job(stdin, stdout, stderr, job.raw_handle())?;
+        let mut startup_info = StartupInfoEx::with_stdio_and_job(
+            inputs.stdio.stdin,
+            inputs.stdio.stdout,
+            inputs.stdio.stderr,
+            job.raw_handle(),
+        )?;
         let ok = unsafe {
             CreateProcessW(
                 std::ptr::null(),
-                command_line_w.as_mut_ptr(),
+                inputs.command_line_mut_ptr(),
                 std::ptr::null(),
                 std::ptr::null(),
                 1,
                 managed_process_creation_flags_for_job_list(),
-                env_block_ptr,
-                current_dir_ptr,
+                inputs.env_ptr(),
+                inputs.cwd_ptr(),
                 startup_info.startup_info(),
                 &mut process_info,
             )
@@ -116,41 +84,30 @@ pub(super) fn spawn_inherit_supervisor(
         }
     }
 
-    spawn_post_assign_inherit_supervisor(
-        process_name,
-        &mut command_line_w,
-        env_block_ptr,
-        current_dir_ptr,
-        stdin,
-        stdout,
-        stderr,
-        job,
-    )
+    spawn_post_assign_inherit_supervisor(process_name, &mut inputs, job)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn spawn_post_assign_inherit_supervisor(
     process_name: &str,
-    command_line_w: &mut [u16],
-    env_block_ptr: *const std::ffi::c_void,
-    current_dir_ptr: *const u16,
-    stdin: windows_sys::Win32::Foundation::HANDLE,
-    stdout: windows_sys::Win32::Foundation::HANDLE,
-    stderr: windows_sys::Win32::Foundation::HANDLE,
+    inputs: &mut SpawnInputs,
     job: &JobObject,
 ) -> Result<ProcessHandle> {
-    let mut startup_info = StartupInfoEx::with_stdio_handles(stdin, stdout, stderr)?;
+    let mut startup_info = StartupInfoEx::with_stdio_handles(
+        inputs.stdio.stdin,
+        inputs.stdio.stdout,
+        inputs.stdio.stderr,
+    )?;
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
         CreateProcessW(
             std::ptr::null(),
-            command_line_w.as_mut_ptr(),
+            inputs.command_line_mut_ptr(),
             std::ptr::null(),
             std::ptr::null(),
             1,
             managed_process_creation_flags_for_post_assign(),
-            env_block_ptr,
-            current_dir_ptr,
+            inputs.env_ptr(),
+            inputs.cwd_ptr(),
             startup_info.startup_info(),
             &mut process_info,
         )

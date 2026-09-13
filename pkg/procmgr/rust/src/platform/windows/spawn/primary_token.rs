@@ -5,9 +5,7 @@
 
 use anyhow::{Result, bail};
 use std::mem;
-use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER};
-use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 use windows_sys::Win32::System::Threading::{CreateProcessAsUserW, PROCESS_INFORMATION};
 
 use crate::handle::ProcessHandle;
@@ -16,14 +14,12 @@ use crate::spawn::SpawnRequest;
 use super::super::JobObject;
 use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
-use super::super::wide;
 use super::credential::SpawnCredential;
+use super::inputs::SpawnInputs;
 use super::logon::TokenHandle;
 use super::startup_info_ex::StartupInfoEx;
-use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::user_profile::UserProfileGuard;
 use super::win32::{
-    build_windows_command_line, env_block_from_baseline_plus_overrides,
     managed_process_creation_flags_for_job_list, managed_process_creation_flags_for_post_assign,
     resume_child_primary_thread,
 };
@@ -46,77 +42,37 @@ pub(super) fn spawn_as_primary_token(
     credential: &SpawnCredential,
     job: &JobObject,
 ) -> Result<(ProcessHandle, UserProfileGuard)> {
-    // Resolve inheritable stdout/stderr for the spawn token (may differ from supervisor).
-    let stdout_handle = map_stdio_setting(
-        process_name,
-        request.stdout_setting(),
-        STD_OUTPUT_HANDLE,
-        credential,
-    )?;
-    let stderr_handle = map_stdio_setting(
-        process_name,
-        request.stderr_setting(),
-        STD_ERROR_HANDLE,
-        credential,
-    )?;
-    // On Windows, stdio is passed as inheritable HANDLEs; NUL stdin avoids tying the child
-    // to procmgrd's console.
-    let stdin_handle = map_stdio_handle_nul()?;
-
-    // Win32 wants argv as one wchar string here (lpApplicationName is null below).
-    let command_line = build_windows_command_line(request.command(), request.args());
-
-    let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
-        .encode_wide()
-        .chain([0])
-        .collect();
-
-    let current_dir_w = request
-        .working_dir()
-        .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
-
-    // Primary token for CreateProcessAsUserW, from LogonUser.
     let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
 
-    // LoadUserProfileW mounts the user's HKCU hive (per-user registry).
     let profile_guard = UserProfileGuard::load(
         process_name,
         primary_token_guard.raw(),
         credential.account(),
     )?;
 
-    // Env: CreateEnvironmentBlock(token) -> legacy SCM registry -> processes.d overrides.
-    let env_block = env_block_from_baseline_plus_overrides(
-        process_name,
-        primary_token_guard.raw(),
-        request.env(),
-    )?;
-    let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
-
-    let stdin = stdin_handle.raw();
-    let stdout = stdout_handle.raw();
-    let stderr = stderr_handle.raw();
-    let current_dir_ptr = current_dir_w
-        .as_ref()
-        .map(|w| w.as_ptr())
-        .unwrap_or(std::ptr::null());
+    let mut inputs =
+        SpawnInputs::prepare(process_name, request, credential, primary_token_guard.raw())?;
 
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
 
     if !current_process_in_job() {
-        let mut startup_info =
-            StartupInfoEx::with_stdio_and_job(stdin, stdout, stderr, job.raw_handle())?;
+        let mut startup_info = StartupInfoEx::with_stdio_and_job(
+            inputs.stdio.stdin,
+            inputs.stdio.stdout,
+            inputs.stdio.stderr,
+            job.raw_handle(),
+        )?;
         let ok = unsafe {
             CreateProcessAsUserW(
                 primary_token_guard.raw(),
                 std::ptr::null(),
-                command_line_w.as_mut_ptr(),
+                inputs.command_line_mut_ptr(),
                 std::ptr::null(),
                 std::ptr::null(),
                 1,
                 managed_process_creation_flags_for_job_list(),
-                env_block_ptr,
-                current_dir_ptr,
+                inputs.env_ptr(),
+                inputs.cwd_ptr(),
                 startup_info.startup_info(),
                 &mut pi,
             )
@@ -133,43 +89,36 @@ pub(super) fn spawn_as_primary_token(
     spawn_post_assign_primary_token(
         process_name,
         primary_token_guard.raw(),
-        &mut command_line_w,
-        env_block_ptr,
-        current_dir_ptr,
-        stdin,
-        stdout,
-        stderr,
+        &mut inputs,
         job,
         profile_guard,
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn spawn_post_assign_primary_token(
     process_name: &str,
     primary_token: windows_sys::Win32::Foundation::HANDLE,
-    command_line_w: &mut [u16],
-    env_block_ptr: *const std::ffi::c_void,
-    current_dir_ptr: *const u16,
-    stdin: windows_sys::Win32::Foundation::HANDLE,
-    stdout: windows_sys::Win32::Foundation::HANDLE,
-    stderr: windows_sys::Win32::Foundation::HANDLE,
+    inputs: &mut SpawnInputs,
     job: &JobObject,
     profile_guard: UserProfileGuard,
 ) -> Result<(ProcessHandle, UserProfileGuard)> {
-    let mut startup_info = StartupInfoEx::with_stdio_handles(stdin, stdout, stderr)?;
+    let mut startup_info = StartupInfoEx::with_stdio_handles(
+        inputs.stdio.stdin,
+        inputs.stdio.stdout,
+        inputs.stdio.stderr,
+    )?;
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
         CreateProcessAsUserW(
             primary_token,
             std::ptr::null(),
-            command_line_w.as_mut_ptr(),
+            inputs.command_line_mut_ptr(),
             std::ptr::null(),
             std::ptr::null(),
             1,
             managed_process_creation_flags_for_post_assign(),
-            env_block_ptr,
-            current_dir_ptr,
+            inputs.env_ptr(),
+            inputs.cwd_ptr(),
             startup_info.startup_info(),
             &mut pi,
         )
