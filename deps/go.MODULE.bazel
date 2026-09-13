@@ -364,7 +364,7 @@ use_repo(
     "com_github_xi2_xz",
     "com_github_xor_gate_ar",
     "com_github_yusufpapurcu_wmi",
-    "com_gitlab_gitlab_org_api_client_go",
+    "com_gitlab_gitlab_org_api_client_go_v2",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
     "dev_essio_al_pkg_shellescape",
