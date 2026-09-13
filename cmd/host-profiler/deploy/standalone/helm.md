@@ -77,3 +77,46 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective deployment (optional)
+
+By default, the DaemonSet schedules the Host Profiler on every node in the cluster. To limit it to a subset of nodes, set one of the following fields in [`helm/collector-values.yaml`](helm/collector-values.yaml).
+
+### `nodeSelector`
+
+Matches nodes by exact label value:
+
+```yaml
+nodeSelector:
+  eks.amazonaws.com/nodegroup: ng1
+```
+
+### `affinity.nodeAffinity`
+
+Use node affinity instead of `nodeSelector` for `In`/`NotIn` matching, multiple label conditions, or a soft preference rather than a hard requirement:
+
+```yaml
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: eks.amazonaws.com/nodegroup
+              operator: In
+              values:
+                - ng1
+```
+
+### `tolerations`
+
+Target nodes may already carry a taint, for example a reserved nodegroup or a team's dedicated node pool. The Host Profiler cannot schedule on a tainted node without a matching toleration, even when `nodeSelector` or `affinity` matches that node:
+
+```yaml
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: host-profiler
+    effect: NoSchedule
+```
+
+See the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml) for the full field list.
