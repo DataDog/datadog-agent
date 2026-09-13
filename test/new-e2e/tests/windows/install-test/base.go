@@ -7,6 +7,8 @@
 package installtest
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,9 +37,29 @@ import (
 
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
-	beforeInstall      *windowsCommon.FileSystemSnapshot
 	beforeInstallPerms map[string]string // path -> SDDL
 	dumpFolder         string
+	fileDeletionAudit  *windowsCommon.FileDeletionAudit
+	deletionAuditData  fileDeletionAuditArtifact
+}
+
+type fileDeletionAuditArtifact struct {
+	MonitoredRoot      string                               `json:"monitored_root"`
+	Exclusions         []string                             `json:"exclusions"`
+	LifecycleStart     *windowsCommon.SecurityLogCheckpoint `json:"lifecycle_start,omitempty"`
+	FinalCheckpoint    *windowsCommon.SecurityLogCheckpoint `json:"final_checkpoint,omitempty"`
+	Operations         []fileDeletionAuditOperation         `json:"operations"`
+	UnattributedEvents []ClassifiedDeletionEvent            `json:"unattributed_events"`
+	LifecycleError     string                               `json:"lifecycle_error,omitempty"`
+	RestorationError   string                               `json:"restoration_error,omitempty"`
+}
+
+type fileDeletionAuditOperation struct {
+	Name            string                              `json:"name"`
+	StartCheckpoint windowsCommon.SecurityLogCheckpoint `json:"start_checkpoint"`
+	EndCheckpoint   windowsCommon.SecurityLogCheckpoint `json:"end_checkpoint"`
+	Events          []ClassifiedDeletionEvent           `json:"events"`
+	EvidenceError   string                              `json:"evidence_error,omitempty"`
 }
 
 // packageInstallOptions holds options for the installAgentPackage method
@@ -58,15 +80,27 @@ func WithSkipProcdump() PackageInstallOption {
 
 // NOTE: BeforeTest is not called before subtests
 func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
+	s.fileDeletionAudit = nil
+	s.deletionAuditData = fileDeletionAuditArtifact{
+		MonitoredRoot: windowsCommon.WindowsDirectory,
+		Exclusions:    SystemPathAuditExclusions(),
+		Operations:    []fileDeletionAuditOperation{},
+	}
+
 	if beforeTest, ok := any(&s.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
 		beforeTest.BeforeTest(suiteName, testName)
 	}
 
 	vm := s.Env().RemoteHost
 	var err error
-	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
-	s.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
-	s.Require().NoError(err)
+
+	s.fileDeletionAudit, err = windowsCommon.StartFileDeletionAudit(vm)
+	s.Require().NoError(err, "should enable Windows file-deletion auditing")
+	start, err := windowsCommon.GetSecurityLogCheckpoint(vm)
+	s.Require().NoError(err, "should record file-deletion audit lifecycle checkpoint")
+	s.deletionAuditData.LifecycleStart = &start
+	s.Require().NoError(s.writeFileDeletionAuditArtifact())
+
 	s.beforeInstallPerms, err = SnapshotPermissionsForPaths(vm, SystemPathsForPermissionsValidation())
 	s.Require().NoError(err)
 
@@ -94,11 +128,29 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 
 // NOTE: AfterTest is not called after subtests
 func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
+	vm := s.Env().RemoteHost
+
+	// Collect the whole audit lifecycle before restoring it so events outside a
+	// controlled MSI operation remain available as diagnostics.
+	var evidenceErr error
+	if s.deletionAuditData.LifecycleStart != nil {
+		evidenceErr = s.collectUnattributedDeletionEvents(vm)
+		if evidenceErr != nil {
+			s.deletionAuditData.LifecycleError = evidenceErr.Error()
+		}
+	}
+	restoreErr := s.fileDeletionAudit.Restore()
+	if restoreErr != nil {
+		s.deletionAuditData.RestorationError = restoreErr.Error()
+	}
+	artifactErr := s.writeFileDeletionAuditArtifact()
+	s.Assert().NoError(evidenceErr, "should collect complete file-deletion audit evidence")
+	s.Assert().NoError(restoreErr, "should restore Windows file-deletion auditing")
+	s.Assert().NoError(artifactErr, "should write file-deletion audit artifact")
+
 	if afterTest, ok := any(&s.BaseAgentInstallerSuite).(suite.AfterTest); ok {
 		afterTest.AfterTest(suiteName, testName)
 	}
-
-	vm := s.Env().RemoteHost
 
 	// Look for and download crash dumps. Dumps from processes in
 	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
@@ -120,8 +172,9 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 	}
 
 	if s.T().Failed() {
-		// If the test failed, export the event logs for debugging
-		for _, logName := range []string{"System", "Application"} {
+		// If the test failed, export the event logs for debugging. Security.evtx
+		// preserves the source evidence for the deletion audit artifact.
+		for _, logName := range []string{"System", "Application", "Security"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
 			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
@@ -136,6 +189,119 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		// collect agent logs
 		s.collectAgentLogs(vm)
 	}
+}
+
+func (s *baseAgentMSISuite) runAuditedMSIOperation(name string, operation func() error) error {
+	var start windowsCommon.SecurityLogCheckpoint
+	var evidenceErr error
+	if s.fileDeletionAudit == nil {
+		evidenceErr = errors.New("file-deletion audit was not initialized")
+	} else if err := s.fileDeletionAudit.EnsureEnabled(); err != nil {
+		evidenceErr = fmt.Errorf("verify file-deletion auditing before %s: %w", name, err)
+	} else {
+		var err error
+		start, err = windowsCommon.GetSecurityLogCheckpoint(s.Env().RemoteHost)
+		if err != nil {
+			evidenceErr = fmt.Errorf("checkpoint Security log before %s: %w", name, err)
+		}
+	}
+
+	// The MSI result must remain independent from audit failures so callers
+	// expecting an MSI failure cannot accidentally consume an audit verdict.
+	operationErr := operation()
+	entry := fileDeletionAuditOperation{Name: name, StartCheckpoint: start}
+
+	if evidenceErr == nil {
+		end, checkpointErr := windowsCommon.GetSecurityLogCheckpoint(s.Env().RemoteHost)
+		entry.EndCheckpoint = end
+		if checkpointErr != nil {
+			evidenceErr = fmt.Errorf("checkpoint Security log after %s: %w", name, checkpointErr)
+		} else {
+			events, queryErr := windowsCommon.GetFileDeletionEvents(s.Env().RemoteHost, start, end)
+			if queryErr != nil {
+				evidenceErr = fmt.Errorf("collect deletion events for %s: %w", name, queryErr)
+			} else {
+				var blocking []ClassifiedDeletionEvent
+				var classificationErrors []error
+				for _, event := range events {
+					classified, classificationErr := ClassifyDeletionEvent(event, start, end, SystemPathAuditExclusions())
+					entry.Events = append(entry.Events, classified)
+					if classificationErr != nil {
+						classificationErrors = append(classificationErrors, fmt.Errorf("classify Security event record %d: %w", event.RecordID, classificationErr))
+					}
+					if classified.Blocks {
+						blocking = append(blocking, classified)
+					}
+				}
+				if len(blocking) > 0 {
+					var details strings.Builder
+					for _, deletion := range blocking {
+						fmt.Fprintf(&details, "\nrecord %d process %s (%s) deleted %s", deletion.Event.RecordID, deletion.Event.ProcessName, deletion.Event.ProcessID, deletion.Event.ObjectName)
+					}
+					classificationErrors = append(classificationErrors, fmt.Errorf("%s deleted %d non-excluded system path(s):%s", name, len(blocking), details.String()))
+				}
+				evidenceErr = errors.Join(classificationErrors...)
+			}
+		}
+	}
+	if evidenceErr != nil {
+		entry.EvidenceError = evidenceErr.Error()
+	}
+	s.deletionAuditData.Operations = append(s.deletionAuditData.Operations, entry)
+	artifactErr := s.writeFileDeletionAuditArtifact()
+
+	// Report evidence and artifact failures directly; never return them as the
+	// MSI error because expected-failure scenarios intentionally accept that.
+	s.Assert().NoError(evidenceErr, "file-deletion audit should succeed for %s", name)
+	s.Assert().NoError(artifactErr, "should write file-deletion audit artifact for %s", name)
+	return operationErr
+}
+
+func (s *baseAgentMSISuite) collectUnattributedDeletionEvents(vm *components.RemoteHost) error {
+	if s.deletionAuditData.LifecycleStart == nil {
+		return errors.New("file-deletion audit lifecycle has no starting checkpoint")
+	}
+	end, err := windowsCommon.GetSecurityLogCheckpoint(vm)
+	if err != nil {
+		return fmt.Errorf("checkpoint Security log at end of audit lifecycle: %w", err)
+	}
+	s.deletionAuditData.FinalCheckpoint = &end
+
+	events, err := windowsCommon.GetFileDeletionEvents(vm, *s.deletionAuditData.LifecycleStart, end)
+	if err != nil {
+		return fmt.Errorf("collect complete deletion audit lifecycle: %w", err)
+	}
+	for _, event := range events {
+		if s.eventBelongsToRecordedOperation(event) {
+			continue
+		}
+		s.deletionAuditData.UnattributedEvents = append(s.deletionAuditData.UnattributedEvents, ClassifiedDeletionEvent{
+			Event:          event,
+			Classification: deletionOutsideOperation,
+		})
+	}
+	return nil
+}
+
+func (s *baseAgentMSISuite) eventBelongsToRecordedOperation(event windowsCommon.FileDeletionEvent) bool {
+	for _, operation := range s.deletionAuditData.Operations {
+		if event.RecordID > operation.StartCheckpoint.RecordID && event.RecordID <= operation.EndCheckpoint.RecordID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *baseAgentMSISuite) writeFileDeletionAuditArtifact() error {
+	data, err := json.MarshalIndent(s.deletionAuditData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal file-deletion audit artifact: %w", err)
+	}
+	path := filepath.Join(s.SessionOutputDir(), "file-deletion-audit.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write file-deletion audit artifact %s: %w", path, err)
+	}
+	return nil
 }
 
 // collectAgentLogs downloads the agent log folder from the remote host into the session output dir.
@@ -164,6 +330,42 @@ func (s *baseAgentMSISuite) collectAgentLogs(vm *components.RemoteHost) {
 		}
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
+}
+
+// InstallAgent shadows the embedded suite helper so every package install,
+// upgrade, reinstall, and expected-failure rollback is audited automatically.
+func (s *baseAgentMSISuite) InstallAgent(host *components.RemoteHost, options ...windowsAgent.InstallAgentOption) (string, error) {
+	s.T().Helper()
+	operationName := "install"
+	if _, err := windowsAgent.GetDatadogAgentProductCode(host); err == nil {
+		operationName = "upgrade"
+	}
+
+	opts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+	}
+	opts = append(opts, options...)
+	var remoteMSIPath string
+	err := s.runAuditedMSIOperation(operationName, func() error {
+		var installErr error
+		remoteMSIPath, installErr = windowsAgent.InstallAgent(host, opts...)
+		return installErr
+	})
+	return remoteMSIPath, err
+}
+
+// UninstallAgent runs an Agent uninstall inside an attributed audit window.
+func (s *baseAgentMSISuite) UninstallAgent(host *components.RemoteHost, logPath string) error {
+	return s.runAuditedMSIOperation("uninstall", func() error {
+		return windowsAgent.UninstallAgent(host, logPath)
+	})
+}
+
+// RepairAllAgent runs an Agent repair inside an attributed audit window.
+func (s *baseAgentMSISuite) RepairAllAgent(host *components.RemoteHost, args string, logPath string) error {
+	return s.runAuditedMSIOperation("repair", func() error {
+		return windowsAgent.RepairAllAgent(host, args, logPath)
+	})
 }
 
 func (s *baseAgentMSISuite) newTester(vm *components.RemoteHost, options ...TesterOption) *Tester {
@@ -338,7 +540,7 @@ func (s *baseAgentMSISuite) uninstallAgent() bool {
 	host := s.Env().RemoteHost
 	return s.T().Run("uninstall the agent", func(tt *testing.T) {
 		if !tt.Run("uninstall", func(tt *testing.T) {
-			err := windowsAgent.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
+			err := s.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
 			require.NoError(tt, err, "should uninstall the agent")
 		}) {
 			tt.Fatal("uninstall failed")
@@ -354,8 +556,6 @@ func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 	}
 
 	return s.T().Run("validate uninstall", func(tt *testing.T) {
-		AssertDoesNotRemoveSystemFiles(s.T(), host, s.beforeInstall)
-
 		s.Run("uninstall does not change system file permissions", func() {
 			AssertDoesNotChangePathPermissions(s.T(), host, s.beforeInstallPerms)
 		})
@@ -445,7 +645,7 @@ func (s *baseAgentMSISuite) cleanupAgent() {
 	if err == nil {
 		defer func() {
 			t.Logf("Uninstalling Datadog Agent")
-			err = windowsAgent.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
+			err = s.UninstallAgent(host, filepath.Join(s.SessionOutputDir(), "uninstall.log"))
 			require.NoError(t, err)
 		}()
 	}

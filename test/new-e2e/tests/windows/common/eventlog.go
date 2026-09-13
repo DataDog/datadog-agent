@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	filedeletionaudit "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/file-deletion-audit"
 )
 
 // EventLogEntry contains basic information from a Windows event log entry
@@ -22,6 +23,76 @@ type EventLogEntry struct {
 	Message      string
 	RecordID     int
 	TimeCreated  string
+}
+
+// SecurityLogCheckpoint identifies a point in the Security log and records
+// enough log metadata to diagnose rollover and capacity issues.
+type SecurityLogCheckpoint = filedeletionaudit.SecurityLogCheckpoint
+
+// FileDeletionEvent is the locale-independent subset of Security event 4663
+// used to attribute successful filesystem deletion access.
+type FileDeletionEvent = filedeletionaudit.FileDeletionEvent
+
+// GetSecurityLogCheckpoint returns the current record range and size of the
+// Windows Security event log.
+func GetSecurityLogCheckpoint(host *components.RemoteHost) (SecurityLogCheckpoint, error) {
+	cmd := `
+		$log = Get-WinEvent -ListLog Security -ErrorAction Stop
+		$newest = Get-WinEvent -LogName Security -MaxEvents 1 -ErrorAction SilentlyContinue
+		$oldest = Get-WinEvent -LogName Security -Oldest -MaxEvents 1 -ErrorAction SilentlyContinue
+		[pscustomobject]@{
+			RecordID = [long]$(if ($null -eq $newest) { 0 } else { $newest.RecordId })
+			OldestRecordID = [long]$(if ($null -eq $oldest) { 0 } else { $oldest.RecordId })
+			RecordCount = [long]$log.RecordCount
+			FileSize = [long]$log.FileSize
+			MaximumSizeInBytes = [long]$log.MaximumSizeInBytes
+		} | ConvertTo-Json -Compress
+	`
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return SecurityLogCheckpoint{}, fmt.Errorf("get Security log checkpoint: %w", err)
+	}
+	return decodeSecurityLogCheckpoint(out)
+}
+
+func decodeSecurityLogCheckpoint(output string) (SecurityLogCheckpoint, error) {
+	return filedeletionaudit.DecodeSecurityLogCheckpoint(output)
+}
+
+// GetFileDeletionEvents returns event 4663 records after start through end.
+// It fails rather than returning incomplete evidence if start has rolled out
+// of the Security log.
+func GetFileDeletionEvents(host *components.RemoteHost, start SecurityLogCheckpoint, end SecurityLogCheckpoint) ([]FileDeletionEvent, error) {
+	if err := validateSecurityLogWindow(start, end); err != nil {
+		return nil, err
+	}
+	if end.RecordID == start.RecordID {
+		return nil, nil
+	}
+
+	xpath := fmt.Sprintf(`*[System[(EventID=4663) and (EventRecordID > %d) and (EventRecordID <= %d)]]`, start.RecordID, end.RecordID)
+	cmd := fmt.Sprintf(`wevtutil.exe query-events Security /query:"%s" /format:xml /element:Events /reverseDirection:false`, xpath)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("query Security deletion events after record %d through %d: %w", start.RecordID, end.RecordID, err)
+	}
+	return DecodeFileDeletionEventsXML(out)
+}
+
+func validateSecurityLogWindow(start SecurityLogCheckpoint, end SecurityLogCheckpoint) error {
+	return filedeletionaudit.ValidateSecurityLogWindow(start, end)
+}
+
+// DecodeFileDeletionEventsXML decodes event 4663 XML without consulting the
+// localized Message field.
+func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
+	return filedeletionaudit.DecodeFileDeletionEventsXML(output)
+}
+
+// HasFileDeletionAccess reports whether an event's access mask includes
+// DELETE or FILE_DELETE_CHILD. Missing or malformed masks are errors.
+func HasFileDeletionAccess(event FileDeletionEvent) (bool, error) {
+	return filedeletionaudit.HasFileDeletionAccess(event)
 }
 
 // ExportEventLog exports an event log to a file
