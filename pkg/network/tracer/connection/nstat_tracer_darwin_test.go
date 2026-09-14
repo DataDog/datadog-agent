@@ -84,9 +84,7 @@ func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
 	require.Equal(t, directionEvidenceTCPState, tracer.sources[7].directionEvidence)
 	require.False(t, active[0].IsClosed)
 	require.True(t, active[0].HasTCPErrorsIncomplete())
-	hint, ok := active[0].NStatTXRetransmittedBytesHint()
-	require.True(t, ok)
-	require.Equal(t, uint32(17), hint)
+	require.True(t, active[0].HasNStatTXRetransmitted())
 	require.Zero(t, active[0].Monotonic.Retransmits)
 
 	now = now.Add(3 * time.Second)
@@ -407,9 +405,8 @@ func TestNStatTracerMarksTCPErrorsIncompleteUntilUniquePacketMatch(t *testing.T)
 	require.True(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
 	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
 	require.Empty(t, buffer.Connections()[0].TCPFailures)
-	hint, ok := buffer.Connections()[0].NStatTXRetransmittedBytesHint()
-	require.True(t, ok)
-	require.Equal(t, uint32(9), hint)
+	require.True(t, buffer.Connections()[0].HasNStatTXRetransmitted())
+	published := buffer.Connections()[0]
 
 	analyzer := newDarwinPacketAnalyzer(8)
 	match := tracer.enrichTCPPacket(
@@ -422,12 +419,13 @@ func TestNStatTracerMarksTCPErrorsIncompleteUntilUniquePacketMatch(t *testing.T)
 	require.True(t, match.matched)
 	require.False(t, match.ambiguous)
 	require.True(t, tracer.sources[21].packetEnriched)
+	require.True(t, published.HasTCPErrorsIncomplete())
+	require.True(t, published.HasNStatTXRetransmitted())
 
 	buffer.Reset()
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.False(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
-	_, hasHint := buffer.Connections()[0].NStatTXRetransmittedBytesHint()
-	require.False(t, hasHint)
+	require.False(t, buffer.Connections()[0].HasNStatTXRetransmitted())
 	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
 }
 

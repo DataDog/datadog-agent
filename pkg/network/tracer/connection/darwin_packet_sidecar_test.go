@@ -63,8 +63,7 @@ func TestDarwinPacketSidecarEnrichesWithoutOwningCountersOrLifecycle(t *testing.
 	require.False(t, conn.IsClosed)
 	require.Zero(t, conn.Monotonic.TCPClosed)
 	require.False(t, conn.HasTCPErrorsIncomplete())
-	_, hasHint := conn.NStatTXRetransmittedBytesHint()
-	require.False(t, hasHint)
+	require.False(t, conn.HasNStatTXRetransmitted())
 	require.True(t, primary.sources[1].packetEnriched)
 
 	conn.TCPFailures[network.TCPFailureErrnoConnReset] = 99
@@ -73,9 +72,53 @@ func TestDarwinPacketSidecarEnrichesWithoutOwningCountersOrLifecycle(t *testing.
 	require.Equal(t, uint32(1), buffer.Connections()[0].TCPFailures[network.TCPFailureErrnoConnReset])
 }
 
+func TestDarwinPacketSidecarMatchRateCountsOnlyInspectedTCP(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	primary.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 1,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(4242, tcpStateEstablished),
+	})
+	otherHost := uint8(filter.PacketOtherHost)
+	source := &fakeDarwinPacketSource{
+		packets: []fakeDarwinPacket{
+			{data: []byte("not-a-packet"), outgoing: true},
+			{data: serializeDarwinTCPPacket(t, 100, true, false, false, true, nil), outgoing: true},
+			{data: serializeDarwinTCPPacket(t, 200, false, true, false, false, nil), packetType: &otherHost},
+		},
+	}
+	sidecar := newDarwinPacketSidecar(source, primary, 10)
+	require.NoError(t, sidecar.visitPackets())
+
+	stats := sidecar.snapshot()
+	require.Equal(t, int64(2), stats.attempts)
+	require.Equal(t, int64(1), stats.decodeErrors)
+	require.Zero(t, stats.unmatched)
+	require.Zero(t, stats.ambiguous)
+	require.InDelta(t, 0.5, packetMatchRate(stats), 0.001)
+}
+
+func TestFakeDarwinPacketTypeOverrideIncludesPacketHost(t *testing.T) {
+	host := uint8(filter.PacketHost)
+	var seen []uint8
+	source := &fakeDarwinPacketSource{
+		packets: []fakeDarwinPacket{
+			{data: []byte{1}, outgoing: true, packetType: &host},
+			{data: []byte{1}, outgoing: true},
+		},
+	}
+	require.NoError(t, source.VisitPackets(func(_ []byte, info filter.PacketInfo, _ time.Time) error {
+		seen = append(seen, info.PacketType())
+		return nil
+	}))
+	require.Equal(t, []uint8{filter.PacketHost, filter.PacketOutgoing}, seen)
+}
+
 type fakeDarwinPacket struct {
-	data     []byte
-	outgoing bool
+	data       []byte
+	outgoing   bool
+	packetType *uint8
 }
 
 type fakeDarwinPacketSource struct {
@@ -90,7 +133,9 @@ func (f *fakeDarwinPacketSource) VisitPackets(visitor func([]byte, filter.Packet
 			original:   len(packet.data),
 			captured:   len(packet.data),
 		}
-		if packet.outgoing {
+		if packet.packetType != nil {
+			info.packetType = *packet.packetType
+		} else if packet.outgoing {
 			info.packetType = filter.PacketOutgoing
 		}
 		if err := visitor(packet.data, info, time.Now()); err != nil {

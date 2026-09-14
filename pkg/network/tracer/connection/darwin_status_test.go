@@ -21,9 +21,9 @@ func TestDarwinPacketEnrichmentStatusTransitions(t *testing.T) {
 	require.Equal(t, darwinSidecarDisabled, darwinPacketEnrichmentStatus(true, false, errors.New("no iface"), darwinPacketSidecarStats{}))
 	require.Equal(t, darwinSidecarStopped, darwinPacketEnrichmentStatus(true, true, errors.New("read failed"), darwinPacketSidecarStats{}))
 	require.Equal(t, darwinSidecarStopped, darwinPacketEnrichmentStatus(true, true, nil, darwinPacketSidecarStats{stopped: true}))
-	require.Equal(t, darwinSidecarHealthy, darwinPacketEnrichmentStatus(true, true, nil, darwinPacketSidecarStats{packets: 4, unmatched: 1}))
+	require.Equal(t, darwinSidecarHealthy, darwinPacketEnrichmentStatus(true, true, nil, darwinPacketSidecarStats{attempts: 4, unmatched: 1}))
 	require.Equal(t, darwinSidecarDegraded, darwinPacketEnrichmentStatus(true, true, nil, darwinPacketSidecarStats{
-		packets:   20,
+		attempts:  20,
 		unmatched: 12,
 	}))
 }
@@ -54,9 +54,23 @@ func TestDarwinCompositeReportsStoppedPacketEnrichmentOnSidecarFailure(t *testin
 
 func TestPacketEnrichmentDegradedIsNotHealthy(t *testing.T) {
 	status := darwinPacketEnrichmentStatus(true, true, nil, darwinPacketSidecarStats{
-		packets:   40,
+		attempts:  40,
 		unmatched: 30,
 	})
 	require.Equal(t, darwinSidecarDegraded, status)
 	require.NotEqual(t, darwinSidecarHealthy, status)
+}
+
+func TestPacketMatchRateAndDegradedShareUnresolvedCounts(t *testing.T) {
+	decodeHeavy := darwinPacketSidecarStats{attempts: 20, decodeErrors: 12}
+	require.Equal(t, darwinSidecarDegraded, darwinPacketEnrichmentStatus(true, true, nil, decodeHeavy))
+	require.InDelta(t, 0.4, packetMatchRate(decodeHeavy), 0.001)
+
+	mixed := darwinPacketSidecarStats{attempts: 20, unmatched: 4, ambiguous: 2, decodeErrors: 4}
+	require.Equal(t, darwinSidecarDegraded, darwinPacketEnrichmentStatus(true, true, nil, mixed))
+	require.InDelta(t, 0.5, packetMatchRate(mixed), 0.001)
+
+	healthy := darwinPacketSidecarStats{attempts: 20, unmatched: 2, decodeErrors: 2}
+	require.Equal(t, darwinSidecarHealthy, darwinPacketEnrichmentStatus(true, true, nil, healthy))
+	require.InDelta(t, 0.8, packetMatchRate(healthy), 0.001)
 }

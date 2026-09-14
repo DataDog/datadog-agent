@@ -14,29 +14,60 @@ import (
 func TestTCPErrorsIncompleteTagHelpers(t *testing.T) {
 	var conn ConnectionStats
 	require.False(t, conn.HasTCPErrorsIncomplete())
+	require.False(t, conn.HasNStatTXRetransmitted())
 
 	conn.AddTag(ConnTagTCPErrorsIncomplete)
 	require.True(t, conn.HasTCPErrorsIncomplete())
 	conn.AddTag(ConnTagTCPErrorsIncomplete)
 	require.Len(t, conn.Tags, 1)
 
-	conn.SetNStatTXRetransmittedBytesHint(17)
-	hint, ok := conn.NStatTXRetransmittedBytesHint()
-	require.True(t, ok)
-	require.Equal(t, uint32(17), hint)
+	conn.SetNStatTXRetransmittedHint(17)
+	require.True(t, conn.HasNStatTXRetransmitted())
+	require.True(t, conn.HasTag(ConnTagNStatTXRetransmitted))
 
-	conn.SetNStatTXRetransmittedBytesHint(4)
-	hint, ok = conn.NStatTXRetransmittedBytesHint()
-	require.True(t, ok)
-	require.Equal(t, uint32(4), hint)
+	conn.SetNStatTXRetransmittedHint(4)
+	require.True(t, conn.HasNStatTXRetransmitted())
 	require.True(t, conn.HasTCPErrorsIncomplete())
+	require.Len(t, conn.Tags, 2)
 
-	conn.SetNStatTXRetransmittedBytesHint(0)
-	_, ok = conn.NStatTXRetransmittedBytesHint()
-	require.False(t, ok)
+	conn.SetNStatTXRetransmittedHint(0)
+	require.False(t, conn.HasNStatTXRetransmitted())
 	require.True(t, conn.HasTCPErrorsIncomplete())
 
 	conn.RemoveTag(ConnTagTCPErrorsIncomplete)
 	require.False(t, conn.HasTCPErrorsIncomplete())
 	require.Empty(t, conn.Tags)
+}
+
+func TestRemoveTagDoesNotAliasCopiedTags(t *testing.T) {
+	var conn ConnectionStats
+	conn.AddTag(ConnTagTCPErrorsIncomplete)
+	conn.SetNStatTXRetransmittedHint(9)
+
+	shallow := conn
+	cloned := conn
+	cloned.Tags = conn.CloneTags()
+
+	conn.RemoveTag(ConnTagTCPErrorsIncomplete)
+	conn.SetNStatTXRetransmittedHint(0)
+
+	require.True(t, shallow.HasTCPErrorsIncomplete())
+	require.True(t, shallow.HasNStatTXRetransmitted())
+	require.True(t, cloned.HasTCPErrorsIncomplete())
+	require.True(t, cloned.HasNStatTXRetransmitted())
+	require.False(t, conn.HasTCPErrorsIncomplete())
+	require.False(t, conn.HasNStatTXRetransmitted())
+}
+
+func TestRemoveTagMissingDoesNotAllocate(t *testing.T) {
+	var conn ConnectionStats
+	conn.AddTag(ConnTagTCPErrorsIncomplete)
+	original := conn.Tags
+
+	conn.RemoveTag(ConnTagNStatTXRetransmitted)
+	conn.SetNStatTXRetransmittedHint(0)
+
+	require.Equal(t, original, conn.Tags)
+	require.Same(t, &original[0], &conn.Tags[0])
+	require.True(t, conn.HasTCPErrorsIncomplete())
 }

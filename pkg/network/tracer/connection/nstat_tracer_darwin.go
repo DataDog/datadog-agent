@@ -811,7 +811,7 @@ func (t *nstatTracer) applySource(source *nstatSource) {
 	}
 	if !source.packetEnriched {
 		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
-		conn.SetNStatTXRetransmittedBytesHint(counts.TXRetransmittedBytes)
+		conn.SetNStatTXRetransmittedHint(counts.TXRetransmittedBytes)
 	}
 	if !source.closed && flow.TCPState == tcpStateClosed &&
 		source.connectAttempts > 0 && source.connectSuccesses == 0 {
@@ -1062,7 +1062,7 @@ func (t *nstatTracer) markPacketEnriched(source *nstatSource) {
 		return
 	}
 	source.conn.RemoveTag(network.ConnTagTCPErrorsIncomplete)
-	source.conn.SetNStatTXRetransmittedBytesHint(0)
+	source.conn.SetNStatTXRetransmittedHint(0)
 }
 
 func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
@@ -1141,6 +1141,7 @@ func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter fu
 			continue
 		}
 		conn := *source.conn
+		conn.Tags = source.conn.CloneTags()
 		if source.conn.TCPFailures != nil {
 			conn.TCPFailures = make(map[uint16]uint32, len(source.conn.TCPFailures))
 			for errno, count := range source.conn.TCPFailures {

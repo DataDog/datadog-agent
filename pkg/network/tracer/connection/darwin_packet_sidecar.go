@@ -48,7 +48,10 @@ var darwinPacketMatchRate = telemetryimpl.GetCompatComponent().NewGauge(
 )
 
 type darwinPacketSidecarStats struct {
-	packets      int64
+	// attempts is TCP host/outgoing packets we tried to match, plus
+	// decode failures. It is not the exported packets counter, which
+	// counts every frame libpcap delivers.
+	attempts     int64
 	unmatched    int64
 	ambiguous    int64
 	decodeErrors int64
@@ -109,14 +112,13 @@ func (s *darwinPacketSidecar) visitPackets() error {
 
 	return s.source.VisitPackets(func(data []byte, info filter.PacketInfo, _ time.Time) error {
 		darwinPacketSidecarTelemetry.packets.Inc()
-		s.recordPacket()
 		parser := ethernetParser
 		if info.LinkLayerType() == layers.LayerTypeLoopback {
 			parser = loopbackParser
 		}
 		if err := parser.DecodeLayers(data, &decoded); err != nil {
 			darwinPacketSidecarTelemetry.decodeErrors.Inc()
-			s.recordDecodeError()
+			s.recordDecodeAttempt()
 			return nil
 		}
 		pktType := info.PacketType()
@@ -138,15 +140,14 @@ func (s *darwinPacketSidecar) visitPackets() error {
 			&tcp,
 			s.analyzer,
 		)
-		switch {
-		case match.ambiguous:
+		ambiguous := match.ambiguous
+		unmatched := !match.matched && !match.ambiguous
+		if ambiguous {
 			darwinPacketSidecarTelemetry.ambiguous.Inc()
-			s.recordAmbiguous()
-		case !match.matched:
+		} else if unmatched {
 			darwinPacketSidecarTelemetry.unmatched.Inc()
-			s.recordUnmatched()
 		}
-		s.publishMatchRate()
+		s.recordMatchAttempt(ambiguous, unmatched)
 		return nil
 	})
 }
@@ -163,32 +164,26 @@ func (s *darwinPacketSidecar) markStopped() {
 	s.statsMu.Unlock()
 }
 
-func (s *darwinPacketSidecar) recordPacket() {
+func (s *darwinPacketSidecar) recordDecodeAttempt() {
 	s.statsMu.Lock()
-	s.stats.packets++
-	s.statsMu.Unlock()
-}
-
-func (s *darwinPacketSidecar) recordDecodeError() {
-	s.statsMu.Lock()
+	s.stats.attempts++
 	s.stats.decodeErrors++
+	stats := s.stats
 	s.statsMu.Unlock()
+	darwinPacketMatchRate.Set(packetMatchRate(stats))
 }
 
-func (s *darwinPacketSidecar) recordAmbiguous() {
+func (s *darwinPacketSidecar) recordMatchAttempt(ambiguous, unmatched bool) {
 	s.statsMu.Lock()
-	s.stats.ambiguous++
+	s.stats.attempts++
+	if ambiguous {
+		s.stats.ambiguous++
+	} else if unmatched {
+		s.stats.unmatched++
+	}
+	stats := s.stats
 	s.statsMu.Unlock()
-}
-
-func (s *darwinPacketSidecar) recordUnmatched() {
-	s.statsMu.Lock()
-	s.stats.unmatched++
-	s.statsMu.Unlock()
-}
-
-func (s *darwinPacketSidecar) publishMatchRate() {
-	darwinPacketMatchRate.Set(packetMatchRate(s.snapshot()))
+	darwinPacketMatchRate.Set(packetMatchRate(stats))
 }
 
 func (s *darwinPacketSidecar) remove(cookie uint64) {

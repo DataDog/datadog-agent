@@ -22,11 +22,11 @@ const (
 	darwinSidecarDegraded = "degraded"
 	darwinSidecarStopped  = "stopped"
 
-	// darwinPacketDegradedMinPackets is the minimum inspected packets before
-	// unmatched/drop rate can mark enrichment degraded.
-	darwinPacketDegradedMinPackets = 20
-	// darwinPacketDegradedUnmatchedRatio is the unmatched+ambiguous fraction
-	// that marks a still-running sidecar as degraded.
+	// darwinPacketDegradedMinAttempts is the minimum inspected TCP/decode
+	// attempts before unmatched/drop rate can mark enrichment degraded.
+	darwinPacketDegradedMinAttempts = 20
+	// darwinPacketDegradedUnmatchedRatio is the unmatched+ambiguous+decode
+	// fraction that marks a still-running sidecar as degraded.
 	darwinPacketDegradedUnmatchedRatio = 0.5
 )
 
@@ -145,20 +145,23 @@ func darwinPacketEnrichmentStatus(requested, available bool, err error, stats da
 }
 
 func packetEnrichmentDegraded(stats darwinPacketSidecarStats) bool {
-	if stats.packets < darwinPacketDegradedMinPackets {
+	if stats.attempts < darwinPacketDegradedMinAttempts {
 		return false
 	}
-	unresolved := stats.unmatched + stats.ambiguous
-	return float64(unresolved) >= darwinPacketDegradedUnmatchedRatio*float64(stats.packets)
+	return float64(packetUnresolved(stats)) >= darwinPacketDegradedUnmatchedRatio*float64(stats.attempts)
 }
 
 func packetMatchRate(stats darwinPacketSidecarStats) float64 {
-	if stats.packets == 0 {
+	if stats.attempts == 0 {
 		return 0
 	}
-	matched := stats.packets - stats.unmatched - stats.ambiguous - stats.decodeErrors
+	matched := stats.attempts - packetUnresolved(stats)
 	if matched < 0 {
 		return 0
 	}
-	return float64(matched) / float64(stats.packets)
+	return float64(matched) / float64(stats.attempts)
+}
+
+func packetUnresolved(stats darwinPacketSidecarStats) int64 {
+	return stats.unmatched + stats.ambiguous + stats.decodeErrors
 }
