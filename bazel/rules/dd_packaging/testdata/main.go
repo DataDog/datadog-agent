@@ -6,4 +6,6 @@
 // Minimal main package used by go_binary/go_library test targets.
 package main
 
+import _ "example.com/dd_packaging_test_go_chain_b"
+
 func main() {}

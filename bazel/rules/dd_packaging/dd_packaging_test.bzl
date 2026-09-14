@@ -569,7 +569,7 @@ def _test_go_chain_reaches_packaged(name):
         name = name + "_go_lib_b",
         srcs = ["testdata/empty.go"],
         cgo = True,
-        importpath = "example.com/" + name + "/b",
+        importpath = "example.com/dd_packaging_test_go_chain_b",
         cdeps = [":" + name + "_bridge"],
     )
     go_library(
