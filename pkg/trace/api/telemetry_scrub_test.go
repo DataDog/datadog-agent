@@ -650,7 +650,11 @@ func TestTelemetryProxy_ScrubsInjectionMetadataField(t *testing.T) {
 	select {
 	case got := <-received:
 		assert.NotContains(t, string(got), "raw-secret-value", "secret leaked to upstream intake")
-		assert.Contains(t, string(decodeMetadata(t, got)), "********")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		content := batch.Payload.Events[0].Content
+		assert.NotContains(t, string(content), "raw-secret-value", "secret leaked to upstream intake")
+		assert.Contains(t, string(decodeMetadata(t, content)), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
