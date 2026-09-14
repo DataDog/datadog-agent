@@ -5,4 +5,5 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/trace/status/def",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/pbgo/core"],
 )

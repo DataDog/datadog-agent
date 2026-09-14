@@ -179,7 +179,6 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
-	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -465,7 +464,6 @@ func getSharedFxOption() fx.Option {
 			},
 		),
 		otelagentStatusfx.Module(),
-		traceagentStatusImpl.Module(),
 		parStatusImpl.Module(),
 		statsdFx.Module(),
 		statusimpl.Module(),

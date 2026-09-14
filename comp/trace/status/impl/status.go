@@ -7,6 +7,8 @@
 package statusimpl
 
 import (
+	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -18,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
+	tracestatus "github.com/DataDog/datadog-agent/comp/trace/status/def"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // Requires defines the dependencies of the status component.
@@ -31,18 +35,27 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	StatusProvider status.InformationProvider
+	Comp           tracestatus.Component
+	StatusProvider corestatus.InformationProvider
 }
 
 type statusProvider struct {
+	pbcore.UnimplementedStatusProviderServer
+
 	Config config.Component
 	Client ipc.HTTPClient
 }
 
 // NewComponent creates a new trace agent status component.
 func NewComponent(reqs Requires) Provides {
+	provider := &statusProvider{
+		Config: reqs.Config,
+		Client: reqs.Client,
+	}
+
 	return Provides{
-		StatusProvider: status.NewInformationProvider(statusProvider(reqs)),
+		Comp:           provider,
+		StatusProvider: corestatus.NewInformationProvider(provider),
 	}
 }
 
@@ -103,10 +116,28 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "traceagent.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderText(templatesFS, "traceagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo())
+}
+
+// GetStatusDetails returns the Trace Agent status rendered as text.
+func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	var details bytes.Buffer
+	if err := s.Text(false, &details); err != nil {
+		return nil, err
+	}
+
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: map[string]*pbcore.StatusSection{
+			"Details": {
+				Fields: map[string]string{
+					"": details.String(),
+				},
+			},
+		},
+	}, nil
 }
