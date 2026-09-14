@@ -135,7 +135,7 @@ func TestHTMLRawStatusPreservesLeadingNewline(t *testing.T) {
 	assert.Equal(t, rawStatus, textContent(pre))
 }
 
-func TestHTMLRawStatusIsNotAListItem(t *testing.T) {
+func TestHTMLRawStatusIsANonBulletedListItem(t *testing.T) {
 	registry := statusRegistry{
 		statuses: []remoteagentregistry.StatusData{
 			{
@@ -159,6 +159,16 @@ func TestHTMLRawStatusIsNotAListItem(t *testing.T) {
 	pre := findElement(document, "pre")
 	require.NotNil(t, pre)
 	require.NotNil(t, pre.Parent)
-	assert.NotEqual(t, "ul", pre.Parent.Data)
-	assert.Len(t, findElements(document, "li"), 1)
+	assert.Equal(t, "li", pre.Parent.Data)
+	require.NotNil(t, pre.Parent.Parent)
+	assert.Equal(t, "ul", pre.Parent.Parent.Data)
+	assert.Equal(t, "raw status", textContent(pre.Parent))
+	var style string
+	for _, attr := range pre.Parent.Attr {
+		if attr.Key == "style" {
+			style = attr.Val
+		}
+	}
+	assert.Equal(t, "list-style: none;", style)
+	assert.Len(t, findElements(document, "li"), 2)
 }

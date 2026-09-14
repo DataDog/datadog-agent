@@ -36,23 +36,15 @@
                 {{- if .NamedSections }}
                     {{- range $sectionName, $section := .NamedSections }}
                             {{ $sectionName }}: <br>
-                            {{- $hasKeyedFields := false }}
-                            {{- range $key, $value := $section }}
-                                {{- if $key }}
-                                    {{- $hasKeyedFields = true }}
-                                {{- else }}
-                                    <pre><span>{{ $value }}</span></pre>
-                                {{- end }}
-                            {{- end }}
-                            {{- if $hasKeyedFields }}
                             <ul>
                                 {{- range $key, $value := $section }}
                                 {{- if $key }}
                                     <li> {{ $key }}: {{ $value }}</li>
+                                {{- else }}
+                                    <li style="list-style: none;"><pre><span>{{ $value }}</span></pre></li>
                                 {{- end }}
                                 {{- end }}
                             </ul>
-                            {{- end }}
                     {{ end }}
                 {{- end }}
             </span>
