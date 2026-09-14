@@ -110,9 +110,26 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`
 
 ### Linting
+- Go: `dda inv linter.go` (see the `dda inv` table above)
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+
+#### Typechecking code for another platform
+Build-tagged files are invisible to the host test run, so `//go:build windows`
+code can be broken for a long time before CI says so. Prefix the linter with
+`GOOS`/`GOARCH` to typecheck it locally:
+
+```bash
+GOOS=windows GOARCH=amd64 dda inv linter.go --module=<module path>
+```
+
+Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
+macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
+`pkg/util/winutil`, which requires real cgo. Note that
+`bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
+but cannot build `*_test` targets — Bazel requires exec platform == target
+platform for test rules — so the linter is the route for test files.
 
 ## Build System
 
