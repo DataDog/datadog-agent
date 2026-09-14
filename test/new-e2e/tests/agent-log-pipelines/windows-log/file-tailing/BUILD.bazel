@@ -5,6 +5,7 @@ dd_agent_go_test(
     srcs = ["file_tailing_test.go"],
     data = ["log-config/config.yaml"],
     embedsrcs = ["log-config/config.yaml"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",

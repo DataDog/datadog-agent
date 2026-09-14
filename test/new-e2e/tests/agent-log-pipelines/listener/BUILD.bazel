@@ -20,6 +20,7 @@ dd_agent_go_test(
         "testdata/tcp-compose.yaml",
         "testdata/udp-compose.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/apps/logger",
         "//test/e2e-framework/components/datadog/dockeragentparams",

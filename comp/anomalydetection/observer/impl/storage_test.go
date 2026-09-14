@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"testing"
 	"unsafe"
@@ -31,6 +32,25 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
 	assert.Equal(t, 10.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})
+	second := s.AddWithHost("test", "my.metric", "host-b", 20, 1000, []string{"env:prod"})
+
+	require.NotEqual(t, first.Ref, second.Ref)
+	firstMeta := s.GetSeriesMeta(first.Ref)
+	secondMeta := s.GetSeriesMeta(second.Ref)
+	require.NotNil(t, firstMeta)
+	require.NotNil(t, secondMeta)
+	assert.Equal(t, "host-a", firstMeta.Host)
+	assert.Equal(t, "host-b", secondMeta.Host)
+	ranged := s.GetSeriesRange(first.Ref, 0, 1000, AggregateAverage)
+	require.NotNil(t, ranged)
+	assert.Equal(t, "host-a", ranged.Host)
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -765,9 +785,9 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := seriesKeyHash("ns", "a", "", []string{"k:1"})
+	hB := seriesKeyHash("ns", "b", "", []string{"k:2"})
+	hMissing := seriesKeyHash("ns", "ghost", "", nil)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
@@ -970,4 +990,85 @@ func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
 
 	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
 	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
+}
+
+func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, []string{"env:prod"})
+
+	path := t.TempDir() + "/series.json"
+	require.NoError(t, s.DumpToFile(path))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"host": "web-1"`)
+}
+
+func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, nil)
+
+	metas := s.ListSeriesMetadata("ns")
+	require.Len(t, metas, 1)
+	assert.Equal(t, "web-1", metas[0].Host)
+}
+
+func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
+	for _, tc := range []struct {
+		host string
+		tags []string
+	}{
+		{tags: []string{"env:prod", "service:api"}},
+		{host: "web-1", tags: []string{"env:prod", "service:api"}},
+	} {
+		assert.Equal(t,
+			fnv64aString(seriesKey("ns", "metric", tc.host, tc.tags)),
+			seriesKeyHash("ns", "metric", tc.host, tc.tags),
+		)
+	}
+}
+
+func TestParseSeriesKeyRequiresHostField(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
+	assert.True(t, ok)
+	assert.Equal(t, "ns", namespace)
+	assert.Equal(t, "metric:avg", name)
+	assert.Empty(t, host)
+	assert.Equal(t, []string{"env:prod"}, tags)
+
+	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
+	assert.False(t, ok)
+}
+
+func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
+	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
+	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
+
+	for _, tc := range []struct {
+		host string
+		ref  observer.SeriesRef
+	}{
+		{host: "", ref: hostless.Ref},
+		{host: "web-a", ref: hostA.Ref},
+		{host: "web-b", ref: hostB.Ref},
+	} {
+		key := (observer.SeriesDescriptor{
+			Namespace: "ns",
+			Name:      "metric",
+			Host:      tc.host,
+			Tags:      tags,
+			Aggregate: AggregateAverage,
+		}).Key()
+		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
+	}
+}
+
+func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
+	legacyKey := "ns|metric:avg|env:prod"
+
+	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
 }

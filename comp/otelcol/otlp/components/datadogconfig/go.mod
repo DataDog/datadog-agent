@@ -62,7 +62,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
-	github.com/twmb/murmur3 v1.1.8 // indirect
+	github.com/twmb/murmur3 v1.2.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.65.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.65.0 // indirect

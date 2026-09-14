@@ -509,6 +509,7 @@ func (d *HoltResidualDetector) processPoint(
 		Source: observer.SeriesDescriptor{
 			Namespace: series.Namespace,
 			Name:      series.Name,
+			Host:      series.Host,
 			Tags:      tags,
 			Aggregate: agg,
 		},

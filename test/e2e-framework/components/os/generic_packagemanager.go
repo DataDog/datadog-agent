@@ -90,26 +90,21 @@ func (m *GenericPackageManager) Ensure(packageRef string, transform command.Tran
 	if err != nil {
 		return nil, err
 	}
+	if dedicatedPackageRef, exists := m.packageNameMapping[packageRef]; exists {
+		packageRef = dedicatedPackageRef
+	}
+
+	cmdStr, needsUpdate := m.ensureCommand(packageRef, checkBinary)
 
 	pulumiOpts := append(params.PulumiResourceOptions, m.opts...)
-	if m.updateCmd != "" {
+	// Checked binaries only refresh the package database when installation is needed.
+	if needsUpdate {
 		updateDB, err := m.updateDB(pulumiOpts)
 		if err != nil {
 			return nil, err
 		}
 
 		pulumiOpts = append(pulumiOpts, utils.PulumiDependsOn(updateDB))
-	}
-
-	if dedicatedPackageRef, exists := m.packageNameMapping[packageRef]; exists {
-		packageRef = dedicatedPackageRef
-	}
-
-	var cmdStr string
-	if checkBinary != "" {
-		cmdStr = fmt.Sprintf("bash -c 'command -v %s || %s %s'", checkBinary, m.installCmd, packageRef)
-	} else {
-		cmdStr = fmt.Sprintf("%s %s", m.installCmd, packageRef)
 	}
 
 	cmdName := m.namer.ResourceName("install-"+packageRef, utils.StrHash(cmdStr))
@@ -132,6 +127,18 @@ func (m *GenericPackageManager) Ensure(packageRef string, transform command.Tran
 	// Make sure the package manager isn't running in parallel
 	m.opts = append(m.opts, utils.PulumiDependsOn(cmd))
 	return cmd, nil
+}
+
+// ensureCommand returns the install command and whether it needs an unconditional package database refresh.
+func (m *GenericPackageManager) ensureCommand(packageRef, checkBinary string) (string, bool) {
+	install := fmt.Sprintf("%s %s", m.installCmd, packageRef)
+	if checkBinary == "" {
+		return install, m.updateCmd != ""
+	}
+	if m.updateCmd != "" {
+		install = fmt.Sprintf("(%s && %s)", m.updateCmd, install)
+	}
+	return fmt.Sprintf("bash -c 'command -v %s || %s'", checkBinary, install), false
 }
 
 func (m *GenericPackageManager) updateDB(opts []pulumi.ResourceOption) (command.Command, error) {

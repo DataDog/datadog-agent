@@ -32,7 +32,7 @@ go_test(
     name = "e2e_test",
     srcs = ["suite_test.go"],
     embed = [":e2e"],
-    gotags = ["test"],
+    gotags = ["e2eunit"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/components",

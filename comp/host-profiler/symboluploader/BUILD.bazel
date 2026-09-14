@@ -3,6 +3,14 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_test file
 
+exports_files(
+    [
+        "testdata/go.mod",
+        "testdata/helloworld.go",
+    ],
+    visibility = ["//comp/host-profiler/symboluploader/pclntab:__pkg__"],
+)
+
 go_library(
     name = "symboluploader",
     srcs = [
