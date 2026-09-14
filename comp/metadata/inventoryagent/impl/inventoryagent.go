@@ -90,7 +90,7 @@ type inventoryagent struct {
 	client       ipc.HTTPClient
 	// See iainterface.Capabilities for the meaning of these fields.
 	skipCrossProcessEnrichment bool
-	payloadUUID                string
+	payloadUUID                func() string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -563,11 +563,13 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-// getUUID returns the per-process uuid override when set, otherwise the cached
+// getUUID resolves the uuid override when one is supplied, otherwise the cached
 // host machine GUID used by the full agent.
 func (ia *inventoryagent) getUUID() string {
-	if ia.payloadUUID != "" {
-		return ia.payloadUUID
+	if ia.payloadUUID != nil {
+		if id := ia.payloadUUID(); id != "" {
+			return id
+		}
 	}
 	return uuid.GetUUID()
 }

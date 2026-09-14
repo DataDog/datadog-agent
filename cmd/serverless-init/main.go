@@ -285,6 +285,14 @@ func main() {
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
+	// MicroVM alone restores many instances from one snapshot, so it alone needs a
+	// uuid it can re-identify at each lifecycle transition; nil selects the
+	// process-lifetime uuid every other platform reports.
+	var instanceUUID *serverlessInitInventory.InstanceUUID
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		instanceUUID = serverlessInitInventory.NewInstanceUUID()
+	}
+
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
 	// configureTags) are picked up. Env-based DD_TAGS / DD_EXTRA_TAGS work
@@ -360,7 +368,13 @@ func main() {
 		ipcfx.Module(),
 		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
 		fx.Provide(func() option.Option[sysprobeconfig.Component] { return option.None[sysprobeconfig.Component]() }),
-		fx.Provide(func() *inventoryagent.Capabilities { return serverlessInitInventory.NewCapabilities() }),
+		fx.Provide(func() *serverlessInitInventory.InstanceUUID { return instanceUUID }),
+		fx.Provide(func(u *serverlessInitInventory.InstanceUUID) *inventoryagent.Capabilities {
+			if u == nil {
+				return serverlessInitInventory.NewCapabilities()
+			}
+			return serverlessInitInventory.NewInstanceCapabilities(u)
+		}),
 		runnerfx.Module(),
 		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
@@ -428,11 +442,12 @@ func run(
 	// setup(), which injects the serverless fields and enqueues the first
 	// payload as part of initialization.
 	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
 	_ runner.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux, inventoryAgent,
+		cloudService, tagConfig, metricTags, demux, inventoryAgent, instanceUUID,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -504,6 +519,7 @@ func setup(
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
 	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -538,8 +554,10 @@ func setup(
 	// lifecycle server hands over the per-instance id (from the /run body, or the
 	// stored id on /resume), which rides in the deployment_id field, then a fresh
 	// payload is injected and submitted. Wired into LifecycleContext below; only
-	// invoked for MicroVM.
+	// invoked for MicroVM. The id also re-identifies the payload uuid, which every
+	// instance restored from the same snapshot otherwise shares.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
+		instanceUUID.SetInstance(microVMID)
 		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 		serverlessInitInventory.SetDeploymentID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
 		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())

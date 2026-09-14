@@ -15,6 +15,7 @@ package inventory
 import (
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -40,9 +41,62 @@ const reportReasonPeriodic = "periodic"
 const serverlessInitFlavor = "serverless-init"
 
 // NewCapabilities builds the inventoryagent Capabilities for serverless-init,
-// with a per-process uuid since serverless containers do not share a host GUID.
+// reporting one uuid for the process lifetime since serverless containers do not
+// share a host GUID.
 func NewCapabilities() *inventoryagent.Capabilities {
-	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
+	id := uuid.New().String()
+	return inventoryagent.NewServerlessCapabilities(func() string { return id })
+}
+
+// InstanceUUID re-identifies the payload uuid when the process outlives the
+// instance it was constructed for.
+//
+// This type is MicroVM-specific: MicroVM restores many instances from one
+// snapshot captured after construction, so every restored instance would
+// otherwise report the uuid baked into it. Platforms that run one process per
+// deployed instance use NewCapabilities.
+type InstanceUUID struct {
+	mu         sync.Mutex
+	uuid       string
+	instanceID string
+}
+
+// NewInstanceUUID builds an InstanceUUID.
+func NewInstanceUUID() *InstanceUUID {
+	return &InstanceUUID{uuid: uuid.New().String()}
+}
+
+// SetInstance rotates the uuid when id names an instance other than the current
+// one. The lifecycle server reports the running instance id on every transition,
+// so a restored instance rotates the snapshot's uuid on its first transition
+// while later transitions of that same instance keep one uuid. No-op on a nil
+// receiver, so callers can invoke unconditionally.
+//
+// Safe to call concurrently with Resolve; visible to the next payload built.
+func (u *InstanceUUID) SetInstance(id string) {
+	if u == nil || id == "" {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if id == u.instanceID {
+		return
+	}
+	u.instanceID = id
+	u.uuid = uuid.New().String()
+}
+
+// Resolve returns the current payload uuid.
+func (u *InstanceUUID) Resolve() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.uuid
+}
+
+// NewInstanceCapabilities builds Capabilities that re-resolve the uuid per
+// payload, for a platform whose instance identity arrives after construction.
+func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
+	return inventoryagent.NewServerlessCapabilities(u.Resolve)
 }
 
 // Inject layers the serverless-specific fields and the serverless-init flavor
