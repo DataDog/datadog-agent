@@ -50,10 +50,10 @@ fn net_is_service_account(domain: &str, user: &str) -> Result<bool> {
 
 fn net_is_service_account_fn() -> Result<NetIsServiceAccountFn> {
     static NET_IS_SERVICE_ACCOUNT: OnceLock<Result<NetIsServiceAccountFn>> = OnceLock::new();
-    NET_IS_SERVICE_ACCOUNT
-        .get_or_init(load_net_is_service_account)
-        .clone()
-        .map_err(|error| anyhow::anyhow!("{error:#}"))
+    match NET_IS_SERVICE_ACCOUNT.get_or_init(load_net_is_service_account) {
+        Ok(function) => Ok(*function),
+        Err(error) => Err(anyhow::anyhow!("{error:#}")),
+    }
 }
 
 fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
