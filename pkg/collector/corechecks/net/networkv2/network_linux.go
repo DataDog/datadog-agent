@@ -553,6 +553,13 @@ func parseProcNetMetrics(protocol string, reader io.Reader, suffixMapping map[st
 		}
 	}
 
+	// ss labels TCP_CLOSE as UNCONN, while netstat labels it CLOSE. Both names
+	// were previously observable depending on the installed tool, so preserve
+	// both uncombined metric suffixes with the same values.
+	if unconn, exists := results["unconn"]; exists {
+		results["close"] = unconn
+	}
+
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())

@@ -2371,6 +2371,30 @@ func TestSubmitConnectionStateMetricsUsesProcfs(t *testing.T) {
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(20), "", []string{"state:established"})
 }
 
+func TestSubmitConnectionStateMetricsPreservesCloseAliases(t *testing.T) {
+	originalFilesystem := filesystem
+	t.Cleanup(func() { filesystem = originalFilesystem })
+
+	filesystem = afero.NewMemMapFs()
+	filePath := "/mocked/procfs/net/tcp"
+	require.NoError(t, filesystem.MkdirAll(filepath.Dir(filePath), 0755))
+	require.NoError(t, afero.WriteFile(filesystem, filePath, []byte(`  sl  local_address rem_address   st tx_queue:rx_queue
+   0: 0100007F:1F90 00000000:0000 07 0000000A:00000014
+`), 0644))
+
+	mockSender := mocksender.NewMockSender(t, "network-close-alias-test")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	submitConnectionStateMetrics(mockSender, "tcp4", true, false, "/mocked/procfs")
+
+	for _, state := range []string{"close", "unconn"} {
+		mockSender.AssertCalled(t, "Gauge", "system.net.tcp4."+state, float64(1), "", []string(nil))
+		mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(10), "", []string{"state:" + state})
+		mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(20), "", []string{"state:" + state})
+	}
+}
+
 func TestProcNetMetricsWithKernelSockets(t *testing.T) {
 	originalFilesystem := filesystem
 	filesystem = afero.NewOsFs()
@@ -2501,6 +2525,7 @@ func TestParseProcNetMetrics(t *testing.T) {
 				"fin_wait_2": {count: 1, recvQ: []uint64{15}, sendQ: []uint64{5}},
 				"time_wait":  {count: 2, recvQ: []uint64{16, 19}, sendQ: []uint64{6, 9}},
 				"unconn":     {count: 1, recvQ: []uint64{17}, sendQ: []uint64{7}},
+				"close":      {count: 1, recvQ: []uint64{17}, sendQ: []uint64{7}},
 				"close_wait": {count: 1, recvQ: []uint64{18}, sendQ: []uint64{8}},
 				"listen":     {count: 1, recvQ: []uint64{26}, sendQ: []uint64{10}},
 				"closing":    {count: 1, recvQ: []uint64{27}, sendQ: []uint64{11}},
@@ -2588,6 +2613,7 @@ combine_connection_states: false
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_2", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(2), "", customTags) // TIME_WAIT(1) + LAST_ACK(1)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.unconn", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(1), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(1), "", customTags)
@@ -2600,6 +2626,7 @@ combine_connection_states: false
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_2", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(4), "", customTags) // TIME_WAIT(2) + LAST_ACK(2)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.unconn", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close_wait", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listen", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(2), "", customTags)
