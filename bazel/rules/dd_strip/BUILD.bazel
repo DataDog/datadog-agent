@@ -1,0 +1,3 @@
+load(":dd_strip_test.bzl", "dd_strip_test_suite")
+
+dd_strip_test_suite(name = "_dd_strip_tests")

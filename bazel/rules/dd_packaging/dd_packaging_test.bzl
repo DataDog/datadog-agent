@@ -133,9 +133,11 @@ def _test_so_collected(name):
     )
 
 def _test_so_collected_impl(env, target):
-    # rewrite_rpath places its output under a "patched/" subdirectory.
+    # rewrite_rpath names its output "<name>_patched"; dd_strip_debug then
+    # further splits that into "<name>_patched_split.stripped" (shipped) and
+    # ".debug" (not collected here). Match on "patched" broadly to cover both.
     _outputs_of(env, target).contains_predicate(
-        matching.file_path_matches("*patched/*"),
+        matching.file_path_matches("*_patched*"),
     )
 
 # Test 3: dd_cc_packaged with installed_files → both the patched .so and the
@@ -172,7 +174,7 @@ def _test_installed_files_collected(name):
 
 def _test_installed_files_collected_impl(env, target):
     outputs = _outputs_of(env, target)
-    outputs.contains_predicate(matching.file_path_matches("*patched/*"))
+    outputs.contains_predicate(matching.file_path_matches("*_patched*"))
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
 
 # Test 4: transitive collection through dynamic_deps.
@@ -228,7 +230,7 @@ def _test_transitive_collected_impl(env, target):
     outputs = _outputs_of(env, target)
 
     # outer's own patched .so
-    outputs.contains_predicate(matching.file_path_matches("*patched/*"))
+    outputs.contains_predicate(matching.file_path_matches("*_patched*"))
 
     # inner's header, reached transitively via dynamic_deps → input → dynamic_deps
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
@@ -293,7 +295,7 @@ def _test_packaged_forwards_unpatched_so(name):
 def _test_packaged_forwards_unpatched_so_impl(env, target):
     outputs = _outputs_of(env, target)
     outputs.contains_predicate(matching.file_extension_in(["so", "dll", "dylib"]))
-    outputs.not_contains_predicate(matching.file_path_matches("*patched/*"))
+    outputs.not_contains_predicate(matching.file_path_matches("*_patched*"))
 
 # Test 7: dd_cc_packaged wrapping a cc_binary → the rpath-patched binary
 # appears in DdPackagingInfo.installed_files.
@@ -322,7 +324,7 @@ def _test_cc_binary_collected(name):
     )
 
 def _test_cc_binary_collected_impl(env, target):
-    _outputs_of(env, target).contains_predicate(matching.file_path_matches("*patched/*"))
+    _outputs_of(env, target).contains_predicate(matching.file_path_matches("*_patched*"))
 
 # Test 8: dd_cc_packaged wrapping a cc_binary does NOT forward CcSharedLibraryInfo,
 # even when the binary links against a dd_cc_packaged shared library.

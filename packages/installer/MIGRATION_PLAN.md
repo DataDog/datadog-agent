@@ -373,6 +373,12 @@ Once the diff output is clean (or remaining diffs are explicitly accepted):
   — the `prebuilt_file` approach is sufficient for the packaging migration
 - Windows MSI (no Bazel rule exists yet)
 - macOS PKG (no Bazel rule exists yet)
-- Symbol stripping / debug package split
+- Symbol stripping / debug package split — the `dd_strip_debug` rule and
+  toolchain now exist (`bazel/rules/dd_strip/`, `bazel/toolchains/dd_strip/`)
+  and are wired into `dd_cc_packaged` and `//cmd/agent:agent`/
+  `//cmd/loader:loader`, but the installer binary itself is still built via
+  `prebuilt_file` (see the line above), so there is nothing to wrap yet for
+  this milestone. A "dbg" package that actually collects the `.debug`/`.dSYM`
+  outputs is still unbuilt
 - Code signing (Windows `sign_file`, macOS `code_signing_identity`)
 - Removing omnibus installer code (happens after Phase 7 completes)
