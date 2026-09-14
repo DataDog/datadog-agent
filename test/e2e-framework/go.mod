@@ -32,7 +32,7 @@ require (
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0
