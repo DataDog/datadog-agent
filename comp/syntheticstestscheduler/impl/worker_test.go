@@ -554,7 +554,7 @@ func TestNetworkPathToTestResult_PreservesEnrichment(t *testing.T) {
 					cfg: common.SyntheticsTestConfig{
 						PublicID:   "pub-ephemeral",
 						ResultID:   "result-ephemeral",
-						RunType:    "ephemeral",
+						RunType:    common.RunTypeTriggered,
 						Type:       "network",
 						Enrichment: enrichment,
 						Config: struct {
