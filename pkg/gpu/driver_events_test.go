@@ -273,6 +273,70 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				MemoryFault: &model.NvidiaXidMemoryFault{
 					FBPA:         uint64Pointer(4),
 					Subpartition: uint64Pointer(1),
+					Location:     "DRAM",
+				},
+			},
+		},
+		{
+			name:    "SRAM annotation carries location without a parsable field",
+			message: "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+			expected: model.NvidiaXid{
+				XidCode:     172,
+				Message:     "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+				MemoryFault: &model.NvidiaXidMemoryFault{Location: "SRAM"},
+			},
+		},
+		{
+			name:    "DRAM single-bit error storm names its partition",
+			message: "NVRM: Xid (PCI:0000:00:1e): 92, Disabling ECC single-bit error interrupts in framebuffer at logical partition 3, due to high error rate",
+			expected: model.NvidiaXid{
+				XidCode: 92,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 92, Disabling ECC single-bit error interrupts in framebuffer at logical partition 3, due to high error rate",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					Partition:            uint64Pointer(3),
+					InterruptStormSource: "dram",
+				},
+			},
+		},
+		{
+			// The SM variant has no partition, and SRAM has no row remapping to absorb the
+			// errors, so the two storms are not interchangeable.
+			name:    "SM single-bit error storm has no partition",
+			message: "NVRM: Xid (PCI:0000:00:1e): 92, SM SBE interrupt storm detected",
+			expected: model.NvidiaXid{
+				XidCode:     92,
+				Message:     "NVRM: Xid (PCI:0000:00:1e): 92, SM SBE interrupt storm detected",
+				MemoryFault: &model.NvidiaXidMemoryFault{InterruptStormSource: "sm"},
+			},
+		},
+		{
+			name:    "residual uncorrectable error counts per unit",
+			message: "NVRM: Xid (PCI:0003:00:05): 140, pid='<unknown>', name=<unknown>, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:2, LTC:0, MMU:0, PCIE:0",
+			expected: model.NvidiaXid{
+				XidCode:     140,
+				Message:     "NVRM: Xid (PCI:0003:00:05): 140, pid='<unknown>', name=<unknown>, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:2, LTC:0, MMU:0, PCIE:0",
+				ProcessName: "<unknown>",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					ResidualDRAM: int64Pointer(2),
+					ResidualLTC:  int64Pointer(0),
+					ResidualMMU:  int64Pointer(0),
+					ResidualPCIE: int64Pointer(0),
+				},
+			},
+		},
+		{
+			// The driver prints these with %d and a large negative DRAM value is a known
+			// counter-reporting artifact, so they must not be parsed as unsigned.
+			name:    "residual counts survive the negative-counter artifact",
+			message: "NVRM: Xid (PCI:0003:00:05): 140, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:-2147483648, LTC:0, MMU:0, PCIE:0",
+			expected: model.NvidiaXid{
+				XidCode: 140,
+				Message: "NVRM: Xid (PCI:0003:00:05): 140, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:-2147483648, LTC:0, MMU:0, PCIE:0",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					ResidualDRAM: int64Pointer(-2147483648),
+					ResidualLTC:  int64Pointer(0),
+					ResidualMMU:  int64Pointer(0),
+					ResidualPCIE: int64Pointer(0),
 				},
 			},
 		},
@@ -344,6 +408,10 @@ func TestParseNvidiaXidBoundsRawMessage(t *testing.T) {
 }
 
 func uint64Pointer(value uint64) *uint64 {
+	return &value
+}
+
+func int64Pointer(value int64) *int64 {
 	return &value
 }
 

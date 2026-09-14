@@ -175,16 +175,21 @@ type NvidiaXidNVLinkFault struct {
 
 // NvidiaXidMemoryFault contains location and repair details from NVIDIA memory Xid events.
 type NvidiaXidMemoryFault struct {
-	PhysicalAddress     string  `json:"physical_address,omitempty"`
-	RowAddress          string  `json:"row_address,omitempty"`
-	RowRemapperSite     string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
-	Partition           *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
-	Subpartition        *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
-	Location            string  `json:"location,omitempty" event_tag:"memory_location"`
-	RepairedTarget      string  `json:"repaired_target,omitempty" event_tag:"repaired_target"`
-	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty" event_tag:"repaired_target_index"`
-	FBPA                *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
-	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
+	PhysicalAddress      string  `json:"physical_address,omitempty"`
+	RowAddress           string  `json:"row_address,omitempty"`
+	RowRemapperSite      string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
+	Partition            *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
+	Subpartition         *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
+	Location             string  `json:"location,omitempty" event_tag:"memory_location"`
+	InterruptStormSource string  `json:"interrupt_storm_source,omitempty" event_tag:"interrupt_storm_source"`
+	ResidualDRAM         *int64  `json:"residual_dram,omitempty" event_tag:"residual_dram"`
+	ResidualLTC          *int64  `json:"residual_ltc,omitempty" event_tag:"residual_ltc"`
+	ResidualMMU          *int64  `json:"residual_mmu,omitempty" event_tag:"residual_mmu"`
+	ResidualPCIE         *int64  `json:"residual_pcie,omitempty" event_tag:"residual_pcie"`
+	RepairedTarget       string  `json:"repaired_target,omitempty" event_tag:"repaired_target"`
+	RepairedTargetIndex  *uint64 `json:"repaired_target_index,omitempty" event_tag:"repaired_target_index"`
+	FBPA                 *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
+	NodeRebootRequired   bool    `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
 }
 
 // NvidiaXidRecoveryAction contains the transition reported by NVIDIA Xid 154.

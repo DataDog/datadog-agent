@@ -312,6 +312,7 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	pid := uint64(123)
 	linkID := uint64(4)
 	partition := uint64(2)
+	residualDRAM := int64(3)
 	previousCode := uint64(0)
 	currentCode := uint64(2)
 	driverEvent := newDriverXIDEvent("GPU-1", 31, timestamp, "raw message")
@@ -337,15 +338,17 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		ErrorDebugData:   []string{"0x4"},
 	}
 	driverEvent.NvidiaXid.MemoryFault = &model.NvidiaXidMemoryFault{
-		PhysicalAddress:     "0x1000",
-		RowAddress:          "0x2000",
-		RowRemapperSite:     "site-a",
-		Partition:           &partition,
-		Location:            "HBM",
-		RepairedTarget:      "row",
-		RepairedTargetIndex: &partition,
-		FBPA:                &partition,
-		NodeRebootRequired:  true,
+		PhysicalAddress:      "0x1000",
+		RowAddress:           "0x2000",
+		RowRemapperSite:      "site-a",
+		Partition:            &partition,
+		Location:             "HBM",
+		InterruptStormSource: "dram",
+		ResidualDRAM:         &residualDRAM,
+		RepairedTarget:       "row",
+		RepairedTargetIndex:  &partition,
+		FBPA:                 &partition,
+		NodeRebootRequired:   true,
 	}
 	driverEvent.NvidiaXid.RecoveryAction = &model.NvidiaXidRecoveryAction{
 		PreviousCode:  &previousCode,
@@ -389,6 +392,8 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		"nvlink_link_id:4",
 		"memory_partition:2",
 		"memory_location:HBM",
+		"interrupt_storm_source:dram",
+		"residual_dram:3",
 		"row_remapper_site:site-a",
 		"repaired_target:row",
 		"repaired_target_index:2",

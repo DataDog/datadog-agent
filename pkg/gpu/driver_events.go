@@ -41,14 +41,28 @@ const (
 
 	nvidiaXidRowRemapperCode = 63 // A DRAM row was marked for remapping; names the new row
 
+	nvidiaXidSBEStormCode = 92 // Single-bit error interrupts disabled after a storm; DRAM form names a partition
+
 	nvidiaXidContainedECCCode   = 94 // Contained ECC error; location is inline in the message text
 	nvidiaXidUncontainedECCCode = 95 // Uncontained ECC error; location is inline in the message text
+
+	nvidiaXidResidualECCCode = 140 // Uncorrectable ECC the firmware could not handle; counts per unit
 
 	nvidiaXidRecoveryActionCode = 154 // Recovery-action tier changed; a state transition, not a fault
 
 	nvidiaXidChannelRepairCode = 160 // A DRAM channel or L2 slice was marked for repair
 
+	// On Blackwell the ECC DRAM/SRAM split arrives as a companion code, so the code is the location.
 	nvidiaXidDRAMDetailCode = 171 // Uncorrectable DRAM error
+	nvidiaXidSRAMDetailCode = 172 // Uncorrectable SRAM error
+
+	// Memory error locations: inline in the text for Xid 94 and 95, from the code for 171 and 172.
+	memoryLocationDRAM = "DRAM"
+	memoryLocationSRAM = "SRAM"
+
+	// Storm sources. Only DRAM has row remapping to absorb the errors, so severity differs.
+	stormSourceDRAM = "dram" // Framebuffer partition storm; the message names the partition
+	stormSourceSM   = "sm"   // SM storm; the message names no location
 )
 
 var (
@@ -70,6 +84,9 @@ var (
 	nvidiaRowRemapperSitePattern = regexp.MustCompile(`(?i)\bsite\s+([[:alnum:]_:-]+)`)
 	nvidiaMemoryLocationPattern  = regexp.MustCompile(`(?i)\b(SRAM|DRAM)\b`)
 	nvidiaChannelRepairPattern   = regexp.MustCompile(`(?i)Marking\s+(Channel|L2\s+slice)\s+(\d+)\s+in\s+FBPA\s+(\d+)`)
+	nvidiaSBEStormPattern        = regexp.MustCompile(`(?i)framebuffer\s+at\s+logical\s+partition\s+(\d+)`)
+	nvidiaSMStormPattern         = regexp.MustCompile(`(?i)SM\s+SBE\s+interrupt\s+storm`)
+	nvidiaResidualCountsPattern  = regexp.MustCompile(`(?i)\bDRAM:(-?\d+),\s*LTC:(-?\d+),\s*MMU:(-?\d+),\s*PCIE:(-?\d+)`)
 	nvidiaDRAMDetailPattern      = regexp.MustCompile(`(?i)\bFBPA\s+(\d+)\s+subpartition\s+(\d+)`)
 	nvidiaRecoveryActionPattern  = regexp.MustCompile(`(?i)changed\s+from\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)\s+to\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)`)
 	logLimit                     = log.NewLogLimit(10, 10*time.Minute)
@@ -317,10 +334,13 @@ func nvidiaXidDetailParserForCode(xidCode uint64) nvidiaXidDetailParser {
 		return parseNvidiaNVLink5Xid
 	case xidCode == nvidiaXidDBECode ||
 		xidCode == nvidiaXidRowRemapperCode ||
+		xidCode == nvidiaXidSBEStormCode ||
 		xidCode == nvidiaXidContainedECCCode ||
 		xidCode == nvidiaXidUncontainedECCCode ||
+		xidCode == nvidiaXidResidualECCCode ||
 		xidCode == nvidiaXidChannelRepairCode ||
-		xidCode == nvidiaXidDRAMDetailCode:
+		xidCode == nvidiaXidDRAMDetailCode ||
+		xidCode == nvidiaXidSRAMDetailCode:
 		return func(message string, xid *model.NvidiaXid) bool {
 			return parseNvidiaMemoryXid(message, xidCode, xid)
 		}
@@ -448,8 +468,16 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	if matches := nvidiaRowRemapperSitePattern.FindStringSubmatch(message); matches != nil {
 		details.RowRemapperSite = matches[1]
 	}
-	if (xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode) && nvidiaMemoryLocationPattern.MatchString(message) {
-		details.Location = strings.ToUpper(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])
+	// 171 and 172 are the location, so no parsing is needed; only 94 and 95 carry it inline.
+	switch xidCode {
+	case nvidiaXidDRAMDetailCode:
+		details.Location = memoryLocationDRAM
+	case nvidiaXidSRAMDetailCode:
+		details.Location = memoryLocationSRAM
+	case nvidiaXidContainedECCCode, nvidiaXidUncontainedECCCode:
+		if matches := nvidiaMemoryLocationPattern.FindStringSubmatch(message); matches != nil {
+			details.Location = strings.ToUpper(matches[1])
+		}
 	}
 	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
 		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))
@@ -460,6 +488,21 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	if matches := nvidiaDRAMDetailPattern.FindStringSubmatch(message); matches != nil {
 		details.FBPA = parseDecimalPointer(matches[1])
 		details.Subpartition = parseDecimalPointer(matches[2])
+	}
+	if xidCode == nvidiaXidSBEStormCode {
+		// Only the DRAM storm names a partition; the SM storm has no location at all.
+		if matches := nvidiaSBEStormPattern.FindStringSubmatch(message); matches != nil {
+			details.InterruptStormSource = stormSourceDRAM
+			details.Partition = parseDecimalPointer(matches[1])
+		} else if nvidiaSMStormPattern.MatchString(message) {
+			details.InterruptStormSource = stormSourceSM
+		}
+	}
+	if matches := nvidiaResidualCountsPattern.FindStringSubmatch(message); matches != nil {
+		details.ResidualDRAM = parseSignedPointer(matches[1])
+		details.ResidualLTC = parseSignedPointer(matches[2])
+		details.ResidualMMU = parseSignedPointer(matches[3])
+		details.ResidualPCIE = parseSignedPointer(matches[4])
 	}
 	if *details != (model.NvidiaXidMemoryFault{}) {
 		xid.MemoryFault = details
@@ -492,6 +535,16 @@ func normalizeHex(value string) string {
 
 func parseDecimalPointer(value string) *uint64 {
 	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
+// parseSignedPointer is used for the Xid 140 residual counts, which the driver prints with
+// %d and can report as a large negative value.
+func parseSignedPointer(value string) *int64 {
+	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return nil
 	}
