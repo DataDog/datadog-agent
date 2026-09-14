@@ -110,6 +110,7 @@ func TestValidateCoreFileValid(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, errs)
+	assert.Nil(t, errs)
 }
 
 func TestValidateSystemProbeFileValid(t *testing.T) {
@@ -196,6 +197,8 @@ func TestValidateCoreConfigDetailedRootPath(t *testing.T) {
 	assert.NoError(t, c.AddResource("root_type_schema", map[string]interface{}{"type": "integer"}))
 	rootTypeSchema, err := c.Compile("root_type_schema")
 	assert.NoError(t, err)
+	previousCoreSchemaGetter := coreSchemaGetter
+	t.Cleanup(func() { coreSchemaGetter = previousCoreSchemaGetter })
 	coreSchemaGetter = func() (*jsonschema.Schema, error) { return rootTypeSchema, nil }
 
 	violations, err := ValidateCoreConfigDetailed("not an integer")

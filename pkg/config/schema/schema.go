@@ -231,6 +231,9 @@ func ValidateCoreConfig(config interface{}) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(violations) == 0 {
+		return nil, nil
+	}
 	errors := make([]string, len(violations))
 	for index, violation := range violations {
 		errors[index] = violation.Message
