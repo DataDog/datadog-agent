@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	// Namespace reserved for Datadog's own packages on the first-party Python index.
+	// Namespace of integrations-internal wheels on the first-party Python index.
 	internalNamespacePrefix = "dd-internal-"
 
 	reqAgentReleaseFile = "requirements-agent-release.txt"
@@ -209,8 +209,6 @@ func getIntegrationName(packageName string) string {
 	case "datadog-go-metro":
 		return "go-metro"
 	default:
-		// First-party wheels are published under a reserved dd-internal- namespace,
-		// since the index shares a namespace with mirrored public PyPI names.
 		name := strings.TrimPrefix(packageName, internalNamespacePrefix)
 		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(name, "datadog-"), "-", "_"))
 	}
