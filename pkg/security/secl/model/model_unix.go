@@ -960,8 +960,8 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent represents a syscalls event. Two payload shapes discriminated by EventReason:
-// drain (Syscalls bitmap) or workload-profiles-v2 sample first-hit (SyscallID+SampleCookie).
+// SyscallsEvent carries either a drain bitmap or a sample first-hit,
+// discriminated by EventReason.
 type SyscallsEvent struct {
 	EventReason  SyscallDriftEventReason
 	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls

@@ -1341,9 +1341,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
-		// Sweep the cookie map once per eviction cycle: the LRU may otherwise pin the pruned
-		// subtree until refresh events happen to arrive for those cookies (or the LRU evicts
-		// them itself).
+		// Free cookies whose target subtree has been pruned.
 		if purged := m.purgeOrphanedCookies(); purged > 0 {
 			seclog.Debugf("purged %d orphaned sample cookies after eviction cycle", purged)
 		}
@@ -1558,12 +1556,8 @@ func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
 	}
 }
 
-// purgeOrphanedCookies drops sampleCookieMap entries whose target ProcessNode has been evicted
-// from its activity tree. The LRU otherwise keeps the pruned subtree alive via the pointer.
-// Matches HandleSampleRefresh's own lazy-cleanup predicate, so calling this after an eviction
-// pass turns the reactive-on-refresh cleanup into a proactive-per-cycle one. Returns the number
-// of entries purged so the caller can log or export it. Callers may hold profilesLock; the
-// map is self-synchronised.
+// purgeOrphanedCookies removes sampleCookieMap entries whose target ProcessNode
+// has been evicted. Returns the number of entries removed.
 func (m *ManagerV2) purgeOrphanedCookies() int {
 	var removed int
 	for _, key := range m.sampleCookieMap.Keys() {

@@ -1416,9 +1416,7 @@ func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 4, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself. EventReason selects between
-// the drain bitmap (bytes [8:72]) and the sample first-hit tail (bytes [72:88], with u32
-// syscall_id then 4 bytes of C-struct padding then the u64 sample_cookie).
+// UnmarshalBinary unmarshalls a binary representation of itself.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 88 {
 		return 0, ErrNotEnoughData

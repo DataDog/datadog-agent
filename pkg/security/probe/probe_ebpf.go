@@ -2505,9 +2505,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
 	}
 
-	// Any of these features (rulesets, activity dumps, anomaly detection, workload profiles v2)
-	// consumes the raw_syscalls tracepoints. Appending the selectors more than once would double
-	// up the same probe identification pairs in ActivatedProbes.
+	// Attach raw_syscalls tracepoints once when any consumer needs them.
 	if needRawSyscalls ||
 		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
@@ -3414,9 +3412,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
-	// Attach the raw_syscalls tracepoints once if any consumer needs them. Duplicating the
-	// selectors here would result in matching probe identification pairs being appended more
-	// than once to ActivatedProbes.
+	// Attach raw_syscalls tracepoints once when any consumer needs them.
 	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
 		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {

@@ -104,8 +104,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
-    // workload profiles v2 sampler: first-hit rides on EVENT_SYSCALLS with a sample_cookie
-    // (bind/open/connect pattern); repeat hits emit a cookie-only refresh.
+    // Workload profiles v2 syscall sampler.
     if (!event->process.is_kworker) {
         struct pid_cache_t *pid_entry = get_pid_cache(pid);
         if (pid_entry != NULL) {

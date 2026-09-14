@@ -346,8 +346,8 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 	return true
 }
 
-// InsertSyscallSample inserts a workload-profiles-v2 syscall sample first-hit. Returns whether
-// a new SyscallNode was created and its NodeBase so the caller can key it by sample cookie.
+// InsertSyscallSample inserts a syscall sample first-hit and returns whether a
+// new SyscallNode was created and its NodeBase (for cookie mapping).
 func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	syscallID := int(e.Syscalls.SyscallID)
 	at := e.ResolveEventTime()

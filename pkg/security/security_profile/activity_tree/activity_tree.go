@@ -1185,9 +1185,8 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	return syscalls
 }
 
-// SyscallsByImageTagID walks the tree once and returns, for every image tag ID it observes, the
-// sorted set of syscall numbers recorded under that tag. A syscall seen by several processes of the
-// same tag is reported once.
+// SyscallsByImageTagID returns the sorted, deduplicated syscall numbers observed
+// under each image tag ID.
 func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 	sets := make(map[uint64]map[uint32]struct{})
 

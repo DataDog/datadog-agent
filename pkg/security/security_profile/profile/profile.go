@@ -90,8 +90,7 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
-	// observedRollups makes the encoder fill each version context with the syscalls and capabilities
-	// observed under its image tag, derived from the activity tree.
+	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
 	observedRollups bool
 }
 
@@ -148,10 +147,8 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 	}
 }
 
-// WithObservedRollups makes the encoder derive the per-version-context syscall and capability lists
-// from the activity tree. V1 leaves it off: there the syscall list is the filter pushed to the
-// kernel and it comes from the backend profile, so filling it from locally observed syscalls would
-// widen the set the kernel treats as known.
+// WithObservedRollups makes the encoder derive per-version syscall/capability
+// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
