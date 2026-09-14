@@ -89,7 +89,7 @@ func getLinkexternalStr(linkexternal bool) string {
 func resolveRunfile(t *testing.T, loc string) string {
 	t.Helper()
 	path, err := runfiles.Rlocation(loc)
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "resolving runfile %q", loc)
 	return path
 }
 
