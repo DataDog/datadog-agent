@@ -172,8 +172,8 @@ func (c *Client) Platform() artifact.Platform {
 	return c.platform
 }
 
-// Fetch downloads and validates descriptor's package metadata and layers.
-func (c *Client) Fetch(ctx context.Context, descriptor artifact.Descriptor) (*Package, error) {
+// Download downloads and validates descriptor's package metadata and layers.
+func (c *Client) Download(ctx context.Context, descriptor artifact.Descriptor) (*Package, error) {
 	if ctx == nil {
 		return nil, errors.New("OCI artifact context is required")
 	}

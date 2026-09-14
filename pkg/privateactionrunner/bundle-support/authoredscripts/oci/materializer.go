@@ -72,7 +72,7 @@ func (m *Materializer) Materialize(ctx context.Context, descriptor artifact.Desc
 	if m == nil || m.client == nil {
 		return errors.New("authored-script materializer is not configured")
 	}
-	pkg, err := m.client.Fetch(ctx, descriptor)
+	pkg, err := m.client.Download(ctx, descriptor)
 	if err != nil {
 		return err
 	}
