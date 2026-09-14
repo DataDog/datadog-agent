@@ -71,31 +71,35 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(violations) == 0 {
 		return nil, nil
 	}
-	payloads, complete := buildViolationPayloads(c.cfg, violations)
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "agent",
-			Context: func() map[string]string {
-				ctx := map[string]string{
-					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(violations)),
-				}
-				for i, violation := range violations {
-					ctx[contextErrorKey(i)] = violation.Message
-				}
-				if complete {
-					encoded, err := json.Marshal(payloads)
-					if err == nil {
-						ctx[contextKeyViolationsVersion] = "1"
-						ctx[contextKeyViolations] = string(encoded)
-					}
-				}
-				return ctx
-			}(),
+			Context:   buildIssueReportContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
 		},
 	}, nil
+}
+
+func buildIssueReportContext(cfg config.Component, configPath string, violations []schema.Violation) map[string]string {
+	ctx := map[string]string{
+		contextKeyConfigPath: configPath,
+		contextKeyErrorCount: strconv.Itoa(len(violations)),
+	}
+	for i, violation := range violations {
+		ctx[contextErrorKey(i)] = violation.Message
+	}
+	payloads, complete := buildViolationPayloads(cfg, violations)
+	if !complete {
+		return ctx
+	}
+	encoded, err := json.Marshal(payloads)
+	if err != nil {
+		return ctx
+	}
+	ctx[contextKeyViolationsVersion] = "1"
+	ctx[contextKeyViolations] = string(encoded)
+	return ctx
 }
 
 func buildViolationPayloads(cfg config.Component, violations []schema.Violation) ([]violationPayload, bool) {
@@ -145,7 +149,7 @@ func supportedExpectedTypes(values []string) bool {
 
 func resolveDefault(cfg config.Component, pointer string) (string, string) {
 	key, ok := configKeyFromJSONPointer(pointer)
-	if !ok || !cfg.IsKnown(key) || !cfg.IsSetting(key) {
+	if !ok || !isKnownSetting(cfg, key) {
 		return "unknown", ""
 	}
 
@@ -170,6 +174,18 @@ func resolveDefault(cfg config.Component, pointer string) (string, string) {
 		return "known", string(encoded)
 	}
 	return "none", ""
+}
+
+func isKnownSetting(cfg config.Component, key string) bool {
+	if !cfg.IsKnown(key) {
+		return false
+	}
+	for _, candidate := range cfg.AllKeysLowercased() {
+		if candidate == strings.ToLower(key) {
+			return true
+		}
+	}
+	return false
 }
 
 func configKeyFromJSONPointer(pointer string) (string, bool) {

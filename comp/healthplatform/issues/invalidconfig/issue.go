@@ -33,6 +33,16 @@ func contextErrorKey(i int) string {
 // InvalidConfigIssue is the template for "invalid-config" issues.
 type InvalidConfigIssue struct{}
 
+type decodedViolationPayload struct {
+	Path          *string   `json:"path"`
+	Rule          *string   `json:"rule"`
+	ActualType    *string   `json:"actual_type"`
+	ExpectedTypes *[]string `json:"expected_types"`
+	Required      *bool     `json:"required"`
+	DefaultStatus *string   `json:"default_status"`
+	DefaultValue  *string   `json:"default_value"`
+}
+
 // BuildIssue decodes the IssueReport.Context and builds the proto Issue.
 func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
 	path := ctx[contextKeyConfigPath]
@@ -83,8 +93,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 	}
 	if ctx[contextKeyViolationsVersion] == "1" {
-		var violations []any
-		if json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations) == nil {
+		if violations, ok := decodeViolationPayloads(ctx[contextKeyViolations]); ok {
 			extraFields[contextKeyViolationsVersion] = 1
 			extraFields[contextKeyViolations] = violations
 		}
@@ -112,4 +121,52 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 			},
 		},
 	}, nil
+}
+
+func decodeViolationPayloads(raw string) ([]any, bool) {
+	var decoded []decodedViolationPayload
+	if json.Unmarshal([]byte(raw), &decoded) != nil || len(decoded) == 0 {
+		return nil, false
+	}
+
+	violations := make([]any, 0, len(decoded))
+	for _, violation := range decoded {
+		if !validDecodedViolation(violation) {
+			return nil, false
+		}
+		expectedTypes := make([]any, len(*violation.ExpectedTypes))
+		for index, expectedType := range *violation.ExpectedTypes {
+			expectedTypes[index] = expectedType
+		}
+		payload := map[string]any{
+			"path":           *violation.Path,
+			"rule":           *violation.Rule,
+			"actual_type":    *violation.ActualType,
+			"expected_types": expectedTypes,
+			"required":       *violation.Required,
+			"default_status": *violation.DefaultStatus,
+		}
+		if violation.DefaultValue != nil {
+			payload["default_value"] = *violation.DefaultValue
+		}
+		violations = append(violations, payload)
+	}
+	return violations, true
+}
+
+func validDecodedViolation(violation decodedViolationPayload) bool {
+	if violation.Path == nil || violation.Rule == nil || violation.ActualType == nil || violation.ExpectedTypes == nil || violation.Required == nil || violation.DefaultStatus == nil {
+		return false
+	}
+	if *violation.Rule != "type" || !supportedActualType(*violation.ActualType) || !supportedExpectedTypes(*violation.ExpectedTypes) {
+		return false
+	}
+	switch *violation.DefaultStatus {
+	case "known":
+		return violation.DefaultValue != nil && json.Valid([]byte(*violation.DefaultValue))
+	case "none", "unknown":
+		return violation.DefaultValue == nil
+	default:
+		return false
+	}
 }

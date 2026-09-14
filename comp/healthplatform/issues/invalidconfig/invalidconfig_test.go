@@ -97,6 +97,43 @@ func TestBuildIssue_VersionOneViolationsPreserveLegacyErrors(t *testing.T) {
 	assert.Equal(t, "0", violation["default_value"].GetStringValue())
 }
 
+func TestBuildIssue_InvalidViolationContextFallsBackToLegacyErrors(t *testing.T) {
+	valid := `[{"path":"/agent_ipc/port","rule":"type","actual_type":"string","expected_types":["integer"],"required":false,"default_status":"known","default_value":"0"}]`
+	for name, violations := range map[string]string{
+		"null array":             "null",
+		"empty array":            "[]",
+		"null element":           "[null]",
+		"wrong field type":       `[{"path":1}]`,
+		"invalid rule":           strings.Replace(valid, `"rule":"type"`, `"rule":"required"`, 1),
+		"invalid actual type":    strings.Replace(valid, `"actual_type":"string"`, `"actual_type":"invalid"`, 1),
+		"empty expected types":   strings.Replace(valid, `"expected_types":["integer"]`, `"expected_types":[]`, 1),
+		"invalid expected type":  strings.Replace(valid, `"expected_types":["integer"]`, `"expected_types":["invalid"]`, 1),
+		"invalid status":         strings.Replace(valid, `"default_status":"known"`, `"default_status":"invalid"`, 1),
+		"missing required field": strings.Replace(valid, `"required":false,`, "", 1),
+		"known without default":  strings.Replace(valid, `,"default_value":"0"`, "", 1),
+		"known invalid default":  strings.Replace(valid, `"default_value":"0"`, `"default_value":"not-json"`, 1),
+		"none with default":      strings.Replace(valid, `"default_status":"known"`, `"default_status":"none"`, 1),
+		"unknown with default":   strings.Replace(valid, `"default_status":"known"`, `"default_status":"unknown"`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := map[string]string{
+				contextKeyConfigPath:        "/etc/datadog-agent/datadog.yaml",
+				contextKeyErrorCount:        "1",
+				contextKeyViolationsVersion: "1",
+				contextKeyViolations:        violations,
+				contextErrorKey(0):          "at '/agent_ipc/port': got string, want integer",
+			}
+
+			issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
+			require.NoError(t, err)
+			fields := issue.GetExtra().GetFields()
+			assert.Nil(t, fields[contextKeyViolationsVersion])
+			assert.Nil(t, fields[contextKeyViolations])
+			assert.Equal(t, "got string, want integer", fields[contextKeyErrors].GetStructValue().GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
+		})
+	}
+}
+
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
@@ -162,6 +199,22 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	assert.NotContains(t, string(issueJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 }
 
+func TestCheck_KnownSectionReplacedByScalarHasUnknownDefault(t *testing.T) {
+	requireSchema(t)
+	cfg := config.NewMockFromYAML(t, "agent_ipc: not-an-object\n")
+
+	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	var violations []violationPayload
+	require.NoError(t, json.Unmarshal([]byte(reports[0].Context[contextKeyViolations]), &violations))
+	require.Len(t, violations, 1)
+	assert.Equal(t, "/agent_ipc", violations[0].Path)
+	assert.Equal(t, "unknown", violations[0].DefaultStatus)
+	assert.Empty(t, violations[0].DefaultValue)
+}
+
 func TestResolveDefault_EncodesDurationAsJSONDurationString(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.Set("agent_ipc.port", 10*time.Second, model.SourceDefault)
@@ -204,6 +257,25 @@ func TestBuildViolationPayloads_SuppressesUnsupportedViolations(t *testing.T) {
 	})
 	assert.False(t, ok)
 	assert.Nil(t, payloads)
+}
+
+func TestBuildIssueReportContext_MixedViolationsKeepOnlyLegacyErrors(t *testing.T) {
+	violations := []schema.Violation{
+		{
+			Message:       "at '/agent_ipc/port': got string, want integer",
+			Path:          "/agent_ipc/port",
+			Rule:          "type",
+			ActualType:    "string",
+			ExpectedTypes: []string{"integer"},
+		},
+		{Message: "at '/unknown': additionalProperties error", Path: "/unknown", Rule: "additionalProperties"},
+	}
+
+	ctx := buildIssueReportContext(config.NewMock(t), "/etc/datadog-agent/datadog.yaml", violations)
+	assert.NotContains(t, ctx, contextKeyViolationsVersion)
+	assert.NotContains(t, ctx, contextKeyViolations)
+	assert.Equal(t, violations[0].Message, ctx[contextErrorKey(0)])
+	assert.Equal(t, violations[1].Message, ctx[contextErrorKey(1)])
 }
 
 // Two checkers with the same hostname but different config files must not
