@@ -44,7 +44,6 @@ pkg_filegroup(
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: security-agent
         # TODO: cws-instrumentation
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
@@ -52,6 +51,7 @@ pkg_filegroup(
         "//packages/agent:linux_heroku": [],
         "//conditions:default": [
             ":secret_generic_connector_binary",
+            ":security_agent_binary",
         ],
     }) + select({
         "//packages/agent:linux_default": [
@@ -185,6 +185,16 @@ pkg_files(
 pkg_files(
     name = "secret_generic_connector_binary",
     srcs = ["//cmd/secret-generic-connector"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+)
+
+pkg_files(
+    name = "security_agent_binary",
+    srcs = ["//cmd/security-agent"],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
