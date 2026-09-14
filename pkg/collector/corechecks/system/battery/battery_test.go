@@ -365,7 +365,7 @@ func TestBatteryPowerStates(t *testing.T) {
 	}
 }
 
-func TestBatteryCheckReportsPerBatteryAndTotalTags(t *testing.T) {
+func TestBatteryCheckReportsPerBatteryAndTotalMetrics(t *testing.T) {
 	originalHasBattery := hasBatteryAvailableFunc
 	originalGetBatteryInfo := getBatteryInfoFunc
 	hasBatteryAvailableFunc = func() (bool, error) { return true, nil }
@@ -384,6 +384,7 @@ func TestBatteryCheckReportsPerBatteryAndTotalTags(t *testing.T) {
 				designedCapacity: optFloat64(6000),
 				powerState:       []string{"power_state:battery_discharging"},
 				tags:             []string{"battery_slot:total"},
+				metricScope:      batteryMetricScopeTotal,
 			},
 		}, nil
 	}
@@ -404,8 +405,8 @@ func TestBatteryCheckReportsPerBatteryAndTotalTags(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "system.battery.designed_capacity", 6000, "", physicalTags)
 	powerStateTags := append(append([]string{}, physicalTags...), "power_state:battery_discharging")
 	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1, "", powerStateTags)
-	mockSender.AssertMetric(t, "Gauge", "system.battery.designed_capacity", 6000, "", []string{"battery_slot:total"})
-	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1, "", []string{"battery_slot:total", "power_state:battery_discharging"})
+	mockSender.AssertMetric(t, "Gauge", "system.battery.designed_capacity.total", 6000, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state.total", 1, "", []string{"power_state:battery_discharging"})
 	mockSender.AssertNumberOfCalls(t, "Gauge", 4)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }

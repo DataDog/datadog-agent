@@ -307,9 +307,8 @@ func getBatteryInfo() ([]batteryInfo, error) {
 			return infos, nil
 		}
 		if !hasValidBatteryCapacities(composite) {
-			log.Errorf("invalid capacity for composite battery device %s (designed=%d, full=%d)",
+			log.Debugf("unavailable capacity for composite battery device %s (designed=%d, full=%d); reporting the available total metrics",
 				enumeration.composites[0].devicePath, composite.info.DesignedCapacity, composite.info.FullChargedCapacity)
-			return infos, nil
 		}
 		infos = append(infos, buildTotalBatteryInfo([]windowsBattery{*composite}))
 	}
@@ -317,8 +316,11 @@ func getBatteryInfo() ([]batteryInfo, error) {
 }
 
 func hasValidBatteryCapacities(battery *windowsBattery) bool {
-	return battery.info.DesignedCapacity != 0 && battery.info.DesignedCapacity != BATTERY_UNKNOWN_CAPACITY &&
-		battery.info.FullChargedCapacity != 0 && battery.info.FullChargedCapacity != BATTERY_UNKNOWN_CAPACITY
+	return isValidBatteryCapacity(battery.info.DesignedCapacity) && isValidBatteryCapacity(battery.info.FullChargedCapacity)
+}
+
+func isValidBatteryCapacity(capacity uint32) bool {
+	return capacity != 0 && capacity != BATTERY_UNKNOWN_CAPACITY
 }
 
 func isCompositeBatteryDescriptor(descriptor batteryDeviceDescriptor) bool {
@@ -461,9 +463,13 @@ func buildPerBatteryInfo(battery *windowsBattery) batteryInfo {
 }
 
 func buildTotalBatteryInfo(batteries []windowsBattery) batteryInfo {
-	total := batteryInfo{tags: []string{"battery_slot:total"}}
+	total := batteryInfo{
+		tags:        []string{"battery_slot:total"},
+		metricScope: batteryMetricScopeTotal,
+	}
 	var designedCapacity, maximumCapacity, remainingCapacity uint64
 	var chargeRate int64
+	allDesignedKnown, allMaximumKnown := true, true
 	allCurrentKnown, allRatesKnown, absoluteUnits := true, true, true
 	var powerState uint32
 
@@ -473,8 +479,16 @@ func buildTotalBatteryInfo(batteries []windowsBattery) batteryInfo {
 		if battery.info.Capabilities&BATTERY_CAPACITY_RELATIVE != 0 {
 			absoluteUnits = false
 		}
-		designedCapacity += uint64(battery.info.DesignedCapacity)
-		maximumCapacity += uint64(battery.info.FullChargedCapacity)
+		if !isValidBatteryCapacity(battery.info.DesignedCapacity) {
+			allDesignedKnown = false
+		} else {
+			designedCapacity += uint64(battery.info.DesignedCapacity)
+		}
+		if !isValidBatteryCapacity(battery.info.FullChargedCapacity) {
+			allMaximumKnown = false
+		} else {
+			maximumCapacity += uint64(battery.info.FullChargedCapacity)
+		}
 		if battery.status.Capacity == BATTERY_UNKNOWN_CAPACITY {
 			allCurrentKnown = false
 		} else {
@@ -491,10 +505,16 @@ func buildTotalBatteryInfo(batteries []windowsBattery) batteryInfo {
 		return total
 	}
 
-	total.designedCapacity = option.New(float64(designedCapacity))
-	total.maximumCapacity = option.New(float64(maximumCapacity))
-	total.maximumCapacityPct = option.New(math.Round(float64(maximumCapacity) / float64(designedCapacity) * 100))
-	if allCurrentKnown {
+	if allDesignedKnown {
+		total.designedCapacity = option.New(float64(designedCapacity))
+	}
+	if allMaximumKnown {
+		total.maximumCapacity = option.New(float64(maximumCapacity))
+	}
+	if allDesignedKnown && allMaximumKnown {
+		total.maximumCapacityPct = option.New(math.Round(float64(maximumCapacity) / float64(designedCapacity) * 100))
+	}
+	if allMaximumKnown && allCurrentKnown {
 		total.currentChargePct = option.New(math.Round(float64(remainingCapacity) / float64(maximumCapacity) * 100))
 	}
 	if allRatesKnown {

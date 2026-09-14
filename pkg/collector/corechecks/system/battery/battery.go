@@ -23,6 +23,13 @@ const (
 	defaultMinCollectionInterval = 300
 )
 
+type batteryMetricScope uint8
+
+const (
+	batteryMetricScopeDevice batteryMetricScope = iota
+	batteryMetricScopeTotal
+)
+
 // getBatteryInfoFunc is a mockable function variable for retrieving battery information
 var getBatteryInfoFunc = getBatteryInfo
 
@@ -40,6 +47,7 @@ type batteryInfo struct {
 	chargeRate         option.Option[float64] // mW (positive = charging, negative = discharging)
 	powerState         []string               // power state tags
 	tags               []string               // battery identity tags
+	metricScope        batteryMetricScope
 }
 
 // Check is the battery check
@@ -91,38 +99,50 @@ func (c *Check) Run() error {
 	}
 
 	for _, info := range infos {
-		if v, ok := info.designedCapacity.Get(); ok {
-			sender.Gauge("system.battery.designed_capacity", v, "", info.tags)
+		if info.metricScope == batteryMetricScopeTotal {
+			submitBatteryMetrics(sender, info, ".total", nil, false)
+			continue
 		}
-		if v, ok := info.maximumCapacity.Get(); ok {
-			sender.Gauge("system.battery.maximum_capacity", v, "", info.tags)
-		}
-		if v, ok := info.maximumCapacityPct.Get(); ok {
-			sender.Gauge("system.battery.maximum_capacity_pct", v, "", info.tags)
-		}
-		if v, ok := info.cycleCount.Get(); ok {
-			sender.Gauge("system.battery.cycle_count", v, "", info.tags)
-		}
-		if v, ok := info.currentChargePct.Get(); ok {
-			sender.Gauge("system.battery.current_charge_pct", v, "", info.tags)
-		}
-		if v, ok := info.voltage.Get(); ok {
-			sender.Gauge("system.battery.voltage", v, "", info.tags)
-		}
-		if v, ok := info.chargeRate.Get(); ok {
-			sender.Gauge("system.battery.charge_rate", v, "", info.tags)
-		}
-
-		powerStateTags := append([]string{}, info.tags...)
-		if len(info.powerState) > 0 {
-			powerStateTags = append(powerStateTags, info.powerState...)
-			sender.Gauge("system.battery.power_state", 1, "", powerStateTags)
-		} else {
-			powerStateTags = append(powerStateTags, "power_state:unknown")
-			sender.Gauge("system.battery.power_state", 0, "", powerStateTags)
-		}
+		submitBatteryMetrics(sender, info, "", info.tags, true)
 	}
 
 	sender.Commit()
 	return nil
+}
+
+func submitBatteryMetrics(sender sender.Sender, info batteryInfo, suffix string, tags []string, includeDeviceMetrics bool) {
+	if v, ok := info.designedCapacity.Get(); ok {
+		sender.Gauge("system.battery.designed_capacity"+suffix, v, "", tags)
+	}
+	if v, ok := info.maximumCapacity.Get(); ok {
+		sender.Gauge("system.battery.maximum_capacity"+suffix, v, "", tags)
+	}
+	if v, ok := info.maximumCapacityPct.Get(); ok {
+		sender.Gauge("system.battery.maximum_capacity_pct"+suffix, v, "", tags)
+	}
+	if includeDeviceMetrics {
+		if v, ok := info.cycleCount.Get(); ok {
+			sender.Gauge("system.battery.cycle_count", v, "", tags)
+		}
+	}
+	if v, ok := info.currentChargePct.Get(); ok {
+		sender.Gauge("system.battery.current_charge_pct"+suffix, v, "", tags)
+	}
+	if includeDeviceMetrics {
+		if v, ok := info.voltage.Get(); ok {
+			sender.Gauge("system.battery.voltage", v, "", tags)
+		}
+	}
+	if v, ok := info.chargeRate.Get(); ok {
+		sender.Gauge("system.battery.charge_rate"+suffix, v, "", tags)
+	}
+
+	powerStateTags := append([]string{}, tags...)
+	if len(info.powerState) > 0 {
+		powerStateTags = append(powerStateTags, info.powerState...)
+		sender.Gauge("system.battery.power_state"+suffix, 1, "", powerStateTags)
+	} else {
+		powerStateTags = append(powerStateTags, "power_state:unknown")
+		sender.Gauge("system.battery.power_state"+suffix, 0, "", powerStateTags)
+	}
 }

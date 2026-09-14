@@ -63,6 +63,7 @@ func TestGetBatteryInfoMultipleBatteries(t *testing.T) {
 	assertOptionValue(t, infos[0].voltage, 12000)
 
 	assert.Equal(t, []string{"battery_slot:total"}, infos[2].tags)
+	assert.Equal(t, batteryMetricScopeTotal, infos[2].metricScope)
 	assertOptionValue(t, infos[2].designedCapacity, 10000)
 	assertOptionValue(t, infos[2].maximumCapacity, 9000)
 	assertOptionValue(t, infos[2].maximumCapacityPct, 90)
@@ -94,6 +95,7 @@ func TestGetBatteryInfoEmitsTotalForOneBattery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, infos, 2)
 	assert.Equal(t, []string{"battery_slot:total"}, infos[1].tags)
+	assert.Equal(t, batteryMetricScopeTotal, infos[1].metricScope)
 }
 
 func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
@@ -156,9 +158,37 @@ func TestGetBatteryInfoUsesSingleCompositeAsTotalFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, infos, 1)
 	assert.Equal(t, []string{"battery_slot:total"}, infos[0].tags)
+	assert.Equal(t, batteryMetricScopeTotal, infos[0].metricScope)
 	assertOptionValue(t, infos[0].designedCapacity, 10000)
 	assertOptionValue(t, infos[0].maximumCapacity, 9000)
 	assertOptionValue(t, infos[0].currentChargePct, 65)
+}
+
+func TestGetBatteryInfoUsesAvailableCompositeMetricsWhenCapacitiesAreInvalid(t *testing.T) {
+	compositeDescriptor := batteryDeviceDescriptor{
+		devicePath: `\\?\ROOT#COMPOSITEBATTERY#0000`,
+		instanceID: `ROOT\COMPOSITEBATTERY\0000`,
+	}
+	composite := newTestWindowsBattery(compositeDescriptor, 0, BATTERY_UNKNOWN_CAPACITY, BATTERY_UNKNOWN_CAPACITY)
+	composite.status.PowerState = BATTERY_POWER_ON_LINE
+	composite.status.Rate = BATTERY_UNKNOWN_RATE
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{
+		composites: []batteryDeviceDescriptor{compositeDescriptor},
+		complete:   true,
+	}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
+		return composite, nil
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+	assert.Equal(t, batteryMetricScopeTotal, infos[0].metricScope)
+	assert.Equal(t, []string{"power_state:battery_power_on_line"}, infos[0].powerState)
+	assertOptionUnset(t, infos[0].designedCapacity)
+	assertOptionUnset(t, infos[0].maximumCapacity)
+	assertOptionUnset(t, infos[0].maximumCapacityPct)
+	assertOptionUnset(t, infos[0].currentChargePct)
+	assertOptionUnset(t, infos[0].chargeRate)
 }
 
 func TestGetBatteryInfoIgnoresCompositeWhenPhysicalTotalIsComplete(t *testing.T) {
@@ -293,4 +323,9 @@ func assertOptionValue(t *testing.T, value option.Option[float64], expected floa
 	actual, ok := value.Get()
 	require.True(t, ok)
 	assert.Equal(t, expected, actual)
+}
+
+func assertOptionUnset(t *testing.T, value option.Option[float64]) {
+	_, ok := value.Get()
+	assert.False(t, ok)
 }

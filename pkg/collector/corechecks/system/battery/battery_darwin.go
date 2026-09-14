@@ -43,10 +43,7 @@ func hasBatteryAvailable() (bool, error) {
 // getBatteryInfo retrieves battery information from IOKit
 func getBatteryInfo() ([]batteryInfo, error) {
 	cInfo := C.getBatteryInfo()
-	total := *convertCBatteryInfo(cInfo)
-	total.tags = []string{"battery_slot:total"}
-
-	return []batteryInfo{total}, nil
+	return []batteryInfo{*convertCBatteryInfo(cInfo)}, nil
 }
 
 // convertCBatteryInfo converts a C.BatteryInfo struct to a Go batteryInfo struct
