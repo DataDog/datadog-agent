@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "contexttop",
+    srcs = ["contexttop.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/contexttop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)
+
+dd_agent_go_test(
+    name = "contexttop_test",
+    srcs = ["contexttop_test.go"],
+    embed = [":contexttop"],
+    deps = [
+        "//pkg/aggregator",
+        "@com_github_stretchr_testify//require",
+    ],
+)
