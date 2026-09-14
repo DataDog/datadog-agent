@@ -6,8 +6,11 @@ build-backend = "hatchling.build"
 name = "datadog-gstatus"
 version = "1.0.9"
 description = "Vendored glustercli + gstatus status collection (no paramiko dependency)"
-license = "GPL-2.0-only"
+license = "GPL-3.0-only"
 requires-python = ">=3.8"
 
 [tool.hatch.build.targets.wheel]
-packages = ["glustercli", "glusterlib"]
+# Only include the packages fetched from upstream — not the entire source tree.
+# glustercli is from gluster/glustercli-python (GPLv2/LGPLv3+).
+# gstatus/glusterlib is from gluster/gstatus (GPLv3).
+packages = ["glustercli", "gstatus/glusterlib"]
