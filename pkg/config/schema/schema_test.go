@@ -16,6 +16,16 @@ import (
 
 var (
 	testYAMLSchema = `
+$defs:
+  parent:
+    type: object
+    properties:
+      optional:
+        type: boolean
+      "required/key~name":
+        type: integer
+    required:
+      - "required/key~name"
 properties:
   api_key:
     type: string
@@ -25,6 +35,8 @@ properties:
     items:
       type: string
     default: []
+  parent:
+    $ref: "#/$defs/parent"
 `
 	testSchema        *jsonschema.Schema
 	schemaCompileOnce sync.Once
@@ -120,4 +132,80 @@ func TestValidateCoreFileInvalidType(t *testing.T) {
 	errs, err = ValidateCoreConfig(map[string]interface{}{"tags": map[string]interface{}{"a": "1234"}})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"at '/tags': got object, want array"}, errs)
+}
+
+func TestValidateCoreConfigDetailed(t *testing.T) {
+	initTestSchema(t)
+	tests := []struct {
+		name       string
+		config     interface{}
+		violations []Violation
+		errors     []string
+	}{
+		{
+			name: "required nested property with escaped pointer tokens",
+			config: map[string]interface{}{
+				"parent": map[string]interface{}{"required/key~name": "not an integer"},
+			},
+			violations: []Violation{{
+				Message:       "at '/parent/required~1key~0name': got string, want integer",
+				Path:          "/parent/required~1key~0name",
+				Rule:          "type",
+				ActualType:    "string",
+				ExpectedTypes: []string{"integer"},
+				Required:      true,
+			}},
+			errors: []string{"at '/parent/required~1key~0name': got string, want integer"},
+		},
+		{
+			name: "optional nested property",
+			config: map[string]interface{}{
+				"parent": map[string]interface{}{
+					"optional":          "not a boolean",
+					"required/key~name": 1,
+				},
+			},
+			violations: []Violation{{
+				Message:       "at '/parent/optional': got string, want boolean",
+				Path:          "/parent/optional",
+				Rule:          "type",
+				ActualType:    "string",
+				ExpectedTypes: []string{"boolean"},
+				Required:      false,
+			}},
+			errors: []string{"at '/parent/optional': got string, want boolean"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			violations, err := ValidateCoreConfigDetailed(tt.config)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.violations, violations)
+
+			errors, err := ValidateCoreConfig(tt.config)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.errors, errors)
+		})
+	}
+}
+
+func TestValidateCoreConfigDetailedRootPath(t *testing.T) {
+	initTestSchema(t)
+	c := jsonschema.NewCompiler()
+	assert.NoError(t, c.AddResource("root_type_schema", map[string]interface{}{"type": "integer"}))
+	rootTypeSchema, err := c.Compile("root_type_schema")
+	assert.NoError(t, err)
+	coreSchemaGetter = func() (*jsonschema.Schema, error) { return rootTypeSchema, nil }
+
+	violations, err := ValidateCoreConfigDetailed("not an integer")
+	assert.NoError(t, err)
+	assert.Equal(t, []Violation{{
+		Message:       "at '': got string, want integer",
+		Path:          "",
+		Rule:          "type",
+		ActualType:    "string",
+		ExpectedTypes: []string{"integer"},
+		Required:      false,
+	}}, violations)
 }
