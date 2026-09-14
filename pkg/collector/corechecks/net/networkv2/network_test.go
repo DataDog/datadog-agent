@@ -11,6 +11,8 @@ package networkv2
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	stdnet "net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -2367,6 +2369,55 @@ func TestSubmitConnectionStateMetricsUsesProcfs(t *testing.T) {
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.established", float64(1), "", []string(nil))
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(10), "", []string{"state:established"})
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(20), "", []string{"state:established"})
+}
+
+func TestProcNetMetricsWithKernelSockets(t *testing.T) {
+	originalFilesystem := filesystem
+	filesystem = afero.NewOsFs()
+	t.Cleanup(func() { filesystem = originalFilesystem })
+
+	listener, err := stdnet.ListenTCP("tcp4", &stdnet.TCPAddr{IP: stdnet.IPv4(127, 0, 0, 1)})
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	client, err := stdnet.DialTCP("tcp4", nil, listener.Addr().(*stdnet.TCPAddr))
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+
+	server, err := listener.AcceptTCP()
+	require.NoError(t, err)
+	t.Cleanup(func() { server.Close() })
+
+	const payloadSize = 1
+	_, err = client.Write(bytes.Repeat([]byte{'x'}, payloadSize))
+	require.NoError(t, err)
+
+	rawServer, err := server.SyscallConn()
+	require.NoError(t, err)
+	var peekErr error
+	err = rawServer.Read(func(fd uintptr) bool {
+		var payload [payloadSize]byte
+		_, _, peekErr = unix.Recvfrom(int(fd), payload[:], unix.MSG_PEEK)
+		return !errors.Is(peekErr, unix.EAGAIN)
+	})
+	require.NoError(t, err)
+	require.NoError(t, peekErr)
+
+	tcpMetrics, err := getProcNetStateMetrics("tcp4", "/proc", tcpStateMetricsSuffixMapping)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, tcpMetrics["listening"].count, uint64(1))
+	require.GreaterOrEqual(t, tcpMetrics["established"].count, uint64(2))
+	require.True(t, slices.ContainsFunc(tcpMetrics["established"].recvQ, func(queue uint64) bool {
+		return queue >= payloadSize
+	}), "expected the loopback payload in an established socket receive queue")
+
+	udp, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{IP: stdnet.IPv4(127, 0, 0, 1)})
+	require.NoError(t, err)
+	t.Cleanup(func() { udp.Close() })
+
+	udpMetrics, err := getProcNetStateMetrics("udp4", "/proc", tcpStateMetricsSuffixMapping)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, udpMetrics["connections"].count, uint64(1))
 }
 
 func TestGetProcNetStateMetrics(t *testing.T) {

@@ -12,6 +12,15 @@
         - test/new-e2e/tests/agent-runtimes/**/*
       compare_to: $COMPARE_TO_BRANCH
 
+.on_arun_network_docker_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - Dockerfiles/agent/Dockerfile
+        - pkg/collector/corechecks/net/networkv2/**/*
+        - test/new-e2e/tests/agent-runtimes/network_check_docker_test.go
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_agenttelemetry_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -32,8 +41,19 @@ new-e2e-agent-runtimes:
   variables:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
-    EXTRA_PARAMS: --skip "Windows"
+    EXTRA_PARAMS: --skip "Windows|Docker"
     ON_NIGHTLY_FIPS: "true"
+
+new-e2e-agent-runtimes-network-docker:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_arun_network_docker_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --run "TestNetworkCheckDockerSuite$"
+    DYNAMIC_TESTS_FLAG: ""
 
 new-e2e-agent-telemetry:
   extends: .new_e2e_template
