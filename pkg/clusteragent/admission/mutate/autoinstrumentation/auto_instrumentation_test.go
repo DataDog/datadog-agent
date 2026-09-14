@@ -38,8 +38,8 @@ const (
 
 var defaultContainerNames = []string{defaultTestContainer}
 
-func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDITarget {
-	return ssi.DDITarget{
+func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
 		CR:             cr,
 		Enabled:        enabled,
 		TracerVersions: tracerVersions,
@@ -104,7 +104,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		pod              *corev1.Pod
 		namespaces       []workloadmeta.KubernetesMetadata
 		deployments      []common.MockDeployment
-		ddiTargetEntries map[ssi.WorkloadTarget]ssi.DDITarget
+		ddiTargetEntries map[ssi.DDICRTarget]ssi.DDIAPMConfig
 		shouldMutate     bool
 		expected         *expected
 	}{
@@ -1296,7 +1296,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			ddiTargetEntries: map[ssi.WorkloadTarget]ssi.DDITarget{
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
 					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
 					map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
@@ -1341,7 +1341,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			ddiTargetEntries: map[ssi.WorkloadTarget]ssi.DDITarget{
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
 					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
 					map[string]string{"python": "v4"}, nil,
@@ -1386,7 +1386,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			ddiTargetEntries: map[ssi.WorkloadTarget]ssi.DDITarget{
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: ddiTarget(
 					types.NamespacedName{Namespace: "default", Name: "ddi-deployment"}, true,
 					map[string]string{"python": "v4"}, nil,

@@ -12,5 +12,5 @@ import "github.com/DataDog/datadog-agent/pkg/ssi"
 // DDITargetProvider surfaces a SSI configuration for pods part of a workload targeted
 // by a DatadogInstrumentation custom resource in the cluster.
 type DDITargetProvider interface {
-	GetTarget(ssi.WorkloadTarget) (ssi.DDITarget, bool)
+	GetTarget(ssi.DDICRTarget) (ssi.DDIAPMConfig, bool)
 }

@@ -462,38 +462,38 @@ func (m *TargetMutator) getTargetFromDDI(pod *corev1.Pod) *filterResult {
 		return &filterResult{shouldContinue: true}
 	}
 	rootKind, rootName := kubernetes.ResolvePodRootOwner(ref.Kind, ref.Name, pod.Labels)
-	workload := ssi.WorkloadTarget{Kind: rootKind, Namespace: pod.Namespace, Name: rootName}
-	target, ok := m.ddiTargets.GetTarget(workload)
+	workload := ssi.DDICRTarget{Kind: rootKind, Namespace: pod.Namespace, Name: rootName}
+	config, ok := m.ddiTargets.GetTarget(workload)
 	if !ok {
 		return &filterResult{shouldContinue: true}
 	}
-	if !target.Enabled {
+	if !config.Enabled {
 		return &filterResult{shouldContinue: false}
 	}
 
-	return &filterResult{shouldContinue: false, target: m.fromDDITarget(workload, target)}
+	return &filterResult{shouldContinue: false, target: m.fromDDIAPMConfig(workload, config)}
 }
 
-func (m *TargetMutator) fromDDITarget(workload ssi.WorkloadTarget, target ssi.DDITarget) *targetInternal {
+func (m *TargetMutator) fromDDIAPMConfig(workload ssi.DDICRTarget, config ssi.DDIAPMConfig) *targetInternal {
 	libVersions := m.defaultLibVersions
 	usesDefaultLibs := true
-	if len(target.TracerVersions) > 0 {
-		pinned := getPinnedLibraries(target.TracerVersions, m.containerRegistry, true)
+	if len(config.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(config.TracerVersions, m.containerRegistry, true)
 		libVersions = pinned.libs
 		usesDefaultLibs = pinned.areSetToDefaults
 	}
 
-	name := fmt.Sprintf("datadoginstrumentation:%s", target.CR)
+	name := fmt.Sprintf("datadoginstrumentation:%s", config.CR)
 	payload := struct {
-		Name           string             `json:"name"`
-		Workload       ssi.WorkloadTarget `json:"workload"`
-		TracerVersions map[string]string  `json:"ddTraceVersions,omitempty"`
-		TracerConfigs  []corev1.EnvVar    `json:"ddTraceConfigs,omitempty"`
+		Name           string            `json:"name"`
+		Workload       ssi.DDICRTarget   `json:"workload"`
+		TracerVersions map[string]string `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar   `json:"ddTraceConfigs,omitempty"`
 	}{
 		Name:           name,
 		Workload:       workload,
-		TracerVersions: target.TracerVersions,
-		TracerConfigs:  target.TracerConfigs,
+		TracerVersions: config.TracerVersions,
+		TracerConfigs:  config.TracerConfigs,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -503,7 +503,7 @@ func (m *TargetMutator) fromDDITarget(workload ssi.WorkloadTarget, target ssi.DD
 	return &targetInternal{
 		name:            name,
 		libVersions:     libVersions,
-		envVars:         target.TracerConfigs,
+		envVars:         config.TracerConfigs,
 		json:            string(data),
 		usesDefaultLibs: usesDefaultLibs,
 	}

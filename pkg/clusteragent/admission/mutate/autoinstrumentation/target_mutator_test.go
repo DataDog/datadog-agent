@@ -38,8 +38,8 @@ import (
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
-func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDITarget {
-	return ssi.DDITarget{
+func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
 		CR:             cr,
 		Enabled:        enabled,
 		TracerVersions: tracerVersions,
@@ -70,9 +70,9 @@ var (
 	imageResolver = imageresolver.NewNoOpResolver()
 )
 
-type mockDDIProvider map[ssi.WorkloadTarget]ssi.DDITarget
+type mockDDIProvider map[ssi.DDICRTarget]ssi.DDIAPMConfig
 
-func (m mockDDIProvider) GetTarget(target ssi.WorkloadTarget) (ssi.DDITarget, bool) {
+func (m mockDDIProvider) GetTarget(target ssi.DDICRTarget) (ssi.DDIAPMConfig, bool) {
 	t, ok := m[target]
 	return t, ok
 }
@@ -306,7 +306,7 @@ func TestMutatePod(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			ddiTargetEntries: map[ssi.WorkloadTarget]ssi.DDITarget{
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "web"}: ddiTarget(
 					types.NamespacedName{Namespace: "default", Name: "ddi-web"},
 					true,
@@ -340,7 +340,7 @@ func TestMutatePod(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			ddiTargetEntries: map[ssi.WorkloadTarget]ssi.DDITarget{
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "web"}: ddiTarget(
 					types.NamespacedName{Namespace: "application", Name: "ddi-web"},
 					true,
@@ -707,8 +707,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 func TestGetTargetFromCRD(t *testing.T) {
 	tests := map[string]struct {
 		pod                *corev1.Pod
-		workload           ssi.WorkloadTarget
-		entry              ssi.DDITarget
+		workload           ssi.DDICRTarget
+		entry              ssi.DDIAPMConfig
 		expected           *targetInternal
 		continueResolution bool
 	}{
@@ -718,7 +718,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
+			workload: ssi.DDICRTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
 			expected: &targetInternal{
 				libVersions: []libInfo{defaultLibInfoWithVersion(python, "v4")},
@@ -734,7 +734,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 					kubernetes.ArgoRolloutLabelKey: "bcdfg",
 				},
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "Rollout", Namespace: "application", Name: "web-rollout"},
+			workload: ssi.DDICRTarget{Kind: "Rollout", Namespace: "application", Name: "web-rollout"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-rollout"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
 			expected: &targetInternal{
 				libVersions: []libInfo{defaultLibInfoWithVersion(python, "v4")},
@@ -747,7 +747,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "statefulset",
 				ParentName: "db",
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
+			workload: ssi.DDICRTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-db"}, true, map[string]string{"java": "v1"}, nil),
 			expected: &targetInternal{
 				libVersions: []libInfo{defaultLibInfoWithVersion(java, "v1")},
@@ -759,7 +759,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "job",
 				ParentName: "batch-job",
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
+			workload: ssi.DDICRTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-job"}, true, map[string]string{"dotnet": "v3"}, nil),
 			expected: &targetInternal{
 				libVersions: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
@@ -771,7 +771,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "job",
 				ParentName: "nightly-28104120",
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
+			workload: ssi.DDICRTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-cron"}, true, map[string]string{"ruby": "v2"}, nil),
 			expected: &targetInternal{
 				libVersions: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
@@ -783,7 +783,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "job",
 				ParentName: "nightly-28104120",
 			}.Create(),
-			workload:           ssi.WorkloadTarget{Kind: "Job", Namespace: "application", Name: "nightly-28104120"},
+			workload:           ssi.DDICRTarget{Kind: "Job", Namespace: "application", Name: "nightly-28104120"},
 			entry:              ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-job"}, true, map[string]string{"ruby": "v2"}, nil),
 			continueResolution: true,
 		},
@@ -793,7 +793,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "daemonset",
 				ParentName: "node-agent",
 			}.Create(),
-			workload: ssi.WorkloadTarget{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
+			workload: ssi.DDICRTarget{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-node"}, false, nil, nil),
 			expected: nil,
 		},
@@ -849,7 +849,7 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	store := make(mockDDIProvider)
-	workload := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
+	workload := ssi.DDICRTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
 	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
 	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
 	require.NoError(t, err)
