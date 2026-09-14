@@ -144,14 +144,12 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
-# at a time and cap the heap to prevent swap thrash. Each compile process can
-# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
-# On larger hosts, the default parallelism is fine.
+# On hosts with at least 4 GiB of RAM, allow one Go package compilation per
+# 4 GiB of memory and cap each compiler's heap at 3 GiB, leaving 1GiB of margin for each.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
-if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
-    GOFLAGS="-p=1"
-    GOMEMLIMIT=2GiB
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -ge 4194304 ]; then
+    GOFLAGS="-p=$((_mem_kb / 4194304))"
+    GOMEMLIMIT=3GiB
     export GOFLAGS GOMEMLIMIT
 fi
 unset _mem_kb
