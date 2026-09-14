@@ -5,7 +5,6 @@
 
 use anyhow::{Context, Result};
 use log::info;
-use std::ffi::c_void;
 use std::sync::OnceLock;
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
@@ -76,7 +75,7 @@ fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
     // Keep Logoncli.dll mapped for the process lifetime; only the function pointer is cached.
     std::mem::forget(module);
     let net_is_service_account =
-        unsafe { std::mem::transmute::<*const c_void, NetIsServiceAccountFn>(proc) };
+        unsafe { std::mem::transmute::<_, NetIsServiceAccountFn>(proc) };
     Ok(net_is_service_account)
 }
 
