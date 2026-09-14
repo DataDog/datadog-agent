@@ -257,7 +257,7 @@ func (r *writeHeaderCountingRecorder) WriteHeader(code int) {
 func TestBodyReadError(t *testing.T) {
 	assert := assert.New(t)
 	grpc := agentGRPCConfigFetcher{}
-	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 
 	// ClientGetConfigs must never be called when the body read fails.
 	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
