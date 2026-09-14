@@ -1,3 +1,10 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load(":dd_packaging_test.bzl", "dd_packaging_test_suite")
 
 dd_packaging_test_suite(name = "_dd_packaging_tests")
+
+py_binary(
+    name = "dd_strip_driver",
+    srcs = ["dd_strip_driver.py"],
+    visibility = ["//visibility:public"],
+)

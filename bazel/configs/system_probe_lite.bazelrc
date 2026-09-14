@@ -3,5 +3,10 @@
 build:system-probe-lite-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
 build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
 build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
-build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
 build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding
+# NOTE (ABLD-464): symbol stripping used to happen here as a one-shot rustc
+# flag (-Cstrip=symbols), which destroyed debug info before packaging ever
+# saw it. Stripping is now a packaging-time concern -- see
+# //bazel/rules/dd_packaging:dd_pkg_strip_transform.bzl -- so debug info must
+# survive the compile step for the debug/stripped split to have anything to
+# split. Do not re-add a compile-time strip flag here.

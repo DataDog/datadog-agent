@@ -373,6 +373,5 @@ Once the diff output is clean (or remaining diffs are explicitly accepted):
   — the `prebuilt_file` approach is sufficient for the packaging migration
 - Windows MSI (no Bazel rule exists yet)
 - macOS PKG (no Bazel rule exists yet)
-- Symbol stripping / debug package split
 - Code signing (Windows `sign_file`, macOS `code_signing_identity`)
 - Removing omnibus installer code (happens after Phase 7 completes)
