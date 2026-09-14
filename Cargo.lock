@@ -2557,6 +2557,7 @@ dependencies = [
  "p256",
  "prost",
  "prost-types",
+ "regex",
  "reqwest",
  "rustls",
  "rustls-pki-types",
