@@ -382,10 +382,23 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 
 	return &workloadmeta.ContainerSecurityContext{
-		Capabilities:   caps,
-		Privileged:     privileged,
-		SeccompProfile: seccompProfile,
+		Capabilities:             caps,
+		Privileged:               privileged,
+		SeccompProfile:           seccompProfile,
+		RunAsNonRoot:             copyBoolPtr(spec.SecurityContext.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(spec.SecurityContext.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(spec.SecurityContext.ReadOnlyRootFilesystem),
 	}
+}
+
+// copyBoolPtr returns a fresh *bool with the same value as src, or nil if src
+// is nil, so callers can't accidentally alias the kubelet spec's storage.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerProbe {

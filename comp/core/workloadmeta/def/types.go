@@ -648,8 +648,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
@@ -780,11 +780,18 @@ type PodSecurityContext struct {
 	FsGroup    int32
 }
 
-// ContainerSecurityContext is the Security Context of a Container
+// ContainerSecurityContext is the Security Context of a Container.
+//
+// The three *bool fields keep Kubernetes' tri-state semantics: nil means the
+// pod spec left the field unset (kubelet/PSA falls back to pod- or
+// admission-level defaults), which is different from an explicit false.
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	Privileged               bool
+	SeccompProfile           *SeccompProfile
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of

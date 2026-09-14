@@ -14,15 +14,174 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
+	"strings"
 
 	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
+
+func securityContextToProto(sc *securitycontext.SecurityContext) *adprotov1.SecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &adprotov1.SecurityContext{
+		Privileged:               sc.Privileged,
+		Seccomp:                  seccompToProto(sc.Seccomp),
+		CapabilitiesAdd:          sc.CapabilitiesAdd,
+		CapabilitiesDrop:         sc.CapabilitiesDrop,
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	}
+}
+
+func protoToSecurityContext(sc *adprotov1.SecurityContext) *securitycontext.SecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &securitycontext.SecurityContext{
+		Privileged:               sc.GetPrivileged(),
+		Seccomp:                  seccompFromProto(sc.GetSeccomp()),
+		CapabilitiesAdd:          sc.GetCapabilitiesAdd(),
+		CapabilitiesDrop:         sc.GetCapabilitiesDrop(),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	}
+}
+
+// securityContextsToProto converts the in-memory map to a sorted repeated
+// list so encoding is deterministic.
+func securityContextsToProto(m map[securitycontext.Key]*securitycontext.SecurityContext) []*adprotov1.SecurityContextEntry {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]securitycontext.Key, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, compareSecurityContextKeys)
+	out := make([]*adprotov1.SecurityContextEntry, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, &adprotov1.SecurityContextEntry{
+			Namespace:       k.Namespace,
+			OwnerKind:       k.OwnerKind,
+			OwnerName:       k.OwnerName,
+			ContainerName:   k.ContainerName,
+			SecurityContext: securityContextToProto(m[k]),
+		})
+	}
+	return out
+}
+
+func protoToSecurityContexts(in []*adprotov1.SecurityContextEntry) map[securitycontext.Key]*securitycontext.SecurityContext {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[securitycontext.Key]*securitycontext.SecurityContext, len(in))
+	for _, e := range in {
+		if e == nil {
+			continue
+		}
+		k := securitycontext.Key{
+			Namespace:     e.GetNamespace(),
+			OwnerKind:     e.GetOwnerKind(),
+			OwnerName:     e.GetOwnerName(),
+			ContainerName: e.GetContainerName(),
+		}
+		sc := protoToSecurityContext(e.GetSecurityContext())
+		if k.IsZero() || sc == nil {
+			continue
+		}
+		out[k] = sc
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func compareSecurityContextKeys(a, b securitycontext.Key) int {
+	if c := strings.Compare(a.Namespace, b.Namespace); c != 0 {
+		return c
+	}
+	if c := strings.Compare(a.OwnerKind, b.OwnerKind); c != 0 {
+		return c
+	}
+	if c := strings.Compare(a.OwnerName, b.OwnerName); c != 0 {
+		return c
+	}
+	return strings.Compare(a.ContainerName, b.ContainerName)
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil when src is nil.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
+}
+
+func seccompToProto(s *securitycontext.SeccompProfile) *adprotov1.SeccompProfile {
+	if s == nil {
+		return nil
+	}
+	out := &adprotov1.SeccompProfile{Type: seccompTypeToProto(s.Type)}
+	if s.Type == securitycontext.SeccompLocalhost && s.LocalhostProfile != "" {
+		lp := s.LocalhostProfile
+		out.LocalhostProfile = &lp
+	}
+	return out
+}
+
+func seccompFromProto(s *adprotov1.SeccompProfile) *securitycontext.SeccompProfile {
+	if s == nil {
+		return nil
+	}
+	t := seccompTypeFromProto(s.GetType())
+	if t == securitycontext.SeccompUnknown {
+		return nil
+	}
+	out := &securitycontext.SeccompProfile{Type: t}
+	if t == securitycontext.SeccompLocalhost {
+		out.LocalhostProfile = s.GetLocalhostProfile()
+	}
+	return out
+}
+
+func seccompTypeToProto(t securitycontext.SeccompProfileType) adprotov1.SeccompProfile_Type {
+	switch t {
+	case securitycontext.SeccompUnconfined:
+		return adprotov1.SeccompProfile_TYPE_UNCONFINED
+	case securitycontext.SeccompRuntimeDefault:
+		return adprotov1.SeccompProfile_TYPE_RUNTIME_DEFAULT
+	case securitycontext.SeccompLocalhost:
+		return adprotov1.SeccompProfile_TYPE_LOCALHOST
+	default:
+		return adprotov1.SeccompProfile_TYPE_UNKNOWN
+	}
+}
+
+func seccompTypeFromProto(t adprotov1.SeccompProfile_Type) securitycontext.SeccompProfileType {
+	switch t {
+	case adprotov1.SeccompProfile_TYPE_UNCONFINED:
+		return securitycontext.SeccompUnconfined
+	case adprotov1.SeccompProfile_TYPE_RUNTIME_DEFAULT:
+		return securitycontext.SeccompRuntimeDefault
+	case adprotov1.SeccompProfile_TYPE_LOCALHOST:
+		return securitycontext.SeccompLocalhost
+	default:
+		return securitycontext.SeccompUnknown
+	}
+}
 
 // profileToSecDumpProto creates a protobuf SecDump object from the given Profile
 func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
@@ -32,12 +191,13 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 
 	pad := adprotov1.SecDumpFromVTPool()
 	*pad = adprotov1.SecDump{
-		Host:     p.Header.Host,
-		Service:  p.Header.Service,
-		Source:   p.Header.Source,
-		Metadata: mtdt.ToProto(&p.Metadata),
-		Tags:     make([]string, len(p.tags)),
-		Tree:     activity_tree.ToProto(p.ActivityTree),
+		Host:             p.Header.Host,
+		Service:          p.Header.Service,
+		Source:           p.Header.Source,
+		Metadata:         mtdt.ToProto(&p.Metadata),
+		Tags:             make([]string, len(p.tags)),
+		Tree:             activity_tree.ToProto(p.ActivityTree),
+		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -54,6 +214,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 	p.Header.Service = ad.Service
 	p.Header.Source = ad.Source
 	p.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
+	p.SecurityContexts = protoToSecurityContexts(ad.SecurityContexts)
 
 	p.tags = make([]string, len(ad.Tags))
 	copy(p.tags, ad.Tags)
@@ -147,11 +308,12 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	}
 
 	output := adprotov1.SecurityProfile{
-		Metadata:        mtdt.ToProto(&p.Metadata),
-		ProfileContexts: make(map[string]*adprotov1.ProfileContext),
-		Tree:            activity_tree.ToProto(p.ActivityTree),
-		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
-		Disabled:        !p.isEnabled,
+		Metadata:         mtdt.ToProto(&p.Metadata),
+		ProfileContexts:  make(map[string]*adprotov1.ProfileContext),
+		Tree:             activity_tree.ToProto(p.ActivityTree),
+		Selector:         cgroupModel.WorkloadSelectorToProto(&p.selector),
+		Disabled:         !p.isEnabled,
+		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 	}
 
 	for key, ctx := range p.versionContexts {
@@ -201,6 +363,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
 	output.isEnabled = !input.Disabled
+	output.SecurityContexts = protoToSecurityContexts(input.SecurityContexts)
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{

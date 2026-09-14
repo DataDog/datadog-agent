@@ -153,9 +153,12 @@ type ContainerProbe struct {
 
 // ContainerSecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
 type ContainerSecurityContextSpec struct {
-	Capabilities   *CapabilitiesSpec   `json:"capabilities,omitempty"`
-	Privileged     *bool               `json:"privileged,omitempty"`
-	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+	Capabilities             *CapabilitiesSpec   `json:"capabilities,omitempty"`
+	Privileged               *bool               `json:"privileged,omitempty"`
+	SeccompProfile           *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+	RunAsNonRoot             *bool               `json:"runAsNonRoot,omitempty"`
+	AllowPrivilegeEscalation *bool               `json:"allowPrivilegeEscalation,omitempty"`
+	ReadOnlyRootFilesystem   *bool               `json:"readOnlyRootFilesystem,omitempty"`
 }
 
 // CapabilitiesSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.Capabilities
