@@ -11,7 +11,7 @@ version: "3.9"
 
 services:
   redis:
-    image: redis:7.2
+    image: redis:7.4
     container_name: redis-lab
     restart: unless-stopped
     # Ephemeral cache: no RDB snapshots, no AOF (matches the original lab).
@@ -29,7 +29,7 @@ services:
   # namespace so `redis-cli -h 127.0.0.1 -p 6379` reaches the server on the
   # shared loopback (as the original in-container workload did).
   redis-workload:
-    image: redis:7.2
+    image: redis:7.4
     container_name: redis-lab-workload
     restart: unless-stopped
     network_mode: "service:redis"
