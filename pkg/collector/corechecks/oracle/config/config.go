@@ -26,8 +26,14 @@ import (
 )
 
 const (
-	defaultLoader       = "core"
-	defaultQueryTimeout = 20
+	defaultLoader                   = "core"
+	defaultQueryTimeout             = 20
+	defaultSchemaCollectionInterval = 600
+	defaultSchemaPayloadChunkSize   = 1000
+	defaultSchemaMaxViews           = 1000
+	defaultSchemaMaxTables          = 300
+	defaultSchemaMaxColumns         = 50
+	defaultSchemaMaxQueryDuration   = 60
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -312,12 +318,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.Tablespaces.CollectionInterval = 600
 
-	instance.Schemas.CollectionInterval = 600
-	instance.Schemas.PayloadChunkSize = 1000
-	instance.Schemas.MaxViews = 1000
-	instance.Schemas.MaxTables = 300
-	instance.Schemas.MaxColumns = 50
-	instance.Schemas.MaxQueryDuration = 60
+	instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
+	instance.Schemas.PayloadChunkSize = defaultSchemaPayloadChunkSize
+	instance.Schemas.MaxViews = defaultSchemaMaxViews
+	instance.Schemas.MaxTables = defaultSchemaMaxTables
+	instance.Schemas.MaxColumns = defaultSchemaMaxColumns
+	instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
@@ -331,22 +337,22 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	if instance.Schemas.PayloadChunkSize <= 0 {
-		instance.Schemas.PayloadChunkSize = 1000
+		instance.Schemas.PayloadChunkSize = defaultSchemaPayloadChunkSize
 	}
 	if instance.Schemas.CollectionInterval <= 0 {
-		instance.Schemas.CollectionInterval = 600
+		instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
 	}
 	if instance.Schemas.MaxTables <= 0 {
-		instance.Schemas.MaxTables = 300
+		instance.Schemas.MaxTables = defaultSchemaMaxTables
 	}
 	if instance.Schemas.MaxViews <= 0 {
-		instance.Schemas.MaxViews = 1000
+		instance.Schemas.MaxViews = defaultSchemaMaxViews
 	}
 	if instance.Schemas.MaxColumns <= 0 {
-		instance.Schemas.MaxColumns = 50
+		instance.Schemas.MaxColumns = defaultSchemaMaxColumns
 	}
 	if instance.Schemas.MaxQueryDuration <= 0 {
-		instance.Schemas.MaxQueryDuration = 60
+		instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
 	}
 
 	serverSlice := strings.Split(instance.Server, ":")
