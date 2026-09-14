@@ -20,6 +20,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/system",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//encoding/protojson",
     ],
 )
 
@@ -37,5 +38,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
     ],
 )

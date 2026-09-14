@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -70,6 +72,189 @@ func finalEvent(sequence uint64, receipt *pb.RemoteQueryUploadReceipt, attribute
 			Attributes:    attributes,
 		}}},
 	}
+}
+
+func finalEventWithDiagnostics(sequence uint64, receipt *pb.RemoteQueryUploadReceipt, diagnostics *pb.RemoteQueryExecutionDiagnostics) *pb.RemoteQueryExecuteChunk {
+	return &pb.RemoteQueryExecuteChunk{
+		ChunkIndex: int32(sequence),
+		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
+			Status:               "SUCCEEDED",
+			UploadReceipt:        receipt,
+			ExecutionDiagnostics: diagnostics,
+		}}},
+	}
+}
+
+func errorEventWithDiagnostics(sequence uint64, diagnostics *pb.RemoteQueryExecutionDiagnostics) *pb.RemoteQueryExecuteChunk {
+	return &pb.RemoteQueryExecuteChunk{
+		ChunkIndex: int32(sequence),
+		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
+			Code:                 "target_not_found",
+			Message:              "no matching integration check found",
+			Retryable:            false,
+			Attributes:           map[string]string{"stats.elapsedMs": "3"},
+			ExecutionDiagnostics: diagnostics,
+		}}},
+	}
+}
+
+func i64p(v int64) *int64 { return &v }
+
+func i32p(v int32) *int32 { return &v }
+
+// validExecutionDiagnostics is the contract v1 fixture: every producer field
+// measured, rendered later as the exact camelCase key set of the AP output object.
+func validExecutionDiagnostics() *pb.RemoteQueryExecutionDiagnostics {
+	return &pb.RemoteQueryExecutionDiagnostics{
+		ContractVersion: i32p(1),
+		Producer: &pb.RemoteQueryProducerDiagnostics{
+			TotalMs:              i64p(831900),
+			DatabaseSetupMs:      i64p(120),
+			DatabaseFetchMs:      i64p(184000),
+			EncodeAndPageBuildMs: i64p(319000),
+			PageUploadMs:         i64p(315984),
+			FinalizeMs:           i64p(17),
+			OtherMs:              i64p(12779),
+			TimeToFirstPageMs:    i64p(11676),
+			PageCount:            i64p(52),
+			RowCount:             i64p(7485000),
+			ByteCount:            i64p(5425529172),
+			UploadAttemptCount:   i64p(52),
+			UploadRetryCount:     i64p(0),
+			PageUploadMinMs:      i64p(4979),
+			PageUploadP50Ms:      i64p(6080),
+			PageUploadP95Ms:      i64p(6330),
+			PageUploadMaxMs:      i64p(6407),
+		},
+	}
+}
+
+// executionDiagnosticsOutputObject is the protojson rendering of
+// validExecutionDiagnostics as a generic JSON object: camelCase contract keys,
+// unset fields omitted, 64-bit integers as strings per the proto3 JSON mapping,
+// the int32 contractVersion as a JSON number.
+func executionDiagnosticsOutputObject() map[string]interface{} {
+	return map[string]interface{}{
+		"contractVersion": float64(1),
+		"producer": map[string]interface{}{
+			"totalMs":              "831900",
+			"databaseSetupMs":      "120",
+			"databaseFetchMs":      "184000",
+			"encodeAndPageBuildMs": "319000",
+			"pageUploadMs":         "315984",
+			"finalizeMs":           "17",
+			"otherMs":              "12779",
+			"timeToFirstPageMs":    "11676",
+			"pageCount":            "52",
+			"rowCount":             "7485000",
+			"byteCount":            "5425529172",
+			"uploadAttemptCount":   "52",
+			"uploadRetryCount":     "0",
+			"pageUploadMinMs":      "4979",
+			"pageUploadP50Ms":      "6080",
+			"pageUploadP95Ms":      "6330",
+			"pageUploadMaxMs":      "6407",
+		},
+	}
+}
+
+// requireDiagnosticsRoundTrip proves the emitted AP output object is lossless:
+// parsing it with protojson reconstructs the typed message exactly, the same way
+// the ITS worker consumes the AP output.
+func requireDiagnosticsRoundTrip(t *testing.T, diagnosticsObject interface{}, expected *pb.RemoteQueryExecutionDiagnostics) {
+	t.Helper()
+	encoded, err := json.Marshal(diagnosticsObject)
+	require.NoError(t, err)
+	parsed := &pb.RemoteQueryExecutionDiagnostics{}
+	require.NoError(t, protojson.Unmarshal(encoded, parsed))
+	assert.True(t, proto.Equal(expected, parsed), "round-tripped diagnostics: %v", parsed)
+}
+
+// TestExecuteActionOutputCarriesExecutionDiagnosticsOnSuccess proves the compact
+// success output gains exactly one optional key beside the receipt, rendered with
+// the camelCase contract key set.
+func TestExecuteActionOutputCarriesExecutionDiagnosticsOnSuccess(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEventWithDiagnostics(0, validReceipt(), validExecutionDiagnostics()),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": resultDeliveryInputs(),
+	}), nil)
+
+	require.NoError(t, err)
+	out := output.(map[string]interface{})
+	assert.Equal(t, "SUCCEEDED", out["status"])
+	assert.Equal(t, map[string]interface{}{
+		"uploadId":   testUploadID,
+		"pageCount":  int64(3),
+		"totalRows":  int64(123456),
+		"totalBytes": int64(987654),
+	}, out["uploadReceipt"])
+	diagnostics, ok := out["executionDiagnostics"]
+	require.True(t, ok, "output must carry executionDiagnostics")
+	assert.Equal(t, executionDiagnosticsOutputObject(), diagnostics)
+	requireDiagnosticsRoundTrip(t, diagnostics, validExecutionDiagnostics())
+	assert.Len(t, out, 3, "output keys are exactly status, uploadReceipt, executionDiagnostics")
+	assertNoBulkDataFields(t, out)
+}
+
+// TestExecuteActionErrorOutputCarriesExecutionDiagnostics proves the terminal
+// error output carries the typed diagnostics beside the sanitized error, and the
+// error object keeps exactly code and message.
+func TestExecuteActionErrorOutputCarriesExecutionDiagnostics(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		errorEventWithDiagnostics(0, validExecutionDiagnostics()),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT 1 AS value",
+		"resultDelivery": resultDeliveryInputs(),
+	}), nil)
+
+	require.NoError(t, err)
+	out := output.(map[string]interface{})
+	assert.Equal(t, "target_not_found", out["status"])
+	assert.Equal(t, map[string]interface{}{
+		"code":    "target_not_found",
+		"message": "no matching integration check found",
+	}, out["error"])
+	diagnostics, ok := out["executionDiagnostics"]
+	require.True(t, ok, "error output must carry executionDiagnostics")
+	assert.Equal(t, executionDiagnosticsOutputObject(), diagnostics)
+	requireDiagnosticsRoundTrip(t, diagnostics, validExecutionDiagnostics())
+	assert.Len(t, out, 3, "output keys are exactly status, error, executionDiagnostics")
+}
+
+// TestExecuteActionOutputWithoutDiagnosticsOmitsKey proves streams without
+// diagnostics produce outputs without the key: absent stays absent.
+func TestExecuteActionOutputWithoutDiagnosticsOmitsKey(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEventWithDiagnostics(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT 1 AS value",
+		"resultDelivery": resultDeliveryInputs(),
+	}), nil)
+
+	require.NoError(t, err)
+	out := output.(map[string]interface{})
+	assert.NotContains(t, out, "executionDiagnostics")
+	assert.Len(t, out, 2)
 }
 
 func validReceipt() *pb.RemoteQueryUploadReceipt {
@@ -933,25 +1118,27 @@ func TestExecuteActionResolveOnlySanitizesInputExtractionErrors(t *testing.T) {
 	assert.NotContains(t, err.Error(), "secret-db")
 }
 
-// TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit proves the receipt-only
-// output is bounded by construction: with no inline result-byte path the AP artifact
-// stays tiny even for multi-page runs.
+// TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit proves the receipt-plus-
+// bounded-diagnostics output is bounded by construction: with no inline result-byte
+// path the AP artifact stays tiny even for multi-page runs with the full contract
+// diagnostics present, so the pinned ceiling covers the new field.
 func TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit(t *testing.T) {
 	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
 	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
 		metadataEvent(0),
-		finalEvent(1, &pb.RemoteQueryUploadReceipt{
+		finalEventWithDiagnostics(1, &pb.RemoteQueryUploadReceipt{
 			UploadId:   "upload-01k",
 			PageCount:  128,
 			TotalRows:  1099511627776,
 			TotalBytes: 10737418240,
-		}, nil),
+		}, validExecutionDiagnostics()),
 		finalMarker(2),
 	}}
 
 	output, err := remoteQueryExecuteOutputFromStream(stream, testUploadID)
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", output["status"])
+	assert.Contains(t, output, "executionDiagnostics")
 	assertNoBulkDataFields(t, output)
 
 	encoded, err := json.Marshal(output)

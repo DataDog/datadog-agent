@@ -81,6 +81,11 @@ message RemoteQueryStreamFinal {
     // and schema stay in the uploaded page artifacts.
     RemoteQueryUploadReceipt upload_receipt = 2;
     map<string, string> attributes = 3;
+    // execution_diagnostics is the optional, bounded producer timing summary the
+    // integration emits beside the receipt. It is a fixed-shape aggregate: never
+    // bulk bytes, never per-page arrays. The Agent validates it before forwarding
+    // and drops malformed diagnostics while preserving the receipt.
+    optional RemoteQueryExecutionDiagnostics execution_diagnostics = 4;
 }
 
 // RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
@@ -93,11 +98,49 @@ message RemoteQueryUploadReceipt {
     int64 total_bytes = 4;
 }
 
+// RemoteQueryProducerDiagnostics is the bounded, fixed-shape aggregate of
+// producer (integration-side) execution timings in milliseconds. All fields
+// are optional: missing means not measured, zero means the phase ran and
+// completed in under 1 ms. No per-page arrays and no identifiers cross the
+// AgentSecure boundary; only these fixed aggregates do.
+message RemoteQueryProducerDiagnostics {
+    optional int64 total_ms = 1;
+    optional int64 database_setup_ms = 2;
+    optional int64 database_fetch_ms = 3;
+    optional int64 encode_and_page_build_ms = 4;
+    optional int64 page_upload_ms = 5;
+    optional int64 finalize_ms = 6;
+    optional int64 other_ms = 7;
+    optional int64 time_to_first_page_ms = 8;
+    optional int64 page_count = 9;
+    optional int64 row_count = 10;
+    optional int64 byte_count = 11;
+    optional int64 upload_attempt_count = 12;
+    optional int64 upload_retry_count = 13;
+    optional int64 page_upload_min_ms = 14;
+    optional int64 page_upload_p50_ms = 15;
+    optional int64 page_upload_p95_ms = 16;
+    optional int64 page_upload_max_ms = 17;
+}
+
+// RemoteQueryExecutionDiagnostics wraps the optional producer diagnostics that
+// cross AgentSecure on final and error stream events. The worker (its-agent)
+// validates them against the verified upload receipt and assembles the full
+// run record with worker-owned stages; only this bounded object crosses AP.
+message RemoteQueryExecutionDiagnostics {
+    optional int32 contract_version = 1;
+    optional RemoteQueryProducerDiagnostics producer = 2;
+}
+
 message RemoteQueryStreamError {
     string code = 1;
     string message = 2;
     bool retryable = 3;
     map<string, string> attributes = 4;
+    // execution_diagnostics mirrors the final event's optional producer timing
+    // summary so a failed run keeps its honest phase breakdown; the sanitized
+    // error stays authoritative for the failure itself.
+    optional RemoteQueryExecutionDiagnostics execution_diagnostics = 5;
 }
 
 message RemoteQueryExecuteStreamEvent {

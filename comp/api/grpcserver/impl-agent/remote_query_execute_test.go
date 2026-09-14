@@ -6,9 +6,11 @@
 package agentimpl
 
 import (
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -190,6 +192,9 @@ func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T
 	assert.Equal(t, int64(3), receipt.GetPageCount())
 	assert.Equal(t, int64(123456), receipt.GetTotalRows())
 	assert.Equal(t, int64(987654), receipt.GetTotalBytes())
+	// A final event without an executionDiagnostics key keeps the proto field
+	// absent: old integrations see no behavior change.
+	assert.Nil(t, event.GetFinal().GetExecutionDiagnostics())
 
 	// The run progress stats surface as compact string attributes, never as bulk
 	// result bytes, and the receipt fields stay exactly the four contract fields.
@@ -198,6 +203,42 @@ func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T
 	assert.Equal(t, "3", attrs["stats.pagesEmitted"])
 	assert.Equal(t, "987654", attrs["stats.bytesEmitted"])
 	assert.Equal(t, "4321", attrs["stats.elapsedMs"])
+}
+
+// contractExecutionDiagnosticsJSON is the contract v1 producer-diagnostics object:
+// exactly the camelCase key set of the shared contract, with measured zero
+// values present and unmeasured fields absent.
+const contractExecutionDiagnosticsJSON = `{"contractVersion":1,"producer":{"totalMs":831900,"databaseSetupMs":120,"databaseFetchMs":184000,"encodeAndPageBuildMs":319000,"pageUploadMs":315984,"finalizeMs":17,"otherMs":12779,"timeToFirstPageMs":11676,"pageCount":52,"rowCount":7485000,"byteCount":5425529172,"uploadAttemptCount":52,"uploadRetryCount":0,"pageUploadMinMs":4979,"pageUploadP50Ms":6080,"pageUploadP95Ms":6330,"pageUploadMaxMs":6407}}`
+
+func int64PtrForDiagnostics(v int64) *int64 { return &v }
+
+func int32PtrForDiagnostics(v int32) *int32 { return &v }
+
+// contractExecutionDiagnosticsProto is the typed form of
+// contractExecutionDiagnosticsJSON.
+func contractExecutionDiagnosticsProto() *pb.RemoteQueryExecutionDiagnostics {
+	return &pb.RemoteQueryExecutionDiagnostics{
+		ContractVersion: int32PtrForDiagnostics(1),
+		Producer: &pb.RemoteQueryProducerDiagnostics{
+			TotalMs:              int64PtrForDiagnostics(831900),
+			DatabaseSetupMs:      int64PtrForDiagnostics(120),
+			DatabaseFetchMs:      int64PtrForDiagnostics(184000),
+			EncodeAndPageBuildMs: int64PtrForDiagnostics(319000),
+			PageUploadMs:         int64PtrForDiagnostics(315984),
+			FinalizeMs:           int64PtrForDiagnostics(17),
+			OtherMs:              int64PtrForDiagnostics(12779),
+			TimeToFirstPageMs:    int64PtrForDiagnostics(11676),
+			PageCount:            int64PtrForDiagnostics(52),
+			RowCount:             int64PtrForDiagnostics(7485000),
+			ByteCount:            int64PtrForDiagnostics(5425529172),
+			UploadAttemptCount:   int64PtrForDiagnostics(52),
+			UploadRetryCount:     int64PtrForDiagnostics(0),
+			PageUploadMinMs:      int64PtrForDiagnostics(4979),
+			PageUploadP50Ms:      int64PtrForDiagnostics(6080),
+			PageUploadP95Ms:      int64PtrForDiagnostics(6330),
+			PageUploadMaxMs:      int64PtrForDiagnostics(6407),
+		},
+	}
 }
 
 func TestRemoteQueryStreamEventFromCheckEventPreservesNestedErrorMetadata(t *testing.T) {
@@ -213,6 +254,117 @@ func TestRemoteQueryStreamEventFromCheckEventPreservesNestedErrorMetadata(t *tes
 	assert.Equal(t, "query is not allowlisted", event.GetError().GetMessage())
 	assert.False(t, event.GetError().GetRetryable())
 	assert.Equal(t, map[string]string{"status": "FAILED", "stats.elapsedMs": "7"}, event.GetError().GetAttributes())
+}
+
+// TestRemoteQueryStreamEventFromCheckEventForwardsExecutionDiagnostics proves the
+// optional producer-diagnostics object crosses the AgentSecure bridge as the typed
+// message: exactly the contract v1 camelCase key set, parsed into
+// RemoteQueryExecutionDiagnostics, riding beside the untouched receipt.
+func TestRemoteQueryStreamEventFromCheckEventForwardsExecutionDiagnostics(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654},"stats":{"rowsEmitted":123456,"pagesEmitted":3,"bytesEmitted":987654,"elapsedMs":4321},"executionDiagnostics":` + contractExecutionDiagnosticsJSON + `}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	require.NotNil(t, event.GetFinal())
+	diagnostics := event.GetFinal().GetExecutionDiagnostics()
+	require.NotNil(t, diagnostics)
+	assert.True(t, proto.Equal(contractExecutionDiagnosticsProto(), diagnostics), "typed diagnostics: %v", diagnostics)
+
+	// The receipt stays exactly the four contract fields and the diagnostics never
+	// leak into the flattened attributes.
+	receipt := event.GetFinal().GetUploadReceipt()
+	require.NotNil(t, receipt)
+	assert.Equal(t, "upload-proof", receipt.GetUploadId())
+	assert.Equal(t, int64(3), receipt.GetPageCount())
+	assert.Equal(t, int64(123456), receipt.GetTotalRows())
+	assert.Equal(t, int64(987654), receipt.GetTotalBytes())
+	assert.NotContains(t, event.GetFinal().GetAttributes(), "executionDiagnostics")
+}
+
+// TestRemoteQueryStreamEventFromCheckEventForwardsExecutionDiagnosticsOnErrorEvent
+// proves a failed run keeps its honest phase breakdown: the typed message rides the
+// error event beside the sanitized error.
+func TestRemoteQueryStreamEventFromCheckEventForwardsExecutionDiagnosticsOnErrorEvent(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "error",
+		MetadataJSON: `{"status":"FAILED","error":{"code":"invalid_request","message":"query is not allowlisted","retryable":false},"stats":{"elapsedMs":7},"executionDiagnostics":` + contractExecutionDiagnosticsJSON + `}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	require.NotNil(t, event.GetError())
+	assert.Equal(t, "invalid_request", event.GetError().GetCode())
+	assert.Equal(t, "query is not allowlisted", event.GetError().GetMessage())
+	assert.False(t, event.GetError().GetRetryable())
+	diagnostics := event.GetError().GetExecutionDiagnostics()
+	require.NotNil(t, diagnostics)
+	assert.True(t, proto.Equal(contractExecutionDiagnosticsProto(), diagnostics), "typed diagnostics: %v", diagnostics)
+	assert.NotContains(t, event.GetError().GetAttributes(), "executionDiagnostics")
+}
+
+// TestRemoteQueryStreamEventFromCheckEventDropsInvalidExecutionDiagnostics proves
+// diagnostics fail OPEN: every malformed shape drops the diagnostics and keeps the
+// receipt untouched, never failing the run.
+func TestRemoteQueryStreamEventFromCheckEventDropsInvalidExecutionDiagnostics(t *testing.T) {
+	receiptJSON := `"upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654}`
+	tests := []struct {
+		name            string
+		diagnosticsJSON string
+	}{
+		{name: "non-object value", diagnosticsJSON: `"executionDiagnostics":"not-an-object"`},
+		{name: "json null stays absent", diagnosticsJSON: `"executionDiagnostics":null`},
+		{name: "unknown top-level field", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"extra":1}`},
+		{name: "unknown producer field", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"bogus":1}}`},
+		{name: "negative duration", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"totalMs":-5}}`},
+		{name: "negative counter", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"uploadRetryCount":-1}}`},
+		{name: "fractional float", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"totalMs":1.5}}`},
+		{name: "exponent form", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"totalMs":5e2}}`},
+		{name: "out-of-range integer", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"totalMs":99999999999999999999}}`},
+		{name: "unsupported contract version", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":2,"producer":{"totalMs":1}}`},
+		{name: "negative contract version", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":-1}`},
+		{name: "missing contract version", diagnosticsJSON: `"executionDiagnostics":{"producer":{"totalMs":1}}`},
+		{name: "oversized raw value", diagnosticsJSON: `"executionDiagnostics":{"contractVersion":1,"producer":{"totalMs":831900}` + strings.Repeat(" ", 5000) + `}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+				Type:         "final",
+				MetadataJSON: `{"status":"SUCCEEDED",` + receiptJSON + `,` + tt.diagnosticsJSON + `}`,
+			}, "postgres")
+
+			require.NoError(t, err)
+			require.NotNil(t, event.GetFinal())
+			assert.Nil(t, event.GetFinal().GetExecutionDiagnostics(), "diagnostics must be dropped")
+			receipt := event.GetFinal().GetUploadReceipt()
+			require.NotNil(t, receipt, "receipt must be preserved")
+			assert.Equal(t, "upload-proof", receipt.GetUploadId())
+			assert.Equal(t, int64(3), receipt.GetPageCount())
+			assert.Equal(t, int64(123456), receipt.GetTotalRows())
+			assert.Equal(t, int64(987654), receipt.GetTotalBytes())
+		})
+	}
+}
+
+// TestRemoteQueryStreamEventFromCheckEventAcceptsDiagnosticsAtSizeCeiling pins the
+// inclusive 4096-byte bound: a raw value exactly at the ceiling forwards.
+func TestRemoteQueryStreamEventFromCheckEventAcceptsDiagnosticsAtSizeCeiling(t *testing.T) {
+	core := `{"contractVersion":1,"producer":{"totalMs":831900}`
+	diagnostics := core + strings.Repeat(" ", remoteQueryExecutionDiagnosticsMaxEncodedBytes-len(core)-1) + `}`
+	require.Len(t, diagnostics, remoteQueryExecutionDiagnosticsMaxEncodedBytes)
+
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654},"executionDiagnostics":` + diagnostics + `}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	require.NotNil(t, event.GetFinal())
+	diagnosticsOut := event.GetFinal().GetExecutionDiagnostics()
+	require.NotNil(t, diagnosticsOut)
+	assert.Equal(t, int32(1), diagnosticsOut.GetContractVersion())
+	require.NotNil(t, diagnosticsOut.GetProducer())
+	assert.Equal(t, int64(831900), diagnosticsOut.GetProducer().GetTotalMs())
 }
 
 // TestRemoteQueryStreamEventFromCheckEventRejectsDataEvents proves the inline result-byte

@@ -6,6 +6,7 @@
 package agentimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -44,6 +47,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// remoteQueryExecutionDiagnosticsContractVersion is the only producer-diagnostics
+// contract version the Agent understands: an object whose contractVersion is not
+// exactly 1 is dropped, never forwarded, and never fails the run.
+const remoteQueryExecutionDiagnosticsContractVersion = 1
+
+// remoteQueryExecutionDiagnosticsMaxEncodedBytes is the JSON-encoded size ceiling
+// for the optional executionDiagnostics object. The fixed contract shape is ~700
+// bytes worst case, so the ceiling is a sanity bound on what the Agent is willing
+// to parse, not a constraint on honest data.
+const remoteQueryExecutionDiagnosticsMaxEncodedBytes = 4096
 
 type agentServer struct {
 	hostname hostnameinterface.Component
@@ -613,7 +627,10 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, in
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
 			Status:        stringFromMetadata(metadata, "status"),
 			UploadReceipt: uploadReceiptFromMetadata(metadata),
-			Attributes:    progressAttributes(metadata, "status", "sequence", "upload_receipt"),
+			Attributes:    progressAttributes(metadata, "status", "sequence", "upload_receipt", "executionDiagnostics"),
+			// The optional typed producer-diagnostics summary rides beside the
+			// receipt; a malformed summary is dropped, never the receipt.
+			ExecutionDiagnostics: remoteQueryExecutionDiagnosticsFromCheckMetadata(event, metadata, integration),
 		}}
 	case "error":
 		errorMetadata := mapFromMetadata(metadata, "error")
@@ -633,7 +650,10 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, in
 			Code:       code,
 			Message:    message,
 			Retryable:  retryable,
-			Attributes: progressAttributes(metadata, "code", "message", "retryable", "error", "sequence"),
+			Attributes: progressAttributes(metadata, "code", "message", "retryable", "error", "sequence", "executionDiagnostics"),
+			// A failed run keeps its honest phase breakdown when the summary is
+			// valid; the sanitized error stays authoritative for the failure.
+			ExecutionDiagnostics: remoteQueryExecutionDiagnosticsFromCheckMetadata(event, metadata, integration),
 		}}
 	default:
 		return nil, errors.New("unknown remote query stream event type")
@@ -709,6 +729,140 @@ func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
 		}
 	}
 	return 0
+}
+
+// remoteQueryExecutionDiagnosticsFromCheckMetadata parses the optional
+// executionDiagnostics object from the check's final/error event metadata into the
+// typed proto message. Diagnostics fail OPEN: an absent key, a JSON null, or any
+// malformed, oversized, or unsupported-version shape returns nil without touching
+// the receipt or the sanitized error — malformed diagnostics never fail a run. The
+// drop is logged as an internal warning; the raw value never reaches the log.
+func remoteQueryExecutionDiagnosticsFromCheckMetadata(event check.RemoteQueryStreamEvent, metadata map[string]interface{}, integration string) *pb.RemoteQueryExecutionDiagnostics {
+	raw, present := metadata["executionDiagnostics"]
+	if !present || raw == nil {
+		// Absent key or JSON null: absence, not a validation failure.
+		return nil
+	}
+
+	dropped := func(reason string) *pb.RemoteQueryExecutionDiagnostics {
+		log.Warnf("Remote query stream: dropped executionDiagnostics from the %s event of integration %q: %s", event.Type, integration, reason)
+		return nil
+	}
+
+	// The size ceiling is measured on the raw JSON value exactly as emitted, so
+	// padding or a bloated object is rejected before the Agent parses it.
+	rawValue := rawExecutionDiagnosticsJSON(event.MetadataJSON)
+	if rawValue == nil {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return dropped("invalid JSON")
+		}
+		rawValue = encoded
+	}
+	if len(rawValue) > remoteQueryExecutionDiagnosticsMaxEncodedBytes {
+		return dropped("encoded size exceeds " + strconv.Itoa(remoteQueryExecutionDiagnosticsMaxEncodedBytes) + " bytes")
+	}
+	if !remoteQueryJSONNumbersAllPlainIntegers(rawValue) {
+		return dropped("non-integer or exponent-form number")
+	}
+
+	msg := &pb.RemoteQueryExecutionDiagnostics{}
+	if err := protojson.Unmarshal(rawValue, msg); err != nil {
+		// protojson rejects unknown fields, fractional floats, and values out of
+		// int64/int32 range; negatives and exponent forms are caught by the checks
+		// below and above as belt-and-braces.
+		return dropped("invalid JSON")
+	}
+	if !remoteQueryExecutionDiagnosticsValid(msg) {
+		return dropped("unsupported contract version or negative value")
+	}
+	return msg
+}
+
+// rawExecutionDiagnosticsJSON extracts the raw JSON bytes of the executionDiagnostics
+// value from the check event metadata, preserving the emitted form (whitespace
+// included) for the size ceiling. Returns nil when extraction fails; the caller falls
+// back to re-encoding the decoded value.
+func rawExecutionDiagnosticsJSON(metadataJSON string) []byte {
+	if strings.TrimSpace(metadataJSON) == "" {
+		return nil
+	}
+	rawValues := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(metadataJSON), &rawValues); err != nil {
+		return nil
+	}
+	return rawValues["executionDiagnostics"]
+}
+
+// remoteQueryJSONNumbersAllPlainIntegers reports whether every JSON number in the
+// encoded value is a plain integer literal: the fixed diagnostics shape is integers
+// only, so fractional or exponent-form spellings are contract violations even when
+// they decode to an exact integer.
+func remoteQueryJSONNumbersAllPlainIntegers(encoded []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	var probe interface{}
+	if err := decoder.Decode(&probe); err != nil {
+		return false
+	}
+	var plainNumbers func(v interface{}) bool
+	plainNumbers = func(v interface{}) bool {
+		switch t := v.(type) {
+		case json.Number:
+			return !strings.ContainsAny(string(t), ".eE")
+		case map[string]interface{}:
+			for _, value := range t {
+				if !plainNumbers(value) {
+					return false
+				}
+			}
+			return true
+		case []interface{}:
+			for _, value := range t {
+				if !plainNumbers(value) {
+					return false
+				}
+			}
+			return true
+		default:
+			return true
+		}
+	}
+	return plainNumbers(probe)
+}
+
+// remoteQueryExecutionDiagnosticsValid is the belt-and-braces re-validation on the
+// typed message after the protojson parse: contract_version must be exactly 1 and
+// every populated scalar a non-negative integer. protojson already rejects unknown
+// fields, fractional floats, and out-of-range values, so this pins the two rules the
+// parser is lenient about (protojson accepts negative integers and exponent forms).
+func remoteQueryExecutionDiagnosticsValid(msg *pb.RemoteQueryExecutionDiagnostics) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.GetContractVersion() != remoteQueryExecutionDiagnosticsContractVersion {
+		return false
+	}
+	return remoteQueryPopulatedScalarsValid(msg.ProtoReflect())
+}
+
+// remoteQueryPopulatedScalarsValid walks every populated field of the typed message:
+// integer kinds must be non-negative and message kinds recurse. Any other populated
+// kind is a contract violation — the fixed shape is integers and one nested message.
+func remoteQueryPopulatedScalarsValid(m protoreflect.Message) bool {
+	valid := true
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch fd.Kind() {
+		case protoreflect.Int32Kind, protoreflect.Int64Kind:
+			valid = v.Int() >= 0
+		case protoreflect.MessageKind:
+			valid = remoteQueryPopulatedScalarsValid(v.Message())
+		default:
+			valid = false
+		}
+		return valid
+	})
+	return valid
 }
 
 // uploadReceiptFromMetadata parses the compact run receipt carried in the final event
