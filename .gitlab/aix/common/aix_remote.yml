@@ -6,9 +6,16 @@
 # is available at the correct ref, and that the host has necessary tools and setup.
 # A resource_group per VM ensures only one AIX job uses the host at a time.
 #
-# The SSH key is added to the ssh-agent in before_script, so script steps can
-# connect with plain `ssh -p $AIX_PORT $AIX_USER@$AIX_HOST <cmd>`.
 # The repository is cloned in $AIX_AGENT_SRC.
+# Use aix_run_cmd, copy_file_from_aix, and copy_file_to_aix to connect to the host in job scripts, eg.:
+## $ aix_run_cmd echo "Hello from AIX"
+## $ aix_run_cmd <<EOF
+##    echo a
+##    echo b
+##    EOF
+#
+# The helper functions and the git setup live in the .sh files next to this
+# template (aix_helpers.sh and aix_git_setup.sh), sourced in before_script.
 
 .aix_remote:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -36,30 +43,17 @@
     # Add the key to the ssh-agent so script steps don't need -i.
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/aix_ci_key
+    # Add the port to the config so script steps don't need -p.
+    - echo -e "Host $AIX_HOST\n  Port $AIX_PORT" >> ~/.ssh/config
+    - chmod 644 ~/.ssh/config
 
-    # Ensure the agent source is cloned on the AIX host at the commit under
-    # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
-    # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
-    # has the scripts the job later runs.
-    - 'echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="'
-    - |
-      ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
-      set -eu
-      export PATH=/opt/freeware/bin:/usr/bin:\$PATH
-      if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
-        git clone --progress "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
-      fi
-      cd "$AIX_AGENT_SRC"
-      git clean -df
-      git reset --hard
-      git fetch --progress origin
-      # The commit under test may not be reachable from origin yet (e.g. a
-      # brand-new branch push); fetch the branch ref as a fallback.
-      git fetch --progress origin "$CI_COMMIT_REF_NAME" || true
-      git checkout "$CI_COMMIT_SHA"
-      EOF
-    
+    # Helpers for connecting to the AIX host.
+    - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
+
+    # Ensure the agent source is cloned on the AIX host at the commit under test.
+    - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
+
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
-    - ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
+    - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"

@@ -1352,6 +1352,7 @@ workflow:
       paths:
         - tasks/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
+        - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
