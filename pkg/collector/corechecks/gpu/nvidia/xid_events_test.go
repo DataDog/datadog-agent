@@ -328,11 +328,13 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	}
 	driverEvent.NvidiaXid.NVLinkFault = &model.NvidiaXidNVLinkFault{
 		Subcode:          "0x1",
-		Fatality:         "fatal",
-		CrossContainment: "contained",
-		Instance:         "GPU0",
+		Fatal:            true,
+		CrossContainment: true,
+		Injected:         true,
 		LinkID:           &linkID,
-		StatusWords:      []string{"0x2"},
+		IntrInfo:         "0x2",
+		ErrorStatus:      "0x3",
+		ErrorDebugData:   []string{"0x4"},
 	}
 	driverEvent.NvidiaXid.MemoryFault = &model.NvidiaXidMemoryFault{
 		PhysicalAddress:     "0x1000",
@@ -381,9 +383,9 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		"fault_type:FAULT_PTE",
 		"access_type:VIRT_READ",
 		"nvlink_subcode:0x1",
-		"nvlink_fatality:fatal",
-		"nvlink_cross_containment:contained",
-		"nvlink_instance:GPU0",
+		"nvlink_fatal:true",
+		"nvlink_cross_containment:true",
+		"nvlink_injected:true",
 		"nvlink_link_id:4",
 		"memory_partition:2",
 		"memory_location:HBM",
@@ -425,6 +427,27 @@ func TestXIDEventToSampleKeepsUUIDWhenBothIdentifiersArePresent(t *testing.T) {
 	assert.Equal(t, "XID 31 error on GPU-1", sample.event.Title)
 	assert.Equal(t, "GPU-1", sample.event.AggregationKey)
 	assert.Contains(t, sample.tags, "pci_bus_id:0000:35:00.0")
+}
+
+func TestXIDEventToSampleOmitsUnsetNVLinkFlags(t *testing.T) {
+	// eventTagValue drops false booleans, so an observed nonfatal fault carries neither
+	// nvlink_fatal nor nvlink_injected. Their presence is the signal worth filtering on.
+	timestamp := time.Unix(100, 0)
+	driverEvent := newDriverXIDEvent("GPU-1", 146, timestamp, "raw message")
+	driverEvent.NvidiaXid.NVLinkFault = &model.NvidiaXidNVLinkFault{
+		Subcode:          "TLW_RX_PIPE1",
+		Fatal:            false,
+		CrossContainment: false,
+		Injected:         false,
+	}
+
+	sample, ok := newDriverOnlyXIDEvent(driverEvent).toSample().(*Event)
+	require.True(t, ok)
+
+	assert.Contains(t, sample.tags, "nvlink_subcode:TLW_RX_PIPE1")
+	assert.NotContains(t, sample.tags, "nvlink_fatal:false")
+	assert.NotContains(t, sample.tags, "nvlink_injected:false")
+	assert.NotContains(t, sample.tags, "nvlink_cross_containment:false")
 }
 
 func TestXIDEventToSampleUsesNVMLFallbackText(t *testing.T) {

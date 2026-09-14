@@ -135,13 +135,36 @@ type NvidiaXidMMUFault struct {
 }
 
 // NvidiaXidNVLinkFault contains details from NVIDIA Xid 144–150 NVLink5 faults.
+//
+// The driver reports these as
+//
+//	Xid (PCI:<bus-id>): <code> <subcomponent> <fatal|nonfatal> <crosscontain> <injected> <link> (<intrInfo> <errorStatus> <errorDebugData[0..4]>)
+//
+// so each field below maps to one positional field of that line.
 type NvidiaXidNVLinkFault struct {
-	Subcode          string   `json:"subcode,omitempty" event_tag:"nvlink_subcode"`
-	Fatality         string   `json:"fatality,omitempty" event_tag:"nvlink_fatality"`
-	CrossContainment string   `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
-	Instance         string   `json:"instance,omitempty" event_tag:"nvlink_instance"`
-	LinkID           *uint64  `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
-	StatusWords      []string `json:"status_words,omitempty"`
+	Subcode string `json:"subcode,omitempty" event_tag:"nvlink_subcode"`
+
+	// Fatal reports whether the driver took the link down. Nonfatal subcodes do not by
+	// themselves justify a drain, so this gates escalation.
+	Fatal bool `json:"fatal,omitempty" event_tag:"nvlink_fatal"`
+
+	// CrossContainment is the XC flag: the fault crossed a containment boundary.
+	CrossContainment bool `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
+
+	// Injected reports whether the error was deliberately injected for testing rather
+	// than observed. An injected event is not a real fault.
+	Injected bool `json:"injected,omitempty" event_tag:"nvlink_injected"`
+
+	LinkID *uint64 `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
+
+	// IntrInfo and ErrorStatus are the two inputs NVIDIA's decode table needs to resolve
+	// an NVLink Xid to an action. They are named rather than positional because an export
+	// that cannot distinguish them cannot be decoded.
+	IntrInfo    string `json:"intr_info,omitempty"`
+	ErrorStatus string `json:"error_status,omitempty"`
+
+	// ErrorDebugData holds the remaining trailing words in the order the driver printed them.
+	ErrorDebugData []string `json:"error_debug_data,omitempty"`
 }
 
 // NvidiaXidMemoryFault contains location and repair details from NVIDIA memory Xid events.

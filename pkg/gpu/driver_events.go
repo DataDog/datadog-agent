@@ -63,7 +63,7 @@ var (
 	nvidiaMMUFaultTypePattern    = regexp.MustCompile(`\b(FAULT_[A-Z_]+)\b`)
 	nvidiaMMUAccessTypePattern   = regexp.MustCompile(`\b(ACCESS_TYPE_[A-Z_]+)\b`)
 	nvidiaNVLink5Pattern         = regexp.MustCompile(`(?i)\)\s*:\s*\d+\s*,\s*(?:pid=\d+,\s*name=(?:'[^']*'|[^,\s]+),\s*)?([A-Z][A-Z0-9_]*)\s+(Fatal|Nonfatal)\s+XC\s*(\d+)\s+i\s*(\d+)(?:\s+Link\s+(\d+))?`)
-	nvidiaHexWordPattern         = regexp.MustCompile(`(?i)\b0x[[:xdigit:]]+\b`)
+	nvidiaNVLinkStatusPattern    = regexp.MustCompile(`(?i)[(\[]\s*(0x[[:xdigit:]]+(?:[\s,]+0x[[:xdigit:]]+)*)\s*[)\]]`)
 	nvidiaPhysicalAddressPattern = regexp.MustCompile(`(?i)\bphysAddr\s+(0x[[:xdigit:]_]+)`)
 	nvidiaPartitionPattern       = regexp.MustCompile(`(?i)\bpartition\s+(\d+)\s*,\s*subpartition\s+(\d+)`)
 	nvidiaRowAddressPattern      = regexp.MustCompile(`(?i)\brow(?:\s+address)?\s+(0x[[:xdigit:]_]+)`)
@@ -382,9 +382,9 @@ func parseNvidiaNVLink5Xid(message string, xid *model.NvidiaXid) bool {
 	}
 	details := &model.NvidiaXidNVLinkFault{
 		Subcode:          matches[1],
-		Fatality:         strings.ToLower(matches[2]),
-		CrossContainment: "XC" + matches[3],
-		Instance:         "i" + matches[4],
+		Fatal:            strings.EqualFold(matches[2], "Fatal"),
+		CrossContainment: parseNvidiaNVLinkFlag(matches[3]),
+		Injected:         parseNvidiaNVLinkFlag(matches[4]),
 	}
 	if matches[5] != "" {
 		linkID, err := strconv.ParseUint(matches[5], 10, 64)
@@ -393,11 +393,40 @@ func parseNvidiaNVLink5Xid(message string, xid *model.NvidiaXid) bool {
 		}
 		details.LinkID = &linkID
 	}
-	for _, word := range nvidiaHexWordPattern.FindAllString(message, -1) {
-		details.StatusWords = append(details.StatusWords, normalizeHex(word))
-	}
+	parseNvidiaNVLinkStatusGroup(message, details)
 	xid.NVLinkFault = details
 	return true
+}
+
+// parseNvidiaNVLinkFlag reads one of the line's 0/1 flag fields. The driver zero-pads these
+// fields (as it does the link number), so they are compared numerically rather than textually.
+func parseNvidiaNVLinkFlag(value string) bool {
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	return err == nil && parsed != 0
+}
+
+// parseNvidiaNVLinkStatusGroup reads the trailing decode group positionally: intrInfo and
+// errorStatus first, the inputs NVIDIA's decode table needs, then errorDebugData in printed
+// order. The group is parenthesised on R575+ and bracketed earlier; the last one wins.
+func parseNvidiaNVLinkStatusGroup(message string, details *model.NvidiaXidNVLinkFault) {
+	groups := nvidiaNVLinkStatusPattern.FindAllStringSubmatch(message, -1)
+	if groups == nil {
+		return
+	}
+
+	words := strings.FieldsFunc(groups[len(groups)-1][1], func(r rune) bool {
+		return r == ' ' || r == '\t' || r == ','
+	})
+	for index, word := range words {
+		switch index {
+		case 0:
+			details.IntrInfo = normalizeHex(word)
+		case 1:
+			details.ErrorStatus = normalizeHex(word)
+		default:
+			details.ErrorDebugData = append(details.ErrorDebugData, normalizeHex(word))
+		}
+	}
 }
 
 func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) bool {
