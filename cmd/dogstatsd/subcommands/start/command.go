@@ -51,7 +51,6 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
-	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
@@ -167,12 +166,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesfx.Module(),
 		hostfx.Module(),
 		inventoryagentfx.Module(),
-		fx.Provide(func() *inventoryagent.Capabilities {
-			if os.Getenv("DD_AZURE_APP_SERVICES") == "1" {
-				return aasinventory.NewCapabilities()
-			}
-			return &inventoryagent.Capabilities{}
-		}),
+		aasinventory.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
@@ -201,7 +195,6 @@ func start(
 	_ runner.Component,
 	_ resources.Component,
 	_ host.Component,
-	inventoryAgent inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ healthprobe.Component,
 ) error {
@@ -220,12 +213,6 @@ func start(
 	err := RunDogstatsd(ctx, cliParams, config, log, params, components, demultiplexer)
 	if err != nil {
 		return err
-	}
-
-	if aasinventory.IsEnabled() {
-		if aasinventory.Inject(inventoryAgent, config) {
-			aasinventory.Submit(inventoryAgent)
-		}
 	}
 
 	// Block here until we receive a stop signal

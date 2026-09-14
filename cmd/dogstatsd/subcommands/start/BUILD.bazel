@@ -41,7 +41,6 @@ go_library(
         "//comp/haagent/fx",
         "//comp/metadata/host/def",
         "//comp/metadata/host/fx",
-        "//comp/metadata/inventoryagent/def",
         "//comp/metadata/inventoryagent/fx",
         "//comp/metadata/inventoryhost/def",
         "//comp/metadata/inventoryhost/fx",
