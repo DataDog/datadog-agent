@@ -92,8 +92,8 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		windowsOsProfile.WindowsConfiguration = compute.WindowsConfigurationArgs{
 			AdditionalUnattendContent: compute.AdditionalUnattendContentArray{
 				compute.AdditionalUnattendContentArgs{
-					ComponentName: compute.ComponentNames_Microsoft_Windows_Shell_Setup,
-					PassName:      compute.PassNamesOobeSystem,
+					ComponentName: compute.ComponentName_Microsoft_Windows_Shell_Setup,
+					PassName:      compute.PassNameOobeSystem,
 					SettingName:   compute.SettingNamesFirstLogonCommands,
 					Content:       firstLogonCommand,
 				},
