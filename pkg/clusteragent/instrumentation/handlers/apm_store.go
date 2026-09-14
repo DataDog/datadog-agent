@@ -18,26 +18,26 @@ import (
 // APMTargetStore holds DDI apm targets indexed by the workload they target.
 type APMTargetStore struct {
 	mu         sync.RWMutex
-	targets    map[ssi.WorkloadTarget]ssi.DDITarget
-	targetByCR map[types.NamespacedName]ssi.WorkloadTarget
+	targets    map[ssi.DDICRTarget]ssi.DDIAPMConfig
+	targetByCR map[types.NamespacedName]ssi.DDICRTarget
 }
 
 // NewAPMTargetStore returns an empty APMTargetStore.
 func NewAPMTargetStore() *APMTargetStore {
 	return &APMTargetStore{
-		targets:    make(map[ssi.WorkloadTarget]ssi.DDITarget),
-		targetByCR: make(map[types.NamespacedName]ssi.WorkloadTarget),
+		targets:    make(map[ssi.DDICRTarget]ssi.DDIAPMConfig),
+		targetByCR: make(map[types.NamespacedName]ssi.DDICRTarget),
 	}
 }
 
 // UpsertTarget stores the DDI target for a workload.
-func (s *APMTargetStore) UpsertTarget(workload ssi.WorkloadTarget, target ssi.DDITarget) {
+func (s *APMTargetStore) UpsertTarget(workload ssi.DDICRTarget, config ssi.DDIAPMConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.deleteByCRLocked(target.CR)
-	s.targets[workload] = target
-	s.targetByCR[target.CR] = workload
+	s.deleteByCRLocked(config.CR)
+	s.targets[workload] = config
+	s.targetByCR[config.CR] = workload
 }
 
 // DeleteByCR removes the entry sourced from the given CR name, if present.
@@ -61,9 +61,9 @@ func (s *APMTargetStore) deleteByCRLocked(cr types.NamespacedName) {
 }
 
 // GetTarget returns the DDI target for a workload, if any.
-func (s *APMTargetStore) GetTarget(workload ssi.WorkloadTarget) (ssi.DDITarget, bool) {
+func (s *APMTargetStore) GetTarget(workload ssi.DDICRTarget) (ssi.DDIAPMConfig, bool) {
 	if s == nil {
-		return ssi.DDITarget{}, false
+		return ssi.DDIAPMConfig{}, false
 	}
 
 	s.mu.RLock()
@@ -71,7 +71,7 @@ func (s *APMTargetStore) GetTarget(workload ssi.WorkloadTarget) (ssi.DDITarget, 
 
 	target, ok := s.targets[workload]
 	if !ok {
-		return ssi.DDITarget{}, false
+		return ssi.DDIAPMConfig{}, false
 	}
 	return target, true
 }

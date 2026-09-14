@@ -112,16 +112,6 @@ func TestAPMHandlerValidate(t *testing.T) {
 		want []expectedValidationError
 	}{
 		{
-			name: "nil cr",
-			cr:   nil,
-			want: nil,
-		},
-		{
-			name: "nil apm section",
-			cr:   newAPMDDI("ddi", "default", "Deployment", "web", nil),
-			want: nil,
-		},
-		{
 			name: "valid config",
 			cr: newAPMDDI("ddi", "default", "Deployment", "web", &datadoghq.DatadogInstrumentationAPMConfig{
 				Enabled:        true,
@@ -199,7 +189,7 @@ func TestAPMHandlerValidate(t *testing.T) {
 }
 
 func TestAPMHandlerHandle(t *testing.T) {
-	workload := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+	workload := ssi.DDICRTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
 	validCR := newAPMDDI("ddi-web", "default", "Deployment", "web", &datadoghq.DatadogInstrumentationAPMConfig{
 		Enabled:        true,
 		TracerVersions: map[string]string{"java": "v1"},

@@ -17,8 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func newDDITarget(crName, crNamespace string) ssi.DDITarget {
-	return ssi.DDITarget{
+func newDDIAPMConfig(crName, crNamespace string) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
 		CR:             types.NamespacedName{Namespace: crNamespace, Name: crName},
 		Enabled:        true,
 		TracerVersions: map[string]string{"java": "v1"},
@@ -27,23 +27,23 @@ func newDDITarget(crName, crNamespace string) ssi.DDITarget {
 }
 
 func TestAPMTargetStoreGetTarget(t *testing.T) {
-	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
-	config := newDDITarget("ddi-web", "default")
+	target := ssi.DDICRTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+	config := newDDIAPMConfig("ddi-web", "default")
 	var nilStore *APMTargetStore
 
 	tests := []struct {
 		name       string
 		store      *APMTargetStore
 		setup      func(*APMTargetStore)
-		target     ssi.WorkloadTarget
-		wantConfig ssi.DDITarget
+		target     ssi.DDICRTarget
+		wantConfig ssi.DDIAPMConfig
 		wantOK     bool
 	}{
 		{
 			name:       "missing entry",
 			store:      NewAPMTargetStore(),
 			target:     target,
-			wantConfig: ssi.DDITarget{},
+			wantConfig: ssi.DDIAPMConfig{},
 			wantOK:     false,
 		},
 		{
@@ -60,7 +60,7 @@ func TestAPMTargetStoreGetTarget(t *testing.T) {
 			name:       "nil store",
 			store:      nilStore,
 			target:     target,
-			wantConfig: ssi.DDITarget{},
+			wantConfig: ssi.DDIAPMConfig{},
 			wantOK:     false,
 		},
 	}
@@ -80,24 +80,24 @@ func TestAPMTargetStoreGetTarget(t *testing.T) {
 }
 
 func TestAPMTargetStoreUpsertTarget(t *testing.T) {
-	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
-	config := newDDITarget("ddi-web", "default")
+	target := ssi.DDICRTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+	config := newDDIAPMConfig("ddi-web", "default")
 	replacement := config
 	replacement.TracerVersions = map[string]string{"python": "v4"}
 
 	tests := []struct {
 		name       string
-		configs    []ssi.DDITarget
-		wantConfig ssi.DDITarget
+		configs    []ssi.DDIAPMConfig
+		wantConfig ssi.DDIAPMConfig
 	}{
 		{
 			name:       "stores config for target",
-			configs:    []ssi.DDITarget{config},
+			configs:    []ssi.DDIAPMConfig{config},
 			wantConfig: config,
 		},
 		{
 			name:       "replaces config for target",
-			configs:    []ssi.DDITarget{config, replacement},
+			configs:    []ssi.DDIAPMConfig{config, replacement},
 			wantConfig: replacement,
 		},
 	}
@@ -117,19 +117,19 @@ func TestAPMTargetStoreUpsertTarget(t *testing.T) {
 }
 
 func TestAPMTargetStoreDeleteByCR(t *testing.T) {
-	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
-	config := newDDITarget("ddi-web", "default")
+	target := ssi.DDICRTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+	config := newDDIAPMConfig("ddi-web", "default")
 
 	tests := []struct {
 		name       string
 		deleteCR   types.NamespacedName
-		wantConfig ssi.DDITarget
+		wantConfig ssi.DDIAPMConfig
 		wantOK     bool
 	}{
 		{
 			name:       "removes config sourced from CR",
 			deleteCR:   config.CR,
-			wantConfig: ssi.DDITarget{},
+			wantConfig: ssi.DDIAPMConfig{},
 			wantOK:     false,
 		},
 		{
@@ -163,8 +163,8 @@ func TestAPMTargetStoreConcurrentAccess(_ *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
-			config := newDDITarget("ddi", "default")
+			target := ssi.DDICRTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+			config := newDDIAPMConfig("ddi", "default")
 			for j := range iterations {
 				switch j % 3 {
 				case 0:

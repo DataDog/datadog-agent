@@ -13,16 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// WorkloadTarget identifies a Kubernetes workload targeted for instrumentation.
-type WorkloadTarget struct {
+// DDICRTarget identifies a Kubernetes workload targeted by a DatadogInstrumentation CR.
+type DDICRTarget struct {
 	Kind      string
 	Namespace string
 	Name      string
 }
 
-// DDITarget is the per-target APM configuration extracted from a
+// DDIAPMConfig is the per-target APM configuration extracted from a
 // DatadogInstrumentation custom resource.
-type DDITarget struct {
+type DDIAPMConfig struct {
 	CR             types.NamespacedName
 	Enabled        bool
 	TracerVersions map[string]string

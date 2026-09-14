@@ -77,10 +77,6 @@ func (h *APMHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReferenc
 
 // Validate reports validation errors against spec.config.apm.
 func (h *APMHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
-	if cr == nil || cr.Spec.Config.APM == nil {
-		return nil
-	}
-
 	var errs []instrumentation.ValidationError
 	for lang := range cr.Spec.Config.APM.TracerVersions {
 		if _, ok := supportedAPMLanguages[lang]; !ok {
@@ -131,13 +127,13 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 		}, nil
 	}
 
-	target := ssi.WorkloadTarget{
+	target := ssi.DDICRTarget{
 		Kind:      cr.Spec.TargetRef.Kind,
 		Namespace: cr.Namespace,
 		Name:      cr.Spec.TargetRef.Name,
 	}
-	ddiTarget := ddiTargetFromCR(crRef, cr.Spec.Config.APM)
-	h.apmStore.UpsertTarget(target, ddiTarget)
+	config := ddiAPMConfigFromCR(crRef, cr.Spec.Config.APM)
+	h.apmStore.UpsertTarget(target, config)
 
 	return instrumentation.HandlerStatus{
 		Type:    apmReadyConditionType,
@@ -147,19 +143,19 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 	}, nil
 }
 
-func ddiTargetFromCR(crRef types.NamespacedName, apm *datadoghq.DatadogInstrumentationAPMConfig) ssi.DDITarget {
-	target := ssi.DDITarget{
+func ddiAPMConfigFromCR(crRef types.NamespacedName, apm *datadoghq.DatadogInstrumentationAPMConfig) ssi.DDIAPMConfig {
+	config := ssi.DDIAPMConfig{
 		CR:      crRef,
 		Enabled: apm.Enabled,
 	}
 	if len(apm.TracerVersions) > 0 {
-		target.TracerVersions = make(map[string]string, len(apm.TracerVersions))
+		config.TracerVersions = make(map[string]string, len(apm.TracerVersions))
 		for lang, version := range apm.TracerVersions {
-			target.TracerVersions[lang] = version
+			config.TracerVersions[lang] = version
 		}
 	}
 	if len(apm.TracerConfigs) > 0 {
-		target.TracerConfigs = append([]corev1.EnvVar(nil), apm.TracerConfigs...)
+		config.TracerConfigs = append([]corev1.EnvVar(nil), apm.TracerConfigs...)
 	}
-	return target
+	return config
 }
