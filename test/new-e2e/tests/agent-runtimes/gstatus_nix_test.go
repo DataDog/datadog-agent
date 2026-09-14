@@ -8,6 +8,7 @@ package agentruntimes
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -89,13 +90,19 @@ func (s *gstatusSuite) SetupSuite() {
 		return err == nil
 	}, 30*time.Second, 2*time.Second, "glusterd did not become ready")
 
+	// GlusterFS rejects "localhost" as a brick hostname, so use the
+	// VM's short hostname instead.
+	hostname := strings.TrimSpace(host.MustExecute("hostname -s"))
+	require.NotEmpty(s.T(), hostname, "failed to get hostname")
+
 	// Create brick directories on the local filesystem.
 	host.MustExecute("sudo mkdir -p /data/brick1/gv0 /data/brick2/gv0")
 
 	// Create and start a replicated volume across two local bricks.
 	// The volume name is gv0, matching the integrations-core glusterfs test.
-	host.MustExecute("sudo gluster volume create gv0 replica 2 " +
-		"localhost:/data/brick1/gv0 localhost:/data/brick2/gv0 force")
+	host.MustExecute(fmt.Sprintf(
+		"sudo gluster volume create gv0 replica 2 %s:/data/brick1/gv0 %s:/data/brick2/gv0 force",
+		hostname, hostname))
 	host.MustExecute("sudo gluster volume start gv0")
 }
 
