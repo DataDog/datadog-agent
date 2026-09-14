@@ -69,31 +69,31 @@ tests_linux-arm64-py3:
 
 
 tests_serverless-init:
-  extends: .linux_x64
-  stage: source_test
+  extends: [.linux_x64, .linux_tests]
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  script:
+  before_script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
     - dda inv -- -e schema.codegen
+  script:
     - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
-  extends: .linux_x64
-  stage: source_test
+  extends: [.linux_x64, .linux_tests]
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  script:
+  before_script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
     - dda inv -- -e schema.codegen
+  script:
     - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
