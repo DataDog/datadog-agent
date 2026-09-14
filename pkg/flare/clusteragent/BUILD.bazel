@@ -37,6 +37,8 @@ go_library(
         "//pkg/status/render",
         "//pkg/util/defaultpaths",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
         "//pkg/util/profiling",
         "@com_github_fatih_color//:color",
