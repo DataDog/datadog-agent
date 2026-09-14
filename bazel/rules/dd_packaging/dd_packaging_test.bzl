@@ -233,13 +233,13 @@ def _test_transitive_collected_impl(env, target):
     # inner's header, reached transitively via dynamic_deps → input → dynamic_deps
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
 
-# Test 5: dd_cc_packaged itself has no default outputs.
+# Test 5: dd_cc_packaged's default outputs are the plain, unpatched input.
 #
 # The {name}_patched and {name}_packaged side-targets must NOT be built when
 # another target simply depends on the dd_cc_packaged rule.  They are only
 # materialised at package time, when dd_collect_dependencies explicitly
 # collects them.
-def _test_packaged_has_no_build_outputs(name):
+def _test_packaged_default_outputs_are_unpatched(name):
     cc_library(
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
@@ -254,12 +254,14 @@ def _test_packaged_has_no_build_outputs(name):
     )
     analysis_test(
         name = name,
-        impl = _test_packaged_has_no_build_outputs_impl,
+        impl = _test_packaged_default_outputs_are_unpatched_impl,
         target = name + "_packaged",
     )
 
-def _test_packaged_has_no_build_outputs_impl(env, target):
-    _outputs_of(env, target).contains_exactly([])
+def _test_packaged_default_outputs_are_unpatched_impl(env, target):
+    outputs = _outputs_of(env, target)
+    outputs.contains_predicate(matching.file_extension_in(["so", "dll", "dylib"]))
+    outputs.not_contains_predicate(matching.file_path_matches("*patched/*"))
 
 # Test 6: dd_cc_packaged forwards the unpatched CcSharedLibraryInfo.
 #
@@ -499,7 +501,7 @@ def dd_packaging_test_suite(name):
             _test_so_collected,
             _test_installed_files_collected,
             _test_transitive_collected,
-            _test_packaged_has_no_build_outputs,
+            _test_packaged_default_outputs_are_unpatched,
             _test_packaged_forwards_unpatched_so,
             _test_cc_binary_collected,
             _test_cc_binary_no_cc_shared_library_info,
