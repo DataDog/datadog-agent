@@ -2,12 +2,37 @@ use dd_sds::{
     Labels, ProximityKeywordsConfig, RegexRuleConfig, RootRuleConfig, SecondaryValidator,
     Suppressions,
 };
-use serde_json::json;
 use shlib_core::Config;
 
+use crate::backend::{ScanRow, ScannedColumn};
 use crate::proto::TableMatch as Match;
 
 use super::{Scanner, ScanningRule};
+
+fn columns(names: &[&str]) -> Vec<ScannedColumn> {
+    names
+        .iter()
+        .map(|name| ScannedColumn {
+            name: (*name).to_string(),
+            data_type: "text".to_string(),
+        })
+        .collect()
+}
+
+fn rows(cells: &[&[&str]]) -> Vec<ScanRow> {
+    cells
+        .iter()
+        .map(|row| row.iter().map(|v| Some((*v).to_string())).collect())
+        .collect()
+}
+
+fn scan(scanner: &Scanner, col_names: &[&str], cells: &[&[&str]]) -> Vec<Match> {
+    let columns = columns(col_names);
+    scanner
+        .scan(&columns, rows(cells).into_iter().map(Ok))
+        .expect("failed to scan data")
+        .0
+}
 
 /// Deserializes the scanning rules from an instance config, like the check.
 fn rules_from_instance(instance_yaml: &str) -> Vec<ScanningRule> {
@@ -152,15 +177,15 @@ scan_data: []
 "#,
     );
 
-    let data = json!({
-        "email": [
-            "alice@example.com",
-            "bob@gmail.com",
-            "carol@corp.io"
-        ]
-    });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    let matches = scan(
+        &scanner,
+        &["email"],
+        &[
+            &["alice@example.com"],
+            &["bob@gmail.com"],
+            &["carol@corp.io"],
+        ],
+    );
 
     // `alice@example.com` is suppressed; the other two rows match.
     assert_eq!(
@@ -190,14 +215,7 @@ scan_data: []
 "#,
     );
 
-    let data = json!({
-        "note": [
-            "token 111111",
-            "999999"
-        ]
-    });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    let matches = scan(&scanner, &["note"], &[&["token 111111"], &["999999"]]);
 
     // Only the row with the `token` keyword nearby matches.
     assert_eq!(
@@ -227,14 +245,7 @@ scan_data: []
 "#,
     );
 
-    let data = json!({
-        "code": [
-            "secret 222222",
-            "test 333333"
-        ]
-    });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    let matches = scan(&scanner, &["code"], &[&["secret 222222"], &["test 333333"]]);
 
     // The row preceded by the `test` keyword is excluded.
     assert_eq!(
@@ -261,11 +272,8 @@ scan_data: []
 "#,
     );
 
-    // A single row holds two emails: both match the rule, but they share the
-    // same row path, so the row is counted once while both matches are counted.
-    let data = json!({ "email": ["alice@corp.io and bob@corp.io"] });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    // A single row holds two emails: both match, but the row is counted once.
+    let matches = scan(&scanner, &["email"], &[&["alice@corp.io and bob@corp.io"]]);
 
     assert_eq!(
         matches,
@@ -293,14 +301,11 @@ scan_data: []
 "#,
     );
 
-    let data = json!({
-        "card": [
-            "4242424242424242",
-            "4242424242424241"
-        ]
-    });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    let matches = scan(
+        &scanner,
+        &["card"],
+        &[&["4242424242424242"], &["4242424242424241"]],
+    );
 
     // Only the Luhn-valid number is kept.
     assert_eq!(
@@ -327,9 +332,7 @@ scan_data: []
 "#,
     );
 
-    let data = json!({ "name": ["alice", "bob"] });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    let matches = scan(&scanner, &["name"], &[&["alice"], &["bob"]]);
 
     assert!(matches.is_empty());
 }
@@ -346,11 +349,9 @@ scan_data: []
 "#,
     );
 
-    // A quoted DB column can itself contain brackets, so the scanner path is
-    // `foo[bar][0]`; only the trailing row subscript should be stripped.
-    let data = json!({ "foo[bar]": ["alice@corp.io"] });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    // A quoted DB column can itself contain brackets; the Event path field is
+    // the column name, so it is preserved verbatim.
+    let matches = scan(&scanner, &["foo[bar]"], &[&["alice@corp.io"]]);
 
     assert_eq!(
         matches,
@@ -376,11 +377,13 @@ scan_data: []
 "#,
     );
 
-    // A quoted DB column can contain dots. The column is the leading path field,
-    // so it survives verbatim even though `.` is the Path segment separator.
-    let data = json!({ "first.last": ["alice@corp.io", "bob@corp.io"] });
-
-    let matches = scanner.scan(data).expect("failed to scan data");
+    // A quoted DB column can contain dots. The Event path field is the column
+    // name, so it survives verbatim even though `.` is the Path segment separator.
+    let matches = scan(
+        &scanner,
+        &["first.last"],
+        &[&["alice@corp.io"], &["bob@corp.io"]],
+    );
 
     assert_eq!(
         matches,
@@ -389,6 +392,36 @@ scan_data: []
             column_name: "first.last".to_string(),
             count_matched_rows: 2,
             count_matches: 2,
+            ..Default::default()
+        }]
+    );
+}
+
+#[test]
+fn scan_skips_null_cells_and_counts_rows() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+scan_data: []
+"#,
+    );
+
+    let rows: Vec<ScanRow> = vec![vec![None], vec![Some("alice@corp.io".to_string())]];
+    let (matches, row_count) = scanner
+        .scan(&columns(&["email"]), rows.into_iter().map(Ok))
+        .expect("failed to scan data");
+
+    assert_eq!(row_count, 2);
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "email".to_string(),
+            count_matched_rows: 1,
+            count_matches: 1,
             ..Default::default()
         }]
     );

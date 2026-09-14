@@ -89,27 +89,26 @@ fn run_sub_task(
     Ok(())
 }
 
-/// Fetches the sub task's data and scans it, returning the matches and the
-/// scanned-table statistics.
+/// Fetches the sub task's rows and scans each as an SDS event.
 fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<ScanOutcome> {
-    let data = backend::fetch_data(sub_task).context("fetching sub task data")?;
-    let matches = scanner
-        .scan(data.columns)
-        .context("scanning sub task data")?;
+    let mut feed = scanner.feed();
+    let scanned_columns =
+        backend::fetch_data(sub_task, &mut |columns, row| feed.push(columns, row))
+            .context("fetching sub task data")?;
+    let (matches, scanned_row_count) = feed.finish().context("scanning sub task data")?;
     Ok(ScanOutcome {
         matches,
-        scanned_columns: data.scanned_columns,
-        scanned_row_count: data.scanned_row_count,
+        scanned_columns,
+        scanned_row_count,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use prost::Message;
-    use serde_json::json;
     use shlib_core::stubs::AggregatorStub;
 
-    use crate::backend::{ScanData, ScannedColumn, mock};
+    use crate::backend::{ScannedColumn, mock};
     use crate::constants::SDS_RESULT_EVENT_TYPE;
     use crate::proto::{
         PostgresScannedColumn, PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult,
@@ -144,12 +143,8 @@ scan_data:
     fn scans_data_and_emits_sds_result() {
         // The mock engine returns this in place of a real query: two scanned
         // columns, `email` (which matches) and `name` (which does not).
-        mock::set_data(ScanData {
-            columns: json!({
-                "email": ["alice@corp.io", "bob@corp.io hatem@corp.io"],
-                "name": ["alice", "bob"],
-            }),
-            scanned_columns: vec![
+        mock::set_data(
+            vec![
                 ScannedColumn {
                     name: "email".to_string(),
                     data_type: "text".to_string(),
@@ -159,8 +154,14 @@ scan_data:
                     data_type: "varchar".to_string(),
                 },
             ],
-            scanned_row_count: 2,
-        });
+            vec![
+                vec![Some("alice@corp.io".to_string()), Some("alice".to_string())],
+                vec![
+                    Some("bob@corp.io hatem@corp.io".to_string()),
+                    Some("bob".to_string()),
+                ],
+            ],
+        );
 
         let aggregator = AggregatorStub::new();
         check(&aggregator.agent_check("{}", INSTANCE)).expect("check run failed");

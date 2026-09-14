@@ -1,7 +1,6 @@
-//! Backend scan engines: run a sub task's query and return its column data.
+//! Backend scan engines: run a sub task's query and yield its rows.
 
 use anyhow::{Context, Result};
-use serde_json::Value;
 
 use crate::config::SubTask;
 
@@ -18,27 +17,29 @@ pub struct ScannedColumn {
     pub data_type: String,
 }
 
-/// The result of running a sub task's query: the `{ column: [values] }` map fed
-/// to the scanner, plus metadata describing what was scanned.
-#[derive(Debug, Default, Clone)]
-pub struct ScanData {
-    /// Column-oriented values consumed by the scanner.
-    // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
-    // instead of a `Value`, to avoid the intermediate JSON map and its copies.
-    pub columns: Value,
-    /// The scanned columns (name + source data type), in query order.
-    pub scanned_columns: Vec<ScannedColumn>,
-    /// Number of rows returned by the query and scanned.
-    pub scanned_row_count: i64,
+/// One query row. Values are in `scanned_columns` order; `None` is SQL NULL.
+pub type ScanRow = Vec<Option<String>>;
+
+/// One row's cells, visited by index without collecting the row into a `Vec`.
+pub trait ScanCells {
+    fn cell(&self, index: usize) -> Option<&str>;
 }
 
-/// A data-source engine that runs a sub task's query and returns the scanned
-/// columns and their values ready for the scanner.
+impl ScanCells for ScanRow {
+    fn cell(&self, index: usize) -> Option<&str> {
+        self.get(index).and_then(|value| value.as_deref())
+    }
+}
+
+/// Called once per row with column metadata. The row is only valid for this call.
+pub type ScanFn<'a> = dyn FnMut(&[ScannedColumn], &dyn ScanCells) -> Result<()> + 'a;
+
+/// A data-source engine that runs a sub task's query and yields rows to `scan`.
 pub trait ScanEngine: Sync {
     /// Engine name, matched against the sub task platform.
     fn name(&self) -> &'static str;
-    /// Runs the sub task's query and returns its columns and scan metadata.
-    fn fetch_data(&self, sub_task: &SubTask) -> Result<ScanData>;
+    /// Runs the sub task's query and passes each row to `scan`.
+    fn fetch_data(&self, sub_task: &SubTask, scan: &mut ScanFn<'_>) -> Result<Vec<ScannedColumn>>;
 }
 
 /// Compiled engines. Add a new engine here behind its `engine-*` feature.
@@ -61,8 +62,8 @@ fn engine_for(platform: &str) -> Result<&'static dyn ScanEngine> {
 }
 
 /// Runs the sub task on the engine selected by its entity platform.
-pub fn fetch_data(sub_task: &SubTask) -> Result<ScanData> {
-    engine_for(&sub_task.entity.platform)?.fetch_data(sub_task)
+pub fn fetch_data(sub_task: &SubTask, scan: &mut ScanFn<'_>) -> Result<Vec<ScannedColumn>> {
+    engine_for(&sub_task.entity.platform)?.fetch_data(sub_task, scan)
 }
 
 #[cfg(all(test, feature = "engine-postgres"))]
