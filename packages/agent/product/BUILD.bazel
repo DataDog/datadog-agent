@@ -34,7 +34,6 @@ pkg_filegroup(
         ":dda_built_agent_binary",
 
         # TODO: sysprobe - windows
-        # TODO: systray - windows
         # TODO: installer
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
@@ -77,6 +76,7 @@ pkg_filegroup(
             # TODO: systray
         ],
         "@platforms//os:windows": [
+            ":systray_binary",
             "//packages/windows:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
@@ -208,6 +208,13 @@ pkg_files(
     srcs = ["//cmd/cws-instrumentation"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "systray_binary",
+    srcs = ["//cmd/systray"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent",
 )
 
 pkg_files(
