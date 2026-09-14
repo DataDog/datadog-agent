@@ -57,6 +57,13 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
             username: user.as_str(),
             password: LogonPassword::Wide(password),
         },
+        AgentAccount::ManagedServiceAccountLogon {
+            logon_domain, user, ..
+        } => LogonUserCredentials {
+            domain: logon_domain.as_str(),
+            username: user.as_str(),
+            password: LogonPassword::None,
+        },
     }
 }
 
@@ -182,6 +189,19 @@ mod tests {
         assert_eq!(logon_domain(creds.domain), ".");
         assert_eq!(creds.username, "ddagentuser");
         assert!(matches!(creds.password, LogonPassword::Wide(_)));
+    }
+
+    #[test]
+    fn logon_user_credentials_map_managed_service_account_to_null_password() {
+        let account = AgentAccount::ManagedServiceAccountLogon {
+            registry_domain: "CORP".to_string(),
+            logon_domain: "CORP".to_string(),
+            user: "ddgmsa$".to_string(),
+        };
+        let creds = logon_user_credentials(&account);
+        assert_eq!(creds.domain, "CORP");
+        assert_eq!(creds.username, "ddgmsa$");
+        assert!(matches!(creds.password, LogonPassword::None));
     }
 
     #[test]
