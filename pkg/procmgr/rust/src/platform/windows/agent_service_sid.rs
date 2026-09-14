@@ -84,7 +84,6 @@ fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, St
     let mut candidates = vec![(domain.to_string(), user.to_string())];
     if !domain.is_empty() {
         candidates.push((String::new(), format!("{user}@{domain}")));
-        candidates.push((String::new(), user.to_string()));
     }
     candidates
 }
@@ -202,15 +201,31 @@ mod tests {
     }
 
     #[test]
-    fn installed_user_lookup_candidates_include_upn_and_default_domain() {
+    fn installed_user_lookup_candidates_include_upn_for_domain_accounts() {
         let candidates = installed_user_lookup_candidates("datadogqalab.com", "TestUser");
         assert_eq!(
             candidates,
             vec![
                 ("datadogqalab.com".to_string(), "TestUser".to_string()),
                 (String::new(), "TestUser@datadogqalab.com".to_string()),
-                (String::new(), "TestUser".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn installed_user_lookup_candidates_do_not_fall_back_to_bare_username_for_domain() {
+        let candidates = installed_user_lookup_candidates("CORP", "ddagentuser");
+        assert!(
+            !candidates.contains(&(String::new(), "ddagentuser".to_string())),
+            "domain installs must not resolve an unrelated local account with the same name"
+        );
+    }
+
+    #[test]
+    fn installed_user_lookup_candidates_for_local_account_use_machine_domain() {
+        assert_eq!(
+            installed_user_lookup_candidates("", "ddagentuser"),
+            vec![(String::new(), "ddagentuser".to_string())]
         );
     }
 }
