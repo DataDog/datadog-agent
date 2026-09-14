@@ -103,11 +103,12 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				ProcessName: "<unknown>",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "RLW_SRC_TRACK",
-					Fatality:         "fatal",
-					CrossContainment: "XC0",
-					Instance:         "i1",
+					Fatal:            true,
+					CrossContainment: false,
+					Injected:         true,
 					LinkID:           uint64Pointer(0),
-					StatusWords:      []string{"0x00000001", "0x00000002"},
+					IntrInfo:         "0x00000001",
+					ErrorStatus:      "0x00000002",
 				},
 			},
 		},
@@ -119,11 +120,11 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message: "NVRM: Xid (PCI:0000:00:1e): 149, NETIR_LINK_DOWN Nonfatal XC1 i2 Link 17 (0xdeadbeef)",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "NETIR_LINK_DOWN",
-					Fatality:         "nonfatal",
-					CrossContainment: "XC1",
-					Instance:         "i2",
+					Fatal:            false,
+					CrossContainment: true,
+					Injected:         true,
 					LinkID:           uint64Pointer(17),
-					StatusWords:      []string{"0xdeadbeef"},
+					IntrInfo:         "0xdeadbeef",
 				},
 			},
 		},
@@ -135,11 +136,58 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message: "NVRM: Xid (PCI:0000:00:1e): 149, NETIR_LINK_EVT Fatal XC 1 i 2 Link 01 [0x0000000a]",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "NETIR_LINK_EVT",
-					Fatality:         "fatal",
-					CrossContainment: "XC1",
-					Instance:         "i2",
+					Fatal:            true,
+					CrossContainment: true,
+					Injected:         true,
 					LinkID:           uint64Pointer(1),
-					StatusWords:      []string{"0x0000000a"},
+					IntrInfo:         "0x0000000a",
+				},
+			},
+		},
+		{
+			name:    "NVLink observed nonfatal fault keeps decode words in printed order",
+			message: "NVRM: Xid (PCI:0000:00:1e): 146, TLW_RX_PIPE1 Nonfatal XC0 i0 Link 03 (0x00000010 0x00000020 0x00000030 0x00000040)",
+			expected: model.NvidiaXid{
+				XidCode: 146,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 146, TLW_RX_PIPE1 Nonfatal XC0 i0 Link 03 (0x00000010 0x00000020 0x00000030 0x00000040)",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode:          "TLW_RX_PIPE1",
+					Fatal:            false,
+					CrossContainment: false,
+					Injected:         false,
+					LinkID:           uint64Pointer(3),
+					IntrInfo:         "0x00000010",
+					ErrorStatus:      "0x00000020",
+					ErrorDebugData:   []string{"0x00000030", "0x00000040"},
+				},
+			},
+		},
+		{
+			name:    "NVLink zero-padded flags are read numerically",
+			message: "NVRM: Xid (PCI:0000:00:1e): 147, TREX_ERR Nonfatal XC 00 i 00 Link 02 (0x00000005)",
+			expected: model.NvidiaXid{
+				XidCode: 147,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 147, TREX_ERR Nonfatal XC 00 i 00 Link 02 (0x00000005)",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode:          "TREX_ERR",
+					Fatal:            false,
+					CrossContainment: false,
+					Injected:         false,
+					LinkID:           uint64Pointer(2),
+					IntrInfo:         "0x00000005",
+				},
+			},
+		},
+		{
+			name:    "NVLink fault without a decode group",
+			message: "NVRM: Xid (PCI:0000:00:1e): 148, NVLPW_CTRL Fatal XC0 i0 Link 05",
+			expected: model.NvidiaXid{
+				XidCode: 148,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 148, NVLPW_CTRL Fatal XC0 i0 Link 05",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode: "NVLPW_CTRL",
+					Fatal:   true,
+					LinkID:  uint64Pointer(5),
 				},
 			},
 		},
@@ -213,6 +261,18 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				MemoryFault: &model.NvidiaXidMemoryFault{
 					FBPA:         uint64Pointer(4),
 					Subpartition: uint64Pointer(1),
+					Location:     "DRAM",
+				},
+			},
+		},
+		{
+			name:    "SRAM annotation carries location without a parsable field",
+			message: "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+			expected: model.NvidiaXid{
+				XidCode: 172,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					Location: "SRAM",
 				},
 			},
 		},
@@ -287,12 +347,32 @@ func uint64Pointer(value uint64) *uint64 {
 	return &value
 }
 
-func TestCreateDriverEventReportsResolutionError(t *testing.T) {
+func TestCreateDriverEventKeepsEventWhenDeviceIsUnresolved(t *testing.T) {
+	subscriber, telemetryMock := newTestDriverEventSubscriber(t)
+
+	// A GPU that has fallen off the PCIe bus cannot be resolved through NVML, so the event
+	// must survive with the PCI bus ID as its only device identifier.
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 79, GPU has fallen off the bus"})
+
+	require.NoError(t, err)
+	require.Empty(t, event.DeviceUUID)
+	require.Equal(t, "0000:97:00.0", event.PCIBusID)
+	require.Equal(t, uint64(79), event.NvidiaXid.XidCode)
+
+	unresolvedMetrics, err := telemetryMock.GetCountMetric("gpu__driver_events", "unresolved_pci")
+	require.NoError(t, err)
+	require.Len(t, unresolvedMetrics, 1)
+	require.Equal(t, float64(1), unresolvedMetrics[0].Value())
+}
+
+func TestCreateDriverEventRecordsPCIBusIDOnResolvedDevices(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
 
-	_, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 31"})
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:00:1e): 31"})
 
-	require.ErrorContains(t, err, "resolve device UUID for PCI bus ID 0000:97:00.0")
+	require.NoError(t, err)
+	require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID)
+	require.Equal(t, "0000:00:1e.0", event.PCIBusID)
 }
 
 func TestCreateDriverEventRejectsMalformedMessages(t *testing.T) {

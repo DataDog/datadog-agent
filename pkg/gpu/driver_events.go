@@ -37,6 +37,10 @@ const (
 	nvidiaXidRecoveryActionCode = 154
 	nvidiaXidChannelRepairCode  = 160
 	nvidiaXidDRAMDetailCode     = 171
+	nvidiaXidSRAMDetailCode     = 172
+
+	memoryLocationDRAM = "DRAM"
+	memoryLocationSRAM = "SRAM"
 )
 
 var (
@@ -51,7 +55,7 @@ var (
 	nvidiaMMUFaultTypePattern    = regexp.MustCompile(`\b(FAULT_[A-Z_]+)\b`)
 	nvidiaMMUAccessTypePattern   = regexp.MustCompile(`\b(ACCESS_TYPE_[A-Z_]+)\b`)
 	nvidiaNVLink5Pattern         = regexp.MustCompile(`(?i)\)\s*:\s*\d+\s*,\s*(?:pid=\d+,\s*name=(?:'[^']*'|[^,\s]+),\s*)?([A-Z][A-Z0-9_]*)\s+(Fatal|Nonfatal)\s+XC\s*(\d+)\s+i\s*(\d+)(?:\s+Link\s+(\d+))?`)
-	nvidiaHexWordPattern         = regexp.MustCompile(`(?i)\b0x[[:xdigit:]]+\b`)
+	nvidiaNVLinkStatusPattern    = regexp.MustCompile(`(?i)[(\[]\s*(0x[[:xdigit:]]+(?:[\s,]+0x[[:xdigit:]]+)*)\s*[)\]]`)
 	nvidiaPhysicalAddressPattern = regexp.MustCompile(`(?i)\bphysAddr\s+(0x[[:xdigit:]_]+)`)
 	nvidiaPartitionPattern       = regexp.MustCompile(`(?i)\bpartition\s+(\d+)\s*,\s*subpartition\s+(\d+)`)
 	nvidiaRowAddressPattern      = regexp.MustCompile(`(?i)\brow(?:\s+address)?\s+(0x[[:xdigit:]_]+)`)
@@ -210,6 +214,8 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		return event, errors.New("can't find PCI bus ID in message")
 	}
 
+	event.PCIBusID = pciBusID
+
 	// The raw kmsg timestamp cannot be reliably converted to wall time; use the
 	// timestamp captured by KmsgReader when it observed the record instead.
 	event.Timestamp = record.ObservedAt
@@ -233,10 +239,17 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		s.telemetry.enrichmentFailures.Inc()
 	}
 
+	// A device that has left the PCIe bus can no longer be resolved through NVML, which is
+	// exactly the state Xid 79 and the 62/119/120 sequence preceding it report. Dropping the
+	// event here would discard the codes that need it most, so keep the event and let the
+	// PCI bus ID carry the device identity.
 	device, err := s.deviceCache.GetByPCIBusID(pciBusID)
 	if err != nil {
 		s.telemetry.unresolvedPCI.Inc()
-		return event, fmt.Errorf("resolve device UUID for PCI bus ID %s: %w", pciBusID, err)
+		if logLimit.ShouldLog() {
+			log.Warnf("emitting driver event without device UUID: resolve PCI bus ID %s: %v", pciBusID, err)
+		}
+		return event, nil
 	}
 	event.DeviceUUID = device.GetDeviceInfo().UUID
 
@@ -301,7 +314,8 @@ func nvidiaXidDetailParserForCode(xidCode uint64) nvidiaXidDetailParser {
 		xidCode == nvidiaXidContainedECCCode ||
 		xidCode == nvidiaXidUncontainedECCCode ||
 		xidCode == nvidiaXidChannelRepairCode ||
-		xidCode == nvidiaXidDRAMDetailCode:
+		xidCode == nvidiaXidDRAMDetailCode ||
+		xidCode == nvidiaXidSRAMDetailCode:
 		return func(message string, xid *model.NvidiaXid) bool {
 			return parseNvidiaMemoryXid(message, xidCode, xid)
 		}
@@ -363,9 +377,9 @@ func parseNvidiaNVLink5Xid(message string, xid *model.NvidiaXid) bool {
 	}
 	details := &model.NvidiaXidNVLinkFault{
 		Subcode:          matches[1],
-		Fatality:         strings.ToLower(matches[2]),
-		CrossContainment: "XC" + matches[3],
-		Instance:         "i" + matches[4],
+		Fatal:            strings.EqualFold(matches[2], "Fatal"),
+		CrossContainment: parseNvidiaNVLinkFlag(matches[3]),
+		Injected:         parseNvidiaNVLinkFlag(matches[4]),
 	}
 	if matches[5] != "" {
 		linkID, err := strconv.ParseUint(matches[5], 10, 64)
@@ -374,11 +388,43 @@ func parseNvidiaNVLink5Xid(message string, xid *model.NvidiaXid) bool {
 		}
 		details.LinkID = &linkID
 	}
-	for _, word := range nvidiaHexWordPattern.FindAllString(message, -1) {
-		details.StatusWords = append(details.StatusWords, normalizeHex(word))
-	}
+	parseNvidiaNVLinkStatusGroup(message, details)
 	xid.NVLinkFault = details
 	return true
+}
+
+// parseNvidiaNVLinkFlag reads one of the line's 0/1 flag fields. The driver zero-pads these
+// fields (as it does the link number), so they are compared numerically rather than textually.
+func parseNvidiaNVLinkFlag(value string) bool {
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	return err == nil && parsed != 0
+}
+
+// parseNvidiaNVLinkStatusGroup reads the trailing decode group positionally. The first two
+// words are intrInfo and errorStatus, the inputs NVIDIA's decode table needs; the rest is
+// errorDebugData in printed order. A message-wide hex scrape cannot tell these apart.
+//
+// The driver parenthesises the group on R575+ and brackets it on earlier releases, so both
+// forms are accepted, and the last group on the line wins.
+func parseNvidiaNVLinkStatusGroup(message string, details *model.NvidiaXidNVLinkFault) {
+	groups := nvidiaNVLinkStatusPattern.FindAllStringSubmatch(message, -1)
+	if groups == nil {
+		return
+	}
+
+	words := strings.FieldsFunc(groups[len(groups)-1][1], func(r rune) bool {
+		return r == ' ' || r == '\t' || r == ','
+	})
+	for index, word := range words {
+		switch index {
+		case 0:
+			details.IntrInfo = normalizeHex(word)
+		case 1:
+			details.ErrorStatus = normalizeHex(word)
+		default:
+			details.ErrorDebugData = append(details.ErrorDebugData, normalizeHex(word))
+		}
+	}
 }
 
 func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) bool {
@@ -396,8 +442,18 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	if matches := nvidiaRowRemapperSitePattern.FindStringSubmatch(message); matches != nil {
 		details.RowRemapperSite = matches[1]
 	}
-	if (xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode) && nvidiaMemoryLocationPattern.MatchString(message) {
-		details.Location = strings.ToUpper(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])
+	// On Blackwell the DRAM/SRAM split arrives as a companion code rather than an inline
+	// field, so for 171 and 172 the code itself is the location and no parsing is needed.
+	// Only 94 and 95 carry the location in the message text.
+	switch xidCode {
+	case nvidiaXidDRAMDetailCode:
+		details.Location = memoryLocationDRAM
+	case nvidiaXidSRAMDetailCode:
+		details.Location = memoryLocationSRAM
+	case nvidiaXidContainedECCCode, nvidiaXidUncontainedECCCode:
+		if matches := nvidiaMemoryLocationPattern.FindStringSubmatch(message); matches != nil {
+			details.Location = strings.ToUpper(matches[1])
+		}
 	}
 	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
 		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))

@@ -207,7 +207,9 @@ func convertDriverXIDEvents(events []model.DriverEvent) []xidEvent {
 			continue
 		}
 		xids = append(xids, xidEvent{
-			DeviceUUID:  event.DeviceUUID,
+			// A device that has left the PCIe bus has no resolvable UUID, so fall back to the
+			// PCI bus ID to keep the event title and aggregation key attributable.
+			DeviceUUID:  event.DeviceKey(),
 			XIDCode:     event.NvidiaXid.XidCode,
 			Timestamp:   event.Timestamp,
 			DriverEvent: &event,
