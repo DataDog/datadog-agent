@@ -255,7 +255,7 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 		namespace: ksvc.Namespace,
 	}
 
-	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations(), ksvc.GetLabels())
 	svc.metricsExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
 	svc.globalExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
 

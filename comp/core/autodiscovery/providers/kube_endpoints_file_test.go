@@ -248,13 +248,13 @@ func TestCELSelector(t *testing.T) {
 	// Verify each template has a matching program by testing IsMatched
 	templates := p.store.epConfigs[celEndpointID].templates
 
-	prodEp := workloadfilter.CreateKubeEndpoint("test", "production", nil)
-	devEp := workloadfilter.CreateKubeEndpoint("test", "development", nil)
+	prodEp := workloadfilter.CreateKubeEndpoint("test", "production", nil, nil)
+	devEp := workloadfilter.CreateKubeEndpoint("test", "development", nil, nil)
 	assert.True(t, templates[0].IsMatched(prodEp))
 	assert.False(t, templates[0].IsMatched(devEp))
 
-	redisEp := workloadfilter.CreateKubeEndpoint("redis", "default", nil)
-	mongoEp := workloadfilter.CreateKubeEndpoint("mongo", "default", nil)
+	redisEp := workloadfilter.CreateKubeEndpoint("redis", "default", nil, nil)
+	mongoEp := workloadfilter.CreateKubeEndpoint("mongo", "default", nil, nil)
 	assert.True(t, templates[1].IsMatched(redisEp))
 	assert.False(t, templates[1].IsMatched(mongoEp))
 
