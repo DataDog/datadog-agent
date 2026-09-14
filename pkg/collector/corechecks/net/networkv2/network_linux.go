@@ -531,6 +531,11 @@ func getProcNetStateMetrics(protocol string, procfsPath string, suffixMapping ma
 	filePath := filepath.Join(procfsPath, "net", filename)
 	file, err := filesystem.Open(filePath)
 	if err != nil {
+		// ss treated a missing proc table as an empty protocol, which is also
+		// expected on kernels built without IPv6 support.
+		if os.IsNotExist(err) {
+			return parseProcNetMetrics(protocol, strings.NewReader(""), suffixMapping)
+		}
 		return nil, fmt.Errorf("unable to open %s: %w", filePath, err)
 	}
 	defer file.Close()

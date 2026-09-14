@@ -2395,6 +2395,22 @@ func TestSubmitConnectionStateMetricsPreservesCloseAliases(t *testing.T) {
 	}
 }
 
+func TestSubmitConnectionStateMetricsWithMissingProcTable(t *testing.T) {
+	originalFilesystem := filesystem
+	t.Cleanup(func() { filesystem = originalFilesystem })
+	filesystem = afero.NewMemMapFs()
+
+	mockSender := mocksender.NewMockSender(t, "network-missing-proc-table-test")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	submitConnectionStateMetrics(mockSender, "tcp6", true, true, "/missing/procfs")
+
+	for _, suffix := range []string{"established", "opening", "closing", "time_wait", "listening"} {
+		mockSender.AssertCalled(t, "Gauge", "system.net.tcp6."+suffix, float64(0), "", []string(nil))
+	}
+	mockSender.AssertNotCalled(t, "Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestProcNetMetricsWithKernelSockets(t *testing.T) {
 	originalFilesystem := filesystem
 	filesystem = afero.NewOsFs()
@@ -2473,8 +2489,18 @@ func TestGetProcNetStateMetrics(t *testing.T) {
 		})
 	}
 
-	_, err := getProcNetStateMetrics("tcp4", "/missing/procfs", tcpStateMetricsSuffixMapping)
-	require.Error(t, err)
+	got, err := getProcNetStateMetrics("tcp4", "/missing/procfs", tcpStateMetricsSuffixMapping)
+	require.NoError(t, err)
+	want := map[string]*connectionStateEntry{
+		"established": emptyConnectionStateEntry(),
+		"opening":     emptyConnectionStateEntry(),
+		"closing":     emptyConnectionStateEntry(),
+		"time_wait":   emptyConnectionStateEntry(),
+		"listening":   emptyConnectionStateEntry(),
+	}
+	if diff := gocmp.Diff(want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+		t.Errorf("missing proc table result diff (-want +got):\n%s", diff)
+	}
 }
 
 func TestParseProcNetMetrics(t *testing.T) {
