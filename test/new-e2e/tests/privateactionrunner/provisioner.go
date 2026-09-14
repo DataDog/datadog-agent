@@ -121,13 +121,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 4. Plant allowed and operator-blocked test data on the Kind node.
-			_, err = host.OS.Runner().Command(
+			plantTestData, err := host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
 						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
 						kindCluster.ClusterName,
 					),
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
 				},
 				utils.PulumiDependsOn(kindCluster),
 			)
@@ -151,6 +152,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
+				kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(plantTestData)),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)

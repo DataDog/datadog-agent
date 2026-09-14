@@ -733,7 +733,11 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "device_count",
 			Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				return []Sample{&Metric{Name: "device.total", Value: 1, Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{
+					Name:  "device.total",
+					Value: 1,
+					Type:  metrics.GaugeType,
+				}}, 0, nil
 			},
 		},
 		{
