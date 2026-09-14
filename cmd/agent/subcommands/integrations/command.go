@@ -37,6 +37,9 @@ import (
 )
 
 const (
+	// Namespace reserved for Datadog's own packages on the first-party Python index.
+	internalNamespacePrefix = "dd-internal-"
+
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	downloaderModule    = "datadog_checks.downloader"
@@ -206,7 +209,10 @@ func getIntegrationName(packageName string) string {
 	case "datadog-go-metro":
 		return "go-metro"
 	default:
-		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(packageName, "datadog-"), "-", "_"))
+		// First-party wheels are published under a reserved dd-internal- namespace,
+		// since the index shares a namespace with mirrored public PyPI names.
+		name := strings.TrimPrefix(packageName, internalNamespacePrefix)
+		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(name, "datadog-"), "-", "_"))
 	}
 }
 
@@ -889,7 +895,8 @@ func list(cliParams *cliParams, _ log.Component) error {
 
 	// The agent integration freeze command should only show datadog packages and nothing else
 	for i := range pythonLibs {
-		if strings.HasPrefix(pythonLibs[i], "datadog-") {
+		if strings.HasPrefix(pythonLibs[i], "datadog-") ||
+			strings.HasPrefix(pythonLibs[i], internalNamespacePrefix+"datadog-") {
 			fmt.Println(pythonLibs[i])
 		}
 	}
