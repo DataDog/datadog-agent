@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::Result;
-#[cfg(not(test))]
-use anyhow::{Context, bail};
+use anyhow::{Context, Result, bail};
 #[cfg(not(test))]
 use log::info;
 #[cfg(not(test))]
@@ -17,7 +15,6 @@ use windows_sys::Win32::System::Services::{
 };
 
 use super::sid::lookup_account_sid;
-#[cfg(not(test))]
 use super::sid::sid_to_string;
 #[cfg(not(test))]
 use super::wide;
@@ -61,7 +58,6 @@ pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<
     }))
 }
 
-#[cfg(not(test))]
 pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
     use super::{open_datadog_agent_key, registry_nonempty_string};
 

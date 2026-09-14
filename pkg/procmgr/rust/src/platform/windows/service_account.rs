@@ -65,7 +65,7 @@ fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
     }
 
     let symbol = c"NetIsServiceAccount";
-    let proc = unsafe { GetProcAddress(module, symbol.as_ptr()) };
+    let proc = unsafe { GetProcAddress(module, symbol.as_ptr().cast()) };
     let Some(proc) = proc else {
         return Err(std::io::Error::last_os_error()).context("GetProcAddress(NetIsServiceAccount)");
     };
