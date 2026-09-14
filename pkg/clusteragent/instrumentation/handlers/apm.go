@@ -32,16 +32,6 @@ const (
 	reasonAPMInvalidConfig   = "InvalidTracerConfig"
 )
 
-var supportedAPMLanguages = map[string]struct{}{
-	"java":   {},
-	"js":     {},
-	"python": {},
-	"dotnet": {},
-	"ruby":   {},
-	"php":    {},
-	"c":      {},
-}
-
 // APMHandler translates DatadogInstrumentation APM sections into SSI admission
 // webhook configuration.
 type APMHandler struct {
@@ -79,7 +69,7 @@ func (h *APMHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReferenc
 func (h *APMHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
 	var errs []instrumentation.ValidationError
 	for lang := range cr.Spec.Config.APM.TracerVersions {
-		if _, ok := supportedAPMLanguages[lang]; !ok {
+		if !ssi.IsLanguageSupported(lang) {
 			errs = append(errs, instrumentation.ValidationError{
 				Type:        apmReadyConditionType,
 				Reason:      reasonAPMUnsupportedLang,

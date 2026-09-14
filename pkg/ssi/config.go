@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-// Package ssi contains shared Single Step Instrumentation configuration types.
+// Package ssi contains shared Single Step Instrumentation types and constants.
 package ssi
 
 import (
