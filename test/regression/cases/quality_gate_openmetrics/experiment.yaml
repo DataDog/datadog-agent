@@ -58,14 +58,14 @@ checks:
   - name: checks_runs
     description: "Check runs quality gate. This puts a bound on the average number of check runs per scrape cycle."
     bounds:
-      series: avg(checks__runs)
+      series: avg(target/checks.runs)
       # TODO: calibrate from a baseline run before enforcing.
       upper_bound: 1000
 
   - name: checks_execution_time
     description: "Check execution time quality gate. This puts a bound on the average time to execute check instances."
     bounds:
-      series: avg(checks__execution_time)
+      series: avg(target/checks.execution_time)
       # TODO: calibrate from a baseline run before enforcing.
       upper_bound: 1000
 

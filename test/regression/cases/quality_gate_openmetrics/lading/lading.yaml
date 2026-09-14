@@ -108,10 +108,10 @@ target_metrics:
   - prometheus: # filtered scrape: server-side name[] filter avoids the 1s timeout on huge telemetry responses
       uri: "http://127.0.0.1:5000/telemetry?name[]=checks__runs&name[]=checks__execution_time&name[]=checks__delay&name[]=checks__metrics_samples"
       metrics:
-        - "checks__runs"
-        - "checks__execution_time"
-        - "checks__delay"
-        - "checks__metrics_samples"
+        - "checks.runs"
+        - "checks.execution_time"
+        - "checks.delay"
+        - "checks.metrics_samples"
       tags:
         sub_agent: "core"
         workload: "openmetrics"
