@@ -66,8 +66,8 @@ func isDependencyName(name string) bool {
 }
 
 func validatePackageIdentity(fqn string, descriptor Descriptor, manifest *Manifest) error {
-	if descriptor.Package != fqn {
-		return fmt.Errorf("authored-script descriptor package %q does not match catalog key %q", descriptor.Package, fqn)
+	if descriptor.FQN != fqn {
+		return fmt.Errorf("authored-script descriptor FQN %q does not match catalog key %q", descriptor.FQN, fqn)
 	}
 	if manifest.FQN != fqn {
 		return fmt.Errorf("authored-script manifest FQN %q does not match catalog key %q", manifest.FQN, fqn)

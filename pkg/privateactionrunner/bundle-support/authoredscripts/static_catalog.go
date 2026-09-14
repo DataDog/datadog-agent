@@ -18,7 +18,8 @@ type StaticCatalog struct {
 // Only descriptors with verified artifact coordinates should be added here.
 var staticCatalogEntries = map[string]Descriptor{
 	"com.datadoghq.authoredscripts.helm.addRepo": {
-		Package: "com.datadoghq.authoredscripts.helm.addRepo",
+		FQN:     "com.datadoghq.authoredscripts.helm.addRepo",
+		Package: "dd-par-scripts-helm-add-repo",
 		Version: "0.0.1",
 		URL:     "oci://registry.ddbuild.io/dd-authored-scripts/dd-par-scripts-helm-add-repo@sha256:ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c",
 		SHA256:  "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c",

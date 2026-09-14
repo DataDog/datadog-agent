@@ -109,19 +109,19 @@ func (s *Source) Fetch(
 		return fmt.Errorf("could not extract authored-script OCI package: %w", err)
 	}
 
-	pkg, err := authoredscripts.LoadPackage(
-		descriptor.Package,
+	_, err = authoredscripts.LoadPackage(
+		descriptor.FQN,
 		descriptor,
 		authoredscripts.LocalArtifact{Directory: destination},
 	)
 	if err != nil {
 		return fmt.Errorf("could not validate authored-script OCI package: %w", err)
 	}
-	if downloadedPackage.Name != pkg.Manifest.Package {
-		return fmt.Errorf("OCI package name %q does not match authored-script manifest package %q", downloadedPackage.Name, pkg.Manifest.Package)
+	if downloadedPackage.Name != descriptor.Package {
+		return fmt.Errorf("OCI package name %q does not match catalog package %q", downloadedPackage.Name, descriptor.Package)
 	}
-	if downloadedPackage.Version != pkg.Manifest.Version {
-		return fmt.Errorf("OCI package version %q does not match authored-script manifest version %q", downloadedPackage.Version, pkg.Manifest.Version)
+	if downloadedPackage.Version != descriptor.Version {
+		return fmt.Errorf("OCI package version %q does not match catalog version %q", downloadedPackage.Version, descriptor.Version)
 	}
 	return nil
 }

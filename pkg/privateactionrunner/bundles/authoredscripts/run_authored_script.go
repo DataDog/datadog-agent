@@ -27,8 +27,14 @@ type RunAuthoredScriptHandler struct {
 }
 
 func NewRunAuthoredScriptHandler(enabled bool) *RunAuthoredScriptHandler {
+	return NewRunAuthoredScriptHandlerWithCatalog(enabled, authoredscripts.NewStaticCatalog())
+}
+
+// NewRunAuthoredScriptHandlerWithCatalog creates an authored-script handler
+// using catalog as its artifact authorization and lookup boundary.
+func NewRunAuthoredScriptHandlerWithCatalog(enabled bool, catalog authoredscripts.Catalog) *RunAuthoredScriptHandler {
 	handler := &RunAuthoredScriptHandler{
-		catalog: authoredscripts.NewStaticCatalog(),
+		catalog: catalog,
 		enabled: enabled,
 	}
 	if !enabled {

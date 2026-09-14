@@ -8,6 +8,7 @@ package com_datadoghq_authoredscripts
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -18,8 +19,14 @@ type AuthoredScripts struct {
 }
 
 func NewAuthoredScripts(enabled bool) *AuthoredScripts {
+	return NewAuthoredScriptsWithCatalog(enabled, authoredscripts.NewStaticCatalog())
+}
+
+// NewAuthoredScriptsWithCatalog creates the bundle with an injected artifact
+// catalog. NewAuthoredScripts retains the temporary static-catalog behavior.
+func NewAuthoredScriptsWithCatalog(enabled bool, catalog authoredscripts.Catalog) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(enabled),
+		runAuthoredScript: NewRunAuthoredScriptHandlerWithCatalog(enabled, catalog),
 	}
 }
 

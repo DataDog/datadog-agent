@@ -118,7 +118,7 @@ func (c *PackageCache) Resolve(ctx context.Context, descriptor Descriptor) (Loca
 		},
 	)
 	if err != nil {
-		return LocalArtifact{}, fmt.Errorf("could not ensure authored-script package %q version %q: %w", descriptor.Package, descriptor.Version, err)
+		return LocalArtifact{}, fmt.Errorf("could not ensure authored-script package %q for action %q version %q: %w", descriptor.Package, descriptor.FQN, descriptor.Version, err)
 	}
 	return LocalArtifact{Directory: artifact.Directory}, nil
 }
@@ -137,6 +137,9 @@ func validateArtifact(ctx context.Context, descriptor Descriptor, directory stri
 }
 
 func validatePackageDescriptor(descriptor Descriptor) error {
+	if descriptor.FQN == "" {
+		return errors.New("authored-script FQN is required")
+	}
 	if descriptor.Package == "" {
 		return errors.New("authored-script package is required")
 	}
@@ -161,7 +164,7 @@ func artifactVariant(sourceVariant string, descriptor Descriptor) string {
 	// Materialization behavior, package, and version affect validation even when
 	// the source digest is the same. Including them prevents one set of
 	// validation semantics from invalidating another set's cache entry.
-	digest := sha256.Sum256([]byte(sourceVariant + "\x00" + descriptor.Package + "\x00" + descriptor.Version))
+	digest := sha256.Sum256([]byte(sourceVariant + "\x00" + descriptor.FQN + "\x00" + descriptor.Package + "\x00" + descriptor.Version))
 	return artifactKeyVersion + "-" + hex.EncodeToString(digest[:])
 }
 
@@ -169,7 +172,7 @@ func loadDownloadedPackage(ctx context.Context, descriptor Descriptor, artifactD
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	pkg, err := LoadPackage(descriptor.Package, descriptor, LocalArtifact{Directory: artifactDirectory})
+	pkg, err := LoadPackage(descriptor.FQN, descriptor, LocalArtifact{Directory: artifactDirectory})
 	if err != nil {
 		return nil, fmt.Errorf("could not validate downloaded authored-script package: %w", err)
 	}

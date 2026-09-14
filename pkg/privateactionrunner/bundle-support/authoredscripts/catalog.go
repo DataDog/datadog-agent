@@ -12,6 +12,9 @@ var ErrPackageNotConfigured = errors.New("authored-script package is not configu
 
 // Descriptor identifies an immutable published artifact variant.
 type Descriptor struct {
+	// FQN is the authored action identity used to look up the descriptor.
+	// Package is the Datadog Package identity stored in the OCI manifest.
+	FQN     string `json:"fqn"`
 	Package string `json:"package"`
 	Version string `json:"version"`
 	URL     string `json:"url"`
