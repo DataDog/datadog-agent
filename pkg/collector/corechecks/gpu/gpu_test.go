@@ -825,6 +825,56 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags2), metricTimestamp3)
 }
 
+func TestStrictIntervalMetricsEmitOnTheirOwnCadence(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+
+	const strictInterval = 15 * time.Second
+	deviceUUID := testutil.GPUUUIDs[0]
+	check.collectors = []nvidia.Collector{&mockCollector{
+		name:       "device",
+		deviceUUID: deviceUUID,
+		collectFunc: func() ([]nvidia.Sample, error) {
+			// Collectors build fresh samples on every run.
+			return []nvidia.Sample{
+				&nvidia.Metric{Name: "strict_metric", Value: 1, Type: ddmetrics.GaugeType, StrictInterval: strictInterval},
+				&nvidia.Metric{Name: "regular_metric", Value: 2, Type: ddmetrics.GaugeType},
+			}, nil
+		},
+	}}
+
+	require.NoError(t, check.deviceCache.Refresh())
+
+	// The check runs every 5s, so the strict metric is only emitted on every third run.
+	start := time.Now()
+	var strictTimestamps []float64
+	for run := range 7 {
+		mockSender.ResetCalls()
+		runTime := start.Add(time.Duration(run) * 5 * time.Second)
+		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+
+		runTimestamp := float64(runTime.UnixNano()) / float64(time.Second)
+		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.regular_metric", 2.0, "", mock.Anything, runTimestamp)
+
+		for _, call := range mockSender.Mock.Calls {
+			if call.Method == "GaugeWithTimestamp" && call.Arguments.String(0) == "gpu.strict_metric" {
+				strictTimestamps = append(strictTimestamps, call.Arguments.Get(4).(float64))
+			}
+		}
+	}
+
+	// Runs at 0s, 15s and 30s produce a point; the ones in between are dropped.
+	expected := []float64{
+		float64(start.UnixNano()) / float64(time.Second),
+		float64(start.Add(strictInterval).UnixNano()) / float64(time.Second),
+		float64(start.Add(2*strictInterval).UnixNano()) / float64(time.Second),
+	}
+	require.Equal(t, expected, strictTimestamps)
+}
+
 func TestRunEmitsCorrectTags(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
@@ -1230,6 +1280,14 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		5678: "container-5678",
 	}
 	seedContainersForPIDMapping(wmeta, fakeTagger, pidToContainerID)
+
+	// This test asserts on the metrics of a single check run, so the device count must
+	// not be held back by its fixed reporting cadence. The cadence itself is covered by
+	// TestStrictIntervalMetricsEmitOnTheirOwnCadence.
+	pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", 0)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", "15s")
+	})
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, pidToContainerID)
 
