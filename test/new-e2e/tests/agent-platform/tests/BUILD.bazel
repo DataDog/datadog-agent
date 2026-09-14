@@ -14,6 +14,7 @@ dd_agent_go_test(
         "upgrade_test.go",
     ],
     data = ["//cmd/agent:macos/uninstall_mac_os.sh"],
+    tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",

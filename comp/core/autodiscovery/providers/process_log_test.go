@@ -14,6 +14,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -23,8 +26,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func scheduleToMap(configs []integration.Config) map[string]integration.Config {
@@ -42,6 +43,12 @@ func isRootUser() bool {
 func skipOnWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows due to Unix-specific file operations and permissions")
+	}
+}
+
+func skipOnAIX(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("Skipping test on aix due to OS specific behavior")
 	}
 }
 
@@ -957,6 +964,7 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 
 func TestProcessLogProviderIsFileReadable(t *testing.T) {
 	skipOnWindows(t)
+	skipOnAIX(t)
 
 	// Test 1: Readable text file
 	readableFile, err := os.CreateTemp("", "readable_test_*.log")
