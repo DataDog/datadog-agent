@@ -9,11 +9,18 @@ package gzipimpl
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// maxDecompressedSize is the maximum number of bytes Decompress will read from a gzip
+// stream. It guards against decompression bombs; exceeding it is an error, not a silent
+// truncation.
+const maxDecompressedSize = 500 * 1024 * 1024 // 500 MiB
 
 // Requires contains the compression level for gzip compression
 type Requires struct {
@@ -75,11 +82,14 @@ func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
 	}
 	defer reader.Close()
 
-	// Read all decompressed data
+	// Read all decompressed data, but never more than maxDecompressedSize.
 	var result bytes.Buffer
-	_, err = io.Copy(&result, reader)
-	if err != nil {
+	n, err := io.CopyN(&result, reader, maxDecompressedSize+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
+	}
+	if n > maxDecompressedSize {
+		return nil, fmt.Errorf("gzip decompress: decompressed payload exceeds maximum allowed size of %d bytes", maxDecompressedSize)
 	}
 
 	return result.Bytes(), nil
