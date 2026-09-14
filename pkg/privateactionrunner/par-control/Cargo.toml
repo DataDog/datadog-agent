@@ -21,14 +21,18 @@ base64.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 datadog-agent-commons.workspace = true
+datadog-protos.workspace = true
 dd-agent-log.workspace = true
+futures.workspace = true
 dd-procmgr-client.workspace = true
 hyper-util.workspace = true
 log.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
+prost-types.workspace = true
 reqwest.workspace = true
 rustls-pki-types.workspace = true
+saluki-config.workspace = true
 saluki-tls.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

@@ -284,6 +284,7 @@ pub struct HttpOpmsConfig {
     pub modes: Vec<String>,
     pub timeout: Duration,
     pub proxy_url: Option<String>,
+    pub no_proxy: Option<String>,
     pub tls: TlsConfig,
     pub extra_headers: HashMap<String, String>,
 }
@@ -339,10 +340,15 @@ impl HttpOpms {
             // do not let reqwest independently re-read process environment.
             .no_proxy();
         if let Some(proxy_url) = options.proxy_url {
-            builder = builder.proxy(
-                reqwest::Proxy::all(proxy_url)
-                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?,
-            );
+            let proxy = reqwest::Proxy::all(proxy_url)
+                .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?
+                .no_proxy(
+                    options
+                        .no_proxy
+                        .as_deref()
+                        .and_then(reqwest::NoProxy::from_string),
+                );
+            builder = builder.proxy(proxy);
         }
         let client = builder.build().context("building the OPMS HTTP client")?;
         Ok(Self {
@@ -617,6 +623,7 @@ mod tests {
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
                 proxy_url: None,
+                no_proxy: None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::from([
                     (
@@ -736,6 +743,7 @@ mod tests {
                     modes: vec!["pull".into()],
                     timeout: Duration::from_secs(10),
                     proxy_url: None,
+                    no_proxy: None,
                     tls: TlsConfig::default(),
                     extra_headers: HashMap::new(),
                 },
@@ -810,6 +818,7 @@ mod tests {
                 proxy_url: Some(format!(
                     "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
                 )),
+                no_proxy: None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::new(),
             },

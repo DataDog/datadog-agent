@@ -905,7 +905,7 @@ dependencies = [
 [[package]]
 name = "datadog-agent-commons"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "backon",
  "datadog-protos",
@@ -913,12 +913,10 @@ dependencies = [
  "pin-project-lite",
  "rustls",
  "rustls-pki-types",
- "saluki-config",
  "saluki-error",
  "saluki-io",
  "saluki-metadata",
  "saluki-tls",
- "serde",
  "tokio",
  "tokio-vsock",
  "tonic",
@@ -929,7 +927,7 @@ dependencies = [
 [[package]]
 name = "datadog-protos"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "bytes",
  "piecemeal",
@@ -1056,7 +1054,7 @@ dependencies = [
 [[package]]
 name = "ddsketch"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "datadog-protos",
  "float-cmp",
@@ -1547,7 +1545,7 @@ checksum = "9985c9503b412198aa4197559e9a318524ebc4519c229bfa05a535828c950b9d"
 [[package]]
 name = "go-duration"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 
 [[package]]
 name = "group"
@@ -2550,15 +2548,19 @@ dependencies = [
  "chrono",
  "clap",
  "datadog-agent-commons",
+ "datadog-protos",
  "dd-agent-log",
  "dd-procmgr-client",
+ "futures",
  "hyper-util",
  "log",
  "p256",
  "prost",
+ "prost-types",
  "reqwest",
  "rustls",
  "rustls-pki-types",
+ "saluki-config",
  "saluki-tls",
  "serde",
  "serde_json",
@@ -2928,7 +2930,7 @@ dependencies = [
 [[package]]
 name = "process-memory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "libc",
  "mach2",
@@ -2939,7 +2941,7 @@ dependencies = [
 [[package]]
 name = "prometheus-exposition"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 
 [[package]]
 name = "prost"
@@ -3561,12 +3563,12 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 [[package]]
 name = "saluki-antithesis"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 
 [[package]]
 name = "saluki-api"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "axum",
  "axum-extra",
@@ -3577,7 +3579,7 @@ dependencies = [
 [[package]]
 name = "saluki-common"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "bytes",
  "crossbeam-queue",
@@ -3606,7 +3608,7 @@ dependencies = [
 [[package]]
 name = "saluki-config"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "figment",
  "go-duration",
@@ -3623,7 +3625,7 @@ dependencies = [
 [[package]]
 name = "saluki-context"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "indexmap 2.14.0",
  "memchr",
@@ -3642,7 +3644,7 @@ dependencies = [
 [[package]]
 name = "saluki-core"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "anymap3",
  "async-trait",
@@ -3679,7 +3681,7 @@ dependencies = [
 [[package]]
 name = "saluki-error"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "anyhow",
 ]
@@ -3687,7 +3689,7 @@ dependencies = [
 [[package]]
 name = "saluki-io"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "async-compression",
  "async-trait",
@@ -3739,7 +3741,7 @@ dependencies = [
 [[package]]
 name = "saluki-metadata"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "serde",
 ]
@@ -3747,7 +3749,7 @@ dependencies = [
 [[package]]
 name = "saluki-metrics"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "metrics",
  "papaya",
@@ -3757,7 +3759,7 @@ dependencies = [
 [[package]]
 name = "saluki-metrics-macros"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3767,7 +3769,7 @@ dependencies = [
 [[package]]
 name = "saluki-tls"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "rustls",
  "rustls-cng-crypto",
@@ -4260,7 +4262,7 @@ dependencies = [
 [[package]]
 name = "stringtheory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?rev=a6c1769ab1629b0040126f306726da6170fbbd77#a6c1769ab1629b0040126f306726da6170fbbd77"
+source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
 dependencies = [
  "foldhash 0.2.0",
  "protobuf",
