@@ -64,6 +64,7 @@ func TestMapDirectiveUsesIdentityCheckedWriteback(t *testing.T) {
 	assert.Equal(t, domain, rec.recorded[0].AdditionalEndpointDomain)
 	assert.Equal(t, 0, rec.recorded[0].AdditionalEndpointKeyIndex)
 	assert.Equal(t, domain, rec.recorded[0].TargetSite)
+	assert.True(t, rec.recorded[0].AllowAsyncStartup)
 }
 
 func TestMapShapeEntryWithoutADomainRegistersNothing(t *testing.T) {
@@ -264,6 +265,7 @@ func TestListShapeDirectiveUsesIdentityCheckedWriteback(t *testing.T) {
 	assert.Equal(t, "org2.datadoghq.com", rec.recorded[0].TargetSite)
 	assert.Equal(t, "DELA(org-uuid-2, aws)", rec.recorded[0].AdditionalEndpointDirective)
 	assert.NotEmpty(t, rec.recorded[0].AdditionalEndpointIdentity)
+	assert.True(t, rec.recorded[0].AllowAsyncStartup)
 }
 
 func TestListShapeDirectiveRequiresForcedHTTP(t *testing.T) {

@@ -218,6 +218,7 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 	params.Config = config
 	params.OrgUUID = directive.orgUUID
 	params.RefreshInterval = config.GetInt("delegated_auth.refresh_interval_mins")
+	params.AllowAsyncStartup = true
 	params.APIKeyConfigKey += "[" + directive.orgUUID + "]"
 	params.ProviderConfig = instanceProviderConfig
 	params.AdditionalEndpointDirective = directiveText
