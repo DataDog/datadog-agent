@@ -246,6 +246,9 @@ CLAUDE_PERSONAL.md
 AUTO_JIRA.md
 .agents/skills/auto-jira/SKILL.notes.md
 
+# follow-pr worktree-local autonomy preferences (local only, never commit)
+.agents/skills/follow-pr/config.toml
+
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
