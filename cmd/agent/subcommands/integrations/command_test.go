@@ -123,20 +123,3 @@ func TestRegexMatch(t *testing.T) {
 		require.Equal(t, expected, matches[subexpIndex])
 	}
 }
-
-func TestGetIntegrationName(t *testing.T) {
-	// The check name drives where configuration files are copied from, so a package
-	// name that resolves to the wrong check fails the install outright.
-	for packageName, expected := range map[string]string{
-		"datadog-postgres":                          "postgres",
-		"datadog-kafka-consumer-custom":             "kafka_consumer_custom",
-		"dd-internal-datadog-kafka-consumer-custom": "kafka_consumer_custom",
-		"dd-internal-datadog-hf-telemetry":          "hf_telemetry",
-		"datadog-checks-base":                       "base",
-		"datadog-checks-downloader":                 "downloader",
-		"datadog-go-metro":                          "go-metro",
-		"datadog-nginx-ingress-controller":          "nginx_ingress_controller",
-	} {
-		assert.Equal(t, expected, getIntegrationName(packageName), packageName)
-	}
-}

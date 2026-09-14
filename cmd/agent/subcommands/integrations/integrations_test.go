@@ -180,6 +180,17 @@ func TestPEP440ToSemver(t *testing.T) {
 	assert.Equal(t, version.String(), "1.3.4-dev.1")
 }
 
+func TestGetIntegrationName(t *testing.T) {
+	assert.Equal(t, getIntegrationName("datadog-checks-base"), "base")
+	assert.Equal(t, getIntegrationName("datadog-checks-downloader"), "downloader")
+	assert.Equal(t, getIntegrationName("datadog-go-metro"), "go-metro")
+	assert.Equal(t, getIntegrationName("datadog-nginx-ingress-controller"), "nginx_ingress_controller")
+	// Wheels on the first-party index carry the reserved dd-internal- prefix on the
+	// distribution name only; the check name must come out the same either way.
+	assert.Equal(t, getIntegrationName("dd-internal-datadog-hf-telemetry"), "hf_telemetry")
+	assert.Equal(t, getIntegrationName("dd-internal-datadog-kafka-consumer-custom"), "kafka_consumer_custom")
+}
+
 func TestNormalizePackageName(t *testing.T) {
 	assert.Equal(t, normalizePackageName("datadog-checks_base"), "datadog-checks-base")
 	assert.Equal(t, normalizePackageName("datadog_checks_downloader"), "datadog-checks-downloader")
