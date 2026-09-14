@@ -63,6 +63,7 @@ func NewTestEBPFResolver(
 		reparentProcfsResolutionFail: atomic.NewInt64(0),
 		procFallbackLimiterDrop:      atomic.NewInt64(0),
 		inodeErrStats:                make(map[string]*atomic.Int64),
+		spanCtxStats:                 newSpanCtxStats(),
 		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
 		otelProcCtxPending:           make(map[uint32]struct{}),
 	}
