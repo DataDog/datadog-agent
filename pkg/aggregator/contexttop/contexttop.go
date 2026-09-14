@@ -49,6 +49,15 @@ type metricContexts struct {
 
 // FromFile reads a context dump and returns its top metrics.
 func FromFile(filePath string, numMetrics, numTags int) (Result, error) {
+	return fromFile(filePath, numMetrics, numTags, false)
+}
+
+// FromFileWithStrictLimits reads a context dump without exceeding the requested limits.
+func FromFileWithStrictLimits(filePath string, numMetrics, numTags int) (Result, error) {
+	return fromFile(filePath, numMetrics, numTags, true)
+}
+
+func fromFile(filePath string, numMetrics, numTags int, strictLimits bool) (Result, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return Result{}, err
@@ -62,10 +71,14 @@ func FromFile(filePath string, numMetrics, numTags int) (Result, error) {
 		r = d
 	}
 
-	return summarize(r, numMetrics, numTags)
+	return summarizeWithLimitMode(r, numMetrics, numTags, strictLimits)
 }
 
 func summarize(r io.Reader, numMetrics, numTags int) (Result, error) {
+	return summarizeWithLimitMode(r, numMetrics, numTags, false)
+}
+
+func summarizeWithLimitMode(r io.Reader, numMetrics, numTags int, strictLimits bool) (Result, error) {
 	if numMetrics < 0 {
 		return Result{}, errors.New("number of metrics must not be negative")
 	}
@@ -109,11 +122,11 @@ func summarize(r io.Reader, numMetrics, numTags int) (Result, error) {
 		return left > right
 	})
 
-	top, rest := splitTop(names, numMetrics)
+	top, rest := splitTop(names, numMetrics, strictLimits)
 	result := Result{Metrics: make([]Metric, 0, len(top))}
 	for _, name := range top {
 		m := metrics[name]
-		tags, otherTags, otherTagValues := summarizeTags(m.tags, numTags)
+		tags, otherTags, otherTagValues := summarizeTags(m.tags, numTags, strictLimits)
 		result.Metrics = append(result.Metrics, Metric{
 			Name:           name,
 			Contexts:       m.count,
@@ -131,7 +144,7 @@ func summarize(r io.Reader, numMetrics, numTags int) (Result, error) {
 	return result, nil
 }
 
-func summarizeTags(tags map[string]struct{}, limit int) ([]Tag, int, uint) {
+func summarizeTags(tags map[string]struct{}, limit int, strictLimits bool) ([]Tag, int, uint) {
 	cardinalities := make(map[string]uint)
 	for tag := range tags {
 		key, _, _ := strings.Cut(tag, ":")
@@ -151,7 +164,7 @@ func summarizeTags(tags map[string]struct{}, limit int) ([]Tag, int, uint) {
 		return left > right
 	})
 
-	top, rest := splitTop(keys, limit)
+	top, rest := splitTop(keys, limit, strictLimits)
 	result := make([]Tag, 0, len(top))
 	for _, key := range top {
 		result = append(result, Tag{Key: key, UniqueValues: cardinalities[key]})
@@ -165,9 +178,9 @@ func summarizeTags(tags map[string]struct{}, limit int) ([]Tag, int, uint) {
 	return result, len(rest), otherValues
 }
 
-func splitTop[T any](values []T, limit int) ([]T, []T) {
-	// Avoid collapsing a single remaining value into an "other" row.
-	if len(values) <= limit+1 {
+func splitTop[T any](values []T, limit int, strictLimits bool) ([]T, []T) {
+	// Preserve the CLI's existing single-remainder presentation unless strict limits are requested.
+	if len(values) <= limit || (!strictLimits && len(values) == limit+1) {
 		return values, nil
 	}
 	return values[:limit], values[limit:]

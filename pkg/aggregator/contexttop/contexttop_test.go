@@ -94,3 +94,33 @@ func TestSummarizeIncludesSingleRemainder(t *testing.T) {
 	require.Len(t, result.Metrics, 3)
 	require.Zero(t, result.OtherMetrics)
 }
+
+func TestSummarizeStrictlyLimitsSingleRemainders(t *testing.T) {
+	var dump bytes.Buffer
+	enc := json.NewEncoder(&dump)
+	for _, context := range []aggregator.ContextDebugRepr{
+		{Name: "first", MetricTags: []string{"alpha:1", "beta:1", "gamma:1"}},
+		{Name: "first", MetricTags: []string{"alpha:2", "beta:1", "gamma:1"}},
+		{Name: "second"},
+		{Name: "third"},
+	} {
+		require.NoError(t, enc.Encode(context))
+	}
+
+	result, err := summarizeWithLimitMode(&dump, 2, 2, true)
+	require.NoError(t, err)
+	require.Equal(t, Result{
+		Metrics: []Metric{
+			{
+				Name:           "first",
+				Contexts:       2,
+				Tags:           []Tag{{Key: "alpha", UniqueValues: 2}, {Key: "beta", UniqueValues: 1}},
+				OtherTags:      1,
+				OtherTagValues: 1,
+			},
+			{Name: "second", Contexts: 1, Tags: []Tag{}},
+		},
+		OtherMetrics:  1,
+		OtherContexts: 1,
+	}, result)
+}

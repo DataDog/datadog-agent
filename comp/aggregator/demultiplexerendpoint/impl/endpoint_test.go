@@ -93,6 +93,42 @@ func TestTopDogstatsdContextsDefaultsToLive(t *testing.T) {
 	}`, recorder.Body.String())
 }
 
+func TestTopDogstatsdContextsStrictlyLimitsSingleRemainders(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "first", MetricTags: []string{"alpha:1", "beta:1", "gamma:1"}},
+			{Name: "first", MetricTags: []string{"alpha:2", "beta:1", "gamma:1"}},
+			{Name: "second"},
+			{Name: "third"},
+		},
+		runPath: t.TempDir(),
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{"num_metrics":2,"num_tags":2,"source":"live"}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "live",
+		"metrics": [
+			{
+				"name": "first",
+				"contexts": 2,
+				"tags": [
+					{"key": "alpha", "unique_values": 2},
+					{"key": "beta", "unique_values": 1}
+				],
+				"other_tags": 1,
+				"other_tag_values": 1
+			},
+			{"name": "second", "contexts": 1, "tags": []}
+		],
+		"other_metrics": 1,
+		"other_contexts": 1
+	}`, recorder.Body.String())
+}
+
 func TestTopDogstatsdContextsRejectsLiveWhenDataPlaneOwnsDogstatsd(t *testing.T) {
 	endpoint := demultiplexerEndpoint{
 		demux:                fakeContextDumper{{Name: "requests"}},

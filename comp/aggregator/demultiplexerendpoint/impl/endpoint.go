@@ -115,7 +115,7 @@ func (demuxendpoint *demultiplexerEndpoint) topDogstatsdContexts(w http.Response
 	case topSourceLive:
 		result, err = demuxendpoint.getDogstatsdTop(request.NumMetrics, request.NumTags)
 	case topSourceDump:
-		result, err = contexttop.FromFile(
+		result, err = contexttop.FromFileWithStrictLimits(
 			path.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename),
 			request.NumMetrics,
 			request.NumTags,
@@ -156,7 +156,7 @@ func (demuxendpoint *demultiplexerEndpoint) getDogstatsdTop(numMetrics, numTags 
 	if err := demuxendpoint.writeDogstatsdContextsFile(f); err != nil {
 		return contexttop.Result{}, err
 	}
-	return contexttop.FromFile(filePath, numMetrics, numTags)
+	return contexttop.FromFileWithStrictLimits(filePath, numMetrics, numTags)
 }
 
 func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
