@@ -35,6 +35,7 @@ func (s *APMTargetStore) UpsertTarget(workload ssi.WorkloadTarget, target ssi.DD
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.deleteByCRLocked(target.CR)
 	s.targets[workload] = target
 	s.targetByCR[target.CR] = workload
 }
@@ -44,6 +45,10 @@ func (s *APMTargetStore) DeleteByCR(cr types.NamespacedName) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.deleteByCRLocked(cr)
+}
+
+func (s *APMTargetStore) deleteByCRLocked(cr types.NamespacedName) {
 	target, ok := s.targetByCR[cr]
 	if !ok {
 		return
