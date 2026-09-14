@@ -1,5 +1,5 @@
 ---
-other:
+upgrade:
   - |
     The Agent Docker image no longer includes the ``iproute2`` package.
     Users who invoke ``ip``, ``ss``, ``tc``, or ``bridge`` inside the Agent
