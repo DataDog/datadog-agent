@@ -26,6 +26,20 @@ static __attribute__((always_inline)) int is_in_creds_override() {
     return cred != real_cred;
 }
 
+static __attribute__((always_inline)) int is_current_task_cred(void *cred) {
+    u64 cred_offset = get_task_struct_cred_offset();
+    if (cred_offset == 0) {
+        return 1;
+    }
+
+    void *task = (void *)bpf_get_current_task();
+
+    void *current_cred = NULL;
+    bpf_probe_read(&current_cred, sizeof(current_cred), (char *)task + cred_offset);
+
+    return cred == current_cred;
+}
+
 // On kernels < 6.13, override_creds/revert_creds are still out-of-line and hookable. They maintain a
 // per-thread depth counter so that capability checks made under overridden credentials are skipped,
 // which also covers kernels without BTF where is_in_creds_override() cannot resolve the cred offsets.
@@ -83,6 +97,12 @@ int hook_security_capable(ctx_t *ctx) {
 
     if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
         // do not track capabilities checked under temporarily overridden credentials
+        return 0;
+    }
+
+    // security_capable() is also asked about credentials that are not the current task's: another
+    // task's real_cred, a file's f_cred, a tracer
+    if (!is_current_task_cred((void *)CTX_PARM1(ctx))) {
         return 0;
     }
 
