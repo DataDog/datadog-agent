@@ -36,7 +36,7 @@ def destroy_remote_stack_api(stack: str, ctx: Context | None = None):
             "stackcleaner/stack",
             env="prod",
             ty="stackcleaner_workflow_request",
-            attrs=f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true,cancel_first=bool:true",
+            attrs=f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true",
             timeout=10,
             ignore_timeout_error=True,
         )

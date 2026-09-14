@@ -108,7 +108,7 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-    agent:
+    traceAgent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'true'
@@ -150,7 +150,7 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-    agent:
+    traceAgent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
           value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'

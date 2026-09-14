@@ -86,6 +86,7 @@ type EventStream interface {
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
+	SendStats() error
 }
 
 const (
@@ -1200,6 +1201,10 @@ func (p *EBPFProbe) SendStats() error {
 
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	if err := p.eventStream.SendStats(); err != nil {
 		return err
 	}
 
@@ -2401,6 +2406,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 			}
 		}
 	}
+	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		for _, e := range p.config.RuntimeSecurity.SecurityProfileV2EventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -2412,8 +2424,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
 	case model.BindEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingBindEnabled
-	case model.DNSEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
 	}
 	return false
 }
@@ -2655,6 +2665,7 @@ func (p *EBPFProbe) Stop() {
 	// wait for the following goroutines to exit:
 	// - the perfmap reorderer (if used/enabled)
 	// - the perfmap reorderer monitor (if used/enabled)
+	// - the ring-buffer dispatcher (if the user-space queue is enabled)
 	// - the security profile manager
 	// - the process killer goroutine
 	// - the startSysCtlSnapshotLoop goroutine
@@ -3203,18 +3214,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_dns_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
-		},
-		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
@@ -3323,7 +3322,6 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
-		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3573,7 +3571,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	})
 
 	if p.useRingBuffers {
-		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.ctx, p.handleEvent, probe.StatsdClient)
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, probe.StatsdClient)
 		if err != nil {

@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// team: agent-runtimes
+// team: fleet-remediation
 
 // Component is the component type.
 type Component interface {

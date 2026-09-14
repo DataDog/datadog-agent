@@ -216,6 +216,11 @@ func (c *collector) isGPUMonitoringEnabled() bool {
 	return c.config.GetBool("gpu.enabled")
 }
 
+// isProcessDataCollectionEnabled returns whether any feature requires process data collection.
+func (c *collector) isProcessDataCollectionEnabled() bool {
+	return c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() || c.isGPUMonitoringEnabled()
+}
+
 func (c *collector) getServiceCollectionInterval() time.Duration {
 	return c.systemProbeConfig.GetDuration("discovery.service_collection_interval")
 }
@@ -243,7 +248,7 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() && !c.isGPUMonitoringEnabled() {
+	if !c.isProcessDataCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
 		return dderrors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled")
 	}
 
@@ -256,18 +261,18 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() || c.isGPUMonitoringEnabled() {
+	if c.isProcessDataCollectionEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
 
-		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
-			log.Debug("Starting cached service collection (process collection enabled)")
+		if c.isProcessDataCollectionEnabled() {
+			log.Debug("Starting cached service collection (process data collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
-			log.Debug("Starting non-cached service collection (process collection disabled)")
+			log.Debug("Starting non-cached service collection (process data collection disabled)")
 			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
 		}
 	}

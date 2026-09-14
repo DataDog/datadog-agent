@@ -47,6 +47,7 @@ pkg_filegroup(
         "//conditions:default": [],
     }) + select({
         "@platforms//os:macos": [
+            ":collected_libs",
             "//deps/agent_data_plane:all_files",
         ],
         "//conditions:default": [],
@@ -72,6 +73,7 @@ dd_collect_dependencies(
     srcs = select({
         "//packages/agent:linux_default": [
             "//deps/msodbcsql18:installed_libs",
+            "//rtloader:three_pkg",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
@@ -81,6 +83,7 @@ dd_collect_dependencies(
         ],
         "//packages/agent:linux_fips": [
             "//deps/msodbcsql18:installed_libs",
+            "//rtloader:three_pkg",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
@@ -89,9 +92,13 @@ dd_collect_dependencies(
             "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_heroku": [
+            "//rtloader:three_pkg",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
+        ],
+        "@platforms//os:macos": [
+            "//rtloader:three_pkg",
         ],
         "//conditions:default": [],
     }),

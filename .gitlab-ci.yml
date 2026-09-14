@@ -316,9 +316,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v134889588-9b0a9089
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v133257318-6ecce2dd
+  CI_IMAGE_WIN_LTSC2022_X64: v136954128-efc3c6b2
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v133257318-6ecce2dd
+  CI_IMAGE_WIN_LTSC2025_X64: v136954128-efc3c6b2
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1152,6 +1152,18 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_powershell_check_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/dist/conf.d/powershell.d/**/*
+        - cmd/agent/dist/protected/**/*
+        - pkg/collector/corechecks/system/powershell/**/*
+        - tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs
+        - test/new-e2e/tests/windows/powershell-check/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_windows_certificate_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1340,6 +1352,7 @@ workflow:
       paths:
         - tasks/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
+        - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
