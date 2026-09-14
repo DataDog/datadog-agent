@@ -274,9 +274,12 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 		memInfo, err := device.SafeDevice.GetMemoryInfo()
 		if err != nil {
-			return nil, err
+			log.Warnf("error getting physical device memory info for device %s: %v", device.Name, err)
+			// Zero denotes unavailable device-local memory. Some devices have no on-chip
+			// memory and use shared host memory, so callers must omit capacity-derived metrics.
+		} else {
+			device.Memory = memInfo.Total
 		}
-		device.Memory = memInfo.Total
 	}
 
 	return device, nil
