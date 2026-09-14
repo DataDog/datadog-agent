@@ -24,6 +24,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/telemetry/mock",
         "//pkg/metrics",
+        "//pkg/tagset",
         "@com_github_stretchr_testify//require",
     ],
 )

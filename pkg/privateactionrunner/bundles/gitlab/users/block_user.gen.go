@@ -39,7 +39,7 @@ func (h *BlockUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.BlockUser(inputs.UserId)
+	_, err = git.Users.BlockUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

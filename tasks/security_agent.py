@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -47,6 +47,8 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
+BAZEL_TARGET = "//cmd/security-agent:security-agent"
+
 
 @task(iterable=["build_tags"])
 def build(
@@ -58,10 +60,25 @@ def build(
     go_mod="readonly",
     static=False,
     fips_mode=False,
+    enable_bazel=False,
 ):
     """
     Build the security agent
     """
+
+    if enable_bazel:
+        if build_tags:
+            raise NotImplementedError("--enable-bazel does not support --build-tags.")
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 

@@ -118,6 +118,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/moby/moby{,/**}"],
+        "groupName": "moby/moby"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },
@@ -136,6 +141,11 @@
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["istio.io/**"],
+        "groupName": "istio"
       },
       {
         "matchManagers": ["gomod"],
