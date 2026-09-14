@@ -58,6 +58,7 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		assert.ElementsMatch(collect, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
 
+	// Cover the remote agent registration retry's randomized 90-second maximum backoff.
 	require.Never(t, func() bool {
 		status, err := readAgentStatus(s.Env().Agent.Client)
 		if err != nil {
@@ -65,7 +66,7 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		}
 		_, found := status.remoteAgentStatus("process_agent")
 		return found
-	}, 20*time.Second, 2*time.Second, "process_agent RAR status should remain absent")
+	}, 100*time.Second, 2*time.Second, "process_agent RAR status should remain absent")
 
 	// Flush fake intake to remove any early payloads
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
