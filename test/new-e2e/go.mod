@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.78.3
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/DataDog/orchestrion v1.13.0
@@ -300,11 +300,11 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
