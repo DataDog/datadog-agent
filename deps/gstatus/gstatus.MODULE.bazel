@@ -1,7 +1,29 @@
-# gstatus - vendored from source
+# gstatus - fetched from upstream at build time, not committed.
 #
-# Previously this fetched the upstream PyInstaller-frozen gstatus binary
-# (~8.2 MiB, bundling a Python interpreter + cryptography/PyNaCl/bcrypt/
-# paramiko). The binary is now built from vendored glustercli/glusterlib
-# source (see deps/gstatus/BUILD.bazel) and runs on the agent's embedded
-# Python, so there is no external download.
+# The gstatus entry-point script (gstatus.py) and the wheel build config
+# (pyproject.toml) are committed here. The glustercli and glusterlib
+# source is fetched from upstream via http_archive and assembled into
+# a wheel at build time. This avoids committing ~136 KiB of vendored
+# GPL source into the repo.
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# glustercli-python: provides glustercli/ (CLI wrappers + XML parsers)
+# License: GPLv2 or LGPLv3+
+http_archive(
+    name = "glustercli_python",
+    build_file = "//deps/gstatus:glustercli.BUILD.bazel",
+    sha256 = "9db2a2ff717e0d19d0706f4576d753dbd76d351be1aaca3972be2ca3e9a55656",
+    strip_prefix = "glustercli-python-{commit}".format(commit = "920ddcec3d774de28a7f8cf04e033f0d0fa40c13"),
+    url = "https://github.com/gluster/glustercli-python/archive/{commit}.tar.gz".format(commit = "920ddcec3d774de28a7f8cf04e033f0d0fa40c13"),
+)
+
+# gstatus: provides gstatus/glusterlib/ (cluster aggregation + display)
+# License: GPLv3
+http_archive(
+    name = "gstatus_source",
+    build_file = "//deps/gstatus:gstatus_source.BUILD.bazel",
+    sha256 = "d888b1c8d72f980de36a2c237cc3f60383c47776fe2c252ce77444eb6f457a7d",
+    strip_prefix = "gstatus-{commit}".format(commit = "b3abf1b7169b5db5e228716a1a2fec2c07c9ff65"),
+    url = "https://github.com/gluster/gstatus/archive/{commit}.tar.gz".format(commit = "b3abf1b7169b5db5e228716a1a2fec2c07c9ff65"),
+)

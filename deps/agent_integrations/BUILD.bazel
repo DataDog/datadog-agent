@@ -20,6 +20,7 @@ py_binary(
     name = "build_wheel_tool",
     srcs = ["build_wheel.py"],
     main = "build_wheel.py",
+    visibility = ["//visibility:public"],
     deps = [
         requirement("hatchling"),
     ],

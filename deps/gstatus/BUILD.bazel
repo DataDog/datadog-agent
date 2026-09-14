@@ -1,17 +1,16 @@
-# gstatus - vendored from-source replacement for the upstream PyInstaller-frozen binary.
+# gstatus - fetched from upstream at build time, not committed.
 #
-# The upstream gstatus release binary is an 8.2 MiB PyInstaller bundle that
-# embeds a full Python interpreter plus cryptography/PyNaCl/bcrypt/paramiko
-# (pulled in because the glustercli PyPI wheel declares paramiko as a required
-# dependency). The Datadog glusterfs integration only runs `gstatus -a -o json
-# -u g` locally, so the SSH/crypto stack is dead weight. This target vendors the
-# glustercli + glusterlib source (which only needs the stdlib + the `gluster`
-# CLI on the host) and builds a thin gstatus entry-point script that runs on the
-# agent's embedded Python.
+# The gstatus entry-point script (gstatus.py) and the wheel build config
+# (pyproject.toml) are committed here. The glustercli and glusterlib
+# source is fetched from upstream via http_archive (see gstatus.MODULE.bazel)
+# and assembled into a wheel at build time.
+#
+# This replaces the old 8.2 MiB PyInstaller-frozen gstatus binary with a
+# ~140 KiB from-source wheel + thin entry-point script that runs on the
+# agent's embedded Python. See gstatus.py for details.
 
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
-load("//deps/agent_integrations:defs.bzl", "pyproject_wheel")
 
 package(
     default_package_metadata = [":license"],
@@ -23,21 +22,74 @@ package(
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0-only"],
-    license_text = "LICENSE",
+    # glusterlib (from gstatus) is GPLv3; glustercli is GPLv2/LGPLv3+.
+    # The combined work is GPLv3 (the most restrictive of the dual licenses).
+    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0-only"],
+    license_text = "@gstatus_source//:LICENSE",
     visibility = ["//visibility:public"],
 )
 
-# Build the vendored glustercli/glusterlib source into a wheel. The wheel is
-# installed into the agent's embedded Python site-packages by the integrations
-# install step (it is listed as a dependency of the agent integrations).
-pyproject_wheel(
+# Build the wheel by assembling source from the two fetched repos into a
+# staging directory, then invoking the hatchling wheel builder.
+# Each upstream file is listed explicitly so Bazel can resolve $(location).
+genrule(
     name = "gstatus_wheel",
-    srcs = glob([
-        "glustercli_src/glustercli/**/*.py",
-        "glustercli_src/glusterlib/**/*.py",
-    ]),
-    pyproject = "glustercli_src/pyproject.toml",
+    srcs = [
+        "pyproject.toml",
+        "@glustercli_python//:glustercli/__init__.py",
+        "@glustercli_python//:glustercli/cli/__init__.py",
+        "@glustercli_python//:glustercli/cli/bitrot.py",
+        "@glustercli_python//:glustercli/cli/bricks.py",
+        "@glustercli_python//:glustercli/cli/georep.py",
+        "@glustercli_python//:glustercli/cli/gluster_version.py",
+        "@glustercli_python//:glustercli/cli/heal.py",
+        "@glustercli_python//:glustercli/cli/nfs_ganesha.py",
+        "@glustercli_python//:glustercli/cli/parsers.py",
+        "@glustercli_python//:glustercli/cli/peer.py",
+        "@glustercli_python//:glustercli/cli/quota.py",
+        "@glustercli_python//:glustercli/cli/rebalance.py",
+        "@glustercli_python//:glustercli/cli/snapshot.py",
+        "@glustercli_python//:glustercli/cli/utils.py",
+        "@glustercli_python//:glustercli/cli/volume.py",
+        "@gstatus_source//:gstatus/glusterlib/__init__.py",
+        "@gstatus_source//:gstatus/glusterlib/cluster.py",
+        "@gstatus_source//:gstatus/glusterlib/display_status.py",
+    ],
+    outs = ["datadog_gstatus-1.0.9-py3-none-any.whl"],
+    cmd = """
+        SRC_DIR=$(@D)/wheel_src
+        mkdir -p $$SRC_DIR/glustercli/cli
+        mkdir -p $$SRC_DIR/gstatus/glusterlib
+
+        cp $(location pyproject.toml) $$SRC_DIR/pyproject.toml
+
+        cp $(location @glustercli_python//:glustercli/__init__.py) $$SRC_DIR/glustercli/__init__.py
+        cp $(location @glustercli_python//:glustercli/cli/__init__.py) $$SRC_DIR/glustercli/cli/__init__.py
+        cp $(location @glustercli_python//:glustercli/cli/bitrot.py) $$SRC_DIR/glustercli/cli/bitrot.py
+        cp $(location @glustercli_python//:glustercli/cli/bricks.py) $$SRC_DIR/glustercli/cli/bricks.py
+        cp $(location @glustercli_python//:glustercli/cli/georep.py) $$SRC_DIR/glustercli/cli/georep.py
+        cp $(location @glustercli_python//:glustercli/cli/gluster_version.py) $$SRC_DIR/glustercli/cli/gluster_version.py
+        cp $(location @glustercli_python//:glustercli/cli/heal.py) $$SRC_DIR/glustercli/cli/heal.py
+        cp $(location @glustercli_python//:glustercli/cli/nfs_ganesha.py) $$SRC_DIR/glustercli/cli/nfs_ganesha.py
+        cp $(location @glustercli_python//:glustercli/cli/parsers.py) $$SRC_DIR/glustercli/cli/parsers.py
+        cp $(location @glustercli_python//:glustercli/cli/peer.py) $$SRC_DIR/glustercli/cli/peer.py
+        cp $(location @glustercli_python//:glustercli/cli/quota.py) $$SRC_DIR/glustercli/cli/quota.py
+        cp $(location @glustercli_python//:glustercli/cli/rebalance.py) $$SRC_DIR/glustercli/cli/rebalance.py
+        cp $(location @glustercli_python//:glustercli/cli/snapshot.py) $$SRC_DIR/glustercli/cli/snapshot.py
+        cp $(location @glustercli_python//:glustercli/cli/utils.py) $$SRC_DIR/glustercli/cli/utils.py
+        cp $(location @glustercli_python//:glustercli/cli/volume.py) $$SRC_DIR/glustercli/cli/volume.py
+
+        cp $(location @gstatus_source//:gstatus/glusterlib/__init__.py) $$SRC_DIR/gstatus/glusterlib/__init__.py
+        cp $(location @gstatus_source//:gstatus/glusterlib/cluster.py) $$SRC_DIR/gstatus/glusterlib/cluster.py
+        cp $(location @gstatus_source//:gstatus/glusterlib/display_status.py) $$SRC_DIR/gstatus/glusterlib/display_status.py
+
+        WHEEL_DIR=$(@D)/wheel_out
+        mkdir -p $$WHEEL_DIR
+        $(location //deps/agent_integrations:build_wheel_tool) --src $$SRC_DIR --output-dir $$WHEEL_DIR
+
+        cp $$WHEEL_DIR/*.whl $@
+    """,
+    tools = ["//deps/agent_integrations:build_wheel_tool"],
 )
 
 # gstatus entry-point script. The shebang points at the agent's embedded Python,
@@ -64,10 +116,10 @@ pkg_files(
 
 pkg_files(
     name = "license_file",
-    srcs = [":LICENSE"],
+    srcs = ["@gstatus_source//:LICENSE"],
     prefix = "LICENSES",
     renames = {
-        "LICENSE": "gstatus-GPL-2.0",
+        "LICENSE": "gstatus-GPL-3.0",
     },
 )
 

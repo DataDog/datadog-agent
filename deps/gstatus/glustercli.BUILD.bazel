@@ -1,0 +1,26 @@
+"""BUILD file for the fetched glustercli-python repo.
+
+Exports only the files we need for the gstatus wheel:
+glustercli/ (cli wrappers + XML parsers).
+We do NOT include glustercli/metrics/ (gstatus never imports it).
+"""
+
+exports_files([
+    "glustercli/__init__.py",
+    "glustercli/cli/__init__.py",
+    "glustercli/cli/bitrot.py",
+    "glustercli/cli/bricks.py",
+    "glustercli/cli/georep.py",
+    "glustercli/cli/gluster_version.py",
+    "glustercli/cli/heal.py",
+    "glustercli/cli/nfs_ganesha.py",
+    "glustercli/cli/parsers.py",
+    "glustercli/cli/peer.py",
+    "glustercli/cli/quota.py",
+    "glustercli/cli/rebalance.py",
+    "glustercli/cli/snapshot.py",
+    "glustercli/cli/utils.py",
+    "glustercli/cli/volume.py",
+    "COPYING-GPLV2",
+    "COPYING-LGPLV3",
+])
