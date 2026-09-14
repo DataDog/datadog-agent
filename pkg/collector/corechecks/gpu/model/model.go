@@ -87,7 +87,10 @@ type DriverEvent struct {
 	// PCIBusID is the PCI address the driver reported the event against. It is always
 	// populated, and is the only device identifier available when the GPU has left the
 	// PCIe bus (Xid 79) and can no longer be resolved to a UUID through NVML.
-	PCIBusID string `json:"pci_bus_id,omitempty" event_tag:"pci_bus_id"`
+	//
+	// It carries no event_tag: the tag walker only descends into NvidiaXid, so consumers
+	// that want this as a tag must emit it explicitly.
+	PCIBusID string `json:"pci_bus_id,omitempty"`
 
 	Timestamp time.Time       `json:"timestamp"`
 	Type      DriverEventType `json:"type"`

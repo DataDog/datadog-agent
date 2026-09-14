@@ -62,6 +62,11 @@ func (x xidEvent) toSample() Sample {
 		if x.DriverEvent.NvidiaXid.Message != "" {
 			text = x.DriverEvent.NvidiaXid.Message
 		}
+		// Emitted here rather than through an event_tag because driverXIDTags only walks
+		// NvidiaXid. It is the sole device identifier when the UUID could not be resolved.
+		if x.DriverEvent.PCIBusID != "" {
+			tags = append(tags, "pci_bus_id:"+x.DriverEvent.PCIBusID)
+		}
 		tags = append(tags, driverXIDTags(x.DriverEvent.NvidiaXid)...)
 	}
 
