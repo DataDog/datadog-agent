@@ -22,6 +22,7 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
+        "src/bootstrap_ipc.rs",
         "src/config.rs",
         "src/enrollment.rs",
         "src/executor.rs",

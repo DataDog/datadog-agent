@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 use datadog_agent_commons::ipc::config::{IpcAuthConfiguration, RemoteAgentClientConfiguration};
 use par_control::enrollment;
@@ -55,21 +55,15 @@ async fn run() -> Result<()> {
     log::set_max_level(log::LevelFilter::Info);
 
     par_control::tls::initialize_crypto_provider()?;
+    let bootstrap = par_control::bootstrap_ipc::load()?;
     let ipc = RemoteAgentClientConfiguration {
-        cmd_port: match cli.cmd_port {
-            Some(port) => port,
-            None => match std::env::var("DD_CMD_PORT") {
-                Ok(value) => value.parse().context("invalid DD_CMD_PORT")?,
-                Err(std::env::VarError::NotPresent) => 5001,
-                Err(error) => return Err(error).context("invalid DD_CMD_PORT"),
-            },
-        },
+        cmd_port: cli.cmd_port.or(bootstrap.cmd_port).unwrap_or(5001),
         auth: IpcAuthConfiguration::new(
             cli.auth_token_file
-                .or_else(|| std::env::var_os("DD_AUTH_TOKEN_FILE_PATH").map(PathBuf::from))
+                .or(bootstrap.auth_token_file_path)
                 .unwrap_or_default(),
             cli.ipc_cert_file
-                .or_else(|| std::env::var_os("DD_IPC_CERT_FILE_PATH").map(PathBuf::from))
+                .or(bootstrap.ipc_cert_file_path)
                 .unwrap_or_default(),
         ),
         grpc_max_message_size: 128 * 1024 * 1024,

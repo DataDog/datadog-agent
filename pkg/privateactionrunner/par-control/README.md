@@ -14,10 +14,13 @@ from the Core Agent config stream through Saluki's `GenericConfiguration`. When 
 mode is enabled, it asks the Core Agent's authenticated IPC endpoint to ensure
 enrollment and return the runner identity and Agent version.
 
-The Core Agent IPC port, auth token path, and certificate path use `DD_CMD_PORT`,
-`DD_AUTH_TOKEN_FILE_PATH`, and `DD_IPC_CERT_FILE_PATH` when set, then fall back to the
-standard Agent locations. Command-line `--cmd-port`, `--auth-token-file`, and
-`--ipc-cert-file` overrides take precedence.
+The Core Agent IPC port, auth token path, and certificate path resolve in this order:
+command-line `--cmd-port`, `--auth-token-file`, `--ipc-cert-file`; then the same three keys
+read from `datadog.yaml` at its default location and the environment, layered the same way
+ADP loads its own bootstrap configuration (`saluki_config::ConfigurationLoader`, environment
+over file) but without ADP's generated schema or translator; then the standard Agent
+locations. This resolves before `par-control` can receive configuration from the Core Agent
+stream.
 
 ## Build and test
 
