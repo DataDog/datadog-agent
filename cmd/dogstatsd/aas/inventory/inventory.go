@@ -10,10 +10,13 @@
 package inventory
 
 import (
+	"context"
 	"os"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -105,4 +108,46 @@ func Submit(ia inventoryagent.Component) {
 		return
 	}
 	ia.Submit()
+}
+
+// Module returns the fx.Option that wires AAS inventory for dogstatsd running
+// inside an Azure App Service extension. It provides the Capabilities and
+// registers an OnStart hook that injects fields and enqueues the initial payload.
+func Module() fx.Option {
+	return fx.Options(
+		fx.Provide(newCapabilities),
+		fx.Invoke(setupLifecycle),
+	)
+}
+
+type lifecycleDeps struct {
+	fx.In
+	Lc             fx.Lifecycle
+	InventoryAgent inventoryagent.Component
+	Config         coreconfig.Component
+}
+
+// newCapabilities returns a fully populated Capabilities when AAS inventory is
+// enabled, or an empty default Capabilities otherwise. Gating ForceEnabled here
+// (rather than always setting it) ensures the inventoryagent component respects
+// enable_metadata_collection when the feature gate is off.
+func newCapabilities() *inventoryagent.Capabilities {
+	if IsEnabled() {
+		return NewCapabilities()
+	}
+	return &inventoryagent.Capabilities{}
+}
+
+func setupLifecycle(deps lifecycleDeps) {
+	if !IsEnabled() {
+		return
+	}
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			if Inject(deps.InventoryAgent, deps.Config) {
+				Submit(deps.InventoryAgent)
+			}
+			return nil
+		},
+	})
 }
