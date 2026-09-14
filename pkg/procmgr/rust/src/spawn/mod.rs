@@ -9,7 +9,7 @@ mod profile;
 mod request;
 mod stdio;
 
-#[cfg(windows)]
+#[cfg(all(windows, not(test)))]
 pub(crate) use agent_password_logon::{AgentSpawnLogon, resolve_agent_spawn_logon};
 pub(crate) use profile::SpawnProfile;
 pub(crate) use request::SpawnRequest;
