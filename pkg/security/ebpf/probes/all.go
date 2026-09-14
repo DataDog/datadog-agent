@@ -216,7 +216,6 @@ type MapSpecEditorOpts struct {
 	EventSamplingOpenEnabled      bool
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
-	EventSamplingDNSEnabled       bool
 	BasenameApproversSize         int
 }
 
