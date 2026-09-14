@@ -13,7 +13,7 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//compliance:package_licenses.bzl", "package_licenses")
-load("//packages/rules:package_naming.bzl", "package_name_variables")
+load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -39,7 +39,6 @@ pkg_filegroup(
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
     ],
-    prefix = "/opt/datadog-agent",
 )
 
 # This is an intermediate node so that have a place to collect all
@@ -60,13 +59,23 @@ package_licenses(
     src = ":everything",
 )
 
+# Everything that gets installed under /opt/datadog-agent: the product
+# files plus the licenses gathered for them.
+pkg_filegroup(
+    name = "installed_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
 # Blend the dependencies, the license files and things that vary
 # a build time into the distribution.
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
-        ":everything",
-        ":license_files",
+        ":installed_distro",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
@@ -115,7 +124,7 @@ pkg_deb(
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
-    version = "7",
+    version = "1:" + make_version() + "-1",
 
     # TODO: pull in target_cpu as arch.
     # architecture = "$(COMPILATION_MODE)",
@@ -158,7 +167,7 @@ pkg_rpm(
     },
     summary = "Datadog Monitoring Agent",
     url = "http://www.datadoghq.com",
-    version = "7",
+    version = make_version(),
 )
 
 # Replacement for datadog-agent-installer-symlinks.rb

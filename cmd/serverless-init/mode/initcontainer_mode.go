@@ -21,8 +21,18 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Run is the entrypoint of the init process. It will spawn the customer process
-func RunInit(logConfig *serverlessLog.Config) error {
+// ProcessHooks carries optional callbacks that are invoked around subprocess
+// lifecycle transitions. MicroVM supplies OnAlive/OnDead to drive its /ready
+// alive-check; other cloud services pass nil.
+type ProcessHooks struct {
+	OnAlive func() // called after cmd.Start succeeds
+	OnDead  func() // called when cmd.Wait returns (deferred, fires on panic too)
+}
+
+// RunInit is the entrypoint of the init process. It spawns the customer
+// process and, when hooks is non-nil, invokes hooks.OnAlive on cmd.Start
+// success and hooks.OnDead via defer so the caller can track liveness.
+func RunInit(logConfig *serverlessLog.Config, hooks *ProcessHooks) error {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
@@ -30,15 +40,14 @@ func RunInit(logConfig *serverlessLog.Config) error {
 	args := os.Args[1:]
 
 	log.Debugf("Launching subprocess %v\n", args)
-	err := execute(logConfig, args)
-	if err != nil {
+	if err := execute(logConfig, args, hooks); err != nil {
 		log.Errorf("ERROR: Failed to execute command: %v\n", err)
 		return err
 	}
 	return nil
 }
 
-func execute(logConfig *serverlessLog.Config, args []string) error {
+func execute(logConfig *serverlessLog.Config, args []string, hooks *ProcessHooks) error {
 	commandName, commandArgs := buildCommandParam(args)
 
 	// Add our tracer settings
@@ -55,15 +64,21 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
 	}
 
-	err := cmd.Start()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if hooks != nil && hooks.OnDead != nil {
+		// Defer OnDead so it fires even on panic / runtime.Goexit. The
+		// child process is no longer being supervised once we leave this frame.
+		defer hooks.OnDead()
+	}
+	if hooks != nil && hooks.OnAlive != nil {
+		hooks.OnAlive()
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
 	go forwardSignals(cmd.Process, sigs)
-	err = cmd.Wait()
-	return err
+	return cmd.Wait()
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {

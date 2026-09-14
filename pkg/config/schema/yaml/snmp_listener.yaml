@@ -21,6 +21,10 @@ properties:
     default: []
     items:
       type: object
+  device_tags_source:
+    node_type: setting
+    type: string
+    default: resource
   discovery_allowed_failures:
     node_type: setting
     type: integer

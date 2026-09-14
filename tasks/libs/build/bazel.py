@@ -240,6 +240,51 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
+def _bazel_output_path(target: str, args: list[str]) -> str:
+    # We need cquery to find the output path that has the configuration hash in it.
+    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
+    outputs = [line for line in output.splitlines() if line]
+    if len(outputs) != 1:
+        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
+    # Resolved against the execution root rather than the `bazel-out` convenience symlink,
+    # which CI disables (--symlink_prefix=/dev/null) and would otherwise leave unresolvable.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    return os.path.join(execroot, outputs[0])
+
+
+def build_binary_with_bazel(
+    target: str, args: list[str] | None = None, bin_path: str = None, embedded_path: str | None = None
+) -> None:
+    """Build a Bazel target and copy its output to bin_path.
+
+    Args:
+        target: Bazel target
+        args: extra arguments passed to both the build and cquery invocations
+        bin_path: directory to copy the binary to. None for no copy.
+        embedded_path: directory holding shared libraries the binary links
+        against.
+        When set, rewrites the copied binary's RPATH to point there instead of
+        Bazel's sandbox paths.
+    """
+    args = args or []
+    bazel("build", target, *args)
+    src = _bazel_output_path(target, args)
+
+    if bin_path:
+        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
+        shutil.copy2(src, bin_path)
+        os.chmod(bin_path, 0o755)
+        uid = os.environ.get("HOST_UID", "-1")
+        gid = os.environ.get("HOST_GID", "-1")
+        if uid != "-1" and gid != "-1":
+            os.chown(bin_path, int(uid), int(gid))
+
+        if embedded_path:
+            # `bazel run` executes with the execution root as cwd, not the caller's cwd,
+            # so bin_path must be absolute for the tool to find it.
+            bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.

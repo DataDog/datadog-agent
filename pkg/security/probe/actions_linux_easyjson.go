@@ -52,6 +52,12 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			} else {
 				out.Status = RawPacketActionStatus(in.String())
 			}
+		case "scope":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Scope = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -80,6 +86,11 @@ func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"status\":"
 		out.RawString(prefix)
 		out.String(string(in.Status))
+	}
+	{
+		const prefix string = ",\"scope\":"
+		out.RawString(prefix)
+		out.String(string(in.Scope))
 	}
 	out.RawByte('}')
 }

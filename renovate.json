@@ -118,6 +118,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/moby/moby{,/**}"],
+        "groupName": "moby/moby"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },
@@ -136,6 +141,11 @@
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["istio.io/**"],
+        "groupName": "istio"
       },
       {
         "matchManagers": ["gomod"],
@@ -291,6 +301,19 @@
         "currentValueTemplate": "master",
         "depNameTemplate": "integrations-core",
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["tasks/gpu.py"],
+        "matchStrings": [
+          "GPU_BURNER_VERSION = \"(?<currentDigest>[a-f0-9]{8})\""
+        ],
+        "autoReplaceStringTemplate": "GPU_BURNER_VERSION = \"{{{replace '^(.{8}).*$' '$1' newDigest}}}\"",
+        "currentValueTemplate": "main",
+        "depNameTemplate": "gpu-burner",
+        "packageNameTemplate": "https://github.com/DataDog/gpu-burner",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
       },

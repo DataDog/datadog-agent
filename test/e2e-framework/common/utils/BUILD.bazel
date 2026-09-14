@@ -35,6 +35,7 @@ dd_agent_go_test(
     name = "utils_test",
     srcs = [
         "docker_test.go",
+        "kubernetes_test.go",
         "version_test.go",
         "yaml_test.go",
     ],
@@ -45,6 +46,9 @@ dd_agent_go_test(
         "fixtures/tags_b.yaml",
     ],
     deps = [
+        "//test/e2e-framework/common/config",
+        "@com_github_pulumi_pulumi_sdk_v3//go/common/resource",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",

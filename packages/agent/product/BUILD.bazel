@@ -42,7 +42,6 @@ pkg_filegroup(
         ":dda_built_privateactionrunner_binary",
 
         # TODO: system-probe
-        # TODO: system-probe - selinux policy
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
@@ -54,6 +53,8 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
@@ -73,6 +74,7 @@ pkg_filegroup(
         ],
         "@platforms//os:windows": [
             "//packages/windows:all_files",
+            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
         ],
         "//conditions:default": [],
@@ -124,7 +126,13 @@ pkg_files(
     name = "example_config",
     srcs = [
         "//pkg/config:agent_config",
-    ],
+    ] + select({
+        "//packages/agent:heroku_flavor": [],
+        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
+    }) + select({
+        "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
+        "//conditions:default": [],
+    }),
     prefix = select(ETC_DIR_SELECTOR),
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
@@ -168,4 +176,45 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "system_probe_selinux_policy_files",
+    srcs = select({
+        "@platforms//os:linux": ["//cmd/agent/selinux:system_probe_policy"],
+        "//conditions:default": [],
+    }),
+    prefix = "selinux",
+)
+
+pkg_files(
+    name = "system_probe_config",
+    srcs = [
+        "//pkg/config:system_probe_config",
+    ],
+    renames = {
+        "//pkg/config:system_probe_config": "system-probe.yaml.example",
+    },
+)
+
+# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
+# which stages relative to install_dir). Add more conf_dir-relative files here as they
+# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+pkg_filegroup(
+    name = "system_probe_files",
+    srcs = [
+        ":system_probe_config",
+    ] + select({
+        "//packages/agent:distribution_suse": [],
+        "//conditions:default": [
+            ":system_probe_selinux_policy_files",
+        ],
+    }),
+)
+
+# Temporary during omnibus migration.
+pkg_install(
+    name = "install_system_probe",
+    srcs = [":system_probe_files"],
+    visibility = ["//visibility:public"],
 )

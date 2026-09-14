@@ -433,6 +433,42 @@ func Test_labelJoiner(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test for a crash (`makeslice: cap out of range`) triggered by a
+			// wildcard annotations-as-tags/labels-as-tags config on an un-annotated namespace,
+			// when labelsToMatch has more entries than metric.Labels (e.g. due to a duplicated
+			// "namespace" entry in labelsToMatch).
+			name: "Wildcard join with more labels to match than metric labels doesn't panic",
+			config: map[string]*joinsConfig{
+				"kube_namespace_annotations": {
+					labelsToMatch: []string{"namespace", "namespace"},
+					getAllLabels:  true,
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_namespace_annotations",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"namespace": "default",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"namespace": "default"},
+					labelsToAdd: []label{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

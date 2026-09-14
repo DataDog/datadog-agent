@@ -62,6 +62,39 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 	}
 }
 
+// BenchmarkStorage_BucketCounts measures the allocation cost of retaining a
+// 30-second window when buckets contain either one sample (the common metric
+// path) or repeated same-second samples that require explicit counts.
+func BenchmarkStorage_BucketCounts(b *testing.B) {
+	const (
+		numSeries  = 200
+		numSeconds = 30
+	)
+	names := make([]string, numSeries)
+	for i := range names {
+		names[i] = fmt.Sprintf("metric_%d", i)
+	}
+
+	for _, samplesPerBucket := range []int{1, 4} {
+		b.Run(fmt.Sprintf("samples=%d", samplesPerBucket), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				storage := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: numSeconds})
+				for sec := int64(0); sec < numSeconds; sec++ {
+					for series, name := range names {
+						for sample := 0; sample < samplesPerBucket; sample++ {
+							storage.Add("ns", name, float64(series+sample), sec, nil)
+						}
+					}
+				}
+				if got := storage.TotalSeriesCount(); got != numSeries {
+					b.Fatalf("series count = %d, want %d", got, numSeries)
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkMetricFilterV1Rules(b *testing.B) {
 	filter := newV1MetricFilter(b)
 	for _, tc := range []struct {
@@ -88,9 +121,7 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 }
 
 func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
-	telemetryComp := telemetryimpl.GetCompatComponent()
-	telemetryComp.Reset()
-	b.Cleanup(telemetryComp.Reset)
+	telemetryComp := telemetryimpl.NewMock(b)
 
 	h := &handle{
 		source:    "check",

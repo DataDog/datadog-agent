@@ -6,9 +6,9 @@ Where the wiring lives:
 
 | File | Holds |
 |---|---|
-| `.gitlab-ci.yml` | The rule template that decides when the job runs |
-| `.gitlab/test/e2e/e2e.yml` | The job itself (Linux and cross-platform) |
-| `.gitlab/windows/test/e2e/windows.yml` and `.gitlab/windows/test/e2e_install_packages/windows.yml` | Windows jobs |
+| `.gitlab-ci.yml` and `.gitlab/test/e2e/*.yml` | Shared rules in the root file; team-specific rules beside their jobs |
+| `.gitlab/test/e2e/*.yml` | Linux and cross-platform jobs, split by ownership |
+| `.gitlab/windows/test/e2e/*.yml` and `.gitlab/windows/test/e2e_install_packages/windows.yml` | Windows jobs, split by ownership or package workflow |
 | `.gitlab/JOBOWNERS` | Who is notified when the job fails |
 
 ## The rule template
@@ -16,7 +16,7 @@ Where the wiring lives:
 Rule template names are abbreviated and do not track directory names — `tests/agent-runtimes` is gated by `.on_arun_or_e2e_changes`. Find the existing one rather than guessing:
 
 ```bash
-grep -n '_or_e2e_changes:' .gitlab-ci.yml
+grep -n '_or_e2e_changes:' .gitlab-ci.yml .gitlab/test/e2e/*.yml
 ```
 
 A new one references the shared branch rule and adds the paths that should trigger it:
@@ -44,7 +44,7 @@ Extend a template that already declares the right artifact dependencies rather t
 | `.new_e2e_template_needs_deb_x64` | `agent_deb-x64-a7`, `agent_deb-x64-a7-fips` | Host tests on Ubuntu or Debian |
 | `.new_e2e_template_needs_container_deploy_linux` | `qa_agent_linux`, `qa_agent_linux_jmx`, `qa_dca`, `qa_dogstatsd` | Docker and Kubernetes on Linux |
 | `.new_e2e_template_needs_container_deploy` | the above plus the Windows agent images | Container tests covering Windows |
-| `.new_e2e_template_needs_windows_x64` | `windows_msi_and_bosh_zip_x64-a7` and its FIPS variant | Windows host tests (defined in `.gitlab/windows/test/e2e/windows.yml`) |
+| `.new_e2e_template_needs_windows_x64` | `windows_msi_and_bosh_zip_x64-a7` and its FIPS variant | Windows host tests (defined in `.gitlab/windows/test/e2e/windows_templates.yml`) |
 
 ```yaml
 new-e2e-myarea:
@@ -113,7 +113,7 @@ new-e2e-myarea:
     E2E_PRE_INITIALIZED: "true"
 ```
 
-`new-e2e-containers-eks` in `.gitlab/test/e2e/e2e.yml` is the in-tree version; it re-references `.new_e2e_template_needs_container_deploy` alongside its init job for the same reason.
+`new-e2e-containers-eks` in `.gitlab/test/e2e/e2e_containers.yml` is the in-tree version; it re-references `.new_e2e_template_needs_container_deploy` alongside its init job for the same reason.
 
 Worth it for EKS and similar; unnecessary for a single VM.
 

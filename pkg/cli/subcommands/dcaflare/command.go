@@ -142,7 +142,7 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 			URL:  pprofURL + "/block",
 		},
 	} {
-		b, err := client.Get(prof.URL, ipchttp.WithLeaveConnectionOpen)
+		b, err := client.Get(prof.URL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken)
 		if err != nil {
 			return pdata, err
 		}
