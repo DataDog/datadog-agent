@@ -22,8 +22,7 @@ use super::user_profile::UserProfileGuard;
 /// only. Privileged and same-account agent spawns use `CreateProcessW` in
 /// `inherit_supervisor`.
 ///
-/// The child is created already assigned to `job` via `PROC_THREAD_ATTRIBUTE_JOB_LIST` when
-/// the supervisor is not already in a foreign job object.
+/// The child is created already assigned to `job` via `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
 ///
 /// Returns `(ProcessHandle, UserProfileGuard)`. The profile guard must stay alive
 /// for the child's lifetime.

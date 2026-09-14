@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Shared `CreateProcess*` pipeline: job-list at create time, or post-assign in a foreign job.
+//! Shared `CreateProcess*` pipeline with create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
 
 use std::mem;
 
@@ -16,11 +16,10 @@ use windows_sys::Win32::System::Threading::{
 use crate::handle::ProcessHandle;
 
 use super::super::JobObject;
-use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
 use super::inputs::SpawnInputs;
 use super::startup_info_ex::StartupInfoEx;
-use super::win32::{ManagedProcessCreationFlags, resume_child_primary_thread};
+use super::win32::ManagedProcessCreationFlags;
 
 /// Which Win32 create API to invoke for a managed child spawn.
 pub(super) enum CreateProcessInvoker {
@@ -70,17 +69,13 @@ impl CreateProcessInvoker {
     }
 }
 
-/// Spawn a managed child with create-time `JOB_LIST`, or post-assign when already in a job.
+/// Spawn a managed child with create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
 pub(super) fn spawn_managed_child(
     process_name: &str,
     inputs: &mut SpawnInputs,
     job: &JobObject,
     invoker: CreateProcessInvoker,
 ) -> Result<ProcessHandle> {
-    if current_process_in_job() {
-        return spawn_post_assign(process_name, inputs, job, invoker);
-    }
-
     let mut startup_info = StartupInfoEx::with_stdio_and_job(
         inputs.stdio.stdin(),
         inputs.stdio.stdout(),
@@ -110,55 +105,6 @@ pub(super) fn spawn_managed_child(
     finish_managed_spawn(process_name, process_info)
 }
 
-fn spawn_post_assign(
-    process_name: &str,
-    inputs: &mut SpawnInputs,
-    job: &JobObject,
-    invoker: CreateProcessInvoker,
-) -> Result<ProcessHandle> {
-    let mut startup_info = StartupInfoEx::with_stdio_handles(
-        inputs.stdio.stdin(),
-        inputs.stdio.stdout(),
-        inputs.stdio.stderr(),
-    )?;
-    let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
-    let ok = unsafe {
-        invoker.invoke(
-            inputs,
-            startup_info.startup_info(),
-            ManagedProcessCreationFlags::PostAssign.bits(),
-            &mut process_info,
-        )
-    };
-    if ok == 0 {
-        let err = std::io::Error::last_os_error();
-        match invoker {
-            CreateProcessInvoker::InheritSupervisor => {
-                bail!("[{process_name}] CreateProcessW failed: {err}");
-            }
-            CreateProcessInvoker::AsUser(_) => {
-                bail!("[{process_name}] CreateProcessAsUserW failed: {err}");
-            }
-        }
-    }
-
-    if let Err(e) = job.assign_process(process_info.dwProcessId) {
-        abort_suspended_spawn(&process_info);
-        return Err(anyhow::anyhow!(
-            "[{process_name}] post-create job assignment failed: {e}"
-        ));
-    }
-
-    if let Err(e) =
-        resume_child_primary_thread(process_name, process_info.dwProcessId, process_info.hThread)
-    {
-        abort_suspended_spawn(&process_info);
-        return Err(e);
-    }
-
-    finish_managed_spawn(process_name, process_info)
-}
-
 fn finish_managed_spawn(
     _process_name: &str,
     process_info: PROCESS_INFORMATION,
@@ -182,12 +128,4 @@ fn finish_managed_spawn(
     }
 
     Ok(handle)
-}
-
-fn abort_suspended_spawn(process_info: &PROCESS_INFORMATION) {
-    let _ = terminate_process(process_info.hProcess);
-    unsafe {
-        CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
-    }
 }

@@ -23,8 +23,7 @@ use super::inputs::SpawnInputs;
 /// Used for privileged spawn and for agent-profile spawn when the supervisor already
 /// runs as the target account.
 ///
-/// The child joins `job` at create time via `PROC_THREAD_ATTRIBUTE_JOB_LIST` when the
-/// supervisor is not already in a foreign job object.
+/// The child joins `job` at create time via `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
 pub(super) fn spawn_inherit_supervisor(
     process_name: &str,
     request: &SpawnRequest,

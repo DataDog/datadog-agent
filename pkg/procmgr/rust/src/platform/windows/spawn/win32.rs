@@ -11,10 +11,9 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
-use windows_sys::Win32::System::Threading::ResumeThread;
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
-    CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
+    EXTENDED_STARTUPINFO_PRESENT,
 };
 
 use super::super::child_env::merge_legacy_scm_env;
@@ -124,10 +123,8 @@ fn windows_command_line_arg(s: &str) -> String {
 /// `CreateProcess*` flags for managed child spawn (`create_process.rs`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ManagedProcessCreationFlags {
-    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` (supervisor not in a foreign job).
+    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
     JobListAtCreate,
-    /// Suspended create for post-create job assignment and `ResumeThread`.
-    PostAssign,
 }
 
 impl ManagedProcessCreationFlags {
@@ -141,32 +138,8 @@ impl ManagedProcessCreationFlags {
                     | CREATE_UNICODE_ENVIRONMENT
                     | EXTENDED_STARTUPINFO_PRESENT
             }
-            Self::PostAssign => {
-                CREATE_SUSPENDED
-                    | CREATE_NEW_PROCESS_GROUP
-                    | CREATE_NEW_CONSOLE
-                    | CREATE_NO_WINDOW
-                    | CREATE_UNICODE_ENVIRONMENT
-                    | EXTENDED_STARTUPINFO_PRESENT
-            }
         }
     }
-}
-
-/// Resumes the primary thread of a child created with `CREATE_SUSPENDED`.
-pub(crate) fn resume_child_primary_thread(
-    process_name: &str,
-    pid: u32,
-    thread: HANDLE,
-) -> Result<()> {
-    let previous_count = unsafe { ResumeThread(thread) };
-    if previous_count == u32::MAX {
-        bail!(
-            "[{process_name}] ResumeThread({pid}) failed: {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    Ok(())
 }
 
 #[cfg(test)]
