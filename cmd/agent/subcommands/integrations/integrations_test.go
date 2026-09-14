@@ -180,13 +180,6 @@ func TestPEP440ToSemver(t *testing.T) {
 	assert.Equal(t, version.String(), "1.3.4-dev.1")
 }
 
-func TestGetIntegrationName(t *testing.T) {
-	assert.Equal(t, getIntegrationName("datadog-checks-base"), "base")
-	assert.Equal(t, getIntegrationName("datadog-checks-downloader"), "downloader")
-	assert.Equal(t, getIntegrationName("datadog-go-metro"), "go-metro")
-	assert.Equal(t, getIntegrationName("datadog-nginx-ingress-controller"), "nginx_ingress_controller")
-}
-
 func TestNormalizePackageName(t *testing.T) {
 	assert.Equal(t, normalizePackageName("datadog-checks_base"), "datadog-checks-base")
 	assert.Equal(t, normalizePackageName("datadog_checks_downloader"), "datadog-checks-downloader")

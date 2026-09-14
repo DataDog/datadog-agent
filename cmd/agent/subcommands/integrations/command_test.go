@@ -135,6 +135,7 @@ func TestGetIntegrationName(t *testing.T) {
 		"datadog-checks-base":                       "base",
 		"datadog-checks-downloader":                 "downloader",
 		"datadog-go-metro":                          "go-metro",
+		"datadog-nginx-ingress-controller":          "nginx_ingress_controller",
 	} {
 		assert.Equal(t, expected, getIntegrationName(packageName), packageName)
 	}
