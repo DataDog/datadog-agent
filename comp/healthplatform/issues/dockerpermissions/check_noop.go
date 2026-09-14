@@ -12,6 +12,6 @@ import (
 )
 
 // Check is a noop on unsupported platforms
-func Check() ([]runnerdef.IssueReport, error) {
+func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }

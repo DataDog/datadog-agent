@@ -8,6 +8,7 @@
 package env
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -110,12 +111,12 @@ func detectDocker(features FeatureMap) {
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
 			exists, err := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
-			if exists && err != nil {
+			if exists && errors.Is(err, os.ErrPermission) {
 				log.Warnf("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
 			}
 
-			if exists && err == nil {
+			if exists && !errors.Is(err, os.ErrPermission) {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
@@ -169,10 +170,10 @@ func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 func checkCriSocket(socketPath string) string {
 	// Check if the socket exists and is reachable
 	exists, err := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && err == nil {
+	if exists && !errors.Is(err, os.ErrPermission) {
 		log.Infof("Agent found cri socket at: %s", socketPath)
 		return socketPath
-	} else if exists && err != nil {
+	} else if exists && errors.Is(err, os.ErrPermission) {
 		log.Warnf("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
 	}
 	return ""
@@ -284,10 +285,10 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
 	exists, err := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && err == nil {
+	if exists && !errors.Is(err, os.ErrPermission) {
 		log.Infof("Agent found PodResources socket at %s", socketPath)
 		features[PodResources] = struct{}{}
-	} else if exists && err != nil {
+	} else if exists && errors.Is(err, os.ErrPermission) {
 		log.Warnf("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)

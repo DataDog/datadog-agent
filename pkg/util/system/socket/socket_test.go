@@ -8,6 +8,7 @@
 package socket
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -47,7 +48,8 @@ func TestIsAvailableReachable(t *testing.T) {
 }
 
 // TestIsAvailableConnectionRefused mirrors a stale socket file left behind by
-// a process that stopped listening: it should still report reachable (nil error).
+// a process that stopped listening: it should report reachable but surface
+// the connection-refused dial error.
 func TestIsAvailableConnectionRefused(t *testing.T) {
 	socketPath := filepath.Join(shortTempDir(t), "s.sock")
 	listener, err := net.Listen("unix", socketPath)
@@ -58,7 +60,8 @@ func TestIsAvailableConnectionRefused(t *testing.T) {
 
 	exists, availErr := IsAvailable(socketPath, testTimeout)
 	assert.True(t, exists)
-	assert.NoError(t, availErr)
+	assert.Error(t, availErr)
+	assert.False(t, errors.Is(availErr, os.ErrPermission))
 }
 
 func TestIsAvailablePermissionDenied(t *testing.T) {
