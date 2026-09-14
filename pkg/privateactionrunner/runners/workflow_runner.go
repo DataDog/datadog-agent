@@ -18,7 +18,6 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -49,10 +48,9 @@ func NewWorkflowRunner(
 	ipcClient ipc.HTTPClient,
 	ha helmactions.Component,
 	ka kubeactions.Component,
-	secretResolver resolver.SecretResolver,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, secretResolver)
+	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
 
 	return &WorkflowRunner{
 		config:          configuration,
@@ -210,7 +208,9 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, l
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("Heartbeat stopped for task", log.String("task_id", task.Data.ID))
+			// task_id is already bound on logger's context fields (set by the caller
+			// in handleTask), so it is not passed again here.
+			logger.Info("Heartbeat stopped for task")
 			return
 		case <-ticker.C:
 			err := n.opmsClient.Heartbeat(ctx, task.Data.Attributes.Client, task.Data.ID, task.GetFQN(), task.Data.Attributes.JobId)

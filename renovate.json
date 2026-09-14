@@ -118,6 +118,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/moby/moby{,/**}"],
+        "groupName": "moby/moby"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },
