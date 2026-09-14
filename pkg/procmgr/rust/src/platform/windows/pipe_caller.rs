@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use std::sync::OnceLock;
+
+use super::agent_service_sid::installed_agent_user_sid_bytes;
+use super::token_identity::{sids_equal, token_user_sid_bytes};
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
     AllocateAndInitializeSid, CheckTokenMembership, FreeSid, RevertToSelf, SECURITY_NT_AUTHORITY,
@@ -70,7 +74,26 @@ fn token_may_mutate(token: HANDLE) -> Option<bool> {
     if query_token_is_local_system(token)? {
         return Some(true);
     }
-    token_is_builtin_admin(token)
+    if token_is_builtin_admin(token)? {
+        return Some(true);
+    }
+    token_is_installed_agent_user(token)
+}
+
+static INSTALLED_AGENT_USER_SID: OnceLock<Option<Vec<u8>>> = OnceLock::new();
+
+fn cached_installed_agent_user_sid() -> Option<&'static [u8]> {
+    INSTALLED_AGENT_USER_SID
+        .get_or_init(|| installed_agent_user_sid_bytes().ok())
+        .as_deref()
+}
+
+fn token_is_installed_agent_user(token: HANDLE) -> Option<bool> {
+    let Some(expected) = cached_installed_agent_user_sid() else {
+        return Some(false);
+    };
+    let token_sid = token_user_sid_bytes(token).ok()?;
+    sids_equal(&token_sid, expected).ok()
 }
 
 fn query_token_is_local_system(token: HANDLE) -> Option<bool> {

@@ -58,7 +58,7 @@ pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<
     }))
 }
 
-pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
+pub(crate) fn installed_agent_user_sid_bytes() -> Result<Vec<u8>> {
     use super::{open_datadog_agent_key, registry_nonempty_string};
 
     let Some(key) = open_datadog_agent_key() else {
@@ -72,9 +72,12 @@ pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
         .trim()
         .to_string();
 
-    let sid = lookup_installed_user_sid(&domain, &user)
-        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
-    sid_to_string(&sid)
+    lookup_installed_user_sid(&domain, &user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))
+}
+
+pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
+    sid_to_string(&installed_agent_user_sid_bytes()?)
 }
 
 fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
