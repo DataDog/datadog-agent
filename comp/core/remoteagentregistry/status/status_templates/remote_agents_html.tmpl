@@ -38,7 +38,11 @@
                             {{ $sectionName }}: <br>
                             <ul>
                                 {{- range $key, $value := $section }}
+                                {{- if $key }}
                                     <li> {{ $key }}: {{ $value }}
+                                {{- else }}
+                                    <pre>{{ $value }}</pre>
+                                {{- end }}
                                 {{- end }}
                             </ul>
                     {{ end }}
