@@ -9,7 +9,7 @@ To run scripts and code in this repository, you will need:
 - [Go](https://golang.org/doc/install) 1.22 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
 - Python 3.9+ along with development libraries for tooling.
 - `account-admin-8h` role on the AWS `agent-sandbox` account.
-- [dda](https://datadoghq.dev/datadog-agent/setup/#tooling), [Pulumi](https://www.pulumi.com/docs/iac/download-install/) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
+- [dda](https://datadoghq.dev/datadog-agent/setup/required/#tooling), [Pulumi](https://www.pulumi.com/docs/iac/download-install/) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
 
 This guide is tested on **MacOS**.
 
