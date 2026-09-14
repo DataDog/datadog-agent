@@ -64,8 +64,8 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message:     "NVRM: Xid (PCI:0000:35:00): 31, pid=3634001, name=vectorAdd, channel 0x01000020, intr 00000000. MMU Fault: ENGINE CE2 HUBCLIENT_CE0 faulted @ 0x792c_58000000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_WRITE",
 				ProcessID:   uint64Pointer(3634001),
 				ProcessName: "vectorAdd",
+				Channel:     "0x01000020",
 				MMUFault: &model.NvidiaXidMMUFault{
-					Channel:      "0x01000020",
 					Interrupt:    "0x00000000",
 					Engine:       "CE2",
 					EngineClient: "HUBCLIENT_CE0",
@@ -83,14 +83,26 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message:     "NVRM: Xid (PCI:0000:00:1e): 31, pid=8, name=<unknown>, channel 0x00000004. MMU Fault: ENGINE CE0 HUBCLIENT_HOST faulted @ 0x0000000000001000. FAULT_PTE ACCESS_TYPE_ATOMIC",
 				ProcessID:   uint64Pointer(8),
 				ProcessName: "<unknown>",
+				Channel:     "0x00000004",
 				MMUFault: &model.NvidiaXidMMUFault{
-					Channel:      "0x00000004",
 					Engine:       "CE0",
 					EngineClient: "HUBCLIENT_HOST",
 					FaultAddress: "0x0000000000001000",
 					FaultType:    "FAULT_PTE",
 					AccessType:   "ACCESS_TYPE_ATOMIC",
 				},
+			},
+		},
+		{
+			// Xid 43 has no detail parser, so the channel has to come from the preamble.
+			name:    "channel is captured for a code with no detail parser",
+			message: "NVRM: Xid (PCI:0000:00:1b): 43, pid=3885519, name=gpu-burner, channel 0x00000010",
+			expected: model.NvidiaXid{
+				XidCode:     43,
+				Message:     "NVRM: Xid (PCI:0000:00:1b): 43, pid=3885519, name=gpu-burner, channel 0x00000010",
+				ProcessID:   uint64Pointer(3885519),
+				ProcessName: "gpu-burner",
+				Channel:     "0x00000010",
 			},
 		},
 		{
@@ -193,6 +205,22 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 		},
 		{
 			name:    "memory ECC and repair chain",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
+			expected: model.NvidiaXid{
+				XidCode: 160,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					RepairedTarget:      "channel",
+					RepairedTargetIndex: uint64Pointer(3),
+					FBPA:                uint64Pointer(2),
+					NodeRebootRequired:  true,
+				},
+			},
+		},
+		{
+			// "Marking Channel 3" is a repair target, not a command channel. Requiring the
+			// 0x prefix keeps it out of the preamble channel field.
+			name:    "channel retirement target is not read as a command channel",
 			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
 			expected: model.NvidiaXid{
 				XidCode: 160,

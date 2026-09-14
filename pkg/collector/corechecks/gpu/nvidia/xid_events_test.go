@@ -317,8 +317,8 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	driverEvent := newDriverXIDEvent("GPU-1", 31, timestamp, "raw message")
 	driverEvent.NvidiaXid.ProcessID = &pid
 	driverEvent.NvidiaXid.ProcessName = "gpu-burner"
+	driverEvent.NvidiaXid.Channel = "0x10"
 	driverEvent.NvidiaXid.MMUFault = &model.NvidiaXidMMUFault{
-		Channel:      "0x10",
 		Interrupt:    "0x20",
 		Engine:       "GRAPHICS",
 		EngineClient: "GPCCLIENT",

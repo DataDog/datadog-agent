@@ -49,7 +49,7 @@ var (
 	nvidiaXidCodePattern         = regexp.MustCompile(`\)\s*:\s*([0-9]+)\b`)
 	nvidiaProcessIDPattern       = regexp.MustCompile(`(?i)\bpid=(\d+)`)
 	nvidiaProcessNamePattern     = regexp.MustCompile(`(?i)\bname=(?:'([^']*)'|([^,\s]+))`)
-	nvidiaMMUChannelPattern      = regexp.MustCompile(`(?i)\b(?:ch|channel)\s+(?:0x)?([[:xdigit:]]+)`)
+	nvidiaChannelPattern         = regexp.MustCompile(`(?i)\b(?:ch|channel)\s+0x([[:xdigit:]]+)`)
 	nvidiaMMUInterruptPattern    = regexp.MustCompile(`(?i)\bintr\s+([[:xdigit:]]+)`)
 	nvidiaMMUFaultPattern        = regexp.MustCompile(`(?i)MMU Fault:\s*ENGINE\s+([[:alnum:]_#]+)(?:\s+([[:alnum:]_#]+))?\s+faulted\s+@\s+(?:0x)?([[:xdigit:]_]+)`)
 	nvidiaMMUFaultTypePattern    = regexp.MustCompile(`\b(FAULT_[A-Z_]+)\b`)
@@ -294,7 +294,7 @@ func parseNvidiaXid(record kernel.KmsgRecord, event *model.DriverEvent) (bool, e
 		XidCode: xidCode,
 		Message: truncateDriverEventMessage(record.Message),
 	}
-	parseNvidiaXidProcess(record.Message, event.NvidiaXid)
+	parseNvidiaXidPreamble(record.Message, event.NvidiaXid)
 
 	detailParser := nvidiaXidDetailParserForCode(xidCode)
 	if detailParser == nil {
@@ -333,7 +333,11 @@ func truncateDriverEventMessage(message string) string {
 	return message[:maxDriverEventMessageLength]
 }
 
-func parseNvidiaXidProcess(message string, xid *model.NvidiaXid) {
+// parseNvidiaXidPreamble reads the fields the driver prints before any code-specific detail:
+// the process, and the GPU command channel. Every code can carry them, so they are parsed
+// here rather than in a per-code parser — Xid 43 for instance has no detail parser at all,
+// and its channel was previously dropped.
+func parseNvidiaXidPreamble(message string, xid *model.NvidiaXid) {
 	if matches := nvidiaProcessIDPattern.FindStringSubmatch(message); matches != nil {
 		if processID, err := strconv.ParseUint(matches[1], 10, 64); err == nil {
 			xid.ProcessID = &processID
@@ -342,13 +346,15 @@ func parseNvidiaXidProcess(message string, xid *model.NvidiaXid) {
 	if matches := nvidiaProcessNamePattern.FindStringSubmatch(message); matches != nil {
 		xid.ProcessName = firstNonEmpty(matches[1], matches[2])
 	}
+	// The 0x prefix is required, which is what separates a command channel from Xid 160's
+	// decimal "Marking Channel 3 in FBPA 2" repair target.
+	if matches := nvidiaChannelPattern.FindStringSubmatch(message); matches != nil {
+		xid.Channel = normalizeHex(matches[1])
+	}
 }
 
 func parseNvidiaXid31(message string, xid *model.NvidiaXid) bool {
 	details := &model.NvidiaXidMMUFault{}
-	if matches := nvidiaMMUChannelPattern.FindStringSubmatch(message); matches != nil {
-		details.Channel = normalizeHex(matches[1])
-	}
 	if matches := nvidiaMMUInterruptPattern.FindStringSubmatch(message); matches != nil {
 		details.Interrupt = normalizeHex(matches[1])
 	}
