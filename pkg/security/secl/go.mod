@@ -29,6 +29,7 @@ require (
 )
 
 require (
+	github.com/alecthomas/repr v0.5.2 // indirect
 	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
