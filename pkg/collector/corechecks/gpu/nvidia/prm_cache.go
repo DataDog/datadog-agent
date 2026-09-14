@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"slices"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -38,14 +36,7 @@ type PRMCache struct {
 }
 
 // NewPRMCache creates a PRM cache that talks to system-probe.
-func NewPRMCache() *PRMCache {
-	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
-	client := sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		sysprobeclient.WithCheckTimeout(timeout),
-		sysprobeclient.WithStartupCheckTimeout(timeout),
-	)
-
+func NewPRMCache(client *sysprobeclient.CheckClient) *PRMCache {
 	return &PRMCache{
 		client:    client,
 		responses: map[prmCacheKey]prmCacheEntry{},
