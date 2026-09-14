@@ -60,8 +60,8 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    let agent_config = remote_config::load(&bootstrapped).await?;
-    let config = bootstrapped.into_config(&agent_config)?;
+    let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
+    let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

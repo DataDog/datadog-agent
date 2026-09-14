@@ -19,21 +19,12 @@ use saluki_config::{
 };
 use serde_json::{Map, Value};
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
-pub async fn load(bootstrap: &BootstrapConfig) -> Result<GenericConfiguration> {
-    let ipc_config = RemoteAgentClientConfiguration {
-        cmd_port: bootstrap.cmd_port,
-        auth: IpcAuthConfiguration::new(
-            bootstrap.auth_token_file_path.clone().into(),
-            bootstrap.ipc_cert_file_path.clone().into(),
-        ),
-        grpc_max_message_size: 128 * 1024 * 1024,
-        #[cfg(target_os = "linux")]
-        vsock_cid: None,
-    };
+pub async fn load(bootstrap: &BootstrapConfig) -> Result<(GenericConfiguration, bool)> {
+    let ipc_config = ipc_config(bootstrap);
     let mut client = RemoteAgentClient::connect(&ipc_config)
         .await
         .context("failed to connect to the Core Agent configuration stream")?;
@@ -47,14 +38,31 @@ pub async fn load(bootstrap: &BootstrapConfig) -> Result<GenericConfiguration> {
     ));
 
     let (sender, receiver) = mpsc::channel(100);
-    tokio::spawn(stream_config(client, session_id, sender));
+    let (provenance_sender, provenance_receiver) = oneshot::channel();
+    tokio::spawn(stream_config(client, session_id, sender, provenance_sender));
 
     let config = ConfigurationLoader::default()
         .with_dynamic_configuration(receiver)
         .into_generic()
         .await?;
     config.ready().await;
-    Ok(config)
+    let dd_url_explicit = provenance_receiver
+        .await
+        .context("configuration stream closed before its initial snapshot")?;
+    Ok((config, dd_url_explicit))
+}
+
+fn ipc_config(bootstrap: &BootstrapConfig) -> RemoteAgentClientConfiguration {
+    RemoteAgentClientConfiguration {
+        cmd_port: bootstrap.cmd_port,
+        auth: IpcAuthConfiguration::new(
+            bootstrap.auth_token_file_path.clone().into(),
+            bootstrap.ipc_cert_file_path.clone().into(),
+        ),
+        grpc_max_message_size: 128 * 1024 * 1024,
+        #[cfg(target_os = "linux")]
+        vsock_cid: None,
+    }
 }
 
 async fn register(
@@ -112,7 +120,9 @@ async fn stream_config(
     mut client: RemoteAgentClient,
     session_id: SessionIdHandle,
     sender: mpsc::Sender<ConfigUpdate>,
+    initial_provenance: oneshot::Sender<bool>,
 ) {
+    let mut initial_provenance = Some(initial_provenance);
     loop {
         let current = session_id.wait_for_update().await;
         let mut stream = client.stream_config_events(&current);
@@ -121,6 +131,9 @@ async fn stream_config(
             let update = match result {
                 Ok(event) => match event.event {
                     Some(config_event::Event::Snapshot(snapshot)) => {
+                        if let Some(sender) = initial_provenance.take() {
+                            let _ = sender.send(setting_is_explicit(&snapshot, "dd_url"));
+                        }
                         Some(ConfigUpdate::Snapshot(snapshot_to_settings(&snapshot)))
                     }
                     Some(config_event::Event::Update(update)) => update
@@ -158,6 +171,12 @@ fn setting_to_config_setting(setting: &AgentConfigSetting) -> ConfigSetting {
         proto_value_to_json(&setting.value),
         provenance,
     )
+}
+
+fn setting_is_explicit(snapshot: &ConfigSnapshot, key: &str) -> bool {
+    snapshot.settings.iter().any(|setting| {
+        setting.key == key && !matches!(setting.source.as_str(), "default" | "schema")
+    })
 }
 
 fn snapshot_to_settings(snapshot: &ConfigSnapshot) -> Vec<ConfigSetting> {
@@ -205,6 +224,35 @@ fn proto_value_to_json(value: &Option<prost_types::Value>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolves_the_default_auth_token_path() {
+        let bootstrap: BootstrapConfig =
+            serde_json::from_str(r#"{"cmd_port":5001,"ipc_cert_file_path":"/tmp/ipc-cert.pem"}"#)
+                .unwrap();
+
+        assert!(
+            !ipc_config(&bootstrap)
+                .auth
+                .auth_token_file_path()
+                .as_os_str()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn detects_explicit_settings() {
+        let snapshot = ConfigSnapshot {
+            settings: vec![AgentConfigSetting {
+                key: "dd_url".to_string(),
+                source: "environment-variable".to_string(),
+                value: None,
+            }],
+            ..Default::default()
+        };
+
+        assert!(setting_is_explicit(&snapshot, "dd_url"));
+    }
 
     #[test]
     fn converts_integral_numbers_without_losing_their_type() {

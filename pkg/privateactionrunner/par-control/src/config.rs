@@ -111,7 +111,11 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(self, agent: &GenericConfiguration) -> Result<Config> {
+    pub fn into_config(
+        self,
+        agent: &GenericConfiguration,
+        dd_url_explicit: bool,
+    ) -> Result<Config> {
         ensure!(
             self.split_mode,
             "bootstrap configuration has split mode disabled"
@@ -158,6 +162,7 @@ impl BootstrapConfig {
         let opms_base_url = opms_base_url(
             agent,
             std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
+            dd_url_explicit,
         )?;
         let (opms_proxy_url, opms_no_proxy) = proxy_for(agent, &opms_base_url)?;
         let min_tls_version: String = agent
@@ -202,18 +207,21 @@ impl BootstrapConfig {
     }
 }
 
-fn opms_base_url(agent: &GenericConfiguration, use_dd_url: bool) -> Result<String> {
+fn opms_base_url(
+    agent: &GenericConfiguration,
+    use_dd_url: bool,
+    dd_url_explicit: bool,
+) -> Result<String> {
+    let dd_url: String = agent
+        .get_typed("dd_url")
+        .context("invalid dd_url configuration from the Core Agent")?;
     if use_dd_url {
-        let dd_url: String = agent
-            .get_typed("dd_url")
-            .context("invalid dd_url configuration from the Core Agent")?;
-        let parsed = reqwest::Url::parse(&dd_url).context("invalid dd_url")?;
-        ensure!(
-            matches!(parsed.scheme(), "http" | "https"),
-            "dd_url must use HTTP or HTTPS"
-        );
-        ensure!(parsed.host_str().is_some(), "dd_url has no host");
-        return Ok(parsed.origin().ascii_serialization());
+        return endpoint_origin(&dd_url);
+    }
+    if dd_url_explicit {
+        let site = site_from_datadog_url(&dd_url)
+            .context("explicit dd_url does not contain a recognized Datadog site")?;
+        return Ok(format!("https://api.{site}"));
     }
 
     let site: String = agent
@@ -222,6 +230,51 @@ fn opms_base_url(agent: &GenericConfiguration, use_dd_url: bool) -> Result<Strin
     let site = site.trim();
     ensure!(!site.is_empty(), "site is empty");
     Ok(format!("https://api.{site}"))
+}
+
+fn endpoint_origin(raw: &str) -> Result<String> {
+    let parsed = reqwest::Url::parse(raw).context("invalid dd_url")?;
+    ensure!(
+        matches!(parsed.scheme(), "http" | "https"),
+        "dd_url must use HTTP or HTTPS"
+    );
+    ensure!(parsed.host_str().is_some(), "dd_url has no host");
+    Ok(parsed.origin().ascii_serialization())
+}
+
+fn site_from_datadog_url(raw: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(raw).ok()?;
+    let host = parsed.host_str()?.trim_end_matches('.');
+    for domain in [
+        "datadoghq.com",
+        "datadoghq.eu",
+        "datad0g.com",
+        "datad0g.eu",
+        "ddog-gov.com",
+    ] {
+        if host == domain {
+            return Some(domain.to_string());
+        }
+        let Some(prefix) = host.strip_suffix(&format!(".{domain}")) else {
+            continue;
+        };
+        let label = prefix.rsplit('.').next()?;
+        let letters = label.find(|character: char| character.is_ascii_digit());
+        if let Some(letters) = letters
+            && letters >= 2
+            && (1..=2).contains(&(label.len() - letters))
+            && label[..letters]
+                .chars()
+                .all(|character| character.is_ascii_lowercase())
+            && label[letters..]
+                .chars()
+                .all(|character| character.is_ascii_digit())
+        {
+            return Some(format!("{label}.{domain}"));
+        }
+        return Some(domain.to_string());
+    }
+    None
 }
 
 fn proxy_for(
@@ -280,11 +333,32 @@ mod tests {
     }"#;
 
     async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
-        agent_config_with_proxy(task_concurrency, json!([]), false).await
+        agent_config_values(
+            task_concurrency,
+            "https://app.datadoghq.com",
+            json!([]),
+            false,
+        )
+        .await
     }
 
     async fn agent_config_with_proxy(
         task_concurrency: usize,
+        no_proxy: serde_json::Value,
+        nonexact: bool,
+    ) -> GenericConfiguration {
+        agent_config_values(
+            task_concurrency,
+            "https://app.datadoghq.com",
+            no_proxy,
+            nonexact,
+        )
+        .await
+    }
+
+    async fn agent_config_values(
+        task_concurrency: usize,
+        dd_url: &str,
         no_proxy: serde_json::Value,
         nonexact: bool,
     ) -> GenericConfiguration {
@@ -304,7 +378,7 @@ mod tests {
                 json!({"X-Test": "agent"}),
             ),
             ConfigSetting::explicit("site", json!("datadoghq.com")),
-            ConfigSetting::explicit("dd_url", json!("http://fakeintake:8080/path")),
+            ConfigSetting::explicit("dd_url", json!(dd_url)),
             ConfigSetting::explicit(
                 "proxy",
                 json!({"http": "", "https": "http://proxy:3128", "no_proxy": no_proxy}),
@@ -331,7 +405,9 @@ mod tests {
         assert!(bootstrap.split_mode);
         assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
 
-        let config = bootstrap.into_config(&agent_config(9).await).unwrap();
+        let config = bootstrap
+            .into_config(&agent_config(9).await, false)
+            .unwrap();
 
         assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
         assert_eq!(config.opms_proxy_url.as_deref(), Some("http://proxy:3128"));
@@ -348,7 +424,7 @@ mod tests {
     async fn rejects_invalid_core_agent_configuration() {
         let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
         let error = bootstrap
-            .into_config(&agent_config(0).await)
+            .into_config(&agent_config(0).await, false)
             .err()
             .unwrap()
             .to_string();
@@ -375,9 +451,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn uses_dd_url_for_internal_tests() {
+    async fn preserves_explicit_dd_url_precedence() {
+        let regional = agent_config_values(
+            5,
+            "https://intake.profile.us3.datadoghq.com/path",
+            json!([]),
+            false,
+        )
+        .await;
         assert_eq!(
-            opms_base_url(&agent_config(5).await, true).unwrap(),
+            opms_base_url(&regional, false, true).unwrap(),
+            "https://api.us3.datadoghq.com"
+        );
+        assert_eq!(
+            opms_base_url(&regional, false, false).unwrap(),
+            "https://api.datadoghq.com"
+        );
+    }
+
+    #[tokio::test]
+    async fn uses_dd_url_for_internal_tests() {
+        let fakeintake =
+            agent_config_values(5, "http://fakeintake:8080/path", json!([]), false).await;
+        assert_eq!(
+            opms_base_url(&fakeintake, true, true).unwrap(),
             "http://fakeintake:8080"
         );
     }
