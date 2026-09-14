@@ -312,6 +312,7 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	pid := uint64(123)
 	linkID := uint64(4)
 	partition := uint64(2)
+	residualDRAM := int64(3)
 	previousCode := uint64(0)
 	currentCode := uint64(2)
 	driverEvent := newDriverXIDEvent("GPU-1", 31, timestamp, "raw message")
@@ -337,15 +338,26 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		ErrorDebugData:   []string{"0x4"},
 	}
 	driverEvent.NvidiaXid.MemoryFault = &model.NvidiaXidMemoryFault{
-		PhysicalAddress:     "0x1000",
-		RowAddress:          "0x2000",
-		RowRemapperSite:     "site-a",
-		Partition:           &partition,
-		Location:            "HBM",
-		RepairedTarget:      "row",
-		RepairedTargetIndex: &partition,
-		FBPA:                &partition,
-		NodeRebootRequired:  true,
+		PhysicalAddress:      "0x1000",
+		RowAddress:           "0x2000",
+		RowRemapperSite:      "site-a",
+		Partition:            &partition,
+		Location:             "HBM",
+		FBPA:                 &partition,
+		InterruptStormSource: "dram",
+		ResidualDRAM:         &residualDRAM,
+	}
+	driverEvent.NvidiaXid.Repair = &model.NvidiaXidRepair{
+		Target:             "row",
+		TargetIndex:        &partition,
+		Container:          "FBPA",
+		ContainerIndex:     &partition,
+		Activation:         "node_reboot",
+		NodeRebootRequired: true,
+		Failed:             true,
+		FailureReason:      "no_spare_channels",
+		SpareSource:        "same_gpc",
+		MIGMode:            true,
 	}
 	driverEvent.NvidiaXid.RecoveryAction = &model.NvidiaXidRecoveryAction{
 		PreviousCode:  &previousCode,
@@ -390,10 +402,19 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		"memory_partition:2",
 		"memory_location:HBM",
 		"row_remapper_site:site-a",
-		"repaired_target:row",
-		"repaired_target_index:2",
 		"fbpa:2",
+		"interrupt_storm_source:dram",
+		"residual_dram:3",
+		"repair_target:row",
+		"repair_target_index:2",
+		"repair_container:FBPA",
+		"repair_container_index:2",
+		"repair_activation:node_reboot",
 		"node_reboot_required:true",
+		"repair_failed:true",
+		"repair_failure_reason:no_spare_channels",
+		"repair_spare_source:same_gpc",
+		"repair_mig_mode:true",
 		"recovery_previous_code:0",
 		"recovery_previous_label:none",
 		"recovery_current_code:2",

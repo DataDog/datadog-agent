@@ -124,7 +124,54 @@ type NvidiaXid struct {
 	MMUFault       *NvidiaXidMMUFault       `json:"mmu_fault,omitempty"`
 	NVLinkFault    *NvidiaXidNVLinkFault    `json:"nvlink_fault,omitempty"`
 	MemoryFault    *NvidiaXidMemoryFault    `json:"memory_fault,omitempty"`
+	Repair         *NvidiaXidRepair         `json:"repair,omitempty"`
 	RecoveryAction *NvidiaXidRecoveryAction `json:"recovery_action,omitempty"`
+}
+
+// NvidiaXidRepair contains the resource retirement and repair details reported by NVIDIA
+// Xid 64, 156, 157, 160, 161 and 177.
+//
+// These are kept apart from NvidiaXidMemoryFault because they answer a different question:
+// a memory fault says where an error was observed, a repair says which spare resource was
+// spent and what is needed to activate it. Xid 156 and 157 retire a TPC, which is not a
+// memory resource at all.
+type NvidiaXidRepair struct {
+	// Target is the kind of resource retired or repaired: "channel", "lts", "tpc", "row"
+	// or "bank".
+	Target string `json:"target,omitempty" event_tag:"repair_target"`
+
+	// TargetIndex is the resource's index within its container.
+	TargetIndex *uint64 `json:"target_index,omitempty" event_tag:"repair_target_index"`
+
+	// Container and ContainerIndex name the enclosing unit: FBPA for a channel, FPB for an
+	// LTS, GPC for a TPC.
+	Container      string  `json:"container,omitempty" event_tag:"repair_container"`
+	ContainerIndex *uint64 `json:"container_index,omitempty" event_tag:"repair_container_index"`
+
+	// Address is the physical address the driver named, for the row and DRAM retirement
+	// paths that report one.
+	Address string `json:"address,omitempty"`
+
+	// Activation is the verb the driver says is needed to activate the repair, taken from
+	// "Perform <action> to activate repair". It resolves NVIDIA's unqualified "requires a
+	// reboot" to the actual scope.
+	Activation string `json:"activation,omitempty" event_tag:"repair_activation"`
+
+	// NodeRebootRequired is derived from Activation: a GPU reset will not pick the repair up.
+	NodeRebootRequired bool `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
+
+	// Failed distinguishes the failure codes (64, 157, 161) from the pending ones, and
+	// FailureReason carries the driver's stated cause.
+	Failed        bool   `json:"failed,omitempty" event_tag:"repair_failed"`
+	FailureReason string `json:"failure_reason,omitempty" event_tag:"repair_failure_reason"`
+
+	// SpareSource is set on Xid 156: "same_gpc" or "different_gpc". A spare drawn from a
+	// different GPC changes the shape of the surviving partition.
+	SpareSource string `json:"spare_source,omitempty" event_tag:"repair_spare_source"`
+
+	// MIGMode marks the Xid 157 variant that failed because MIG confines the search for a
+	// spare to the same GPC.
+	MIGMode bool `json:"mig_mode,omitempty" event_tag:"repair_mig_mode"`
 }
 
 // NvidiaXidMMUFault contains details from an NVIDIA Xid 31 MMU fault.
@@ -173,18 +220,31 @@ type NvidiaXidNVLinkFault struct {
 	ErrorDebugData []string `json:"error_debug_data,omitempty"`
 }
 
-// NvidiaXidMemoryFault contains location and repair details from NVIDIA memory Xid events.
+// NvidiaXidMemoryFault contains the location of a memory error reported by an NVIDIA memory
+// Xid event. Which spare resource was spent to repair it lives on NvidiaXidRepair instead.
 type NvidiaXidMemoryFault struct {
-	PhysicalAddress     string  `json:"physical_address,omitempty"`
-	RowAddress          string  `json:"row_address,omitempty"`
-	RowRemapperSite     string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
-	Partition           *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
-	Subpartition        *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
-	Location            string  `json:"location,omitempty" event_tag:"memory_location"`
-	RepairedTarget      string  `json:"repaired_target,omitempty" event_tag:"repaired_target"`
-	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty" event_tag:"repaired_target_index"`
-	FBPA                *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
-	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
+	PhysicalAddress string  `json:"physical_address,omitempty"`
+	RowAddress      string  `json:"row_address,omitempty"`
+	RowRemapperSite string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
+	Partition       *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
+	Subpartition    *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
+	Location        string  `json:"location,omitempty" event_tag:"memory_location"`
+	FBPA            *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
+
+	// InterruptStormSource is set on Xid 92: "dram" when the driver disabled single-bit
+	// error interrupts for a framebuffer partition, "sm" for an SM SBE interrupt storm.
+	// Only the DRAM form names a partition, and only DRAM has row remapping to absorb the
+	// errors, so the two are not interchangeable.
+	InterruptStormSource string `json:"interrupt_storm_source,omitempty" event_tag:"interrupt_storm_source"`
+
+	// Residual* are the per-unit counts from Xid 140's "DRAM:%d, LTC:%d, MMU:%d, PCIE:%d",
+	// which say where an error the firmware could not handle was left outstanding. They
+	// are signed because the driver prints %d and a large negative value is a known
+	// counter-reporting artifact rather than a count.
+	ResidualDRAM *int64 `json:"residual_dram,omitempty" event_tag:"residual_dram"`
+	ResidualLTC  *int64 `json:"residual_ltc,omitempty" event_tag:"residual_ltc"`
+	ResidualMMU  *int64 `json:"residual_mmu,omitempty" event_tag:"residual_mmu"`
+	ResidualPCIE *int64 `json:"residual_pcie,omitempty" event_tag:"residual_pcie"`
 }
 
 // NvidiaXidRecoveryAction contains the transition reported by NVIDIA Xid 154.

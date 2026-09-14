@@ -29,18 +29,34 @@ const (
 	nvidiaXidFirstNVLink5Code = 144
 	nvidiaXidLastNVLink5Code  = 150
 
-	nvidiaXidMMUFaultCode       = 31
-	nvidiaXidDBECode            = 48
-	nvidiaXidRowRemapperCode    = 63
-	nvidiaXidContainedECCCode   = 94
-	nvidiaXidUncontainedECCCode = 95
-	nvidiaXidRecoveryActionCode = 154
-	nvidiaXidChannelRepairCode  = 160
-	nvidiaXidDRAMDetailCode     = 171
-	nvidiaXidSRAMDetailCode     = 172
+	nvidiaXidMMUFaultCode         = 31
+	nvidiaXidDBECode              = 48
+	nvidiaXidRowRemapperCode      = 63
+	nvidiaXidRetirementFailCode   = 64
+	nvidiaXidSBEStormCode         = 92
+	nvidiaXidContainedECCCode     = 94
+	nvidiaXidUncontainedECCCode   = 95
+	nvidiaXidResidualECCCode      = 140
+	nvidiaXidRecoveryActionCode   = 154
+	nvidiaXidTPCRetirementCode    = 156
+	nvidiaXidTPCRetireFailureCode = 157
+	nvidiaXidChannelRepairCode    = 160
+	nvidiaXidRepairFailureCode    = 161
+	nvidiaXidDRAMDetailCode       = 171
+	nvidiaXidSRAMDetailCode       = 172
+	nvidiaXidBankRemapCode        = 177
 
 	memoryLocationDRAM = "DRAM"
 	memoryLocationSRAM = "SRAM"
+
+	repairTargetRow    = "row"
+	repairTargetBank   = "bank"
+	repairTargetTPC    = "tpc"
+	repairContainerGPC = "GPC"
+	stormSourceDRAM    = "dram"
+	stormSourceSM      = "sm"
+	spareSourceSameGPC = "same_gpc"
+	spareSourceDiffGPC = "different_gpc"
 )
 
 var (
@@ -61,10 +77,24 @@ var (
 	nvidiaRowAddressPattern      = regexp.MustCompile(`(?i)\brow(?:\s+address)?\s+(0x[[:xdigit:]_]+)`)
 	nvidiaRowRemapperSitePattern = regexp.MustCompile(`(?i)\bsite\s+([[:alnum:]_:-]+)`)
 	nvidiaMemoryLocationPattern  = regexp.MustCompile(`(?i)\b(SRAM|DRAM)\b`)
-	nvidiaChannelRepairPattern   = regexp.MustCompile(`(?i)Marking\s+(Channel|L2\s+slice)\s+(\d+)\s+in\s+FBPA\s+(\d+)`)
-	nvidiaDRAMDetailPattern      = regexp.MustCompile(`(?i)\bFBPA\s+(\d+)\s+subpartition\s+(\d+)`)
-	nvidiaRecoveryActionPattern  = regexp.MustCompile(`(?i)changed\s+from\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)\s+to\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)`)
-	logLimit                     = log.NewLogLimit(10, 10*time.Minute)
+	// The driver prints "Marking Channel N in FBPA N" and "Marking LTS N in FPB N" — the
+	// resource keyword and the container keyword both change between the two forms.
+	nvidiaChannelRepairPattern    = regexp.MustCompile(`(?i)Marking\s+(Channel|LTS)\s+(\d+)\s+in\s+(FBPA|FPB)\s+(\d+)`)
+	nvidiaRepairActivationPattern = regexp.MustCompile(`(?i)Perform\s+(.+?)\s+to\s+activate\s+repair`)
+	nvidiaRepairFailurePattern    = regexp.MustCompile(`(?i)Repairing\s+(Channel|LTS)\s+failed\s+as\s+there\s+are\s+no\s+more\s+spare\s+([^.]+)`)
+	// Row remapper and bank remapper addresses are parenthesised, not bare after the keyword.
+	nvidiaRemapAddressPattern   = regexp.MustCompile(`(?i)Row Remapper(?:\s+Error)?:\s*(?:New\s+row\s*)?\((0x[[:xdigit:]]+)\)`)
+	nvidiaRemapFailurePattern   = regexp.MustCompile(`(?i)Row Remapper(?:\s+Error)?:\s*\(0x[[:xdigit:]]+\)\s*-\s*([^.]+)`)
+	nvidiaRetirementFailPattern = regexp.MustCompile(`(?i)DRAM Retirement failed due to\s+(.+?)\s+at\s+(0x[[:xdigit:]]+)`)
+	nvidiaBankRemapPattern      = regexp.MustCompile(`(?i)Bank Remapper:\s*New\s+bank\s+marked\s+for\s+remapping`)
+	nvidiaTPCRetirePattern      = regexp.MustCompile(`(?i)Retiring\s+TPC\s+(\d+)\s+from\s+GPC\s+(\d+)\s+with\s+a\s+(spare\s+from\s+the\s+same\s+GPC|TPC\s+from\s+a\s+different\s+GPC)`)
+	nvidiaTPCRetireFailPattern  = regexp.MustCompile(`(?i)Unable\s+to\s+retire\s+TPC\s+(\d+)\s+from\s+GPC\s+(\d+)(\s+in\s+MIG\s+mode)?\s+as\s+there\s+are\s+no\s+spare\s+TPCs`)
+	nvidiaSBEStormPattern       = regexp.MustCompile(`(?i)framebuffer\s+at\s+logical\s+partition\s+(\d+)`)
+	nvidiaSMStormPattern        = regexp.MustCompile(`(?i)SM\s+SBE\s+interrupt\s+storm`)
+	nvidiaResidualCountsPattern = regexp.MustCompile(`(?i)\bDRAM:(-?\d+),\s*LTC:(-?\d+),\s*MMU:(-?\d+),\s*PCIE:(-?\d+)`)
+	nvidiaDRAMDetailPattern     = regexp.MustCompile(`(?i)\bFBPA\s+(\d+)\s+subpartition\s+(\d+)`)
+	nvidiaRecoveryActionPattern = regexp.MustCompile(`(?i)changed\s+from\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)\s+to\s+(0x[[:xdigit:]]+)\s+\(([^)]*)\)`)
+	logLimit                    = log.NewLogLimit(10, 10*time.Minute)
 )
 
 type driverEventTelemetry struct {
@@ -310,14 +340,30 @@ func nvidiaXidDetailParserForCode(xidCode uint64) nvidiaXidDetailParser {
 	case xidCode >= nvidiaXidFirstNVLink5Code && xidCode <= nvidiaXidLastNVLink5Code:
 		return parseNvidiaNVLink5Xid
 	case xidCode == nvidiaXidDBECode ||
-		xidCode == nvidiaXidRowRemapperCode ||
+		xidCode == nvidiaXidSBEStormCode ||
 		xidCode == nvidiaXidContainedECCCode ||
 		xidCode == nvidiaXidUncontainedECCCode ||
-		xidCode == nvidiaXidChannelRepairCode ||
+		xidCode == nvidiaXidResidualECCCode ||
 		xidCode == nvidiaXidDRAMDetailCode ||
 		xidCode == nvidiaXidSRAMDetailCode:
 		return func(message string, xid *model.NvidiaXid) bool {
 			return parseNvidiaMemoryXid(message, xidCode, xid)
+		}
+	// The retirement and repair codes report which spare resource was spent. Xid 63 and 64
+	// also carry a memory address, so they run both parsers.
+	case xidCode == nvidiaXidRowRemapperCode ||
+		xidCode == nvidiaXidRetirementFailCode ||
+		xidCode == nvidiaXidTPCRetirementCode ||
+		xidCode == nvidiaXidTPCRetireFailureCode ||
+		xidCode == nvidiaXidChannelRepairCode ||
+		xidCode == nvidiaXidRepairFailureCode ||
+		xidCode == nvidiaXidBankRemapCode:
+		return func(message string, xid *model.NvidiaXid) bool {
+			repaired := parseNvidiaRepairXid(message, xidCode, xid)
+			if xidCode == nvidiaXidRowRemapperCode || xidCode == nvidiaXidRetirementFailCode {
+				return parseNvidiaMemoryXid(message, xidCode, xid) || repaired
+			}
+			return repaired
 		}
 	case xidCode == nvidiaXidRecoveryActionCode:
 		return parseNvidiaRecoveryXid
@@ -442,6 +488,9 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 		details.Partition = parseDecimalPointer(matches[1])
 		details.Subpartition = parseDecimalPointer(matches[2])
 	}
+	// Only the bare-keyword form belongs here. The driver's parenthesised "New row (0x…)"
+	// names the row being remapped rather than a fault location, so it is read by the
+	// repair parser instead and is not duplicated into both structs.
 	if matches := nvidiaRowAddressPattern.FindStringSubmatch(message); matches != nil {
 		details.RowAddress = normalizeHex(matches[1])
 	}
@@ -461,21 +510,109 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 			details.Location = strings.ToUpper(matches[1])
 		}
 	}
-	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
-		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))
-		details.RepairedTargetIndex = parseDecimalPointer(matches[2])
-		details.FBPA = parseDecimalPointer(matches[3])
-		details.NodeRebootRequired = strings.Contains(strings.ToLower(message), "node reboot")
-	}
 	if matches := nvidiaDRAMDetailPattern.FindStringSubmatch(message); matches != nil {
 		details.FBPA = parseDecimalPointer(matches[1])
 		details.Subpartition = parseDecimalPointer(matches[2])
+	}
+	if xidCode == nvidiaXidSBEStormCode {
+		// Only the DRAM storm names a partition; the SM storm has no location at all.
+		if matches := nvidiaSBEStormPattern.FindStringSubmatch(message); matches != nil {
+			details.InterruptStormSource = stormSourceDRAM
+			details.Partition = parseDecimalPointer(matches[1])
+		} else if nvidiaSMStormPattern.MatchString(message) {
+			details.InterruptStormSource = stormSourceSM
+		}
+	}
+	if matches := nvidiaResidualCountsPattern.FindStringSubmatch(message); matches != nil {
+		details.ResidualDRAM = parseSignedPointer(matches[1])
+		details.ResidualLTC = parseSignedPointer(matches[2])
+		details.ResidualMMU = parseSignedPointer(matches[3])
+		details.ResidualPCIE = parseSignedPointer(matches[4])
 	}
 	if *details != (model.NvidiaXidMemoryFault{}) {
 		xid.MemoryFault = details
 		return true
 	}
 	return false
+}
+
+// parseNvidiaRepairXid reads the resource retirement and repair codes. Each of these lines
+// names a spare resource that was spent, or a repair that could not be made, so the useful
+// payload is which resource, where, and what is needed to activate the repair.
+func parseNvidiaRepairXid(message string, xidCode uint64, xid *model.NvidiaXid) bool {
+	details := &model.NvidiaXidRepair{}
+
+	// "Marking Channel N in FBPA N" / "Marking LTS N in FPB N", both followed by
+	// "along with its pair for repair. Perform <action> to activate repair."
+	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
+		details.Target = strings.ToLower(matches[1])
+		details.TargetIndex = parseDecimalPointer(matches[2])
+		details.Container = strings.ToUpper(matches[3])
+		details.ContainerIndex = parseDecimalPointer(matches[4])
+	}
+	if matches := nvidiaRepairFailurePattern.FindStringSubmatch(message); matches != nil {
+		details.Target = strings.ToLower(matches[1])
+		details.Failed = true
+		details.FailureReason = "no_spare_" + normalizeReason(matches[2])
+	}
+	if matches := nvidiaTPCRetirePattern.FindStringSubmatch(message); matches != nil {
+		details.Target = repairTargetTPC
+		details.TargetIndex = parseDecimalPointer(matches[1])
+		details.Container = repairContainerGPC
+		details.ContainerIndex = parseDecimalPointer(matches[2])
+		if strings.Contains(strings.ToLower(matches[3]), "different") {
+			details.SpareSource = spareSourceDiffGPC
+		} else {
+			details.SpareSource = spareSourceSameGPC
+		}
+	}
+	if matches := nvidiaTPCRetireFailPattern.FindStringSubmatch(message); matches != nil {
+		details.Target = repairTargetTPC
+		details.TargetIndex = parseDecimalPointer(matches[1])
+		details.Container = repairContainerGPC
+		details.ContainerIndex = parseDecimalPointer(matches[2])
+		details.Failed = true
+		details.MIGMode = matches[3] != ""
+		details.FailureReason = "no_spare_tpc"
+	}
+	// Row remapper: the pending form names a new row, the error form names a cause.
+	if matches := nvidiaRemapAddressPattern.FindStringSubmatch(message); matches != nil {
+		details.Target = repairTargetRow
+		details.Address = normalizeHex(matches[1])
+	}
+	if matches := nvidiaRemapFailurePattern.FindStringSubmatch(message); matches != nil {
+		details.Target = repairTargetRow
+		details.Failed = true
+		details.FailureReason = normalizeReason(matches[1])
+	}
+	if matches := nvidiaRetirementFailPattern.FindStringSubmatch(message); matches != nil {
+		details.Failed = true
+		details.FailureReason = normalizeReason(matches[1])
+		details.Address = normalizeHex(matches[2])
+	}
+	if nvidiaBankRemapPattern.MatchString(message) {
+		details.Target = repairTargetBank
+	}
+
+	if matches := nvidiaRepairActivationPattern.FindStringSubmatch(message); matches != nil {
+		details.Activation = normalizeReason(matches[1])
+	}
+	// NVIDIA words the requirement either as the activation verb or as a bare sentence, so
+	// both are checked. A node reboot means a GPU reset will not pick the repair up.
+	details.NodeRebootRequired = strings.Contains(details.Activation, "node_reboot") ||
+		strings.Contains(strings.ToLower(message), "node reboot")
+
+	if *details != (model.NvidiaXidRepair{}) {
+		xid.Repair = details
+		return true
+	}
+	return false
+}
+
+// normalizeReason turns a driver phrase into a stable lower-case slug so it can be used as a
+// tag value: "Row Remapping table is full" becomes "row_remapping_table_is_full".
+func normalizeReason(phrase string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(phrase))), "_")
 }
 
 func parseNvidiaRecoveryXid(message string, xid *model.NvidiaXid) bool {
@@ -502,6 +639,16 @@ func normalizeHex(value string) string {
 
 func parseDecimalPointer(value string) *uint64 {
 	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
+// parseSignedPointer is used for the Xid 140 residual counts, which the driver prints with
+// %d and can report as a large negative value.
+func parseSignedPointer(value string) *int64 {
+	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return nil
 	}
