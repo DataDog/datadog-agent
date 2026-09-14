@@ -21,8 +21,6 @@ import (
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// team: fleet-remediation
-
 //go:embed status_templates
 var templatesFS embed.FS
 
