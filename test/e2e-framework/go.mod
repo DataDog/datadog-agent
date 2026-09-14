@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.46.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.3
@@ -30,11 +30,11 @@ require (
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
