@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.6
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.209
+	github.com/DataDog/agent-payload/v5 v5.0.210
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -252,7 +252,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.28 // indirect
-	github.com/mdlayher/socket v0.6.1 // indirect
+	github.com/mdlayher/socket v0.7.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -300,12 +300,11 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
