@@ -10,7 +10,6 @@ package bytecode
 import (
 	"bytes"
 	"errors"
-	"io"
 	"path"
 	"runtime"
 )
@@ -37,14 +36,3 @@ func GetReader(dir, name string) (AssetReader, error) {
 
 	return nopCloser{bytes.NewReader(content)}, nil
 }
-
-type readerAt interface {
-	io.Reader
-	io.ReaderAt
-}
-
-type nopCloser struct {
-	readerAt
-}
-
-func (nopCloser) Close() error { return nil }
