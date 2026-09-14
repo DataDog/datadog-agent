@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -24,6 +26,52 @@ type processorTestCase struct {
 	shouldProcess bool
 	matchCount    int64
 	ruleType      string
+}
+
+type encoderFunc func(*message.Message, string) error
+
+func (f encoderFunc) Encode(msg *message.Message, hostname string) error {
+	return f(msg, hostname)
+}
+
+func TestMessageTapRunsAfterProcessingAndBeforeEncoding(t *testing.T) {
+	t.Cleanup(func() { SetMessageTap(nil) })
+
+	tapCalls := 0
+	encodedAfterTap := false
+	SetMessageTap(func(msg *message.Message) {
+		tapCalls++
+		assert.Equal(t, message.StateRendered, msg.State)
+		assert.Equal(t, []byte("secret=[masked]"), msg.GetContent())
+	})
+
+	monitor := metrics.NewNoopPipelineMonitor("test")
+	p := New(
+		nil,
+		make(chan *message.Message, 1),
+		make(chan *message.Message, 2),
+		[]*config.ProcessingRule{newProcessingRule(maskSequenceRule, "[masked]", "password")},
+		encoderFunc(func(msg *message.Message, _ string) error {
+			encodedAfterTap = tapCalls == 1
+			msg.SetEncoded([]byte("encoded"))
+			return nil
+		}),
+		&diagnostic.NoopMessageReceiver{},
+		nil,
+		monitor,
+		"test",
+	)
+
+	msg := newMessage([]byte("secret=password"), sources.NewLogSource("", &config.LogsConfig{}), "info")
+	p.processMessage(msg)
+
+	assert.Equal(t, 1, tapCalls)
+	assert.True(t, encodedAfterTap)
+	assert.Equal(t, message.StateEncoded, msg.State)
+
+	SetMessageTap(nil)
+	p.processMessage(newMessage([]byte("another message"), sources.NewLogSource("", &config.LogsConfig{}), "info"))
+	assert.Equal(t, 1, tapCalls)
 }
 
 // exclusions tests

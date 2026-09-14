@@ -22,7 +22,9 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -51,6 +53,7 @@ type Requires struct {
 	Tagger      tagger.Component
 	Auditor     auditor.Component
 	Observer    option.Option[observer.Component]
+	LogsAgent   option.Option[logsagent.Component]
 	FilterStore option.Option[workloadfilter.Component]
 
 	// Autodiscovery is optional: when absent the AD scheduler is simply not started
@@ -77,6 +80,11 @@ type logssourceComponent struct{}
 // Agent-internal logs are wired separately by the observer via
 // anomaly_detection.logs.internal.enabled (see observer/impl/observer.go).
 //
+// When the Logs Agent is enabled, the component taps its processed message
+// stream and does not create launchers, tailers, or a second processor. When it
+// is disabled, the standalone container/kubelet collection path remains as a
+// fallback.
+//
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
 //   - no observer-requiring gate is enabled and anomaly_detection.recording.enabled is false
@@ -99,11 +107,10 @@ func NewComponent(deps Requires) (Provides, error) {
 	recordingEnabled := anomalydetectionconfig.RecordingEnabled(deps.Config)
 
 	// Skip when the observer is absent, neither logs ingestion nor recording is
-	// requested, or no enabled source can start.
-	if !logSourceSettings.shouldStart(obsOk, wmetaOk, observerRequired, recordingEnabled) {
+	// requested, or all source gates are disabled.
+	if !logSourceSettings.shouldObserve(obsOk, observerRequired, recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
-	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk
 
 	observerHandle := obs.GetHandle("logs")
 
@@ -113,6 +120,30 @@ func NewComponent(deps Requires) (Provides, error) {
 		logging.Warnf("logssource %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
 		logsRules = &logsfilter.Rules{}
 	}
+
+	var samplerOnDropped func(source, priority string)
+	if obsOk {
+		samplerOnDropped = obs.RecordSamplerDropped
+	}
+	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
+
+	if _, logsAgentEnabled := deps.LogsAgent.Get(); logsAgentEnabled {
+		processor.SetMessageTap(newLogsAgentMessageTap(observerHandle, sampler, logsRules, logSourceSettings))
+		deps.Lc.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				processor.SetMessageTap(nil)
+				return nil
+			},
+		})
+		logging.Infof("logssource using the Logs Agent message stream")
+		return Provides{Comp: &logssourceComponent{}}, nil
+	}
+
+	// Without the Logs Agent, retain the existing standalone collection path.
+	if !logSourceSettings.shouldStart(obsOk, wmetaOk, observerRequired, recordingEnabled) {
+		return Provides{Comp: &logssourceComponent{}}, nil
+	}
+	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
@@ -125,11 +156,6 @@ func NewComponent(deps Requires) (Provides, error) {
 		pauseFilter = fs.GetContainerPausedFilters()
 	}
 
-	var samplerOnDropped func(source, priority string)
-	if obsOk {
-		samplerOnDropped = obs.RecordSamplerDropped
-	}
-	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler, logsRules)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()

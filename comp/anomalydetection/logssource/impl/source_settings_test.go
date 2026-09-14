@@ -180,3 +180,13 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 		})
 	}
 }
+
+func TestLogSourceSettingsShouldObserveDoesNotRequireWorkloadmeta(t *testing.T) {
+	settings := logSourceSettings{
+		logsEnabled:             true,
+		containerSourcesEnabled: true,
+	}
+
+	assert.True(t, settings.shouldObserve(true, true, false))
+	assert.False(t, settings.shouldStart(true, false, true, false))
+}
