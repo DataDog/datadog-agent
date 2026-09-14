@@ -8,6 +8,12 @@
       paths:
         - cmd/privateactionrunner/**/*
         - comp/privateactionrunner/**/*
+        - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.d/privateactionrunner
+        - Dockerfiles/agent/par-probe.sh
+        - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
+        - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
         - pkg/config/setup/privateactionrunner.go
         - pkg/proto/datadog/privateactionrunner/**/*

@@ -8,6 +8,7 @@ package metricname
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,10 +18,10 @@ import (
 func TestNewMatcher(t *testing.T) {
 	check := func(data []string) []string {
 		b := NewMatcher(data, true)
-		return b.data
+		return b.prefixes
 	}
 
-	assert.Equal(t, []string{}, check([]string{}))
+	assert.Equal(t, []string(nil), check([]string{}))
 	assert.Equal(t, []string{"a"}, check([]string{"a"}))
 	assert.Equal(t, []string{"a"}, check([]string{"a", "aa"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "aa", "b", "bb"}))
@@ -39,7 +40,7 @@ func TestNewMatcher(t *testing.T) {
 func TestNewMatcherDoesNotRewritePrefixEntries(t *testing.T) {
 	m := NewMatcher([]string{"redis.checkpoint_"}, true)
 
-	assert.Equal(t, []string{"redis.checkpoint_"}, m.data, "prefix entry must be kept verbatim")
+	assert.Equal(t, []string{"redis.checkpoint_"}, m.prefixes, "prefix entry must be kept verbatim")
 
 	// In the family the user asked for.
 	assert.True(t, m.Test("redis.checkpoint_bytes"))
@@ -127,6 +128,267 @@ func TestIsStringMatching(t *testing.T) {
 	}
 }
 
+func TestNewMatcherPatterns(t *testing.T) {
+	cases := []struct {
+		name        string
+		list        []string
+		matchPrefix bool
+		exact       []string
+		prefixes    []string
+	}{
+		{
+			name: "empty",
+			list: []string{},
+		},
+		{
+			name:  "exact only",
+			list:  []string{"foo.bar", "aaa"},
+			exact: []string{"aaa", "foo.bar"},
+		},
+		{
+			name:     "prefix only",
+			list:     []string{"foo.*", "aaa.*"},
+			prefixes: []string{"aaa.", "foo."},
+		},
+		{
+			name:     "mixed",
+			list:     []string{"foo.bar", "foo.baz.*", "zzz"},
+			exact:    []string{"foo.bar", "zzz"},
+			prefixes: []string{"foo.baz."},
+		},
+		{
+			// A prefix entry absorbs the exact entries it already matches.
+			name:     "exact covered by prefix",
+			list:     []string{"foo.baz.qux", "foo.baz.*", "foo.baz.", "foo.bar"},
+			exact:    []string{"foo.bar"},
+			prefixes: []string{"foo.baz."},
+		},
+		{
+			name:     "redundant prefixes",
+			list:     []string{"app.*", "app.metrics.*", "app.metrics.http.*"},
+			prefixes: []string{"app."},
+		},
+		{
+			name:  "duplicated entries",
+			list:  []string{"foo", "foo", "foo"},
+			exact: []string{"foo"},
+		},
+		{
+			name:     "duplicated prefixes",
+			list:     []string{"foo.*", "foo.*"},
+			prefixes: []string{"foo."},
+		},
+		{
+			// `*` is only special as a trailing character.
+			name:     "star in the middle is literal",
+			list:     []string{"foo.*.bar", "foo.*.baz.*"},
+			exact:    []string{"foo.*.bar"},
+			prefixes: []string{"foo.*.baz."},
+		},
+		{
+			// A lone `*` matches everything, and absorbs every other entry.
+			name:     "match all",
+			list:     []string{"*", "foo", "bar.*"},
+			prefixes: []string{""},
+		},
+		{
+			// The trailing `*` is stripped whether or not matchPrefix is set, so
+			// that a prefix pattern behaves the same in both modes.
+			name:        "match prefix strips the star",
+			list:        []string{"foo.*", "bar"},
+			matchPrefix: true,
+			prefixes:    []string{"bar", "foo."},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := NewMatcher(c.list, c.matchPrefix)
+			assert.Equal(t, c.exact, m.exact, "exact entries")
+			assert.Equal(t, c.prefixes, m.prefixes, "prefix entries")
+			assert.Equal(t, len(c.exact)+len(c.prefixes), m.Len())
+		})
+	}
+}
+
+func TestNormalizeEntries(t *testing.T) {
+	cases := []struct {
+		name        string
+		entries     []string
+		matchPrefix bool
+		normalized  []string
+		dropped     []string
+	}{
+		{
+			name:       "empty",
+			entries:    []string{},
+			normalized: []string{},
+		},
+		{
+			name:       "names are normalized",
+			entries:    []string{"my metric-name", "already_normalized.metric"},
+			normalized: []string{"my_metric_name", "already_normalized.metric"},
+		},
+		{
+			// The marker is not part of the name, and survives normalization.
+			name:       "prefix marker is preserved",
+			entries:    []string{"my metric-name.*", "*"},
+			normalized: []string{"my_metric_name.*", "*"},
+		},
+		{
+			// A prefix keeps the boundary a complete name drops, so the entry is
+			// not widened from the `service_` family to everything starting with
+			// `service`. See NormalizePrefixAppend.
+			name:       "prefix boundary is kept",
+			entries:    []string{"service_*", "service-*", "service.*", "service_"},
+			normalized: []string{"service_*", "service_*", "service.*", "service"},
+		},
+		{
+			// With matchPrefix every entry is a prefix, so they all keep their
+			// boundary -- and none gains a marker it wasn't written with.
+			name:        "match prefix keeps every boundary",
+			entries:     []string{"service_*", "service_", "exact"},
+			matchPrefix: true,
+			normalized:  []string{"service_*", "service_", "exact"},
+		},
+		{
+			name:       "unusable entries are dropped",
+			entries:    []string{"valid.metric", "", "123", "...", "123.*", "another.valid"},
+			normalized: []string{"valid.metric", "another.valid"},
+			dropped:    []string{"", "123", "...", "123.*"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			normalized, dropped := NormalizeEntries(c.entries, c.matchPrefix)
+			assert.Equal(t, c.normalized, normalized)
+			assert.Equal(t, c.dropped, dropped)
+
+			// Normalizing an already-normalized list changes nothing, so a list
+			// normalized again (config load, then an RC update) is stable.
+			twice, dropped := NormalizeEntries(normalized, c.matchPrefix)
+			assert.Equal(t, normalized, twice, "normalizing entries must be idempotent")
+			assert.Empty(t, dropped)
+		})
+	}
+}
+
+// TestNormalizeEntriesFeedsMatcher checks the whole path an entry takes: it is
+// normalized, then compiled, and matches the metric names the intake stores for
+// the family it names -- and only those.
+func TestNormalizeEntriesFeedsMatcher(t *testing.T) {
+	normalized, dropped := NormalizeEntries([]string{"service_*", "my metric"}, false)
+	assert.Empty(t, dropped)
+
+	m := NewMatcher(normalized, false)
+
+	assert.True(t, m.Test("service_requests"))
+	assert.True(t, m.Test("service requests"), "raw name normalizes into the family")
+	assert.False(t, m.Test("service.requests"), "a different family")
+	assert.False(t, m.Test("serviceother"))
+
+	assert.True(t, m.Test("my metric"))
+	assert.True(t, m.Test("my_metric"))
+	assert.False(t, m.Test("my_metric.count"), "not a prefix entry")
+}
+
+func TestIsStringMatchingPatterns(t *testing.T) {
+	list := []string{"foo.bar", "foo.baz.*", "zzz", "app.*"}
+
+	cases := []struct {
+		result bool
+		name   string
+	}{
+		// exact entries
+		{true, "foo.bar"},
+		{false, "foo.ba"},
+		{false, "foo.barbaz"},
+		{true, "zzz"},
+		// prefix entries
+		{true, "foo.baz."},
+		{true, "foo.baz.count"},
+		{false, "foo.baz"},
+		{true, "app."},
+		{true, "app.metrics.http"},
+		{false, "ap"},
+		// the name is normalized before being matched
+		{true, "foo.baz.count-per-second"},
+		{true, "app.metrics per second"},
+		{false, "app metrics"},
+		// unrelated
+		{false, ""},
+		{false, "other.metric"},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("%q", c.name), func(t *testing.T) {
+			m := NewMatcher(list, false)
+			assert.Equal(t, c.result, m.Test(c.name))
+		})
+	}
+}
+
+func TestIsStringMatchingBarePrefix(t *testing.T) {
+	// `foo*` must match `foo` itself: the prefix entry and the tested name are
+	// equal, which is the case the binary search has to handle separately.
+	m := NewMatcher([]string{"foo*"}, false)
+	assert.True(t, m.Test("foo"))
+	assert.True(t, m.Test("foobar"))
+	assert.False(t, m.Test("fo"))
+
+	// A lone `*` matches every storable name; names the intake rejects still
+	// never match.
+	matchAll := NewMatcher([]string{"*"}, false)
+	assert.True(t, matchAll.Test("anything"))
+	assert.False(t, matchAll.Test(""))
+	assert.False(t, matchAll.Test("123"))
+}
+
+func TestRestrictExact(t *testing.T) {
+	m := NewMatcher([]string{"foo.count", "foo.max", "bar.*"}, false)
+
+	restricted := m.RestrictExact(func(name string) bool {
+		return strings.HasSuffix(name, ".count")
+	})
+
+	assert.Equal(t, []string{"foo.count"}, restricted.exact)
+	// Prefixes are shared: a derived name matched by prefix stays matched.
+	assert.Equal(t, m.prefixes, restricted.prefixes)
+
+	assert.True(t, restricted.Test("foo.count"))
+	assert.False(t, restricted.Test("foo.max"))
+	assert.True(t, restricted.Test("bar.anything"))
+}
+
+func TestMatchesAll(t *testing.T) {
+	// However the empty prefix is spelled, and whatever else is in the list.
+	for _, list := range [][]string{{"*"}, {"*", "foo", "bar.*"}} {
+		m := NewMatcher(list, false)
+		assert.True(t, m.MatchesAll(), "%v should match every name", list)
+	}
+	prefixMode := NewMatcher([]string{""}, true)
+	assert.True(t, prefixMode.MatchesAll())
+
+	// A prefix that merely matches a lot is not the empty prefix.
+	for _, list := range [][]string{nil, {"foo"}, {"foo.*"}, {"a*"}} {
+		m := NewMatcher(list, false)
+		assert.False(t, m.MatchesAll(), "%v should not match every name", list)
+	}
+}
+
+func TestNilMatcher(t *testing.T) {
+	var m *Matcher
+	assert.False(t, m.Test("foo"))
+	assert.Equal(t, 0, m.Len())
+	assert.False(t, m.MatchesAll())
+
+	empty := Matcher{}
+	assert.False(t, empty.Test("foo"))
+	assert.Equal(t, 0, empty.Len())
+	assert.False(t, empty.MatchesAll())
+}
+
 func randomString(size uint) string {
 	letterBytes := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -168,5 +430,36 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 
 	for n := 0; n < b.N; n++ {
 		matcher.Test(words[n%len(words)])
+	}
+}
+
+// BenchmarkStringsMatcherMixed measures the cost of a list mixing exact and
+// prefix entries, where `Test` has to probe both sets, against the exact-only
+// list of the same size.
+func BenchmarkStringsMatcherMixed(b *testing.B) {
+	const size = 5000
+
+	var values []string
+	for range size {
+		values = append(values, randomString(50))
+	}
+
+	mixed := slices.Clone(values)
+	// Turn one entry out of two into a prefix pattern.
+	for i := 0; i < len(mixed); i += 2 {
+		mixed[i] += PrefixSuffix
+	}
+
+	words := []string{
+		"foo",
+		"longer.name.but.still.small",
+		"very.long.string.with.some.good.amount.of.chars.for.a.metric",
+		"bar",
+	}
+
+	for name, list := range map[string][]string{"exact-only": values, "mixed": mixed} {
+		b.Run(name, func(b *testing.B) {
+			benchmarkStringsMatcher(b, slices.Clone(words), list)
+		})
 	}
 }

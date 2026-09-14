@@ -59,12 +59,9 @@ func CollectSmiSample(deviceID string) (*SmiSample, error) {
 		args = append(args, "--gpm-metrics", strings.Join(gpmMetrics, ","))
 	}
 	cmd := exec.Command(nvidiaSmi, args...)
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("nvidia-smi failed (%w):\nstderr: %s", err, ee.Stderr)
-		}
-		return nil, fmt.Errorf("could not collect sample: %w", err)
+		return nil, fmt.Errorf("run nvidia-smi dmon: %w\noutput: %s", err, out)
 	}
 
 	// One data line per monitoring cycle (single device via --id). Read the

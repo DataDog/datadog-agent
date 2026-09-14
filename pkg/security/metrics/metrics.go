@@ -171,6 +171,21 @@ var (
 	// Tags: map, cause
 	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
+	// Ring buffer user space dispatcher queue metrics
+
+	// MetricEventStreamDispatcherQueueUsage is the number of events currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueUsage = newRuntimeMetric(".event_stream.dispatcher_queue.usage")
+	// MetricEventStreamDispatcherQueueCapacity is the dispatcher queue capacity in bytes
+	// Tags: -
+	MetricEventStreamDispatcherQueueCapacity = newRuntimeMetric(".event_stream.dispatcher_queue.capacity")
+	// MetricEventStreamDispatcherQueueBytes is the number of bytes currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueBytes = newRuntimeMetric(".event_stream.dispatcher_queue.bytes")
+	// MetricEventStreamDispatcherQueueEnqueued is the number of events pushed onto the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueEnqueued = newRuntimeMetric(".event_stream.dispatcher_queue.enqueued")
+
 	// Process Resolver metrics
 
 	// MetricProcessResolverCacheSize is the name of the metric used to report the size of the user space
@@ -225,6 +240,39 @@ var (
 	// MetricProcessResolverProcFallbackLimiterDrop counts procfs fallback resolutions dropped by the rate limiter
 	// Tags: -
 	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
+
+	// Span context metrics
+
+	// MetricSpanContextProcessCtxFailed is the counter of OTel process context read failures
+	// Tags: status:queue_full, status:no_process_entry, status:unpublished, status:torn, status:unsupported,
+	//       status:malformed, status:gone, status:unreadable, status:unknown
+	MetricSpanContextProcessCtxFailed = newRuntimeMetric(".span_context.process_ctx.failed")
+	// MetricSpanContextProcessCtxSuccess is the counter of OTel process context read successes
+	// Tags: status:ok
+	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:not_applicable, status:unsupported, status:malformed, status:map_error, status:gone,
+	//       status:unreadable, status:unknown
+	MetricSpanContextResolutionFailed = newRuntimeMetric(".span_context.resolution.failed")
+	// MetricSpanContextResolutionSuccess is the counter of per-process span context reader install successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextEventFailed is the counter of per-event span context fill failures
+	// Tags: reader:otel_tls, reader:go_labels, reader:fill
+	//
+	//       status:no_thread_pointer, status:read_fault, status:torn, status:attrs_read_fault,
+	//       status:map_error, status:stale_id, status:malformed,status:g_not_found, status:map_error,
+	//       status:malformed
+	MetricSpanContextEventFailed = newRuntimeMetric(".span_context.event.failed")
+	// MetricSpanContextEventSuccess is the counter of per-event span context fill successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextEventSuccess = newRuntimeMetric(".span_context.event.success")
 
 	// Mount resolver metrics
 

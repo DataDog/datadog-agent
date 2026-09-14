@@ -18,6 +18,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
@@ -51,12 +53,30 @@ type Module struct {
 	}
 }
 
+// Option configures a Module.
+type Option func(*options)
+
+type options struct {
+	statsd ddgostatsd.ClientInterface
+}
+
+// WithStatsd sets the statsd client that the module reports metrics to. Without
+// one, no metrics are reported.
+func WithStatsd(client ddgostatsd.ClientInterface) Option {
+	return func(o *options) { o.statsd = client }
+}
+
 // NewModule creates a new dynamic instrumentation module.
 func NewModule(
 	config *Config,
 	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
+	opts ...Option,
 ) (_ *Module, err error) {
-	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber)
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber, o.statsd)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +240,7 @@ func (c *realDependencies) shutdown() {
 func makeRealDependencies(
 	config *Config,
 	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
+	statsd ddgostatsd.ClientInterface,
 ) (_ realDependencies, retErr error) {
 	var ret realDependencies
 	defer func() {
@@ -286,11 +307,15 @@ func makeRealDependencies(
 		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
+		procsubscribe.WithStatsd(statsd),
 	)
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	ret.decoderFactory = decoderFactory{approximateBootTime: approximateBootTime}
-	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir)
+	ret.symdbManager = newSymdbManager(
+		symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir,
+		withStatsd(statsd),
+	)
 	ret.attacher = &defaultAttacher{}
 	ret.programCompiler = &stackMachineCompiler{}
 	return ret, nil

@@ -68,7 +68,6 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = select({
-        "//packages/agent:iot_flavor": [":iot_checks_files"],
         "//conditions:default": [
             ":adp_openmetrics_compat_files",
             ":base_checks_files",
@@ -86,4 +85,11 @@ pkg_filegroup(
         "//cmd/agent/dist:__pkg__",
         "//packages/agent:__subpackages__",
     ],
+)
+
+pkg_filegroup(
+    name = "iot_files",
+    srcs = [":iot_checks_files"],
+    prefix = select(CONF_DIR_SELECTOR),
+    visibility = ["//packages:__subpackages__"],
 )

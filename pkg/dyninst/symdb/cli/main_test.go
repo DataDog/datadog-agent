@@ -81,10 +81,7 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for range b.N {
-		it, err := symdb.PackagesIterator(binaryPath, diskCache, extractOpts)
-		if err != nil {
-			b.Fatalf("PackagesIterator: %v", err)
-		}
+		it := symdb.PackagesIterator(binaryPath, diskCache, extractOpts)
 		enc, err := uploader.NewBatchEncoder(
 			srv.URL,
 			"bench-service", "bench-version", "bench-runtime-id",

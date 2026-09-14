@@ -27,7 +27,8 @@ type Config struct {
 	RShellAllowedCommands          []string
 	RShellAllowedSystemServices    map[string][]string
 	RShellDisableDetailedTelemetry bool
-	AgentSecretManagementEnabled   bool
+	RShellPrivilegedEnabled        bool
+	RShellPrivilegedSocket         string
 	DDHost                         string
 	DDApiHost                      string
 	Modes                          []modes.Mode

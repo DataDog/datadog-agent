@@ -39,7 +39,7 @@ func (h *UnblockUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.UnblockUser(inputs.UserId)
+	_, err = git.Users.UnblockUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}
