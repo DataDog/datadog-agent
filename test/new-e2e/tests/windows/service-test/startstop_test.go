@@ -984,6 +984,7 @@ func (s *baseStartStopSuite) getInstalledKernelServices() []string {
 // expectedInstalledServices returns the list of services that should be installed by the agent
 func (s *baseStartStopSuite) getInstalledServices() []string {
 	user := s.getInstalledUserServices()
+	user = append(user, "dd-procmgr-service")
 	kernel := s.getInstalledKernelServices()
 	return append(user, kernel...)
 }
