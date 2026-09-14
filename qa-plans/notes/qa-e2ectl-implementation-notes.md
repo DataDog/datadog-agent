@@ -389,3 +389,47 @@ Validation: three new hermetic lifecycle tests (failed kind start → error →
 plain stop; failed EC2 entry → stop fails with `--force` guidance → `--force`
 removes; unknown env), nine Bazel targets green, and an end-to-end smoke of
 the reported scenario (error status, truthful list, --force path, name reuse).
+
+### Local container agent (implemented, live-verified)
+
+`base: local` + `install: binary`: the Agent built from the working tree
+(`dda inv agent.build`), pinned by copy, mounted into the official Agent
+image and run in a container on the environment's Docker network alongside
+the Docker fakeintake. Verified live: two concurrent environments with
+different agent code showed different metrics (`datadog.agent.running` vs.
+`datadog.agent.running_modified`) in their own fakeintakes, on isolated
+networks; `update` (rebuild) and `update --skip-build` (restart) both worked;
+`stop` cleaned containers, networks and entries with nothing left behind.
+
+Three plan-vs-reality findings worth remembering:
+
+- **Readiness must not wait for a specific metric**: the first install of the
+  renamed build failed the readiness poll because it waited for
+  `datadog.agent.running` — which the developer had just renamed. The
+  environment's purpose is changing that metric; readiness now waits for any
+  flushed payload.
+- **Bind-mount pin ordering**: the pinned `agent-binary` is bind-mounted into
+  the container, and Linux refuses to overwrite a bind-mounted file
+  ("text file busy"). Install and update both replace the container before
+  pinning the fresh build; `update` never rebuilds (`BuildForUpdate` only
+  builds, `Update` pins and restarts).
+- **The binary needs its rtloader libraries and an explicit hostname**: found
+  by the mount-and-run spike, not by the plan. `dev/lib/*.so*` are pinned
+  alongside the binary and mounted with `LD_LIBRARY_PATH`; the generated
+  config sets `hostname: <env>-agent` (the agent exits without one, and the
+  name makes metrics attributable per environment).
+
+### Default core checks seeded in local environments (implementation fix)
+
+The first live loop sent only the Go heartbeat metrics — investigated and
+found the cause: the installer bind-mounts the environment's (initially
+empty) conf.d over the image's defaults at `/etc/datadog-agent/conf.d/`,
+so no Go core checks were configured. The `system.cpu/memory/disk/...`
+checks are Go (pkg/collector/corechecks/system/), not Python — the Python
+initialization error in the container status is unrelated and non-fatal for
+them. Fix: `writeAgentFiles` seeds the default core-check configs
+(cpu/memory/disk/network/uptime/load/io/file_handle) into the environment's
+conf.d, with user integrations layered on top (same folder name = override).
+Rerun verification: both environments now produce ~161 metric names
+including system.* from the start, while the heartbeat-rename scenario
+still works identically.

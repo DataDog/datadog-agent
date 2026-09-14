@@ -62,6 +62,7 @@ should not be implemented at all in their old form.
 ### What does not exist in the CLI yet
 
 - EKS registration or mixed Linux/Windows standalone installation.
+- (The local container agent now exists — see the implemented ledger.)
 - Explicit receiver declarations/selection or safe receiver switching (stock environments).
 - Custom multi-component scenarios: scenario-owned topology parameters, scenario-exposed
   installers, and the Go action tools that pair with them.
@@ -102,6 +103,7 @@ and the [CLI README](../test/e2e-framework/cmd/e2ectl/README.md).
 | Cloud fakeintake ownership restored to Pulumi | EC2 scenario adapter; commit `4f576f9b45f` | Existing ECS Fargate deployment, no duplicate Docker-over-SSH setup |
 | Versioned normalized executor requests | `workerclient`, `DecodeResolved`, fixture JSON decoder | Protocol 1; not the proposed candidate-result protocol |
 | Safer candidate-config persistence | `loadOrStoredConfig`, `saveAppliedConfig`, captured `File.Source` | Invalid candidates do not replace stored config; full transaction/recovery model is pending |
+| Local container agent (live-verified) | `internal/drivers/local`, `internal/installer/binary.go`, `cmd/internal/envconfig/{binary,local}`, `localinfra` network helpers, `agentconfig` wiring extraction; [local agent plan](implemented/qa-e2ectl-local-agent-plan.md) | Two concurrent environments with different agent code verified live (renamed heartbeat per env, isolated networks, clean teardown); readiness waits for any flushed metric; bind-mount pin ordering and rtloader/hostname needs recorded in the plan |
 | Local kind Agent iteration | Existing install/update path and recorded live demonstration | Not proof that arbitrary artifacts, version-only update or all cloud workflows work |
 | Installer-typed agent sections | `config.parseAgent`, `cmd/internal/envconfig/{script,helm}`, `installer.AgentExample/Artifact`; [typed agent config plan](partial/qa-e2ectl-typed-agent-config-plan.md) | Stock installers only: `agent.install` selector + `agent.script`/`agent.helm` typed sections; `api-key` removed; image rules scoped to `helm`; unknown/legacy fields fail with `set it under agent.<install>` guidance; section contents validated at install/update (start stays infrastructure-only); the §5.3 contract revision, scenario sections and stored-config auto-migration remain pending |
 
@@ -159,7 +161,7 @@ or present as implementation code.
 | Workstream | Documents | Current implementation status | First useful implementation slice |
 |---|---|---|---|
 | EKS environment | [EKS scenario plan](pending/qa-e2ectl-eks-scenario-plan.md) | **Pending — no EKS CLI driver/schema/registration** | Shared EKS params + Linux/Windows rule + existing Pulumi scenario adapter; then standalone mixed-OS installation |
-| Local host agent | [Local agent plan](pending/qa-e2ectl-local-agent-plan.md) | **Pending — no local driver/binary installer** | `local` driver (per-env Docker network + fakeintake-only snapshot) + `binary` installer (`dda inv agent.build` → Linux binary mounted into the pinned runtime image → container run → heartbeat readiness); no new CLI concepts |
+
 | Explicit Agent receiver wiring | [Receiver wiring plan](pending/qa-e2ectl-receiver-wiring-plan.md) | **Pending — routing remains inferred from fakeintake presence** | Named destination selection and an explicit resolved plan consumed by current single-Agent installers |
 | Custom environments (multi-Agent / multi-fakeintake scenarios) | [Custom-environment plan](pending/qa-e2ectl-custom-environments-plan.md) | **Pending — scenario-owned model designed; no custom scenario implemented** | Public schema package, then the three-VM recipe exposing its own installer (attach via the existing public path, direct field selection) |
 | Developer implementation blueprint | [Custom-environment code plan](pending/qa-e2ectl-custom-environments-code-plan.md) | **Pending — code excerpts, not a patch** | Public schema/fixture move; component-level installer entry points, contract revision, scenario installers reusing the shared installers |

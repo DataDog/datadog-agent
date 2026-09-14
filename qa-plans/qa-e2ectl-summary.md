@@ -72,7 +72,7 @@ per environment. Build with
 | Direction | One-liner | Status |
 |---|---|---|
 | EKS environment | Reuse the framework's existing EKS Pulumi scenario (Linux/Windows node groups) behind the same CLI | Designed, not implemented |
-| Local host agent | The laptop as the environment: `go build`-built Agent run in a local container (isolated, portable), wired to a local fakeintake — the fastest possible loop | Designed, not implemented |
+| Local host agent | The laptop as the environment: the Agent built from the working tree and run in a local container on a per-env Docker network (conflict-free multi-agent), wired to the fakeintake — the fastest possible loop | **Implemented, live-verified** |
 | Receiver selection | Choose fakeintake vs. the real backend explicitly; today routing is inferred from fakeintake presence | Designed, not implemented |
 | Custom/multi-Agent environments | Scenarios expose their own typed config (two Agents, two fakeintakes…) and their own installer; the CLI stays single-agent-generic | Designed, not implemented |
 | Agent-config typing remainder | Contract revision so installers receive typed sections end-to-end; scenario agent sections | Partially implemented |
