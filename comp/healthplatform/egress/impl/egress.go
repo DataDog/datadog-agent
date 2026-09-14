@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
@@ -53,8 +52,6 @@ type egress struct {
 	stopCh chan struct{}
 	doneCh chan struct{}
 
-	metrics telemetryMetrics
-
 	statusMu        sync.Mutex
 	lastAttemptAt   time.Time
 	lastSuccessAt   time.Time
@@ -62,12 +59,6 @@ type egress struct {
 	issuesSentTotal int64
 	bytesSentTotal  int64
 	sendErrorsTotal int64
-}
-
-type telemetryMetrics struct {
-	issuesSentCounter telemetry.Counter
-	bytesSentCounter  telemetry.Counter
-	sendErrorsCounter telemetry.Counter
 }
 
 // Requires defines the dependencies for the egress component.
@@ -78,7 +69,6 @@ type Requires struct {
 	Hostname  hostnameinterface.Component
 	Store     storedef.Component
 	Forwarder forwarderdef.Component
-	Telemetry telemetry.Component
 }
 
 // NewComponent creates the egress component and registers its lifecycle hooks.
@@ -109,17 +99,6 @@ func NewComponent(reqs Requires) egressdef.Component {
 		resolved:    make(map[string]*healthplatform.Issue),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
-		metrics: telemetryMetrics{
-			issuesSentCounter: reqs.Telemetry.NewCounter(
-				"health_platform", "egress_issues_sent", []string{},
-				"Number of health issues sent to the Datadog intake"),
-			bytesSentCounter: reqs.Telemetry.NewCounter(
-				"health_platform", "egress_bytes_sent", []string{},
-				"Number of payload bytes sent to the Datadog intake"),
-			sendErrorsCounter: reqs.Telemetry.NewCounter(
-				"health_platform", "egress_send_errors", []string{},
-				"Number of failed attempts to send issues to the Datadog intake"),
-		},
 	}
 
 	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
@@ -201,7 +180,6 @@ func (e *egress) tick() {
 		e.lastErr = err
 		e.sendErrorsTotal++
 		e.statusMu.Unlock()
-		e.metrics.sendErrorsCounter.Inc()
 		return
 	}
 
@@ -213,8 +191,6 @@ func (e *egress) tick() {
 	e.issuesSentTotal += int64(len(merged))
 	e.bytesSentTotal += int64(bytesSent)
 	e.statusMu.Unlock()
-	e.metrics.issuesSentCounter.Add(float64(len(merged)))
-	e.metrics.bytesSentCounter.Add(float64(bytesSent))
 
 	// Resolved tombstones are consumed after a successful send; active issues
 	// are always re-fetched fresh from the store on the next tick.

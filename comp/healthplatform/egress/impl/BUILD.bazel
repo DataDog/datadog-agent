@@ -10,7 +10,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
-        "//comp/core/telemetry/def",
         "//comp/def",
         "//comp/healthplatform/egress/def",
         "//comp/healthplatform/forwarder/def",
@@ -28,7 +27,6 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/log/mock",
-        "//comp/core/telemetry/mock",
         "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/forwarder/mock",
         "//comp/healthplatform/store/def",

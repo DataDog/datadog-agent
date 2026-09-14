@@ -18,7 +18,6 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -30,7 +29,6 @@ import (
 // forwarder mocks standing in for the two real dependencies.
 func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderdef.Component) *egress {
 	t.Helper()
-	tel := telemetrymock.New(t)
 	e := &egress{
 		log:         logmock.New(t),
 		interval:    time.Minute,
@@ -42,11 +40,6 @@ func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderde
 		resolved:    make(map[string]*healthplatformpayload.Issue),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
-		metrics: telemetryMetrics{
-			issuesSentCounter: tel.NewCounter("health_platform", "egress_issues_sent", []string{}, ""),
-			bytesSentCounter:  tel.NewCounter("health_platform", "egress_bytes_sent", []string{}, ""),
-			sendErrorsCounter: tel.NewCounter("health_platform", "egress_send_errors", []string{}, ""),
-		},
 	}
 	store.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: e.resolvedCh})
 	return e
