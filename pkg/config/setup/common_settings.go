@@ -497,6 +497,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// cadence when > 0, taking precedence over the instance's min_collection_interval.
 	// Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
 	config.BindEnvAndSetDefault("gpu.collection_interval_override", 0)
+	config.BindEnvAndSetDefault("gpu.static_metrics_reporting_interval", 15*time.Second)
 
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
 	config.BindEnvAndSetDefault("gpu.nccl.socket_path", "/var/run/datadog/nccl.socket")
