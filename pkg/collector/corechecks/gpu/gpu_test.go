@@ -1383,7 +1383,7 @@ func testPRMCounters(seed uint64) map[string]uint64 {
 
 // newReleaseTestCheck builds a Check for the release-signal tests, with a
 // recording fake for the system-probe lease push.
-func newReleaseTestCheck(t *testing.T) (*Check, *[]bool) {
+func newReleaseTestCheck(t *testing.T) (*Check, *[]model.NvmlState) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmeta := testutil.GetWorkloadMetaMock(t)
 	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
