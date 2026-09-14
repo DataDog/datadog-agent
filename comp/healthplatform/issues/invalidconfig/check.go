@@ -8,9 +8,12 @@ package invalidconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -19,10 +22,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+type violationPayload struct {
+	Path          string   `json:"path"`
+	Rule          string   `json:"rule"`
+	ActualType    string   `json:"actual_type"`
+	ExpectedTypes []string `json:"expected_types"`
+	Required      bool     `json:"required"`
+	DefaultStatus string   `json:"default_status"`
+	DefaultValue  string   `json:"default_value,omitempty"`
+}
 
 // checker validates the merged in-memory config against the schema.
 type checker struct {
@@ -49,14 +63,15 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
-	errs, schemaErr := schema.ValidateCoreConfig(normalized)
+	violations, schemaErr := schema.ValidateCoreConfigDetailed(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	if len(errs) == 0 {
+	if len(violations) == 0 {
 		return nil, nil
 	}
+	payloads, complete := buildViolationPayloads(c.cfg, violations)
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   c.instanceIssueID(),
@@ -65,15 +80,150 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			Context: func() map[string]string {
 				ctx := map[string]string{
 					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(errs)),
+					contextKeyErrorCount: strconv.Itoa(len(violations)),
 				}
-				for i, e := range errs {
-					ctx[contextErrorKey(i)] = e
+				for i, violation := range violations {
+					ctx[contextErrorKey(i)] = violation.Message
+				}
+				if complete {
+					encoded, err := json.Marshal(payloads)
+					if err == nil {
+						ctx[contextKeyViolationsVersion] = "1"
+						ctx[contextKeyViolations] = string(encoded)
+					}
 				}
 				return ctx
 			}(),
 		},
 	}, nil
+}
+
+func buildViolationPayloads(cfg config.Component, violations []schema.Violation) ([]violationPayload, bool) {
+	if len(violations) == 0 {
+		return nil, false
+	}
+
+	payloads := make([]violationPayload, 0, len(violations))
+	for _, violation := range violations {
+		if violation.Rule != "type" || !supportedActualType(violation.ActualType) || !supportedExpectedTypes(violation.ExpectedTypes) {
+			return nil, false
+		}
+		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
+		payloads = append(payloads, violationPayload{
+			Path:          violation.Path,
+			Rule:          violation.Rule,
+			ActualType:    violation.ActualType,
+			ExpectedTypes: violation.ExpectedTypes,
+			Required:      violation.Required,
+			DefaultStatus: defaultStatus,
+			DefaultValue:  defaultValue,
+		})
+	}
+	return payloads, true
+}
+
+func supportedActualType(value string) bool {
+	switch value {
+	case "null", "boolean", "integer", "number", "string", "array", "object", "unknown":
+		return true
+	default:
+		return false
+	}
+}
+
+func supportedExpectedTypes(values []string) bool {
+	if len(values) == 0 {
+		return false
+	}
+	for _, value := range values {
+		if value == "unknown" || !supportedActualType(value) {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveDefault(cfg config.Component, pointer string) (string, string) {
+	key, ok := configKeyFromJSONPointer(pointer)
+	if !ok || !cfg.IsKnown(key) || !cfg.IsSetting(key) {
+		return "unknown", ""
+	}
+
+	for _, valueWithSource := range cfg.GetAllSources(key) {
+		if valueWithSource.Source != model.SourceDefault {
+			continue
+		}
+		if valueWithSource.Value == nil {
+			return "none", ""
+		}
+		if duration, ok := valueWithSource.Value.(time.Duration); ok {
+			encoded, err := json.Marshal(duration.String())
+			if err != nil {
+				return "unknown", ""
+			}
+			return "known", string(encoded)
+		}
+		encoded, err := json.Marshal(valueWithSource.Value)
+		if err != nil {
+			return "unknown", ""
+		}
+		return "known", string(encoded)
+	}
+	return "none", ""
+}
+
+func configKeyFromJSONPointer(pointer string) (string, bool) {
+	if pointer == "" || !strings.HasPrefix(pointer, "/") {
+		return "", false
+	}
+
+	tokens := strings.Split(strings.TrimPrefix(pointer, "/"), "/")
+	for index, token := range tokens {
+		decoded, ok := decodeJSONPointerToken(token)
+		if !ok || decoded == "" || strings.Contains(decoded, ".") || isArrayIndex(decoded) {
+			return "", false
+		}
+		tokens[index] = decoded
+	}
+	return strings.Join(tokens, "."), true
+}
+
+func decodeJSONPointerToken(token string) (string, bool) {
+	var decoded strings.Builder
+	for index := 0; index < len(token); index++ {
+		if token[index] != '~' {
+			decoded.WriteByte(token[index])
+			continue
+		}
+		if index+1 == len(token) {
+			return "", false
+		}
+		index++
+		switch token[index] {
+		case '0':
+			decoded.WriteByte('~')
+		case '1':
+			decoded.WriteByte('/')
+		default:
+			return "", false
+		}
+	}
+	return decoded.String(), true
+}
+
+func isArrayIndex(token string) bool {
+	if token == "-" || token == "0" {
+		return true
+	}
+	if len(token) == 0 || token[0] == '0' {
+		return false
+	}
+	for _, character := range token {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // instanceIssueID scopes IssueID to this agent's discriminator and config

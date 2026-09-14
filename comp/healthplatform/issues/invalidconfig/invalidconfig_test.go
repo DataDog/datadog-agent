@@ -6,8 +6,10 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
@@ -69,6 +72,31 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
 }
 
+func TestBuildIssue_VersionOneViolationsPreserveLegacyErrors(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyConfigPath:        "/etc/datadog-agent/datadog.yaml",
+		contextKeyErrorCount:        "1",
+		contextKeyViolationsVersion: "1",
+		contextKeyViolations:        `[{"path":"/agent_ipc/port","rule":"type","actual_type":"string","expected_types":["integer"],"required":false,"default_status":"known","default_value":"0"}]`,
+	}
+	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
+
+	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	fields := issue.GetExtra().GetFields()
+	errorsStruct := fields[contextKeyErrors].GetStructValue()
+	require.NotNil(t, errorsStruct)
+	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
+	assert.Equal(t, float64(1), fields[contextKeyViolationsVersion].GetNumberValue())
+
+	violations := fields[contextKeyViolations].GetListValue().GetValues()
+	require.Len(t, violations, 1)
+	violation := violations[0].GetStructValue().GetFields()
+	assert.Equal(t, "/agent_ipc/port", violation["path"].GetStringValue())
+	assert.Equal(t, "0", violation["default_value"].GetStringValue())
+}
+
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
@@ -99,7 +127,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	requireSchema(t)
 	cfg := config.NewMock(t)
-	cfg.SetInTest("agent_ipc.port", "not-a-number")
+	cfg.SetInTest("agent_ipc.port", "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 
 	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	if err != nil {
@@ -109,6 +137,73 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
 	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
+	assert.Equal(t, "1", reports[0].Context[contextKeyViolationsVersion])
+
+	var violations []violationPayload
+	require.NoError(t, json.Unmarshal([]byte(reports[0].Context[contextKeyViolations]), &violations))
+	require.Len(t, violations, 1)
+	assert.Equal(t, violationPayload{
+		Path:          "/agent_ipc/port",
+		Rule:          "type",
+		ActualType:    "string",
+		ExpectedTypes: []string{"integer"},
+		Required:      false,
+		DefaultStatus: "known",
+		DefaultValue:  "0",
+	}, violations[0])
+
+	reportJSON, err := json.Marshal(reports[0].Context)
+	require.NoError(t, err)
+	assert.NotContains(t, string(reportJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
+	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+	require.NoError(t, err)
+	issueJSON, err := json.Marshal(issue.GetExtra())
+	require.NoError(t, err)
+	assert.NotContains(t, string(issueJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
+}
+
+func TestResolveDefault_EncodesDurationAsJSONDurationString(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.Set("agent_ipc.port", 10*time.Second, model.SourceDefault)
+
+	status, value := resolveDefault(cfg, "/agent_ipc/port")
+	assert.Equal(t, "known", status)
+	assert.Equal(t, `"10s"`, value)
+}
+
+func TestResolveDefault_ReportsNoneForKnownLeafWithoutDefault(t *testing.T) {
+	cfg := defaultlessConfig{Component: config.NewMock(t)}
+
+	status, value := resolveDefault(cfg, "/agent_ipc/port")
+	assert.Equal(t, "none", status)
+	assert.Empty(t, value)
+}
+
+func TestResolveDefault_RejectsAmbiguousPaths(t *testing.T) {
+	cfg := config.NewMock(t)
+	for _, pointer := range []string{"", "/not_a_setting", "/agent_ipc", "/tags/0", "/additional_endpoints/customer"} {
+		t.Run(pointer, func(t *testing.T) {
+			status, value := resolveDefault(cfg, pointer)
+			assert.Equal(t, "unknown", status)
+			assert.Empty(t, value)
+		})
+	}
+}
+
+func TestBuildViolationPayloads_SuppressesUnsupportedViolations(t *testing.T) {
+	cfg := config.NewMock(t)
+	payloads, ok := buildViolationPayloads(cfg, []schema.Violation{
+		{
+			Message:       "at '/agent_ipc/port': got string, want integer",
+			Path:          "/agent_ipc/port",
+			Rule:          "type",
+			ActualType:    "string",
+			ExpectedTypes: []string{"integer"},
+		},
+		{Message: "at '/unknown': additionalProperties error", Path: "/unknown", Rule: "additionalProperties"},
+	})
+	assert.False(t, ok)
+	assert.Nil(t, payloads)
 }
 
 // Two checkers with the same hostname but different config files must not
@@ -148,6 +243,22 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 type fakeConfigFileUsed struct {
 	config.Component
 	path string
+}
+
+type defaultlessConfig struct {
+	config.Component
+}
+
+func (defaultlessConfig) IsKnown(string) bool {
+	return true
+}
+
+func (defaultlessConfig) IsSetting(string) bool {
+	return true
+}
+
+func (defaultlessConfig) GetAllSources(string) []model.ValueWithSource {
+	return []model.ValueWithSource{{Source: model.SourceDefault}}
 }
 
 func (f fakeConfigFileUsed) ConfigFileUsed() string {

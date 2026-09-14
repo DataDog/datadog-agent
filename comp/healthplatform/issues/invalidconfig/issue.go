@@ -6,6 +6,7 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -16,10 +17,12 @@ import (
 )
 
 const (
-	contextKeyConfigPath = "config_path"
-	contextKeyErrors     = "errors"
-	contextKeyErrorCount = "error_count"
-	contextKeyImpact     = "impact"
+	contextKeyConfigPath        = "config_path"
+	contextKeyErrors            = "errors"
+	contextKeyErrorCount        = "error_count"
+	contextKeyImpact            = "impact"
+	contextKeyViolationsVersion = "violations_version"
+	contextKeyViolations        = "violations"
 )
 
 // contextErrorKey returns the Context key for the i-th error line.
@@ -73,12 +76,20 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		errMap[path] = slice
 	}
 
-	extra, _ := structpb.NewStruct(map[string]any{
+	extraFields := map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
 		contextKeyErrors:     errMap,
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
-	})
+	}
+	if ctx[contextKeyViolationsVersion] == "1" {
+		var violations []any
+		if json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations) == nil {
+			extraFields[contextKeyViolationsVersion] = 1
+			extraFields[contextKeyViolations] = violations
+		}
+	}
+	extra, _ := structpb.NewStruct(extraFields)
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
