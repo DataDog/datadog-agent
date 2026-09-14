@@ -78,15 +78,29 @@ func conditionTags(baseTags []string, conditionType string) []string {
 	return append(baseTags, "type:"+conditionType)
 }
 
-func applyModeTags(baseTags []string, applyMode, dimension string) []string {
-	return append(baseTags, dpaModeTagKey+":"+applyMode, dpaDimensionTagKey+":"+dimension)
+// applyModeTags generates tags for the apply mode metric. One dpa_dimension tag is added per
+// enabled dimension so that a multi-dimensional DPA stays a single timeseries carrying both
+// values, instead of splitting into one context per dimension.
+func applyModeTags(baseTags []string, applyMode string, dimensions []string) []string {
+	tags := append(baseTags, dpaModeTagKey+":"+applyMode)
+	for _, dimension := range dimensions {
+		tags = append(tags, dpaDimensionTagKey+":"+dimension)
+	}
+	return tags
 }
 
-func controlledResourceTags(baseTags []string, containerName string, resource corev1.ResourceName) []string {
+// controlledResourceTags generates tags for the controlled resources metric. One resource_name
+// tag is added per controlled resource so that a container controlling several resources stays a
+// single timeseries carrying every value, instead of splitting into one context per resource.
+func controlledResourceTags(baseTags []string, containerName string, resources []corev1.ResourceName) []string {
 	if containerName == "*" {
 		containerName = allContainersTagValue
 	}
-	return append(baseTags, taggerTags.KubeContainerName+":"+containerName, resourceNameTagKey+":"+string(resource))
+	tags := append(baseTags, taggerTags.KubeContainerName+":"+containerName)
+	for _, resource := range resources {
+		tags = append(tags, resourceNameTagKey+":"+string(resource))
+	}
+	return tags
 }
 
 func applyModeTagValue(spec *datadoghq.DatadogPodAutoscalerSpec) string {
@@ -105,24 +119,23 @@ func controlledResourcesForMetrics(resources []corev1.ResourceName) []corev1.Res
 }
 
 func appendApplyModeMetrics(metrics metricsstore.StructuredMetrics, internal *model.PodAutoscalerInternal, baseTags []string) metricsstore.StructuredMetrics {
-	applyMode := applyModeTagValue(internal.Spec())
+	var dimensions []string
 	if internal.IsHorizontalScalingEnabled() {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".apply_mode",
-			Type:  metricsstore.MetricTypeGauge,
-			Value: 1.0,
-			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionHorizontal),
-		})
+		dimensions = append(dimensions, dpaDimensionHorizontal)
 	}
 	if internal.IsVerticalScalingEnabled() {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".apply_mode",
-			Type:  metricsstore.MetricTypeGauge,
-			Value: 1.0,
-			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionVertical),
-		})
+		dimensions = append(dimensions, dpaDimensionVertical)
 	}
-	return metrics
+	if len(dimensions) == 0 {
+		return metrics
+	}
+
+	return append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".apply_mode",
+		Type:  metricsstore.MetricTypeGauge,
+		Value: 1.0,
+		Tags:  applyModeTags(baseTags, applyModeTagValue(internal.Spec()), dimensions),
+	})
 }
 
 func appendControlledResourcesMetrics(metrics metricsstore.StructuredMetrics, internal *model.PodAutoscalerInternal, baseTags []string) metricsstore.StructuredMetrics {
@@ -145,18 +158,24 @@ func appendControlledResourcesMetrics(metrics metricsstore.StructuredMetrics, in
 			continue
 		}
 		seenResources := make(map[corev1.ResourceName]struct{})
+		var resources []corev1.ResourceName
 		for _, resource := range controlledResourcesForMetrics(container.ControlledResources) {
 			if _, seen := seenResources[resource]; seen {
 				continue
 			}
 			seenResources[resource] = struct{}{}
-			metrics = append(metrics, metricsstore.StructuredMetric{
-				Name:  metricPrefix + ".vertical_scaling.controlled_resources",
-				Type:  metricsstore.MetricTypeGauge,
-				Value: 1.0,
-				Tags:  controlledResourceTags(baseTags, container.Name, resource),
-			})
+			resources = append(resources, resource)
 		}
+		if len(resources) == 0 {
+			continue
+		}
+
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".vertical_scaling.controlled_resources",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: 1.0,
+			Tags:  controlledResourceTags(baseTags, container.Name, resources),
+		})
 	}
 
 	return metrics
