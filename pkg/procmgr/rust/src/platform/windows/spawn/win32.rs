@@ -13,8 +13,8 @@ use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPr
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::ResumeThread;
 use windows_sys::Win32::System::Threading::{
-    CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
-    CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
+    CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
 };
 
 use super::super::child_env::merge_legacy_scm_env;
@@ -124,7 +124,7 @@ fn windows_command_line_arg(s: &str) -> String {
 /// `CreateProcess*` flags for managed child spawn (`create_process.rs`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ManagedProcessCreationFlags {
-    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` with breakaway from a foreign parent job.
+    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST` (supervisor not in a foreign job).
     JobListAtCreate,
     /// Suspended create for post-create job assignment and `ResumeThread`.
     PostAssign,
@@ -140,7 +140,6 @@ impl ManagedProcessCreationFlags {
                     | CREATE_NO_WINDOW
                     | CREATE_UNICODE_ENVIRONMENT
                     | EXTENDED_STARTUPINFO_PRESENT
-                    | CREATE_BREAKAWAY_FROM_JOB
             }
             Self::PostAssign => {
                 CREATE_SUSPENDED
