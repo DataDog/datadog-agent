@@ -117,6 +117,10 @@ type NvidiaXid struct {
 	ProcessID   *uint64 `json:"process_id,omitempty" event_tag:"pid"`
 	ProcessName string  `json:"process_name,omitempty" event_tag:"process_name"`
 
+	// Channel is the GPU command channel named in the line preamble, alongside pid and
+	// name. It is not specific to MMU faults: Xid 13, 32, 43, 44 and 69 report it too.
+	Channel string `json:"channel,omitempty" event_tag:"channel"`
+
 	MMUFault       *NvidiaXidMMUFault       `json:"mmu_fault,omitempty"`
 	NVLinkFault    *NvidiaXidNVLinkFault    `json:"nvlink_fault,omitempty"`
 	MemoryFault    *NvidiaXidMemoryFault    `json:"memory_fault,omitempty"`
@@ -124,8 +128,10 @@ type NvidiaXid struct {
 }
 
 // NvidiaXidMMUFault contains details from an NVIDIA Xid 31 MMU fault.
+//
+// The channel is not held here: it is a preamble field common to many codes and lives on
+// NvidiaXid.
 type NvidiaXidMMUFault struct {
-	Channel      string `json:"channel,omitempty" event_tag:"channel"`
 	Interrupt    string `json:"interrupt,omitempty" event_tag:"interrupt"`
 	Engine       string `json:"engine,omitempty" event_tag:"engine"`
 	EngineClient string `json:"engine_client,omitempty" event_tag:"engine_client"`
