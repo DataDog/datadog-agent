@@ -6,7 +6,6 @@
 package clusteragent
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +22,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	kubenamespace "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,52 +31,23 @@ var (
 	getClusterAgentIdentityFunc = getClusterAgentIdentity
 )
 
-func getClusterAgentIdentity() (string, string, string, error) {
-	podName := os.Getenv("DD_POD_NAME")
-	if podName == "" {
-		var err error
-		podName, err = os.Hostname()
-		if err != nil {
-			return "", "", "", fmt.Errorf("could not resolve Cluster Agent pod name: %w", err)
-		}
-	}
-
-	clusterName := clustername.GetRFC1123CompliantClusterName(context.Background(), podName)
-	if clusterName == "" {
-		return "", "", "", errors.New("could not resolve Kubernetes cluster name")
-	}
-
-	return clusterName, kubenamespace.GetMyNamespace(), podName, nil
-}
-
-func flareArchiveResourceName(name string) string {
-	// Bound each identity component so the complete archive name stays below common
-	// filesystem limits, while retaining the pod's unique suffix.
-	const maxLength = 63
-	const suffixLength = 12
-
-	name = strings.NewReplacer("/", "_", `\`, "_").Replace(name)
-	if len(name) <= maxLength {
-		return name
-	}
-	return name[:maxLength-suffixLength-1] + "_" + name[len(name)-suffixLength:]
-}
-
-func renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName string) (string, error) {
+func renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName string) string {
 	originalName := filepath.Base(filePath)
 	originalSuffix := strings.TrimPrefix(originalName, "datadog-agent-")
+	sanitize := strings.NewReplacer("/", "_", `\`, "_")
 	archiveName := fmt.Sprintf(
 		"datadog-agent-%s__%s__%s__%s",
-		flareArchiveResourceName(clusterName),
-		flareArchiveResourceName(namespace),
-		flareArchiveResourceName(podName),
+		sanitize.Replace(clusterName),
+		sanitize.Replace(namespace),
+		sanitize.Replace(podName),
 		originalSuffix,
 	)
 	archivePath := filepath.Join(filepath.Dir(filePath), archiveName)
 	if err := os.Rename(filePath, archivePath); err != nil {
-		return "", fmt.Errorf("could not rename Cluster Agent flare archive: %w", err)
+		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name, using generic name: %v", err)
+		return filePath
 	}
-	return archivePath, nil
+	return archivePath
 }
 
 // HandleRCFlareTask creates and sends a cluster-agent flare in response to an RC AGENT_TASK.
@@ -126,10 +94,7 @@ func HandleRCFlareTask(
 	if clusterName, namespace, podName, identityErr := getClusterAgentIdentityFunc(); identityErr != nil {
 		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name: %v", identityErr)
 	} else {
-		filePath, err = renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName)
-		if err != nil {
-			return err
-		}
+		filePath = renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName)
 	}
 
 	log.Infof("[RemoteFlare] Cluster-agent flare created at %s (UUID=%s)", filePath, task.Config.UUID)

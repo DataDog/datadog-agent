@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,15 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 	assert.Equal(t, flarehelpers.NewRemoteConfigFlareSource("uuid-5"), capturedSource)
 	_, statErr := os.Stat(expectedArchivePath)
 	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful upload")
+}
+
+func TestRenameClusterAgentFlareArchive_RenameFailureKeepsOriginal(t *testing.T) {
+	originalPath := filepath.Join(t.TempDir(), "datadog-agent-flare.zip")
+	require.NoError(t, os.WriteFile(originalPath, nil, 0600))
+
+	archivePath := renameClusterAgentFlareArchive(originalPath, "cluster", "namespace", strings.Repeat("a", 300))
+	assert.Equal(t, originalPath, archivePath)
+	assert.FileExists(t, originalPath)
 }
 
 func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
