@@ -680,17 +680,9 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
 	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
 	assert.Contains(t, logs, "privilegedEnabled=false")
-	// No operator restricted_shell settings are configured on this handler,
-	// so the logged AgentPolicy must be nil -- identical to privileged
-	// execution's behavior before this field existed.
 	assert.Contains(t, logs, "agentPolicy=<nil>")
 }
 
-// TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured pins that
-// runPrivileged's Info-level settings summary line surfaces the derived
-// AgentPolicy once an operator restricted_shell setting narrows privileged
-// execution, so the effective agent-side narrowing is observable in
-// journalctl without opting into debug logging.
 func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T) {
 	var logBuffer bytes.Buffer
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
@@ -720,25 +712,12 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
 }
 
-// TestBuildAgentPolicyNoOperatorNarrowingIsNil covers the critical
-// backward-compatibility case: when the operator has configured none of the
-// four restricted_shell narrowing settings in datadog.yaml, buildAgentPolicy
-// must return nil so the resulting ExecuteRequest.AgentPolicy is entirely
-// absent — byte-for-byte identical to privileged execution's behavior before
-// this field existed.
 func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 
 	assert.Nil(t, handler.buildAgentPolicy())
 }
 
-// TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil is the
-// regression test for the per-field nil-vs-empty contract: configuring only
-// restricted_shell.allowed_commands must leave AllowedPaths,
-// AllowedSystemServices, and ElevatableCommands as Go nil (not empty slices
-// or maps) on the resulting AgentPolicy, so those axes are governed
-// exclusively by signed task ∩ policy.json on the rshell side, unaffected by
-// this Agent-side narrowing layer.
 func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
 		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
@@ -755,9 +734,6 @@ func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *test
 	assert.Nil(t, policy.ElevatableCommands)
 }
 
-// TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil
-// mirrors the above for the new privileged-only elevatable_commands setting,
-// which has no non-privileged equivalent.
 func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
 		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
@@ -774,10 +750,6 @@ func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *t
 	assert.Nil(t, policy.AllowedSystemServices)
 }
 
-// TestBuildAgentPolicyAllAxesConfigured covers the fully-configured case:
-// every field is populated once its corresponding datadog.yaml setting is
-// set, including an explicit empty allowlist acting as a deny-all kill
-// switch on that axis.
 func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
 		OperatorAllowedPaths:              []string{"/var/log:ro"},
@@ -799,11 +771,6 @@ func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
 	assert.Equal(t, []string{"rshell:truncate"}, policy.ElevatableCommands)
 }
 
-// TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch
-// covers the system-services axis's existing nil-vs-configured-empty
-// contract (already used for the non-privileged path via
-// filterSystemServiceGrants): a configured empty map is a deny-all kill
-// switch distinct from an unconfigured nil map.
 func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
 		OperatorAllowedPaths:          []string{setup.RShellPathAllowAll},

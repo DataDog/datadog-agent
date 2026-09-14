@@ -106,9 +106,7 @@ type RunCommandHandler struct {
 	mode                          interp.Mode
 	privilegedEnabled             bool
 	privilegedSocket              string
-	// operatorElevatableCommands and the two operatorAllowed*Configured flags
-	// are used only to construct the privileged path's AgentPolicy; see
-	// buildAgentPolicy.
+	// Used only to construct the privileged path's AgentPolicy; see buildAgentPolicy.
 	operatorElevatableCommands        []string
 	operatorAllowedCommandsConfigured bool
 	operatorAllowedPathsConfigured    bool
@@ -459,42 +457,12 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
 }
 
-// buildAgentPolicy translates the operator's datadog.yaml restricted_shell
-// settings into the privileged helper's AgentPolicy, which narrows privileged
-// execution the same way the operator settings already narrow the
-// non-privileged path (see filterAllowedCommands/filterAllowedPaths/
-// filterSystemServiceGrants above).
-//
-// The AgentPolicy wire contract applies nil-vs-empty semantics per field:
-// a nil field means "the Agent imposes no narrowing on this axis", deferring
-// entirely to the signed backend task and the optional local policy.json;
-// a non-nil field (even if empty) narrows via intersection, with an empty
-// value denying every grant on that axis. This function reproduces that
-// per-field nil-vs-configured distinction from the corresponding datadog.yaml
-// setting:
-//
-//   - AllowedCommands / AllowedPaths are populated only when the operator
-//     explicitly configured restricted_shell.allowed_commands /
-//     allowed_paths (h.operatorAllowedCommandsConfigured /
-//     h.operatorAllowedPathsConfigured). Left at their wildcard-admitting
-//     defaults (["rshell:*"] / ["/"]), those defaults are still forwarded
-//     when the field IS populated, so the resulting intersection is a no-op
-//     — but the field itself stays nil, unconfigured, when the operator
-//     never touched the setting at all, which is behaviorally identical for
-//     this axis and keeps the AgentPolicy request minimal.
-//   - AllowedSystemServices is populated only when
-//     restricted_shell.allowed_system_services is configured, mirroring
-//     h.operatorAllowedSystemServices's own nil-means-unset contract for the
-//     non-privileged path.
-//   - ElevatableCommands is populated whenever the operator configured any
-//     restricted_shell.privileged.elevatable_commands entries. This setting
-//     has no non-privileged equivalent and defaults to an empty list, so an
-//     unconfigured value and an explicitly-empty configured value both
-//     correctly deny every elevation.
-//
-// If none of the four axes are configured, this returns nil so the request's
-// AgentPolicy is entirely absent — byte-for-byte identical to privileged
-// execution's behavior before this field existed.
+// buildAgentPolicy narrows privileged execution with the operator's
+// datadog.yaml restricted_shell settings, the same way they already narrow
+// the non-privileged path. A field is populated only when its setting is
+// explicitly configured; otherwise it stays nil and imposes no narrowing on
+// that axis. Returns nil (no AgentPolicy at all) when nothing is configured,
+// matching privileged execution's behavior before this field existed.
 func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 	policy := &privilegedhelper.AgentPolicy{}
 	configured := false

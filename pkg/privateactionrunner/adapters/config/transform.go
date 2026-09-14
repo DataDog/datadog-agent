@@ -177,13 +177,9 @@ func rshellAllowedSystemServices(config config.Component) map[string][]string {
 	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
 }
 
-// rshellElevatableCommands returns the operator-configured list of rshell:-
-// namespaced commands allowed to temporarily regain root inside the
-// privileged helper's one-shot worker.
-//
-// Unlike allowed_commands, this setting has no wildcard-friendly default: an
-// unconfigured or empty list denies every elevation, since elevation grants
-// root and must be explicitly opted into per command.
+// rshellElevatableCommands returns the operator-configured commands allowed
+// to sudo-elevate inside the privileged helper. No wildcard-friendly default:
+// unconfigured or empty denies every elevation.
 func rshellElevatableCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
 	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
