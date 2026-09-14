@@ -199,6 +199,10 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if standardTagsDigest(first.GetLabels()) != standardTagsDigest(second.GetLabels()) {
 		return true
 	}
+	// Annotations/labels used for CEL workload-exclude filtering
+	if metadataDiffers(first, second) {
+		return true
+	}
 	// Cluster IP
 	if first.Spec.ClusterIP != second.Spec.ClusterIP {
 		return true
