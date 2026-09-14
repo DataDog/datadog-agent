@@ -55,6 +55,11 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 	return int(fd), nil
 }
 
+// security profile v2 force-enables open event sampling, which delivers would-be-discarded
+// opens as activity-dump samples; these approver tests assert the kernel approver discards
+// them entirely, so run them under v1.
+var _ = declare(TestFilterOpenBasenameApprover, testOpts{disableSecurityProfileV2: true})
+
 func TestFilterOpenBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -133,6 +138,8 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 }
 
+var _ = declare(TestFilterOpenBasenamePrefixApprover, testOpts{disableSecurityProfileV2: true})
+
 func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -200,6 +207,8 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 		t.Fatal("shouldn't get an event")
 	}
 }
+
+var _ = declare(TestFilterOpenParentBasenameApprover, testOpts{disableSecurityProfileV2: true})
 
 func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -1024,6 +1033,8 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 		t.Fatal("should get an event")
 	}
 }
+
+var _ = declare(TestFilterOpenFlagsApprover, testOpts{disableSecurityProfileV2: true})
 
 func TestFilterOpenFlagsApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
