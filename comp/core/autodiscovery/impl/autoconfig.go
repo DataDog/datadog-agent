@@ -238,9 +238,10 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		}
 
 		isEnc, _ := utils.IsEnc(oldValueStr)
-		// - An empty old value means this secret was initially resolved and isn't a refresh.
-		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
-		if oldValueStr == "" || isEnc {
+		// An unresolved ([ENC]) value implies this secret was triggered by a
+		// cache hit, not a refresh. An empty old value is actionable: it means a
+		// previously unresolved handle succeeded during a periodic refresh.
+		if isEnc {
 			return
 		}
 		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses

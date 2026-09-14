@@ -249,7 +249,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	http.Error(w, string(body), errorCode)
 }
 
-// assocate with the handle itself the origin (filename) and path where the handle appears
+// associate with the handle itself the origin (filename) and path where the handle appears
 func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
 	for _, info := range r.origin[handle] {
 		if info.origin == origin && slices.Equal(info.path, path) {
@@ -577,12 +577,13 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 				if !r.shouldResolvedSecret(handle, origin, imageName, kubeNamespace) {
 					return value, nil
 				}
+				// Track the origin before resolving the handle so periodic refreshes
+				// can retry handles that have never been successfully fetched.
+				r.registerSecretOrigin(handle, origin, path)
 
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
-					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, path)
 
 					if notify {
 						for _, sub := range r.subscriptions {
@@ -635,8 +636,6 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 
 				if secretValue, ok := secretResponse[handle]; ok {
 					log.Debugf("Secret '%s' was successfully resolved", handle)
-					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, path)
 					return secretValue, nil
 				}
 
@@ -827,8 +826,9 @@ func (r *secretResolver) performRefresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// get handles from the cache that match the allowlist
-	newHandles := slices.Collect(stdmaps.Keys(r.cache))
+	// Refresh every handle that still has an active origin. This includes
+	// unresolved handles that have not been added to the cache yet.
+	newHandles := slices.Collect(stdmaps.Keys(r.origin))
 	filteredHandles := make([]string, 0, len(newHandles))
 	for _, handle := range newHandles {
 		if r.matchesAllowlist(handle) {

@@ -85,10 +85,11 @@ type reconcilingConfigManager struct {
 	//
 	//  1. update orctiveConfigs / activeServices
 	//  2. update templatesByADID or servicesByADID to match
-	//  3. update serviceResolutions, generating changes (see reconcileService)
+	//  3. update serviceResolutions or staticResolutions, generating changes
+	//     (see reconcileService)
 	//  4. update scheduledConfigs
 	//
-	// For non-template configs, only steps 1 and 4 are required.
+	// For non-template configs, only steps 1, 3, and 4 are required.
 
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
@@ -115,6 +116,10 @@ type reconcilingConfigManager struct {
 	// serviceResolutions maps a serviceID to the resolutions performed for
 	// that service: serviceID -> template digest -> resolved config digest.
 	serviceResolutions map[string]map[string]string
+
+	// staticResolutions maps raw non-template config digests to the exact
+	// resolved config digest currently present in scheduledConfigs.
+	staticResolutions map[string]string
 
 	// scheduledConfigs contains an entry for each scheduled config, keyed
 	// by its digest.  This is a mix of resolved templates and non-template
@@ -148,6 +153,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		templatesByADID:    newMultimap(),
 		servicesByADID:     newMultimap(),
 		serviceResolutions: map[string]map[string]string{},
+		staticResolutions:  map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
 		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
@@ -259,10 +265,10 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
 			if len(decryptedConfig.Instances) == 0 {
-				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+				log.Errorf("Unable to resolve secrets for config '%s', check configuration will remain unscheduled, err: %s", config.Name, err.Error())
 				return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
 			}
-			log.Warnf("Unable to resolve secrets for some instances of config '%s', dropping instances that failed to decrypt, err: %s", config.Name, err.Error())
+			log.Warnf("Unable to resolve secrets for some instances of config '%s', instances that failed to decrypt will remain unscheduled, err: %s", config.Name, err.Error())
 		}
 		// Instances of the decrypted config change their ID when secrets are
 		// resolved.
@@ -276,6 +282,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 
 		changes.ScheduleConfig(decryptedConfig)
+		cm.staticResolutions[digest] = decryptedConfig.Digest()
 
 		// Publish to the cross-listener index so that subsequently
 		// reconciled services (e.g. ProcessService) can deduplicate
@@ -286,18 +293,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		// config that arrives after a dynamic process discovery leaves the
 		// duplicate scheduled until something else perturbs the service.
 		if len(decryptedConfig.Instances) > 0 {
-			cm.staticConfigIndex.Add(config.Name)
-
-			// Also index the namespace root(s) of host-wide static
-			// openmetrics/prometheus configs under the same set, so discovery
-			// templates for a dedicated integration can be suppressed when
-			// such a config is already claiming the same metric namespace
-			// (see filterTemplatesDiscovery).
-			if listeners.IsGenericIntegrationCheckName(config.Name) {
-				for _, root := range listeners.GenericIntegrationNamespaceRoots(decryptedConfig) {
-					cm.staticConfigIndex.Add(root)
-				}
-			}
+			cm.addStaticConfigIndex(decryptedConfig)
 		}
 	}
 
@@ -341,24 +337,12 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 			for svcID := range matchingServices {
 				changes.Merge(cm.reconcileService(svcID))
 			}
-		} else {
-			// Secrets need to be resolved before being unscheduled as otherwise
-			// the computed hashes can be different from the ones computed at schedule time.
-			config, err := decryptConfig(config, cm.secretResolver, digest)
-			if err != nil {
-				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
-			}
-
-			changes.UnscheduleConfig(config)
-
-			// Update the cross-listener index.
-			if len(config.Instances) > 0 {
-				cm.staticConfigIndex.Remove(config.Name)
-
-				if listeners.IsGenericIntegrationCheckName(config.Name) {
-					for _, root := range listeners.GenericIntegrationNamespaceRoots(config) {
-						cm.staticConfigIndex.Remove(root)
-					}
+		} else if resolvedDigest, found := cm.staticResolutions[digest]; found {
+			delete(cm.staticResolutions, digest)
+			if resolvedConfig, scheduled := cm.scheduledConfigs[resolvedDigest]; scheduled {
+				changes.UnscheduleConfig(resolvedConfig)
+				if len(resolvedConfig.Instances) > 0 {
+					cm.removeStaticConfigIndex(resolvedConfig)
 				}
 			}
 		}
@@ -574,6 +558,24 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	}
 	issueID := admisconfig.TemplateIssueID + ":" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
+}
+
+func (cm *reconcilingConfigManager) addStaticConfigIndex(config integration.Config) {
+	cm.staticConfigIndex.Add(config.Name)
+	if listeners.IsGenericIntegrationCheckName(config.Name) {
+		for _, root := range listeners.GenericIntegrationNamespaceRoots(config) {
+			cm.staticConfigIndex.Add(root)
+		}
+	}
+}
+
+func (cm *reconcilingConfigManager) removeStaticConfigIndex(config integration.Config) {
+	cm.staticConfigIndex.Remove(config.Name)
+	if listeners.IsGenericIntegrationCheckName(config.Name) {
+		for _, root := range listeners.GenericIntegrationNamespaceRoots(config) {
+			cm.staticConfigIndex.Remove(root)
+		}
+	}
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs
