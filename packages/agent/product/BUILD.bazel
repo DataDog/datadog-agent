@@ -44,7 +44,6 @@ pkg_filegroup(
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: cws-instrumentation
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
@@ -55,12 +54,14 @@ pkg_filegroup(
         ],
     }) + select({
         "//packages/agent:linux_default": [
+            ":cws_instrumentation_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":cws_instrumentation_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -200,6 +201,13 @@ pkg_files(
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+)
+
+pkg_files(
+    name = "cws_instrumentation_binary",
+    srcs = ["//cmd/cws-instrumentation"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
 )
 
 pkg_files(
