@@ -102,6 +102,12 @@ type Metric struct {
 	Value               float64              // Value holds the value of the metric.
 	Type                ddmetrics.MetricType // Type holds the type of the metric.
 	RateCalculationMode RateCalculationMode  // RateCalculationMode is the mode of rate calculation for the metric.
+
+	// StrictInterval overrides the check interval. Do not use with RateCalculationMode.
+	StrictInterval time.Duration
+
+	// Timestamp overrides the check execution time. Zero uses the execution time.
+	Timestamp time.Time
 }
 
 // NewMetric creates a metric sample with its common sample metadata.
@@ -131,6 +137,10 @@ func (m *Metric) Clone() Sample {
 }
 
 func (m *Metric) Emit(namespace string, snd sender.Sender, timestamp time.Time) error {
+	if !m.Timestamp.IsZero() {
+		timestamp = m.Timestamp
+	}
+
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
 	switch m.Type {
 	case ddmetrics.GaugeType:
