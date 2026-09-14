@@ -10,7 +10,7 @@ go_library(
         "debugger.go",
         "defender.go",
         "eventlog.go",
-        "filesystem_snapshot.go",
+        "file_deletion_audit.go",
         "hostinfo.go",
         "msi.go",
         "network.go",
@@ -33,6 +33,7 @@ go_library(
     deps = [
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/new-e2e/tests/windows/file-deletion-audit",
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//assert",

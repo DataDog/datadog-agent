@@ -10,12 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	filedeletionaudit "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/file-deletion-audit"
 	"github.com/stretchr/testify/assert"
 )
 
-// SystemPaths returns a list of paths that are known to frequently change and should be ignored when collecting the list of files
-func SystemPaths() []string {
-	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
+// SystemPathAuditExclusions returns deliberately volatile C:\Windows roots
+// whose deletions remain diagnostic rather than blocking MSI scenarios.
+func SystemPathAuditExclusions() []string {
 	return []string{
 		`C:\Windows\assembly\`,
 		`C:\windows\AppReadiness\`,
@@ -42,28 +43,23 @@ func SystemPaths() []string {
 	}
 }
 
-// AssertDoesNotRemoveSystemFiles checks that the paths in the snapshot still exist
-func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
-	t.Run("does not change system files", func(tt *testing.T) {
-		afterUninstall, err := windowsCommon.NewFileSystemSnapshot(host, SystemPaths())
-		if !assert.NoError(tt, err) {
-			return
-		}
-		result, err := beforeInstall.CompareSnapshots(afterUninstall)
-		if !assert.NoError(tt, err) {
-			return
-		}
+// DeletionEventClassification explains whether an observed event blocks the
+// test or remains diagnostic.
+type DeletionEventClassification = filedeletionaudit.DeletionEventClassification
 
-		// Since the result of this test can depend on Windows behavior unrelated to the agent,
-		// we mark it as flaky so it doesn't block PRs.
-		// See WINA-624 for investigation into better ways to perform this test.
-		// If new Windows paths must be ignored, add them to the ignorePaths list in SystemPaths.
-		// NOTE: not marked as flaky for now because it hasn't failed in a long time
-		//       and it makes our flake reports hard to read because this subtest is used in many places.
-		// flake.Mark(tt)
+const (
+	deletionBlocksControlledInstaller = filedeletionaudit.DeletionBlocksControlledInstaller
+	deletionOutsideOperation          = filedeletionaudit.DeletionOutsideOperation
+)
 
-		assert.Empty(tt, result, "should not remove system files")
-	})
+// ClassifiedDeletionEvent retains the original evidence and its disposition.
+type ClassifiedDeletionEvent = filedeletionaudit.ClassifiedDeletionEvent
+
+// ClassifyDeletionEvent classifies an event relative to one controlled MSI
+// operation. Only msiexec.exe and dllhost.exe deletion access to non-excluded
+// paths below C:\Windows blocks the test.
+func ClassifyDeletionEvent(event windowsCommon.FileDeletionEvent, start, end windowsCommon.SecurityLogCheckpoint, exclusions []string) (ClassifiedDeletionEvent, error) {
+	return filedeletionaudit.ClassifyDeletionEvent(event, start, end, windowsCommon.WindowsDirectory, exclusions)
 }
 
 // SystemPathsForPermissionsValidation returns paths that we should ensure permissions are not
