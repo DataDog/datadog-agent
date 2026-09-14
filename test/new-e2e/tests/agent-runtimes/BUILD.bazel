@@ -28,6 +28,7 @@ dd_agent_go_test(
         "auth_artifact_nix_test.go",
         "auth_artifact_win_test.go",
         "forwarder_nss_failover_test.go",
+        "gstatus_nix_test.go",
         "hostname_imdsv2_transition_test.go",
         "infra_basic_common_test.go",
         "infra_basic_nix_test.go",
