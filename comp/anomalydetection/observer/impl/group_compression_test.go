@@ -25,6 +25,17 @@ func TestExtractCommonTags_Overlapping(t *testing.T) {
 	assert.Equal(t, []string{"host:web3"}, residuals[2])
 }
 
+func TestExtractCommonTags_KeepsHostSeparate(t *testing.T) {
+	common, residuals := extractCommonTags([]seriesCompact{
+		{Host: "web-1", Tags: []string{"env:prod"}},
+		{Host: "web-2", Tags: []string{"env:prod"}},
+	})
+
+	assert.Equal(t, map[string]string{"env": "prod"}, common)
+	assert.Empty(t, residuals[0])
+	assert.Empty(t, residuals[1])
+}
+
 func TestExtractCommonTags_Disjoint(t *testing.T) {
 	members := []seriesCompact{
 		{Tags: []string{"host:web1", "env:prod"}},

@@ -114,7 +114,9 @@ func TestDNSResponse(t *testing.T) {
 
 	t.Run("catch-dns-response-ip-only", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
+			// Same packet as catch-dns-rcode-zero with a different DNS transaction id, because
+			// the kernel drops a response whose (id, size) pair was already sent less than a second ago.
+			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96ae5ac381800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
 			err = injectHexDump("lo", hexDump)
 
 			return nil

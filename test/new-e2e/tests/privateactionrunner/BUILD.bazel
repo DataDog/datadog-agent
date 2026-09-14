@@ -44,6 +44,7 @@ dd_agent_go_test(
         "split_win_test.go",
     ],
     embed = [":privateactionrunner"],
+    tags = ["manual"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//test/e2e-framework/components/datadog/agentparams",

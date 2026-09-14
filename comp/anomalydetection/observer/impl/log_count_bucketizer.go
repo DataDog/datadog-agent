@@ -45,6 +45,7 @@ type logCountBucketInterval struct {
 type logCountBucketSeries struct {
 	namespace string
 	name      string
+	host      string
 	tags      []string
 	context   *observerdef.MetricContext
 	anchor    int64
@@ -92,10 +93,11 @@ func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
 func (b *materializedLogCountBucketizer) observe(
 	namespace string,
 	metric observerdef.MetricOutput,
+	host string,
 	timestamp int64,
 	tags []string,
 ) bool {
-	key := seriesKeyHash(namespace, metric.Name, tags)
+	key := seriesKeyHash(namespace, metric.Name, host, tags)
 	state := b.series[key]
 	if state == nil && timestamp <= b.flushedThrough {
 		return false
@@ -113,6 +115,7 @@ func (b *materializedLogCountBucketizer) observe(
 		state = &logCountBucketSeries{
 			namespace:    namespace,
 			name:         metric.Name,
+			host:         host,
 			tags:         append([]string(nil), tags...),
 			context:      metric.Context,
 			anchor:       timestamp,
@@ -153,9 +156,10 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.Add(
+				result := storage.AddWithHost(
 					state.namespace,
 					state.name,
+					state.host,
 					state.values[nextEnd],
 					nextEnd,
 					state.tags,

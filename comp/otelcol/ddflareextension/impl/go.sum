@@ -34,8 +34,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 h1:Nljr4q1GRA/
 github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0/go.mod h1:Y33QHnf0FfdVewFFISOGe20mkZbxX4H839o955/PoeI=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/DataDog/agent-payload/v5 v5.0.209 h1:VthYhodp1FRrf2HSk0bxyLiNt1xbqMHCf+whsdOkt3Y=
-github.com/DataDog/agent-payload/v5 v5.0.209/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
+github.com/DataDog/agent-payload/v5 v5.0.210 h1:yLEYo1V20zPeh1bENaUApCtdaTdZP8WOvYWZQX9A7Yw=
+github.com/DataDog/agent-payload/v5 v5.0.210/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
 github.com/DataDog/datadog-api-client-go/v2 v2.65.0 h1:OBrsv4NJXJZO7YbVBeNZqb/OJ5iDG0My6vXYh2jDshA=
 github.com/DataDog/datadog-api-client-go/v2 v2.65.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -486,8 +486,8 @@ github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/maxatome/go-testdeep v1.14.0 h1:rRlLv1+kI8eOI3OaBXZwb3O7xY3exRzdW5QyX48g9wI=
 github.com/maxatome/go-testdeep v1.14.0/go.mod h1:lPZc/HAcJMP92l7yI6TRz1aZN5URwUBUAfUNvrclaNM=
-github.com/mdlayher/socket v0.6.1 h1:M7uj2NtuujUY4mYr1C57NmfNiRHbkKpnBxO856lsc3A=
-github.com/mdlayher/socket v0.6.1/go.mod h1:+/SGtqc9V+5dAuRgQsU0fGBI+oRDiW7O2Obx10OIWfg=
+github.com/mdlayher/socket v0.7.0 h1:qVREPVwtUMg17pwvveQxpurq0PVisMxi3FGgpsorMYQ=
+github.com/mdlayher/socket v0.7.0/go.mod h1:f7iKql2EK/rfsWYDKofKjk2Ig7I+6HQWdMIdn1tO4A4=
 github.com/mdlayher/vsock v1.3.0 h1:bqQfZ1OznI03y6YiXp2sze05RVdzLn/zsfjnjd4+ivI=
 github.com/mdlayher/vsock v1.3.0/go.mod h1:WsuksavOvwCnV5UqGHUkvAvCy+Dqy81y4goKQTzxxNY=
 github.com/miekg/dns v1.1.73 h1:uhT8nJxmTrPJYClxVxTCX+CVn6qnzSiybRk72Z6DgrE=
@@ -736,8 +736,8 @@ github.com/tklauser/go-sysconf v0.4.0/go.mod h1:8mTNWyog7H+MpKijp4VmKJAd2bbYQ2zu
 github.com/tklauser/numcpus v0.12.0 h1:NR85qdvHA9pFse3x3weVZ0r0ST8R6l5RHbZrlRaqob4=
 github.com/tklauser/numcpus v0.12.0/go.mod h1:ABHeXzJnr/qqwguhClkZKT1/8VABcYrsyUiUGobwWJg=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/twmb/murmur3 v1.1.8 h1:8Yt9taO/WN3l08xErzjeschgZU2QSrwm1kclYq+0aRg=
-github.com/twmb/murmur3 v1.1.8/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
+github.com/twmb/murmur3 v1.2.0 h1:S6p/KHqoqsLveELUoKh6zSm/Kwwgl1pStVBgrrLa5UA=
+github.com/twmb/murmur3 v1.2.0/go.mod h1:LVqs/avIy0flspVtmBd4VSbogDepFl6Wkj0i0ToccHE=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 h1:yS0rzVnj7Z/ZeHzvv5erQbO2b8gyTL4CeMNodl9SJMQ=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8/go.mod h1:gwANdYmo9R8LLwGnyDFWK2PMsaXXX2HhAvCnb/UhZsM=
 github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8=

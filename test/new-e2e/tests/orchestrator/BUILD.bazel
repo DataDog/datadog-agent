@@ -25,6 +25,7 @@ dd_agent_go_test(
         "agent_api_key_values.yaml",
         "agent_values.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/apps/cpustress",
         "//test/e2e-framework/components/datadog/fakeintake",

@@ -25,6 +25,7 @@ dd_agent_go_test(
         "config/netflow_dynamic_path_disabled.yaml",
         "fixtures/host_traffic_dns.py",
     ],
+    tags = ["manual"],
     deps = [
         "//pkg/networkpath/payload",
         "//test/e2e-framework/common/utils",

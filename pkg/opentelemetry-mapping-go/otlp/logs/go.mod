@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.209
+	github.com/DataDog/agent-payload/v5 v5.0.210
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.12.1
-	github.com/twmb/murmur3 v1.1.8
+	github.com/twmb/murmur3 v1.2.0
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
 	go.opentelemetry.io/collector/pdata v1.65.0

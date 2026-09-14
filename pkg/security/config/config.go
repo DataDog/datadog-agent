@@ -465,21 +465,6 @@ type RuntimeSecurityConfig struct {
 	// default_value: 60
 	EventSamplingBindThreshold int
 
-	// description: EventSamplingDNSEnabled defines if the agent should sample DNS events
-	// visibility: private
-	// default_value: false
-	EventSamplingDNSEnabled bool
-
-	// description: EventSamplingDNSRate defines the rate at which the agent should sample DNS events
-	// visibility: private
-	// default_value: 500
-	EventSamplingDNSRate int
-
-	// description: EventSamplingDNSThreshold defines the ring buffer pressure percentage below which DNS events are always admitted when dynamic sampling is enabled
-	// visibility: private
-	// default_value: 60
-	EventSamplingDNSThreshold int
-
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
 	// default_value: false
@@ -1030,9 +1015,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
 		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
 		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
-		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
-		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -1123,7 +1105,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingOpenEnabled = true
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
-		rsConfig.EventSamplingDNSEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -1222,7 +1203,6 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
 		{"bind", c.EventSamplingBindThreshold},
-		{"dns", c.EventSamplingDNSThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)

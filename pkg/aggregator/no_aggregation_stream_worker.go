@@ -207,13 +207,17 @@ func (w *noAggregationStreamWorker) run() {
 								continue
 							}
 
-							if w.observerHandle != nil {
-								w.observerHandle.ObserveMetric(&sample)
-							}
-
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
+							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(resolvedMetricView{
+									sample: &sample,
+									host:   sample.Host,
+									tags:   tags,
+								})
+							}
 
 							// if the value is a rate, we have to account for the 10s interval
 							if mtype == metrics.APIRateType {
@@ -224,7 +228,7 @@ func (w *noAggregationStreamWorker) run() {
 							var serie metrics.Serie
 							serie.Name = sample.Name
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
-							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
+							serie.Tags = tags
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize

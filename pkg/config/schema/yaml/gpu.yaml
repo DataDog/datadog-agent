@@ -74,6 +74,20 @@ properties:
       gpu.collection_interval_override (seconds) overrides the gpu check scheduling
       cadence when > 0, taking precedence over the instance's min_collection_interval.
       Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
+  static_metrics_reporting_interval:
+    node_type: setting
+    type: string
+    default: 15s
+    format: duration
+    visibility: public
+    tags:
+    - golang_type:duration
+    description: |-
+      Reporting interval for static GPU metrics, including gpu.device.total,
+      gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+      early are dropped and missing intervals are filled. Use the same value on every
+      host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+      Set to 0 to report on every check run.
   disabled_collectors:
     node_type: setting
     type: array

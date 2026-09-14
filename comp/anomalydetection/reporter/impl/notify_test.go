@@ -44,7 +44,7 @@ func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.Met
 
 func TestFormatScorerContributorMessage(t *testing.T) {
 	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
-		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Tags: []string{"host:web-1", "env:prod"}},
+		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: []string{"env:prod"}},
 		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: []string{"service:api"}},
 	}}
 
@@ -62,7 +62,7 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 	storage := &sumRangeStorage{
 		metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
-			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Host: "web-1", Tags: []string{"service:api"}},
 			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: []string{"env:prod"}},
 		},
 		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
@@ -76,7 +76,7 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
 	}, storage)
 
-	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {service:api}")
+	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {host:web-1,service:api}")
 	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
 	assert.NotContains(t, message, "log.pattern.abc.count")
 	assert.NotContains(t, message, "log.pattern.def.rate")
@@ -306,6 +306,25 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 	assert.Contains(t, tags, "env:prod")
 	assert.Contains(t, tags, "host:h1")
 	assert.NotContains(t, tags, "version:1.0") // non-dimensional tags not propagated
+}
+
+func TestBuildEventTags_DimensionalHostFromSource(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type: observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{
+					Namespace: "dogstatsd",
+					Host:      "web-1",
+					Tags:      []string{"service:web", "env:prod"},
+				},
+			},
+		},
+	}
+
+	tags := BuildEventTags(c)
+	assert.Contains(t, tags, "host:web-1")
 }
 
 func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
