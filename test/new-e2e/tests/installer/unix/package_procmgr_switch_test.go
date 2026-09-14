@@ -6,12 +6,15 @@
 package installer
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 type packageProcmgrSwitchSuite struct {
@@ -22,6 +25,27 @@ func testProcmgrSwitch(os e2eos.Descriptor, arch e2eos.Architecture, method Inst
 	return &packageProcmgrSwitchSuite{
 		packageBaseSuite: newPackageSuite("procmgr_switch", os, arch, method),
 	}
+}
+
+// RunInstallScript goes through the installer script instead of install_script_agent7.sh: the
+// latter forwards only a fixed allowlist of DD_* variables to the package manager, so
+// DD_PROCESS_MANAGER_ENABLED would never reach the Agent's postinst hook and the host would come
+// up under procmgr whichever manager the matrix asked for.
+func (s *packageProcmgrSwitchSuite) RunInstallScript(params ...string) {
+	err := s.RunInstallScriptWithError(params...)
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"),
+	)
+}
+
+func (s *packageProcmgrSwitchSuite) RunInstallScriptWithError(params ...string) error {
+	scriptURL := "https://" + InstallerScriptBaseURL() + "/scripts/install.sh"
+	_, err := s.Env().RemoteHost.Execute(
+		fmt.Sprintf(`%s bash -c "$(curl -L %s)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURL),
+		client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()),
+	)
+	return err
 }
 
 // TestProcmgrSwitch installs the agent directly under the manager selected by the matrix-driven
