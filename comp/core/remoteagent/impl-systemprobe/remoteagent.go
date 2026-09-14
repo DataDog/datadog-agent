@@ -117,10 +117,7 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 	}
 
 	text, registered, err := statusregistry.GetTextOrError()
-	if err != nil {
-		return nil, fmt.Errorf("render compliance status: %w", err)
-	}
-	if registered {
+	if err == nil && registered {
 		namedSections["Compliance"] = &pbcore.StatusSection{
 			Fields: map[string]string{
 				"": text,

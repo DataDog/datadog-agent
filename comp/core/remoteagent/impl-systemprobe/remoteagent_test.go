@@ -66,10 +66,14 @@ func TestGetStatusDetailsPreservesCompliance(t *testing.T) {
 	assert.Equal(t, "compliance status", response.NamedSections["Compliance"].Fields[""])
 }
 
-func TestGetStatusDetailsReturnsComplianceRenderingError(t *testing.T) {
+func TestGetStatusDetailsDegradesComplianceRenderingError(t *testing.T) {
 	remoteAgent := &remoteagentImpl{
 		getModuleStats: func() map[string]any {
-			return map[string]any{}
+			return map[string]any{
+				"uptime":     "42s",
+				"updated_at": float64(1),
+				"process":    map[string]interface{}{"running": true},
+			}
 		},
 	}
 	t.Cleanup(func() {
@@ -80,6 +84,12 @@ func TestGetStatusDetailsReturnsComplianceRenderingError(t *testing.T) {
 	})
 
 	response, err := remoteAgent.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
-	require.ErrorContains(t, err, "render compliance status: render failed")
-	assert.Nil(t, response)
+	require.NoError(t, err)
+	require.Contains(t, response.NamedSections, "Details")
+
+	details := response.NamedSections["Details"].Fields[""]
+	assert.Contains(t, details, "Status: Running")
+	assert.Contains(t, details, "Uptime: 42s")
+	assert.Contains(t, details, "Process")
+	assert.NotContains(t, response.NamedSections, "Compliance")
 }
