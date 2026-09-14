@@ -253,22 +253,26 @@ func TestLogSourceTagFilterConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
+		defer close(stop)
+		for i := 0; i < 1000; i++ {
+			source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil, fakeTagFilter{}))
+		}
+	})
+
+	wg.Go(func() {
 		for {
 			select {
 			case <-stop:
 				return
 			default:
-				source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil, fakeTagFilter{}))
+				source.TagFilter()
 			}
 		}
 	})
 
-	wg.Go(func() {
-		for i := 0; i < 1000; i++ {
-			source.TagFilter()
-		}
-		close(stop)
-	})
-
 	wg.Wait()
+
+	got, resolved := source.TagFilter()
+	assert.True(t, resolved)
+	assert.Equal(t, fakeTagFilter{}, got)
 }

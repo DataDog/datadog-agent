@@ -18,8 +18,8 @@ var PassthroughEncoder Encoder = &passthroughEncoder{}
 
 type passthroughEncoder struct{}
 
-// Encode ignores filter: anomaly detection is never filtered.
-func (p *passthroughEncoder) Encode(msg *message.Message, _ string, filter sources.TagFilter) error {
+// Encode ignores the tag filter: anomaly detection is never filtered.
+func (p *passthroughEncoder) Encode(msg *message.Message, _ string, _ sources.TagFilter) error {
 	msg.SetEncoded(msg.GetContent())
 	return nil
 }

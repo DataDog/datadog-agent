@@ -78,9 +78,9 @@ type jsonServerlessInitPayload struct {
 	Tags      string         `json:"ddtags"`
 }
 
-// Encode encodes a message into a JSON byte array. filter is ignored: serverless-init
-// tags are never filtered.
-func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string, filter sources.TagFilter) error {
+// Encode encodes a message into a JSON byte array. The tag filter is ignored:
+// serverless-init tags are never filtered.
+func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string, _ sources.TagFilter) error {
 	if msg.State != message.StateRendered {
 		return errors.New("message passed to encoder isn't rendered")
 	}
