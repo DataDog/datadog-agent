@@ -106,6 +106,10 @@ fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
 }
 
+pub fn install_root_for_tests() -> PathBuf {
+    install_root()
+}
+
 pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }

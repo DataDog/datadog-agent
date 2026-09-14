@@ -20,6 +20,7 @@ mod inputs;
 mod logon;
 mod managed;
 mod primary_token;
+mod privileged;
 mod startup_info_ex;
 mod stdio;
 #[cfg(test)]

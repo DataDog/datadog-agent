@@ -14,6 +14,7 @@ use super::super::JobObject;
 use super::credential::SpawnCredential;
 use super::inherit_supervisor::spawn_inherit_supervisor;
 use super::primary_token::spawn_as_primary_token;
+use super::privileged;
 
 impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
@@ -65,6 +66,9 @@ impl ManagedProcess {
     }
 
     fn spawn_privileged(&mut self) -> Result<ProcessHandle> {
+        let request = self.spawn_request()?;
+        privileged::validate_process_request(self.name(), &request)?;
+        privileged::validate_supervisor_is_local_system(self.name())?;
         self.spawn_with_supervisor_inherit(&SpawnCredential::privileged())
     }
 
