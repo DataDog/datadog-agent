@@ -29,14 +29,26 @@ const (
 	nvidiaXidFirstNVLink5Code = 144
 	nvidiaXidLastNVLink5Code  = 150
 
-	nvidiaXidMMUFaultCode       = 31
-	nvidiaXidDBECode            = 48
-	nvidiaXidRowRemapperCode    = 63
-	nvidiaXidContainedECCCode   = 94
-	nvidiaXidUncontainedECCCode = 95
-	nvidiaXidRecoveryActionCode = 154
-	nvidiaXidChannelRepairCode  = 160
-	nvidiaXidDRAMDetailCode     = 171
+	// Xid codes whose message carries structured detail. Codes absent here still produce an
+	// event, just without a detail struct. The patterns below must match the driver's own
+	// *_XID_MESSAGE_FMT strings, each tied to its code by a pEvent->xidNNN assignment — the
+	// first place to look when one stops matching:
+	// https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/interface/events/gpu/ras/ras_events.c
+	// For what a code means rather than how it prints: https://docs.nvidia.com/deploy/xid-errors/index.html
+
+	nvidiaXidMMUFaultCode = 31 // GPU memory page fault; names the engine, client and fault address
+	nvidiaXidDBECode      = 48 // Double-bit ECC error; names the physical address and partition
+
+	nvidiaXidRowRemapperCode = 63 // A DRAM row was marked for remapping; names the new row
+
+	nvidiaXidContainedECCCode   = 94 // Contained ECC error; location is inline in the message text
+	nvidiaXidUncontainedECCCode = 95 // Uncontained ECC error; location is inline in the message text
+
+	nvidiaXidRecoveryActionCode = 154 // Recovery-action tier changed; a state transition, not a fault
+
+	nvidiaXidChannelRepairCode = 160 // A DRAM channel or L2 slice was marked for repair
+
+	nvidiaXidDRAMDetailCode = 171 // Uncorrectable DRAM error
 )
 
 var (
@@ -210,6 +222,8 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		return event, errors.New("can't find PCI bus ID in message")
 	}
 
+	event.PCIBusID = pciBusID
+
 	// The raw kmsg timestamp cannot be reliably converted to wall time; use the
 	// timestamp captured by KmsgReader when it observed the record instead.
 	event.Timestamp = record.ObservedAt
@@ -233,10 +247,15 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		s.telemetry.enrichmentFailures.Inc()
 	}
 
+	// A device off the PCIe bus is unresolvable through NVML — exactly what Xid 79 and the
+	// 62/119/120 sequence report — so keep the event and let the PCI bus ID identify it.
 	device, err := s.deviceCache.GetByPCIBusID(pciBusID)
 	if err != nil {
 		s.telemetry.unresolvedPCI.Inc()
-		return event, fmt.Errorf("resolve device UUID for PCI bus ID %s: %w", pciBusID, err)
+		if logLimit.ShouldLog() {
+			log.Warnf("emitting driver event without device UUID: resolve PCI bus ID %s: %v", pciBusID, err)
+		}
+		return event, nil
 	}
 	event.DeviceUUID = device.GetDeviceInfo().UUID
 

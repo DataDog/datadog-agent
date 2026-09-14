@@ -82,10 +82,29 @@ const (
 
 // DriverEvent is a GPU driver event observed by system-probe.
 type DriverEvent struct {
-	DeviceUUID string          `json:"device_uuid"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Type       DriverEventType `json:"type"`
-	NvidiaXid  *NvidiaXid      `json:"nvidia_xid,omitempty"`
+	DeviceUUID string `json:"device_uuid"`
+
+	// PCIBusID is the PCI address the driver reported the event against. It is always
+	// populated, and is the only device identifier available when the GPU has left the
+	// PCIe bus (Xid 79) and can no longer be resolved to a UUID through NVML.
+	//
+	// It carries no event_tag: the tag walker only descends into NvidiaXid, so consumers
+	// that want this as a tag must emit it explicitly.
+	PCIBusID string `json:"pci_bus_id,omitempty"`
+
+	Timestamp time.Time       `json:"timestamp"`
+	Type      DriverEventType `json:"type"`
+	NvidiaXid *NvidiaXid      `json:"nvidia_xid,omitempty"`
+}
+
+// DeviceKey identifies the device an event belongs to, preferring the UUID and falling back
+// to the PCI bus ID. Grouping on this rather than on DeviceUUID keeps events from separate
+// unresolved devices in separate correlation groups instead of collapsing them into one.
+func (e DriverEvent) DeviceKey() string {
+	if e.DeviceUUID != "" {
+		return e.DeviceUUID
+	}
+	return e.PCIBusID
 }
 
 // NvidiaXid contains NVIDIA-specific details for an Xid driver event.

@@ -399,6 +399,34 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	}, sample.tags)
 }
 
+func TestXIDEventToSampleFallsBackToPCIBusIDWhenDeviceIsUnresolved(t *testing.T) {
+	// A GPU that has fallen off the PCIe bus (Xid 79) has no resolvable UUID, so the PCI
+	// bus ID has to carry the device identity through the title, aggregation key and tags.
+	timestamp := time.Unix(100, 0)
+	driverEvent := newDriverXIDEvent("", 79, timestamp, "GPU has fallen off the bus")
+	driverEvent.PCIBusID = "0000:97:00.0"
+
+	sample, ok := newDriverOnlyXIDEvent(driverEvent).toSample().(*Event)
+	require.True(t, ok)
+
+	assert.Equal(t, "XID 79 error on 0000:97:00.0", sample.event.Title)
+	assert.Equal(t, "0000:97:00.0", sample.event.AggregationKey)
+	assert.Contains(t, sample.tags, "pci_bus_id:0000:97:00.0")
+}
+
+func TestXIDEventToSampleKeepsUUIDWhenBothIdentifiersArePresent(t *testing.T) {
+	timestamp := time.Unix(100, 0)
+	driverEvent := newDriverXIDEvent("GPU-1", 31, timestamp, "raw message")
+	driverEvent.PCIBusID = "0000:35:00.0"
+
+	sample, ok := newDriverOnlyXIDEvent(driverEvent).toSample().(*Event)
+	require.True(t, ok)
+
+	assert.Equal(t, "XID 31 error on GPU-1", sample.event.Title)
+	assert.Equal(t, "GPU-1", sample.event.AggregationKey)
+	assert.Contains(t, sample.tags, "pci_bus_id:0000:35:00.0")
+}
+
 func TestXIDEventToSampleUsesNVMLFallbackText(t *testing.T) {
 	nvmlEvent := newObservedXIDEvent("GPU-1", 43, time.Unix(100, 0), 0, 0)
 	sample, ok := (xidEvent{
@@ -437,6 +465,14 @@ func newDriverXIDEvent(deviceUUID string, xidCode uint64, timestamp time.Time, m
 	}
 }
 
+// newUnresolvedDriverXIDEvent builds a driver event for a GPU whose UUID could not be
+// resolved through NVML, as happens once the device has left the PCIe bus.
+func newUnresolvedDriverXIDEvent(pciBusID string, xidCode uint64, timestamp time.Time, message string) model.DriverEvent {
+	event := newDriverXIDEvent("", xidCode, timestamp, message)
+	event.PCIBusID = pciBusID
+	return event
+}
+
 func newNVMLXIDEvent(event observedDeviceEvent) xidEvent {
 	return xidEvent{
 		DeviceUUID: event.DeviceUUID,
@@ -448,7 +484,9 @@ func newNVMLXIDEvent(event observedDeviceEvent) xidEvent {
 
 func newDriverOnlyXIDEvent(event model.DriverEvent) xidEvent {
 	return xidEvent{
-		DeviceUUID:  event.DeviceUUID,
+		// Mirrors convertDriverXIDEvents, which keys on DeviceKey so an unresolved device
+		// stays identified by its PCI bus ID.
+		DeviceUUID:  event.DeviceKey(),
 		XIDCode:     event.NvidiaXid.XidCode,
 		Timestamp:   event.Timestamp,
 		DriverEvent: &event,

@@ -287,12 +287,32 @@ func uint64Pointer(value uint64) *uint64 {
 	return &value
 }
 
-func TestCreateDriverEventReportsResolutionError(t *testing.T) {
+func TestCreateDriverEventKeepsEventWhenDeviceIsUnresolved(t *testing.T) {
+	subscriber, telemetryMock := newTestDriverEventSubscriber(t)
+
+	// A GPU that has fallen off the PCIe bus cannot be resolved through NVML, so the event
+	// must survive with the PCI bus ID as its only device identifier.
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 79, GPU has fallen off the bus"})
+
+	require.NoError(t, err)
+	require.Empty(t, event.DeviceUUID)
+	require.Equal(t, "0000:97:00.0", event.PCIBusID)
+	require.Equal(t, uint64(79), event.NvidiaXid.XidCode)
+
+	unresolvedMetrics, err := telemetryMock.GetCountMetric("gpu__driver_events", "unresolved_pci")
+	require.NoError(t, err)
+	require.Len(t, unresolvedMetrics, 1)
+	require.Equal(t, float64(1), unresolvedMetrics[0].Value())
+}
+
+func TestCreateDriverEventRecordsPCIBusIDOnResolvedDevices(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
 
-	_, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 31"})
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:00:1e): 31"})
 
-	require.ErrorContains(t, err, "resolve device UUID for PCI bus ID 0000:97:00.0")
+	require.NoError(t, err)
+	require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID)
+	require.Equal(t, "0000:00:1e.0", event.PCIBusID)
 }
 
 func TestCreateDriverEventRejectsMalformedMessages(t *testing.T) {
