@@ -134,7 +134,9 @@ func (c *deviceCache) Refresh() error {
 		uuidToDevice[dev.UUID] = dev
 		pciInfo, err := dev.GetPciInfo()
 		if err != nil {
-			log.Warnf("error getting PCI information for device %s: %s", dev.UUID, err)
+			if logLimiter.ShouldLog() {
+				log.Warnf("error getting PCI information for device %s: %s", dev.UUID, err)
+			}
 		} else {
 			pciBusIDToDevice[gpuutil.PCIInfoToBusID(pciInfo)] = dev
 		}
