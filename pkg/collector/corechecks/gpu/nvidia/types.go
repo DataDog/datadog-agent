@@ -7,6 +7,8 @@
 package nvidia
 
 import (
+	"time"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -38,6 +40,12 @@ type Metric struct {
 	HistogramBucket     *Bucket                 // HistogramBucket holds histogram-bucket data when the metric is emitted via sender.HistogramBucket.
 	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
 	RateCalculationMode RateCalculationMode     // RateCalculationMode is the mode of rate calculation for the metric.
+
+	// StrictInterval overrides the check interval. Do not use with RateCalculationMode.
+	StrictInterval time.Duration
+
+	// Timestamp overrides the check execution time. Zero uses the execution time.
+	Timestamp time.Time
 }
 
 // Bucket carries histogram bucket data for a metric emitted with sender.HistogramBucket.

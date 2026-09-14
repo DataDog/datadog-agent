@@ -61,6 +61,7 @@ type Check struct {
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
+	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 }
@@ -97,6 +98,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceCache:         ddnvml.NewDeviceCache(),
 		rateCalculator:      nvidia.NewRateCalculator(),
+		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 	}
 }
 
@@ -157,6 +159,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		log.Infof("GPU device %s is excluded by configuration", deviceUUID)
 	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
+	c.strictIntervals = nvidia.NewStrictIntervalProcessor(pkgconfigsetup.Datadog().GetDuration("gpu.static_metrics_reporting_interval"))
 	if c.parallelCollectors {
 		log.Infof("Enabled concurrent NVML collector collection")
 	}
@@ -487,6 +490,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
+		deduplicatedMetrics = c.strictIntervals.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
 		deduplicatedMetrics = c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
 
 		// iterate through filtered metrics and emit them with the tags
@@ -585,6 +589,9 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
 	var err error
+	if !metric.Timestamp.IsZero() {
+		currentExecutionTime = metric.Timestamp
+	}
 	metricTimestamp := float64(currentExecutionTime.UnixNano()) / float64(time.Second)
 	switch metric.Type {
 	case ddmetrics.CountType:

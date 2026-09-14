@@ -22,6 +22,14 @@ var ErrNotSupported = errors.New("GPU Monitoring is not supported")
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
 	ebpf.Config
+	// DisabledCollectors lists Agent GPU collectors that should not be created.
+	DisabledCollectors []string
+	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
+	NVLinkFECLightErrorThreshold int
+	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
+	LegacySMActive bool
+	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
+	StaticMetricsReportingInterval time.Duration
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -77,19 +85,24 @@ type StreamConfig struct {
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
+	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
-		Config:                       *ebpf.NewConfig(),
-		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
-		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
-		EnableEBPFProbes:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_ebpf_probes")),
-		PRMEndpointEnabled:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
-		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
-		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
-		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
-		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
-		RingBufferWakeupSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),
-		RingBufferFlushInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_flush_interval")),
+		Config:                         *ebpf.NewConfig(),
+		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
+		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
+		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),
+		StaticMetricsReportingInterval: agentCfg.GetDuration("gpu.static_metrics_reporting_interval"),
+		ScanProcessesInterval:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
+		InitialProcessSync:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
+		Enabled:                        spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
+		EnableEBPFProbes:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_ebpf_probes")),
+		PRMEndpointEnabled:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
+		ConfigureCgroupPerms:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:            spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
+		KernelCacheQueueSize:           spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
+		RingBufferSizePagesPerDevice:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
+		RingBufferWakeupSize:           spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),
+		RingBufferFlushInterval:        spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_flush_interval")),
 		StreamConfig: StreamConfig{
 			MaxActiveStreams:      spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_active")),
 			Timeout:               time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "timeout_seconds"))) * time.Second,
