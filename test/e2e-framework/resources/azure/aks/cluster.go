@@ -14,9 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v3"
 	"github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
