@@ -78,7 +78,7 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
         u32 bind_cookie = 0;
         u32 bind_refresh_needed = 0;
         if (approve_bind_sample(&bind_key, &bind_cookie, &bind_refresh_needed) == SAMPLED) {
-            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
+            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
             event->sample_cookie = bind_cookie;
         } else if (bind_refresh_needed) {
             struct sample_refresh_event_t ev = {};
