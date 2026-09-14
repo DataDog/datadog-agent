@@ -46,10 +46,14 @@ pkg_filegroup(
         # TODO: //pkg/discovery/module/rust
         # TODO: security-agent
         # TODO: cws-instrumentation
-        # TODO: secret-generic-connector
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
+        "//packages/agent:linux_heroku": [],
+        "//conditions:default": [
+            ":secret_generic_connector_binary",
+        ],
+    }) + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
@@ -176,6 +180,16 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "secret_generic_connector_binary",
+    srcs = ["//cmd/secret-generic-connector"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_files(
