@@ -7,8 +7,23 @@
 
 package auditorimpl
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 func replaceRegistryFile(sourcePath, targetPath string) error {
-	return os.Rename(sourcePath, targetPath)
+	if err := os.Rename(sourcePath, targetPath); err != nil {
+		return err
+	}
+
+	// Persist the directory entry changed by the rename. The temporary file is
+	// already synchronized, but its new name is not durable until its parent
+	// directory is synchronized as well.
+	directory, err := os.Open(filepath.Dir(targetPath))
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	return directory.Sync()
 }
