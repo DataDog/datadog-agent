@@ -29,32 +29,67 @@ const (
 	nvidiaXidFirstNVLink5Code = 144
 	nvidiaXidLastNVLink5Code  = 150
 
-	nvidiaXidMMUFaultCode         = 31
-	nvidiaXidDBECode              = 48
-	nvidiaXidRowRemapperCode      = 63
-	nvidiaXidRetirementFailCode   = 64
-	nvidiaXidSBEStormCode         = 92
-	nvidiaXidContainedECCCode     = 94
-	nvidiaXidUncontainedECCCode   = 95
-	nvidiaXidResidualECCCode      = 140
-	nvidiaXidRecoveryActionCode   = 154
-	nvidiaXidTPCRetirementCode    = 156
-	nvidiaXidTPCRetireFailureCode = 157
-	nvidiaXidChannelRepairCode    = 160
-	nvidiaXidRepairFailureCode    = 161
-	nvidiaXidDRAMDetailCode       = 171
-	nvidiaXidSRAMDetailCode       = 172
-	nvidiaXidBankRemapCode        = 177
+	// Xid codes whose message text carries structured detail worth extracting. A code is
+	// listed here only when the driver prints fields beyond the preamble; everything else
+	// still produces an event, just without a detail struct.
+	//
+	// The definitive reference for what these lines look like is the driver source that
+	// prints them: the *_XID_MESSAGE_FMT format strings in
+	// https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/interface/events/gpu/ras/ras_events.c
+	// Each format is tied to its code by the pEvent->xidNNN assignment in the function that
+	// uses it, so that file is where to look first when a pattern below stops matching.
+	// For what a code *means* rather than how it prints, see
+	// https://docs.nvidia.com/deploy/xid-errors/index.html
 
+	nvidiaXidMMUFaultCode = 31 // GPU memory page fault; names the engine, client and fault address
+	nvidiaXidDBECode      = 48 // Double-bit ECC error; names the physical address and partition
+
+	nvidiaXidRowRemapperCode    = 63 // A DRAM row was marked for remapping; names the new row
+	nvidiaXidRetirementFailCode = 64 // A row remap or DRAM retirement failed; names the cause
+
+	nvidiaXidSBEStormCode = 92 // Single-bit error interrupts disabled after a storm; DRAM form names a partition
+
+	nvidiaXidContainedECCCode   = 94 // Contained ECC error; location is inline in the message text
+	nvidiaXidUncontainedECCCode = 95 // Uncontained ECC error; location is inline in the message text
+
+	nvidiaXidResidualECCCode = 140 // Uncorrectable ECC the firmware could not handle; counts per unit
+
+	nvidiaXidRecoveryActionCode = 154 // Recovery-action tier changed; a state transition, not a fault
+
+	nvidiaXidTPCRetirementCode    = 156 // A TPC was retired; names the TPC, its GPC and the spare's origin
+	nvidiaXidTPCRetireFailureCode = 157 // No spare TPC was available; MIG confines the search to one GPC
+
+	nvidiaXidChannelRepairCode = 160 // A DRAM channel or L2 slice was marked for repair
+	nvidiaXidRepairFailureCode = 161 // That repair could not be made; no spare channels or slices left
+
+	// On Blackwell the DRAM/SRAM split of an ECC error arrives as one of these companion
+	// codes instead of an inline location field, so the code itself is the location.
+	nvidiaXidDRAMDetailCode = 171 // Uncorrectable DRAM error
+	nvidiaXidSRAMDetailCode = 172 // Uncorrectable SRAM error
+
+	nvidiaXidBankRemapCode = 177 // A DRAM bank was marked for remapping; absent from published Xid tables
+
+	// Memory error locations. Reported inline by Xid 94 and 95, and implied by the code
+	// itself for Xid 171 and 172.
 	memoryLocationDRAM = "DRAM"
 	memoryLocationSRAM = "SRAM"
 
-	repairTargetRow    = "row"
-	repairTargetBank   = "bank"
-	repairTargetTPC    = "tpc"
+	// Repair targets: the kind of resource a retirement or repair event spent.
+	repairTargetRow  = "row"  // A DRAM row, remapped out of service
+	repairTargetBank = "bank" // A DRAM bank, remapped out of service
+	repairTargetTPC  = "tpc"  // A texture processing cluster, retired in favour of a spare
+
+	// repairContainerGPC is the enclosing unit for a retired TPC. Channels and L2 slices
+	// report their container in the message instead (FBPA and FPB respectively).
 	repairContainerGPC = "GPC"
-	stormSourceDRAM    = "dram"
-	stormSourceSM      = "sm"
+
+	// Sources of a single-bit error interrupt storm. Only DRAM has row remapping to absorb
+	// the errors, so the two are not interchangeable when judging severity.
+	stormSourceDRAM = "dram" // Framebuffer partition storm; the message names the partition
+	stormSourceSM   = "sm"   // SM storm; the message names no location
+
+	// Where the spare for a retired TPC came from. A spare drawn from a different GPC
+	// changes the shape of the surviving partition, so the distinction is load-bearing.
 	spareSourceSameGPC = "same_gpc"
 	spareSourceDiffGPC = "different_gpc"
 )
