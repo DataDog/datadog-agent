@@ -14,7 +14,7 @@ use windows_sys::Win32::Security::{
 
 use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
-use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
+use super::agent_service_sid::{service_runs_as_agent_user, DATADOG_AGENT_SERVICE};
 #[cfg(not(test))]
 use super::installer_lsa_password::read_installer_agent_password;
 #[cfg(not(test))]
@@ -228,9 +228,6 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
 
     let is_local =
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
-    if !is_local {
-        bail!("domain agent account {display} is not supported");
-    }
 
     let scm_service_matches_agent = match service_runs_as_agent_user(
         DATADOG_AGENT_SERVICE,
@@ -248,27 +245,25 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
     let installer_password =
         read_installer_agent_password().context("read installer agent password from LSA")?;
     info!(
-        "local agent account inputs for {display}: service_account_matches={scm_service_matches_agent}, installer_password_present={}",
+        "agent account inputs for {display}: service_account_matches={scm_service_matches_agent}, installer_password_present={}",
         installer_password
             .as_ref()
             .is_some_and(|password| !password.is_empty())
     );
 
-    let password = installer_password
+    let policy_password = installer_password
+        .as_ref()
         .filter(|password| !password.is_empty())
-        .with_context(|| {
-            format!(
-                "agent user password is not available for local account {display}; \
-                 ensure the installer stored L$datadog_ddagentuser_password (7.66+) or run \
-                 dd-procmgrd as the installed agent account"
-            )
-        })?;
-
-    let logon_domain = stored_logon_domain(&domain, sid)?;
+        .map(|_| "present");
+    let logon =
+        crate::spawn::resolve_agent_password_logon(&domain, &user, is_local, policy_password)?;
+    let Some(password) = installer_password.filter(|password| !password.is_empty()) else {
+        bail!("internal error: installer password missing after password-logon policy");
+    };
     Ok(AgentAccount::PasswordLogon {
-        registry_domain: domain,
-        logon_domain,
-        user,
+        registry_domain: logon.registry_domain,
+        logon_domain: logon.logon_domain,
+        user: logon.user,
         password,
     })
 }
