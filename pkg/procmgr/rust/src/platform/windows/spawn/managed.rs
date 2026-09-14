@@ -43,7 +43,8 @@ impl ManagedProcess {
         };
 
         if credential.reuses_supervisor_token() {
-            return self.spawn_with_supervisor_inherit(&credential);
+            let request = self.spawn_request()?;
+            return self.spawn_with_supervisor_inherit(&request, &credential);
         }
 
         self.spawn_agent_logon(&credential)
@@ -69,14 +70,14 @@ impl ManagedProcess {
         let request = self.spawn_request()?;
         privileged::validate_process_request(self.name(), &request)?;
         privileged::validate_supervisor_is_local_system(self.name())?;
-        self.spawn_with_supervisor_inherit(&SpawnCredential::privileged())
+        self.spawn_with_supervisor_inherit(&request, &SpawnCredential::privileged())
     }
 
     fn spawn_with_supervisor_inherit(
         &mut self,
+        request: &SpawnRequest,
         credential: &SpawnCredential,
     ) -> Result<ProcessHandle> {
-        let request = self.spawn_request()?;
         let job = JobObject::new().with_context(|| {
             format!("[{}] create job object for child supervision", self.name())
         })?;
