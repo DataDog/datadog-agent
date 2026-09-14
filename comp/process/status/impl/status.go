@@ -76,17 +76,17 @@ func (s statusProvider) Section() string {
 	return "Process Agent"
 }
 
-func (s statusProvider) getStatusInfo() map[string]interface{} {
+func (s statusProvider) getStatusInfo(ctx context.Context) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	values := s.populateStatus()
+	values := s.populateStatus(ctx)
 
 	stats["processAgentStatus"] = values
 
 	return stats
 }
 
-func (s statusProvider) populateStatus() map[string]interface{} {
+func (s statusProvider) populateStatus(ctx context.Context) map[string]interface{} {
 	status := make(map[string]interface{})
 
 	var url string
@@ -111,7 +111,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s/debug/vars", addr)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetStatusWithContext(ctx, s.config, url, s.hostname)
 	if err != nil {
 		status["error"] = err.Error()
 		return status
@@ -136,7 +136,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
-	values := s.populateStatus()
+	values := s.populateStatus(context.Background())
 
 	stats["processAgentStatus"] = values
 
@@ -145,7 +145,11 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return corestatus.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo())
+	return s.renderText(context.Background(), buffer)
+}
+
+func (s statusProvider) renderText(ctx context.Context, buffer io.Writer) error {
+	return corestatus.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo(ctx))
 }
 
 // HTML renders the html output
@@ -154,9 +158,9 @@ func (s statusProvider) HTML(_ bool, _ io.Writer) error {
 }
 
 // GetStatusDetails returns the Process Agent status rendered as text.
-func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+func (s statusProvider) GetStatusDetails(ctx context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	var details bytes.Buffer
-	if err := s.Text(false, &details); err != nil {
+	if err := s.renderText(ctx, &details); err != nil {
 		return nil, err
 	}
 

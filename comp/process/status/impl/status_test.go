@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -191,5 +192,61 @@ func TestGetStatusDetails(t *testing.T) {
 			actualDetails := statusDatePattern.ReplaceAllString(response.NamedSections["Details"].Fields[""], "  Status date: <dynamic>")
 			assert.Equal(t, expectedDetails, actualDetails)
 		})
+	}
+}
+
+func TestGetStatusDetailsCancellation(t *testing.T) {
+	const cancellationTimeout = 5 * time.Second
+
+	requestStarted := make(chan struct{})
+	requestCanceled := make(chan struct{})
+	releaseRequest := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		close(requestStarted)
+		select {
+		case <-request.Context().Done():
+			close(requestCanceled)
+		case <-releaseRequest:
+		}
+	}))
+	defer func() {
+		close(releaseRequest)
+		server.Close()
+	}()
+
+	configComponent := config.NewMock(t)
+	configComponent.SetInTest("cloud_provider_metadata", []string{})
+	provider := statusProvider{
+		testServerURL: server.URL,
+		config:        configComponent,
+		hostname:      hostnameimpl.NewHostnameService(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := provider.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
+		result <- err
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(cancellationTimeout):
+		t.Fatal("expvar request did not start")
+	}
+	cancel()
+
+	select {
+	case <-requestCanceled:
+	case <-time.After(cancellationTimeout):
+		t.Fatal("expvar request was not canceled")
+	}
+
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(cancellationTimeout):
+		t.Fatal("GetStatusDetails did not return after cancellation")
 	}
 }
