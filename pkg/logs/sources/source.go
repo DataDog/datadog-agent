@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
@@ -185,18 +184,20 @@ func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 }
 
 // TagFilterState is the immutable, atomically-swapped record of a source's
-// resolved tag filter, tagged with the global filter generation that produced
-// it. A source outlives pipeline rebuilds, so the generation lets a resolver
-// detect a stale cache instead of trusting resolution forever.
+// resolved tag filter, tagged with the generation that produced it. A source
+// outlives pipeline rebuilds, so the generation lets a resolver detect a stale
+// cache instead of trusting resolution forever.
 type TagFilterState struct {
-	global *tagfilter.Filters
-	filter TagFilter
+	// generation is compared by identity only, never dereferenced. It must hold a
+	// comparable value; comparing uncomparable dynamic types panics.
+	generation any
+	filter     TagFilter
 }
 
-// NewTagFilterState returns the state produced by resolving against global; f
-// is nil when resolution found nothing for this source to filter.
-func NewTagFilterState(global *tagfilter.Filters, f TagFilter) *TagFilterState {
-	return &TagFilterState{global: global, filter: f}
+// NewTagFilterState returns the state produced by resolving against generation;
+// f is nil when resolution found nothing for this source to filter.
+func NewTagFilterState(generation any, f TagFilter) *TagFilterState {
+	return &TagFilterState{generation: generation, filter: f}
 }
 
 // Filter returns the resolved filter. A nil state (unresolved) returns nil.
@@ -207,10 +208,10 @@ func (t *TagFilterState) Filter() TagFilter {
 	return t.filter
 }
 
-// ResolvedFor reports whether state is already resolved for global, i.e. needs
-// no re-resolution. Pointer identity of global is the generation marker.
-func (t *TagFilterState) ResolvedFor(global *tagfilter.Filters) bool {
-	return t != nil && t.global == global
+// ResolvedFor reports whether state is already resolved for generation, i.e.
+// needs no re-resolution.
+func (t *TagFilterState) ResolvedFor(generation any) bool {
+	return t != nil && t.generation == generation
 }
 
 // TagFilter returns the tag filter currently cached for this source, without

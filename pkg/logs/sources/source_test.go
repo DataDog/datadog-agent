@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
@@ -195,8 +194,7 @@ func TestLogSourceTagFilterResolvedInert(t *testing.T) {
 // filter was cached for an earlier generation.
 func TestLogSourceSetTagFilterNil(t *testing.T) {
 	source := NewLogSource("test", nil)
-	gen1 := &tagfilter.Filters{}
-	gen2 := &tagfilter.Filters{}
+	gen1, gen2 := new(int), new(int)
 
 	assert.True(t, source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, fakeTagFilter{})))
 	assert.True(t, source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(gen2, nil)))
@@ -209,8 +207,7 @@ func TestLogSourceSetTagFilterNil(t *testing.T) {
 // TestLogSourceTagFilterStateResolvedForGeneration pins the generation check that
 // lets a resolver detect a stale cache after a source outlives a config reload.
 func TestLogSourceTagFilterStateResolvedForGeneration(t *testing.T) {
-	gen1 := &tagfilter.Filters{}
-	gen2 := &tagfilter.Filters{}
+	gen1, gen2 := new(int), new(int)
 	source := NewLogSource("test", nil)
 
 	assert.False(t, source.TagFilterState().ResolvedFor(gen1), "unresolved state must never match any generation")
@@ -218,6 +215,17 @@ func TestLogSourceTagFilterStateResolvedForGeneration(t *testing.T) {
 	source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, nil))
 	assert.True(t, source.TagFilterState().ResolvedFor(gen1))
 	assert.False(t, source.TagFilterState().ResolvedFor(gen2))
+}
+
+// TestTagFilterStateGenerationComparesDynamicType pins that a typed-nil
+// generation and an untyped nil are different generations, so a resolver must
+// pass the same typed value on every call or it will never hit its own cache.
+func TestTagFilterStateGenerationComparesDynamicType(t *testing.T) {
+	var typedNil *int
+	state := NewTagFilterState(typedNil, fakeTagFilter{})
+
+	assert.True(t, state.ResolvedFor(typedNil))
+	assert.False(t, state.ResolvedFor(nil))
 }
 
 // TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner races goroutines
