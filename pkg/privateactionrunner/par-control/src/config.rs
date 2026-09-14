@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::opms::TlsConfig;
+use crate::opms::{ProxyDecision, TlsConfig};
 use anyhow::{Context, Result, ensure};
 use saluki_config::GenericConfiguration;
 use std::collections::HashMap;
@@ -43,8 +43,7 @@ pub struct Config {
     pub ready_timeout: Duration,
     pub opms_request_timeout: Duration,
     pub opms_extra_headers: HashMap<String, String>,
-    pub opms_proxy_url: Option<String>,
-    pub opms_no_proxy: Option<String>,
+    pub opms_proxy: ProxyDecision,
     pub tls: TlsConfig,
     pub min_backoff: Duration,
     pub max_backoff: Duration,
@@ -164,7 +163,7 @@ impl BootstrapConfig {
             std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
             dd_url_explicit,
         )?;
-        let (opms_proxy_url, opms_no_proxy) = proxy_for(agent, &opms_base_url)?;
+        let opms_proxy = proxy_for(agent, &opms_base_url)?;
         let min_tls_version: String = agent
             .get_typed("min_tls_version")
             .context("invalid min_tls_version configuration from the Core Agent")?;
@@ -182,8 +181,7 @@ impl BootstrapConfig {
             ready_timeout: EXECUTOR_READY_TIMEOUT,
             opms_request_timeout: OPMS_REQUEST_TIMEOUT,
             opms_extra_headers: par.opms_extra_headers,
-            opms_proxy_url,
-            opms_no_proxy,
+            opms_proxy,
             tls: TlsConfig {
                 skip_ssl_validation: agent
                     .get_typed("skip_ssl_validation")
@@ -277,10 +275,7 @@ fn site_from_datadog_url(raw: &str) -> Option<String> {
     None
 }
 
-fn proxy_for(
-    agent: &GenericConfiguration,
-    target: &str,
-) -> Result<(Option<String>, Option<String>)> {
+fn proxy_for(agent: &GenericConfiguration, target: &str) -> Result<ProxyDecision> {
     let proxy: AgentProxyConfig = agent
         .get_typed("proxy")
         .context("invalid proxy configuration from the Core Agent")?;
@@ -291,14 +286,17 @@ fn proxy_for(
         scheme => anyhow::bail!("unsupported OPMS URL scheme {scheme}"),
     };
     if proxy_url.is_empty() {
-        return Ok((None, None));
+        return Ok(ProxyDecision::None);
     }
 
     let nonexact: bool = agent
         .get_typed("no_proxy_nonexact_match")
         .context("invalid no_proxy_nonexact_match configuration from the Core Agent")?;
     if nonexact {
-        return Ok((Some(proxy_url), Some(proxy.no_proxy.join(","))));
+        return Ok(ProxyDecision::NonExact {
+            proxy_url,
+            no_proxy: proxy.no_proxy.join(","),
+        });
     }
 
     let host = match target.port() {
@@ -306,9 +304,9 @@ fn proxy_for(
         None => target.host_str().unwrap_or_default().to_string(),
     };
     if proxy.no_proxy.iter().any(|entry| entry == &host) {
-        Ok((None, None))
+        Ok(ProxyDecision::None)
     } else {
-        Ok((Some(proxy_url), None))
+        Ok(ProxyDecision::Direct(proxy_url))
     }
 }
 
@@ -410,7 +408,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
-        assert_eq!(config.opms_proxy_url.as_deref(), Some("http://proxy:3128"));
+        assert_eq!(
+            config.opms_proxy,
+            ProxyDecision::Direct("http://proxy:3128".to_string())
+        );
         assert_eq!(config.task_concurrency, 9);
         assert_eq!(config.executor_socket, PathBuf::from("/from-agent.sock"));
         assert_eq!(config.opms_extra_headers["X-Test"], "agent");
@@ -437,16 +438,16 @@ mod tests {
         let exact = agent_config_with_proxy(5, json!(["api.datadoghq.com"]), false).await;
         assert_eq!(
             proxy_for(&exact, "https://api.datadoghq.com").unwrap(),
-            (None, None)
+            ProxyDecision::None
         );
 
         let nonexact = agent_config_with_proxy(5, json!(["datadoghq.com"]), true).await;
         assert_eq!(
             proxy_for(&nonexact, "https://api.datadoghq.com").unwrap(),
-            (
-                Some("http://proxy:3128".to_string()),
-                Some("datadoghq.com".to_string())
-            )
+            ProxyDecision::NonExact {
+                proxy_url: "http://proxy:3128".to_string(),
+                no_proxy: "datadoghq.com".to_string(),
+            }
         );
     }
 
