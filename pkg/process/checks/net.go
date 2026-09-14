@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -245,6 +246,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				TranslatedDest:    transDest,
 				SourceContainerID: conn.Laddr.GetContainerId(),
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
+				Domains:           getDNSNamesForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
 				Direction:         conn.Direction,
 				Family:            conn.Family,
@@ -268,6 +270,19 @@ func getDNSNameForIP(conns *model.Connections, ip string) string {
 		domain = dnsEntry.Names[0]
 	}
 	return domain
+}
+
+// getDNSNamesForIP returns every DNS name the reverse-DNS map associates with
+// ip. Network Path filtering evaluates all of them so that a destination IP
+// which resolves to multiple names (e.g. a Datadog intake endpoint CNAME'd to
+// an AWS ELB) is filtered consistently regardless of which name was cached
+// first.
+func getDNSNamesForIP(conns *model.Connections, ip string) []string {
+	dnsEntry := conns.Dns[ip]
+	if dnsEntry == nil || len(dnsEntry.Names) == 0 {
+		return nil
+	}
+	return slices.Clone(dnsEntry.Names)
 }
 
 // getContainersForExplicitTagging returns all containers that are relevant for explicit tagging based on the current connections.
