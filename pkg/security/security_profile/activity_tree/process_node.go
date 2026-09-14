@@ -346,6 +346,31 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 	return true
 }
 
+// InsertSyscallSample inserts a syscall sample first-hit and returns whether a
+// new SyscallNode was created and its NodeBase (for cookie mapping).
+func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, *NodeBase) {
+	syscallID := int(e.Syscalls.SyscallID)
+	at := e.ResolveEventTime()
+
+	for _, existing := range pn.Syscalls {
+		if existing.Syscall == syscallID {
+			existing.AppendImageTagID(imageTagID, at)
+			return false, &existing.NodeBase
+		}
+	}
+
+	if dryRun {
+		return true, nil
+	}
+
+	sn := NewSyscallNode(syscallID, at, imageTagID, Runtime)
+	pn.Syscalls = append(pn.Syscalls, sn)
+	syscallMask[syscallID] = syscallID
+	stats.SyscallNodes++
+	stats.SizeBytes += sn.size()
+	return true, &sn.NodeBase
+}
+
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool

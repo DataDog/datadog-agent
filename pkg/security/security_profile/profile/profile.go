@@ -90,6 +90,8 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
+	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
+	observedRollups bool
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -142,6 +144,14 @@ func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
 func WithEventTypes(eventTypes []model.EventType) Opts {
 	return func(p *Profile) {
 		p.eventTypes = eventTypes
+	}
+}
+
+// WithObservedRollups makes the encoder derive per-version syscall/capability
+// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
+func WithObservedRollups() Opts {
+	return func(p *Profile) {
+		p.observedRollups = true
 	}
 }
 

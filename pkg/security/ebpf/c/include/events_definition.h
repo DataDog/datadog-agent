@@ -39,8 +39,7 @@ struct bind_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct socket_event_t {
@@ -70,8 +69,7 @@ struct connect_event_t {
     u16 port;
     u16 protocol;
     u16 padding;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct bpf_event_t {
@@ -413,8 +411,7 @@ struct open_event_t {
     struct file_t file;
     u32 flags;
     u32 mode;
-    u32 sample_cookie;
-    u32 sample_padding;
+    u64 sample_cookie;
 };
 
 struct ptrace_event_t {
@@ -431,6 +428,9 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
+// EVENT_SYSCALLS. Two payload shapes discriminated by event_reason:
+//   - drain (PERIOD/EXIT/EXECVE): syscalls[] bitmap populated
+//   - sample first-hit (SAMPLE):  single syscall_id + sample_cookie
 struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -440,6 +440,10 @@ struct syscall_monitor_event_t {
 
     u64 event_reason;
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
+
+    u32 syscall_id;
+    u32 padding;
+    u64 sample_cookie;
 };
 
 struct rename_event_t {
@@ -675,8 +679,7 @@ struct otel_process_ctx_event_t {
 
 struct sample_refresh_event_t {
     struct kevent_t event;
-    u32 cookie;
-    u32 padding;
+    u64 cookie;
 };
 
 struct nop_event_t {
