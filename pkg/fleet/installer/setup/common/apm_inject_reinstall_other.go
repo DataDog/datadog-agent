@@ -7,6 +7,8 @@
 
 package common
 
-func apmInjectorRequiresReinstall() bool {
+import "context"
+
+func apmInjectorRequiresReinstall(context.Context) bool {
 	return false
 }

@@ -391,6 +391,43 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	}
 }
 
+// TestReinstallAfterUninstrument covers the idempotency contract of the public
+// install script: re-running it must leave the host instrumented, whatever
+// state the previous run was left in.
+//
+// The uninstrument commands revert the host wiring without removing the
+// package, so the installer sees the requested version already on disk and
+// skips its post-install hook. Without a reinstall the script then reports
+// success on a host it left uninstrumented, which is what two customers hit
+// (APMS-20523).
+func (s *packageApmInjectSuite) TestReinstallAfterUninstrument() {
+	s.host.InstallDocker()
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertDockerdInstrumented(injectOCIPath)
+
+	s.Env().RemoteHost.MustExecute("sudo dd-host-install --uninstall")
+	s.Env().RemoteHost.MustExecute("sudo dd-container-install --uninstall")
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdNotInstrumented()
+
+	// Same script, same package versions: nothing but the reverted wiring
+	// differs from the first run.
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath()
+	s.assertDockerdInstrumented(injectOCIPath)
+
+	traceID := rand.Uint64()
+	s.host.StartExamplePythonAppInDocker()
+	defer s.host.StopExamplePythonAppInDocker()
+	s.host.CallExamplePythonAppInDocker(strconv.FormatUint(traceID, 10))
+	s.assertTraceReceived(traceID)
+}
+
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
