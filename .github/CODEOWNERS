@@ -831,6 +831,7 @@
 /pkg/ssi/                                                             @DataDog/injection-platform
 /pkg/tagger/                                                          @DataDog/container-platform
 /pkg/windowsdriver/                                                   @DataDog/windows-products
+/pkg/zstd/                                                            @DataDog/agent-runtimes
 /comp/core/workloadmeta/collectors/internal/cloudfoundry              @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd                @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio                      @DataDog/container-platform @DataDog/container-integrations

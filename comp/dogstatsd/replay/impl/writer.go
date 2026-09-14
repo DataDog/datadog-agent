@@ -18,8 +18,9 @@ import (
 	"time"
 
 	// Refactor relevant bits
-	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/spf13/afero"
+
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 
 	"google.golang.org/protobuf/proto"
 
@@ -54,7 +55,7 @@ var captureFs = backendFs{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	zWriter   io.WriteCloser
+	zWriter   zstd.Writer
 	writer    *bufio.Writer
 	Traffic   chan *replay.CaptureBuffer
 	ongoing   bool
