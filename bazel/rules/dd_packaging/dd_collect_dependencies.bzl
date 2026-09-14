@@ -24,7 +24,7 @@ def _get_deps(ctx, attr_names):
             deps.append(val)
     return deps
 
-_WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps"]
+_WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
     direct = target[DdPackagingInfo].installed_files if DdPackagingInfo in target else []
@@ -49,6 +49,8 @@ _collect_dd_packaging_aspect = aspect(
         - embed, deps: go_library/go_binary edges, so a walk can start from a
           real Go binary
         - cdeps: go_library/go_binary -> cc_library edges (the cgo boundary)
+        - data: cc_library -> _dd_cc_packaged_rule edges (a runtime, dlopen'd
+          dependency rather than a link-time one)
     """,
     attr_aspects = _WALKED_ATTRS,
 )

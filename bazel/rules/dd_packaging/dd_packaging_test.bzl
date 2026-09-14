@@ -596,6 +596,46 @@ def _test_go_chain_reaches_packaged(name):
 def _test_go_chain_reaches_packaged_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 13: a plain cc_library's data attr pointed at a dd_cc_packaged target,
+# mirroring rtloader_dynamic's data = [":three_pkg"] wiring, surfaces
+# DdPackagingInfo through the aspect's data edge.
+def _test_data_reaches_packaged(name):
+    cc_library(
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    cc_library(
+        name = name + "_consumer",
+        data = [":" + name + "_packaged"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_consumer"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_data_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_data_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -614,5 +654,6 @@ def dd_packaging_test_suite(name):
             _test_installed_executables_use_prefix,
             _test_cc_import_reaches_packaged,
             _test_go_chain_reaches_packaged,
+            _test_data_reaches_packaged,
         ],
     )
