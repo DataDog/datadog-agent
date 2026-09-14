@@ -74,7 +74,7 @@ func TestWebSocketActor_upstream(t *testing.T) {
 
 			// Wrap the callback to assert it is invoked.
 			// Signal calledCh before calling fn so that the the actor can
-			// cancel the context and the RunTransportTests preflight will be unblocked
+			// cancel the context and the RunEchoTest preflight will be unblocked
 			calledCh := make(chan struct{}, 1)
 			fn := actor.fn
 			actor.fn = func(ctx context.Context, client *api.HTTPClient, runCount uint64) {

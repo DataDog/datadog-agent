@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// echoTestActor periodically calls RunTransportTests() in a background task,
-// exercising WebSocket, gRPC, and TCP connectivity to the RC backend.
+// echoTestActor periodically calls RunEchoTest() in a background task,
+// exercising WebSocket connectivity to the RC backend.
 type echoTestActor struct {
 	client *api.HTTPClient
 	// Callback to run the test.
@@ -26,11 +26,11 @@ type echoTestActor struct {
 }
 
 // newEchoTestActor constructs an echoTestActor that uses client to run echo
-// tests against the RC backend over all supported transports.
+// tests against the RC backend over WebSocket.
 func newEchoTestActor(client *api.HTTPClient) *echoTestActor {
 	return &echoTestActor{
 		client: client,
-		fn:     RunTransportTests,
+		fn:     RunEchoTest,
 	}
 }
 

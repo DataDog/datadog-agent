@@ -4,7 +4,6 @@ load("@rules_go//proto:def.bzl", "go_proto_library")
 proto_library(
     name = "config_proto",
     srcs = [
-        "echo.proto",
         "remoteconfig.proto",
     ],
     strip_import_prefix = "/pkg/proto",
