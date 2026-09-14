@@ -28,26 +28,71 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func TestAddDelegatedAuthInstanceContinuesAfterDeadline(t *testing.T) {
-	backgroundCall := make(chan delegatedauth.InstanceParams, 1)
+func TestAddDelegatedAuthInstanceRecoversAfterDeadlineWhenAsyncStartupIsAllowed(t *testing.T) {
+	config := newTestConf(t)
+	config.Set("api_key", "static-key", pkgconfigmodel.SourceFile)
+	backgroundCall := make(chan struct{}, 1)
 	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		backgroundCall <- params
+		params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
+		backgroundCall <- struct{}{}
 		return nil
 	}}
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
-	params := delegatedauth.InstanceParams{APIKeyConfigKey: "api_key"}
+	params := delegatedauth.InstanceParams{Config: config, APIKeyConfigKey: "api_key", AllowAsyncStartup: true}
 
 	require.NoError(t, addDelegatedAuthInstance(ctx, comp, params))
 	select {
-	case got := <-backgroundCall:
-		assert.Equal(t, params.APIKeyConfigKey, got.APIKeyConfigKey)
+	case <-backgroundCall:
+		assert.Equal(t, "delegated-key", config.GetString("api_key"))
 	case <-time.After(time.Second):
-		t.Fatal("background registration did not run")
+		t.Fatal("background recovery did not update the API key")
 	}
+}
+
+func TestAddDelegatedAuthInstanceKeepsStaticKeyAfterDeadlineWhenAsyncStartupIsDisabled(t *testing.T) {
+	config := newTestConf(t)
+	config.Set("logs_config.api_key", "static-key", pkgconfigmodel.SourceFile)
+	calls := 0
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		calls++
+		if calls > 1 {
+			params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
+		}
+		return ctx.Err()
+	}}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	err := addDelegatedAuthInstance(ctx, comp, delegatedauth.InstanceParams{
+		Config:          config,
+		APIKeyConfigKey: "logs_config.api_key",
+	})
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, "static-key", config.GetString("logs_config.api_key"))
+}
+
+func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
+	config := newTestConf(t)
+	config.Set("delegated_auth.org_uuid", "primary-org", pkgconfigmodel.SourceFile)
+	config.Set("logs_config.delegated_auth.org_uuid", "logs-org", pkgconfigmodel.SourceFile)
+
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+		paramsByKey[params.APIKeyConfigKey] = params
+		return nil
+	}}
+
+	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.Contains(t, paramsByKey, "api_key")
+	require.Contains(t, paramsByKey, "logs_config.api_key")
+	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
+	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
 }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {

@@ -504,11 +504,12 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		err := addDelegatedAuthInstance(startupCtx, delegatedAuthComp, delegatedauth.InstanceParams{
-			Config:          config,
-			ProviderConfig:  providerConfig,
-			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey: section.apiKeyPath,
+			Config:            config,
+			ProviderConfig:    providerConfig,
+			OrgUUID:           orgUUID,
+			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.apiKeyPath,
+			AllowAsyncStartup: section.apiKeyPath == "api_key",
 		})
 		if err != nil {
 			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
@@ -522,6 +523,9 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 func addDelegatedAuthInstance(ctx context.Context, delegatedAuthComp delegatedauth.Component, params delegatedauth.InstanceParams) error {
 	err := delegatedAuthComp.AddInstance(ctx, params)
 	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if !params.AllowAsyncStartup {
 		return err
 	}
 

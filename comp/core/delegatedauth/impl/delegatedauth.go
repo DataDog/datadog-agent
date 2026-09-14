@@ -357,7 +357,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	apiKey, _, err := d.refreshAndGetAPIKey(ctx, instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
-		// Write the fallback now so the target ships with a static key while retries continue.
+		// Write the fallback before deciding whether to retry in the background.
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(instance, params.FallbackAPIKey, true)
 		}
@@ -366,14 +366,19 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		instance.consecutiveFailures++
 		instance.lastError = err
 		d.mu.Unlock()
+
+		if !params.AllowAsyncStartup {
+			refreshCancel()
+			close(instance.done)
+			return err
+		}
 	} else {
 		// Update the config with the initial API key
 		d.updateConfigWithAPIKey(instance, *apiKey)
 		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
 	}
 
-	// Always start the background refresh goroutine, even if initial fetch failed
-	// This ensures retries will happen with exponential backoff
+	// Start periodic refresh after success, or retry an allowed startup failure.
 	d.startBackgroundRefresh(instance)
 
 	return nil

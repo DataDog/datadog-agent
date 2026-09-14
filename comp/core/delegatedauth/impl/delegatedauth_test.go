@@ -1442,6 +1442,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 		AdditionalEndpointsConfigKey: "additional_endpoints",
 		AdditionalEndpointDirective:  "DELA(second-org-uuid, aws, fallback=static-fallback-key)",
 		FallbackAPIKey:               "static-fallback-key",
+		AllowAsyncStartup:            true,
 	})
 	require.NoError(t, err)
 
@@ -1456,6 +1457,38 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
 	instance.refreshCancel()
+}
+
+func TestAddInstanceStopsAfterInitialFailureWhenAsyncStartupIsDisabled(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.api_key", "static-key")
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+
+	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		ProviderConfig:  &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+		OrgUUID:         "logs-org",
+		RefreshInterval: 60,
+		APIKeyConfigKey: "logs_config.api_key",
+		FallbackAPIKey:  "static-fallback-key",
+	})
+	require.Error(t, err)
+	assert.Equal(t, "static-fallback-key", mockConfig.GetString("logs_config.api_key"))
+
+	comp.mu.RLock()
+	instance := comp.instances["logs_config.api_key"]
+	comp.mu.RUnlock()
+	require.NotNil(t, instance)
+	assert.Error(t, instance.lastError)
+	assert.ErrorIs(t, instance.refreshCtx.Err(), context.Canceled)
+	select {
+	case <-instance.done:
+	default:
+		t.Fatal("failed instance was left waiting for a refresh goroutine")
+	}
 }
 
 // stubProvider is a common.Provider that reports a fixed credential source, standing in for the
