@@ -1231,13 +1231,8 @@ core,github.com/go-viper/mapstructure/v2/internal/errors,MIT,Copyright (c) 2013 
 core,github.com/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/gobuffalo/flect,MIT,Copyright (c) 2019 Mark Bates
 core,github.com/gobwas/glob,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/compiler,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/match,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/gobwas/glob/internal/debug,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
-core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/goccy/go-json,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/decoder,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/encoder,MIT,Copyright (c) 2020 Masaaki Goshima

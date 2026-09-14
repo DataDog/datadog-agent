@@ -67,11 +67,11 @@ type WorkloadMetaCollector struct {
 	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
-	globContainerLabels           map[string]glob.Glob
-	globContainerEnvLabels        map[string]glob.Glob
-	globContainerImageAnnotations map[string]glob.Glob
-	globK8sResourcesAnnotations   map[string]map[string]glob.Glob
-	globK8sResourcesLabels        map[string]map[string]glob.Glob
+	globContainerLabels           map[string]*glob.Pattern
+	globContainerEnvLabels        map[string]*glob.Pattern
+	globContainerImageAnnotations map[string]*glob.Pattern
+	globK8sResourcesAnnotations   map[string]map[string]*glob.Pattern
+	globK8sResourcesLabels        map[string]map[string]*glob.Pattern
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
@@ -99,8 +99,8 @@ func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags,
 func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags, resourcesAnnotationsAsTags map[string]map[string]string) {
 	c.k8sResourcesAnnotationsAsTags = map[string]map[string]string{}
 	c.k8sResourcesLabelsAsTags = map[string]map[string]string{}
-	c.globK8sResourcesAnnotations = map[string]map[string]glob.Glob{}
-	c.globK8sResourcesLabels = map[string]map[string]glob.Glob{}
+	c.globK8sResourcesAnnotations = map[string]map[string]*glob.Pattern{}
+	c.globK8sResourcesLabels = map[string]map[string]*glob.Pattern{}
 
 	for resource, labelsAsTags := range resourcesLabelsAsTags {
 		c.k8sResourcesLabelsAsTags[resource], c.globK8sResourcesLabels[resource] = k8smetadata.InitMetadataAsTags(labelsAsTags)
