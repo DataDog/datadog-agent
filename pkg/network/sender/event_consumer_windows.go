@@ -35,7 +35,7 @@ func newDirectSenderConsumer(log log.Component, sysprobeconfig sysprobeconfig.Co
 	return &directSenderConsumer{
 		log:                  log,
 		processes:            make(map[uint32]*process),
-		procprobe:            procutil.NewProcessProbe(),
+		procprobe:            procutil.NewWindowsToolhelpProbe(),
 		proxyFilter:          newDockerProxyFilter(log),
 		extractor:            newServiceExtractor(sysprobeconfig),
 		processNameExtractor: newProcessNameExtractor(),
