@@ -194,7 +194,6 @@ go_library(
         "//pkg/status/health",
         "//pkg/status/httpproxy",
         "//pkg/status/jmx",
-        "//pkg/status/systemprobe",
         "//pkg/util/common",
         "//pkg/util/coredump",
         "//pkg/util/defaultpaths",

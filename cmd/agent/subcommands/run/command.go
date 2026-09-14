@@ -199,7 +199,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -450,9 +449,6 @@ func getSharedFxOption() fx.Option {
 		),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
-		}),
-		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
-			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
