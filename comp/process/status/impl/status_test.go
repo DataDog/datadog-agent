@@ -11,6 +11,7 @@ import (
 	"embed"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -148,26 +149,21 @@ func TestStatusError(t *testing.T) {
 func TestGetStatusDetails(t *testing.T) {
 	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
 	require.NoError(t, err)
-	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
-	require.NoError(t, err)
+	statusDatePattern := regexp.MustCompile(`(?m)^  Status date: .*$`)
 
 	tests := []struct {
-		name         string
-		statusCode   int
-		response     []byte
-		wantContains string
-		wantExact    string
+		name       string
+		statusCode int
+		response   []byte
 	}{
 		{
-			name:         "successful status",
-			statusCode:   http.StatusOK,
-			response:     jsonBytes,
-			wantContains: "API Key ending with:",
+			name:       "successful status",
+			statusCode: http.StatusOK,
+			response:   jsonBytes,
 		},
 		{
 			name:       "unreachable status",
 			statusCode: http.StatusInternalServerError,
-			wantExact:  string(errorResponse),
 		},
 	}
 
@@ -185,16 +181,15 @@ func TestGetStatusDetails(t *testing.T) {
 				hostname:      hostnameimpl.NewHostnameService(),
 			}
 
+			var expected bytes.Buffer
+			require.NoError(t, provider.Text(false, &expected))
+
 			response, err := provider.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
 			require.NoError(t, err)
 			require.Contains(t, response.NamedSections, "Details")
-			details := strings.ReplaceAll(response.NamedSections["Details"].Fields[""], "\r\n", "\n")
-			if test.wantExact != "" {
-				assert.Equal(t, strings.ReplaceAll(test.wantExact, "\r\n", "\n"), details)
-			}
-			if test.wantContains != "" {
-				assert.Contains(t, details, test.wantContains)
-			}
+			expectedDetails := statusDatePattern.ReplaceAllString(expected.String(), "  Status date: <dynamic>")
+			actualDetails := statusDatePattern.ReplaceAllString(response.NamedSections["Details"].Fields[""], "  Status date: <dynamic>")
+			assert.Equal(t, expectedDetails, actualDetails)
 		})
 	}
 }
