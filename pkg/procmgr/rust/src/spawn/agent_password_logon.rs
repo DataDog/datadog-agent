@@ -22,8 +22,8 @@ pub(crate) enum AgentSpawnLogon {
 
 /// Resolve Agent-profile logon for LocalSystem procmgr.
 ///
-/// Local vs domain only selects the Win32 logon domain (`.` vs `CORP`). Installer password
-/// and managed service accounts (gMSA/sMSA) are separate supported paths.
+/// Local vs domain only selects the Win32 logon domain (`.` vs `CORP`). Managed service
+/// accounts win over a stale installer LSA secret when MSI secret removal was best-effort.
 pub(crate) fn resolve_agent_spawn_logon(
     registry_domain: &str,
     user: &str,
@@ -31,18 +31,18 @@ pub(crate) fn resolve_agent_spawn_logon(
     installer_password_present: bool,
     is_managed_service_account: bool,
 ) -> Result<AgentSpawnLogon> {
+    if is_managed_service_account {
+        return Ok(AgentSpawnLogon::ManagedServiceAccount(
+            agent_logon_identity(registry_domain, user, is_local),
+        ));
+    }
+
     if installer_password_present {
         return Ok(AgentSpawnLogon::InstallerPassword(agent_logon_identity(
             registry_domain,
             user,
             is_local,
         )));
-    }
-
-    if is_managed_service_account {
-        return Ok(AgentSpawnLogon::ManagedServiceAccount(
-            agent_logon_identity(registry_domain, user, is_local),
-        ));
     }
 
     let display = account_display(registry_domain, user);
@@ -115,6 +115,21 @@ mod tests {
     fn managed_service_account_without_password_uses_passwordless_logon() {
         let logon = resolve_agent_spawn_logon("CORP", "ddgmsa$", false, false, true)
             .expect("gMSA must log on without an installer password");
+
+        assert_eq!(
+            logon,
+            AgentSpawnLogon::ManagedServiceAccount(AgentLogonIdentity {
+                registry_domain: "CORP".to_string(),
+                logon_domain: "CORP".to_string(),
+                user: "ddgmsa$".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn managed_service_account_with_stale_installer_password_uses_passwordless_logon() {
+        let logon = resolve_agent_spawn_logon("CORP", "ddgmsa$", false, true, true)
+            .expect("gMSA must ignore a stale installer LSA secret");
 
         assert_eq!(
             logon,
