@@ -335,14 +335,15 @@ func TestSystemContextNvmlReleaseCycle(t *testing.T) {
 	// inited → shutdown transition is covered by the safenvml suite against
 	// the NVML mock.
 
-	// a stale per-process entry must be dropped on release: its handles die
-	// with the nvmlShutdown
+	// the per-process mapping deliberately survives the release: the eBPF
+	// consumer keeps running through the window, and dropping it here would
+	// leave its events unattributed. It is invalidated at reacquire instead.
 	sysCtx.visibleDevicesCache[42] = []ddnvml.Device{nil}
+	sysCtx.lastDeviceCacheRefreshTime = time.Now()
 
 	sysCtx.releaseNVMLForReset()
 	assert.True(t, ddnvml.IsNVMLReleased())
-	assert.Empty(t, sysCtx.visibleDevicesCache, "dead NVML handles must not survive the release")
-	assert.True(t, sysCtx.lastDeviceCacheRefreshTime.IsZero(), "the next use must re-enumerate immediately")
+	assert.NotEmpty(t, sysCtx.visibleDevicesCache, "the pre-reset mapping must survive the release")
 
 	// while released, the library cannot be re-acquired: this is what keeps
 	// system-probe out of the way of the reconfiguration's GPU reset
@@ -351,4 +352,6 @@ func TestSystemContextNvmlReleaseCycle(t *testing.T) {
 
 	sysCtx.reacquireNVML()
 	assert.False(t, ddnvml.IsNVMLReleased())
+	assert.Empty(t, sysCtx.visibleDevicesCache, "dead NVML handles must not survive the reacquire")
+	assert.True(t, sysCtx.lastDeviceCacheRefreshTime.IsZero(), "the next use must re-enumerate immediately")
 }

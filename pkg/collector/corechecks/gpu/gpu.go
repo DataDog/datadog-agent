@@ -338,16 +338,24 @@ func (c *Check) Run() error {
 				}
 			}
 		}
-		// Rate-limited: a window left open must keep being visible in the
-		// logs, with how long it has been open so a stuck signal is
-		// diagnosable.
-		if logLimitWindowOpen.ShouldLog() {
-			var since string
-			if !c.releaseWindowStart.IsZero() {
-				since = " for " + time.Since(c.releaseWindowStart).Round(time.Second).String()
-			}
-			log.Warnf("NVML release window active%s (GPU reset in progress or requested); GPU collection paused until it completes", since)
+		// Warnf, not log.Warnf: this also puts the window in `agent status`
+		// and turns the check's service check to WARNING, which is where
+		// someone looks first when GPU metrics stop. Emitted every cycle
+		// rather than rate-limited because GetWarnings drains the list each
+		// run, so a rate-limited warning would leave the status blank
+		// exactly in between. How long the window has been open is included
+		// so a stuck signal is diagnosable.
+		var since string
+		if !c.releaseWindowStart.IsZero() {
+			since = " for " + time.Since(c.releaseWindowStart).Round(time.Second).String()
 		}
+		_ = c.Warnf("NVML release window active%s (GPU reset in progress or requested); GPU collection paused until it completes", since)
+		// Keep the NVML telemetry current before skipping the rest of the run:
+		// this is the only core-check caller of Check(), and the released gauge
+		// exists precisely to make this window observable. Skipping it would
+		// leave that gauge at 0 for the whole window and freeze
+		// library_unavailable at whatever it held when the window opened.
+		c.telemetry.nvmlState.Check()
 		return nil
 	}
 	if ddnvml.IsNVMLReleased() {
@@ -669,11 +677,6 @@ const (
 	// agent pushes the NVML release lease to (/gpu/nvml-release).
 	spNvmlReleaseEndpoint = "/nvml-release"
 )
-
-// logLimitWindowOpen is the rate limit of the window-open WARN: it stays
-// visible for as long as the window is open, so a forgotten or stuck signal
-// is diagnosable without any action being taken behind the operator's back.
-var logLimitWindowOpen = log.NewLogLimit(1, 10*time.Minute)
 
 // sysprobeNvmlStateNotifier pushes the NVML release state (and, while
 // releasing, the lease duration the check asks for) to the system-probe GPU

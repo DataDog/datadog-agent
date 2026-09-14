@@ -371,12 +371,16 @@ func (ctx *systemContext) releaseNVMLForReset() {
 // caches are dropped only here — see releaseNVMLForReset for why they must
 // survive the release itself.
 func (ctx *systemContext) reacquireNVML() {
-	ddnvml.ReacquireNVML()
-
+	// Mirror of the release ordering: drop every NVML-backed handle while new
+	// users are still rejected, and clear the gate last. Clearing first would
+	// admit a concurrent request that then reads a pre-shutdown handle out of
+	// the not-yet-invalidated caches.
 	ctx.deviceCache.Invalidate()
 
 	ctx.releaseMu.Lock()
 	ctx.visibleDevicesCache = make(map[int][]ddnvml.Device)
 	ctx.lastDeviceCacheRefreshTime = time.Time{}
 	ctx.releaseMu.Unlock()
+
+	ddnvml.ReacquireNVML()
 }

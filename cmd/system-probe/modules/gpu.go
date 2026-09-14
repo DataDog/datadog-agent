@@ -287,8 +287,10 @@ func (t *GPUMonitoringModule) reacquireNVMLForLease() {
 		t.Probe.ReacquireForNvmlLease()
 		return
 	}
-	ddnvml.ReacquireNVML()
+	// Invalidate while new users are still rejected, clear the gate last (see
+	// systemContext.reacquireNVML for why the order matters).
 	t.deviceCache.Invalidate()
+	ddnvml.ReacquireNVML()
 }
 
 // nvmlReleaseHandler receives the core agent's NVML release push: a push
