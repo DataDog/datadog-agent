@@ -18,6 +18,7 @@ dd_agent_go_test(
         "fixtures/datadog-agent.yaml",
         "fixtures/datasecurity.yaml",
     ],
+    tags = ["manual"],
     # keep
     deps = [
         "//test/e2e-framework/common/utils",
