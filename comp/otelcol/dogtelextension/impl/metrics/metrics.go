@@ -9,6 +9,7 @@ package metrics
 import (
 	"go.opentelemetry.io/collector/component"
 
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -36,6 +37,59 @@ func CreateLivenessSerie(hostname string, timestampNs uint64, tags []string) *me
 		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
 		Tags:           tagset.NewCompositeTags(tags, nil),
 		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "otel.dogtel_extension",
+		Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// CreateFargateLivenessSerie creates a liveness metric serie to report that the dogtel extension
+// is running in an ECS Fargate task. The task is identified by its ARN rather than a hostname,
+// since Fargate tasks have no host identity.
+// The timestamp should be in Unix nanoseconds.
+func CreateFargateLivenessSerie(taskARN string, timestampNs uint64, tags []string) *metrics.Serie {
+	// Transform UnixNano timestamp into Unix timestamp (seconds)
+	timestamp := float64(timestampNs / 1e9)
+
+	allTags := append([]string{taggertags.TaskARN + ":" + taskARN}, tags...)
+
+	return &metrics.Serie{
+		Name:           "otel.dogtel_extension.running.fargate",
+		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Tags:           tagset.NewCompositeTags(allTags, nil),
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "otel.dogtel_extension",
+		Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// CreateAzureContainerAppsLivenessSerie creates a liveness metric serie tagged with the Azure
+// Container Apps replica, app name, subscription ID and resource group instead of a hostname,
+// since Azure Container Apps replicas have no host identity. Tag keys match the ones used by
+// the community DD exporter's otel.datadog_exporter.metrics.running.azurecontainerapps metric.
+// The timestamp should be in Unix nanoseconds.
+func CreateAzureContainerAppsLivenessSerie(replica, name, subscriptionID, resourceGroup string, timestampNs uint64, tags []string) *metrics.Serie {
+	// Transform UnixNano timestamp into Unix timestamp (seconds)
+	timestamp := float64(timestampNs / 1e9)
+
+	allTags := append([]string{}, tags...)
+	if replica != "" {
+		allTags = append(allTags, "replica:"+replica)
+	}
+	if name != "" {
+		allTags = append(allTags, "name:"+name)
+	}
+	if subscriptionID != "" {
+		allTags = append(allTags, "subscription_id:"+subscriptionID)
+	}
+	if resourceGroup != "" {
+		allTags = append(allTags, "resource_group:"+resourceGroup)
+	}
+
+	return &metrics.Serie{
+		Name:           "otel.dogtel_extension.running.azurecontainerapps",
+		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Tags:           tagset.NewCompositeTags(allTags, nil),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "otel.dogtel_extension",
 		Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,

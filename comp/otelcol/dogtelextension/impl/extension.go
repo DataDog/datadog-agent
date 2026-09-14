@@ -7,7 +7,9 @@ package dogtelextensionimpl
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -27,7 +29,23 @@ import (
 	dogtelmetrics "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
+
+// Azure Container Apps environment variables, mirroring cmd/serverless-init/cloudservice/containerapp.go.
+// CONTAINER_APP_NAME and CONTAINER_APP_REPLICA_NAME are injected by Azure; subscription ID and resource
+// group are not, so customers must set the DD_AZURE_* variables themselves.
+const (
+	containerAppNameEnvVar        = "CONTAINER_APP_NAME"
+	containerAppReplicaNameEnvVar = "CONTAINER_APP_REPLICA_NAME"
+	azureSubscriptionIDEnvVar     = "DD_AZURE_SUBSCRIPTION_ID"
+	azureResourceGroupEnvVar      = "DD_AZURE_RESOURCE_GROUP"
+)
+
+func isAzureContainerApps() bool {
+	_, exists := os.LookupEnv(containerAppNameEnvVar)
+	return exists
+}
 
 // dogtelExtension implements the dogtelextension.Component interface
 type dogtelExtension struct {
@@ -126,11 +144,32 @@ func (e *dogtelExtension) livenessMetricLoop() {
 }
 
 // sendLivenessMetric sends a gauge metric indicating the extension is running.
+// On ECS Fargate or Azure Container Apps, the metric is tagged with the task ARN or
+// container app identity instead of a hostname, since those workloads have no host identity.
 func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
-	hostname := e.hostname.GetSafe(ctx)
 	now := pcommon.NewTimestampFromTime(time.Now())
 	buildTags := dogtelmetrics.TagsFromBuildInfo(e.buildInfo)
-	serie := dogtelmetrics.CreateLivenessSerie(hostname, uint64(now), buildTags)
+
+	var serie *agentmetrics.Serie
+	switch {
+	case fargate.GetOrchestrator() == fargate.ECS:
+		tasks := e.workloadmeta.ListECSTasks()
+		if len(tasks) != 1 {
+			return fmt.Errorf("expected exactly one ECS task on Fargate, got %d", len(tasks))
+		}
+		serie = dogtelmetrics.CreateFargateLivenessSerie(tasks[0].ID, uint64(now), buildTags)
+	case isAzureContainerApps():
+		serie = dogtelmetrics.CreateAzureContainerAppsLivenessSerie(
+			os.Getenv(containerAppReplicaNameEnvVar),
+			os.Getenv(containerAppNameEnvVar),
+			os.Getenv(azureSubscriptionIDEnvVar),
+			os.Getenv(azureResourceGroupEnvVar),
+			uint64(now), buildTags,
+		)
+	default:
+		hostname := e.hostname.GetSafe(ctx)
+		serie = dogtelmetrics.CreateLivenessSerie(hostname, uint64(now), buildTags)
+	}
 
 	var serieErr error
 	agentmetrics.Serialize(

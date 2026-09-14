@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The DDOT collector's ``dogtel_extension`` liveness metric is now workload-aware in
+    serverless environments. On Amazon ECS Fargate, ``otel.dogtel_extension.running.fargate``
+    is emitted and tagged with the ECS task ARN instead of a hostname. On Azure Container
+    Apps, ``otel.dogtel_extension.running.azurecontainerapps`` is emitted and tagged with the
+    replica, app name, subscription ID, and resource group instead of a hostname. In both
+    cases, the metric replaces the host-based ``otel.dogtel_extension.running`` metric, since
+    these workloads have no stable host identity.
