@@ -204,16 +204,79 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 			},
 		},
 		{
-			name:    "memory ECC and repair chain",
-			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
+			// Driver format: ECC_CHANNEL_REPAIR_PENDING_XID_MESSAGE_FMT.
+			name:    "channel repair names its FBPA and activation",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 along with its pair for repair. Perform node reboot to activate repair.",
 			expected: model.NvidiaXid{
 				XidCode: 160,
-				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
-				MemoryFault: &model.NvidiaXidMemoryFault{
-					RepairedTarget:      "channel",
-					RepairedTargetIndex: uint64Pointer(3),
-					FBPA:                uint64Pointer(2),
-					NodeRebootRequired:  true,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 along with its pair for repair. Perform node reboot to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:             "channel",
+					TargetIndex:        uint64Pointer(3),
+					Container:          "FBPA",
+					ContainerIndex:     uint64Pointer(2),
+					Activation:         "node_reboot",
+					NodeRebootRequired: true,
+				},
+			},
+		},
+		{
+			// Driver format: ECC_LTS_REPAIR_PENDING_XID_MESSAGE_FMT. This form says LTS and
+			// FPB, not "L2 slice" and FBPA, so the old pattern could never match it.
+			name:    "LTS repair names its FPB",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking LTS 5 in FPB 1 along with its pair for repair. Perform node reboot to activate repair.",
+			expected: model.NvidiaXid{
+				XidCode: 160,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking LTS 5 in FPB 1 along with its pair for repair. Perform node reboot to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:             "lts",
+					TargetIndex:        uint64Pointer(5),
+					Container:          "FPB",
+					ContainerIndex:     uint64Pointer(1),
+					Activation:         "node_reboot",
+					NodeRebootRequired: true,
+				},
+			},
+		},
+		{
+			// The activation verb is a format argument, so it is not always a node reboot.
+			name:    "repair activated by a GPU reset is not a node reboot",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 0 in FBPA 12 along with its pair for repair. Perform GPU reset to activate repair.",
+			expected: model.NvidiaXid{
+				XidCode: 160,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 0 in FBPA 12 along with its pair for repair. Perform GPU reset to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "channel",
+					TargetIndex:    uint64Pointer(0),
+					Container:      "FBPA",
+					ContainerIndex: uint64Pointer(12),
+					Activation:     "gpu_reset",
+				},
+			},
+		},
+		{
+			name:    "channel repair failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing Channel failed as there are no more spare channels.",
+			expected: model.NvidiaXid{
+				XidCode: 161,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing Channel failed as there are no more spare channels.",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "channel",
+					Failed:        true,
+					FailureReason: "no_spare_channels",
+				},
+			},
+		},
+		{
+			name:    "LTS repair failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing LTS failed as there are no more spare L2 slices.",
+			expected: model.NvidiaXid{
+				XidCode: 161,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing LTS failed as there are no more spare L2 slices.",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "lts",
+					Failed:        true,
+					FailureReason: "no_spare_l2_slices",
 				},
 			},
 		},
@@ -227,6 +290,20 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 					PhysicalAddress: "0x0000000001234567",
 					Partition:       uint64Pointer(1),
 					Subpartition:    uint64Pointer(2),
+				},
+			},
+		},
+		{
+			// Driver format: ECC_ROW_REMAP_PENDING_INTR_XID_MESSAGE_FMT. The address is
+			// parenthesised, which the bare "row 0x…" pattern never matched.
+			name:    "row remap pending names the new row",
+			message: "NVRM: Xid (PCI:0000:00:1e): 63, Row Remapper: New row (0x0000000000abcdef) marked for remapping, reset gpu to activate.",
+			expected: model.NvidiaXid{
+				XidCode: 63,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 63, Row Remapper: New row (0x0000000000abcdef) marked for remapping, reset gpu to activate.",
+				Repair: &model.NvidiaXidRepair{
+					Target:  "row",
+					Address: "0x0000000000abcdef",
 				},
 			},
 		},
