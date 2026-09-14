@@ -226,6 +226,7 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 				require.True(c, found, "system_probe RAR status should contain Details")
 				details, found := detailsSection[""]
 				require.True(c, found, "system_probe RAR Details should contain rendered status")
+				require.Contains(c, details, "\n  NPM\n  ===\n    Status: Running", "system probe status should report NPM as running")
 				assert.NotContains(c, details, "Error:", "system probe status should not contain errors")
 				return
 			}
