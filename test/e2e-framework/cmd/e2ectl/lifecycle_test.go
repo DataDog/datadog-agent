@@ -108,3 +108,32 @@ func TestStopUnknownEnvironment(t *testing.T) {
 		t.Fatalf("expected an unknown-environment error, got: %v", err)
 	}
 }
+
+// The local environment's failed starts are recoverable the same way: without
+// Docker on PATH the network creation fails, and plain stop still clears the
+// entry (all teardown is best-effort by deterministic names).
+func TestLocalFailedStartIsRecoverable(t *testing.T) {
+	store := lifecycleEnv(t)
+	cfgPath := writeLifecycleConfig(t, `schema: 1
+environment:
+  base: local
+agent:
+  install: binary
+`)
+	if err := cmdStart([]string{"--config", cfgPath, "--name", "dev"}); err == nil {
+		t.Fatal("start must fail without docker on PATH")
+	}
+	entry, err := store.Get("dev")
+	if err != nil {
+		t.Fatal("the failed entry must stay visible in the store")
+	}
+	if entry.Meta.Status != envstore.StatusError {
+		t.Fatalf("failed start must mark the entry error, got %q", entry.Meta.Status)
+	}
+	if err := cmdStop([]string{"--env", "dev"}); err != nil {
+		t.Fatalf("plain stop must recover a failed local entry: %v", err)
+	}
+	if _, err := store.Get("dev"); err == nil {
+		t.Fatal("stop must remove the failed entry")
+	}
+}

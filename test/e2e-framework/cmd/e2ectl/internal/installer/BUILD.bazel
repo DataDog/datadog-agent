@@ -1,21 +1,44 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "installer",
-    srcs = ["installer.go"],
+    srcs = [
+        "binary.go",
+        "installer.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/config",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/localinfra",
         "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/binary",
         "//test/e2e-framework/cmd/internal/envconfig/helm",
         "//test/e2e-framework/cmd/internal/envconfig/script",
+        "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/installers/agentconfig",
         "//test/e2e-framework/testing/installers/host/installscript",
         "//test/e2e-framework/testing/installers/kubernetes/helm",
         "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/standalone",
+        "//test/fakeintake/client",
         "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "installer_test",
+    srcs = ["binary_test.go"],
+    embed = [":installer"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/internal/envconfig/binary",
+        "//test/e2e-framework/testing/provisioner",
     ],
 )

@@ -14,10 +14,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
@@ -105,23 +105,19 @@ func command(version, apiKey string) string {
 
 var integrationFolderPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
+// buildAgentConfig delegates to the shared agentconfig policy so the install
+// script (on a provisioned VM) and the binary installer (in a container) wire
+// fakeintake identically.
 func buildAgentConfig(env *environments.Host, apiKey, extraConfig string) (string, error) {
-	config := fmt.Sprintf("api_key: %q\n", apiKey)
+	var endpoint *agentconfig.Endpoint
 	if env.FakeIntake != nil {
-		config += fmt.Sprintf(`dd_url: %s://%s:%d
-logs_config.logs_dd_url: %s:%d
-logs_config.logs_no_ssl: true
-logs_config.force_use_http: true
-`, env.FakeIntake.Scheme, env.FakeIntake.Host, env.FakeIntake.Port, env.FakeIntake.Host, env.FakeIntake.Port)
+		endpoint = &agentconfig.Endpoint{
+			Scheme: env.FakeIntake.Scheme,
+			Host:   env.FakeIntake.Host,
+			Port:   int(env.FakeIntake.Port),
+		}
 	}
-	if extraConfig == "" {
-		return config, nil
-	}
-	merged, err := yamlutil.MergeYAMLWithSlices(config, extraConfig)
-	if err != nil {
-		return "", fmt.Errorf("merging Agent config: %w", err)
-	}
-	return merged, nil
+	return agentconfig.Generate(apiKey, endpoint, extraConfig)
 }
 
 func writeRemoteFile(env *environments.Host, filePath, content string) error {

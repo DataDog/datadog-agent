@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
@@ -106,8 +105,10 @@ func cmdList(args []string) error {
 		if e.Meta.AgentInstalled {
 			if e.Meta.AgentImage != "" {
 				agent = e.Meta.AgentImage
-			} else {
+			} else if e.Meta.AgentVersion != "" {
 				agent = e.Meta.AgentVersion
+			} else {
+				agent = "binary" // built from source: no version or image to show
 			}
 		}
 		fmt.Printf("%-20s %-10s %-9s %-8s %s\n",
@@ -214,20 +215,7 @@ func cmdUpdate(args []string) error {
 		return config.NewErrors(errs)
 	}
 
-	// Only an update that actually requests a local image builds one; a
-	// released-version update never invokes the dev image build.
-	_, requestedImage, err := inst.Artifact(cfg)
-	if err != nil {
-		return err
-	}
-	if !*skipBuild && requestedImage != "" {
-		fmt.Printf("building agent image %s (dda inv agent.hacky-dev-image-build)...\n", requestedImage)
-		if err := buildAgentImage(requestedImage); err != nil {
-			return err
-		}
-	}
-
-	if err := updatable.Update(cfg, entry); err != nil {
+	if err := updatable.Update(cfg, entry, *skipBuild); err != nil {
 		return err
 	}
 	if err := saveAppliedConfig(cfg, entry); err != nil {
@@ -285,15 +273,6 @@ func saveAppliedConfig(cfg *config.File, entry envstore.Entry) error {
 		return err
 	}
 	return os.Rename(f.Name(), entry.ConfigPath())
-}
-
-// buildAgentImage runs the repo's dev image build, tagging the result exactly
-// as the config references it.
-func buildAgentImage(image string) error {
-	cmd := exec.Command("dda", "inv", "agent.hacky-dev-image-build", "--target-image="+image)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func cmdFakeintake(args []string) error {

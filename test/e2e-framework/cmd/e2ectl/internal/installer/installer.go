@@ -72,9 +72,12 @@ func decodeAgentSection[A any](schema *configschema.Schema[A], cfg *config.File,
 
 // Updatable is the optional local-iteration capability: every environment
 // should end up updatable, but drivers can ship without it and grow it later.
+// Update owns its artifact preparation: each installer decides what "prepare"
+// means (rebuild a binary, build a dev image, or nothing under skipBuild) —
+// the CLI never dispatches on installer-specific artifact knowledge.
 type Updatable interface {
 	Installer
-	Update(cfg *config.File, entry envstore.Entry) error
+	Update(cfg *config.File, entry envstore.Entry, skipBuild bool) error
 }
 
 // Kubernetes installs or upgrades the agent with the Helm chart on any
@@ -154,9 +157,32 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 }
 
 // Update implements driver.Updatable: the same install path (the chart
-// installer upgrades an existing release), with the image delivered first.
-func (k *Kubernetes) Update(cfg *config.File, entry envstore.Entry) error {
+// installer upgrades an existing release), with the dev image prepared first
+// when the section requests one. skipBuild reuses the existing image.
+func (k *Kubernetes) Update(cfg *config.File, entry envstore.Entry, skipBuild bool) error {
+	if !skipBuild {
+		section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
+		if err != nil {
+			return err
+		}
+		if section.Image != "" {
+			fmt.Printf("building agent image %s (dda inv agent.hacky-dev-image-build)...\n", section.Image)
+			if err := buildAgentImage(section.Image); err != nil {
+				return err
+			}
+		}
+	}
 	return k.Install(cfg, entry)
+}
+
+// buildAgentImage runs the repo's dev image build, tagging the result exactly
+// as the config references it. It moved here from the CLI: artifact preparation
+// is installer-owned, not command-level knowledge.
+func buildAgentImage(image string) error {
+	cmd := exec.Command("dda", "inv", "agent.hacky-dev-image-build", "--target-image="+image)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // HostScript installs the agent on a host environment (ec2-host, and later

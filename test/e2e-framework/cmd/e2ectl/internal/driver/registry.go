@@ -8,8 +8,10 @@ package driver
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/ec2host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/kind"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/local"
 	ec2config "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/ec2host"
 	kindconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/kind"
+	localconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/local"
 )
 
 // Register a shared typed schema, an explicit default installer and lifecycle
@@ -18,4 +20,5 @@ import (
 var registry = []Driver{
 	Define(kindconfig.Schema, "helm", &kind.Driver{}),
 	Define(ec2config.Schema, "script", &ec2host.Driver{}),
+	Define(localconfig.Schema, "binary", &local.Driver{}),
 }
