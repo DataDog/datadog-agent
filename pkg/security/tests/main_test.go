@@ -39,6 +39,15 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	if shard < 1 || shard > shards {
+		fmt.Fprintf(os.Stderr, "invalid shard %d of %d shards\n", shard, shards)
+		os.Exit(1)
+	}
+	if !selectShard(m, shard, shards) {
+		fmt.Fprintln(os.Stderr, "cannot reach the test tables, not sharding the suite")
+		os.Exit(1)
+	}
+
 	fmt.Printf("Using git ref %s as common ancestor between HEAD and main branch\n", GitAncestorOnMain)
 
 	preTestsHook()
@@ -61,6 +70,8 @@ var (
 	ebpfLessEnabled bool
 	listGroups      bool
 	testGroup       string
+	shard           int
+	shards          int
 )
 
 func init() {
@@ -71,4 +82,6 @@ func init() {
 		"print the groups the suite partitions into, one per line, then exit")
 	flag.StringVar(&testGroup, "group", "",
 		"run only the tests in the named group; -test.run and -test.skip are unaffected")
+	flag.IntVar(&shard, "shard", 1, "1-based index of the shard to run")
+	flag.IntVar(&shards, "shards", 1, "number of shards the suite is split into")
 }

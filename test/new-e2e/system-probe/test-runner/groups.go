@@ -26,6 +26,8 @@ import (
 const (
 	listGroupsFlag = "-list-groups"
 	groupFlag      = "-group"
+	shardFlag      = "-shard"
+	shardsFlag     = "-shards"
 
 	// groupLinePrefix is what the suite marks its group names with, since it
 	// shares stdout with anything logged during init().
@@ -73,6 +75,20 @@ func testPasses(pkg string, suiteArgs, env []string, dir string) []string {
 		return groups
 	}
 	return []string{""}
+}
+
+// shardArgs appends the shard flags once, ahead of the testPasses loop, so
+// both the -list-groups probe and every -group pass carry them. It is a
+// no-op unless the CI job set both -shard and -shards on the runner: a
+// component whose suite lacks the flags dies on the unknown flag instead,
+// which is the right feedback for whoever wired that up.
+func shardArgs(suiteArgs []string, shard, shards int) []string {
+	if shard == 0 && shards == 0 {
+		return suiteArgs
+	}
+	return append(slices.Clone(suiteArgs),
+		fmt.Sprintf("%s=%d", shardFlag, shard),
+		fmt.Sprintf("%s=%d", shardsFlag, shards))
 }
 
 // groupPass returns what one pass changes about the command: the suffix that

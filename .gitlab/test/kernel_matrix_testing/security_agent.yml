@@ -139,6 +139,7 @@ kmt_run_secagent_tests_x64:
     - upload_secagent_tests_x64
   variables:
     ARCH: "x86_64"
+    SHARDS: "2"
   parallel:
     matrix:
       - TAG:
@@ -168,6 +169,7 @@ kmt_run_secagent_tests_x64:
           - "opensuse_15.5"
           - "suse_12.5"
         TEST_SET: [cws_host]
+        SHARD: ["1", "2"]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
@@ -290,6 +292,7 @@ kmt_run_secagent_tests_x64_docker:
     - upload_secagent_tests_x64
   variables:
     ARCH: "x86_64"
+    SHARDS: "2"
   parallel:
     matrix:
       - TAG:
@@ -316,6 +319,7 @@ kmt_run_secagent_tests_x64_docker:
           - "rocky_9.3"
           - "rocky_9.4"
         TEST_SET: [cws_docker]
+        SHARD: ["1", "2"]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
@@ -331,6 +335,7 @@ kmt_run_secagent_tests_arm64:
     - upload_secagent_tests_arm64
   variables:
     ARCH: "arm64"
+    SHARDS: "2"
   parallel:
     matrix:
       - TAG:
@@ -353,6 +358,7 @@ kmt_run_secagent_tests_arm64:
           - "rocky_9.4"
           - "opensuse_15.5"
         TEST_SET: [cws_host]
+        SHARD: ["1", "2"]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
@@ -449,6 +455,7 @@ kmt_run_secagent_tests_arm64_docker:
     - upload_secagent_tests_arm64
   variables:
     ARCH: "arm64"
+    SHARDS: "2"
   parallel:
     matrix:
       - TAG:
@@ -470,6 +477,7 @@ kmt_run_secagent_tests_arm64_docker:
           - "rocky_9.3"
           - "rocky_9.4"
         TEST_SET: ["cws_docker"]
+        SHARD: ["1", "2"]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
@@ -489,19 +497,31 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
+# kmt_run_secagent_tests_{arm64,x64}[_docker] now shard cws_host/cws_docker
+# across two microVMs apiece, doubling how many matrix instances each
+# contributes to a join's `needs` (GitLab expands a matrix job name in
+# `needs` to every instance). `needs` caps at 50 per job, so cws_host and
+# cws_docker each get their own join below instead of sharing one with the
+# other test sets, on both arches.
+
 kmt_secagent_tests_join1_arm64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
-    - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_ad
 
 kmt_secagent_tests_join2_arm64:
   extends:
     - .kmt_secagent_tests_join
   needs:
+    - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_ebpfless
+
+kmt_secagent_tests_join3_arm64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
     - kmt_run_secagent_tests_arm64_docker
 
 kmt_secagent_cleanup_arm64:
@@ -512,6 +532,7 @@ kmt_secagent_cleanup_arm64:
     - kmt_setup_env_secagent_arm64
     - kmt_secagent_tests_join1_arm64
     - kmt_secagent_tests_join2_arm64
+    - kmt_secagent_tests_join3_arm64
     - upload_secagent_tests_arm64
   variables:
     ARCH: arm64
@@ -522,9 +543,6 @@ kmt_secagent_tests_join1_x64:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_x64
-    - kmt_run_secagent_tests_x64_ad
-    - kmt_run_secagent_tests_x64_ebpfless
-    - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_tests_join2_x64:
   extends:
@@ -532,6 +550,14 @@ kmt_secagent_tests_join2_x64:
   needs:
     - kmt_run_secagent_tests_x64_peds
     - kmt_run_secagent_tests_x64_required
+    - kmt_run_secagent_tests_x64_ad
+    - kmt_run_secagent_tests_x64_ebpfless
+
+kmt_secagent_tests_join3_x64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
+    - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_cleanup_x64:
   when: always
@@ -541,6 +567,7 @@ kmt_secagent_cleanup_x64:
     - kmt_setup_env_secagent_x64
     - kmt_secagent_tests_join1_x64
     - kmt_secagent_tests_join2_x64
+    - kmt_secagent_tests_join3_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:
