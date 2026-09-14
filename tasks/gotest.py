@@ -11,6 +11,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -26,7 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
-from tasks.coverage import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, GotestsumCoverageWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
@@ -75,8 +76,12 @@ WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
+BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
+DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -273,6 +278,17 @@ def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | Non
     return None
 
 
+def _bazel_test_jobs() -> str | None:
+    jobs = os.environ.get(BAZEL_TEST_JOBS_ENV)
+    if jobs is None and sys.platform == "win32" and running_in_ci():
+        jobs = str(DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS)
+    if not jobs:
+        return None
+    if not jobs.isdigit() or int(jobs) <= 0:
+        raise Exit(f"{BAZEL_TEST_JOBS_ENV} must be a positive integer, got {jobs!r}")
+    return jobs
+
+
 def _run_bazel_tests(
     ctx, flavor: AgentFlavor, targets: list[str], bazel_flags: list[str] = None, verbose: bool = False
 ) -> TestStats:
@@ -293,6 +309,8 @@ def _run_bazel_tests(
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
     base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
+    if jobs := _bazel_test_jobs():
+        base_args.append(f"--jobs={jobs}")
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
@@ -453,21 +471,36 @@ def test_flavor(
     res = None
     for batch in batches:
         batch_packages = ' '.join(batch)
-        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = bazel(
-                ctx,
-                "run",
-                "//internal/tools:gotestsum",
-                "--",
-                *shlex.split(cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)),
-                env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
-                ignore_errors=True,
-            )
+        with GotestsumCoverageWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            if sys.platform == "aix":
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
+                res = subprocess.CompletedProcess(
+                    args=gotestsum_argv,
+                    returncode=run_res.return_code,
+                    stdout=run_res.stdout,
+                    stderr=run_res.stderr,
+                )
+            else:
+                res = bazel(
+                    "run",
+                    "//internal/tools:gotestsum",
+                    "--",
+                    *shlex.split(formatted_cmd),
+                    env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
+                    ignore_errors=True,
+                )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-            if res is not None and res.exited == 130:
+            if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()
 
-        if res is not None and (res.exited is None or res.exited > 0):
+        if res is not None and res.returncode != 0:
             result.failed = True
         elif not skip_tests_covered_by_bazel:
             lines = res.stdout.splitlines()
@@ -602,6 +635,7 @@ def test(
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
+    build_cpus=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -663,12 +697,10 @@ def test(
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    build_cpus = build_cpus or cpus
+    build_cpus_opt = f"-p {build_cpus}" if build_cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
     trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
-    if sys.platform == "win32" and "DELVE" not in os.environ:
-        # incident-59224: omit DWARF to deflate peak link memory, while preserving symbol table diagnostics
-        ldflags += "-w"
 
     nocache = '-count=1' if not cache else ''
 
@@ -896,7 +928,6 @@ def test_new(
     ]
 
     bazel(
-        ctx,
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
@@ -1480,6 +1511,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
@@ -1510,7 +1546,14 @@ def check_otel_module_versions(ctx, fix=False):
                     continue
 
                 actual_local_version = local_matches[0]
-                if actual_local_version != expected_local_version:
+                # A local module's go directive can legitimately be higher than the version derived
+                # from the contrib repo root's go.mod: contrib is a multi-module repo, and MVS can
+                # force a higher version when one of our actual dependencies (e.g. pkg/datadog) declares
+                # a newer `go` directive than the repo root does. Only flag/fix versions that are lower
+                # than expected, since those would fail to build against such a dependency.
+                actual_tuple = tuple(int(part) for part in actual_local_version.split('.'))
+                expected_tuple = tuple(int(part) for part in expected_local_version.split('.'))
+                if actual_tuple < expected_tuple:
                     if fix:
                         update_file(
                             True,
@@ -1520,7 +1563,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
+                            f"{mod_file} version {actual_local_version} is lower than expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

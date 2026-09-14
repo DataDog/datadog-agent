@@ -129,6 +129,7 @@ class GoModule:
         'always': lambda platform=None: True,
         'never': lambda platform=None: False,
         'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
+        'not_aix': lambda platform=None: (platform or sys.platform) != "aix",
     }
 
     # Posix path of the module's directory
@@ -242,7 +243,6 @@ class GoModule:
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         output = bazel(
-            ctx,
             "run",
             "//internal/tools/modparser",
             "--",

@@ -34,6 +34,7 @@ type notableEventsCollector interface {
 	Close() error
 	Pending() []notableevents.Event
 	Ack([]string) error
+	Stats() notableevents.CollectorStats
 }
 
 // newNotableEventsCollector provides the platform collector constructor and a test seam.
@@ -157,9 +158,34 @@ func writeNotableEventsJSON(req *http.Request, w http.ResponseWriter, status int
 	utils.WriteAsJSON(req, w, body, utils.CompactOutput)
 }
 
-// GetStats returns the module's currently empty runtime statistics.
+// GetStats returns aggregate collector health for the system-probe stats
+// endpoint, which feeds `agent status` and flares. Every value is a scalar:
+// report directories are user-specific, so no path or per-directory breakdown
+// may appear here.
 func (m *notableEventsModule) GetStats() map[string]interface{} {
-	return map[string]interface{}{}
+	stats := m.collector.Stats()
+	return map[string]interface{}{
+		"pending_events":                       stats.PendingEvents,
+		"pending_events_max":                   stats.PendingEventsMax,
+		"tracked_files":                        stats.TrackedFiles,
+		"tracked_files_max":                    stats.TrackedFilesMax,
+		"tracked_directories":                  stats.TrackedDirectories,
+		"tracked_directories_max":              stats.TrackedDirectoriesMax,
+		"saturated_directories":                stats.SaturatedDirectories,
+		"retry_directories":                    stats.RetryDirectories,
+		"acknowledged_identities":              stats.AcknowledgedIdentities,
+		"acknowledged_identities_max":          stats.AcknowledgedIdentitiesMax,
+		"bookmark_unsaved":                     stats.BookmarkUnsaved,
+		"bookmark_stage_pending":               stats.BookmarkStagePending,
+		"watcher_active":                       stats.WatcherActive,
+		"persistence_errors":                   stats.PersistenceErrors,
+		"capacity_deferrals":                   stats.CapacityDeferrals,
+		"baseline_suppressed_first_run":        stats.BaselineSuppressedFirstRun,
+		"baseline_suppressed_after_saturation": stats.BaselineSuppressedAfterSaturation,
+		"fsevents_drops":                       stats.FSEventsDrops,
+		"watcher_errors":                       stats.WatcherErrors,
+		"watcher_restarts":                     stats.WatcherRestarts,
+	}
 }
 
 // Close releases the collector and its filesystem monitoring resources.

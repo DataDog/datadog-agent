@@ -3,75 +3,191 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
-use std::path::Path;
+use crate::opms::TlsConfig;
+use anyhow::{Result, ensure};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Duration;
 
-/// Lookup of `DD_*` environment overrides, injected so it can be faked in tests.
-type EnvLookup<'a> = &'a dyn Fn(&str) -> Option<String>;
+const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
+pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
-#[derive(Debug)]
+#[derive(Clone)]
+pub struct Identity {
+    pub urn: String,
+    pub org_id: i64,
+    pub runner_id: String,
+    pub private_key: String,
+}
+
+#[derive(Clone)]
 pub struct Config {
-    pub enabled: bool,
-    pub log_level: log::LevelFilter,
+    pub opms_base_url: String,
+    pub task_concurrency: usize,
+    pub executor_socket: PathBuf,
+    pub procmgr_socket: PathBuf,
+    pub executor_process_name: String,
+    pub loop_interval: Duration,
+    pub heartbeat_interval: Duration,
+    pub health_check_interval: Duration,
+    pub ready_timeout: Duration,
+    pub opms_request_timeout: Duration,
+    pub opms_extra_headers: HashMap<String, String>,
+    pub opms_proxy_url: Option<String>,
+    pub tls: TlsConfig,
+    pub min_backoff: Duration,
+    pub max_backoff: Duration,
+    pub wait_before_retry: Duration,
+    pub max_attempts: u32,
+    pub runner_version: String,
+    pub modes: Vec<String>,
+    pub ipc_cert_file: PathBuf,
+    pub identity: Identity,
 }
 
-#[derive(serde::Deserialize, Default)]
-struct RawConfig {
-    log_level: Option<String>,
-    private_action_runner: Option<RawPar>,
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(default, deny_unknown_fields)]
+pub struct BootstrapConfig {
+    pub split_mode: bool,
+    pub log_level: String,
+    identity: BootstrapIdentity,
+    opms_base_url: String,
+    opms_proxy_url: String,
+    agent_version: String,
+    modes: Vec<String>,
+    task_concurrency: usize,
+    executor_socket: String,
+    ipc_cert_file_path: String,
+    opms_extra_headers: HashMap<String, String>,
+    tls: BootstrapTls,
+    loop_interval_milliseconds: u64,
+    heartbeat_interval_milliseconds: u64,
+    health_check_interval_milliseconds: u64,
+    opms_request_timeout_milliseconds: u64,
+    min_backoff_milliseconds: u64,
+    max_backoff_milliseconds: u64,
+    wait_before_retry_milliseconds: u64,
+    max_attempts: u32,
 }
 
-#[derive(serde::Deserialize, Default)]
-struct RawPar {
-    enabled: Option<bool>,
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(default, deny_unknown_fields)]
+struct BootstrapIdentity {
+    urn: String,
+    private_key: String,
+    org_id: i64,
+    runner_id: String,
 }
 
-impl Config {
-    pub fn from_yaml_file(path: &Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        Self::from_yaml(&contents, &|name| std::env::var(name).ok())
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(default, deny_unknown_fields)]
+struct BootstrapTls {
+    skip_ssl_validation: bool,
+    min_tls_version: String,
+}
+
+impl BootstrapConfig {
+    pub fn log_level(&self) -> log::LevelFilter {
+        match self.log_level.trim().to_ascii_lowercase().as_str() {
+            "trace" => log::LevelFilter::Trace,
+            "debug" => log::LevelFilter::Debug,
+            "warn" | "warning" => log::LevelFilter::Warn,
+            "error" | "critical" => log::LevelFilter::Error,
+            "off" => log::LevelFilter::Off,
+            _ => log::LevelFilter::Info,
+        }
     }
 
-    fn from_yaml(yaml: &str, env: EnvLookup<'_>) -> Result<Self> {
-        let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
-        let par = raw.private_action_runner.unwrap_or_default();
-        let enabled = env_bool(env, "DD_PRIVATE_ACTION_RUNNER_ENABLED", par.enabled)?;
-        let log_level = env_string(env, "DD_LOG_LEVEL", raw.log_level);
+    pub fn into_config(self) -> Result<Config> {
+        ensure!(
+            self.split_mode,
+            "bootstrap configuration has split mode disabled"
+        );
 
-        Ok(Self {
-            enabled,
-            log_level: log_level
-                .as_deref()
-                .map_or(log::LevelFilter::Info, parse_log_level),
+        for (name, value) in [
+            ("log_level", self.log_level.as_str()),
+            ("identity.urn", self.identity.urn.as_str()),
+            ("identity.private_key", self.identity.private_key.as_str()),
+            ("identity.runner_id", self.identity.runner_id.as_str()),
+            ("opms_base_url", self.opms_base_url.as_str()),
+            ("agent_version", self.agent_version.as_str()),
+            ("executor_socket", self.executor_socket.as_str()),
+            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
+            ("tls.min_tls_version", self.tls.min_tls_version.as_str()),
+        ] {
+            ensure!(
+                !value.is_empty(),
+                "bootstrap configuration is missing {name}"
+            );
+        }
+        ensure!(
+            self.identity.org_id > 0,
+            "bootstrap configuration is missing identity.org_id"
+        );
+        for (name, value) in [
+            ("task_concurrency", self.task_concurrency as u64),
+            (
+                "loop_interval_milliseconds",
+                self.loop_interval_milliseconds,
+            ),
+            (
+                "heartbeat_interval_milliseconds",
+                self.heartbeat_interval_milliseconds,
+            ),
+            (
+                "health_check_interval_milliseconds",
+                self.health_check_interval_milliseconds,
+            ),
+            (
+                "opms_request_timeout_milliseconds",
+                self.opms_request_timeout_milliseconds,
+            ),
+            ("min_backoff_milliseconds", self.min_backoff_milliseconds),
+            ("max_backoff_milliseconds", self.max_backoff_milliseconds),
+            (
+                "wait_before_retry_milliseconds",
+                self.wait_before_retry_milliseconds,
+            ),
+            ("max_attempts", self.max_attempts as u64),
+        ] {
+            ensure!(value > 0, "bootstrap configuration is missing {name}");
+        }
+
+        Ok(Config {
+            opms_base_url: self.opms_base_url,
+            task_concurrency: self.task_concurrency,
+            executor_socket: self.executor_socket.into(),
+            procmgr_socket: dd_procmgr_client::ipc_path(),
+            executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
+            loop_interval: Duration::from_millis(self.loop_interval_milliseconds),
+            heartbeat_interval: Duration::from_millis(self.heartbeat_interval_milliseconds),
+            health_check_interval: Duration::from_millis(self.health_check_interval_milliseconds),
+            ready_timeout: EXECUTOR_READY_TIMEOUT,
+            opms_request_timeout: Duration::from_millis(self.opms_request_timeout_milliseconds),
+            opms_extra_headers: self.opms_extra_headers,
+            opms_proxy_url: if self.opms_proxy_url.is_empty() {
+                None
+            } else {
+                Some(self.opms_proxy_url)
+            },
+            tls: TlsConfig {
+                skip_ssl_validation: self.tls.skip_ssl_validation,
+                min_tls_version: self.tls.min_tls_version,
+            },
+            min_backoff: Duration::from_millis(self.min_backoff_milliseconds),
+            max_backoff: Duration::from_millis(self.max_backoff_milliseconds),
+            wait_before_retry: Duration::from_millis(self.wait_before_retry_milliseconds),
+            max_attempts: self.max_attempts,
+            runner_version: self.agent_version,
+            modes: self.modes,
+            ipc_cert_file: self.ipc_cert_file_path.into(),
+            identity: Identity {
+                urn: self.identity.urn,
+                private_key: self.identity.private_key,
+                org_id: self.identity.org_id,
+                runner_id: self.identity.runner_id,
+            },
         })
-    }
-}
-
-/// A non-empty environment value wins over the YAML value.
-fn env_string(env: EnvLookup<'_>, name: &str, yaml_value: Option<String>) -> Option<String> {
-    env(name).filter(|value| !value.is_empty()).or(yaml_value)
-}
-
-fn env_bool(env: EnvLookup<'_>, name: &str, yaml_value: Option<bool>) -> Result<bool> {
-    let Some(raw) = env_string(env, name, None) else {
-        return Ok(yaml_value.unwrap_or(false));
-    };
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        _ => bail!("invalid boolean value for {name}: {raw:?}"),
-    }
-}
-
-fn parse_log_level(raw: &str) -> log::LevelFilter {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "trace" => log::LevelFilter::Trace,
-        "debug" => log::LevelFilter::Debug,
-        "warn" | "warning" => log::LevelFilter::Warn,
-        "error" | "critical" => log::LevelFilter::Error,
-        "off" => log::LevelFilter::Off,
-        _ => log::LevelFilter::Info,
     }
 }
 
@@ -79,66 +195,50 @@ fn parse_log_level(raw: &str) -> log::LevelFilter {
 mod tests {
     use super::*;
 
-    fn parse(yaml: &str, env: &[(&str, &str)]) -> Result<Config> {
-        Config::from_yaml(yaml, &|name| {
-            env.iter()
-                .find(|(key, _)| *key == name)
-                .map(|(_, value)| (*value).to_string())
-        })
+    const JSON: &str = r#"{
+        "split_mode": true,
+        "log_level": "debug",
+        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
+        "opms_base_url":"https://api.datadoghq.com",
+        "agent_version":"7.76.0",
+        "task_concurrency":5,
+        "executor_socket":"/var/run/datadog/par-executor.sock",
+        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem",
+        "tls":{"skip_ssl_validation":false,"min_tls_version":"tlsv1.2"},
+        "loop_interval_milliseconds":1000,
+        "heartbeat_interval_milliseconds":20000,
+        "health_check_interval_milliseconds":30000,
+        "opms_request_timeout_milliseconds":30000,
+        "min_backoff_milliseconds":1000,
+        "max_backoff_milliseconds":180000,
+        "wait_before_retry_milliseconds":300000,
+        "max_attempts":20
+    }"#;
+
+    #[test]
+    fn maps_bootstrap_config() {
+        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+        assert!(bootstrap.split_mode);
+        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
+
+        let config = bootstrap.into_config().unwrap();
+        assert_eq!(config.task_concurrency, 5);
+        assert_eq!(config.loop_interval, Duration::from_secs(1));
+        assert_eq!(config.identity.org_id, 42);
     }
 
     #[test]
-    fn reads_enabled_and_log_level() {
-        let config = parse(
-            "log_level: debug\nprivate_action_runner:\n  enabled: true\n",
-            &[],
-        )
-        .unwrap();
-        assert!(config.enabled);
-        assert_eq!(config.log_level, log::LevelFilter::Debug);
+    fn rejects_unknown_fields() {
+        let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
+        assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
     }
 
     #[test]
-    fn environment_overrides_yaml() {
-        let config = parse(
-            "log_level: debug\nprivate_action_runner:\n  enabled: false\n",
-            &[
-                ("DD_PRIVATE_ACTION_RUNNER_ENABLED", "true"),
-                ("DD_LOG_LEVEL", "trace"),
-            ],
-        )
-        .unwrap();
-        assert!(config.enabled);
-        assert_eq!(config.log_level, log::LevelFilter::Trace);
-    }
+    fn rejects_incomplete_enabled_config() {
+        let json = JSON.replace("\"task_concurrency\":5,", "");
+        let bootstrap: BootstrapConfig = serde_json::from_str(&json).unwrap();
+        let error = bootstrap.into_config().err().unwrap().to_string();
 
-    #[test]
-    fn falls_back_to_defaults() {
-        let config = parse("", &[]).unwrap();
-        assert!(!config.enabled);
-        assert_eq!(config.log_level, log::LevelFilter::Info);
-    }
-
-    #[test]
-    fn supports_agent_log_levels() {
-        for (raw, expected) in [
-            ("trace", log::LevelFilter::Trace),
-            ("debug", log::LevelFilter::Debug),
-            ("info", log::LevelFilter::Info),
-            ("warn", log::LevelFilter::Warn),
-            ("warning", log::LevelFilter::Warn),
-            ("error", log::LevelFilter::Error),
-            ("critical", log::LevelFilter::Error),
-            ("off", log::LevelFilter::Off),
-        ] {
-            let config = parse(&format!("log_level: {raw}\n"), &[]).unwrap();
-            assert_eq!(config.log_level, expected, "log level {raw}");
-        }
-    }
-
-    #[test]
-    fn rejects_invalid_boolean_environment_value() {
-        let err = parse("", &[("DD_PRIVATE_ACTION_RUNNER_ENABLED", "1")]).unwrap_err();
-        assert!(err.to_string().contains("DD_PRIVATE_ACTION_RUNNER_ENABLED"));
+        assert!(error.contains("task_concurrency"));
     }
 }

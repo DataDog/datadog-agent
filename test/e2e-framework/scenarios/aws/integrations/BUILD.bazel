@@ -9,6 +9,7 @@ go_library(
         "//test/e2e-framework/scenarios/aws/integrations/aws_neuron",
         "//test/e2e-framework/scenarios/aws/integrations/dell_powerflex",
         "//test/e2e-framework/scenarios/aws/integrations/etcd",
+        "//test/e2e-framework/scenarios/aws/integrations/ibm_mq",
         "//test/e2e-framework/scenarios/aws/integrations/kafka",
         "//test/e2e-framework/scenarios/aws/integrations/lustre",
         "//test/e2e-framework/scenarios/aws/integrations/postgres",

@@ -11,14 +11,17 @@
 .setup_github_token_comment_pr:
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
 
+# Like .setup_github_token_comment_pr, but also grants `members: read` so the
+# static_quality_gates job can check whether an approving reviewer belongs to
+# the team allowed to grant per-PR size threshold exceptions.
+.setup_github_token_static_quality_gates:
+  - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.static-quality-gates)
+
 .setup_github_token_read:
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
 
 .setup_github_token_write:
   - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.write)
-
-.setup_github_ci_platform_machine_images_token:
-  - export GITHUB_TOKEN=$(dd-octo-sts token --scope ddoghq/ci-platform-machine-images --policy self.datadog-agent.trigger-agent-bump)
 
 # Sets up a cache for gems used by Omnibus
 # Usage:

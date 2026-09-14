@@ -524,7 +524,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("hostname", "myhost")
-	mockConfig.SetInTest("integration_check_status_enabled", "true")
+	mockConfig.SetInTest("integration_check_status_enabled", true)
 
 	var wg sync.WaitGroup
 
@@ -614,7 +614,7 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 	expvars.Reset()
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("hostname", "myhost")
-	mockConfig.SetInTest("integration_check_status_enabled", "true")
+	mockConfig.SetInTest("integration_check_status_enabled", true)
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 1)

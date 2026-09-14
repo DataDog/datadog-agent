@@ -20,20 +20,26 @@ import (
 // observerMetricNames lists anomaly-detection observer telemetry expected only
 // when the observer pipeline is enabled.
 var observerMetricNames = []string{
-	"observer.channel.dropped",
+	telemetryObservationsAccepted,
+	"observer.observations.dropped",
 	"observer.rrcf.score",
 	"observer.rrcf.threshold",
 	"observer.log_pattern_extractor.pattern_count",
-	telemetryLogsIngested,
-	"observer.logs.processed_bytes",
-	"observer.logs.dropped",
+	"observer.logs.accepted_bytes",
+	"observer.metrics.filtered",
 	telemetrySeriesCount,
-	telemetryReportsEmitted,
-	telemetryReportsOngoing,
 	telemetryLogsInFlight,
 	"observer.storage.series_evicted",
 	"observer.storage.capacity_hit",
 	"observer.scheduler.advance_skipped",
+	"observer.logs.input_rate_limiter.dropped",
+	"observer.detector.processing_time_ns",
+	"observer.detections.detector_emissions",
+	"observer.log_extraction.processing_duration",
+	"observer.scorer.ewma",
+	"observer.scorer.severity",
+	telemetryReportsEmitted,
+	telemetryReportsOngoing,
 }
 
 // disabledByDefaultSuite verifies that the observer is a no-op when

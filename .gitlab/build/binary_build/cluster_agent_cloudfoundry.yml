@@ -1,5 +1,6 @@
 ---
 cluster_agent_cloudfoundry-build_amd64:
+  extends: .bazel:defs:cache:progressive
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

@@ -102,7 +102,7 @@ func (suite *CheckTestSuite) SetupTest() {
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
-	// Inject XID events for each device to ensure the errors.xid.total metric is emitted.
+	// Inject XID events for each device to ensure the errors.xid.total and errors.xid metrics are emitted.
 	for _, device := range devices {
 		deviceUUID := device.GetDeviceInfo().UUID
 		require.NoError(t, checkInternal.InjectXIDEventsForTest(deviceUUID, []safenvml.DeviceEventData{{
@@ -174,7 +174,7 @@ func (suite *CheckTestSuite) TestCheckRunMatchesSpecForPhysicalDevices() {
 
 		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
 		capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
-		nvlinkLinkCount := linkCount(t, device, "NVLink", nvidia.GetNVLinkCount)
+		nvlinkLinkCount := deviceInfo.NVLinkLinkCount
 		if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
 			capabilities.C2C = false
 		}

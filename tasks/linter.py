@@ -14,7 +14,9 @@ import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.build_tags import UNIT_TEST_TAGS, compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
+from tasks.flavor import AgentFlavor
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
@@ -93,14 +95,27 @@ def go(
     Args:
         timeout: Number of minutes after which the linter should time out.
         headless_mode: Allows you to output the result in a single json file.
-        debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
+        debug: prints the go version to help debugging lint discrepancies between versions.
 
     Example invokation:
         $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ dda inv linter.go --module=.
     """
 
-    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+    check_tools_version(ctx, ['go'], debug=debug)
+
+    # Compute the tags golangci-lint will run with once, and hand them to package
+    # discovery too: a modified package whose files are all excluded by them has
+    # to be skipped, or it reaches golangci-lint as an explicit target and fails
+    # with "build constraints exclude all Go files".
+    linter_tags = build_tags or compute_build_tags_for_flavor(
+        flavor=AgentFlavor[flavor] if flavor else AgentFlavor.base,
+        build=build,
+        build_include=build_include,
+        build_exclude=build_exclude,
+    )
+    if isinstance(linter_tags, str):  # --build-tags is a comma-separated CLI string
+        linter_tags = linter_tags.split(",")
 
     modules, flavor = process_input_args(
         ctx,
@@ -108,7 +123,7 @@ def go(
         targets,
         flavor,
         headless_mode,
-        build_tags=build_tags,
+        build_tags=linter_tags + list(UNIT_TEST_TAGS),
         only_modified_packages=only_modified_packages,
         lint=True,
     )
@@ -122,7 +137,7 @@ def go(
         modules=modules,
         flavor=flavor,
         build=build,
-        build_tags=build_tags,
+        build_tags=linter_tags,
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,

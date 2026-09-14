@@ -14,9 +14,6 @@ homepage 'http://www.datadoghq.com'
 
 install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 
-if ohai['platform'] == "windows"
-  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
-else
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
@@ -47,7 +44,6 @@ else
   unless osx_target?
     conflict 'datadog-agent'
   end
-end
 
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
@@ -61,14 +57,8 @@ else
   # creates required build directories
   dependency 'preparation'
 
-  dependency "systemd" if linux_target?
-
   # Datadog agent
   dependency 'datadog-iot-agent'
-
-  if windows_target?
-    dependency 'datadog-agent-finalize'
-  end
 
   do_package = false
 end
@@ -160,7 +150,6 @@ if linux_target?
   extra_package_file '/var/log/datadog/'
 end
 
-# Windows .msi specific flags
 package :zip do
   skip_packager true
 end
@@ -169,47 +158,6 @@ package :xz do
   skip_packager do_package
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
-end
-
-package :msi do
-
-  # For a consistent package management, please NEVER change this code
-  arch = "x64"
-  # NOTE: We no longer build for 32 bit windows, so we always take the x64 path.
-  if windows_arch_i386?
-    full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
-    upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'
-    arch = "x86"
-  else
-    full_agent_upgrade_code = '0c50421b-aefb-4f15-a809-7af256d608a5'
-    upgrade_code '1b3d4067-fd27-4de4-bfc9-605695ad514c'
-  end
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-
-  additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
-    ]
-  #if ENV['SIGN_WINDOWS']
-  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  #end
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    dd_wcssign true
-    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
-    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
-  end
-
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
-    'Platform' => "#{arch}",
-  })
 end
 
 # package scripts
@@ -232,7 +180,7 @@ exclude 'bundler\/git'
 # Exclude headers that are not needed in the final package
 exclude "embedded/include"
 
-if linux_target? or windows_target?
-  strip_build windows_target? || !do_package
+if linux_target?
+  strip_build !do_package
   debug_path ".debug"
 end

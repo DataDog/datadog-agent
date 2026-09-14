@@ -405,7 +405,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
 		ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteEntry.PPid, testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -415,7 +415,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
 		newEntry = nil
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterEntry.PPid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)

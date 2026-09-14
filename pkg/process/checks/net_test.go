@@ -7,8 +7,10 @@ package checks
 
 import (
 	"fmt"
+	"iter"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -19,6 +21,7 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -26,6 +29,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
+
+type capturingNPCollector struct {
+	conns []npmodel.NetworkPathConnection
+}
+
+func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	c.conns = slices.Collect(conns)
+}
+
+func (*capturingNPCollector) ScheduleNetflowPathTests(iter.Seq[npmodel.NetworkPathConnection]) {}
 
 func makeConnection(pid int32) *model.Connection {
 	return &model.Connection{
@@ -165,6 +178,22 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
 	}
+}
+
+func TestNetworkPathConnectionsBytes(t *testing.T) {
+	conn := makeConnection(1)
+	conn.Laddr.Ip = "10.0.0.1"
+	conn.Raddr.Ip = "10.0.0.2"
+	conn.LastBytesSent = 5
+	conn.LastBytesReceived = 6
+
+	collector := &capturingNPCollector{}
+	check := &ConnectionsCheck{npCollector: collector}
+	check.scheduleNetworkPath(&model.Connections{Conns: []*model.Connection{conn}})
+
+	require.Len(t, collector.conns, 1)
+	assert.Equal(t, uint64(5), collector.conns[0].SentBytes)
+	assert.Equal(t, uint64(6), collector.conns[0].RecvBytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

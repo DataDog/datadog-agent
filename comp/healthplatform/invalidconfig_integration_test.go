@@ -22,6 +22,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -91,6 +93,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
 	const (

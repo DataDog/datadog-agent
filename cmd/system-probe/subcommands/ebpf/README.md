@@ -156,6 +156,6 @@ diff <(jq -S . usm.json) <(jq -S . network.json)
 - Works with all eBPF map types (Hash, Array, PerCPU, etc.)
 
 ### Platform Support
-- Linux only (build tag: `linux_bpf`)
+- Linux only (build tag: `linux && bpf`)
 - Requires kernel support for BPF syscalls
 - No special permissions beyond CAP_BPF or CAP_SYS_ADMIN

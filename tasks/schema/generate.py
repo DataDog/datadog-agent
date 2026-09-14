@@ -11,7 +11,7 @@ from invoke import task
 from invoke.context import Context
 
 from tasks.libs.build.bazel import bazel
-from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_constants_codegen, run_core_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.produce_byproduct import produce_byproduct
 
@@ -21,38 +21,17 @@ SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
 CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
 SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
 
+# Schema entry points published as pure JSON Schema, keyed by the name of the
+# config file each one validates: the generated files are named after that
+# config file (datadog.json, system-probe.json) since that is what external
+# consumers (e.g. SchemaStore) match against.
+JSON_SCHEMA_ENTRY_POINTS = {
+    "datadog": CORE_SCHEMA_MAIN_FILE,
+    "system-probe": SYSTEM_PROBE_SCHEMA_MAIN_FILE,
+}
+
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
-
-# Top-level sections of the core schema that get split into their own YAML
-# file. Each entry in this list becomes a sibling file `yaml/<name>.yaml` in
-# the same directory as yaml/core_schema.yaml, and the top file's entry is
-# replaced with `{$ref: "<name>.yaml"}`. The list is the set of top-level
-# entries with at least 8 children (chosen at the time of the split).
-CORE_SPLIT_SECTIONS = [
-    "logs_config",
-    "apm_config",
-    "sbom",
-    "process_config",
-    "cluster_agent",
-    "admission_controller",
-    "agent_telemetry",
-    "container_image",
-    "container_lifecycle",
-    "external_metrics_provider",
-    "private_action_runner",
-    "orchestrator_explorer",
-    "remote_configuration",
-    "cluster_checks",
-    "compliance_config",
-    "snmp_listener",
-    "internal_profiling",
-    "multi_region_failover",
-    "gpu",
-    "otelcollector",
-    "runtime_security_config",
-    "network_devices.yaml",
-]
 
 
 def str_presenter(dumper, data):
@@ -75,7 +54,7 @@ def compress(ctx, output_dir=COMPRESS_DIR):
     if sys.platform == "aix":
         _compress_no_bazel(ctx, output_dir)
         return
-    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    bazel("run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
 
 
 # Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
@@ -142,23 +121,23 @@ def produce_embedded(ctx, input_path, output_path):
 
 
 @task
-def produce_jsonschema(ctx, input_path, output_path):
+def produce_jsonschema(ctx, output_dir):
     """
-    Produce the pure JSON Schema byproduct from a (merged) schema.
+    Produce the pure JSON Schema byproducts for every Agent config file.
+
+    The schema entry points are known (core -> datadog.yaml, system-probe ->
+    system-probe.yaml), so the task only needs an output directory: it writes
+    one <config-file-name>.json per entry point into it.
 
     Strips every Agent-specific extension so the result is 100% compatible with
     https://json-schema.org/ and validates with any conforming library. Output
     is JSON, for external consumers (e.g. SchemaStore).
     """
-    produce_byproduct("json_schema", input_path, output_path)
-
-
-def filter(expect, filename):
-    def comparator(othername):
-        actual = filename == othername
-        return actual == expect
-
-    return comparator
+    os.makedirs(output_dir, exist_ok=True)
+    for config_name, top_schema in JSON_SCHEMA_ENTRY_POINTS.items():
+        out_path = os.path.join(output_dir, f"{config_name}.json")
+        produce_byproduct("json_schema", top_schema, out_path)
+        print(f"wrote {out_path}")
 
 
 def schema_codegen(ctx):
@@ -175,9 +154,10 @@ def schema_codegen(ctx):
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
 
-    run_codegen(core_schema, filter(False, "system_probe_settings.go"), SETUP_INIT_DIR)
-    run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), SETUP_INIT_DIR)
-    run_constant_codegen(core_schema, system_probe_schema, SETUP_INIT_DIR)
+    run_codegen(core_schema, SETUP_INIT_DIR)
+    run_codegen(system_probe_schema, SETUP_INIT_DIR, sysprobe=True)
+    run_core_constant_codegen(core_schema, SETUP_INIT_DIR)
+    run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
 
 
 @task

@@ -26,10 +26,10 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR sidecar support
-	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
+	// minHelmChartVersion is the earliest Datadog chart release that includes PAR split mode
+	// (helm-charts PR #2904). Drop this override once the e2e framework's global HelmVersion
 	// default is bumped to at least this value.
-	minHelmChartVersion = "3.197.2"
+	minHelmChartVersion = "3.243.0"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -38,9 +38,10 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
+// configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
+// signing identity dequeued tasks need to pass verification.
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -48,6 +49,7 @@ datadog:
   clusterName: "%s"
   privateActionRunner:
     enabled: true
+    splitEnabled: %t
     selfEnroll: false
     urn: "%s"
     privateKey: "%s"
@@ -66,7 +68,7 @@ agents:
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
 //   - fakeintake deployed as ECS Fargate (HTTP, no load balancer) — PAR polls its OPMS endpoints
 //   - Datadog Agent with PAR enabled (custom image via --agent-image CLI flag)
-func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
+func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
 		func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 			name := "kind"
@@ -134,13 +136,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
-			// injected automatically by the e2e framework's configureFakeintake.
+			// DD_DD_URL for the PAR container is injected automatically by the e2e
+			// framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
 				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
 					parHelmValuesTemplate,
 					ctx.Stack(),
+					splitEnabled,
 					runnerURN,
 					privateKeyB64,
 					systemServiceOperatorPolicy,

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 
 	compute "github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
-	network "github.com/pulumi/pulumi-azure-native-sdk/network/v2"
+	network "github.com/pulumi/pulumi-azure-native-sdk/network/v3"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -69,17 +69,22 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 	windowsAdminPassword, err := random.NewRandomString(e.Ctx(), e.Namer.ResourceName(name, "admin-password"), &random.RandomStringArgs{
 		Length:  pulumi.Int(20),
 		Special: pulumi.Bool(true),
-		// Disallow "<", ">" and "&" as they get encoded by json.Marshall in the CI log output, making the password hard to read
+		// Disallow "<", ">" and "&" as they get encoded by json.Marshall, which is confusing when retrieving the password
 		OverrideSpecial: pulumi.String("!@#$%*()-_=+[]{}:?"),
 	}, pwdOpts...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
+	// Marked as a Pulumi secret so it never appears in plain text in CI/test logs.
+	// Retrieve it with `dda inv aws.get-vm-password` / `dda inv aws.rdp-vm`, or via
+	// RemoteHost.Password in-process.
+	secretPassword := pulumi.ToSecret(windowsAdminPassword.Result).(pulumi.StringOutput)
+
 	windowsOsProfile := compute.OSProfileArgs{
 		ComputerName:  pulumi.String(name),
 		AdminUsername: pulumi.String(AdminUsername),
-		AdminPassword: windowsAdminPassword.Result,
+		AdminPassword: secretPassword,
 		CustomData:    userData,
 	}
 
@@ -132,7 +137,7 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		return args[0].(string)
 	}).(pulumi.StringOutput)
 
-	return vm, privateIP, windowsAdminPassword.Result, nil
+	return vm, privateIP, secretPassword, nil
 }
 
 func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, osProfile compute.OSProfilePtrInput, opts ...pulumi.ResourceOption) (*compute.VirtualMachine, *network.NetworkInterface, error) {

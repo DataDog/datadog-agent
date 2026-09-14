@@ -30,6 +30,9 @@ const (
 	maxDarwinEventStringBytes = notableeventtypes.MaxEventStringBytes
 	maxDarwinProcessNameBytes = 128
 	unknownDarwinProcessName  = "Unknown application"
+	// shutdownEventType is constant across fault families so consumers can
+	// filter shutdown causes on a single value.
+	shutdownEventType = "System shutdown fault"
 )
 
 var macosMetadataKeys = []string{
@@ -278,6 +281,64 @@ func (r *macOSCrashReport) customPayload(scope string) map[string]interface{} {
 	}
 
 	return payload
+}
+
+// event converts a classified shutdown cause into a sanitized notable event.
+// A zero bootTime means kern.boottime was unreadable, in which case the caller
+// supplies the timestamp and boot_time is omitted from the payload.
+func (r shutdownCauseResult) event(identity, bootUUID string, bootTime, timestamp time.Time) Event {
+	return Event{
+		ID:        shutdownEventID(identity),
+		Timestamp: timestamp,
+		EventType: shutdownEventType,
+		Title:     boundedString(shutdownTitles[r.Class], maxDarwinEventStringBytes),
+		Message:   boundedString(shutdownMessages[r.Class], maxDarwinEventStringBytes),
+		Custom: map[string]interface{}{
+			"macos_shutdown_cause": r.customPayload(bootUUID, bootTime),
+		},
+	}
+}
+
+// customPayload reports every token observed, plus the families and fault
+// subset the classifier acted on, so a reader sees both the raw payload and
+// what it was judged on.
+func (r shutdownCauseResult) customPayload(bootUUID string, bootTime time.Time) map[string]interface{} {
+	payload := map[string]interface{}{
+		"source":         pmuBootFaultProperty,
+		"classification": string(r.Class),
+		"families":       sanitizedPayloadStrings(r.Families),
+		"tokens":         sanitizedPayloadStrings(r.Tokens),
+		"fault_tokens":   sanitizedPayloadStrings(r.FaultTokens),
+	}
+	if family := sanitizePayloadString(r.PrimaryFamily); family != "" {
+		payload["primary_family"] = boundedString(family, maxDarwinEventStringBytes)
+	}
+	if uuid := sanitizePayloadString(bootUUID); uuid != "" {
+		payload["boot_uuid"] = boundedString(uuid, maxDarwinEventStringBytes)
+	}
+	if !bootTime.IsZero() {
+		payload["boot_time"] = bootTime.UTC().Format(time.RFC3339)
+	}
+	return payload
+}
+
+// sanitizedPayloadStrings converts PMU token text into bounded custom payload
+// values. The result is []interface{} because that is the only slice type the
+// wire contract validator accepts.
+func sanitizedPayloadStrings(values []string) []interface{} {
+	limit := notableeventtypes.MaxCustomItems
+	if len(values) < limit {
+		limit = len(values)
+	}
+	out := make([]interface{}, 0, limit)
+	for _, value := range values[:limit] {
+		sanitized := sanitizePayloadString(value)
+		if sanitized == "" {
+			continue
+		}
+		out = append(out, boundedString(sanitized, maxDarwinEventStringBytes))
+	}
+	return out
 }
 
 // filteredReportFields copies only approved scalar and nested report fields.

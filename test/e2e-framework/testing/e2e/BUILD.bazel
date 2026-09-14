@@ -12,6 +12,8 @@ go_library(
     deps = [
         "//pkg/util/pointer",
         "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/aws/ec2/pool",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/runner",

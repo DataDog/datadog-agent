@@ -41,6 +41,14 @@ func (p *probe) StatsForPIDs(_ []int32, _ time.Time) (map[int32]*Stats, error) {
 	return stats, nil
 }
 
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	proc, err := process.NewProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+	return convertProcess(proc), nil
+}
+
 func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	pids, err := process.Pids()
 	if err != nil {

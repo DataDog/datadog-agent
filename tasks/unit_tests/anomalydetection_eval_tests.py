@@ -31,7 +31,7 @@ class MinimumTrial:
 class TestAblationConfig(unittest.TestCase):
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
         self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
-        self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "cross_signal", "time_cluster"])
+        self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "time_cluster"])
 
         configs = {
             "combination": _combo_to_config(detectors=["bocpd"], correlators=["anomaly_scorer"]),
@@ -48,28 +48,21 @@ class TestAblationConfig(unittest.TestCase):
                 self.assertTrue(components["anomaly_scorer"]["enabled"])
                 self.assertFalse(components["time_cluster"]["enabled"])
 
-        manual = _build_optuna_config(
-            trial=None,
-            components=["cross_signal", "time_cluster"],
-            locked={"cross_signal", "time_cluster"},
-        )["components"]
-        self.assertTrue(manual["cross_signal"]["enabled"])
+        manual = _build_optuna_config(trial=None, components=["time_cluster"], locked={"time_cluster"})["components"]
         self.assertTrue(manual["time_cluster"]["enabled"])
         self.assertFalse(manual["anomaly_scorer"]["enabled"])
 
-    def test_force_enabled_manual_correlators_are_preserved(self):
-        for correlator in ("cross_signal", "time_cluster"):
-            with self.subTest(correlator=correlator):
-                combos = [
-                    _full_stack_combo(force_enable=[correlator]),
-                    *_anchor_combos(force_enable=[correlator]),
-                    *random_component_combinations(5, seed=42, force_enable=[correlator]),
-                ]
-                self.assertTrue(combos)
-                self.assertTrue(all(correlator in combo["correlators"] for combo in combos))
+    def test_force_enabled_time_cluster_is_preserved(self):
+        combos = [
+            _full_stack_combo(force_enable=["time_cluster"]),
+            *_anchor_combos(force_enable=["time_cluster"]),
+            *random_component_combinations(5, seed=42, force_enable=["time_cluster"]),
+        ]
+        self.assertTrue(combos)
+        self.assertTrue(all("time_cluster" in combo["correlators"] for combo in combos))
 
-                config = _combo_to_config(detectors=["bocpd"], correlators=[correlator])
-                self.assertTrue(config["components"][correlator]["enabled"])
+        config = _combo_to_config(detectors=["bocpd"], correlators=["time_cluster"])
+        self.assertTrue(config["components"]["time_cluster"]["enabled"])
 
     def test_robust_detectors_have_constrained_tuning_spaces(self):
         self.assertIn("holt_residual", DETECTORS)

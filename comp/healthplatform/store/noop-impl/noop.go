@@ -66,6 +66,11 @@ func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
 }
 
+// IssueDiscriminator returns hostID unchanged when the health platform is disabled.
+func (n *NoopHealthPlatform) IssueDiscriminator(hostID string) string {
+	return hostID
+}
+
 // GetIssuesHandler handles GET /health-platform/issues when disabled.
 func (n *NoopHealthPlatform) GetIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

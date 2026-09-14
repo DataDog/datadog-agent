@@ -66,18 +66,12 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
-		conf:           reqs.Config,
-		ipc:            reqs.Ipc,
-		agentMap:       make(map[string]*remoteAgentClient),
-		shutdownChan:   shutdownChan,
-		telemetry:      reqs.Telemetry,
-		telemetryStore: newTelemetryStore(reqs.Telemetry),
-		// Services currently supported by the remote agent registry
-		remoteAgentServices: map[remoteAgentServiceName]struct{}{
-			StatusServiceName:    {},
-			FlareServiceName:     {},
-			TelemetryServiceName: {},
-		},
+		conf:             reqs.Config,
+		ipc:              reqs.Ipc,
+		agentMap:         make(map[string]*remoteAgentClient),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		telemetryStore:   newTelemetryStore(reqs.Telemetry),
 		eventSubscribers: eventSubscribers,
 	}
 
@@ -201,9 +195,6 @@ type remoteAgentRegistry struct {
 	telemetry      telemetry.Component
 	telemetryStore *telemetryStore
 
-	// Define the services that the remote agent supports
-	remoteAgentServices map[remoteAgentServiceName]struct{}
-
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.
 	eventSubscribers []*remoteagentregistry.EventSubscriber
@@ -317,24 +308,18 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
 
-				agentsToRemove := make([]string, 0)
 				for sessionID, details := range ra.agentMap {
-					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || details.unhealthy {
-						agentsToRemove = append(agentsToRemove, sessionID)
-					}
-				}
-
-				for _, sessionID := range agentsToRemove {
-					remoteAgentClient, ok := ra.agentMap[sessionID]
-					if ok {
-						if remoteAgentClient.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.unhealthyReason)
+					details.unhealthyMu.Lock()
+					reason := details.unhealthyReason
+					details.unhealthyMu.Unlock()
+					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || reason != nil {
+						if reason != nil {
+							log.Warnf("Remote agent '%s' deregistered: %v", details.RegisteredAgent.DisplayName, reason)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
-						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
-						// close the remote agent client and remove it from the registry
-						_ = remoteAgentClient.close()
+						ra.telemetryStore.remoteAgentRegistered.Dec(details.RegisteredAgent.SanitizedDisplayName)
+						_ = details.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}

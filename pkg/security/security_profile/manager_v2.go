@@ -84,6 +84,22 @@ type perEventTypeMetrics struct {
 	eventsDropped   *atomic.Uint64
 }
 
+// persistenceMetricsKey identifies a persistence metrics bucket by the storage
+// request attributes that make up its statsd tags.
+type persistenceMetricsKey struct {
+	format      config.StorageFormat
+	storageType config.StorageType
+	compression bool
+}
+
+// persistenceMetrics holds the precomputed statsd tags and the counters for a
+// given (format, storage_type, compression) persistence bucket.
+type persistenceMetrics struct {
+	tags              []string
+	sizeInBytes       *atomic.Uint64
+	persistedProfiles *atomic.Uint64
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -129,6 +145,18 @@ type ManagerV2 struct {
 	sampleRefreshReceived *atomic.Uint64
 	sampleRefreshHits     *atomic.Uint64
 	sampleRefreshMisses   *atomic.Uint64
+
+	// Counters accumulated outside the SendStats path (ticker callbacks, tag
+	// resolution) and flushed once per SendStats cycle, like the other counters above.
+	tagResolutionEventsDropped  *atomic.Uint64
+	tagResolutionCgroupsExpired *atomic.Uint64
+	cleanupProfilesRemoved      *atomic.Uint64
+	evictionRuns                *atomic.Uint64
+	evictionNodesEvicted        *atomic.Uint64
+
+	// Per-(format, storage_type, compression) persistence counters, precomputed from
+	// the configured storage requests and flushed in SendStats.
+	persistenceMetrics map[persistenceMetricsKey]*persistenceMetrics
 
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
@@ -179,34 +207,40 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 	}
 
 	m := &ManagerV2{
-		config:                    cfg,
-		statsdClient:              statsdClient,
-		resolvers:                 resolvers,
-		kernelVersion:             kernelVersion,
-		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
-		queueSize:                 atomic.NewUint64(0),
-		pendingProfiles:           atomic.NewUint64(0),
-		pathsReducer:              activity_tree.NewPathsReducer(),
-		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		localStorage:              localStorage,
-		remoteStorage:             remoteStorage,
-		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
-		hostname:                  hostname,
-		sendAnomalyDetection:      sendAnomalyDetection,
-		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
-		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
-		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:           cookieMap,
-		sampleRefreshReceived:     atomic.NewUint64(0),
-		sampleRefreshHits:         atomic.NewUint64(0),
-		sampleRefreshMisses:       atomic.NewUint64(0),
-		containerFilters:          containerFilter,
-		imageExcluder:             imgExcluder,
+		config:                      cfg,
+		statsdClient:                statsdClient,
+		resolvers:                   resolvers,
+		kernelVersion:               kernelVersion,
+		profilePendingEvents:        make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                   atomic.NewUint64(0),
+		pendingProfiles:             atomic.NewUint64(0),
+		pathsReducer:                activity_tree.NewPathsReducer(),
+		profiles:                    make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		localStorage:                localStorage,
+		remoteStorage:               remoteStorage,
+		configuredStorageRequests:   perFormatStorageRequests(configuredStorageRequests),
+		hostname:                    hostname,
+		sendAnomalyDetection:        sendAnomalyDetection,
+		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
+		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
+		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:             cookieMap,
+		sampleRefreshReceived:       atomic.NewUint64(0),
+		sampleRefreshHits:           atomic.NewUint64(0),
+		sampleRefreshMisses:         atomic.NewUint64(0),
+		tagResolutionEventsDropped:  atomic.NewUint64(0),
+		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		cleanupProfilesRemoved:      atomic.NewUint64(0),
+		evictionRuns:                atomic.NewUint64(0),
+		evictionNodesEvicted:        atomic.NewUint64(0),
+		containerFilters:            containerFilter,
+		imageExcluder:               imgExcluder,
 	}
 
 	m.initMetricsMap()
 	m.initEventMetrics()
+	m.initPersistenceMetrics()
 	return m, nil
 }
 
@@ -246,6 +280,34 @@ func (m *ManagerV2) initEventMetrics() {
 				eventsReceived:  atomic.NewUint64(0),
 				eventsImmediate: atomic.NewUint64(0),
 				eventsDropped:   atomic.NewUint64(0),
+			}
+		}
+	}
+}
+
+// initPersistenceMetrics precomputes the statsd tags and counters for every configured
+// persistence bucket, keyed by (format, storage_type, compression). Buckets are derived from
+// the same storage requests used when persisting, so sendPersistenceMetrics always finds an entry.
+func (m *ManagerV2) initPersistenceMetrics() {
+	m.persistenceMetrics = make(map[persistenceMetricsKey]*persistenceMetrics)
+	for _, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			key := persistenceMetricsKey{
+				format:      request.Format,
+				storageType: request.Type,
+				compression: request.Compression,
+			}
+			if _, ok := m.persistenceMetrics[key]; ok {
+				continue
+			}
+			m.persistenceMetrics[key] = &persistenceMetrics{
+				tags: []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				},
+				sizeInBytes:       atomic.NewUint64(0),
+				persistedProfiles: atomic.NewUint64(0),
 			}
 		}
 	}
@@ -399,9 +461,8 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, []string{}, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
-		}
+		// Accumulate removed profiles count; flushed in SendStats
+		m.cleanupProfilesRemoved.Inc()
 	}
 }
 
@@ -476,20 +537,20 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	m.sendPersistenceMetrics(request, data.Len())
 }
 
-// sendPersistenceMetrics sends metrics after successful profile persistence
+// sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.
+// The counters are flushed once per SendStats cycle.
 func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSize int) {
-	tags := []string{
-		"format:" + request.Format.String(),
-		"storage_type:" + request.Type.String(),
-		"compression:" + strconv.FormatBool(request.Compression),
+	pm := m.persistenceMetrics[persistenceMetricsKey{
+		format:      request.Format,
+		storageType: request.Type,
+		compression: request.Compression,
+	}]
+	if pm == nil {
+		return
 	}
 
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(dataSize), tags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2SizeInBytes, err)
-	}
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2PersistedProfiles, 1, tags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2PersistedProfiles, err)
-	}
+	pm.sizeInBytes.Add(uint64(dataSize))
+	pm.persistedProfiles.Inc()
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
@@ -544,19 +605,15 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 			eventsLen := pendingEvents.events.Len()
 			if eventsLen > 0 {
 				m.queueSize.Sub(uint64(eventsLen))
-				// Emit dropped events metric (source unknown for queued events)
-				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), []string{}, 1.0); err != nil {
-					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
-				}
+				// Accumulate dropped events; flushed in SendStats (source unknown for queued events)
+				m.tagResolutionEventsDropped.Add(uint64(eventsLen))
 			}
 
 			delete(m.profilePendingEvents, cgroupID)
 			m.pendingProfiles.Dec()
 
-			// Emit metric for expired cgroup
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, 1, []string{}, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, err)
-			}
+			// Accumulate expired cgroup count; flushed in SendStats
+			m.tagResolutionCgroupsExpired.Inc()
 		}
 	}
 }
@@ -714,6 +771,47 @@ func (m *ManagerV2) SendStats() error {
 	if value := m.sampleRefreshMisses.Swap(0); value > 0 {
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshMisses, int64(value), []string{}, 1.0); err != nil {
 			return err
+		}
+	}
+
+	// Tag resolution, cleanup and eviction counters accumulated outside SendStats
+	if value := m.tagResolutionEventsDropped.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.cleanupProfilesRemoved.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.evictionRuns.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionRuns, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.evictionNodesEvicted.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// Per-(format, storage_type, compression) persistence counters
+	for _, pm := range m.persistenceMetrics {
+		if value := pm.sizeInBytes.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(value), pm.tags, 1.0); err != nil {
+				return err
+			}
+		}
+		if value := pm.persistedProfiles.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2PersistedProfiles, int64(value), pm.tags, 1.0); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1199,10 +1297,8 @@ func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error
 
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
 func (m *ManagerV2) evictUnusedNodes() {
-	// Emit eviction run metric
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionRuns, 1, []string{}, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionRuns, err)
-	}
+	// Accumulate eviction run count; flushed in SendStats
+	m.evictionRuns.Inc()
 
 	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
 	totalEvicted := 0
@@ -1228,10 +1324,8 @@ func (m *ManagerV2) evictUnusedNodes() {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
-			// Emit per-profile eviction metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(evicted), []string{}, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, err)
-			}
+			// Accumulate evicted node count; flushed in SendStats
+			m.evictionNodesEvicted.Add(uint64(evicted))
 		}
 		profile.Unlock()
 	}
@@ -1308,7 +1402,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, true, nil)
+		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 		if pce == nil {
 			continue
 		}
@@ -1383,7 +1477,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
+			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue

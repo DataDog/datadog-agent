@@ -161,6 +161,8 @@ runtime_security_config:
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
+    v2:
+      enabled: false
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
@@ -622,6 +624,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+	resolveStaticOpts(t, &opts)
 
 	prevEbpfLessEnabled := ebpfLessEnabled
 	defer func() {
@@ -950,7 +953,7 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	taskPath := utilkernel.HostProc(strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
-	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
+	if event.Task == l.executable || event.Task == "syscall_tester" || (event.Task == "<...>" && err == nil) {
 		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }

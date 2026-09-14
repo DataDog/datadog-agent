@@ -59,6 +59,7 @@ var (
 		string(semconv1_27.ContainerNameKey):      "container_name",
 		string(semconv1_27.ContainerImageNameKey): "image_name",
 		string(semconv1_6_1.ContainerImageTagKey): "image_tag",
+		string(semconv1_27.ContainerImageTagsKey): "image_tag",
 		string(semconv1_27.ContainerRuntimeKey):   "runtime",
 
 		// Cloud conventions
@@ -87,6 +88,7 @@ var (
 		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv1_27.K8SNodeNameKey):        "kube_node",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
@@ -294,8 +296,14 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 	ddtags := make(map[string]string)
 	attrs.Range(func(key string, value pcommon.Value) bool {
 		// Semantic Conventions
-		if datadogKey, found := ContainerMappings[key]; found && value.Str() != "" {
-			ddtags[datadogKey] = value.Str()
+		if datadogKey, found := ContainerMappings[key]; found {
+			// Special case for container.image.tags: extract first image tag from slice
+			if slice := value.Slice(); key == string(semconv1_27.ContainerImageTagsKey) && value.Type() == pcommon.ValueTypeSlice && slice.Len() > 0 {
+				value = slice.At(0)
+			}
+			if str := value.Str(); str != "" {
+				ddtags[datadogKey] = str
+			}
 		}
 		// Custom (datadog.container.tag namespace)
 		if after, ok := strings.CutPrefix(key, CustomContainerTagPrefix); ok {
@@ -328,7 +336,9 @@ const (
 // 2. Custom container tags prefixed by datadog.container.tag;
 // 3. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
 //
-// Only string-type resource attributes will be extracted as container tags.
+// Only string-type resource attributes will be extracted as container tags,
+// with the exception of the array-valued `container.image.tags` attribute,
+// from which we extract the first element when present.
 // In the case of duplicates between the three sources, OTel conventions take priority over custom tags,
 // which take priority over pre-mapped tags.
 //
@@ -343,6 +353,11 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 
 	filteredRes.Attributes().RemoveIf(func(key string, value pcommon.Value) bool {
 		valueStr := value.Str()
+		// Special case for container.image.tags: extract first image tag from slice
+		// TODO: Consider emitting an image_tag tag for each element in the slice
+		if slice := value.Slice(); key == string(semconv1_27.ContainerImageTagsKey) && value.Type() == pcommon.ValueTypeSlice && slice.Len() > 0 {
+			valueStr = slice.At(0).Str()
+		}
 		if valueStr == "" {
 			return false
 		}

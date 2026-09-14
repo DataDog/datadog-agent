@@ -45,6 +45,10 @@ func justBind() *net.UDPConn {
 	return conn
 }
 
+var _ = declare(TestDNSResponse, testOpts{
+	dnsPort: DNSPort,
+})
+
 func TestDNSResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -76,9 +80,7 @@ func TestDNSResponse(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
-		dnsPort: DNSPort,
-	}))
+	test, err := newTestModule(t, nil, ruleDefsRcodeOK)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,16 +107,16 @@ func TestDNSResponse(t *testing.T) {
 	})
 	test.Close()
 
-	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly, withStaticOpts(testOpts{
-		dnsPort: DNSPort,
-	}))
+	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("catch-dns-response-ip-only", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
+			// Same packet as catch-dns-rcode-zero with a different DNS transaction id, because
+			// the kernel drops a response whose (id, size) pair was already sent less than a second ago.
+			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96ae5ac381800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
 			err = injectHexDump("lo", hexDump)
 
 			return nil
@@ -130,9 +132,7 @@ func TestDNSResponse(t *testing.T) {
 	})
 	test.Close()
 
-	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain, withStaticOpts(testOpts{
-		dnsPort: DNSPort,
-	}))
+	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain)
 
 	if err != nil {
 		t.Fatal(err)
@@ -156,6 +156,10 @@ func TestDNSResponse(t *testing.T) {
 	test.Close()
 }
 
+var _ = declare(TestDNSResponseDiscarder, testOpts{
+	dnsPort: DNSPort,
+})
+
 func TestDNSResponseDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -172,9 +176,7 @@ func TestDNSResponseDiscarder(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
-		dnsPort: DNSPort,
-	}))
+	test, err := newTestModule(t, nil, ruleDefsRcodeOK)
 	if err != nil {
 		t.Fatal(err)
 	}

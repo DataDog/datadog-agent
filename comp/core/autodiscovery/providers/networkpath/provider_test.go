@@ -32,6 +32,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 		"path/a": {Config: []byte(`{
 			"type": "scheduled",
 			"test_config_id": "test-config-a",
+			"test_config_name": "Production paths",
 			"tags": ["team:payments", "env:prod"],
 			"unknown_root_field": true,
 			"config": {
@@ -73,6 +74,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 
 	instance := unmarshalInstance(t, first.Instances[0])
 	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.Equal(t, "Production paths", instance["test_config_name"])
 	assert.Equal(t, "api.example.com", instance["hostname"])
 	assert.Equal(t, 443, instance["port"])
 	assert.Equal(t, "TCP", instance["protocol"])
@@ -88,6 +90,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 
 	second := unmarshalInstance(t, changes.Schedule[1].Instances[0])
 	assert.Equal(t, "test-config-a", second["test_config_id"])
+	assert.Equal(t, "Production paths", second["test_config_name"])
 	assert.Equal(t, "db.example.com", second["hostname"])
 	assert.Equal(t, []interface{}{"team:payments", "env:prod"}, second["tags"])
 }
@@ -104,6 +107,16 @@ func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
 
 	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderAcceptsLegacyConfigWithoutTestConfigName(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.NotContains(t, instance, "test_config_name")
 }
 
 func TestProviderConvertsTotalTimeoutToPerHop(t *testing.T) {
@@ -542,6 +555,7 @@ func TestParseConfigOutputIsAcceptedByNetworkPathCheck(t *testing.T) {
 	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
 	require.NoError(t, err)
 	assert.Equal(t, "test-config-a", checkConfig.TestConfigID)
+	assert.Empty(t, checkConfig.TestConfigName)
 	assert.Equal(t, "api.example.com", checkConfig.DestHostname)
 	assert.Equal(t, uint16(443), checkConfig.DestPort)
 	assert.Equal(t, payload.ProtocolTCP, checkConfig.Protocol)

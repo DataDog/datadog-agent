@@ -9,50 +9,20 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewTaskVerifier returns a TaskVerifier appropriate for the current environment.
-// When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op verifier is returned for e2e tests.
+// NewTaskVerifier returns a verifier for signed task envelopes.
 func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
-	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
-		log.Warn("task verification disabled")
-		return &noOpTaskVerifier{}
-	}
 	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
-}
-
-// noOpTaskVerifier passes tasks through without signature validation.
-// Used only when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
-type noOpTaskVerifier struct{}
-
-func (n *noOpTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
-	if task == nil || task.Data.Attributes == nil {
-		return task, nil
-	}
-
-	envelope := task.Data.Attributes.SignedEnvelope
-	if envelope == nil || len(envelope.Data) == 0 {
-		return task, nil
-	}
-
-	var pbTask privateactionspb.PrivateActionTask
-	err := proto.Unmarshal(envelope.Data, &pbTask)
-	if err != nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("failed to unmarshal task"))
-	}
-	return mapPbTaskToStruct(&pbTask), nil
 }
 
 type signedEnvelopeTaskVerifier struct {
@@ -94,7 +64,7 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, errors.New("task is expired"))
 	}
 
-	signature, localKey := t.getCandidateSignatureWithKey(envelope)
+	signature, localKey, directorProof := t.getCandidateSignatureWithKey(envelope)
 	if localKey == nil {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND, errors.New("no matching key found"))
 	}
@@ -108,6 +78,10 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 	if err != nil {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_ERROR, fmt.Errorf("signature verification failed: %w", err))
 	}
+	verificationKey, err := types.NewTaskVerificationKey(signature.KeyId, localKey, directorProof)
+	if err != nil {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("failed to encode verified task key: %w", err))
+	}
 
 	if pbTask.OrgId != t.config.OrgId {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_ORG_ID, errors.New("task orgId doesn't match the orgId of the runner"))
@@ -117,20 +91,22 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection runnerId doesn't match the id of the runner"))
 	}
 
-	return mapPbTaskToStruct(&pbTask), nil
+	unwrappedTask := mapPbTaskToStruct(&pbTask)
+	unwrappedTask.Data.Attributes.VerificationKey = verificationKey
+	return unwrappedTask, nil
 }
 
-func (t *signedEnvelopeTaskVerifier) getCandidateSignatureWithKey(envelope *privateactionspb.RemoteConfigSignatureEnvelope) (*privateactionspb.Signature, types.DecodedKey) {
+func (t *signedEnvelopeTaskVerifier) getCandidateSignatureWithKey(envelope *privateactionspb.RemoteConfigSignatureEnvelope) (*privateactionspb.Signature, types.DecodedKey, *types.DirectorKeyProof) {
 	if len(envelope.Signatures) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	for _, sig := range envelope.Signatures {
-		localKey := t.keysManager.GetKey(sig.KeyId)
+		localKey, directorProof := t.keysManager.GetKey(sig.KeyId)
 		if localKey != nil {
-			return sig, localKey
+			return sig, localKey, directorProof
 		}
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {

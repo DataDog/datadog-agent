@@ -7,7 +7,7 @@
 // gatherered with the event collector. They are placed in a separate file as they don't match
 // with any specific struct but are rather integration tests for the consumer and stats generator.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -46,7 +45,7 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 	ctx, err := getSystemContext(
 		withProcRoot(kernel.ProcFSRoot()),
 		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
@@ -71,7 +70,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
 	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-	ctx.visibleDevicesCache[executingPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
+	ctx.visibleDevicesCache[executingPID] = nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1)
 
 	injectEventsToConsumer(t, consumer, events, 0)
 

@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Notable Events on macOS now reports the cause of the previous shutdown on
+    Apple silicon: the Agent classifies the power management unit's boot-fault
+    record after each boot and emits a ``System shutdown fault`` event when the
+    previous shutdown was caused by a power fault, a processor crash signal, a
+    watchdog timeout, a hardware fault or a thermal fault. The event reports the
+    fault classification and the underlying fault tokens, and is emitted at most
+    once per boot.

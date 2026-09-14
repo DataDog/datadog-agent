@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the Cluster Agent could schedule Prometheus Scrape OpenMetrics checks against Kubernetes services even when the autodiscovery configuration included ``kubernetes_container_names``. The Cluster Agent now skips service and endpoint Prometheus Scrape scheduling for configurations that set ``kubernetes_container_names``; scraping discovered by node Agents remains as is.
