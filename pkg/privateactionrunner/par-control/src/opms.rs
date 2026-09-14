@@ -29,6 +29,19 @@ pub struct TlsConfig {
     pub min_tls_version: String,
 }
 
+/// The proxy decision for OPMS requests, resolved once against the Agent's proxy configuration.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ProxyDecision {
+    /// No proxy applies; connect directly.
+    #[default]
+    None,
+    /// Use this proxy unconditionally: `no_proxy` was already evaluated with an exact-match check.
+    Direct(String),
+    /// Use this proxy, but let reqwest apply cURL-style `no_proxy` matching (suffix/CIDR/wildcard)
+    /// per-request, per the Agent's `no_proxy_nonexact_match` setting.
+    NonExact { proxy_url: String, no_proxy: String },
+}
+
 /// A dequeued task.
 #[derive(Debug, Clone)]
 pub struct Task {
@@ -283,8 +296,7 @@ pub struct HttpOpmsConfig {
     pub runner_version: String,
     pub modes: Vec<String>,
     pub timeout: Duration,
-    pub proxy_url: Option<String>,
-    pub no_proxy: Option<String>,
+    pub proxy: ProxyDecision,
     pub tls: TlsConfig,
     pub extra_headers: HashMap<String, String>,
 }
@@ -339,16 +351,22 @@ impl HttpOpms {
             // We already merged the Agent's YAML and environment proxy settings;
             // do not let reqwest independently re-read process environment.
             .no_proxy();
-        if let Some(proxy_url) = options.proxy_url {
-            let proxy = reqwest::Proxy::all(proxy_url)
-                .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?
-                .no_proxy(
-                    options
-                        .no_proxy
-                        .as_deref()
-                        .and_then(reqwest::NoProxy::from_string),
-                );
-            builder = builder.proxy(proxy);
+        match options.proxy {
+            ProxyDecision::None => {}
+            ProxyDecision::Direct(proxy_url) => {
+                let proxy = reqwest::Proxy::all(proxy_url)
+                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?;
+                builder = builder.proxy(proxy);
+            }
+            ProxyDecision::NonExact {
+                proxy_url,
+                no_proxy,
+            } => {
+                let proxy = reqwest::Proxy::all(proxy_url)
+                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?
+                    .no_proxy(reqwest::NoProxy::from_string(&no_proxy));
+                builder = builder.proxy(proxy);
+            }
         }
         let client = builder.build().context("building the OPMS HTTP client")?;
         Ok(Self {
@@ -622,8 +640,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: None,
-                no_proxy: None,
+                proxy: ProxyDecision::None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::from([
                     (
@@ -742,8 +759,7 @@ mod tests {
                     runner_version: "7.83.0".into(),
                     modes: vec!["pull".into()],
                     timeout: Duration::from_secs(10),
-                    proxy_url: None,
-                    no_proxy: None,
+                    proxy: ProxyDecision::None,
                     tls: TlsConfig::default(),
                     extra_headers: HashMap::new(),
                 },
@@ -815,10 +831,9 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: Some(format!(
+                proxy: ProxyDecision::Direct(format!(
                     "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
                 )),
-                no_proxy: None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::new(),
             },

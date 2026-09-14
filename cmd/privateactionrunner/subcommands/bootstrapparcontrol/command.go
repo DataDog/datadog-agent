@@ -56,13 +56,8 @@ type ControlPlaneConfig struct {
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "bootstrap-par-control",
-		Short: "Bootstrap the Private Action Runner split-mode control plane",
-		Long: `Loads the canonical Agent configuration, ensures that the runner has a valid
-identity, and writes the identity and Core Agent IPC bootstrap settings to stdout.
-Runtime configuration is consumed directly from the Core Agent configuration stream.
-
-When split mode is disabled the command succeeds without enrolling and reports
-only the launch gate and log level.`,
+		Short: "Bootstrap the PAR split-mode control plane",
+		Long:  "Provides config that par-control needs to boot.",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
