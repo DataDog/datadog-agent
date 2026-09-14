@@ -20,6 +20,7 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	httptrace "github.com/DataDog/dd-trace-go/contrib/net/http/v2"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
@@ -42,7 +43,8 @@ func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Com
 	))
 	r.HandleFunc("GET /tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) }))
 	r.HandleFunc("GET /metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) }))
-	r.HandleFunc("GET /cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID))
+	// SPIKE (CONTP-1631): temporary contrib/net/http wiring to measure binary size impact. Not for merge.
+	r.Handle("GET /cluster/id", httptrace.WrapHandler(http.HandlerFunc(getClusterID), "datadog-cluster-agent", "getClusterID"))
 	r.HandleFunc("GET /uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) }))
 }
 
