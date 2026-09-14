@@ -89,3 +89,16 @@ fn privileged_spawn_refuses_working_dir() {
         "refusing privileged spawn: working_dir is not allowed",
     ]);
 }
+
+#[test]
+fn privileged_spawn_refuses_file_stdio() {
+    let log_path = test_helpers::temp_dir_str();
+    let yaml = test_helpers::privileged_process_agent_yaml(&format!("stdout: '{log_path}'\n"));
+    let procmgr = env_with_privileged_yaml(&yaml).start();
+
+    procmgr.assert_process_state_within(PROCESS_AGENT_NAME, ProcessExpect::Failed);
+    procmgr.assert_daemon_log_line_contains(&[
+        PROCESS_AGENT_NAME,
+        "refusing privileged spawn: stdout/stderr must be inherit or null",
+    ]);
+}

@@ -14,6 +14,12 @@ pub(crate) enum StdioSetting {
     File(PathBuf),
 }
 
+impl StdioSetting {
+    pub(crate) fn is_inherit_or_null(&self) -> bool {
+        matches!(self, Self::Inherit | Self::Null)
+    }
+}
+
 pub(crate) fn parse_stdio_setting(yaml_value: &str) -> StdioSetting {
     match yaml_value {
         "null" => StdioSetting::Null,
@@ -61,6 +67,13 @@ mod tests {
 
     fn command_stdio(yaml: &str) -> Stdio {
         to_command_stdio(&parse_stdio_setting(yaml), true)
+    }
+
+    #[test]
+    fn is_inherit_or_null() {
+        assert!(StdioSetting::Inherit.is_inherit_or_null());
+        assert!(StdioSetting::Null.is_inherit_or_null());
+        assert!(!StdioSetting::File(PathBuf::from(r"C:\logs\out.log")).is_inherit_or_null());
     }
 
     #[test]

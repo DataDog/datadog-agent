@@ -22,6 +22,7 @@ pub(super) fn validate_process_request(process_name: &str, request: &SpawnReques
     validate_privileged_working_dir(process_name, &spec, request)?;
     validate_privileged_command_args(process_name, &spec, request)?;
     validate_privileged_env(process_name, request)?;
+    validate_privileged_stdio(process_name, request)?;
 
     Ok(())
 }
@@ -94,6 +95,15 @@ fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result
     bail!(
         "[{process_name}] refusing privileged spawn: disallowed env vars for privileged process: {keys:?}"
     );
+}
+
+fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
+    if !request.stdout_setting().is_inherit_or_null()
+        || !request.stderr_setting().is_inherit_or_null()
+    {
+        bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
+    }
+    Ok(())
 }
 
 struct PrivilegedProcessSpec {
@@ -184,5 +194,27 @@ mod tests {
 
         validate_privileged_command_args(DATADOG_AGENT_PROCESS, &spec, &request)
             .expect("resolved install root command should match");
+    }
+
+    #[test]
+    fn privileged_stdio_rejects_file_paths() {
+        let request = SpawnRequest::from_config(
+            DATADOG_AGENT_PROCESS,
+            &ProcessConfig {
+                command: r"C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"
+                    .to_string(),
+                args: vec![
+                    "--cfgpath".to_string(),
+                    r"C:\ProgramData\Datadog\datadog.yaml".to_string(),
+                ],
+                stdout: r"C:\logs\out.log".to_string(),
+                stderr: "inherit".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect("request");
+
+        let err = validate_privileged_stdio(DATADOG_AGENT_PROCESS, &request).unwrap_err();
+        assert!(err.to_string().contains("stdout/stderr must be inherit or null"));
     }
 }
