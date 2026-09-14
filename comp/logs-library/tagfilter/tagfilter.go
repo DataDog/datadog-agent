@@ -370,7 +370,16 @@ func (f *Filters) Patterns() Patterns {
 type Scoped struct {
 	source *Filters
 	global *Filters
+	mode   scopedMode
 }
+
+type scopedMode uint8
+
+const (
+	scopedBoth scopedMode = iota
+	scopedSourceOnly
+	scopedGlobalOnly
+)
 
 // NewScoped pairs a source-level filter with the process-global filter.
 //
@@ -380,7 +389,19 @@ func NewScoped(global, source *Filters) *Scoped {
 	if global.IsEmpty() && source.IsEmpty() {
 		return nil
 	}
-	return &Scoped{source: source, global: global}
+	// Avoid paying for two scope lookups on every tag when only one scope can
+	// affect the result. A source with any include patterns must remain in front
+	// of an active global filter because those includes can rescue globally
+	// excluded tags. Global includes, however, are inert when the global scope
+	// cannot drop anything: source rules have higher precedence and unmatched
+	// tags are retained by default.
+	if global.IsEmpty() {
+		return &Scoped{source: source, global: global, mode: scopedSourceOnly}
+	}
+	if source.Patterns().IsEmpty() {
+		return &Scoped{source: source, global: global, mode: scopedGlobalOnly}
+	}
+	return &Scoped{source: source, global: global, mode: scopedBoth}
 }
 
 // Keep returns the tags that survive s, preserving order.
@@ -388,14 +409,22 @@ func (s *Scoped) Keep(tags []string) []string {
 	if s == nil {
 		return tags
 	}
+	// In the common single-scope cases, delegate once for the whole slice rather
+	// than branching on the scope mode again for every tag in Retains.
+	if s.mode == scopedGlobalOnly {
+		return s.global.Keep(tags)
+	}
+	if s.mode == scopedSourceOnly {
+		return s.source.Keep(tags)
+	}
 	for i, tag := range tags {
-		if s.Retains(tag) {
+		if s.retainsBoth(tag) {
 			continue
 		}
 		kept := make([]string, i, len(tags)-1)
 		copy(kept, tags[:i])
 		for _, t := range tags[i+1:] {
-			if s.Retains(t) {
+			if s.retainsBoth(t) {
 				kept = append(kept, t)
 			}
 		}
@@ -414,6 +443,20 @@ func (s *Scoped) Retains(tag string) bool {
 	if s == nil {
 		return true
 	}
+	// NewScoped specializes the common single-scope cases. Delegate directly so
+	// the tag is split and its key looked up only once.
+	if s.mode == scopedGlobalOnly {
+		return s.global.Retains(tag)
+	}
+	if s.mode == scopedSourceOnly {
+		return s.source.Retains(tag)
+	}
+	return s.retainsBoth(tag)
+}
+
+// retainsBoth applies the full source-before-global precedence after NewScoped
+// has determined that both scopes can affect the outcome.
+func (s *Scoped) retainsBoth(tag string) bool {
 	key, value, ok := splitTag(tag)
 	if !ok {
 		return true

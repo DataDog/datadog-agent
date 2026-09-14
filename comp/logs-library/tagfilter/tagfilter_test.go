@@ -321,6 +321,41 @@ func TestNewScopedNonEmptyReturnsScoped(t *testing.T) {
 	assert.NotNil(t, NewScoped(nil, withExclude))
 }
 
+func TestNewScopedSpecializesSingleScopeWithoutLosingPatterns(t *testing.T) {
+	t.Run("global only", func(t *testing.T) {
+		global, _ := Compile(nil, []string{"global:*"})
+		scoped := NewScoped(global, nil)
+		require.NotNil(t, scoped)
+		assert.Equal(t, scopedGlobalOnly, scoped.mode)
+		assert.False(t, scoped.Retains("global:value"))
+		assert.Equal(t, []string{"global:*"}, scoped.GlobalPatterns().Exclude)
+	})
+
+	t.Run("source only", func(t *testing.T) {
+		// A global include cannot change the outcome when only the higher-priority
+		// source scope can drop, but it must remain visible through the pattern
+		// accessors used by status reporting.
+		global, _ := Compile([]string{"foo:keep"}, nil)
+		source, _ := Compile(nil, []string{"foo:*"})
+		scoped := NewScoped(global, source)
+		require.NotNil(t, scoped)
+		assert.Equal(t, scopedSourceOnly, scoped.mode)
+		assert.False(t, scoped.Retains("foo:value"))
+		assert.Equal(t, []string{"foo:keep"}, scoped.GlobalPatterns().Include)
+		assert.Equal(t, []string{"foo:*"}, scoped.SourcePatterns().Exclude)
+	})
+
+	t.Run("both scopes", func(t *testing.T) {
+		global, _ := Compile(nil, []string{"shared:*"})
+		source, _ := Compile([]string{"shared:keep"}, nil)
+		scoped := NewScoped(global, source)
+		require.NotNil(t, scoped)
+		assert.Equal(t, scopedBoth, scoped.mode)
+		assert.True(t, scoped.Retains("shared:keep"))
+		assert.False(t, scoped.Retains("shared:drop"))
+	})
+}
+
 func mustScoped(t *testing.T, globalInclude, globalExclude, sourceInclude, sourceExclude []string) *Scoped {
 	t.Helper()
 	global, _ := Compile(globalInclude, globalExclude)
