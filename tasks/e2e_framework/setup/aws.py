@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import secrets
@@ -18,6 +17,7 @@ from tasks.e2e_framework.tool import (
     ask_yesno,
     error,
     get_aws_cmd,
+    get_resource_owner_id,
     info,
     warn,
     write_secret_file,
@@ -26,6 +26,9 @@ from tasks.e2e_framework.tool import (
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
+# Every resource the E2E framework relies on -- AMIs, subnets, ECR registries, KMS keys,
+# the fakeintake ECS cluster -- is pinned to this region.
+DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_KEY_TYPE = "rsa"
 # Accounts not listed here default to 'account-admin'. Keep in sync with the
 # `profile:` entries in test/e2e-framework/resources/aws/environmentDefaults.go.
@@ -48,7 +51,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
     aws = config.configParams.aws
-    user = getpass.getuser()
+    user = get_resource_owner_id()
 
     # Account
     if account:
@@ -189,7 +192,7 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
     role = ACCOUNT_ADMIN_ROLE_BY_ACCOUNT.get(aws.account, 'account-admin')
     acct_id = 376334461865
     start_url = 'https://d-906757b57c.awsapps.com/start/#'
-    region = 'us-east-1'
+    region = DEFAULT_AWS_REGION
 
     aws_conf_path = Path.home().joinpath(".aws", "config")
     profile_name = f'sso-{aws.account}-{role}'
@@ -401,7 +404,7 @@ def aws_resolve_keypair_opts(
     if awsConf.keyPairName:
         default_keypair_name = awsConf.keyPairName
     else:
-        default_keypair_name = getpass.getuser()
+        default_keypair_name = get_resource_owner_id()
     if awsConf.privateKeyPath:
         default_private_key_path = awsConf.privateKeyPath
     else:

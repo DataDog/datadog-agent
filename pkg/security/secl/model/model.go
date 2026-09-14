@@ -209,6 +209,11 @@ type SpanContext struct {
 type Tracer struct {
 	Metadata tracermetadata.TracerMetadata
 	Trace    SpanContext
+	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
+	// process published in its OTel process context (OTEP 4947). The key indices
+	// of a thread context record index into it to resolve the full attribute
+	// name.
+	ThreadlocalAttributeKeys []string
 }
 
 // RuleContext defines a rule context

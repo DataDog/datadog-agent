@@ -98,6 +98,18 @@ properties:
     default: []
     items:
       type: string
+  instance_sharding_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: 'Instance sharding: splits a multi-instance cluster check config into
+      one config per instance so instances spread across cluster-check runners'
+  instance_sharding_exclude_checks:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
   ksm_sharding_enabled:
     node_type: setting
     type: boolean

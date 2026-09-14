@@ -225,6 +225,65 @@ func TestWithTelemetryWrapper_NotForwarded(t *testing.T) {
 	assert.Nil(t, spans[0].Tag("forwarded"))
 }
 
+// countingResponseWriter mimics the real net/http server ResponseWriter: calling
+// Write before WriteHeader implicitly sends a 200 status. It counts how many times
+// WriteHeader is invoked so tests can detect a superfluous second header write.
+type countingResponseWriter struct {
+	header       http.Header
+	headerWrites int
+	firstStatus  int
+	headerSent   bool
+}
+
+func newCountingResponseWriter() *countingResponseWriter {
+	return &countingResponseWriter{header: make(http.Header)}
+}
+
+func (w *countingResponseWriter) Header() http.Header { return w.header }
+
+func (w *countingResponseWriter) WriteHeader(statusCode int) {
+	w.headerWrites++
+	if !w.headerSent {
+		w.headerSent = true
+		w.firstStatus = statusCode
+	}
+}
+
+func (w *countingResponseWriter) Write(b []byte) (int, error) {
+	if !w.headerSent {
+		w.WriteHeader(http.StatusOK)
+	}
+	return len(b), nil
+}
+
+// TestWithTelemetryWrapper_WriteThenWriteHeaderDoesNotDoubleWrite reproduces
+// https://github.com/DataDog/datadog-agent/issues/55745: a handler that calls Write
+// before WriteHeader (implicitly sending a 200) and then explicitly calls WriteHeader
+// (e.g. via http.Error) must not write the header twice on the delegate writer.
+func TestWithTelemetryWrapper_WriteThenWriteHeaderDoesNotDoubleWrite(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	rec := newCountingResponseWriter()
+	th := &TelemetryHandler{
+		handlerName: "writeThenErrorHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("partial"))
+			w.WriteHeader(http.StatusInternalServerError)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	th.handle(rec, req)
+
+	assert.Equal(t, 1, rec.headerWrites, "delegate WriteHeader must be invoked exactly once, not twice")
+	assert.Equal(t, http.StatusOK, rec.firstStatus)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, float64(200), spans[0].Tag("http.status_code"))
+}
+
 func TestWithTelemetryWrapper_NoErrorWhenNilCapturedErr(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
