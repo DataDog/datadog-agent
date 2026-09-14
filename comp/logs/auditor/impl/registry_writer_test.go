@@ -21,6 +21,7 @@ func TestAtomicRegistryWriter(t *testing.T) {
 	registryDirPath := tmpDir
 	registryTmpFile := "registry.json.tmp"
 	testData := []byte(`{"test": "data"}`)
+	require.NoError(t, os.WriteFile(registryPath, []byte(`{"old": "data"}`), 0644))
 
 	// Create atomic registry writer
 	writer := NewAtomicRegistryWriter()
@@ -33,6 +34,20 @@ func TestAtomicRegistryWriter(t *testing.T) {
 	content, err := os.ReadFile(registryPath)
 	require.NoError(t, err)
 	assert.Equal(t, testData, content)
+}
+
+func TestAtomicRegistryWriterCleansUpTemporaryFileWhenReplacementFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	registryPath := filepath.Join(tmpDir, "registry.json")
+	require.NoError(t, os.Mkdir(registryPath, 0755))
+
+	writer := NewAtomicRegistryWriter()
+	err := writer.WriteRegistry(registryPath, tmpDir, "registry.json.tmp", []byte(`{"test": "data"}`))
+	require.Error(t, err)
+
+	temporaryFiles, err := filepath.Glob(filepath.Join(tmpDir, "registry.json.tmp*"))
+	require.NoError(t, err)
+	assert.Empty(t, temporaryFiles)
 }
 
 func TestNonAtomicRegistryWriter(t *testing.T) {
