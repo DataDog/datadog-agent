@@ -1,7 +1,7 @@
 """Tests for dd_collect_dependencies and dd_cc_packaged."""
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
@@ -491,6 +491,46 @@ def _test_installed_executables_use_prefix_impl(env, target):
         "share/tree_dir",
     ])
 
+# Test 11: a cc_import pointed at a dd_cc_packaged target, mirroring
+# rtloader_dynamic's real _rtloader_shared bridge, surfaces DdPackagingInfo
+# through the aspect's shared_library edge.
+def _test_cc_import_reaches_packaged(name):
+    cc_library(
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    cc_import(
+        name = name + "_import",
+        shared_library = ":" + name + "_packaged",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_import"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_cc_import_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_cc_import_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -507,5 +547,6 @@ def dd_packaging_test_suite(name):
             _test_cc_binary_no_cc_shared_library_info,
             _test_diamond_no_duplicates,
             _test_installed_executables_use_prefix,
+            _test_cc_import_reaches_packaged,
         ],
     )

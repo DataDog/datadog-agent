@@ -24,11 +24,13 @@ def _get_deps(ctx, attr_names):
             deps.append(val)
     return deps
 
+_WALKED_ATTRS = ["dynamic_deps", "input", "shared_library"]
+
 def _collect_dd_packaging_aspect_impl(target, ctx):
     direct = target[DdPackagingInfo].installed_files if DdPackagingInfo in target else []
     transitive = [
         dep[_CollectedPackagingInfo].pkg_filegroups
-        for dep in _get_deps(ctx, ["dynamic_deps", "input"])
+        for dep in _get_deps(ctx, _WALKED_ATTRS)
         if _CollectedPackagingInfo in dep
     ]
     return [_CollectedPackagingInfo(
@@ -38,12 +40,14 @@ def _collect_dd_packaging_aspect_impl(target, ctx):
 _collect_dd_packaging_aspect = aspect(
     implementation = _collect_dd_packaging_aspect_impl,
     doc = """
-        Traverses two edge types to walk the full CC dependency graph:
+        Traverses these edge types to walk the full CC dependency graph:
         - dynamic_deps: cc_shared_library -> cc_shared_library edges
         - input: _dd_cc_packaged_rule -> cc_shared_library edges (bridges a
           packaged target back to its underlying cc_shared_library)
+        - shared_library: cc_import -> _dd_cc_packaged_rule edges (a cc_import
+          bridge pointed at an already-packaged shared library)
     """,
-    attr_aspects = ["dynamic_deps", "input"],
+    attr_aspects = _WALKED_ATTRS,
 )
 
 def _dd_collect_dependencies_impl(ctx):
