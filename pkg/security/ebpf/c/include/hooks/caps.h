@@ -76,6 +76,11 @@ int hook_security_capable(ctx_t *ctx) {
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
 
+    // clear before any early return: this program can be skipped while the return still runs
+    if (cap_context) {
+        cap_context->cap_as_mask = 0;
+    }
+
     if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
         // do not track capabilities checked under temporarily overridden credentials
         return 0;
@@ -136,18 +141,24 @@ int rethook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (!cap_context || !cap_context->cap_as_mask) {
+    if (!cap_context) {
         // unexpected, we should have a context at this point since we created one in hook_security_capable
         return 0;
     }
 
-    if (is_in_creds_override() || cap_context->override_creds_depth != 0) {
-        // do not track capabilities checked under temporarily overridden credentials
-        return 0;
+    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
+    u64 override_creds_depth = cap_context->override_creds_depth;
+
+    // consume on every path, a leftover mask would be picked up by an untracked call's return
+    if (override_creds_depth == 0) {
+        bpf_map_delete_elem(&capabilities_contexts, &tid);
+    } else {
+        cap_context->cap_as_mask = 0; // the depth counter has to outlive the call
     }
 
-    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
-    bpf_map_delete_elem(&capabilities_contexts, &tid); // Free the context because we are done with it at this point
+    if (!cap_as_mask || override_creds_depth != 0 || is_in_creds_override()) {
+        return 0;
+    }
 
     int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
     if (retval != 0) { // If the capability check was not successful, we do not need to update the used capabilities set
