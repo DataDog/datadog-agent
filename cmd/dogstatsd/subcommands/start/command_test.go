@@ -6,6 +6,8 @@
 package start
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -15,11 +17,16 @@ import (
 )
 
 func TestStartCommand(t *testing.T) {
+	// aasinventory.Module() transitively requires config.Component via
+	// inventoryagent, so the test needs a real config directory.
+	confDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(confDir, "dogstatsd.yaml"), []byte{}, 0644))
+
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", "PATH"},
+		[]string{"start", "--cfgpath", confDir},
 		start,
 		func(cliParams *CLIParams, _ config.Params) {
-			require.Equal(t, "PATH", cliParams.confPath)
+			require.Equal(t, confDir, cliParams.confPath)
 		})
 }
