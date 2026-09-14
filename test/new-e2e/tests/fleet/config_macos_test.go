@@ -10,6 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	goos "os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -21,16 +24,81 @@ import (
 	"golang.org/x/crypto/nacl/box"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fifakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeintakeversion "github.com/DataDog/datadog-agent/test/fakeintake/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
 )
+
+// configMacOSLocalFakeIntakeContainer names the fakeintake Docker container started on a LOCAL_VM
+// host, so a leftover from a previous run can be removed before starting a fresh one.
+//
+// Named distinctly from macos_install_test.go's macosLocalFakeIntakeContainer even though both use
+// "e2e-fakeintake" as the container name -- they run against the same physical VM but never
+// concurrently, so reusing the container name is fine and avoids a naming collision between the
+// two packages' identifiers.
+const configMacOSLocalFakeIntakeContainer = "e2e-fakeintake"
+
+// configMacOSStartLocalFakeIntake starts a fakeintake container on the LOCAL_VM host at addr over
+// SSH (Docker must already be installed and running there) and returns the host port it
+// published. Mirrors macos_install_test.go's macosStartLocalFakeIntake; duplicated rather than
+// shared because that helper lives in an unrelated package (agentplatform) and is unexported.
+func configMacOSStartLocalFakeIntake(t *testing.T, user, addr string) uint32 {
+	sshTarget := user + "@" + addr
+	const brewEnv = `eval "$(/opt/homebrew/bin/brew shellenv)"; `
+
+	// Pin the identity file when E2E_AWS_PRIVATE_KEY_PATH names one (the same var the framework's
+	// own SSH client reads for this LOCAL_VM path), and stop ssh from also offering every key
+	// already loaded in the local agent -- with several loaded, sshd's MaxAuthTries is reached
+	// before the right key is ever tried, and the connection is dropped outright.
+	sshArgs := []string{}
+	if keyPath := goos.Getenv("E2E_AWS_PRIVATE_KEY_PATH"); keyPath != "" {
+		sshArgs = append(sshArgs, "-i", keyPath, "-o", "IdentitiesOnly=yes")
+	}
+	sshCommand := func(remoteCmd string) *exec.Cmd {
+		return exec.Command("ssh", append(append([]string{}, sshArgs...), sshTarget, remoteCmd)...)
+	}
+
+	_ = sshCommand(brewEnv + "docker rm -f " + configMacOSLocalFakeIntakeContainer).Run()
+
+	// --rc-key-data pins the same fixed, well-known signing seed every other provisioner's
+	// fakeintake uses (fifakeintake.RCRootJSON/DefaultRCSigningKeySeed): the Agent's
+	// remote_configuration.config_root/director_root are computed from that seed at install time,
+	// before this container has even started, so its TUF root has to match deterministically
+	// rather than being negotiated at runtime. Without this flag the container generates a random
+	// key on every start, and every Remote Config refresh fails validating the mismatched root
+	// with "tuf: valid signatures did not meet threshold".
+	runCmd := sshCommand(brewEnv + "docker run -d --name " + configMacOSLocalFakeIntakeContainer +
+		" -p 0:80 public.ecr.aws/datadog/fakeintake:" + fakeintakeversion.Tag +
+		" --remoteconfig --rc-key-data=" + fifakeintake.DefaultRCSigningKeySeed)
+	out, err := runCmd.CombinedOutput()
+	require.NoError(t, err, "starting fakeintake container on %s: %s", addr, out)
+
+	t.Cleanup(func() {
+		_ = sshCommand(brewEnv + "docker rm -f " + configMacOSLocalFakeIntakeContainer).Run()
+	})
+
+	portCmd := sshCommand(brewEnv + "docker port " + configMacOSLocalFakeIntakeContainer + " 80/tcp")
+	portOut, err := portCmd.Output()
+	require.NoError(t, err, "resolving fakeintake port on %s", addr)
+
+	portStr := strings.TrimSpace(string(portOut))
+	idx := strings.LastIndex(portStr, ":")
+	require.NotEqual(t, -1, idx, "unexpected `docker port` output: %q", portStr)
+	port, err := strconv.ParseUint(portStr[idx+1:], 10, 32)
+	require.NoError(t, err, "parsing fakeintake port from %q", portStr)
+
+	return uint32(port)
+}
 
 // configMacOSSuite covers Fleet configuration-experiment *behavior* on macOS: starting, promoting,
 // stopping and rolling back a config experiment, and the on-disk/launchd state that results.
@@ -61,6 +129,32 @@ func newConfigMacOSSuite() e2e.Suite[environments.Host] {
 // macOS E2E hosts are dedicated (mac1.metal/mac2.metal) with a 24-hour AWS billing minimum
 // (test/e2e-framework/AGENTS.md), so the CI job for this test must stay manual.
 func TestFleetConfigMacOS(t *testing.T) {
+	// LOCAL_VM targets a pre-existing macOS host (a local machine or another box reachable over
+	// SSH) instead of provisioning a real AWS Dedicated Host. Mirrors
+	// macos_install_test.go's TestMacosInstallScript LOCAL_VM branch.
+	if localVM := goos.Getenv("LOCAL_VM"); localVM != "" {
+		arch := goos.Getenv("LOCAL_ARCH")
+		if arch == "" {
+			arch = "arm64"
+		}
+
+		user := goos.Getenv("LOCAL_USER")
+		if user == "" {
+			user = goos.Getenv("USER")
+		}
+
+		descriptorPath := filepath.Join(t.TempDir(), "macos-fleet-config-byo-host.json")
+		descriptor := e2eos.NewDescriptorWithArch(e2eos.MacosOS, "sonoma", e2eos.ArchitectureFromString(arch))
+
+		fakeIntakePort := configMacOSStartLocalFakeIntake(t, user, localVM)
+		require.NoError(t, byohost.WriteHostDescriptorWithFakeIntake(descriptorPath, localVM, 22, user, descriptor, localVM, fakeIntakePort))
+
+		e2e.Run(t, newConfigMacOSSuite(), e2e.WithProvisioner(
+			provisioners.NewStaticStackProvisioner[environments.Host]("", descriptorPath),
+		))
+		return
+	}
+
 	extraConfigMap := runner.ConfigMap{}
 	// Pulumi needs to pick a smaller subnet subset on macOS; only settable via the configmap.
 	// Without this, RandomSubnets() can pick an AZ (e.g. us-east-1d) that doesn't support
