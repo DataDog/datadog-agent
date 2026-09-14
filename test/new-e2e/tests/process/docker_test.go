@@ -53,8 +53,8 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		status := getAgentStatus(collect, s.Env().Agent.Client)
 
 		// Process checks run in the core agent; verify the standalone process-agent is not running
-		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+		_, found := status.remoteAgentStatus("process_agent")
+		assert.False(collect, found, "process_agent RAR status should be absent: %+v", status.RegisteredAgentStatuses)
 
 		// Verify the process component is running in the core agent
 		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess", "service_discovery"})

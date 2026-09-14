@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"time"
 
@@ -201,11 +202,35 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)
-		status, err := client.GetJSONStatus()
-		s.Require().NoError(err)
-		s.Require().Contains(status, "systemProbeStats", "agent status should contain systemProbeStats")
-		systemProbeStats := status["systemProbeStats"].(map[string]interface{})
-		s.Require().NotContains(systemProbeStats, "Errors", "system probe status should not contain Errors")
+		s.Require().EventuallyWithT(func(c *assert.CollectT) {
+			status, err := client.GetJSONStatus()
+			require.NoError(c, err)
+
+			statusJSON, err := json.Marshal(status)
+			require.NoError(c, err)
+			var remoteAgents struct {
+				RegisteredAgentStatuses []struct {
+					Flavor        string
+					FailureReason string
+					NamedSections map[string]map[string]string
+				} `json:"registeredAgentStatuses"`
+			}
+			require.NoError(c, json.Unmarshal(statusJSON, &remoteAgents))
+
+			for _, remoteAgent := range remoteAgents.RegisteredAgentStatuses {
+				if remoteAgent.Flavor != "system_probe" {
+					continue
+				}
+				require.Empty(c, remoteAgent.FailureReason, "system_probe RAR status should not fail")
+				detailsSection, found := remoteAgent.NamedSections["Details"]
+				require.True(c, found, "system_probe RAR status should contain Details")
+				details, found := detailsSection[""]
+				require.True(c, found, "system_probe RAR Details should contain rendered status")
+				assert.NotContains(c, details, "Error:", "system probe status should not contain errors")
+				return
+			}
+			require.Fail(c, "system_probe RAR status not found")
+		}, 1*time.Minute, 1*time.Second)
 	})
 }
 

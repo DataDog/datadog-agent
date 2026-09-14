@@ -9,6 +9,7 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -48,19 +49,12 @@ var processAgentWinRefreshStr string
 //go:embed config/language_detection.yaml
 var languageDetectionConfigStr string
 
+var enabledChecksPattern = regexp.MustCompile(`(?m)^\s*Enabled Checks: \[(.*)\]$`)
+
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {
-	ProcessAgentStatus struct {
-		Expvars struct {
-			Map struct {
-				EnabledChecks                []string            `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
-				Endpoints                    map[string][]string `json:"endpoints"`
-			} `json:"process_agent"`
-		} `json:"expvars"`
-		Error string `json:"error"`
-	} `json:"processAgentStatus"`
-	ProcessComponentStatus struct {
+	RegisteredAgentStatuses []remoteAgentStatus `json:"registeredAgentStatuses"`
+	ProcessComponentStatus  struct {
 		Expvars struct {
 			Map struct {
 				EnabledChecks                []string            `json:"enabled_checks"`
@@ -69,6 +63,12 @@ type AgentStatus struct {
 			} `json:"process_agent"`
 		} `json:"expvars"`
 	} `json:"processComponentStatus"`
+}
+
+type remoteAgentStatus struct {
+	Flavor        string
+	FailureReason string
+	NamedSections map[string]map[string]string
 }
 
 func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
@@ -82,22 +82,54 @@ func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
 	return statusMap
 }
 
+func (s AgentStatus) remoteAgentStatus(flavor string) (remoteAgentStatus, bool) {
+	for _, status := range s.RegisteredAgentStatuses {
+		if status.Flavor == flavor {
+			return status, true
+		}
+	}
+	return remoteAgentStatus{}, false
+}
+
+func processAgentDetails(t *assert.CollectT, statusMap AgentStatus) string {
+	status, found := statusMap.remoteAgentStatus("process_agent")
+	require.True(t, found, "process_agent status not found: %+v", statusMap.RegisteredAgentStatuses)
+	require.Empty(t, status.FailureReason, "process_agent status failed: %+v", status)
+	detailsSection, found := status.NamedSections["Details"]
+	require.True(t, found, "process_agent Details section not found: %+v", status)
+	details, found := detailsSection[""]
+	require.True(t, found, "process_agent rendered status not found: %+v", status)
+	return details
+}
+
+func enabledChecksFromProcessAgentDetails(t *assert.CollectT, details string) []string {
+	matches := enabledChecksPattern.FindStringSubmatch(details)
+	require.Len(t, matches, 2, "process_agent Enabled Checks line not found in status: %s", details)
+	return strings.Fields(matches[1])
+}
+
 // assertRunningChecks asserts that the given checks are running across the process-agent
 // and the core agent's process component. On Linux, process/container/discovery checks run
 // in the core agent while connections runs in the standalone process-agent.
 func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
 	statusMap := getAgentStatus(t, client)
 
-	// Combine enabled checks from both the standalone process-agent and the core agent's process component
+	// Combine enabled checks from both the standalone process-agent and the core agent's process component.
+	var standaloneProcessAgentDetails string
+	var processAgentEnabledChecks []string
+	if _, found := statusMap.remoteAgentStatus("process_agent"); found {
+		standaloneProcessAgentDetails = processAgentDetails(t, statusMap)
+		processAgentEnabledChecks = enabledChecksFromProcessAgentDetails(t, standaloneProcessAgentDetails)
+	}
 	var allEnabledChecks []string
-	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks...)
+	allEnabledChecks = append(allEnabledChecks, processAgentEnabledChecks...)
 	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessComponentStatus.Expvars.Map.EnabledChecks...)
 
 	assert.ElementsMatch(t, checks, allEnabledChecks)
 
 	if withSystemProbe {
-		// SysProbeProcessModuleEnabled can be reported by either the process-agent or the core agent component
-		sysProbeEnabled := statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled ||
+		// The system probe process module can be reported by either process runtime.
+		sysProbeEnabled := strings.Contains(standaloneProcessAgentDetails, "System Probe Process Module Status: Running") ||
 			statusMap.ProcessComponentStatus.Expvars.Map.SysProbeProcessModuleEnabled
 		assert.True(t, sysProbeEnabled, "system probe process module not enabled")
 	}
@@ -390,10 +422,13 @@ func assertManualProcessDiscoveryCheck(t require.TestingT, check string, process
 func assertAPIKeyStatus(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, coreAgent bool) {
 	// Assert that the status has the correct API key
 	statusMap := getAgentStatus(collect, agentClient)
-	endpoints := statusMap.ProcessAgentStatus.Expvars.Map.Endpoints
-	if coreAgent {
-		endpoints = statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
+	if !coreAgent {
+		details := processAgentDetails(collect, statusMap)
+		require.Contains(collect, details, "- "+apiKey[len(apiKey)-4:], "API key %s not found in process_agent status", apiKey)
+		return
 	}
+
+	endpoints := statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
 	found := false
 	for _, epKeys := range endpoints {
 		for _, key := range epKeys {

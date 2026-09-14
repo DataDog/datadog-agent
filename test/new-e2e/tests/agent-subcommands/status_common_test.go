@@ -110,7 +110,7 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldBePresent: true,
 		},
 		{
-			name:             "APM Agent",
+			name:             "Trace Agent",
 			shouldBePresent:  true,
 			shouldContain:    []string{"Status: Running"},
 			shouldNotContain: []string{"Error"},

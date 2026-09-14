@@ -201,7 +201,8 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
 		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+		details := processAgentDetails(c, status)
+		assert.ElementsMatch(c, []string{"connections"}, enabledChecksFromProcessAgentDetails(c, details))
 	}, 5*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
