@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -321,6 +322,26 @@ func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
 	return getEventHostInfoImpl(getHostProviderID, clusterName, ev)
 }
 
+// scheduledMessageRe matches the message the kube-scheduler (and schedulers
+// reusing its wording, e.g. GKE's high-throughput scheduler) attaches to a
+// Pod's "Scheduled" event: "Successfully assigned <namespace>/<pod> to <node>".
+var scheduledMessageRe = regexp.MustCompile(`^Successfully assigned \S+ to (\S+)$`)
+
+// nodeFromScheduledMessage returns the node named in a Pod "Scheduled" event's
+// message, or "" when the event is not such an event or its message does not
+// have the scheduler's wording. Scheduler events carry no Source.Host, and the
+// message already says where the pod went, so this saves a Pod GET.
+func nodeFromScheduledMessage(ev *v1.Event) string {
+	if ev.Reason != "Scheduled" {
+		return ""
+	}
+	m := scheduledMessageRe.FindStringSubmatch(strings.TrimSpace(ev.Message))
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
+
 // getEventHostInfoImpl get the host information (hostname,nodename) from where the event has been generated.
 // This function takes `hostProviderIDFunc` function to ease unit-testing by mocking the
 // providers logic
@@ -332,6 +353,9 @@ func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName st
 	switch ev.InvolvedObject.Kind {
 	case podKind:
 		sourceHost := ev.Source.Host
+		if sourceHost == "" {
+			sourceHost = nodeFromScheduledMessage(ev)
+		}
 		if sourceHost != "" {
 			info.nodename = sourceHost
 			break
