@@ -40,6 +40,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -188,7 +189,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -706,7 +707,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -2655,7 +2656,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.RedisTrackResources = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient(clientID))
