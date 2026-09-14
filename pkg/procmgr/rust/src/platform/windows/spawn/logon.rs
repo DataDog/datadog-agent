@@ -126,6 +126,7 @@ pub(super) fn with_impersonated_token<T>(
         }
     }
 
+    // Impersonation must be reverted on every exit path, including panic.
     struct RevertGuard;
     impl Drop for RevertGuard {
         fn drop(&mut self) {

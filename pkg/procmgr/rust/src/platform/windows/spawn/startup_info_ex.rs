@@ -16,8 +16,8 @@ use windows_sys::Win32::System::Threading::{
 
 /// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.
 ///
-/// If you are not familiar with Windows: `STARTUPINFOEX` carries extra create-time attributes
-/// (which stdio HANDLEs to inherit, which job object to join). Attribute pointers must remain
+/// `STARTUPINFOEX` carries extra create-time attributes (which stdio HANDLEs to inherit,
+/// which job object to join). Attribute pointers must remain
 /// valid until `CreateProcess*` returns, so this type owns those arrays.
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
@@ -36,6 +36,7 @@ impl StartupInfoEx {
     ) -> Result<Self> {
         const ATTRIBUTE_COUNT: u32 = 1;
         let mut attribute_list_size = 0usize;
+        // Call with a null attribute list to retrieve its size and allocate once.
         unsafe {
             InitializeProcThreadAttributeList(
                 ptr::null_mut(),
@@ -72,7 +73,7 @@ impl StartupInfoEx {
         let mut startup = Self {
             siex: new_siex(stdin, stdout, stderr, attribute_list),
             attribute_list_storage,
-            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
+            stdio_handles: dedup_stdio_handles(stdin, stdout, stderr),
             job_handles: [ptr::null_mut()],
         };
         startup.attach_stdio_handle_list()?;
@@ -88,6 +89,7 @@ impl StartupInfoEx {
     ) -> Result<Self> {
         const ATTRIBUTE_COUNT: u32 = 2;
         let mut attribute_list_size = 0usize;
+        // Call with a null attribute list to retrieve its size and allocate once.
         unsafe {
             InitializeProcThreadAttributeList(
                 ptr::null_mut(),
@@ -96,7 +98,6 @@ impl StartupInfoEx {
                 &mut attribute_list_size,
             );
         }
-        // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
         if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
         {
             bail!(
@@ -125,7 +126,7 @@ impl StartupInfoEx {
         let mut startup = Self {
             siex: new_siex(stdin, stdout, stderr, attribute_list),
             attribute_list_storage,
-            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
+            stdio_handles: dedup_stdio_handles(stdin, stdout, stderr),
             job_handles: [job],
         };
         // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
@@ -159,8 +160,8 @@ impl StartupInfoEx {
     }
 }
 
-/// `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` rejects duplicate handles with `ERROR_INVALID_PARAMETER`.
-fn inheritable_stdio_handle_list(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HANDLE> {
+/// Deduplicate stdio handles; `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` rejects duplicates.
+fn dedup_stdio_handles(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HANDLE> {
     let mut handles = Vec::with_capacity(3);
     for handle in [stdin, stdout, stderr] {
         if !handles.contains(&handle) {

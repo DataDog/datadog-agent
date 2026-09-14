@@ -17,8 +17,8 @@ use super::user_profile::UserProfileGuard;
 
 /// Spawn a child with `CreateProcessAsUserW` using a **primary access token**.
 ///
-/// If you are not familiar with Windows: a primary token is the security context the new
-/// process runs under (user, groups, privileges). This path is agent-profile `LogonUser`
+/// A primary token is the security context the new process runs under (user, groups,
+/// privileges). This path is agent-profile `LogonUser`
 /// only. Privileged and same-account agent spawns use `CreateProcessW` in
 /// `inherit_supervisor`.
 ///

@@ -15,8 +15,8 @@ use super::win32::duplicate_primary_token;
 
 /// Keeps a Windows user profile loaded for the spawn token until the child exits.
 ///
-/// If you are not familiar with Windows: `LoadUserProfileW` mounts the user's registry hive
-/// (HKCU). It must stay paired with `UnloadUserProfile` on the same token. Stored on
+/// `LoadUserProfileW` mounts the user's registry hive (HKCU). It must stay paired with
+/// `UnloadUserProfile` on the same token. Stored on
 /// `ManagedProcess` for agent-profile spawns.
 pub(crate) struct UserProfileGuard {
     token: TokenHandle,

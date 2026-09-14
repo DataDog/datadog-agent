@@ -17,9 +17,9 @@ use super::win32::duplicate_primary_token;
 
 /// Resolved spawn identity for Windows spawn.
 ///
-/// If you are not familiar with Windows: we either reuse procmgrd's access token (when it
-/// already runs as the target account) or call `LogonUser` for a primary token. Password
-/// retrieval is a follow-up (A4-lsa). This type only holds the resolved account and which
+/// We either reuse procmgrd's access token (when it already runs as the target account)
+/// or call `LogonUser` for a primary token. Password retrieval comes from the installer
+/// LSA secret in a separate change. This type only holds the resolved account and which
 /// path to take.
 const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
 

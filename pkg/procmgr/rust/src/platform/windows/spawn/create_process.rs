@@ -31,13 +31,6 @@ pub(super) enum CreateProcessInvoker {
 }
 
 impl CreateProcessInvoker {
-    fn api_name(&self) -> &'static str {
-        match self {
-            Self::InheritSupervisor => "CreateProcessW",
-            Self::AsUser(_) => "CreateProcessAsUserW",
-        }
-    }
-
     unsafe fn invoke(
         &self,
         inputs: &mut SpawnInputs,
@@ -84,8 +77,6 @@ pub(super) fn spawn_managed_child(
     job: &JobObject,
     invoker: CreateProcessInvoker,
 ) -> Result<ProcessHandle> {
-    let api_name = invoker.api_name();
-
     if !current_process_in_job() {
         let mut startup_info = StartupInfoEx::with_stdio_and_job(
             inputs.stdio.stdin(),
@@ -107,7 +98,14 @@ pub(super) fn spawn_managed_child(
         }
         let err = std::io::Error::last_os_error();
         if err.raw_os_error() != Some(ERROR_INVALID_PARAMETER as i32) {
-            bail!("[{process_name}] {api_name} failed: {err}");
+            match invoker {
+                CreateProcessInvoker::InheritSupervisor => {
+                    bail!("[{process_name}] CreateProcessW failed: {err}");
+                }
+                CreateProcessInvoker::AsUser(_) => {
+                    bail!("[{process_name}] CreateProcessAsUserW failed: {err}");
+                }
+            }
         }
     }
 
@@ -120,7 +118,6 @@ fn spawn_post_assign(
     job: &JobObject,
     invoker: CreateProcessInvoker,
 ) -> Result<ProcessHandle> {
-    let api_name = invoker.api_name();
     let mut startup_info = StartupInfoEx::with_stdio_handles(
         inputs.stdio.stdin(),
         inputs.stdio.stdout(),
@@ -136,10 +133,15 @@ fn spawn_post_assign(
         )
     };
     if ok == 0 {
-        bail!(
-            "[{process_name}] {api_name} failed: {}",
-            std::io::Error::last_os_error()
-        );
+        let err = std::io::Error::last_os_error();
+        match invoker {
+            CreateProcessInvoker::InheritSupervisor => {
+                bail!("[{process_name}] CreateProcessW failed: {err}");
+            }
+            CreateProcessInvoker::AsUser(_) => {
+                bail!("[{process_name}] CreateProcessAsUserW failed: {err}");
+            }
+        }
     }
 
     if let Err(e) = job.assign_process(process_info.dwProcessId) {

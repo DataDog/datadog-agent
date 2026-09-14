@@ -13,9 +13,9 @@ use super::wide;
 pub(crate) fn create_well_known_sid(well_known: WELL_KNOWN_SID_TYPE) -> Result<Vec<u8>> {
     unsafe {
         let mut sid_size = 0u32;
+        // Call with a null SID buffer to retrieve its size and allocate once.
         if CreateWellKnownSid(well_known, ptr::null_mut(), ptr::null_mut(), &mut sid_size) == 0 {
             let err = std::io::Error::last_os_error();
-            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
             if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
                 bail!("CreateWellKnownSid size: {err}");
             }
@@ -51,6 +51,7 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
 
+        // Call with null SID and domain buffers to retrieve their sizes and allocate once.
         if LookupAccountNameW(
             ptr::null(),
             account_w.as_ptr(),
@@ -62,7 +63,6 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         ) == 0
         {
             let err = std::io::Error::last_os_error();
-            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
             if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
                 bail!("LookupAccountNameW({account}) size: {err}");
             }

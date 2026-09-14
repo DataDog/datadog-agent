@@ -152,6 +152,7 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
+        // Call with empty name and domain to retrieve their sizes and allocate them once.
         if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
@@ -163,7 +164,6 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
         ) == 0
         {
             let err = std::io::Error::last_os_error();
-            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
             if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
                 return Err(err);
             }
