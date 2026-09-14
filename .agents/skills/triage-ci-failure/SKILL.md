@@ -22,6 +22,8 @@ Every verdict below must cite the evidence that produced it — a bare "looks fl
 
 This skill only diagnoses. Never take action (writing a fix, retrying a job) on your own: only present your investigation results to the user.
 
+**Owning team:** `@DataDog/agent-devx`
+
 ## Step 0 — Preflight
 
 Both `ddgl` and `pup` are required, and both live in the same places: locally, or inside a `dda env dev`.
@@ -131,13 +133,20 @@ State your verdict among the below options, as well as a recommended course of a
 | `flake` | any | Suggest a retry, citing the measured cross-branch failure rate from Step 2 as the reason — not just a feeling. |
 | `inconclusive` | any | Present the evidence and the two most likely readings. Don't guess past what you found. |
 
-End with a line stating the incident outcome on its own, exactly like one of
-these, so a caller like `/follow-pr` can act on it without re-deriving your
-reasoning:
+End with one block per failed job, exactly in this shape, so a caller like `/follow-pr` or `/handle-pr-ci-failure` can act without re-deriving your reasoning or guessing which job a verdict belongs to:
 
 ```
-Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848
-Incident: IR-59848 (stable, probably safe to retry) — https://app.datadoghq.com/incidents/59848
-Incident: IR-59848 (resolved) — https://app.datadoghq.com/incidents/59848
-Incident: none
+CI triage result
+Job: <exact GitLab job name>
+Pipeline SHA: <full SHA of the pipeline you inspected>
+Blame: pr-code | upstream | infra | flake | inconclusive
+Failure signature: <stable failing command/test/error, e.g. "TestFoo/bar: assert.Equal want=1 got=2">
+Evidence: <one-line summary of the hard evidence from Steps 1-4>
+Proposed fix: <smallest concrete fix, or none>
+Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848 | none
+End CI triage result
 ```
+
+`Failure signature` must stay stable across replacement pipelines for the same underlying defect: strip timestamps, job/pipeline IDs, temp paths, and line numbers, keeping the failing command/test name and the error itself. A caller diffs signatures across pipelines to tell "same bug, still broken" from "new bug" — don't let cosmetic noise make two identical failures look different.
+
+Never collapse multiple failed jobs into one block, and never let a `none` incident stand in for a `pr-code` verdict — a caller must branch on `Blame` alone, not on the absence of an incident.
