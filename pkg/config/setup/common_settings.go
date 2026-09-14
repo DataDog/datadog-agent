@@ -277,6 +277,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
 	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
+	config.ParseEnvJSON("network_path.collector.filters", []map[string]string{})
 
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
