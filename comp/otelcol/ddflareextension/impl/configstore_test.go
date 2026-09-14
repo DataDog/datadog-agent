@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
@@ -77,7 +78,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
+	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.New[ipc.Component](ipcmock.New(t)), true, false)
 	assert.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, extension.Shutdown(t.Context()))
