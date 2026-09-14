@@ -5,9 +5,11 @@
 
 use crate::opms::{ProxyDecision, TlsConfig};
 use anyhow::{Context, Result, ensure};
+use regex::Regex;
 use saluki_config::GenericConfiguration;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -240,39 +242,23 @@ fn endpoint_origin(raw: &str) -> Result<String> {
     Ok(parsed.origin().ascii_serialization())
 }
 
+// Mirrors Go's `ddSitePattern` in `pkg/config/utils/endpoints.go`: an optional datacenter
+// label (e.g. `us3.`, `ap1.`) followed by a known Datadog domain, anchored at the end of the
+// hostname.
+static SITE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:^|\.)([a-z]{2,}\d{1,2}\.)?(datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com)$")
+        .unwrap()
+});
+
 fn site_from_datadog_url(raw: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(raw).ok()?;
-    let host = parsed.host_str()?.trim_end_matches('.');
-    for domain in [
-        "datadoghq.com",
-        "datadoghq.eu",
-        "datad0g.com",
-        "datad0g.eu",
-        "ddog-gov.com",
-    ] {
-        if host == domain {
-            return Some(domain.to_string());
-        }
-        let Some(prefix) = host.strip_suffix(&format!(".{domain}")) else {
-            continue;
-        };
-        let label = prefix.rsplit('.').next()?;
-        let letters = label.find(|character: char| character.is_ascii_digit());
-        if let Some(letters) = letters
-            && letters >= 2
-            && (1..=2).contains(&(label.len() - letters))
-            && label[..letters]
-                .chars()
-                .all(|character| character.is_ascii_lowercase())
-            && label[letters..]
-                .chars()
-                .all(|character| character.is_ascii_digit())
-        {
-            return Some(format!("{label}.{domain}"));
-        }
-        return Some(domain.to_string());
-    }
-    None
+    let host = parsed
+        .host_str()?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let captures = SITE_RE.captures(&host)?;
+    let datacenter = captures.get(1).map_or("", |group| group.as_str());
+    Some(format!("{datacenter}{}", &captures[2]))
 }
 
 fn proxy_for(agent: &GenericConfiguration, target: &str) -> Result<ProxyDecision> {

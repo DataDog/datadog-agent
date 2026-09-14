@@ -30,6 +30,7 @@ log.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
 prost-types.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 rustls-pki-types.workspace = true
 saluki-config.workspace = true

@@ -57,6 +57,7 @@ rust_library(
         "@crates//:p256",
         "@crates//:prost",
         "@crates//:prost-types",
+        "@crates//:regex",
         "@crates//:reqwest",
         "@crates//:rustls",
         "@crates//:rustls-pki-types",
