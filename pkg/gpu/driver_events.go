@@ -29,17 +29,12 @@ const (
 	nvidiaXidFirstNVLink5Code = 144
 	nvidiaXidLastNVLink5Code  = 150
 
-	// Xid codes whose message text carries structured detail worth extracting. A code is
-	// listed here only when the driver prints fields beyond the preamble; everything else
-	// still produces an event, just without a detail struct.
-	//
-	// The definitive reference for what these lines look like is the driver source that
-	// prints them: the *_XID_MESSAGE_FMT format strings in
+	// Xid codes whose message carries structured detail. Codes absent here still produce an
+	// event, just without a detail struct. The patterns below must match the driver's own
+	// *_XID_MESSAGE_FMT strings, each tied to its code by a pEvent->xidNNN assignment — the
+	// first place to look when one stops matching:
 	// https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/interface/events/gpu/ras/ras_events.c
-	// Each format is tied to its code by the pEvent->xidNNN assignment in the function that
-	// uses it, so that file is where to look first when a pattern below stops matching.
-	// For what a code *means* rather than how it prints, see
-	// https://docs.nvidia.com/deploy/xid-errors/index.html
+	// For what a code means rather than how it prints: https://docs.nvidia.com/deploy/xid-errors/index.html
 
 	nvidiaXidMMUFaultCode = 31 // GPU memory page fault; names the engine, client and fault address
 	nvidiaXidDBECode      = 48 // Double-bit ECC error; names the physical address and partition
@@ -62,15 +57,13 @@ const (
 	nvidiaXidChannelRepairCode = 160 // A DRAM channel or L2 slice was marked for repair
 	nvidiaXidRepairFailureCode = 161 // That repair could not be made; no spare channels or slices left
 
-	// On Blackwell the DRAM/SRAM split of an ECC error arrives as one of these companion
-	// codes instead of an inline location field, so the code itself is the location.
+	// On Blackwell the ECC DRAM/SRAM split arrives as a companion code, so the code is the location.
 	nvidiaXidDRAMDetailCode = 171 // Uncorrectable DRAM error
 	nvidiaXidSRAMDetailCode = 172 // Uncorrectable SRAM error
 
 	nvidiaXidBankRemapCode = 177 // A DRAM bank was marked for remapping; absent from published Xid tables
 
-	// Memory error locations. Reported inline by Xid 94 and 95, and implied by the code
-	// itself for Xid 171 and 172.
+	// Memory error locations: inline in the text for Xid 94 and 95, from the code for 171 and 172.
 	memoryLocationDRAM = "DRAM"
 	memoryLocationSRAM = "SRAM"
 
@@ -79,17 +72,14 @@ const (
 	repairTargetBank = "bank" // A DRAM bank, remapped out of service
 	repairTargetTPC  = "tpc"  // A texture processing cluster, retired in favour of a spare
 
-	// repairContainerGPC is the enclosing unit for a retired TPC. Channels and L2 slices
-	// report their container in the message instead (FBPA and FPB respectively).
+	// Encloses a retired TPC. Channels and L2 slices name their own container (FBPA, FPB).
 	repairContainerGPC = "GPC"
 
-	// Sources of a single-bit error interrupt storm. Only DRAM has row remapping to absorb
-	// the errors, so the two are not interchangeable when judging severity.
+	// Storm sources. Only DRAM has row remapping to absorb the errors, so severity differs.
 	stormSourceDRAM = "dram" // Framebuffer partition storm; the message names the partition
 	stormSourceSM   = "sm"   // SM storm; the message names no location
 
-	// Where the spare for a retired TPC came from. A spare drawn from a different GPC
-	// changes the shape of the surviving partition, so the distinction is load-bearing.
+	// Where a retired TPC's spare came from; a different GPC reshapes the surviving partition.
 	spareSourceSameGPC = "same_gpc"
 	spareSourceDiffGPC = "different_gpc"
 )
@@ -304,10 +294,8 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		s.telemetry.enrichmentFailures.Inc()
 	}
 
-	// A device that has left the PCIe bus can no longer be resolved through NVML, which is
-	// exactly the state Xid 79 and the 62/119/120 sequence preceding it report. Dropping the
-	// event here would discard the codes that need it most, so keep the event and let the
-	// PCI bus ID carry the device identity.
+	// A device off the PCIe bus is unresolvable through NVML — exactly what Xid 79 and the
+	// 62/119/120 sequence report — so keep the event and let the PCI bus ID identify it.
 	device, err := s.deviceCache.GetByPCIBusID(pciBusID)
 	if err != nil {
 		s.telemetry.unresolvedPCI.Inc()
@@ -414,10 +402,8 @@ func truncateDriverEventMessage(message string) string {
 	return message[:maxDriverEventMessageLength]
 }
 
-// parseNvidiaXidPreamble reads the fields the driver prints before any code-specific detail:
-// the process, and the GPU command channel. Every code can carry them, so they are parsed
-// here rather than in a per-code parser — Xid 43 for instance has no detail parser at all,
-// and its channel was previously dropped.
+// parseNvidiaXidPreamble reads the process and command channel the driver prints before any
+// code-specific detail. Every code can carry them, including ones with no detail parser.
 func parseNvidiaXidPreamble(message string, xid *model.NvidiaXid) {
 	if matches := nvidiaProcessIDPattern.FindStringSubmatch(message); matches != nil {
 		if processID, err := strconv.ParseUint(matches[1], 10, 64); err == nil {
@@ -487,12 +473,9 @@ func parseNvidiaNVLinkFlag(value string) bool {
 	return err == nil && parsed != 0
 }
 
-// parseNvidiaNVLinkStatusGroup reads the trailing decode group positionally. The first two
-// words are intrInfo and errorStatus, the inputs NVIDIA's decode table needs; the rest is
-// errorDebugData in printed order. A message-wide hex scrape cannot tell these apart.
-//
-// The driver parenthesises the group on R575+ and brackets it on earlier releases, so both
-// forms are accepted, and the last group on the line wins.
+// parseNvidiaNVLinkStatusGroup reads the trailing decode group positionally: intrInfo and
+// errorStatus first, the inputs NVIDIA's decode table needs, then errorDebugData in printed
+// order. The group is parenthesised on R575+ and bracketed earlier; the last one wins.
 func parseNvidiaNVLinkStatusGroup(message string, details *model.NvidiaXidNVLinkFault) {
 	groups := nvidiaNVLinkStatusPattern.FindAllStringSubmatch(message, -1)
 	if groups == nil {
@@ -523,18 +506,15 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 		details.Partition = parseDecimalPointer(matches[1])
 		details.Subpartition = parseDecimalPointer(matches[2])
 	}
-	// Only the bare-keyword form belongs here. The driver's parenthesised "New row (0x…)"
-	// names the row being remapped rather than a fault location, so it is read by the
-	// repair parser instead and is not duplicated into both structs.
+	// Only the bare-keyword form. The parenthesised "New row (0x…)" names a row being
+	// remapped, not a fault location, so the repair parser reads it instead.
 	if matches := nvidiaRowAddressPattern.FindStringSubmatch(message); matches != nil {
 		details.RowAddress = normalizeHex(matches[1])
 	}
 	if matches := nvidiaRowRemapperSitePattern.FindStringSubmatch(message); matches != nil {
 		details.RowRemapperSite = matches[1]
 	}
-	// On Blackwell the DRAM/SRAM split arrives as a companion code rather than an inline
-	// field, so for 171 and 172 the code itself is the location and no parsing is needed.
-	// Only 94 and 95 carry the location in the message text.
+	// 171 and 172 are the location, so no parsing is needed; only 94 and 95 carry it inline.
 	switch xidCode {
 	case nvidiaXidDRAMDetailCode:
 		details.Location = memoryLocationDRAM
@@ -571,9 +551,8 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	return false
 }
 
-// parseNvidiaRepairXid reads the resource retirement and repair codes. Each of these lines
-// names a spare resource that was spent, or a repair that could not be made, so the useful
-// payload is which resource, where, and what is needed to activate the repair.
+// parseNvidiaRepairXid reads the retirement and repair codes: which spare resource was spent
+// or could not be found, where it sits, and what activates the repair.
 func parseNvidiaRepairXid(message string, xidCode uint64, xid *model.NvidiaXid) bool {
 	details := &model.NvidiaXidRepair{}
 
