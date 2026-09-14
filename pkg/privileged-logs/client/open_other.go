@@ -9,12 +9,34 @@
 package client
 
 import (
+	"errors"
 	"os"
+	"runtime"
 )
 
 // Open provides a fallback for non-Linux platforms where the privileged logs module is not available.
 func Open(path string) (*os.File, error) {
-	return os.Open(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// On AIX, opening a directory like a regular file works,
+	// so we need to explicitly check that the file is not a directory
+	if runtime.GOOS == "aix" {
+		stat, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+
+		if stat.IsDir() {
+			_ = file.Close()
+			return nil, errors.New("file is a directory")
+		}
+	}
+
+	return file, nil
 }
 
 // Stat provides a fallback for non-Linux platforms where the privileged logs module is not available.
