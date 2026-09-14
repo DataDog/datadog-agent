@@ -8,6 +8,8 @@ go_library(
     srcs = [
         "collector.go",
         "collector_unsupported.go",
+        "cpu_stats_provider.go",
+        "proc_stat.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics",
     visibility = ["//visibility:public"],
@@ -74,7 +76,10 @@ go_library(
 
 dd_agent_go_test(
     name = "enhanced-metrics_test",
-    srcs = ["collector_test.go"],
+    srcs = [
+        "collector_test.go",
+        "proc_stat_test.go",
+    ],
     embed = [":enhanced-metrics"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -83,6 +88,7 @@ dd_agent_go_test(
             "//pkg/util/pointer",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/metrics",
@@ -90,6 +96,7 @@ dd_agent_go_test(
             "//pkg/util/pointer",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
