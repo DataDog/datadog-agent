@@ -2292,7 +2292,7 @@ api_key:
 #     pathtest_interval: "30m"
 
 #     # @param filters - list of object - optional - default: []
-#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - JSON list of object - optional - default: []
+#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - JSON list of objects - optional - default: []
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
