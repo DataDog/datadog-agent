@@ -7,6 +7,8 @@
 package statusimpl
 
 import (
+	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,9 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	processstatus "github.com/DataDog/datadog-agent/comp/process/status/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -34,20 +38,26 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	StatusProvider status.InformationProvider
+	Comp           processstatus.Component
+	StatusProvider corestatus.InformationProvider
 }
 
 // NewComponent creates the status component.
 func NewComponent(deps dependencies) Provides {
+	provider := &statusProvider{
+		config:   deps.Config,
+		hostname: deps.Hostname,
+	}
+
 	return Provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
-		}),
+		Comp:           provider,
+		StatusProvider: corestatus.NewInformationProvider(provider),
 	}
 }
 
 type statusProvider struct {
+	pbcore.UnimplementedStatusProviderServer
+
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
@@ -135,10 +145,28 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
+}
+
+// GetStatusDetails returns the Process Agent status rendered as text.
+func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	var details bytes.Buffer
+	if err := s.Text(false, &details); err != nil {
+		return nil, err
+	}
+
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: map[string]*pbcore.StatusSection{
+			"Details": {
+				Fields: map[string]string{
+					"": details.String(),
+				},
+			},
+		},
+	}, nil
 }

@@ -151,7 +151,6 @@ go_library(
         "//comp/privateactionrunner/status/statusimpl",
         "//comp/process",
         "//comp/process/agent/def",
-        "//comp/process/status/fx",
         "//comp/rdnsquerier/fx",
         "//comp/remote-config",
         "//comp/remote-config/rcclient/def",

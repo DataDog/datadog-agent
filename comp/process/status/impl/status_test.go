@@ -7,6 +7,7 @@ package statusimpl
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 //go:embed fixtures
@@ -139,6 +141,60 @@ func TestStatusError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.assertFunc(t)
+		})
+	}
+}
+
+func TestGetStatusDetails(t *testing.T) {
+	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
+	require.NoError(t, err)
+	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		statusCode   int
+		response     []byte
+		wantContains string
+		wantExact    string
+	}{
+		{
+			name:         "successful status",
+			statusCode:   http.StatusOK,
+			response:     jsonBytes,
+			wantContains: "API Key ending with:",
+		},
+		{
+			name:       "unreachable status",
+			statusCode: http.StatusInternalServerError,
+			wantExact:  string(errorResponse),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := fakeStatusServer(t, test.statusCode, test.response)
+			defer server.Close()
+
+			configComponent := config.NewMock(t)
+			configComponent.SetInTest("cloud_provider_metadata", []string{})
+
+			provider := statusProvider{
+				testServerURL: server.URL,
+				config:        configComponent,
+				hostname:      hostnameimpl.NewHostnameService(),
+			}
+
+			response, err := provider.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+			require.NoError(t, err)
+			require.Contains(t, response.NamedSections, "Details")
+			details := strings.ReplaceAll(response.NamedSections["Details"].Fields[""], "\r\n", "\n")
+			if test.wantExact != "" {
+				assert.Equal(t, strings.ReplaceAll(test.wantExact, "\r\n", "\n"), details)
+			}
+			if test.wantContains != "" {
+				assert.Contains(t, details, test.wantContains)
+			}
 		})
 	}
 }

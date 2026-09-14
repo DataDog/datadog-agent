@@ -6,8 +6,11 @@
 // Package status implements the core status component information provider interface
 package status
 
+import pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+
 // team: container-experiences
 
 // Component is the status interface.
 type Component interface {
+	pbcore.StatusProviderServer
 }
