@@ -20,7 +20,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -65,6 +65,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	nvlinkGPM:    newNVLinkGPMCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
+	ebpf:         newEbpfCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -79,18 +80,16 @@ type CollectorDependencies struct {
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
 	Workloadmeta workloadmeta.Component
-	// Config is used for collector-specific configuration.
-	Config pkgconfigmodel.Reader
+	// Config contains the parsed GPU configuration shared with system-probe.
+	Config gpuconfig.Config
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-// If SystemProbeCache is provided, additional system-probe virtual collectors will be created for all devices.
-// disabledCollectors is a list of collector names that should not be created.
-func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, disabledCollectors []string) ([]Collector, error) {
-	return buildCollectors(devices, deps, factory, disabledCollectors)
+func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Collector, error) {
+	return buildCollectors(devices, deps, factory)
 }
 
-func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, disabledCollectors []string) ([]Collector, error) {
+func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	if len(devices) == 0 {
 		return nil, nil
 	}
@@ -98,8 +97,8 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	var collectors []Collector
 
 	// Check that the disabled collectors are valid
-	for _, disabled := range disabledCollectors {
-		if _, ok := builders[CollectorName(disabled)]; !ok && CollectorName(disabled) != ebpf {
+	for _, disabled := range deps.Config.DisabledCollectors {
+		if _, ok := builders[CollectorName(disabled)]; !ok {
 			log.Warnf("invalid disabled collector: %s", disabled)
 			continue
 		}
@@ -109,8 +108,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	// (since most of NVML API doesn't support MIG devices)
 	for _, dev := range devices {
 		for name, builder := range builders {
-			// Skip disabled collectors
-			if slices.Contains(disabledCollectors, string(name)) {
+			if collectorDisabled(name, deps.Config) {
 				log.Debugf("Skipping disabled collector %s for device %s", name, dev.GetDeviceInfo().UUID)
 				deps.Telemetry.addCollectorCreation(name, "disabled", dev)
 				continue
@@ -132,31 +130,22 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 		}
 	}
 
-	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
-	if deps.SystemProbeCache != nil {
-		// Check if ebpf collector is disabled
-		if slices.Contains(disabledCollectors, string(ebpf)) {
-			log.Debug("Skipping disabled ebpf collector")
-			for _, dev := range devices {
-				deps.Telemetry.addCollectorCreation(ebpf, "disabled", dev)
-			}
-		} else {
-			log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
-			for _, dev := range devices {
-				spCollector, err := newEbpfCollector(dev, deps.SystemProbeCache)
-				if err != nil {
-					log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
-					deps.Telemetry.addCollectorCreation(ebpf, "error", dev)
-					continue
-				}
+	return collectors, nil
+}
 
-				deps.Telemetry.addCollectorCreation(ebpf, "success", dev)
-				collectors = append(collectors, spCollector)
-			}
-		}
+func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
+	if slices.Contains(config.DisabledCollectors, string(name)) {
+		return true
 	}
 
-	return collectors, nil
+	switch name {
+	case ebpf:
+		return !config.Enabled || !config.EnableEBPFProbes
+	case nvlinkPLR:
+		return !config.Enabled || !config.PRMEndpointEnabled
+	default:
+		return false
+	}
 }
 
 // CollectorTelemetry holds telemetry metrics for NVIDIA collector creation and execution.

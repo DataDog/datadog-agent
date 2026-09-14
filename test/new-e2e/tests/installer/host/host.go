@@ -204,21 +204,29 @@ func (h *Host) ConfigureAptMirrors() {
 	// with long default TCP timeouts: Acquire::http::Timeout is a per-socket idle timeout,
 	// so a short bound turns a stalled mirror into a fast error that triggers failover.
 	h.remote.MustExecute(`printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+
+	switch h.os.Flavor {
 	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
-	if h.os.Flavor != e2eos.Ubuntu {
-		return
+	case e2eos.Ubuntu:
+		// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
+		// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
+		// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
+		// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
+		// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
+		if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
+			return
+		}
+		h.remote.MustExecute(`printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+		h.remote.MustExecute(`printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+		h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+	case e2eos.Debian:
+		// Bullseye (Debian 11) is EOL and archived off the regular mirrors; other Debian
+		// releases still have live repositories, so only rewrite sources.list for 11.
+		if !strings.HasPrefix(h.os.Version, "11") {
+			return
+		}
+		h.remote.MustExecute(`printf 'deb http://archive.debian.org/debian bullseye main\ndeb-src http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian bullseye-updates main\ndeb-src http://archive.debian.org/debian bullseye-updates main\ndeb http://archive.debian.org/debian bullseye-backports main\ndeb-src http://archive.debian.org/debian bullseye-backports main\n' | sudo tee /etc/apt/sources.list`)
 	}
-	// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
-	// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
-	// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
-	// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
-	// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
-	if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
-		return
-	}
-	h.remote.MustExecute(`printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
-	h.remote.MustExecute(`printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
-	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
 // ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
