@@ -354,6 +354,10 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.159.0
+	// Pinned: this is the newest release of the opentelemetry-operator API module that
+	// still requires k8s.io/api <= v0.35.x. Newer releases require v0.36+, which would
+	// force a repo-wide Kubernetes library bump.
+	github.com/open-telemetry/opentelemetry-operator/apis v0.153.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.3.0

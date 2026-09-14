@@ -32,6 +32,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
@@ -54,7 +55,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher, otelResolver *otelinstrumentation.Resolver) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config
@@ -71,7 +72,7 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, rcClient, demultiplexer, pp, sh, filterStore, handlers, informerFactory, csiDriverWatcher)
+	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, rcClient, demultiplexer, pp, sh, filterStore, handlers, informerFactory, csiDriverWatcher, otelResolver)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
