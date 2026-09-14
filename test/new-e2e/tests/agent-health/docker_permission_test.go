@@ -159,8 +159,8 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		require.NotEmpty(t, issues)
 		issue := issues[0]
 		assert.Equal(t, "docker-socket-permissions", issue.Id)
-		assert.Equal(t, "Docker File Tailing Disabled", issue.IssueName)
-		assert.Equal(t, "docker_file_tailing_disabled", issue.IssueType)
+		assert.Equal(t, "Docker Socket Permission", issue.IssueName)
+		assert.Equal(t, "docker_socket_permission", issue.IssueType)
 		assert.Equal(t, "permissions", issue.Category)
 		assert.Equal(t, "logs-agent", issue.Location)
 		assert.Equal(t, "agent", issue.Source)
