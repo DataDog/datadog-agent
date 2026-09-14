@@ -1225,8 +1225,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-		p.monitors.ProcessEvent(event, p.probe.scrubber)
 	}
+
+	p.monitors.ProcessEvent(event, p.probe.scrubber)
 }
 
 // SendStats sends statistics about the probe to Datadog
