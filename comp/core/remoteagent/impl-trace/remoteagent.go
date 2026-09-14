@@ -18,6 +18,7 @@ import (
 	tracestatus "github.com/DataDog/datadog-agent/comp/trace/status/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"google.golang.org/grpc"
 )
 
 // Requires defines the dependencies for the remoteagent component
@@ -56,14 +57,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 		remoteAgentServer: remoteAgentServer,
 	}
 
-	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), reqs.Status)
-
+	registerServices(remoteAgentServer.GetGRPCServer(), reqs.Status)
 	remoteAgentServer.Start()
 
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}
 	return provides, nil
+}
+
+func registerServices(server grpc.ServiceRegistrar, status tracestatus.Component) {
+	pbcore.RegisterStatusProviderServer(server, status)
 }
 
 type remoteagentImpl struct {
