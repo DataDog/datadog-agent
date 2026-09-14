@@ -8,8 +8,6 @@ package status
 
 // team: fleet-remediation
 
-// Component is the top-level marker interface required by the component linter.
-// The health platform status component has no public methods: its only
-// purpose is to register an `agent status` information provider, which it
-// does as a side effect of being constructed.
-type Component = any
+// Component is the component type.
+type Component interface {
+}
