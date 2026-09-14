@@ -5,9 +5,26 @@
       {{ if $.remoteConfigStartup.startupFailureReason }}
         Startup Failure Reason: {{ $.remoteConfigStartup.startupFailureReason }}
       {{ else }}
+        {{- if .endpoint }}
+        Endpoint: {{ .endpoint }}<br>
+        {{- end }}
         API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
         Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
         Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+        {{- with .additionalInstances }}
+        <br>
+        <br>Additional clients
+        <ul>
+        {{- range $name, $instance := . }}
+          <li>{{ $name }}
+            <br>&nbsp;&nbsp;Endpoint: {{ if $instance.endpoint }}{{ $instance.endpoint }}{{ else }}Unknown{{ end }}
+            <br>&nbsp;&nbsp;Organization enabled: {{ if and $instance.orgEnabled (eq $instance.orgEnabled "true") }}True{{ else }}False{{ end }}
+            <br>&nbsp;&nbsp;API Key: {{ if and $instance.apiKeyScoped (eq $instance.apiKeyScoped "true") }}Authorized{{ else }}Not authorized{{ end }}
+            <br>&nbsp;&nbsp;Last error: {{ if $instance.lastError }}{{ $instance.lastError }}{{ else }}None{{ end }}
+          </li>
+        {{- end }}
+        </ul>
+        {{- end }}
       {{ end }}
     {{ else }}
       Remote Configuration is disabled
