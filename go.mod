@@ -201,7 +201,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423
 	github.com/DataDog/datadog-traceroute v1.0.20
@@ -409,7 +409,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.33
-	go.mongodb.org/mongo-driver/v2 v2.8.2
+	go.mongodb.org/mongo-driver/v2 v2.9.0
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
@@ -509,7 +509,7 @@ require (
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
-	mvdan.cc/sh/v3 v3.14.0
+	mvdan.cc/sh/v3 v3.14.1
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.35.0
 	sigs.k8s.io/gateway-api v1.5.1
