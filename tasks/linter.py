@@ -344,13 +344,15 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         base_branch = get_ancestor_base_branch()
         merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
         result = ctx.run(
-            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
+            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-[a-z]+)?/notes/.*\\.yaml$'",
             warn=True,
             hide=True,
         )
         file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
     else:
-        file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
+        # Every top-level releasenotes* directory is a separate reno tree
+        # (releasenotes/, releasenotes-dca/, releasenotes-aix/, ...).
+        file_list = list(glob('releasenotes*/notes/*.yaml'))
 
     if not file_list:
         print(color_message("No release note files to lint", "yellow"))
