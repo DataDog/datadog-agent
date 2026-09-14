@@ -105,5 +105,14 @@ func TestTopDogstatsdContextsRejectsLiveWhenDataPlaneOwnsDogstatsd(t *testing.T)
 	endpoint.topDogstatsdContexts(recorder, request)
 
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+}
+
+func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
+	endpoint := demultiplexerEndpoint{dogstatsdOnDataPlane: true}
+	recorder := httptest.NewRecorder()
+
+	endpoint.dumpDogstatsdContexts(recorder, httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-dump", nil))
+
+	require.Equal(t, http.StatusNotFound, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "Agent Data Plane")
 }

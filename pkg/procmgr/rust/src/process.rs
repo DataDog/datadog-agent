@@ -739,6 +739,49 @@ pub mod tests {
     }
 
     #[tokio::test]
+    async fn test_spawn_inherits_opted_in_parent_env() {
+        unsafe {
+            std::env::set_var("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_");
+            std::env::set_var("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, ");
+            std::env::set_var("INHERITED_PREFIX_VALUE", "prefix");
+            std::env::set_var("INHERITED_PREFIX_FILE", "parent");
+            std::env::set_var("INHERITED_EXACT", "parent");
+            std::env::set_var("NOT_INHERITED", "secret");
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "INHERITED_PREFIX_FILE=file\n").unwrap();
+
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        #[cfg(windows)]
+        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.env
+            .insert("INHERITED_EXACT".to_string(), "override".to_string());
+
+        let mut proc =
+            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+
+        for name in [
+            "DD_PM_INHERIT_ENV_PREFIXES",
+            "DD_PM_INHERIT_ENV_NAMES",
+            "INHERITED_PREFIX_VALUE",
+            "INHERITED_PREFIX_FILE",
+            "INHERITED_EXACT",
+            "NOT_INHERITED",
+        ] {
+            unsafe { std::env::remove_var(name) };
+        }
+        assert_eq!(status.code(), Some(0));
+    }
+
+    #[tokio::test]
     async fn test_spawn_with_environment_file() {
         let dir = tempfile::tempdir().unwrap();
         let env_file = dir.path().join("env");

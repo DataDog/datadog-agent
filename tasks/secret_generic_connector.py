@@ -10,6 +10,7 @@ from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name, get_build_flags
@@ -31,10 +32,25 @@ def build(
     strip_binary=True,
     fips_mode=False,
     arch_suffix=False,
+    enable_bazel=False,
 ):
     """
     Build the secret-generic-connector binary.
     """
+    if enable_bazel:
+        if output_bin:
+            raise NotImplementedError("--enable-bazel does not support --output-bin")
+        if arch_suffix:
+            raise NotImplementedError(
+                "--enable-bazel does not support --arch-suffix yet. Ask agent-build about this need"
+            )
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(
+            "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
+        )
+        return
 
     version = get_version(ctx, include_git=True)
 

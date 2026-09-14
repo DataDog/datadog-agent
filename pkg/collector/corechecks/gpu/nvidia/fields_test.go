@@ -21,7 +21,7 @@ import (
 func TestFieldsCollector_AllMetricsEmitted(t *testing.T) {
 	device := setupMockDevice(t)
 
-	collector, err := newFieldsCollector(device, nil)
+	collector, err := newFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	collected, err := collector.Collect()
@@ -57,7 +57,7 @@ func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 	)
 	device := nvmltestutil.PhysicalDevice(t, mock, 0)
 
-	collector, err := newFieldsCollector(device, nil)
+	collector, err := newFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	fc, ok := collector.(*fieldsCollector)
@@ -109,7 +109,7 @@ func TestFieldsCollectorRemovesUnsupportedField(t *testing.T) {
 		testutil.WithUnsupportedFields(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS),
 	)
 
-	collector, err := newFieldsCollector(device, nil)
+	collector, err := newFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	fc, ok := collector.(*fieldsCollector)
@@ -125,7 +125,7 @@ func TestFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *
 		testutil.WithInvalidArgumentFields(nvml.FI_DEV_C2C_LINK_ERROR_INTR),
 	)
 
-	collector, err := newFieldsCollector(device, nil)
+	collector, err := newFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	fc, ok := collector.(*fieldsCollector)

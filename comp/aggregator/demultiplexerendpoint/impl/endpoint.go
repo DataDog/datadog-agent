@@ -23,6 +23,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	dogstatsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/contexttop"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -51,10 +52,11 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux   contextDumper
-	runPath string
-	log     log.Component
-	dumpMu  sync.RWMutex
+	demux                contextDumper
+	runPath              string
+	dogstatsdOnDataPlane bool
+	log                  log.Component
+	dumpMu               sync.RWMutex
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -66,9 +68,10 @@ type Provides struct {
 // NewComponent creates a new demultiplexerendpoint component
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
-		demux:   reqs.Demultiplexer,
-		runPath: reqs.Config.GetString("run_path"),
-		log:     reqs.Log,
+		demux:                reqs.Demultiplexer,
+		runPath:              reqs.Config.GetString("run_path"),
+		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
+		log:                  reqs.Log,
 	}
 
 	return Provides{
@@ -157,6 +160,11 @@ func (demuxendpoint *demultiplexerEndpoint) getDogstatsdTop(numMetrics, numTags 
 }
 
 func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+	if demuxendpoint.dogstatsdOnDataPlane {
+		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusNotFound)
+		return
+	}
+
 	path, err := demuxendpoint.writeDogstatsdContexts()
 	if err != nil {
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
