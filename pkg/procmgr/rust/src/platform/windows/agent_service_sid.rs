@@ -61,6 +61,26 @@ pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<
     }))
 }
 
+#[cfg(not(test))]
+pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
+    use super::{open_datadog_agent_key, registry_nonempty_string};
+
+    let Some(key) = open_datadog_agent_key() else {
+        bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
+    };
+    let user = registry_nonempty_string(&key, "installedUser")
+        .context("read installedUser from registry")?;
+    let domain = key
+        .get_string("installedDomain")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    let sid = lookup_installed_user_sid(&domain, &user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
+    sid_to_string(&sid)
+}
+
 fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
     let mut candidates = vec![(domain.to_string(), user.to_string())];
     if !domain.is_empty() {

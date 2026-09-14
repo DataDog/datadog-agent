@@ -38,9 +38,8 @@ fn net_is_service_account(domain: &str, user: &str) -> Result<bool> {
     let net_is_service_account = net_is_service_account_fn()?;
     let account = wide::null_terminated(&AccountName::new(domain, user).display());
     let mut is_service = 0i32;
-    let status = unsafe {
-        net_is_service_account(std::ptr::null(), account.as_ptr(), &mut is_service)
-    };
+    let status =
+        unsafe { net_is_service_account(std::ptr::null(), account.as_ptr(), &mut is_service) };
     if status != 0 {
         return Err(std::io::Error::from_raw_os_error(status as i32))
             .context("NetIsServiceAccount");
@@ -68,14 +67,12 @@ fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
     let symbol = c"NetIsServiceAccount";
     let proc = unsafe { GetProcAddress(module, symbol.as_ptr()) };
     let Some(proc) = proc else {
-        return Err(std::io::Error::last_os_error())
-            .context("GetProcAddress(NetIsServiceAccount)");
+        return Err(std::io::Error::last_os_error()).context("GetProcAddress(NetIsServiceAccount)");
     };
 
     // Keep Logoncli.dll mapped for the process lifetime; only the function pointer is cached.
     std::mem::forget(module);
-    let net_is_service_account =
-        unsafe { std::mem::transmute::<_, NetIsServiceAccountFn>(proc) };
+    let net_is_service_account = unsafe { std::mem::transmute::<_, NetIsServiceAccountFn>(proc) };
     Ok(net_is_service_account)
 }
 
