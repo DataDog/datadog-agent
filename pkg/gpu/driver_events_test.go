@@ -308,6 +308,121 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 			},
 		},
 		{
+			name:    "row remap failure names its cause",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper Error: (0x0000000000abcdef) - Row Remapping table is full",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper Error: (0x0000000000abcdef) - Row Remapping table is full",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "row",
+					Address:       "0x0000000000abcdef",
+					Failed:        true,
+					FailureReason: "row_remapping_table_is_full",
+				},
+			},
+		},
+		{
+			// The condition the brief called out: a remap attempted on a row already pending.
+			name:    "row remap failure on an already pending row",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper: (0x0000000000abcdef) - Attempting to remap a row that is already pending remapping. Remapping will occur when the GPU is reset",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper: (0x0000000000abcdef) - Attempting to remap a row that is already pending remapping. Remapping will occur when the GPU is reset",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "row",
+					Address:       "0x0000000000abcdef",
+					Failed:        true,
+					FailureReason: "attempting_to_remap_a_row_that_is_already_pending_remapping",
+				},
+			},
+		},
+		{
+			name:    "DRAM retirement failure names its cause and address",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, DRAM Retirement failed due to no spare for retirement at 0x0000000000001234",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, DRAM Retirement failed due to no spare for retirement at 0x0000000000001234",
+				Repair: &model.NvidiaXidRepair{
+					Failed:        true,
+					FailureReason: "no_spare_for_retirement",
+					Address:       "0x0000000000001234",
+				},
+			},
+		},
+		{
+			name:    "TPC retired with a spare from the same GPC",
+			message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a spare from the same GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 156,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a spare from the same GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(4),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(2),
+					SpareSource:    "same_gpc",
+				},
+			},
+		},
+		{
+			name:    "TPC retired with a spare from a different GPC",
+			message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a TPC from a different GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 156,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a TPC from a different GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(4),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(2),
+					SpareSource:    "different_gpc",
+				},
+			},
+		},
+		{
+			name:    "TPC retirement failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 as there are no spare TPCs available.",
+			expected: model.NvidiaXid{
+				XidCode: 157,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 as there are no spare TPCs available.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(7),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(3),
+					Failed:         true,
+					FailureReason:  "no_spare_tpc",
+				},
+			},
+		},
+		{
+			// MIG confines the spare search to the same GPC, which is why this variant exists.
+			name:    "TPC retirement failure under MIG",
+			message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 in MIG mode as there are no spare TPCs in the same GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 157,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 in MIG mode as there are no spare TPCs in the same GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(7),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(3),
+					Failed:         true,
+					MIGMode:        true,
+					FailureReason:  "no_spare_tpc",
+				},
+			},
+		},
+		{
+			name:    "bank remap pending",
+			message: "NVRM: Xid (PCI:0000:00:1e): 177, Bank Remapper: New bank marked for remapping, reset gpu to activate.",
+			expected: model.NvidiaXid{
+				XidCode: 177,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 177, Bank Remapper: New bank marked for remapping, reset gpu to activate.",
+				Repair:  &model.NvidiaXidRepair{Target: "bank"},
+			},
+		},
+		{
 			name:    "row remapper address",
 			message: "NVRM: Xid (PCI:0000:00:1e): 63, Row Remapper failed at row address 0x000000000000abcd site FBPA0",
 			expected: model.NvidiaXid{
