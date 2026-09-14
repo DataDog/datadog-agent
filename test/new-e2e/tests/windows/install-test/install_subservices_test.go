@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -63,6 +64,33 @@ func (s *testSubServicesOptsSuite) SetupSuite() {
 
 	vm := s.Env().RemoteHost
 	tc := s.tc
+
+	// This suite installs in SetupSuite, before BeforeTest creates the regular
+	// per-test audit lifecycle, so give the setup install its own audit window.
+	s.initializeFileDeletionAuditState("setup-file-deletion-audit.json")
+	startAuditErr := s.startFileDeletionAuditLifecycle(vm)
+	defer func() {
+		var evidenceErr error
+		if s.deletionAuditData.LifecycleStart != nil {
+			evidenceErr = s.collectUnattributedDeletionEvents(vm)
+			if evidenceErr != nil {
+				s.deletionAuditData.LifecycleError = evidenceErr.Error()
+			}
+		}
+		if s.T().Failed() || evidenceErr != nil {
+			exportErr := windowsCommon.ExportEventLog(vm, "Security", filepath.Join(s.SessionOutputDir(), "setup-Security.evtx"))
+			s.Assert().NoError(exportErr, "should export setup Security log before restoring its capacity")
+		}
+		restoreErr := s.fileDeletionAudit.Restore()
+		if restoreErr != nil {
+			s.deletionAuditData.RestorationError = restoreErr.Error()
+		}
+		artifactErr := s.writeFileDeletionAuditArtifact()
+		s.Require().NoError(evidenceErr, "should collect setup file-deletion audit evidence")
+		s.Require().NoError(restoreErr, "should restore setup file-deletion auditing")
+		s.Require().NoError(artifactErr, "should write setup file-deletion audit artifact")
+	}()
+	s.Require().NoError(startAuditErr, "should start setup file-deletion audit lifecycle")
 
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithLogsEnabled(strconv.FormatBool(tc.logsEnabled)),

@@ -29,6 +29,7 @@ func TestDecodeFileDeletionEventsXMLProductionShape(t *testing.T) {
       <Data Name="ObjectName">C:\Windows\System32\example.dll</Data>
       <Data Name="ProcessId">0x4bc</Data>
       <Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data>
+      <Data Name="HandleId">0x111</Data>
       <Data Name="AccessList">%%1537</Data>
       <Data Name="AccessMask">0x10000</Data>
     </EventData>
@@ -43,9 +44,18 @@ func TestDecodeFileDeletionEventsXMLProductionShape(t *testing.T) {
       <Data Name="ObjectName">C:\Windows\System32\second.dll</Data>
       <Data Name="ProcessId">0x4bd</Data>
       <Data Name="ProcessName">C:\Windows\System32\dllhost.exe</Data>
+      <Data Name="HandleId">0x222</Data>
       <Data Name="AccessList">%%1537</Data>
       <Data Name="AccessMask">0x40</Data>
     </EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System><EventID>4660</EventID><TimeCreated SystemTime="2026-02-19T14:03:06Z"/><EventRecordID>98767</EventRecordID></System>
+    <EventData><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System><EventID>4660</EventID><TimeCreated SystemTime="2026-02-19T14:03:07Z"/><EventRecordID>98768</EventRecordID></System>
+    <EventData><Data Name="ProcessId">0x4bd</Data><Data Name="HandleId">0x222</Data></EventData>
   </Event>
 </Events>`
 
@@ -53,15 +63,31 @@ func TestDecodeFileDeletionEventsXMLProductionShape(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, events, 2)
 	assert.Equal(t, FileDeletionEvent{
-		RecordID:    98765,
-		TimeCreated: time.Date(2026, 2, 19, 14, 3, 4, 123456700, time.UTC),
-		ObjectName:  `C:\Windows\System32\example.dll`,
-		ProcessName: `C:\Windows\System32\msiexec.exe`,
-		ProcessID:   "0x4bc",
-		AccessMask:  "0x10000",
-		AccessList:  "%%1537",
+		RecordID:            98765,
+		TimeCreated:         time.Date(2026, 2, 19, 14, 3, 4, 123456700, time.UTC),
+		ObjectName:          `C:\Windows\System32\example.dll`,
+		ProcessName:         `C:\Windows\System32\msiexec.exe`,
+		ProcessID:           "0x4bc",
+		HandleID:            "0x111",
+		AccessMask:          "0x10000",
+		AccessList:          "%%1537",
+		DeletionConfirmed:   true,
+		DeletionRecordID:    98767,
+		DeletionTimeCreated: time.Date(2026, 2, 19, 14, 3, 6, 0, time.UTC),
 	}, events[0])
 	assert.Equal(t, uint64(98766), events[1].RecordID)
+}
+
+func TestDecodeFileDeletionEventsXMLDoesNotCorrelateDifferentProcessOrHandle(t *testing.T) {
+	const input = `<Events>
+	<Event><System><EventID>4663</EventID><TimeCreated SystemTime="2026-01-01T00:00:00Z"/><EventRecordID>10</EventRecordID></System><EventData><Data Name="ProcessId">0x1</Data><Data Name="HandleId">0x2</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4660</EventID><TimeCreated SystemTime="2026-01-01T00:00:01Z"/><EventRecordID>11</EventRecordID></System><EventData><Data Name="ProcessId">0x9</Data><Data Name="HandleId">0x2</Data></EventData></Event>
+	<Event><System><EventID>4660</EventID><TimeCreated SystemTime="2026-01-01T00:00:02Z"/><EventRecordID>12</EventRecordID></System><EventData><Data Name="ProcessId">0x1</Data><Data Name="HandleId">0x9</Data></EventData></Event>
+</Events>`
+	events, err := DecodeFileDeletionEventsXML(input)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.False(t, events[0].DeletionConfirmed)
 }
 
 func TestDecodeFileDeletionEventsXMLRejectsRootlessProductionOutput(t *testing.T) {
@@ -114,14 +140,18 @@ func TestDecodeSecurityLogCheckpointErrors(t *testing.T) {
 	assert.ErrorContains(t, err, "decode Security log checkpoint")
 
 	_, err = DecodeSecurityLogCheckpoint(`{"RecordID":120,"OldestRecordID":0}`)
-	assert.ErrorContains(t, err, "no oldest record")
+	assert.ErrorContains(t, err, "non-zero newest and oldest")
+
+	_, err = DecodeSecurityLogCheckpoint(`{"RecordID":0,"OldestRecordID":0}`)
+	assert.ErrorContains(t, err, "non-zero newest and oldest")
 }
 
 func TestValidateSecurityLogWindow(t *testing.T) {
 	start := SecurityLogCheckpoint{RecordID: 100, OldestRecordID: 10}
 	assert.NoError(t, ValidateSecurityLogWindow(start, SecurityLogCheckpoint{RecordID: 110, OldestRecordID: 100}))
+	assert.NoError(t, ValidateSecurityLogWindow(start, SecurityLogCheckpoint{RecordID: 110, OldestRecordID: 101}))
 
-	err := ValidateSecurityLogWindow(start, SecurityLogCheckpoint{RecordID: 110, OldestRecordID: 101})
+	err := ValidateSecurityLogWindow(start, SecurityLogCheckpoint{RecordID: 110, OldestRecordID: 102})
 	assert.ErrorContains(t, err, "rolled out")
 
 	err = ValidateSecurityLogWindow(start, SecurityLogCheckpoint{RecordID: 99, OldestRecordID: 10})
@@ -149,11 +179,13 @@ func TestClassifyDeletionEvent(t *testing.T) {
 	start := SecurityLogCheckpoint{RecordID: 100}
 	end := SecurityLogCheckpoint{RecordID: 200}
 	base := FileDeletionEvent{
-		RecordID:    150,
-		ObjectName:  `C:\Windows\System32\owned.dll`,
-		ProcessName: `C:\Windows\System32\msiexec.exe`,
-		ProcessID:   "0xabc",
-		AccessMask:  "0x10000",
+		RecordID:          150,
+		ObjectName:        `C:\Windows\System32\owned.dll`,
+		ProcessName:       `C:\Windows\System32\msiexec.exe`,
+		ProcessID:         "0xabc",
+		HandleID:          "0x123",
+		AccessMask:        "0x10000",
+		DeletionConfirmed: true,
 	}
 
 	tests := []struct {
@@ -203,6 +235,13 @@ func TestClassifyDeletionEvent(t *testing.T) {
 			classification: DeletionNonDeleteAccess,
 		},
 		{
+			name: "unconfirmed delete access remains diagnostic",
+			modify: func(event *FileDeletionEvent) {
+				event.DeletionConfirmed = false
+			},
+			classification: DeletionUnconfirmedAccess,
+		},
+		{
 			name: "excluded root remains diagnostic",
 			modify: func(event *FileDeletionEvent) {
 				event.ObjectName = `C:\WINDOWS\Installer\cache.tmp`
@@ -241,6 +280,18 @@ func TestClassifyDeletionEvent(t *testing.T) {
 			assert.Equal(t, event.ProcessID, result.Event.ProcessID)
 		})
 	}
+}
+
+func TestClassifyDeletionEventRejectsMissingHandle(t *testing.T) {
+	event := FileDeletionEvent{
+		RecordID:    150,
+		ObjectName:  `C:\Windows\System32\owned.dll`,
+		ProcessName: `C:\Windows\System32\msiexec.exe`,
+		AccessMask:  "0x10000",
+	}
+	result, err := ClassifyDeletionEvent(event, SecurityLogCheckpoint{RecordID: 100}, SecurityLogCheckpoint{RecordID: 200}, `C:\Windows`, nil)
+	assert.ErrorContains(t, err, "usable HandleId")
+	assert.Equal(t, DeletionInvalidEvidence, result.Classification)
 }
 
 func TestClassifyDeletionEventRejectsMalformedAccessMask(t *testing.T) {

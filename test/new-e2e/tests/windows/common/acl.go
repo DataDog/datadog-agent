@@ -334,40 +334,6 @@ func GetSecurityInfoForPath(host *components.RemoteHost, path string) (ObjectSec
 	return objectSecurityDTOFromCommand(host, cmd)
 }
 
-// AddFileSystemAuditRule adds an audit rule to a filesystem path's SACL.
-func AddFileSystemAuditRule(host *components.RemoteHost, path string, identitySID string, rights int, inheritanceFlags int, propagationFlags int, auditFlags int) error {
-	cmd := fmt.Sprintf(`
-		$acl = Get-Acl -Audit -Path '%s'
-		$identity = [System.Security.Principal.SecurityIdentifier]::new('%s')
-		$rule = [System.Security.AccessControl.FileSystemAuditRule]::new(
-			$identity,
-			[System.Security.AccessControl.FileSystemRights]%d,
-			[System.Security.AccessControl.InheritanceFlags]%d,
-			[System.Security.AccessControl.PropagationFlags]%d,
-			[System.Security.AccessControl.AuditFlags]%d)
-		$acl.AddAuditRule($rule)
-		Set-Acl -Path '%s' -AclObject $acl
-	`, path, identitySID, rights, inheritanceFlags, propagationFlags, auditFlags, path)
-	if _, err := host.Execute(cmd); err != nil {
-		return fmt.Errorf("failed to add filesystem audit rule to %s: %w", path, err)
-	}
-	return nil
-}
-
-// RestoreAuditSecurityInfoForPath restores only the audit section of a path's
-// security descriptor, preserving its current owner, group, and DACL.
-func RestoreAuditSecurityInfoForPath(host *components.RemoteHost, path string, sddl string) error {
-	cmd := fmt.Sprintf(`
-		$acl = Get-Acl -Audit -Path '%s'
-		$acl.SetSecurityDescriptorSddlForm('%s', [System.Security.AccessControl.AccessControlSections]::Audit)
-		Set-Acl -Path '%s' -AclObject $acl
-	`, path, strings.ReplaceAll(sddl, "'", "''"), path)
-	if _, err := host.Execute(cmd); err != nil {
-		return fmt.Errorf("failed to restore filesystem audit rules on %s: %w", path, err)
-	}
-	return nil
-}
-
 // GetNamedPipeSecurityInfo returns the security information for the given named pipe
 //   - Example pipe name: \\.\pipe\mypipe
 //   - Example pipe name: mypipe

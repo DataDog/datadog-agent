@@ -37,10 +37,11 @@ import (
 
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
-	beforeInstallPerms map[string]string // path -> SDDL
-	dumpFolder         string
-	fileDeletionAudit  *windowsCommon.FileDeletionAudit
-	deletionAuditData  fileDeletionAuditArtifact
+	beforeInstallPerms        map[string]string // path -> SDDL
+	dumpFolder                string
+	fileDeletionAudit         *windowsCommon.FileDeletionAudit
+	deletionAuditData         fileDeletionAuditArtifact
+	deletionAuditArtifactName string
 }
 
 type fileDeletionAuditArtifact struct {
@@ -55,11 +56,11 @@ type fileDeletionAuditArtifact struct {
 }
 
 type fileDeletionAuditOperation struct {
-	Name            string                              `json:"name"`
-	StartCheckpoint windowsCommon.SecurityLogCheckpoint `json:"start_checkpoint"`
-	EndCheckpoint   windowsCommon.SecurityLogCheckpoint `json:"end_checkpoint"`
-	Events          []ClassifiedDeletionEvent           `json:"events"`
-	EvidenceError   string                              `json:"evidence_error,omitempty"`
+	Name            string                               `json:"name"`
+	StartCheckpoint windowsCommon.SecurityLogCheckpoint  `json:"start_checkpoint"`
+	EndCheckpoint   *windowsCommon.SecurityLogCheckpoint `json:"end_checkpoint,omitempty"`
+	Events          []ClassifiedDeletionEvent            `json:"events"`
+	EvidenceError   string                               `json:"evidence_error,omitempty"`
 }
 
 // packageInstallOptions holds options for the installAgentPackage method
@@ -80,12 +81,7 @@ func WithSkipProcdump() PackageInstallOption {
 
 // NOTE: BeforeTest is not called before subtests
 func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
-	s.fileDeletionAudit = nil
-	s.deletionAuditData = fileDeletionAuditArtifact{
-		MonitoredRoot: windowsCommon.WindowsDirectory,
-		Exclusions:    SystemPathAuditExclusions(),
-		Operations:    []fileDeletionAuditOperation{},
-	}
+	s.initializeFileDeletionAuditState("file-deletion-audit.json")
 
 	if beforeTest, ok := any(&s.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
 		beforeTest.BeforeTest(suiteName, testName)
@@ -94,12 +90,8 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	vm := s.Env().RemoteHost
 	var err error
 
-	s.fileDeletionAudit, err = windowsCommon.StartFileDeletionAudit(vm)
-	s.Require().NoError(err, "should enable Windows file-deletion auditing")
-	start, err := windowsCommon.GetSecurityLogCheckpoint(vm)
-	s.Require().NoError(err, "should record file-deletion audit lifecycle checkpoint")
-	s.deletionAuditData.LifecycleStart = &start
-	s.Require().NoError(s.writeFileDeletionAuditArtifact())
+	err = s.startFileDeletionAuditLifecycle(vm)
+	s.Require().NoError(err, "should start Windows file-deletion audit lifecycle")
 
 	s.beforeInstallPerms, err = SnapshotPermissionsForPaths(vm, SystemPathsForPermissionsValidation())
 	s.Require().NoError(err)
@@ -126,6 +118,31 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(err, "should clean dump folder")
 }
 
+func (s *baseAgentMSISuite) initializeFileDeletionAuditState(artifactName string) {
+	s.fileDeletionAudit = nil
+	s.deletionAuditArtifactName = artifactName
+	s.deletionAuditData = fileDeletionAuditArtifact{
+		MonitoredRoot: windowsCommon.WindowsDirectory,
+		Exclusions:    SystemPathAuditExclusions(),
+		Operations:    []fileDeletionAuditOperation{},
+	}
+}
+
+func (s *baseAgentMSISuite) startFileDeletionAuditLifecycle(vm *components.RemoteHost) error {
+	audit, err := windowsCommon.StartFileDeletionAudit(vm)
+	if err != nil {
+		return err
+	}
+	s.fileDeletionAudit = audit
+
+	start, err := windowsCommon.GetSecurityLogCheckpoint(vm)
+	if err != nil {
+		return errors.Join(fmt.Errorf("record file-deletion audit lifecycle checkpoint: %w", err), audit.Restore())
+	}
+	s.deletionAuditData.LifecycleStart = &start
+	return s.writeFileDeletionAuditArtifact()
+}
+
 // NOTE: AfterTest is not called after subtests
 func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 	vm := s.Env().RemoteHost
@@ -139,6 +156,14 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 			s.deletionAuditData.LifecycleError = evidenceErr.Error()
 		}
 	}
+	securityLogExported := false
+	if s.T().Failed() || evidenceErr != nil {
+		outputPath := filepath.Join(s.SessionOutputDir(), "Security.evtx")
+		exportErr := windowsCommon.ExportEventLog(vm, "Security", outputPath)
+		s.Assert().NoError(exportErr, "should export Security event log before restoring its capacity")
+		securityLogExported = exportErr == nil
+	}
+
 	restoreErr := s.fileDeletionAudit.Restore()
 	if restoreErr != nil {
 		s.deletionAuditData.RestorationError = restoreErr.Error()
@@ -176,10 +201,12 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		// preserves the source evidence for the deletion audit artifact.
 		for _, logName := range []string{"System", "Application", "Security"} {
 			// collect the full event log as an evtx file
-			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
-			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
-			s.Assert().NoError(err, "should export %s event log", logName)
+			if logName != "Security" || !securityLogExported {
+				s.T().Logf("Exporting %s event log", logName)
+				outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
+				err := windowsCommon.ExportEventLog(vm, logName, outputPath)
+				s.Assert().NoError(err, "should export %s event log", logName)
+			}
 			// Log errors and warnings to the screen for easy access
 			out, err := windowsCommon.GetEventLogErrorsAndWarnings(vm, logName)
 			if s.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
@@ -192,11 +219,16 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 }
 
 func (s *baseAgentMSISuite) runAuditedMSIOperation(name string, operation func() error) error {
+	// Suite-level development cleanup runs after the per-test lifecycle has
+	// restored auditing. Do not attach bookkeeping or assertions to a completed
+	// test in that case.
+	if !s.fileDeletionAudit.IsActive() {
+		return operation()
+	}
+
 	var start windowsCommon.SecurityLogCheckpoint
 	var evidenceErr error
-	if s.fileDeletionAudit == nil {
-		evidenceErr = errors.New("file-deletion audit was not initialized")
-	} else if err := s.fileDeletionAudit.EnsureEnabled(); err != nil {
+	if err := s.fileDeletionAudit.EnsureEnabled(); err != nil {
 		evidenceErr = fmt.Errorf("verify file-deletion auditing before %s: %w", name, err)
 	} else {
 		var err error
@@ -212,11 +244,14 @@ func (s *baseAgentMSISuite) runAuditedMSIOperation(name string, operation func()
 	entry := fileDeletionAuditOperation{Name: name, StartCheckpoint: start}
 
 	if evidenceErr == nil {
-		end, checkpointErr := windowsCommon.GetSecurityLogCheckpoint(s.Env().RemoteHost)
-		entry.EndCheckpoint = end
+		end, settled, checkpointErr := windowsCommon.WaitForSecurityLogToSettle(s.Env().RemoteHost, 2*time.Second, 10*time.Second)
 		if checkpointErr != nil {
 			evidenceErr = fmt.Errorf("checkpoint Security log after %s: %w", name, checkpointErr)
 		} else {
+			entry.EndCheckpoint = &end
+			if !settled {
+				s.T().Logf("Security log did not become quiet within the post-%s settling window; using record %d", name, end.RecordID)
+			}
 			events, queryErr := windowsCommon.GetFileDeletionEvents(s.Env().RemoteHost, start, end)
 			if queryErr != nil {
 				evidenceErr = fmt.Errorf("collect deletion events for %s: %w", name, queryErr)
@@ -285,7 +320,7 @@ func (s *baseAgentMSISuite) collectUnattributedDeletionEvents(vm *components.Rem
 
 func (s *baseAgentMSISuite) eventBelongsToRecordedOperation(event windowsCommon.FileDeletionEvent) bool {
 	for _, operation := range s.deletionAuditData.Operations {
-		if event.RecordID > operation.StartCheckpoint.RecordID && event.RecordID <= operation.EndCheckpoint.RecordID {
+		if operation.EndCheckpoint != nil && event.RecordID > operation.StartCheckpoint.RecordID && event.RecordID <= operation.EndCheckpoint.RecordID {
 			return true
 		}
 	}
@@ -297,7 +332,7 @@ func (s *baseAgentMSISuite) writeFileDeletionAuditArtifact() error {
 	if err != nil {
 		return fmt.Errorf("marshal file-deletion audit artifact: %w", err)
 	}
-	path := filepath.Join(s.SessionOutputDir(), "file-deletion-audit.json")
+	path := filepath.Join(s.SessionOutputDir(), s.deletionAuditArtifactName)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write file-deletion audit artifact %s: %w", path, err)
 	}
@@ -341,14 +376,10 @@ func (s *baseAgentMSISuite) InstallAgent(host *components.RemoteHost, options ..
 		operationName = "upgrade"
 	}
 
-	opts := []windowsAgent.InstallAgentOption{
-		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
-	}
-	opts = append(opts, options...)
 	var remoteMSIPath string
 	err := s.runAuditedMSIOperation(operationName, func() error {
 		var installErr error
-		remoteMSIPath, installErr = windowsAgent.InstallAgent(host, opts...)
+		remoteMSIPath, installErr = s.BaseAgentInstallerSuite.InstallAgent(host, options...)
 		return installErr
 	})
 	return remoteMSIPath, err

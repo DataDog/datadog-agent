@@ -43,14 +43,7 @@ func SystemPathAuditExclusions() []string {
 	}
 }
 
-// DeletionEventClassification explains whether an observed event blocks the
-// test or remains diagnostic.
-type DeletionEventClassification = filedeletionaudit.DeletionEventClassification
-
-const (
-	deletionBlocksControlledInstaller = filedeletionaudit.DeletionBlocksControlledInstaller
-	deletionOutsideOperation          = filedeletionaudit.DeletionOutsideOperation
-)
+const deletionOutsideOperation = filedeletionaudit.DeletionOutsideOperation
 
 // ClassifiedDeletionEvent retains the original evidence and its disposition.
 type ClassifiedDeletionEvent = filedeletionaudit.ClassifiedDeletionEvent

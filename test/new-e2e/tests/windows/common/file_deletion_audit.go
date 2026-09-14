@@ -8,6 +8,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -20,24 +21,26 @@ const (
 	// "File System" subcategory. Using the GUID avoids depending on the host's
 	// display language.
 	fileSystemAuditSubcategory = "{0CCE921D-69AE-11D9-BED3-505054503030}"
-	everyoneSID                = "S-1-1-0"
+	everyoneSID                = "{S-1-1-0}"
 	deletionAuditLogSize       = 256 * 1024 * 1024
 )
 
-// FileDeletionAudit enables successful filesystem-delete auditing below
-// C:\Windows and retains enough state to restore the host afterwards.
+// FileDeletionAudit enables successful global filesystem-delete auditing;
+// consumers filter events to C:\Windows. It retains enough state to restore
+// the host afterwards.
 type FileDeletionAudit struct {
 	host                           *components.RemoteHost
 	policyBackupPath               string
-	originalWindowsSDDL            string
+	originalGlobalFileSACL         string
+	globalFileSACLChanged          bool
 	originalSecurityLogMaximumSize uint64
 	securityLogSizeChanged         bool
 	restored                       bool
 }
 
-// StartFileDeletionAudit saves the current policy and C:\Windows SACL, then
-// enables successful filesystem auditing and an inheritable deletion SACL.
-// Setup is transactional: any partially applied state is restored on error.
+// StartFileDeletionAudit saves the current policy and global File resource
+// SACL, then enables successful filesystem deletion auditing. Setup is
+// transactional: any partially applied state is restored on error.
 func StartFileDeletionAudit(host *components.RemoteHost) (*FileDeletionAudit, error) {
 	audit := &FileDeletionAudit{host: host}
 
@@ -56,12 +59,11 @@ func StartFileDeletionAudit(host *components.RemoteHost) (*FileDeletionAudit, er
 		return nil, fmt.Errorf("back up audit policy: %w", err)
 	}
 
-	security, err := GetSecurityInfoForPath(host, WindowsDirectory)
+	audit.originalGlobalFileSACL, err = getGlobalFileResourceSACL(host)
 	if err != nil {
 		restoreErr := audit.restorePolicy()
-		return nil, errors.Join(fmt.Errorf("save %s SACL: %w", WindowsDirectory, err), restoreErr)
+		return nil, errors.Join(fmt.Errorf("save global File resource SACL: %w", err), restoreErr)
 	}
-	audit.originalWindowsSDDL = security.SDDL
 
 	checkpoint, err := GetSecurityLogCheckpoint(host)
 	if err != nil {
@@ -83,19 +85,19 @@ func StartFileDeletionAudit(host *components.RemoteHost) (*FileDeletionAudit, er
 		}
 	}
 
+	// Mark this before applying the resource SACL so partial success is restored.
+	audit.globalFileSACLChanged = true
 	if err := audit.EnsureEnabled(); err != nil {
 		restoreErr := audit.Restore()
 		return nil, errors.Join(err, restoreErr)
 	}
 
-	rights := DELETE | FILE_DELETE_CHILD
-	inheritance := InheritanceFlagsContainer | InheritanceFlagsObject
-	if err := AddFileSystemAuditRule(host, WindowsDirectory, everyoneSID, rights, inheritance, PropagationFlagsNone, AuditFlagsSuccess); err != nil {
-		restoreErr := audit.Restore()
-		return nil, errors.Join(fmt.Errorf("enable deletion auditing on %s: %w", WindowsDirectory, err), restoreErr)
-	}
-
 	return audit, nil
+}
+
+// IsActive reports whether the audit lifecycle can record another operation.
+func (a *FileDeletionAudit) IsActive() bool {
+	return a != nil && !a.restored
 }
 
 // EnsureEnabled idempotently enables successful File System auditing. Calling
@@ -107,27 +109,153 @@ func (a *FileDeletionAudit) EnsureEnabled() error {
 	if _, err := a.host.Execute(fmt.Sprintf(`auditpol.exe /set /subcategory:"%s" /success:enable`, fileSystemAuditSubcategory)); err != nil {
 		return fmt.Errorf("enable successful File System auditing: %w", err)
 	}
+	cmd := fmt.Sprintf(`auditpol.exe /resourceSACL /set /type:File /user:%s /success /access:0x10040`, everyoneSID)
+	if _, err := a.host.Execute(cmd); err != nil {
+		return fmt.Errorf("enable global File deletion resource SACL: %w", err)
+	}
 	return nil
 }
 
-// Restore restores the original C:\Windows SACL, audit policy, and Security
-// log capacity. It is safe to call repeatedly and attempts every restoration
-// even if one fails.
+// Restore restores the original global File resource SACL, audit policy, and
+// Security log capacity. It is safe to call repeatedly and attempts every
+// restoration even if one fails.
 func (a *FileDeletionAudit) Restore() error {
 	if a == nil || a.restored {
 		return nil
 	}
 
-	var saclErr error
-	if a.originalWindowsSDDL != "" {
-		saclErr = RestoreAuditSecurityInfoForPath(a.host, WindowsDirectory, a.originalWindowsSDDL)
-	}
+	saclErr := a.restoreGlobalFileResourceSACL()
 	policyErr := a.restorePolicy()
 	logSizeErr := a.restoreSecurityLogMaximumSize()
 	if saclErr == nil && policyErr == nil && logSizeErr == nil {
 		a.restored = true
 	}
 	return errors.Join(saclErr, policyErr, logSizeErr)
+}
+
+const globalSACLInterop = `
+if (-not ('DatadogGlobalSacl' -as [type])) {
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+public static class DatadogGlobalSacl
+{
+    private const UInt32 TOKEN_QUERY = 0x0008;
+    private const UInt32 TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    private const UInt32 SE_PRIVILEGE_ENABLED = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID { public UInt32 LowPart; public Int32 HighPart; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES { public UInt32 PrivilegeCount; public LUID Luid; public UInt32 Attributes; }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr ProcessHandle, UInt32 DesiredAccess, out IntPtr TokenHandle);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool LookupPrivilegeValue(string SystemName, string Name, out LUID Luid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TOKEN_PRIVILEGES NewState, UInt32 BufferLength, IntPtr PreviousState, IntPtr ReturnLength);
+
+    [return: MarshalAs(UnmanagedType.U1)]
+    [DllImport("advapi32.dll", EntryPoint = "AuditQueryGlobalSaclW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool AuditQueryGlobalSacl(string ObjectTypeName, out IntPtr Acl);
+
+    [return: MarshalAs(UnmanagedType.U1)]
+    [DllImport("advapi32.dll", EntryPoint = "AuditSetGlobalSaclW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool AuditSetGlobalSacl(string ObjectTypeName, IntPtr Acl);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr Memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr Handle);
+
+    private static void EnableSecurityPrivilege()
+    {
+        IntPtr token;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, out token))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            LUID luid;
+            if (!LookupPrivilegeValue(null, "SeSecurityPrivilege", out luid))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            TOKEN_PRIVILEGES privileges = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = SE_PRIVILEGE_ENABLED };
+            if (!AdjustTokenPrivileges(token, false, ref privileges, 0, IntPtr.Zero, IntPtr.Zero))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            int adjustmentError = Marshal.GetLastWin32Error();
+            if (adjustmentError != 0)
+                throw new Win32Exception(adjustmentError);
+        } finally {
+            CloseHandle(token);
+        }
+    }
+
+    public static byte[] GetFileSacl()
+    {
+        EnableSecurityPrivilege();
+        IntPtr acl;
+        if (!AuditQueryGlobalSacl("File", out acl))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (acl == IntPtr.Zero)
+            return new byte[0];
+        try {
+            int length = (UInt16)Marshal.ReadInt16(acl, 2);
+            byte[] result = new byte[length];
+            Marshal.Copy(acl, result, 0, length);
+            return result;
+        } finally {
+            LocalFree(acl);
+        }
+    }
+
+    public static void SetFileSacl(byte[] value)
+    {
+        EnableSecurityPrivilege();
+        IntPtr acl = IntPtr.Zero;
+        try {
+            if (value.Length != 0) {
+                acl = Marshal.AllocHGlobal(value.Length);
+                Marshal.Copy(value, 0, acl, value.Length);
+            }
+            if (!AuditSetGlobalSacl("File", acl))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+        } finally {
+            if (acl != IntPtr.Zero)
+                Marshal.FreeHGlobal(acl);
+        }
+    }
+}
+'@
+}
+`
+
+func getGlobalFileResourceSACL(host *components.RemoteHost) (string, error) {
+	out, err := host.Execute(globalSACLInterop + `[Convert]::ToBase64String([DatadogGlobalSacl]::GetFileSacl())`)
+	if err != nil {
+		return "", fmt.Errorf("query global File resource SACL: %w", err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func (a *FileDeletionAudit) restoreGlobalFileResourceSACL() error {
+	if !a.globalFileSACLChanged {
+		return nil
+	}
+	cmd := fmt.Sprintf(`%s [DatadogGlobalSacl]::SetFileSacl([Convert]::FromBase64String('%s'))`, globalSACLInterop, a.originalGlobalFileSACL)
+	if _, err := a.host.Execute(cmd); err != nil {
+		return fmt.Errorf("restore global File resource SACL: %w", err)
+	}
+	a.globalFileSACLChanged = false
+	return nil
 }
 
 func setSecurityLogMaximumSize(host *components.RemoteHost, size uint64) error {

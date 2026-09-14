@@ -34,15 +34,19 @@ type SecurityLogCheckpoint struct {
 }
 
 // FileDeletionEvent is the locale-independent subset of Security event 4663
-// used to attribute successful filesystem deletion access.
+// plus any correlated event 4660 deletion confirmation.
 type FileDeletionEvent struct {
-	RecordID    uint64    `json:"record_id"`
-	TimeCreated time.Time `json:"time_created"`
-	ObjectName  string    `json:"object_name"`
-	ProcessName string    `json:"process_name"`
-	ProcessID   string    `json:"process_id"`
-	AccessMask  string    `json:"access_mask"`
-	AccessList  string    `json:"access_list"`
+	RecordID            uint64    `json:"record_id"`
+	TimeCreated         time.Time `json:"time_created"`
+	ObjectName          string    `json:"object_name"`
+	ProcessName         string    `json:"process_name"`
+	ProcessID           string    `json:"process_id"`
+	HandleID            string    `json:"handle_id"`
+	AccessMask          string    `json:"access_mask"`
+	AccessList          string    `json:"access_list"`
+	DeletionConfirmed   bool      `json:"deletion_confirmed"`
+	DeletionRecordID    uint64    `json:"deletion_record_id,omitempty"`
+	DeletionTimeCreated time.Time `json:"deletion_time_created,omitempty"`
 }
 
 // DeletionEventClassification explains whether an observed event blocks the
@@ -62,6 +66,8 @@ const (
 	DeletionExcludedSystemPath DeletionEventClassification = "diagnostic-excluded-system-path"
 	// DeletionUncontrolledProcess identifies an event from an unrelated process.
 	DeletionUncontrolledProcess DeletionEventClassification = "diagnostic-uncontrolled-process"
+	// DeletionUnconfirmedAccess identifies DELETE access without event 4660 confirmation.
+	DeletionUnconfirmedAccess DeletionEventClassification = "diagnostic-unconfirmed-delete-access"
 	// DeletionInvalidEvidence identifies an event that cannot be classified safely.
 	DeletionInvalidEvidence DeletionEventClassification = "error-invalid-evidence"
 )
@@ -95,6 +101,8 @@ type eventsXML struct {
 
 // DecodeFileDeletionEventsXML decodes the rooted XML emitted by wevtutil with
 // /format:xml /element:Events without consulting the localized Message field.
+// Event 4663 supplies the object name and delete access; event 4660 confirms
+// that the same process and handle actually deleted the object.
 func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 	output = strings.TrimSpace(output)
 	if output == "" {
@@ -106,21 +114,35 @@ func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 		return nil, fmt.Errorf("decode Security event XML: %w", err)
 	}
 
+	type deletionConfirmation struct {
+		recordID    uint64
+		timeCreated time.Time
+	}
+	confirmations := make(map[string][]deletionConfirmation)
 	events := make([]FileDeletionEvent, 0, len(envelope.Events))
 	for _, raw := range envelope.Events {
-		if raw.System.EventID != 4663 {
+		if raw.System.EventID != 4660 && raw.System.EventID != 4663 {
 			continue
 		}
 		if raw.System.EventRecordID == 0 {
-			return nil, errors.New("event 4663 is missing EventRecordID")
+			return nil, fmt.Errorf("event %d is missing EventRecordID", raw.System.EventID)
 		}
 		created, err := time.Parse(time.RFC3339Nano, raw.System.TimeCreated.SystemTime)
 		if err != nil {
-			return nil, fmt.Errorf("decode event 4663 record %d timestamp %q: %w", raw.System.EventRecordID, raw.System.TimeCreated.SystemTime, err)
+			return nil, fmt.Errorf("decode event %d record %d timestamp %q: %w", raw.System.EventID, raw.System.EventRecordID, raw.System.TimeCreated.SystemTime, err)
 		}
-		data := make(map[string]string, len(raw.EventData))
-		for _, item := range raw.EventData {
-			data[item.Name] = strings.TrimSpace(item.Value)
+		data := eventData(raw)
+		if raw.System.EventID == 4660 {
+			processID := data["ProcessId"]
+			handleID := data["HandleId"]
+			if processID == "" || handleID == "" {
+				return nil, fmt.Errorf("event 4660 record %d is missing ProcessId or HandleId", raw.System.EventRecordID)
+			}
+			if isUsableHandleID(handleID) {
+				key := processHandleKey(processID, handleID)
+				confirmations[key] = append(confirmations[key], deletionConfirmation{recordID: raw.System.EventRecordID, timeCreated: created})
+			}
+			continue
 		}
 		events = append(events, FileDeletionEvent{
 			RecordID:    raw.System.EventRecordID,
@@ -128,11 +150,42 @@ func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 			ObjectName:  data["ObjectName"],
 			ProcessName: data["ProcessName"],
 			ProcessID:   data["ProcessId"],
+			HandleID:    data["HandleId"],
 			AccessMask:  data["AccessMask"],
 			AccessList:  data["AccessList"],
 		})
 	}
+
+	for index := range events {
+		event := &events[index]
+		for _, confirmation := range confirmations[processHandleKey(event.ProcessID, event.HandleID)] {
+			if confirmation.recordID <= event.RecordID {
+				continue
+			}
+			event.DeletionConfirmed = true
+			event.DeletionRecordID = confirmation.recordID
+			event.DeletionTimeCreated = confirmation.timeCreated
+			break
+		}
+	}
 	return events, nil
+}
+
+func eventData(raw eventXML) map[string]string {
+	data := make(map[string]string, len(raw.EventData))
+	for _, item := range raw.EventData {
+		data[item.Name] = strings.TrimSpace(item.Value)
+	}
+	return data
+}
+
+func processHandleKey(processID, handleID string) string {
+	return strings.ToLower(strings.TrimSpace(processID)) + "\x00" + strings.ToLower(strings.TrimSpace(handleID))
+}
+
+func isUsableHandleID(handleID string) bool {
+	handleID = strings.ToLower(strings.TrimSpace(handleID))
+	return handleID != "" && handleID != "0" && handleID != "0x0"
 }
 
 // DecodeSecurityLogCheckpoint decodes structured Security log metadata.
@@ -145,8 +198,8 @@ func DecodeSecurityLogCheckpoint(output string) (SecurityLogCheckpoint, error) {
 	if err := json.Unmarshal([]byte(output), &checkpoint); err != nil {
 		return checkpoint, fmt.Errorf("decode Security log checkpoint: %w", err)
 	}
-	if checkpoint.RecordID > 0 && checkpoint.OldestRecordID == 0 {
-		return checkpoint, fmt.Errorf("Security log checkpoint has newest record %d but no oldest record", checkpoint.RecordID)
+	if checkpoint.RecordID == 0 || checkpoint.OldestRecordID == 0 {
+		return checkpoint, fmt.Errorf("Security log checkpoint requires non-zero newest and oldest records, got %d and %d", checkpoint.RecordID, checkpoint.OldestRecordID)
 	}
 	return checkpoint, nil
 }
@@ -156,7 +209,7 @@ func ValidateSecurityLogWindow(start SecurityLogCheckpoint, end SecurityLogCheck
 	if end.RecordID < start.RecordID {
 		return fmt.Errorf("Security log record identifier moved backwards from %d to %d", start.RecordID, end.RecordID)
 	}
-	if start.RecordID > 0 && end.OldestRecordID > start.RecordID {
+	if start.RecordID > 0 && end.OldestRecordID > start.RecordID && end.OldestRecordID-start.RecordID > 1 {
 		return fmt.Errorf("Security log checkpoint %d rolled out; oldest available record is %d", start.RecordID, end.OldestRecordID)
 	}
 	return nil
@@ -192,9 +245,18 @@ func ClassifyDeletionEvent(event FileDeletionEvent, start, end SecurityLogCheckp
 		return result, err
 	}
 
+	if hasDeletionAccess && !isUsableHandleID(event.HandleID) {
+		err := errors.New("event 4663 with deletion access has no usable HandleId")
+		result.Classification = DeletionInvalidEvidence
+		result.EvidenceError = err.Error()
+		return result, err
+	}
+
 	switch {
 	case !hasDeletionAccess:
 		result.Classification = DeletionNonDeleteAccess
+	case !event.DeletionConfirmed:
+		result.Classification = DeletionUnconfirmedAccess
 	case !windowsPathWithin(event.ObjectName, monitoredRoot):
 		result.Classification = DeletionOutsideSystemRoot
 	case windowsPathWithinAny(event.ObjectName, exclusions):
