@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use log::info;
 use std::ffi::c_void;
 use std::sync::OnceLock;
-use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
 use super::local_agent_account::AccountName;
@@ -20,11 +19,6 @@ type NetIsServiceAccountFn = unsafe extern "system" fn(
     accountname: *const u16,
     isservice: *mut i32,
 ) -> NetApiStatus;
-
-struct LogonCli {
-    _module: HMODULE,
-    net_is_service_account: NetIsServiceAccountFn,
-}
 
 /// Returns whether the installed Agent user is a managed service account (gMSA/sMSA).
 ///
@@ -42,11 +36,11 @@ pub(crate) fn is_managed_service_account(domain: &str, user: &str) -> bool {
 }
 
 fn net_is_service_account(domain: &str, user: &str) -> Result<bool> {
-    let logoncli = logoncli_api()?;
+    let net_is_service_account = net_is_service_account_fn()?;
     let account = wide::null_terminated(&AccountName::new(domain, user).display());
     let mut is_service = 0i32;
     let status = unsafe {
-        (logoncli.net_is_service_account)(std::ptr::null(), account.as_ptr(), &mut is_service)
+        net_is_service_account(std::ptr::null(), account.as_ptr(), &mut is_service)
     };
     if status != 0 {
         return Err(std::io::Error::from_raw_os_error(status as i32))
@@ -55,15 +49,15 @@ fn net_is_service_account(domain: &str, user: &str) -> Result<bool> {
     Ok(is_service != 0)
 }
 
-fn logoncli_api() -> Result<&'static LogonCli> {
-    static LOGONCLI: OnceLock<Result<LogonCli>> = OnceLock::new();
-    LOGONCLI
-        .get_or_init(load_logoncli)
-        .as_ref()
+fn net_is_service_account_fn() -> Result<NetIsServiceAccountFn> {
+    static NET_IS_SERVICE_ACCOUNT: OnceLock<Result<NetIsServiceAccountFn>> = OnceLock::new();
+    NET_IS_SERVICE_ACCOUNT
+        .get_or_init(load_net_is_service_account)
+        .clone()
         .map_err(|error| anyhow::anyhow!("{error:#}"))
 }
 
-fn load_logoncli() -> Result<LogonCli> {
+fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
     // NetIsServiceAccount has no import library; load Logoncli.dll at runtime.
     // https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/nf-lmaccess-netisserviceaccount
     let dll = wide::null_terminated("Logoncli.dll");
@@ -79,11 +73,11 @@ fn load_logoncli() -> Result<LogonCli> {
             .context("GetProcAddress(NetIsServiceAccount)");
     };
 
-    let net_is_service_account = unsafe { std::mem::transmute::<*const c_void, NetIsServiceAccountFn>(proc) };
-    Ok(LogonCli {
-        _module: module,
-        net_is_service_account,
-    })
+    // Keep Logoncli.dll mapped for the process lifetime; only the function pointer is cached.
+    std::mem::forget(module);
+    let net_is_service_account =
+        unsafe { std::mem::transmute::<*const c_void, NetIsServiceAccountFn>(proc) };
+    Ok(net_is_service_account)
 }
 
 #[cfg(test)]
@@ -91,8 +85,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn logoncli_api_loads_net_is_service_account() {
-        logoncli_api().expect("Logoncli.dll must load on Windows test hosts");
+    fn net_is_service_account_fn_loads_from_logoncli() {
+        net_is_service_account_fn().expect("Logoncli.dll must load on Windows test hosts");
     }
 
     #[test]
