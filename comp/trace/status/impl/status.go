@@ -72,22 +72,22 @@ func (s statusProvider) Section() string {
 	return "APM Agent"
 }
 
-func (s statusProvider) getStatusInfo() map[string]interface{} {
+func (s statusProvider) getStatusInfo(ctx context.Context) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	values := s.populateStatus()
+	values := s.populateStatus(ctx)
 
 	stats["apmStats"] = values
 
 	return stats
 }
 
-func (s statusProvider) populateStatus() map[string]interface{} {
+func (s statusProvider) populateStatus(ctx context.Context) map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 	timeout := s.Config.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
+	resp, err := s.Client.Get(url, ipchttp.WithContext(ctx), ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,
@@ -107,7 +107,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
-	values := s.populateStatus()
+	values := s.populateStatus(context.Background())
 
 	stats["apmStats"] = values
 
@@ -116,18 +116,22 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return corestatus.RenderText(templatesFS, "traceagent.tmpl", buffer, s.getStatusInfo())
+	return s.renderText(context.Background(), buffer)
+}
+
+func (s statusProvider) renderText(ctx context.Context, buffer io.Writer) error {
+	return corestatus.RenderText(templatesFS, "traceagent.tmpl", buffer, s.getStatusInfo(ctx))
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return corestatus.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo(context.Background()))
 }
 
 // GetStatusDetails returns the Trace Agent status rendered as text.
-func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+func (s statusProvider) GetStatusDetails(ctx context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	var details bytes.Buffer
-	if err := s.Text(false, &details); err != nil {
+	if err := s.renderText(ctx, &details); err != nil {
 		return nil, err
 	}
 

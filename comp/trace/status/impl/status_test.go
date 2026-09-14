@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,4 +136,66 @@ func TestGetStatusDetailsMatchesText(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, response.NamedSections, "Details")
 	assert.Equal(t, expected.String(), response.NamedSections["Details"].Fields[""])
+}
+
+func TestGetStatusDetailsCancellation(t *testing.T) {
+	const testTimeout = 5 * time.Second
+
+	requestStarted := make(chan struct{})
+	requestCanceled := make(chan struct{})
+	releaseRequest := make(chan struct{})
+
+	ipc := ipcmock.New(t)
+	server := ipc.NewMockServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		close(requestStarted)
+		select {
+		case <-request.Context().Done():
+			close(requestCanceled)
+		case <-releaseRequest:
+		}
+	}))
+	defer close(releaseRequest)
+
+	configComponent := config.NewMock(t)
+	configComponent.SetInTest("apm_config.debug.port", server.Listener.Addr().(*net.TCPAddr).Port)
+	configComponent.SetInTest("server_timeout", 30)
+
+	provider := NewComponent(Requires{
+		Config: configComponent,
+		Client: ipc.GetClient(),
+	}).Comp
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type result struct {
+		response *pbcore.GetStatusDetailsResponse
+		err      error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		response, err := provider.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
+		resultCh <- result{response: response, err: err}
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(testTimeout):
+		t.Fatal("trace status request did not start")
+	}
+	cancel()
+
+	select {
+	case <-requestCanceled:
+	case <-time.After(testTimeout):
+		t.Fatal("trace status request was not canceled")
+	}
+
+	select {
+	case result := <-resultCh:
+		require.NoError(t, result.err)
+		require.Contains(t, result.response.NamedSections, "Details")
+		assert.Contains(t, result.response.NamedSections["Details"].Fields[""], context.Canceled.Error())
+	case <-time.After(testTimeout):
+		t.Fatal("GetStatusDetails did not return after cancellation")
+	}
 }
