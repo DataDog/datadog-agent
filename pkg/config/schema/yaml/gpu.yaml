@@ -108,6 +108,13 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  static_metrics_reporting_interval:
+    node_type: setting
+    type: string
+    default: 15s
+    format: duration
+    tags:
+    - golang_type:duration
   use_sp_process_metrics:
     node_type: setting
     type: boolean
