@@ -99,16 +99,16 @@ single_version_override(
 )
 
 # Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
-# (main module) and bazel-contrib/rules_go#4700 (checksum qualifiers)
+# (main module), bazel-contrib/rules_go#4700 (checksums), and bazel-contrib/rules_go#4709 (actually reachable deps)
 archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "7fc1406e690e6e434b91de9fc88832203dddc2f5d2615e616b9c9b960c95db55",
-    strip_prefix = "rules_go-7da903b60f6e97643166e56ecd15c46f9aa61a66",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/7da903b60f6e97643166e56ecd15c46f9aa61a66.tar.gz"],  # master as of September 10, 2026
+    sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
+    strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/18a6fbb9f4fa93331640efddf81271eb467710f4.tar.gz"],  # master as of September 14, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
