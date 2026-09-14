@@ -17,7 +17,7 @@ pub(crate) fn require_mutating_pipe_client<T>(request: &Request<T>) -> Result<()
         .unwrap_or(false);
     if !may_mutate {
         return Err(Status::permission_denied(
-            "operation requires an Administrator or LocalSystem pipe client",
+            "operation requires an Administrator, LocalSystem, or installed Agent user pipe client",
         ));
     }
     Ok(())
