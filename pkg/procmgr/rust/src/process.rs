@@ -10,6 +10,7 @@ use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
+use std::ffi::OsString;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
@@ -519,6 +520,16 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
     #[cfg(windows)]
     platform::apply_child_baseline_env(cmd);
 
+    let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
+    let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
+    if !prefixes.is_empty() || !exact_names.is_empty() {
+        cmd.envs(collect_inherited_env(
+            std::env::vars_os(),
+            &prefixes,
+            &exact_names,
+        ));
+    }
+
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
         let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
@@ -552,6 +563,34 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
         }
     }
     Ok(())
+}
+
+fn collect_inherited_env(
+    vars: impl IntoIterator<Item = (OsString, OsString)>,
+    prefixes: &[String],
+    exact_names: &[String],
+) -> Vec<(String, String)> {
+    vars.into_iter()
+        .filter_map(|(name, value)| {
+            let name = name.into_string().ok()?;
+            let matches = prefixes.iter().any(|prefix| name.starts_with(prefix))
+                || exact_names.contains(&name);
+            if !matches {
+                return None;
+            }
+            Some((name, value.into_string().ok()?))
+        })
+        .collect()
+}
+
+fn env_list(name: &str) -> Vec<String> {
+    std::env::var(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
@@ -1019,6 +1058,66 @@ pub mod tests {
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[tokio::test]
+    async fn test_spawn_inherits_opted_in_parent_env() {
+        unsafe {
+            std::env::set_var("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_");
+            std::env::set_var("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, ");
+            std::env::set_var("INHERITED_PREFIX_VALUE", "prefix");
+            std::env::set_var("INHERITED_PREFIX_FILE", "parent");
+            std::env::set_var("INHERITED_EXACT", "parent");
+            std::env::set_var("NOT_INHERITED", "secret");
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "INHERITED_PREFIX_FILE=file\n").unwrap();
+
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        #[cfg(windows)]
+        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.env
+            .insert("INHERITED_EXACT".to_string(), "override".to_string());
+
+        let mut proc =
+            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+
+        for name in [
+            "DD_PM_INHERIT_ENV_PREFIXES",
+            "DD_PM_INHERIT_ENV_NAMES",
+            "INHERITED_PREFIX_VALUE",
+            "INHERITED_PREFIX_FILE",
+            "INHERITED_EXACT",
+            "NOT_INHERITED",
+        ] {
+            unsafe { std::env::remove_var(name) };
+        }
+        assert_eq!(status.code(), Some(0));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inherited_env_skips_non_unicode_entries() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let vars = [
+            (OsString::from_vec(vec![0xff]), OsString::from("value")),
+            (OsString::from("DD_BAD"), OsString::from_vec(vec![0xff])),
+            (OsString::from("DD_GOOD"), OsString::from("value")),
+        ];
+
+        assert_eq!(
+            collect_inherited_env(vars, &["DD_".to_string()], &[]),
+            vec![("DD_GOOD".to_string(), "value".to_string())]
+        );
     }
 
     #[tokio::test]
