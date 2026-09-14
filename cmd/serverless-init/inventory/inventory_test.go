@@ -8,6 +8,7 @@
 package inventory
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,4 +94,111 @@ func TestSetDeploymentIDGatedOff(t *testing.T) {
 	SetDeploymentID(ia, conf, "vm-abc123")
 
 	assert.Empty(t, ia.fields, "deployment_id must not be set when the ramp gate is off")
+}
+
+func TestNewCapabilitiesReportsOneUUIDForProcessLifetime(t *testing.T) {
+	caps := NewCapabilities()
+
+	assert.True(t, caps.SkipCrossProcessEnrichment)
+	assert.NotEmpty(t, caps.PayloadUUID())
+	assert.Equal(t, caps.PayloadUUID(), caps.PayloadUUID())
+}
+
+func TestNewCapabilitiesDistinctPerProcess(t *testing.T) {
+	assert.NotEqual(t, NewCapabilities().PayloadUUID(), NewCapabilities().PayloadUUID())
+}
+
+func TestNewInstanceUUIDResolvesBeforeAnyInstance(t *testing.T) {
+	u := NewInstanceUUID()
+
+	assert.NotEmpty(t, u.Resolve(), "a payload built before the first transition still needs a uuid")
+}
+
+func TestSetInstanceRotatesUUIDForNewInstance(t *testing.T) {
+	u := NewInstanceUUID()
+	snapshotUUID := u.Resolve()
+
+	u.SetInstance("vm-abc123")
+
+	assert.NotEqual(t, snapshotUUID, u.Resolve(),
+		"a restored instance must not keep reporting the snapshot's uuid")
+}
+
+func TestSetInstanceKeepsUUIDForSameInstance(t *testing.T) {
+	u := NewInstanceUUID()
+	u.SetInstance("vm-abc123")
+	runUUID := u.Resolve()
+
+	u.SetInstance("vm-abc123")
+
+	assert.Equal(t, runUUID, u.Resolve(),
+		"a later transition of the same instance must report the same uuid")
+}
+
+func TestSetInstanceRotatesUUIDPerInstance(t *testing.T) {
+	first := NewInstanceUUID()
+	first.SetInstance("vm-abc123")
+	second := NewInstanceUUID()
+	second.SetInstance("vm-def456")
+
+	assert.NotEqual(t, first.Resolve(), second.Resolve(),
+		"instances restored from one snapshot must report distinct uuids")
+}
+
+func TestSetInstanceIgnoresEmptyID(t *testing.T) {
+	u := NewInstanceUUID()
+	before := u.Resolve()
+
+	u.SetInstance("")
+
+	assert.Equal(t, before, u.Resolve(), "an absent id carries no identity to adopt")
+}
+
+func TestSetInstanceOnNilReceiver(t *testing.T) {
+	var u *InstanceUUID
+
+	assert.NotPanics(t, func() { u.SetInstance("vm-abc123") },
+		"non-MicroVM platforms leave this nil and call it unconditionally")
+}
+
+// Pins the invariant that makes a mutex necessary rather than two atomics: uuid
+// and instanceID must move together.
+func TestInstanceUUIDConcurrentSetInstanceRotatesOnce(t *testing.T) {
+	u := NewInstanceUUID()
+	snapshotUUID := u.Resolve()
+
+	const goroutines = 100
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			u.SetInstance("vm-abc123")
+		}()
+		go func() {
+			defer wg.Done()
+			u.Resolve()
+		}()
+	}
+	wg.Wait()
+
+	rotated := u.Resolve()
+	assert.NotEqual(t, snapshotUUID, rotated)
+
+	u.SetInstance("vm-abc123")
+	assert.Equal(t, rotated, u.Resolve(),
+		"one instance must settle on one uuid however many transitions it reports")
+}
+
+func TestNewInstanceCapabilitiesResolvesPerPayload(t *testing.T) {
+	u := NewInstanceUUID()
+	caps := NewInstanceCapabilities(u)
+
+	assert.True(t, caps.SkipCrossProcessEnrichment)
+	assert.Equal(t, u.Resolve(), caps.PayloadUUID())
+
+	u.SetInstance("vm-abc123")
+
+	assert.Equal(t, u.Resolve(), caps.PayloadUUID(),
+		"the uuid must resolve per payload, not be captured once")
 }

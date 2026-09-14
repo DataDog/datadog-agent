@@ -35,17 +35,19 @@ type Capabilities struct {
 	// processes do not run sets it true, since the fetches would only fail and
 	// risk dereferencing a nil IPC client.
 	SkipCrossProcessEnrichment bool
-	// PayloadUUID overrides the payload's uuid. Empty means use the cached host
+	// PayloadUUID overrides the payload's uuid. Nil means use the cached host
 	// machine GUID (uuid.GetUUID()), which is meaningless across the ephemeral,
-	// per-process containers of a hostless environment.
-	PayloadUUID string
+	// per-process containers of a hostless environment. Resolved per payload, so an
+	// environment that only learns its identity after construction still reports it.
+	// Called while the component holds its lock: it must not call back in.
+	PayloadUUID func() string
 }
 
 // NewServerlessCapabilities builds the Capabilities for serverless-init, a
 // hostless single-process environment with no sibling agent processes.
-func NewServerlessCapabilities(processUUID string) *Capabilities {
+func NewServerlessCapabilities(payloadUUID func() string) *Capabilities {
 	return &Capabilities{
 		SkipCrossProcessEnrichment: true,
-		PayloadUUID:                processUUID,
+		PayloadUUID:                payloadUUID,
 	}
 }
