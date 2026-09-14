@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::enrollment::Enrollment;
 use crate::opms::{ProxyDecision, TlsConfig};
 use anyhow::{Context, Result, ensure};
 use regex::Regex;
 use saluki_config::GenericConfiguration;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -79,70 +80,34 @@ struct AgentProxyConfig {
     no_proxy: Vec<String>,
 }
 
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-pub struct BootstrapConfig {
-    pub split_mode: bool,
-    pub log_level: String,
-    identity: BootstrapIdentity,
-    agent_version: String,
-    pub cmd_port: u16,
-    pub auth_token_file_path: String,
-    pub ipc_cert_file_path: String,
+pub fn log_level(agent: &GenericConfiguration) -> Result<log::LevelFilter> {
+    let level: String = agent
+        .get_typed("log_level")
+        .context("invalid log_level configuration from the Core Agent")?;
+    Ok(match level.trim().to_ascii_lowercase().as_str() {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "error" | "critical" => log::LevelFilter::Error,
+        "off" => log::LevelFilter::Off,
+        _ => log::LevelFilter::Info,
+    })
 }
 
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-struct BootstrapIdentity {
-    urn: String,
-    private_key: String,
-    org_id: i64,
-    runner_id: String,
+pub fn split_mode(agent: &GenericConfiguration) -> Result<bool> {
+    let par: AgentParConfig = agent
+        .get_typed("private_action_runner")
+        .context("invalid private_action_runner configuration from the Core Agent")?;
+    Ok(par.enabled && par.split_enabled)
 }
 
-impl BootstrapConfig {
-    pub fn log_level(&self) -> log::LevelFilter {
-        match self.log_level.trim().to_ascii_lowercase().as_str() {
-            "trace" => log::LevelFilter::Trace,
-            "debug" => log::LevelFilter::Debug,
-            "warn" | "warning" => log::LevelFilter::Warn,
-            "error" | "critical" => log::LevelFilter::Error,
-            "off" => log::LevelFilter::Off,
-            _ => log::LevelFilter::Info,
-        }
-    }
-
-    pub fn into_config(
-        self,
+impl Config {
+    pub fn from_agent(
         agent: &GenericConfiguration,
         dd_url_explicit: bool,
-    ) -> Result<Config> {
-        ensure!(
-            self.split_mode,
-            "bootstrap configuration has split mode disabled"
-        );
-        for (name, value) in [
-            ("log_level", self.log_level.as_str()),
-            ("identity.urn", self.identity.urn.as_str()),
-            ("identity.private_key", self.identity.private_key.as_str()),
-            ("identity.runner_id", self.identity.runner_id.as_str()),
-            ("agent_version", self.agent_version.as_str()),
-            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
-        ] {
-            ensure!(
-                !value.is_empty(),
-                "bootstrap configuration is missing {name}"
-            );
-        }
-        ensure!(
-            self.identity.org_id > 0,
-            "bootstrap configuration is missing identity.org_id"
-        );
-        ensure!(
-            self.cmd_port > 0,
-            "bootstrap configuration is missing cmd_port"
-        );
-
+        enrollment: Enrollment,
+        ipc_cert_file: &Path,
+    ) -> Result<Self> {
         let par: AgentParConfig = agent
             .get_typed("private_action_runner")
             .context("invalid private_action_runner configuration from the Core Agent")?;
@@ -194,14 +159,14 @@ impl BootstrapConfig {
             max_backoff: MAX_BACKOFF,
             wait_before_retry: WAIT_BEFORE_RETRY,
             max_attempts: MAX_ATTEMPTS,
-            runner_version: self.agent_version,
+            runner_version: enrollment.agent_version,
             modes: vec!["pull".to_string()],
-            ipc_cert_file: self.ipc_cert_file_path.into(),
+            ipc_cert_file: ipc_cert_file.into(),
             identity: Identity {
-                urn: self.identity.urn,
-                private_key: self.identity.private_key,
-                org_id: self.identity.org_id,
-                runner_id: self.identity.runner_id,
+                urn: enrollment.urn,
+                private_key: enrollment.private_key,
+                org_id: enrollment.org_id,
+                runner_id: enrollment.runner_id,
             },
         })
     }
@@ -306,15 +271,15 @@ mod tests {
     use serde_json::json;
     use tokio::sync::mpsc;
 
-    const JSON: &str = r#"{
-        "split_mode": true,
-        "log_level": "debug",
-        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
-        "agent_version":"7.76.0",
-        "cmd_port":5001,
-        "auth_token_file_path":"/etc/datadog-agent/auth_token",
-        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem"
-    }"#;
+    fn enrollment() -> Enrollment {
+        Enrollment {
+            urn: "urn".to_string(),
+            private_key: "key".to_string(),
+            org_id: 42,
+            runner_id: "runner".to_string(),
+            agent_version: "7.76.0".to_string(),
+        }
+    }
 
     async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
         agent_config_values(
@@ -347,6 +312,7 @@ mod tests {
         nonexact: bool,
     ) -> GenericConfiguration {
         let settings = [
+            ConfigSetting::explicit("log_level", json!("debug")),
             ConfigSetting::explicit("private_action_runner.enabled", json!(true)),
             ConfigSetting::explicit("private_action_runner.split_enabled", json!(true)),
             ConfigSetting::explicit(
@@ -384,14 +350,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn combines_bootstrap_and_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        assert!(bootstrap.split_mode);
-        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
+    async fn combines_enrollment_and_core_agent_configuration() {
+        let agent = agent_config(9).await;
+        assert!(split_mode(&agent).unwrap());
+        assert_eq!(log_level(&agent).unwrap(), log::LevelFilter::Debug);
 
-        let config = bootstrap
-            .into_config(&agent_config(9).await, false)
-            .unwrap();
+        let config =
+            Config::from_agent(&agent, false, enrollment(), Path::new("/ipc-cert.pem")).unwrap();
 
         assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
         assert_eq!(
@@ -409,12 +374,15 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_invalid_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        let error = bootstrap
-            .into_config(&agent_config(0).await, false)
-            .err()
-            .unwrap()
-            .to_string();
+        let error = Config::from_agent(
+            &agent_config(0).await,
+            false,
+            enrollment(),
+            Path::new("/ipc-cert.pem"),
+        )
+        .err()
+        .unwrap()
+        .to_string();
 
         assert!(error.contains("task_concurrency"));
     }
@@ -464,11 +432,5 @@ mod tests {
             opms_base_url(&fakeintake, true, true).unwrap(),
             "http://fakeintake:8080"
         );
-    }
-
-    #[test]
-    fn rejects_unknown_bootstrap_fields() {
-        let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
-        assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
     }
 }

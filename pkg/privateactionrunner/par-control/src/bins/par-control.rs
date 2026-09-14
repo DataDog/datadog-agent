@@ -3,27 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
-use par_control::bootstrap;
+use datadog_agent_commons::ipc::config::{IpcAuthConfiguration, RemoteAgentClientConfiguration};
+use par_control::enrollment;
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
 use par_control::remote_config;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(
-        long = "bootstrap-command",
-        num_args = 1..,
-        allow_hyphen_values = true
-    )]
-    bootstrap_command: Vec<String>,
+    #[arg(long)]
+    cmd_port: Option<u16>,
+    #[arg(long)]
+    auth_token_file: Option<PathBuf>,
+    #[arg(long)]
+    ipc_cert_file: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -52,18 +54,43 @@ async fn run() -> Result<()> {
     }
     log::set_max_level(log::LevelFilter::Info);
 
-    let bootstrapped = bootstrap::run_bootstrap(&cli.bootstrap_command)?;
-    log::set_max_level(bootstrapped.log_level());
+    par_control::tls::initialize_crypto_provider()?;
+    let ipc = RemoteAgentClientConfiguration {
+        cmd_port: match cli.cmd_port {
+            Some(port) => port,
+            None => match std::env::var("DD_CMD_PORT") {
+                Ok(value) => value.parse().context("invalid DD_CMD_PORT")?,
+                Err(std::env::VarError::NotPresent) => 5001,
+                Err(error) => return Err(error).context("invalid DD_CMD_PORT"),
+            },
+        },
+        auth: IpcAuthConfiguration::new(
+            cli.auth_token_file
+                .or_else(|| std::env::var_os("DD_AUTH_TOKEN_FILE_PATH").map(PathBuf::from))
+                .unwrap_or_default(),
+            cli.ipc_cert_file
+                .or_else(|| std::env::var_os("DD_IPC_CERT_FILE_PATH").map(PathBuf::from))
+                .unwrap_or_default(),
+        ),
+        grpc_max_message_size: 128 * 1024 * 1024,
+        #[cfg(target_os = "linux")]
+        vsock_cid: None,
+    };
+    let (agent_config, dd_url_explicit) = remote_config::load(&ipc).await?;
+    log::set_max_level(par_control::config::log_level(&agent_config)?);
 
-    if !bootstrapped.split_mode {
+    if !par_control::config::split_mode(&agent_config)? {
         log::info!("private_action_runner split mode is disabled; exiting");
         return Ok(());
     }
 
-    par_control::tls::initialize_crypto_provider()?;
-
-    let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
-    let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
+    let enrolled = enrollment::ensure(&ipc).await?;
+    let config = par_control::config::Config::from_agent(
+        &agent_config,
+        dd_url_explicit,
+        enrolled,
+        ipc.auth.ipc_cert_file_path(),
+    )?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

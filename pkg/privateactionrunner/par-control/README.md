@@ -9,15 +9,15 @@ See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZd
 
 ## Configuration
 
-Go owns enrollment and supplies the identity, Agent version, and Core Agent IPC
-bootstrap settings. `par-control` then registers as a
-config-only Remote Agent and loads its runtime settings from the Core Agent config
-stream through Saluki's `GenericConfiguration`.
+`par-control` registers as a config-only Remote Agent and loads its runtime settings
+from the Core Agent config stream through Saluki's `GenericConfiguration`. When split
+mode is enabled, it asks the Core Agent's authenticated IPC endpoint to ensure
+enrollment and return the runner identity and Agent version.
 
-At startup, `par-control` runs the command passed to `--bootstrap-command` and parses
-its stdout as JSON. The bootstrap command disables normal logging, while errors and
-panics still use stderr. Since the payload contains credentials, stdout is never
-forwarded or included in errors.
+The Core Agent IPC port, auth token path, and certificate path use `DD_CMD_PORT`,
+`DD_AUTH_TOKEN_FILE_PATH`, and `DD_IPC_CERT_FILE_PATH` when set, then fall back to the
+standard Agent locations. Command-line `--cmd-port`, `--auth-token-file`, and
+`--ipc-cert-file` overrides take precedence.
 
 ## Build and test
 

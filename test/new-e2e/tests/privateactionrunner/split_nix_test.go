@@ -273,7 +273,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.Require().NoError(err)
 	s.Require().Equal(1, count, "valid persisted identity should not enroll again")
 
-	// A hostname mismatch makes bootstrap-par-control replace the stale identity.
+	// A hostname mismatch makes the Core Agent enrollment endpoint replace the stale identity.
 	host.MustExecute(
 		`sudo sed -i 's/"hostname":"[^"]*"/"hostname":"definitely-not-this-host"/' ` + parIdentityPath,
 	)
@@ -293,7 +293,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	persistedConfig := splitConfig("not-a-runner-urn", s.inlineKey)
 	s.restartControl(persistedConfig, "Running")
 
-	// A stale hostname makes bootstrap-par-control ignore the persisted identity.
+	// A stale hostname makes the Core Agent enrollment endpoint ignore the persisted identity.
 	// Invalid persisted values prove the configured inline identity wins.
 	stale := `{"private_key":"invalid","urn":"not-a-runner-urn","hostname":"definitely-not-this-host"}`
 	s.Require().NoError(s.writeIdentity(stale))
