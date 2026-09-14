@@ -151,13 +151,6 @@ func TestCompileDoesNotDedupeAcrossIncludeAndExclude(t *testing.T) {
 	assert.True(t, f.Retains("foo:bar"), "the include rescues the identical exclude")
 }
 
-func TestCompileWarnsOnUppercaseKey(t *testing.T) {
-	_, report := Compile(nil, []string{"Kube_Namespace:default"})
-	require.Len(t, report.Warnings, 1)
-	assert.Contains(t, report.Warnings[0], "Kube_Namespace:default")
-	assert.Contains(t, report.Warnings[0], "kube_namespace")
-}
-
 func TestCompileWarnsOnProtectedExclude(t *testing.T) {
 	_, report := Compile(nil, []string{"source:foo"})
 	require.Len(t, report.Warnings, 1)
@@ -170,9 +163,62 @@ func TestCompileIncludeNamingProtectedKeyWarnsNothing(t *testing.T) {
 	assert.Empty(t, report.Warnings)
 }
 
-func TestCompileWarnsBothUppercaseAndProtectedExclude(t *testing.T) {
+func TestCompileMixedCaseProtectedExcludeStillWarns(t *testing.T) {
 	_, report := Compile(nil, []string{"Source:foo"})
-	assert.Len(t, report.Warnings, 2)
+	require.Len(t, report.Warnings, 1)
+	assert.Contains(t, report.Warnings[0], "no effect")
+}
+
+// TestMatchingIsCaseInsensitive pins that neither side of a comparison is
+// case-sensitive: tag keys and values arrive verbatim from user config
+// (logs_config.tags, DD_TAGS, container label mappings), so a rule must not
+// silently no-op on a capital letter.
+func TestMatchingIsCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name    string
+		exclude string
+		tag     string
+	}{
+		{"upper pattern key, lower tag key", "Team:*", "team:infra"},
+		{"lower pattern key, upper tag key", "team:*", "Team:infra"},
+		{"mixed on both sides", "TeAm:*", "tEaM:infra"},
+		{"upper pattern value", "team:INFRA", "team:infra"},
+		{"upper tag value", "team:infra", "team:INFRA"},
+		{"glob spans case", "image_tag:V1.*", "image_tag:v1.4.2"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f, report := Compile(nil, []string{test.exclude})
+			require.Empty(t, report.Rejected)
+			assert.False(t, f.Retains(test.tag))
+		})
+	}
+}
+
+func TestProtectedKeysSurviveMixedCaseTags(t *testing.T) {
+	f, _ := Compile(nil, []string{"Host:*", "SERVICE:web"})
+	for _, tag := range []string{"Host:myhost", "HOST:myhost", "Service:web", "sErViCe:web"} {
+		assert.True(t, f.Retains(tag), "protected tag %q must survive", tag)
+	}
+}
+
+func TestCaseFoldedKeyLookupAllocatesNothing(t *testing.T) {
+	f, _ := Compile(nil, []string{"team:*"})
+	require.False(t, f.Retains("Team:infra"), "fixture must take the folded-lookup path")
+	allocs := testing.AllocsPerRun(1000, func() {
+		_ = f.Retains("Team:infra")
+	})
+	assert.Equal(t, float64(0), allocs)
+}
+
+// TestCaseFoldedLookupBeyondStackBuffer covers keys too long for lookupKey's
+// stack buffer, which take the allocating fallback.
+func TestCaseFoldedLookupBeyondStackBuffer(t *testing.T) {
+	key := strings.Repeat("a", maxFoldedKeyLen) + "B"
+	f, report := Compile(nil, []string{key + ":*"})
+	require.Empty(t, report.Rejected)
+	assert.False(t, f.Retains(strings.ToUpper(key)+":anything"))
+	assert.False(t, f.Retains(key+":anything"))
 }
 
 func TestIncludeOnlyRemovesNothing(t *testing.T) {
@@ -202,7 +248,7 @@ func TestFiltersIsEmpty(t *testing.T) {
 func TestFiltersPatterns(t *testing.T) {
 	f, report := Compile([]string{"Foo:*", " bar:baz ", "bar:baz"}, []string{"qux:*"})
 	assert.Empty(t, report.Rejected)
-	assert.Len(t, report.Warnings, 1)
+	assert.Empty(t, report.Warnings)
 
 	got := f.Patterns()
 	assert.ElementsMatch(t, []string{"Foo:*", "bar:baz"}, got.Include)

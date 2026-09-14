@@ -6,9 +6,10 @@
 // Package tagfilter removes log tags matching user-configured key:value patterns
 // before a log is encoded for the intake.
 //
-// A pattern is "key:value". The key is a literal, case-sensitive exact match; "*"
-// is legal only in the value, where it matches zero or more characters. A tag
-// carrying no colon is never matched by any pattern.
+// A pattern is "key:value". The key is a literal exact match; "*" is legal only
+// in the value, where it matches zero or more characters. Matching is
+// case-insensitive over ASCII. A tag carrying no colon is never matched by any
+// pattern.
 //
 // Filters are immutable once compiled and safe for concurrent use. Every method is
 // nil-receiver safe and treats a nil filter as the identity.
@@ -107,22 +108,17 @@ func compileList(f *Filters, patterns []string, isExclude bool, report *Report) 
 			continue
 		}
 
-		lowered := strings.ToLower(key)
-		if lowered != key {
-			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"pattern %q has an uppercase key; tag keys are normalized to lowercase, compiled as %q",
-				p, lowered+":"+value))
-		}
-		if isExclude && isProtectedKey(lowered) {
+		folded := asciiLower(key)
+		if isExclude && isProtectedKey(folded) {
 			report.Warnings = append(report.Warnings, fmt.Sprintf(
 				"exclude pattern %q targets protected key %q, which can never be removed, so it has no effect",
-				p, lowered))
+				p, folded))
 		}
 
-		kr := f.byKey[lowered]
+		kr := f.byKey[folded]
 		if kr == nil {
 			kr = &keyRules{}
-			f.byKey[lowered] = kr
+			f.byKey[folded] = kr
 		}
 		if value == "*" {
 			if isExclude {
@@ -131,7 +127,7 @@ func compileList(f *Filters, patterns []string, isExclude bool, report *Report) 
 				kr.includeAny = true
 			}
 		} else {
-			g := valueGlob{segments: strings.Split(value, "*")}
+			g := valueGlob{segments: strings.Split(asciiLower(value), "*")}
 			if isExclude {
 				kr.excludeVals = append(kr.excludeVals, g)
 			} else {
@@ -184,6 +180,59 @@ func isProtectedKey(key string) bool {
 	return false
 }
 
+// maxFoldedKeyLen bounds the stack buffer lookupKey folds into. Longer keys fall
+// back to an allocating fold.
+const maxFoldedKeyLen = 128
+
+func hasASCIIUpper(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			return true
+		}
+	}
+	return false
+}
+
+// asciiLower lowercases ASCII letters in s, returning s unchanged when it holds
+// none. Folding is ASCII-only so pattern compilation and tag matching normalize
+// identically; a Unicode-aware fold on one side only would silently disagree.
+func asciiLower(s string) string {
+	if !hasASCIIUpper(s) {
+		return s
+	}
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return string(b)
+}
+
+// lookupKey resolves a tag key against the rule map, case-insensitively. Pattern
+// keys are stored folded, so an already-lowercase key resolves on the first
+// lookup and a mixed-case key costs one extra scan.
+func (f *Filters) lookupKey(key string) *keyRules {
+	if kr := f.byKey[key]; kr != nil {
+		return kr
+	}
+	if !hasASCIIUpper(key) {
+		return nil
+	}
+	if len(key) > maxFoldedKeyLen {
+		return f.byKey[asciiLower(key)]
+	}
+	var buf [maxFoldedKeyLen]byte
+	for i := 0; i < len(key); i++ {
+		c := key[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		buf[i] = c
+	}
+	return f.byKey[string(buf[:len(key)])]
+}
+
 // splitTag splits a tag on its first colon. ok is false when tag carries no
 // colon, meaning it can never be matched by any pattern.
 func splitTag(tag string) (key, value string, ok bool) {
@@ -208,12 +257,17 @@ func (f *Filters) decide(key, value string) decision {
 	if f == nil {
 		return noDecision
 	}
-	kr := f.byKey[key]
+	kr := f.lookupKey(key)
 	if kr == nil {
 		return noDecision
 	}
 	if kr.protected {
 		return keepDecision
+	}
+	// Pattern values are stored folded; only fold the tag value when a glob will
+	// actually consult it.
+	if len(kr.includeVals) > 0 || len(kr.excludeVals) > 0 {
+		value = asciiLower(value)
 	}
 	if kr.includeAny || matchesGlob(kr.includeVals, value) {
 		return keepDecision
