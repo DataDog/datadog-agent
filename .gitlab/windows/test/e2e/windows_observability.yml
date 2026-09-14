@@ -47,9 +47,23 @@ new-e2e-alp-windows:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
-    EXTRA_PARAMS: --run "Windows"
+    EXTRA_PARAMS: --run "Windows" --skip "RegistryDurability"
   # Temporary for #incident-44744
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-alp-windows-registry-durability:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines/windows-log/registry-durability
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --run "TestWindowsRegistryDurability$"
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-cws-windows:
