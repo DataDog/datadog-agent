@@ -3,12 +3,15 @@ name: follow-pr
 description: >-
   Monitor the current PR's GitLab pipeline to completion, then report success or investigate a failure.
   Use when the user asks to follow, babysit, watch, or wait on a PR/pipeline, or just after pushing to / creating a PR.
+argument-hint: "[<ref> | --pipeline <id>] [--fix-mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
 model: sonnet
 ---
 
 # Follow PR
 
-Watch the latest Gitlab CI pipeline for the current PR to a terminal state and report the outcome.
+Watch the latest Gitlab CI pipeline for the current PR to a terminal state, report the outcome, and — for failures reliably caused by this PR — autonomously fix and push bounded ones under the resolved autonomy policy while investigating the rest locally.
+
+**Owning team:** `@DataDog/agent-devx`
 
 ## Step 0: Ensure correct environment
 The appropriate tool for this usecase is `ddgl`, and more specifically `ddgl attach`.
@@ -40,7 +43,23 @@ dda env dev run --id follow-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --
 If the user gave a ref, branch, or pipeline ID, pass it through (`--ref <ref>` or `--pipeline <id>`).
 Otherwise omit both — `ddgl attach` resolves the pipeline for the current branch on its own.
 
-## Step 2: Start monitoring
+## Step 2: Resolve the autonomy policy
+
+Before starting the monitoring loop, resolve how this run should handle failures caused by the PR's own code:
+
+```bash
+python3 .agents/skills/follow-pr/scripts/config.py resolve \
+  [--mode <from --fix-mode arg>] [--max-fix-cycles <from arg>] [--policy <from arg>]
+```
+
+Pass through any `--fix-mode`, `--max-fix-cycles`, or policy text given in this invocation; otherwise the script falls back to environment variables, then worktree-local config, then global config, then its own default (`autofix`). Anyone who wants to be asked instead can set `mode = "ask"` in either config file, or `mode = "no-autofix"` to disable pushing entirely.
+
+- **Resolved mode is `autofix` or `no-autofix`:** report the resolved mode, cycle budget, and whether a custom policy is active, then continue to [Step 3](#step-3-start-monitoring).
+- **Resolved mode is `ask`, or the script errors:** ask the user directly, before monitoring starts, whether PR-caused failures this run should be fixed and pushed (`autofix`) or only investigated locally (`no-autofix`). Offer to persist the answer (worktree-local or global config) if they don't want to be asked again; otherwise use it for this run only.
+
+Keep the resolved mode, cycle budget (default `2`), and policy text in context — you'll pass them straight through as `--mode`/`--max-fix-cycles`/`--policy` whenever you invoke `/handle-pr-ci-failure` in [Step 6](#step-6-follow-up-on-failures), so it resolves the exact same values instead of re-deriving them; [Step 8](#step-8-decide-whether-to-keep-going) also needs them on every loop.
+
+## Step 3: Start monitoring
 
 All pipeline discovery, polling, follow/rebind, and timeout handling is covered by the internals of `ddgl attach`.
 Do not implement a second polling loop or persist monitoring state of your own.
@@ -68,7 +87,7 @@ This is safe: `attach` is stateless and each invocation begins with a fresh snap
 > NOTE: If the pipeline is already terminal or does not exist when you start monitoring, the user might have just pushed and the pipeline is still waiting to be created.
 > In this case, wait for 60 seconds and then re-attempt monitoring. The `--follow` argument will make sure `ddgl attach` always monitors the latest pipeline for the ref.
 
-## Step 3: Interpret the output
+## Step 4: Interpret the output
 
 You may see:
 
@@ -80,7 +99,7 @@ You may see:
 - `[FINAL]` - the terminal, authoritative outcome. Treat this line as the
   source of truth regardless of the command's exit code — it names the pipeline id, terminal status, and, on failure, the failed job names.
 
-## Step 4: Act on the outcome
+## Step 5: Act on the outcome
 
 - **Pipeline Success:** stop monitoring and report the pipeline succeeded.
 - **Some job failed, but the pipeline is still running**:
@@ -92,25 +111,23 @@ You may see:
     Unit test, linter, and build failures are less likely to be flakes regardless of policy.
     If you're unsure which policy a job is on: `grep -rn '<job-name>' .gitlab/ .gitlab-ci.yml`.
     Otherwise, ask the user whether to continue monitoring, or if this job failure is already a
-    problem. In the latter case, move to [Step 5](#step-5-follow-up-on-failures).
-- **Pipeline failed or canceled:** Stop monitoring, report the status, and move to [Step 5](#step-5-follow-up-on-failures).
-- **Timeout `[FINAL]`:** re-invoke `ddgl attach` as in Step 2; this is not a true terminal outcome.
+    problem. In the latter case, move to [Step 6](#step-6-follow-up-on-failures).
+- **Pipeline failed or canceled:** Stop monitoring, report the status, and move to [Step 6](#step-6-follow-up-on-failures).
+- **Timeout `[FINAL]`:** re-invoke `ddgl attach` as in Step 3; this is not a true terminal outcome.
 - **Unexpected error** (from `ddgl` itself, or from the monitoring tool): report what happened. Do not attempt a recovery action.
 
-## Step 5: follow-up on failures
+## Step 6: follow-up on failures
 
-Invoke `/triage-ci-failure` on the pipeline id from the `[FINAL]` line. It classifies each
-failed job as caused by an active incident, infra/platform flakiness, a code regression, or
-ordinary flakiness, and ends with a verdict plus an `Incident: ...` line per job.
+Invoke `/triage-ci-failure` on the pipeline id from the `[FINAL]` line; it returns one `CI triage result` block per failed job.
 
-Act on the verdict in context — there is no file or schema to read back, only the conversation.
-The `Incident:` line tells you what to do next:
-- **active, still breaking** — continue to [Step 6](#step-6-watch-an-unresolved-incident) andwait it out.
-- **stable** or **resolved** — tell the user it's safe to rebase onto `main` and re-run, saying plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress).
-  Investigation ends here.
-- **none, or no incident at all** — report the verdict, and if it's PR-caused, the proposed fix (still don't apply it). Investigation ends here.
+Route each block by its `Blame` field — never by whether `Incident` happens to be `none`, since that value alone doesn't tell you the job wasn't PR-caused:
 
-## Step 6: watch an unresolved incident
+- **`upstream`:** if `Incident` is active and still breaking, continue to [Step 7](#step-7-watch-an-unresolved-incident) and wait it out. If `stable` or `resolved`, tell the user it's safe to rebase onto `main` and re-run — say plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress). If no incident is declared at all, say CI looks broken on `main` with nothing declared for it — worth surfacing loudly. Investigation ends here for that job.
+- **`infra` or `flake`:** report the verdict and its suggested action (typically a retry, citing the evidence `/triage-ci-failure` gave you). Investigation ends here for that job.
+- **`inconclusive`:** report the evidence and the two most likely readings. Investigation ends here for that job.
+- **`pr-code`:** collect every `pr-code` block from this pipeline and invoke `/handle-pr-ci-failure` once with all of them together, passing `--mode`/`--max-fix-cycles`/`--policy` set to the values resolved in [Step 2](#step-2-resolve-the-autonomy-policy). Continue to [Step 8](#step-8-decide-whether-to-keep-going) with its result.
+
+## Step 7: watch an unresolved incident
 
 Only entered when `/triage-ci-failure` reported an incident that's still **active and breaking** for a failed job — this is the other half of watching a PR through:
 the pipeline is red because of something outside the PR, and it will stay red until that something changes.
@@ -131,3 +148,22 @@ pup cicd events aggregate \
 ```
 
 Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.
+
+## Step 8: decide whether to keep going
+
+Read `/handle-pr-ci-failure`'s result block:
+
+- **`Outcome: pushed`:** it consumed one fix cycle. Work through these checks in order:
+  1. Compare this pipeline's `Failure signatures` against any push from earlier in this same run. If they match, the earlier fix didn't work — don't push again; report that and hand the fresh triage result back to `/handle-pr-ci-failure` so it investigates rather than fixes.
+  2. If the cycle budget is already spent, report that and stop — don't push a further fix even if it looks safe.
+  3. Otherwise, go back to [Step 3](#step-3-start-monitoring) to watch the replacement pipeline at the `Pushed SHA`, then return here through [Step 6](#step-6-follow-up-on-failures) once it finishes.
+- **`Outcome: committed-not-pushed`:** report the local commit and the remaining complex root cause(s) blocking a push, then stop and let the user decide.
+- **`Outcome: needs-user` or `blocked`:** report the evidence and the specific question `/handle-pr-ci-failure` asked for, then stop.
+
+Every trip back through this loop re-runs `/triage-ci-failure` from scratch on the new pipeline — never reuse an earlier verdict for a different pipeline.
+
+## Examples
+
+- A missed rename breaks a lint job. `/triage-ci-failure` returns one `pr-code` block; `/handle-pr-ci-failure` classifies it `safe`, fixes it, verifies with `dda inv linter.go`, commits, and pushes. Step 8 sees `Outcome: pushed` (cycle 1 of 2), goes back to Step 3, and the replacement pipeline goes green.
+- A test fails intermittently under `-race`. `/handle-pr-ci-failure` classifies it `complex`, reproduces it locally, tries two distinct hypotheses, and stops with `Outcome: needs-user` and an uncommitted candidate diff — nothing is pushed.
+- A pushed fix's replacement pipeline fails again with the same `Failure signature`. Step 8 recognizes the repeat, does not push a second attempt, and routes back into `/handle-pr-ci-failure` to investigate instead.
