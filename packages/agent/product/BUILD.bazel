@@ -34,7 +34,6 @@ pkg_filegroup(
         ":dda_built_agent_binary",
 
         # TODO: sysprobe - windows
-        # TODO: installer
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
@@ -54,6 +53,7 @@ pkg_filegroup(
     }) + select({
         "//packages/agent:linux_default": [
             ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
@@ -61,6 +61,7 @@ pkg_filegroup(
         ],
         "//packages/agent:linux_fips": [
             ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -76,6 +77,7 @@ pkg_filegroup(
             # TODO: systray
         ],
         "@platforms//os:windows": [
+            ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
@@ -215,6 +217,20 @@ pkg_files(
     srcs = ["//cmd/systray"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+)
+
+pkg_files(
+    name = "installer_binary",
+    srcs = ["//cmd/installer"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "embedded/bin",
+    }),
+    renames = select({
+        "@platforms//os:windows": {"//cmd/installer": "datadog-installer.exe"},
+        "//conditions:default": {},
+    }),
 )
 
 pkg_files(
