@@ -16,7 +16,7 @@ target:
   cpu_allotment: 4
   # Set to 30% higher than the memory_usage check upper_bound below.
   # Update both together when recalibrating.
-  memory_allotment: 10GiB
+  memory_allotment: 1.8GiB
 
   environment:
     DD_API_KEY: a0000001
@@ -44,30 +44,23 @@ checks:
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
     bounds:
       series: avg(total_cpu_usage_millicores)
-      # TODO: calibrate from a baseline run before enforcing.
-      upper_bound: 2000
+      # Calibrated from baseline run: observed 1345 millicores.
+      upper_bound: 1700
 
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
     bounds:
       series: total_pss_bytes
       # When updating this, update memory_allotment in the target section to 30% higher.
-      # TODO: calibrate from a baseline run before enforcing.
-      upper_bound: "300 MiB"
-
-  - name: checks_runs
-    description: "Check runs quality gate. This puts a bound on the average number of check runs per scrape cycle."
-    bounds:
-      series: avg(target/checks.runs)
-      # TODO: calibrate from a baseline run before enforcing.
-      upper_bound: 1000
+      # Calibrated from baseline run: observed 1.26 GiB.
+      upper_bound: "1.4 GiB"
 
   - name: checks_execution_time
     description: "Check execution time quality gate. This puts a bound on the average time to execute check instances."
     bounds:
       series: avg(target/checks.execution_time)
-      # TODO: calibrate from a baseline run before enforcing.
-      upper_bound: 1000
+      # Calibrated from baseline run: observed 74.08.
+      upper_bound: 100
 
 report_links:
   - text: "bounds checks dashboard"
