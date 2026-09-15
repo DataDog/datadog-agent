@@ -25,12 +25,8 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
 pub async fn load(bootstrap: &BootstrapConfig) -> Result<(GenericConfiguration, bool)> {
     let ipc_config = ipc_config(bootstrap);
-    let mut client = RemoteAgentClient::connect(&ipc_config)
-        .await
-        .context("failed to connect to the Core Agent configuration stream")?;
-
     let session_id = SessionIdHandle::empty();
-    let refresh_interval = register(&mut client, &session_id).await?;
+    let (client, refresh_interval) = connect_and_register(&ipc_config, &session_id).await;
     tokio::spawn(maintain_registration(
         client.clone(),
         session_id.clone(),
@@ -62,6 +58,28 @@ fn ipc_config(bootstrap: &BootstrapConfig) -> RemoteAgentClientConfiguration {
         grpc_max_message_size: 128 * 1024 * 1024,
         #[cfg(target_os = "linux")]
         vsock_cid: None,
+    }
+}
+
+async fn connect_and_register(
+    ipc_config: &RemoteAgentClientConfiguration,
+    session_id: &SessionIdHandle,
+) -> (RemoteAgentClient, Duration) {
+    loop {
+        let mut client = match RemoteAgentClient::connect(ipc_config).await {
+            Ok(client) => client,
+            Err(error) => {
+                log::warn!("Core Agent connection failed: {error:#}");
+                tokio::time::sleep(RETRY_INTERVAL).await;
+                continue;
+            }
+        };
+
+        match register(&mut client, session_id).await {
+            Ok(refresh_interval) => return (client, refresh_interval),
+            Err(error) => log::warn!("Core Agent registration failed: {error:#}"),
+        }
+        tokio::time::sleep(RETRY_INTERVAL).await;
     }
 }
 
