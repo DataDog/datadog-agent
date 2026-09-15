@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type nvlinkApiCallInfo struct {
+type nvlinkAPICallInfo struct {
 	Name    string                                                     // Name of the API call for logging/debugging
 	Handler func(ddnvml.Device, uint64, int) ([]Sample, uint64, error) // Function to handle the API call for a port and return samples (samples, newTimestamp, error)
 }
@@ -44,7 +44,7 @@ func nvlinkErrorCounterSample(device ddnvml.Device, metricName string, counter n
 }
 
 func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
-	nvlinkApiCalls := []nvlinkApiCallInfo{
+	nvlinkAPICalls := []nvlinkAPICallInfo{
 		{
 			Name: "nvlink_error_dl_replay",
 			Handler: func(device ddnvml.Device, _ uint64, port int) ([]Sample, uint64, error) {
@@ -72,13 +72,13 @@ func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 	}
 
 	var apiCalls []apiCallInfo
-	for _, nvlinkApiCall := range nvlinkApiCalls {
+	for _, nvlinkAPICall := range nvlinkAPICalls {
 		ports, err := getSupportedNvlinkPorts(device, func(port int) ([]Sample, error) {
-			samples, _, err := nvlinkApiCall.Handler(device, 0, port)
+			samples, _, err := nvlinkAPICall.Handler(device, 0, port)
 			return samples, err
 		})
 		if err != nil {
-			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkApiCall.Name, err)
+			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkAPICall.Name, err)
 
 			// only skip ports if the error is because the API is unsupported
 			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
@@ -88,9 +88,9 @@ func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 
 		for _, port := range ports {
 			apiCalls = append(apiCalls, apiCallInfo{
-				Name: nvlinkApiCall.Name,
+				Name: nvlinkAPICall.Name,
 				Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-					return nvlinkApiCall.Handler(device, 0, port)
+					return nvlinkAPICall.Handler(device, 0, port)
 				},
 			})
 		}

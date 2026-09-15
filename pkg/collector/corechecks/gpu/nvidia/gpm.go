@@ -21,8 +21,6 @@ import (
 
 const sampleBufferSize = 2
 
-const legacySMActiveConfig = "gpu.legacy_sm_active"
-
 type gpmCollector struct {
 	lib                  ddnvml.SafeNVML
 	device               ddnvml.Device
@@ -95,8 +93,8 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 		device:           device,
 		metricsToCollect: clonedMetrics,
 	}
-	if deps != nil && deps.Config != nil {
-		collector.emitLegacySMActive = deps.Config.GetBool(legacySMActiveConfig)
+	if deps != nil {
+		collector.emitLegacySMActive = deps.Config.LegacySMActive
 	}
 
 	if isMig {

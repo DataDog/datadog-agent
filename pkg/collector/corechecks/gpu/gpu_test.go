@@ -10,19 +10,6 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"go.uber.org/mock/gomock"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -39,12 +26,25 @@ import (
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"go.uber.org/mock/gomock"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
 )
 
 func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
@@ -78,46 +78,54 @@ func newConfiguredGPUCheck(
 	return check
 }
 
-func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
+func TestConfigureSystemProbeCacheFeatureGating(t *testing.T) {
 	tests := []struct {
-		name               string
-		gpuMonitoring      bool
-		enableEBPFProbes   bool
-		prmEndpointEnabled bool
-		expectSPCache      bool
-		expectPRMCache     bool
+		name                string
+		gpuMonitoring       bool
+		enableEBPFProbes    bool
+		prmEndpointEnabled  bool
+		driverEventsEnabled bool
+		expectStatsCache    bool
+		expectPRMCache      bool
 	}{
 		{
-			name:               "system probe and PRM endpoint enabled",
-			gpuMonitoring:      true,
-			enableEBPFProbes:   true,
-			prmEndpointEnabled: true,
-			expectSPCache:      true,
-			expectPRMCache:     true,
+			name:                "all system-probe GPU features enabled",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    true,
+			prmEndpointEnabled:  true,
+			driverEventsEnabled: true,
+			expectStatsCache:    true,
+			expectPRMCache:      true,
 		},
 		{
-			name:               "system probe enabled and PRM endpoint disabled",
-			gpuMonitoring:      true,
-			enableEBPFProbes:   true,
-			prmEndpointEnabled: false,
-			expectSPCache:      true,
-			expectPRMCache:     false,
+			name:                "eBPF enabled",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    true,
+			prmEndpointEnabled:  false,
+			driverEventsEnabled: false,
+			expectStatsCache:    true,
 		},
 		{
-			name:               "system probe enabled, eBPF disabled, and PRM endpoint enabled",
-			gpuMonitoring:      true,
-			enableEBPFProbes:   false,
-			prmEndpointEnabled: true,
-			expectSPCache:      false,
-			expectPRMCache:     true,
+			name:                "PRM enabled without eBPF",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    false,
+			prmEndpointEnabled:  true,
+			driverEventsEnabled: false,
+			expectPRMCache:      true,
 		},
 		{
-			name:               "system probe disabled",
-			gpuMonitoring:      false,
-			enableEBPFProbes:   true,
-			prmEndpointEnabled: true,
-			expectSPCache:      false,
-			expectPRMCache:     false,
+			name:                "driver events enabled without eBPF",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    false,
+			prmEndpointEnabled:  false,
+			driverEventsEnabled: true,
+		},
+		{
+			name:                "system probe disabled",
+			gpuMonitoring:       false,
+			enableEBPFProbes:    true,
+			prmEndpointEnabled:  true,
+			driverEventsEnabled: true,
 		},
 	}
 
@@ -132,27 +140,32 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enabled", tt.gpuMonitoring)
 			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enable_ebpf_probes", tt.enableEBPFProbes)
 			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
+			pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.driver_events_enabled", tt.driverEventsEnabled)
 			t.Cleanup(func() {
 				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enabled", false)
 				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enable_ebpf_probes", true)
 				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.prm_endpoint_enabled", true)
+				pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.driver_events_enabled", false)
 			})
 
 			check.containerProvider = newMockContainerProvider(t, nil)
 			require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 			t.Cleanup(func() { check.Cancel() })
 
-			if tt.expectSPCache {
+			if tt.expectStatsCache {
 				require.NotNil(t, check.spCache)
 			} else {
 				require.Nil(t, check.spCache)
 			}
-
 			if tt.expectPRMCache {
 				require.NotNil(t, check.prmCache)
 			} else {
 				require.Nil(t, check.prmCache)
 			}
+			require.Equal(t, tt.gpuMonitoring, check.gpuConfig.Enabled)
+			require.Equal(t, tt.enableEBPFProbes, check.gpuConfig.EnableEBPFProbes)
+			require.Equal(t, tt.prmEndpointEnabled, check.gpuConfig.PRMEndpointEnabled)
+			require.Equal(t, tt.driverEventsEnabled, check.gpuConfig.DriverEventsEnabled)
 		})
 	}
 }
@@ -327,7 +340,8 @@ func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by the basic mock
+	// eBPF is disabled by default, and PLR requires the system-probe endpoint.
+	numSupportedCollectorTypes := nvidia.NumCollectors() - 2
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	curDeviceCount := atomic.Int32{}
@@ -389,9 +403,9 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 }
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
-	// PLR is not supported by this mock, so it is filtered out during collector creation.
-	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
-	// MIG slices have no NVLink ports, so NVLink collectors are not created.
+	// eBPF is disabled by default, and PLR requires the system-probe endpoint.
+	parentCollectorTypes := nvidia.NumCollectors() - 2
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
 	migCollectorTypes := parentCollectorTypes - 4
 
 	// Track the number of visible MIG children dynamically.
@@ -720,6 +734,39 @@ func TestEmitSampleHistogramBucket(t *testing.T) {
 	mockSender.AssertExpectations(t)
 }
 
+func TestEmitSampleEventUsesOccurrenceTimeAndEnrichedTags(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	check := &Check{}
+	occurredAt := time.Unix(123, 0)
+	sample := nvidia.NewEvent(
+		event.Event{
+			Title:          "XID 31 error on GPU-1",
+			Text:           "NVRM: Xid ...",
+			AlertType:      event.AlertTypeError,
+			Priority:       event.PriorityNormal,
+			SourceTypeName: CheckName,
+			EventType:      "gpu_xid",
+			AggregationKey: "GPU-1",
+			Tags:           []string{"event_tag:value"},
+		},
+		occurredAt,
+		nvidia.Medium,
+		[]string{"source:kmsg"},
+		nil,
+	)
+
+	require.NoError(t, check.emitSample(sample, mockSender, time.Unix(456, 0), nil, []string{"gpu_uuid:GPU-1"}))
+	require.Len(t, mockSender.Mock.Calls, 1)
+
+	emitted, ok := mockSender.Mock.Calls[0].Arguments.Get(0).(event.Event)
+	require.True(t, ok)
+	require.Equal(t, occurredAt.Unix(), emitted.Ts)
+	require.Equal(t, sample.Key(), sample.Clone().Key())
+	require.ElementsMatch(t, []string{"source:kmsg", "gpu_uuid:GPU-1", "event_tag:value"}, emitted.Tags)
+}
+
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender(t, "gpu")
@@ -774,6 +821,56 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	metricTimestamp3 := float64(metricTime3.UnixNano()) / float64(time.Second)
 	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime3))
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags2), metricTimestamp3)
+}
+
+func TestStrictIntervalMetricsEmitOnTheirOwnCadence(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+
+	const strictInterval = 15 * time.Second
+	deviceUUID := testutil.GPUUUIDs[0]
+	check.collectors = []nvidia.Collector{&mockCollector{
+		name:       "device",
+		deviceUUID: deviceUUID,
+		collectFunc: func() ([]nvidia.Sample, error) {
+			// Collectors build fresh samples on every run.
+			return []nvidia.Sample{
+				&nvidia.Metric{Name: "strict_metric", Value: 1, Type: ddmetrics.GaugeType, StrictInterval: strictInterval},
+				&nvidia.Metric{Name: "regular_metric", Value: 2, Type: ddmetrics.GaugeType},
+			}, nil
+		},
+	}}
+
+	require.NoError(t, check.deviceCache.Refresh())
+
+	// The check runs every 5s, so the strict metric is only emitted on every third run.
+	start := time.Now()
+	var strictTimestamps []float64
+	for run := range 7 {
+		mockSender.ResetCalls()
+		runTime := start.Add(time.Duration(run) * 5 * time.Second)
+		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+
+		runTimestamp := float64(runTime.UnixNano()) / float64(time.Second)
+		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.regular_metric", 2.0, "", mock.Anything, runTimestamp)
+
+		for _, call := range mockSender.Mock.Calls {
+			if call.Method == "GaugeWithTimestamp" && call.Arguments.String(0) == "gpu.strict_metric" {
+				strictTimestamps = append(strictTimestamps, call.Arguments.Get(4).(float64))
+			}
+		}
+	}
+
+	// Runs at 0s, 15s and 30s produce a point; the ones in between are dropped.
+	expected := []float64{
+		float64(start.UnixNano()) / float64(time.Second),
+		float64(start.Add(strictInterval).UnixNano()) / float64(time.Second),
+		float64(start.Add(2*strictInterval).UnixNano()) / float64(time.Second),
+	}
+	require.Equal(t, expected, strictTimestamps)
 }
 
 func TestRunEmitsCorrectTags(t *testing.T) {
@@ -937,11 +1034,15 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 	deps := &nvidia.CollectorDependencies{
 		SystemProbeCache: spCache,
 		Workloadmeta:     testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config: gpuconfig.Config{
+			DisabledCollectors: []string{"sampling", "fields", "gpm", "device_events"},
+			Enabled:            true,
+			EnableEBPFProbes:   true,
+		},
 	}
 
 	// Only keep stateless + ebpf; disable everything else.
-	disabled := []string{"sampling", "fields", "gpm", "device_events"}
-	collectors, err := nvidia.BuildCollectors(devices, deps, disabled)
+	collectors, err := nvidia.BuildCollectors(devices, deps)
 	require.NoError(t, err)
 
 	processData := []testutil.MockProcessInfoList{
@@ -1054,14 +1155,15 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
 
-	deps := &nvidia.CollectorDependencies{
-		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
-	}
 	disabled := []string{
 		"stateless", "sampling", "fields", "gpm", "device_events",
 		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
 	}
-	collectors, err := nvidia.BuildCollectors(devices, deps, disabled)
+	deps := &nvidia.CollectorDependencies{
+		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config:       gpuconfig.Config{DisabledCollectors: disabled},
+	}
+	collectors, err := nvidia.BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.Len(t, collectors, 2)
 
@@ -1160,9 +1262,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 
 			// Verify the disabled collectors are correctly identified in the check struct
-			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
-				"expected %d disabled collectors, got %d", len(tt.expected), len(check.disabledCollectors))
-			assert.ElementsMatch(t, tt.expected, check.disabledCollectors,
+			assert.Equal(t, len(tt.expected), len(check.gpuConfig.DisabledCollectors),
+				"expected %d disabled collectors, got %d", len(tt.expected), len(check.gpuConfig.DisabledCollectors))
+			assert.ElementsMatch(t, tt.expected, check.gpuConfig.DisabledCollectors,
 				"disabled collectors mismatch")
 		})
 	}
@@ -1287,6 +1389,14 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	}
 	seedContainersForPIDMapping(wmeta, fakeTagger, pidToContainerID)
 
+	// This test asserts on the metrics of a single check run, so the device count must
+	// not be held back by its fixed reporting cadence. The cadence itself is covered by
+	// TestStrictIntervalMetricsEmitOnTheirOwnCadence.
+	pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", 0)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", "15s")
+	})
+
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, pidToContainerID)
 
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
@@ -1325,14 +1435,17 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		DeviceMetrics:  deviceMetrics,
 	})
 	check.spCache = spCache
+	prmCache := &nvidia.PRMCache{}
+	check.prmCache = prmCache
+	check.gpuConfig.Enabled = true
+	check.gpuConfig.EnableEBPFProbes = true
 	if config.Architecture == "blackwell" && config.DeviceMode == gpuspec.DeviceModePhysical {
-		prmCache := &nvidia.PRMCache{}
+		check.gpuConfig.PRMEndpointEnabled = true
 		for _, uuid := range cacheDeviceUUIDs {
 			for port := 1; port <= 2; port++ {
 				prmCache.SetCountersForTest(uuid, port, testPRMCounters(uint64(port*100)))
 			}
 		}
-		check.prmCache = prmCache
 	}
 
 	runCollection := func() {
@@ -1372,4 +1485,141 @@ func testPRMCounters(seed uint64) map[string]uint64 {
 		counters[field] = seed + uint64(i)
 	}
 	return counters
+}
+
+// ---------------------------------------------------------------------------
+// NVML release for GPU reset windows
+//
+
+// newReleaseTestCheck builds a Check for the release-signal tests, with a
+// recording fake for the system-probe lease push.
+func newReleaseTestCheck(t *testing.T) (*Check, *[]model.NvmlState) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
+	c, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	pushes := &[]model.NvmlState{}
+	c.sysprobeNvmlState = func(state model.NvmlState, _ time.Duration) error {
+		*pushes = append(*pushes, state)
+		return nil
+	}
+	return c, pushes
+}
+
+// TestIsMigReconfigState pins the label semantics: only "pending" and
+// "rebooting" mean a reconfiguration is in flight. "failed" is a TERMINAL
+// state that stays on the node until the next reconfiguration attempt —
+// treating it as in-flight would permanently pause GPU monitoring on that
+// node.
+func TestIsMigReconfigState(t *testing.T) {
+	assert.True(t, isMigReconfigState("pending"))
+	assert.True(t, isMigReconfigState("rebooting"))
+	assert.False(t, isMigReconfigState("success"))
+	assert.False(t, isMigReconfigState("failed"))
+	assert.False(t, isMigReconfigState(""))
+}
+
+// TestShouldReleaseNVML covers the signal reader: only the real external
+// signal (the node label) opens the window. The safenvml released state must
+// NOT act as a signal of its own — it would be a one-way latch (released →
+// reconfiguring forever → never re-acquire), which was caught live on the
+// H200 test cluster: after the node label was cleared the agent stayed
+// released indefinitely. With no signal the reader fails open (label read
+// errors in a non-k8s test environment read as "not reconfiguring" — the
+// fail-open decision).
+func TestShouldReleaseNVML(t *testing.T) {
+	c, _ := newReleaseTestCheck(t)
+
+	t.Run("released_state_is_not_a_signal", func(t *testing.T) {
+		// safenvml released state on (armed through the real release path;
+		// in unit tests NVML was never inited, so the release is a no-op
+		// shutdown), but no external signal → the window is closed: the check
+		// must be able to observe the window closing and re-acquire
+		// (ReacquireNVML happens in reacquireNVML)
+		_ = ddnvml.ReleaseNVML()
+		t.Cleanup(func() { ddnvml.ReacquireNVML() })
+		assert.True(t, ddnvml.IsNVMLReleased())
+		assert.False(t, c.shouldReleaseNVML())
+	})
+
+	t.Run("no_signals_fails_open", func(t *testing.T) {
+		// released state off, label unreadable (no kubelet/DCA in tests) →
+		// fail open
+		ddnvml.ReacquireNVML()
+		assert.False(t, c.shouldReleaseNVML())
+	})
+}
+
+// TestNvmlReleaseCycle covers the release → re-acquire cycle at the check
+// level: the release happens once while a signal is present (and the
+// system-probe lease is renewed on every push), and the window closing
+// (signal cleared) triggers the re-acquire and ends the system-probe lease.
+func TestNvmlReleaseCycle(t *testing.T) {
+	c, pushes := newReleaseTestCheck(t)
+
+	// window open: the release path arms the released flag. (releaseNVML
+	// shuts NVML down if inited; in unit tests NVML was never inited, so
+	// ShutdownIfInited is a no-op.) In production the window is opened by the
+	// label signal in Run; here it is driven directly — the label cannot be
+	// set in a unit-test environment.
+	require.False(t, ddnvml.IsNVMLReleased())
+	c.releaseNVML()
+	assert.True(t, ddnvml.IsNVMLReleased())
+
+	// the Run skip branch renews the system-probe lease on every cycle while
+	// the window is open
+	require.NoError(t, c.pushNvmlStateToSysprobe(model.NvmlStateReleased))
+	require.NoError(t, c.pushNvmlStateToSysprobe(model.NvmlStateReleased))
+	assert.Equal(t, []model.NvmlState{model.NvmlStateReleased, model.NvmlStateReleased}, *pushes)
+
+	// window closes: signals clear → the re-acquire ends the system-probe
+	// lease too
+	c.reacquireNVML(true)
+	assert.False(t, ddnvml.IsNVMLReleased())
+	assert.Equal(t, []model.NvmlState{model.NvmlStateReleased, model.NvmlStateReleased, model.NvmlStateAcquired}, *pushes, "the reacquire must end the system-probe lease")
+}
+
+// TestReacquireAcrossInstanceRecreation guards the instance-recreation path:
+// autoconfig can rebuild the check instance in the middle of a window (config
+// reload). The new instance has its own notifier and no instance-level
+// release state, but the reacquire is driven by the global released state —
+// so the fresh instance still observes and ends a release the old instance
+// started, and its reacquire push ends the system-probe lease.
+func TestReacquireAcrossInstanceRecreation(t *testing.T) {
+	old, _ := newReleaseTestCheck(t)
+
+	// old instance releases for the window
+	old.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	t.Cleanup(func() { ddnvml.ReacquireNVML() })
+
+	// signals clear, then the instance is recreated mid-window: the fresh
+	// instance must still see that NVML is released and end the window, and
+	// end the system-probe lease with its own notifier
+	fresh, freshPushes := newReleaseTestCheck(t)
+	assert.True(t, ddnvml.IsNVMLReleased(), "the global released state must survive the instance recreation")
+
+	fresh.reacquireNVML(false)
+	assert.False(t, ddnvml.IsNVMLReleased())
+	assert.Equal(t, []model.NvmlState{model.NvmlStateAcquired}, *freshPushes, "the fresh instance must end the system-probe lease")
+}
+
+// TestCancelEndsReleaseWindow guards the removal path: a check canceled while
+// a release window is open (autoconfig removal, gpu.enabled off) has no Run()
+// left to re-acquire — without ending the window in Cancel, the released flag
+// would block every NVML user in this process silently, until an agent
+// restart, and the system-probe lease would expire without the window ever
+// being observed closed.
+func TestCancelEndsReleaseWindow(t *testing.T) {
+	c, pushes := newReleaseTestCheck(t)
+
+	c.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	t.Cleanup(func() { ddnvml.ReacquireNVML() })
+
+	c.Cancel()
+	assert.False(t, ddnvml.IsNVMLReleased(), "Cancel must end the release window: no Run() is coming")
+	assert.Equal(t, []model.NvmlState{model.NvmlStateAcquired}, *pushes, "Cancel must end the system-probe lease too")
 }
