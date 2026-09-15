@@ -1,6 +1,6 @@
 //! Postgres scan engine.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use postgres::types::Type;
 use postgres::{Client, Config, NoTls, Row, Statement};
 
