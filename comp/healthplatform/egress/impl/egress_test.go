@@ -45,20 +45,6 @@ func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderde
 	return e
 }
 
-// drainResolved replicates the channel-drain case that run()'s background
-// select loop performs, so tick() can be driven deterministically in tests
-// without starting the real ticker goroutine.
-func drainResolved(e *egress) {
-	for {
-		select {
-		case issue := <-e.resolvedCh:
-			e.resolved[issue.Id] = issue
-		default:
-			return
-		}
-	}
-}
-
 func TestTickSendsActiveIssues(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1", Title: "Test"}))
 	var reports []*healthplatformpayload.HealthReport
@@ -264,8 +250,8 @@ func TestObserverReceivesResolvedFromStore(t *testing.T) {
 
 	// Store resolves the issue — flows into e.resolvedCh via the observer
 	// registered in newTestEgress, exactly as it would through the real store.
+	// tick() drains resolvedCh itself, so no manual drain is needed here.
 	store.ResolveIssue("issue-1")
-	drainResolved(e)
 
 	// Second tick: issue-1 now appears as a resolved tombstone.
 	e.tick()
@@ -351,9 +337,9 @@ func TestStatusStaysHealthyDuringIdlePeriodAfterSuccess(t *testing.T) {
 	require.True(t, e.Status().Healthy)
 
 	// The issue resolves and is sent once as a tombstone, then the store is
-	// empty and every subsequent tick takes the skip path.
+	// empty and every subsequent tick takes the skip path. tick() drains
+	// resolvedCh itself, so no manual drain is needed here.
 	store.ResolveIssue("issue-1")
-	drainResolved(e)
 	e.tick()
 	require.Empty(t, e.resolved)
 
@@ -369,12 +355,49 @@ func TestStatusStaysHealthyDuringIdlePeriodAfterSuccess(t *testing.T) {
 	assert.NoError(t, s.LastError)
 }
 
-// TestStatusRecoversFromStaleErrorDuringIdlePeriod verifies the mirror image
-// of TestStatusStaysHealthyDuringIdlePeriodAfterSuccess: once a failing send
-// is followed by the store going empty, repeated skipped ticks must clear the
-// stale error rather than leaving Status unhealthy forever with no further
-// send ever occurring to clear it.
-func TestStatusRecoversFromStaleErrorDuringIdlePeriod(t *testing.T) {
+// TestStatusRetriesResolvedTombstoneAfterFailure verifies the fix for the
+// select race between run()'s ticker and resolvedCh cases: even when a tick
+// fires right as an issue resolves -- before run()'s select loop has drained
+// the tombstone into e.resolved -- tick() drains resolvedCh itself first, so
+// the tombstone is retried rather than mistaken for "nothing to report".
+// Status only recovers once that retry actually succeeds.
+func TestStatusRetriesResolvedTombstoneAfterFailure(t *testing.T) {
+	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
+	var erroring atomic.Bool
+	erroring.Store(true)
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
+		if erroring.Load() {
+			return 0, assert.AnError
+		}
+		return 0, nil
+	}))
+	e := newTestEgress(t, store, fwd)
+	e.interval = time.Minute
+
+	e.tick()
+	require.False(t, e.Status().Healthy, "failed send must report unhealthy")
+
+	// The issue resolves in the store; its tombstone is left sitting in
+	// resolvedCh, exactly as if run()'s ticker case had won the select race
+	// against the resolvedCh case.
+	store.ResolveIssue("issue-1")
+
+	erroring.Store(false)
+	e.tick()
+
+	s := e.Status()
+	assert.True(t, s.Healthy, "a successful retry of the resolved tombstone must clear the stale error")
+	assert.NoError(t, s.LastError)
+	assert.EqualValues(t, 1, s.SendErrorsTotal, "cumulative error count must be preserved across recovery")
+}
+
+// TestStatusStaysUnhealthyWhenPersistentFailureOutlivesResolvedIssue verifies
+// the follow-up review fix on #56278: a systemic send failure (e.g. bad
+// credentials) must stay flagged even after the issue that first triggered it
+// resolves on its own. Resolving the issue only queues its tombstone for
+// retry -- it does not, by itself, prove the send pipeline works again, so
+// the local issue queue draining to zero must not be read as "healthy".
+func TestStatusStaysUnhealthyWhenPersistentFailureOutlivesResolvedIssue(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
 	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
 		return 0, assert.AnError
@@ -385,10 +408,8 @@ func TestStatusRecoversFromStaleErrorDuringIdlePeriod(t *testing.T) {
 	e.tick()
 	require.False(t, e.Status().Healthy, "failed send must report unhealthy")
 
-	// The issue resolves in the store, but its tombstone is never drained
-	// into e.resolved (e.g. run()'s select loop hasn't processed the
-	// resolvedCh case yet) -- from tick()'s perspective there is nothing
-	// left to send, exactly like the steady-state idle case.
+	// The issue resolves, but the forwarder keeps failing for an unrelated,
+	// persistent reason.
 	store.ResolveIssue("issue-1")
 
 	for i := 0; i < 5; i++ {
@@ -396,9 +417,9 @@ func TestStatusRecoversFromStaleErrorDuringIdlePeriod(t *testing.T) {
 	}
 
 	s := e.Status()
-	assert.True(t, s.Healthy, "idle egress must recover from a stale error once there is nothing left to send")
-	assert.NoError(t, s.LastError)
-	assert.EqualValues(t, 1, s.SendErrorsTotal, "cumulative error count must be preserved across the idle recovery")
+	assert.False(t, s.Healthy, "a persistent send failure must stay flagged even once the originating issue resolves")
+	assert.Error(t, s.LastError)
+	assert.Contains(t, e.resolved, "issue-1", "the unresolved tombstone must remain queued for retry")
 }
 
 // TestStatusGoesUnhealthyWhenTicksStop verifies the staleness check in

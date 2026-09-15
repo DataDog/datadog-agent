@@ -145,17 +145,31 @@ func (e *egress) run() {
 	}
 }
 
+// drainResolved non-blockingly pulls any tombstones already sitting in
+// resolvedCh into e.resolved. run()'s select loop normally does this one at a
+// time between ticks, but ticker.C can win a select race against an
+// already-ready resolvedCh case, so tick() drains here first to make sure it
+// always sees the latest picture of what's outstanding before deciding
+// whether there's anything to report.
+func (e *egress) drainResolved() {
+	for {
+		select {
+		case issue := <-e.resolvedCh:
+			e.resolved[issue.Id] = issue
+		default:
+			return
+		}
+	}
+}
+
 func (e *egress) tick() {
+	e.drainResolved()
+
 	count, active := e.store.GetAllIssues()
 	if count == 0 && len(e.resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		e.statusMu.Lock()
 		e.lastAttemptAt = time.Now()
-		// Nothing to send means there is no outstanding failure: clear any
-		// stale error from an earlier tick so a resolved-then-idle pipeline
-		// doesn't report unhealthy forever with no further attempt ever
-		// occurring to clear it.
-		e.lastErr = nil
 		e.statusMu.Unlock()
 		return
 	}

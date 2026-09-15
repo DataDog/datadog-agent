@@ -13,8 +13,9 @@ import "time"
 // SendStatus reports the health of the egress -> forwarder send pipeline,
 // for display in `agent status`.
 type SendStatus struct {
-	// Healthy is true if the most recent send attempt succeeded, if the most
-	// recent tick had nothing to report, or if no tick has happened yet.
+	// Healthy is true if the most recent send attempt succeeded, or if no
+	// send has ever failed (including when no tick has happened yet, or a
+	// tick had nothing to report).
 	Healthy bool
 	// LastAttemptAt is the time of the most recent tick, whether or not a
 	// send was actually attempted: a tick with nothing to report still
@@ -23,8 +24,9 @@ type SendStatus struct {
 	// LastSuccessAt is the time of the most recent successful send, zero if none succeeded yet.
 	LastSuccessAt time.Time
 	// LastError is the error from the most recent failed send attempt, nil if
-	// the last attempt succeeded, no tick has happened yet, or the most
-	// recent tick had nothing to report.
+	// the last attempt succeeded or no send has failed yet. A tick with
+	// nothing to report leaves this untouched, so a persistent failure stays
+	// reflected here until an actual retry succeeds.
 	LastError error
 	// IssuesSentTotal is the cumulative number of issues sent to the Datadog intake.
 	IssuesSentTotal int64
