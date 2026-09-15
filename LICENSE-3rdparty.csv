@@ -434,12 +434,8 @@ core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 200
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/VictoriaMetrics/easyproto,Apache-2.0,"Copyright 2023-2024 VictoriaMetrics, Inc"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
-core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer/ebnf,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
-core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
+core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017-2022 Alec Thomas
+core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
