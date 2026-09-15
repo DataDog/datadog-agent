@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the battery check to report every Windows system battery instead of
+    only the first one.
