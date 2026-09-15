@@ -489,7 +489,6 @@ require (
 	google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
-	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
@@ -1156,6 +1155,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
 	k8s.io/apiserver v0.35.5 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect

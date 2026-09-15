@@ -35,7 +35,7 @@ var (
 `)
 
 	testSimpleConfResolved = `secret_backend_arguments:
-- password1
+    - password1
 `
 
 	testSimpleConfOrigin = handleToContext{
@@ -56,10 +56,10 @@ instances:
 `)
 
 	testConfResolved = `instances:
-- password: password1
-  user: test
-- password: password2
-  user: test2
+    - password: password1
+      user: test
+    - password: password2
+      user: test2
 `
 
 	testConfOrigin = handleToContext{
@@ -84,9 +84,9 @@ instances:
 `)
 
 	testConfSliceResolved = `additional_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfSliceOrigin = handleToContext{
@@ -108,12 +108,12 @@ more_endpoints:
 `)
 
 	testMultiUsageConfResolved = `instances:
-- password: password1
-  user: test
+    - password: password1
+      user: test
 more_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfDash = []byte(`---
@@ -123,7 +123,7 @@ keys_with_dash_string_value:
 `)
 
 	testConfResolvedDash = `keys_with_dash_string_value:
-  foo: '-'
+    foo: '-'
 some_encoded_password: password1
 `
 	testConfDashOrigin = handleToContext{
@@ -140,7 +140,7 @@ some_encoded_password: ENC[pass1]
 `)
 
 	testConfResolvedMultiline = `some_encoded_password: |
-  password1
+    password1
 `
 	testConfMultilineOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -158,8 +158,8 @@ some:
 `)
 
 	testConfNestedResolved = `some:
-  encoded:
-    data: password1
+    encoded:
+        data: password1
 `
 	testConfNestedOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -178,9 +178,9 @@ some:
 `)
 
 	testConfSiblingResolved = `some:
-  encoded:
-  - data: password1
-    sibling: text
+    encoded:
+        - data: password1
+          sibling: text
 `
 
 	testConfSiblingOrigin = handleToContext{
@@ -1413,10 +1413,10 @@ func TestSecretFiltering(t *testing.T) {
 				ScopeIntegrationToNamespace: true,
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1425,10 +1425,10 @@ func TestSecretFiltering(t *testing.T) {
 				AllowedNamespace: []string{"namespace1", "namespace2"},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1440,10 +1440,10 @@ func TestSecretFiltering(t *testing.T) {
 				},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - ENC[k8s_secret@namespace1/sec1/key1]
-  - value3
+    - some_obj:
+        - value1
+        - ENC[k8s_secret@namespace1/sec1/key1]
+        - value3
 `,
 		},
 	}
@@ -1475,10 +1475,10 @@ func TestSecretFiltering(t *testing.T) {
 			// This test verify that any secrets from non-container sources can still be resolved. Non-container
 			// configuration are datadog.yaml, system-probe.yaml, integrations from files, ...
 			expectedConf := `instances:
-- some_obj:
-  - value1
-  - value2
-  - value3
+    - some_obj:
+        - value1
+        - value2
+        - value3
 `
 			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "", true)
 			assert.NoError(t, err)
