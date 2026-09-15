@@ -25,7 +25,7 @@ static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum eve
     if (event == EVENT_ALL) {
         *mask = event;
     } else {
-        *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+        *mask |= (u64)1 << (event - EVENT_FIRST_DISCARDER);
     }
 }
 
