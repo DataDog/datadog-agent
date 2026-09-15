@@ -39,7 +39,7 @@ func SystemPaths() []string {
 		`C:\Windows\System32\spp\`,
 		`C:\Windows\SystemTemp\`,
 		`C:\Windows\Microsoft.NET\`,
-		`C:\Windows\rescache`,
+		`C:\Windows\rescache\`,
 	}
 }
 
