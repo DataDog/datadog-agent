@@ -6,6 +6,7 @@
 package fdb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,6 +20,12 @@ import (
 const (
 	reasonMaxEntries  = "max_entries"
 	reasonMaxDuration = "max_duration"
+)
+
+var (
+	errWalkMaxDuration = errors.New("fdb walk exceeded max duration")
+	errWalkMaxEntries  = errors.New("fdb walk exceeded max entries")
+	errWalkNoAdvance   = errors.New("fdb walk did not advance")
 )
 
 type walkResult struct {
@@ -36,7 +43,7 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 
 	for {
 		if !deadline.IsZero() && time.Now().After(deadline) {
-			return walkResult{values: values, reason: reasonMaxDuration, err: fmt.Errorf("fdb walk exceeded max duration")}
+			return walkResult{values: values, reason: reasonMaxDuration, err: errWalkMaxDuration}
 		}
 
 		packet, err := nextPacket(sess, curOID, bulkMaxRepetitions, useGetNext, maxRows-len(values))
@@ -78,20 +85,20 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			values[index] = value
 			lastOID = oid
 			if len(values) > maxRows {
-				return walkResult{values: values, reason: reasonMaxEntries, err: fmt.Errorf("fdb walk exceeded max entries")}
+				return walkResult{values: values, reason: reasonMaxEntries, err: errWalkMaxEntries}
 			}
 		}
 		if inTableNew == 0 {
 			if inTableRepeat > 0 && !leftSubtree {
-				return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
+				return walkResult{values: values, err: errWalkNoAdvance}
 			}
 			if packet != nil && len(packet.Variables) == 0 && len(values) > 0 {
-				return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
+				return walkResult{values: values, err: errWalkNoAdvance}
 			}
 			return walkResult{values: values}
 		}
 		if lastOID == curOID {
-			return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
+			return walkResult{values: values, err: errWalkNoAdvance}
 		}
 		curOID = lastOID
 	}

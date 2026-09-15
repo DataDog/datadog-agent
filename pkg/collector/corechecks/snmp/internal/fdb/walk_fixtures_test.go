@@ -7,6 +7,7 @@ package fdb
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -42,7 +43,7 @@ func parseWalkLine(line string) (string, int, error) {
 	if strings.Contains(line, "|") {
 		parts := strings.Split(line, "|")
 		if len(parts) != 3 {
-			return "", 0, fmt.Errorf("invalid snmprec line")
+			return "", 0, errors.New("invalid snmprec line")
 		}
 		oid := strings.TrimLeft(parts[0], ".")
 		n, err := strconv.Atoi(parts[2])
@@ -54,12 +55,12 @@ func parseWalkLine(line string) (string, int, error) {
 
 	oid, rest, ok := strings.Cut(line, " = ")
 	if !ok {
-		return "", 0, fmt.Errorf("invalid snmpwalk line")
+		return "", 0, errors.New("invalid snmpwalk line")
 	}
 	oid = strings.TrimLeft(oid, ".")
 	_, val, ok := strings.Cut(rest, ": ")
 	if !ok {
-		return "", 0, fmt.Errorf("missing typed value")
+		return "", 0, errors.New("missing typed value")
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(val))
 	if err != nil {

@@ -6,7 +6,7 @@
 package fdb
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -266,7 +266,7 @@ type failAfterPrefix struct {
 func (s *failAfterPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	if matchesOIDPrefix(oids, s.prefix) {
 		if s.seen {
-			return nil, fmt.Errorf("simulated timeout")
+			return nil, errors.New("simulated timeout")
 		}
 		s.seen = true
 	}
@@ -280,7 +280,7 @@ type failFirstPrefix struct {
 
 func (s *failFirstPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	if matchesOIDPrefix(oids, s.prefix) {
-		return nil, fmt.Errorf("unsupported")
+		return nil, errors.New("unsupported")
 	}
 	return s.FakeSession.GetBulk(oids, bulkMaxRepetitions)
 }
