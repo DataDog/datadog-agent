@@ -1,6 +1,8 @@
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
+load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
+load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,6 +10,18 @@ py_library(
     name = "gather_licenses_lib",
     srcs = ["gather_licenses.py"],
     deps = ["//tasks:licenses"],
+)
+
+sbom(
+    name = "sbom",
+    target = "//deps:all_deps",
+)
+
+spdx(
+    name = "spdx",
+    out = "spdx.yml",
+    format = "yaml",
+    sbom = ":sbom",
 )
 
 py_binary(
