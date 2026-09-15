@@ -176,6 +176,9 @@ def get_omnibus_env(
 
     if fips_mode:
         env['FIPS_MODE'] = 'true'
+        if sys.platform == 'linux':
+            # TODO(agent-build): remove when switching to Go 1.27, where it became systemcrypto's default
+            env['GOEXPERIMENT'] = 'ms_nocgo_opensslcrypto'
         if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
             # Point omnibus at the msgo root
             # TODO: idk how to do this in omnibus datadog-agent.rb

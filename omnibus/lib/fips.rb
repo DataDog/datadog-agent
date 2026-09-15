@@ -38,7 +38,7 @@ end
 # (in practice, the default compiler fails compilation on Linux since at least 1.24 when it was made FIPS-aware)
 def fips_check_binary_for_expected_symbol(path)
   if linux_target?
-    symbol = "_Cfunc__mkcgo_OPENSSL" # since Go 1.25
+    symbol = "_Cfunc__mkcgo_OPENSSL" # since Go 1.25, also when GOEXPERIMENT=ms_nocgo_opensslcrypto
   elsif windows_target?
     # This is currently deadcode, see omnibus/config/projects/agent.rb
     symbol = "github.com/microsoft/go-crypto-winnative"
