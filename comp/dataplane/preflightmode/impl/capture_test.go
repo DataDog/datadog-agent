@@ -82,7 +82,8 @@ func signatures(records []logRecord) []string {
 	return out
 }
 
-// jsonRecord builds an ADP-shaped log record of roughly the requested length.
+// jsonRecord builds an ADP-shaped log record of roughly the requested length. It carries no
+// source location, so records built with it retain sourceUnknown for both fields.
 func jsonRecord(t *testing.T, level, target string, padTo int) string {
 	t.Helper()
 	rec, err := json.Marshal(map[string]any{
@@ -244,21 +245,37 @@ func TestCaptureDeduplicatesBeyondTheBounds(t *testing.T) {
 func TestCaptureRetentionIsBounded(t *testing.T) {
 	lines := make([]string, 0, maxRecords*2)
 	for i := 0; i < maxRecords*2; i++ {
-		// Both fields well past their bounds. The index leads the target so the records stay
+		// Every field well past its bound. The index leads the target so the records stay
 		// distinct once it is truncated — see TestCaptureDeduplicatesBeyondTheBounds.
-		lines = append(lines, jsonRecord(t, "ERROR", fmt.Sprintf("t%d%s", i, strings.Repeat("x", maxTargetLen*4)), maxSignatureLen*4))
+		rec, err := json.Marshal(map[string]any{
+			"level":       "ERROR",
+			"target":      fmt.Sprintf("t%d%s", i, strings.Repeat("x", maxTargetLen*4)),
+			"message":     strings.Repeat("x", maxSignatureLen*4),
+			"filename":    strings.Repeat("x", maxSourceFileLen*4),
+			"line_number": strings.Repeat("9", maxSourceLineLen*4),
+		})
+		require.NoError(t, err)
+		lines = append(lines, string(rec))
 	}
 
 	records, dropped := captureOf(t, lines...)
 	assert.Positive(t, dropped)
 
+	// An overrunning location is rejected rather than truncated, so what is retained for it is
+	// the sourceUnknown sentinel — a constant, but one that can be longer than the bound on the
+	// value it stands in for.
+	maxFileLen := max(maxSourceFileLen, len(sourceUnknown))
+	maxLineLen := max(maxSourceLineLen, len(sourceUnknown))
+
 	total := 0
 	for _, rec := range records {
 		assert.LessOrEqual(t, len(rec.Signature), maxSignatureLen)
 		assert.LessOrEqual(t, len(rec.Target), maxTargetLen)
-		total += len(rec.Signature) + len(rec.Target)
+		assert.LessOrEqual(t, len(rec.SourceFile), maxFileLen)
+		assert.LessOrEqual(t, len(rec.SourceLine), maxLineLen)
+		total += len(rec.Signature) + len(rec.Target) + len(rec.SourceFile) + len(rec.SourceLine)
 	}
-	assert.LessOrEqual(t, total, maxRecords*(maxSignatureLen+maxTargetLen))
+	assert.LessOrEqual(t, total, maxRecords*(maxSignatureLen+maxTargetLen+maxFileLen+maxLineLen))
 }
 
 func TestCaptureBlankLinesAreIgnored(t *testing.T) {
@@ -311,6 +328,9 @@ func TestParseRecordRealRecords(t *testing.T) {
 		wantTarget string
 		// wantSigContains is checked as a substring of the signature.
 		wantSigContains string
+		// wantLocation is the log site the record was emitted from, which is what the finding
+		// telemetry is tagged with.
+		wantLocation sourceLocation
 	}{
 		{
 			name:            "INFO is kept as context",
@@ -319,6 +339,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       "INFO",
 			wantTarget:      "agent_data_plane::cli::run",
 			wantSigContains: "Agent Data Plane starting",
+			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/cli/run.rs", line: "74"},
 		},
 		{
 			name:            "INFO with nested spans",
@@ -327,6 +348,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       "INFO",
 			wantTarget:      "saluki_components::sources::dogstatsd",
 			wantSigContains: "DogStatsD listener started",
+			wantLocation:    sourceLocation{file: "lib/saluki-components/src/sources/dogstatsd/mod.rs", line: "1290"},
 		},
 		{
 			name:            "INFO shutdown",
@@ -335,6 +357,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       "INFO",
 			wantTarget:      "agent_data_plane::cli::run",
 			wantSigContains: "shut down successfully",
+			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/cli/run.rs", line: "239"},
 		},
 		{
 			name:            "WARN standalone mode",
@@ -343,6 +366,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       levelWarn,
 			wantTarget:      "agent_data_plane::internal::env",
 			wantSigContains: "Running in standalone mode",
+			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/internal/env/mod.rs", line: "59"},
 		},
 		{
 			name:            "ERROR with a multi-line anyhow chain",
@@ -351,6 +375,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       levelError,
 			wantTarget:      "agent_data_plane",
 			wantSigContains: "Failed to create internal supervisor. | | Caused by:",
+			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: "195"},
 		},
 		{
 			name:            "ERROR with extra structured fields",
@@ -359,6 +384,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       levelError,
 			wantTarget:      "saluki_core::runtime::supervisor",
 			wantSigContains: "Failed to build source 'dsd_in'",
+			wantLocation:    sourceLocation{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938"},
 		},
 	}
 
@@ -372,6 +398,7 @@ func TestParseRecordRealRecords(t *testing.T) {
 			assert.Equal(t, tt.wantLevel, got.Level)
 			assert.Equal(t, tt.wantTarget, got.Target)
 			assert.Contains(t, got.Signature, tt.wantSigContains)
+			assert.Equal(t, tt.wantLocation, got.location())
 		})
 	}
 }
@@ -436,6 +463,9 @@ func TestParseRecordUnstructuredOutputIsAnError(t *testing.T) {
 			require.True(t, ok, "unstructured output must be reported")
 			assert.Equal(t, levelError, got.Level)
 			assert.Equal(t, targetUnstructured, got.Target)
+			// Output that bypassed ADP's logger carries no location, and the pre-flight must not
+			// invent one for it.
+			assert.Equal(t, sourceLocation{file: sourceUnknown, line: sourceUnknown}, got.location())
 		})
 	}
 }
@@ -465,6 +495,100 @@ func TestParseRecordMissingTarget(t *testing.T) {
 	got, ok := parseRecord(`{"level":"ERROR","message":"boom"}`)
 	require.True(t, ok)
 	assert.Equal(t, "<unknown>", got.Target)
+}
+
+// TestParseRecordSourceLocation covers what the log findings are tagged with. The values come
+// out of ADP's output, so a record that does not carry a location that can be reported must fall
+// back to the sentinel rather than have one invented for it.
+func TestParseRecordSourceLocation(t *testing.T) {
+	tests := []struct {
+		name         string
+		fields       string
+		wantLocation sourceLocation
+	}{
+		{
+			name:         "a real location is kept as-is",
+			fields:       `"filename":"lib/saluki-core/src/runtime/supervisor.rs","line_number":938`,
+			wantLocation: sourceLocation{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938"},
+		},
+		{
+			name:         "a missing location is unknown",
+			fields:       `"target":"agent_data_plane"`,
+			wantLocation: sourceLocation{file: sourceUnknown, line: sourceUnknown},
+		},
+		{
+			// The field is only a tag, so a quoted line number must not cost us the record.
+			name:         "a quoted line number is still a line number",
+			fields:       `"filename":"bin/agent-data-plane/src/main.rs","line_number":"195"`,
+			wantLocation: sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: "195"},
+		},
+		{
+			name:         "a line number that is not a number is rejected",
+			fields:       `"filename":"bin/agent-data-plane/src/main.rs","line_number":{"a":1}`,
+			wantLocation: sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: sourceUnknown},
+		},
+		{
+			name:         "a null line number is rejected",
+			fields:       `"filename":"bin/agent-data-plane/src/main.rs","line_number":null`,
+			wantLocation: sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: sourceUnknown},
+		},
+		{
+			// A value carrying tag punctuation would not survive being turned into a tag, and a
+			// source path never looks like this in the first place.
+			name:         "a filename that is not a path is rejected",
+			fields:       `"filename":"not a path, with: punctuation","line_number":1`,
+			wantLocation: sourceLocation{file: sourceUnknown, line: "1"},
+		},
+		{
+			// Rejected rather than truncated: half a path still looks like a real one.
+			name:         "an overlong filename is rejected",
+			fields:       `"filename":"` + strings.Repeat("x", maxSourceFileLen+1) + `","line_number":1`,
+			wantLocation: sourceLocation{file: sourceUnknown, line: "1"},
+		},
+		{
+			name:         "an overlong line number is rejected",
+			fields:       `"filename":"bin/agent-data-plane/src/main.rs","line_number":` + strings.Repeat("9", maxSourceLineLen+1),
+			wantLocation: sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: sourceUnknown},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseRecord(`{"level":"ERROR","message":"boom",` + tt.fields + `}`)
+			require.True(t, ok, "a record must never be lost over its location")
+			assert.Equal(t, tt.wantLocation, got.location())
+		})
+	}
+}
+
+// TestCaptureKeepsOneRecordPerLogSite pins the other half of including the location in the
+// retained record: two otherwise identical records from different sites are two findings to
+// report, while the same site logging twice is still one.
+func TestCaptureKeepsOneRecordPerLogSite(t *testing.T) {
+	const at195 = `{"level":"ERROR","message":"boom","target":"agent_data_plane","filename":"bin/agent-data-plane/src/main.rs","line_number":195}`
+	const at212 = `{"level":"ERROR","message":"boom","target":"agent_data_plane","filename":"bin/agent-data-plane/src/main.rs","line_number":212}`
+
+	records, dropped := captureOf(t, at195, at212, at195)
+	assert.Zero(t, dropped, "a duplicate loses no information, so it is not a drop")
+	assert.Equal(t, []sourceLocation{
+		{file: "bin/agent-data-plane/src/main.rs", line: "195"},
+		{file: "bin/agent-data-plane/src/main.rs", line: "212"},
+	}, locationsOf(records, isError))
+}
+
+// TestLocationsOfIsFirstSeenOrder matters because the cap on how many locations a finding is
+// reported with keeps a prefix of this, and the earliest log sites are the explanatory ones.
+func TestLocationsOfIsFirstSeenOrder(t *testing.T) {
+	records, _ := captureOf(t, realWarnStandalone, realErrorSupervisor, realErrorDsdBind, realWarnInvalidAPIKey)
+
+	assert.Equal(t, []sourceLocation{
+		{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938"},
+		{file: "bin/agent-data-plane/src/main.rs", line: "195"},
+	}, locationsOf(records, isError))
+	// The standalone-mode warning is provoked by preflight mode itself, so it is not reported.
+	assert.Equal(t, []sourceLocation{
+		{file: "lib/saluki-components/src/common/datadog/validation.rs", line: "286"},
+	}, locationsOf(records, isUnexpectedWarning))
 }
 
 func TestNormalizeSignature(t *testing.T) {
