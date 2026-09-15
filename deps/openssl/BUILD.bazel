@@ -1,4 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+# RPATH to the Agent's embedded lib dir so a Linux artifact linking @openssl loads
+# the vendored OpenSSL at runtime, not the host's. Add to `link_deps` alongside
+# @openssl//:openssl_shared. $(INSTALL_DIR) comes from //:install_dir; linkopts
+# (not rustc_flags) so the clippy/rustfmt aspects don't choke on the make variable.
+cc_library(
+    name = "embedded_openssl_rpath",
+    linkopts = ["-Wl,-rpath,$(INSTALL_DIR)/embedded/lib"],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchains = ["@@//:install_dir"],
+    visibility = ["//visibility:public"],
+)
 
 sh_test(
     name = "check_no_sandbox_paths",
