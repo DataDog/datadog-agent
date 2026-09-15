@@ -159,7 +159,7 @@ pkg_install(
 
 _DD_PROCMGRD_GRACEFUL_SLEEPER_ENV = select({
     "@platforms//os:windows": {
-        "GRACEFUL_SLEEPER_BIN": "$(location :graceful-sleeper)",
+        "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
     },
     "//conditions:default": {},
 })

@@ -314,17 +314,18 @@ pub fn graceful_stop_cmd() -> (String, Vec<String>) {
 #[cfg(windows)]
 fn resolve_test_runfile(path: String) -> String {
     let candidate = std::path::Path::new(&path);
-    if candidate.is_absolute() {
+    if candidate.is_absolute() && candidate.exists() {
+        return path;
+    }
+    if candidate.exists() {
         return path;
     }
     for var in ["RUNFILES_DIR", "TEST_SRCDIR"] {
         if let Ok(root) = std::env::var(var) {
-            let resolved = std::path::Path::new(&root).join(candidate);
-            if resolved.exists() {
-                return resolved.to_string_lossy().into_owned();
-            }
-            if candidate.extension().is_none() {
-                let resolved = std::path::Path::new(&root).join(candidate.with_extension("exe"));
+            for resolved in [
+                std::path::Path::new(&root).join(candidate),
+                std::path::Path::new(&root).join(candidate.with_extension("exe")),
+            ] {
                 if resolved.exists() {
                     return resolved.to_string_lossy().into_owned();
                 }
