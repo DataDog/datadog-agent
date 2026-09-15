@@ -177,6 +177,16 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 	return cmd.Run()
 }
 
+func (i *InstallerExec) SetProcessManager(ctx context.Context, enabled bool) (err error) {
+	action := "disable"
+	if enabled {
+		action = "enable"
+	}
+	cmd := i.newInstallerCmd(ctx, "process-manager", action)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
 	ctx context.Context, pkg string, operations config.Operations, secrets map[string]string,

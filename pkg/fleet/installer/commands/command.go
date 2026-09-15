@@ -249,6 +249,7 @@ func RootCommands() []*cobra.Command {
 		installExperimentCommand(),
 		removeExperimentCommand(),
 		promoteExperimentCommand(),
+		processManagerCommand(),
 		installConfigExperimentCommand(),
 		removeConfigExperimentCommand(),
 		promoteConfigExperimentCommand(),
@@ -456,6 +457,35 @@ func promoteExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func processManagerCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		Use:     "process-manager <enable|disable>",
+		Short:   "Switch the process manager supervising the agent's processes",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			var enabled bool
+			switch args[0] {
+			case "enable":
+				enabled = true
+			case "disable":
+				enabled = false
+			default:
+				return fmt.Errorf("invalid argument: %s", args[0])
+			}
+			i, err := newInstallerCmd("process_manager")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.enabled", enabled)
+			return i.SetProcessManager(i.ctx, enabled)
 		},
 	}
 	return cmd

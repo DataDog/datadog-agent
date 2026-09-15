@@ -95,6 +95,8 @@ func (l *localAPIImpl) handler() http.Handler {
 	apiMux.HandleFunc("POST /{package}/config_experiment/promote", l.promoteConfigExperiment)
 	apiMux.HandleFunc("POST /{package}/install", l.install)
 	apiMux.HandleFunc("POST /{package}/remove", l.remove)
+	apiMux.HandleFunc("POST /process-manager/enable", l.enableProcessManager)
+	apiMux.HandleFunc("POST /process-manager/disable", l.disableProcessManager)
 
 	r := http.NewServeMux()
 	// Mount the API sub-mux behind the Content-Type check.
@@ -355,6 +357,31 @@ func (l *localAPIImpl) remove(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/process-manager/enable
+func (l *localAPIImpl) enableProcessManager(w http.ResponseWriter, r *http.Request) {
+	l.setProcessManager(w, r, true)
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/process-manager/disable
+func (l *localAPIImpl) disableProcessManager(w http.ResponseWriter, r *http.Request) {
+	l.setProcessManager(w, r, false)
+}
+
+func (l *localAPIImpl) setProcessManager(w http.ResponseWriter, r *http.Request, enabled bool) {
+	w.Header().Set("Content-Type", "application/json")
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	log.Infof("Received local request to set process manager enabled=%t", enabled)
+	err := l.daemon.SetProcessManager(r.Context(), enabled)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
@@ -369,6 +396,7 @@ type LocalAPIClient interface {
 	StartConfigExperiment(pkg, operations string, encryptedSecrets map[string]string) error
 	StopConfigExperiment(pkg string) error
 	PromoteConfigExperiment(pkg string) error
+	SetProcessManager(enabled bool) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
@@ -635,6 +663,35 @@ func (c *localAPIClientImpl) Install(pkg, version string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("error installing: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// SetProcessManager flips the effective process manager between dd-procmgrd and the
+// native service manager.
+func (c *localAPIClientImpl) SetProcessManager(enabled bool) error {
+	path := "disable"
+	if enabled {
+		path = "enable"
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/process-manager/%s", c.addr, path), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error setting process manager enabled: %s", response.Error.Message)
 	}
 	return nil
 }
