@@ -320,7 +320,7 @@ pub fn load_configs(dir: &Path) -> Result<Vec<ProcessDefinition>> {
 
         match parse_config(&path) {
             Ok(config) => configs.push(ProcessDefinition { name, config }),
-            Err(e) => warn!("skipping {}: {e:#}", path.display()),
+            Err(e) => warn!("[{name}] skipping config: {e:#}"),
         }
     }
 

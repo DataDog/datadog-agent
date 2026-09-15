@@ -91,6 +91,18 @@ type Config struct {
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
 
+	// EventStreamDispatcherQueueEnabled enables the user-space dispatcher queue (off by default)
+	EventStreamDispatcherQueueEnabled bool
+
+	// EventStreamDispatcherQueueSize is the dispatcher queue capacity in bytes, multiplied by CPU count when PerCore is set
+	EventStreamDispatcherQueueSize int
+
+	// EventStreamDispatcherQueueSizePerCore multiplies EventStreamDispatcherQueueSize by the number of CPUs
+	EventStreamDispatcherQueueSizePerCore bool
+
+	// EventStreamDispatcherQueueSizeMin is a floor in bytes applied after size and optional per-core scaling
+	EventStreamDispatcherQueueSizeMin int
+
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
@@ -99,6 +111,9 @@ type Config struct {
 
 	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
 	EventStreamKretprobeMaxActive int
+
+	// EventStreamUseSyscallTaskStorage specifies whether to use a task storage map to store syscall context
+	EventStreamUseSyscallTaskStorage bool
 
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
@@ -137,6 +152,10 @@ type Config struct {
 
 	// NetworkIngressEnabled defines if the network ingress probes should be activated
 	NetworkIngressEnabled bool
+
+	// NetworkSkLookupPidResolutionEnabled defines if the TC classifiers should resolve packet PIDs
+	// through bpf_sk_lookup and sk-local storage. When disabled, the flow_pid map is used instead.
+	NetworkSkLookupPidResolutionEnabled bool
 
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
@@ -190,46 +209,52 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                             *ebpf.NewConfig(),
-		EnableAllProbes:                    getBool("enable_all_probes"),
-		EnableKernelFilters:                getBool("enable_kernel_filters"),
-		EnableApprovers:                    getBool("enable_approvers"),
-		BasenameApproversSize:              getInt("basename_approvers_size"),
-		EnableDiscarders:                   getBool("enable_discarders"),
-		FlushDiscarderWindow:               getInt("flush_discarder_window"),
-		PIDCacheSize:                       getInt("pid_cache_size"),
-		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
-		CustomSensitiveRegexps:             getStringSlice("custom_sensitive_regexps"),
-		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:                    getInt("dentry_cache_size"),
-		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
-		RawNetworkClassifierHandle:         uint16(getInt("network.raw_classifier_handle")),
-		NetworkFlowMonitorPeriod:           getDuration("network.flow_monitor.period"),
-		NetworkFlowMonitorEnabled:          getBool("network.flow_monitor.enabled"),
-		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
-		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
-		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
-		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+		Config:                                *ebpf.NewConfig(),
+		EnableAllProbes:                       getBool("enable_all_probes"),
+		EnableKernelFilters:                   getBool("enable_kernel_filters"),
+		EnableApprovers:                       getBool("enable_approvers"),
+		BasenameApproversSize:                 getInt("basename_approvers_size"),
+		EnableDiscarders:                      getBool("enable_discarders"),
+		FlushDiscarderWindow:                  getInt("flush_discarder_window"),
+		PIDCacheSize:                          getInt("pid_cache_size"),
+		StatsTagsCardinality:                  getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:                  getStringSlice("custom_sensitive_words"),
+		CustomSensitiveRegexps:                getStringSlice("custom_sensitive_regexps"),
+		ERPCDentryResolutionEnabled:           getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:            getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:                       getInt("dentry_cache_size"),
+		NetworkLazyInterfacePrefixes:          getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:             uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:               uint16(getInt("network.classifier_handle")),
+		RawNetworkClassifierHandle:            uint16(getInt("network.raw_classifier_handle")),
+		NetworkFlowMonitorPeriod:              getDuration("network.flow_monitor.period"),
+		NetworkFlowMonitorEnabled:             getBool("network.flow_monitor.enabled"),
+		NetworkFlowMonitorSKStorageEnabled:    getBool("network.flow_monitor.sk_storage.enabled"),
+		EventStreamUseRingBuffer:              getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:                 getInt("event_stream.buffer_size"),
+		EventStreamDispatcherQueueEnabled:     getBool("event_stream.dispatcher_queue.enabled"),
+		EventStreamDispatcherQueueSize:        getInt("event_stream.dispatcher_queue.size"),
+		EventStreamDispatcherQueueSizePerCore: getBool("event_stream.dispatcher_queue.size_per_core"),
+		EventStreamDispatcherQueueSizeMin:     getInt("event_stream.dispatcher_queue.size_min"),
+		EventStreamUseFentry:                  getBool("event_stream.use_fentry"),
+		EventStreamUseKprobeFallback:          getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:         getInt("event_stream.kretprobe_max_active"),
+		EventStreamUseSyscallTaskStorage:      getBool("event_stream.use_syscall_task_storage"),
 
-		EnvsWithValue:               getStringSlice("envs_with_value"),
-		NetworkEnabled:              getBool("network.enabled"),
-		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
-		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
-		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
-		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
-		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
-		DNSResolverCnameMaxDepth:    getInt("dns_resolution.cname_max_depth"),
-		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
+		EnvsWithValue:                       getStringSlice("envs_with_value"),
+		NetworkEnabled:                      getBool("network.enabled"),
+		NetworkIngressEnabled:               getBool("network.ingress.enabled"),
+		NetworkSkLookupPidResolutionEnabled: getBool("network.sk_lookup_pid_resolution.enabled"),
+		NetworkRawPacketEnabled:             getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate:         getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:              getString("network.raw_packet.filter"),
+		NetworkPrivateIPRanges:              getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges:         getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:                time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:              getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:                getInt("dns_resolution.cache_size"),
+		DNSResolverCnameMaxDepth:            getInt("dns_resolution.cname_max_depth"),
+		DNSResolutionEnabled:                getBool("dns_resolution.enabled"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),

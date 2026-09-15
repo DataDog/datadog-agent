@@ -1,0 +1,14 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the ``DatadogPodAutoscaler`` controller could silently drop a
+    status update after an HTTP 409 (Conflict) caused by a stale ``resourceVersion``
+    read from the informer cache. The reconcile now requeues on such a conflict so a
+    subsequent pass retries the update with a refreshed object.
