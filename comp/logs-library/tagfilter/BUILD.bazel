@@ -12,8 +12,10 @@ dd_agent_go_test(
     name = "tagfilter_test",
     srcs = [
         "fuzz_test.go",
+        "lookup_test.go",
         "tagfilter_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":tagfilter"],
     deps = [
         "@com_github_stretchr_testify//assert",
