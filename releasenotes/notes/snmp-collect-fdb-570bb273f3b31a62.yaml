@@ -6,4 +6,5 @@ features:
     ``collect_fdb``. The Agent walks Q-BRIDGE-MIB then BRIDGE-MIB, maps bridge
     ports to interfaces, and submits timestamped MAC-to-interface observations
     on the network-devices metadata pipeline. Collection uses fixed safety
-    limits and does not fail the SNMP check.
+    limits and does not fail the SNMP check. Host Inventory now serializes
+    per-interface MAC addresses correctly, including interfaces without IPs.

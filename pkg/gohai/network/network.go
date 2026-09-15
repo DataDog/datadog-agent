@@ -173,6 +173,9 @@ func getMultiNetworkInfo() ([]Interface, error) {
 			// interface down or loopback interface
 			continue
 		}
+		if mac := iface.GetHardwareAddr().String(); mac != "" {
+			_iface.MacAddress = utils.NewValue(mac)
+		}
 		addrs, err := iface.Addrs()
 		if err != nil {
 			// skip this interface but try the next
@@ -189,9 +192,6 @@ func getMultiNetworkInfo() ([]Interface, error) {
 			} else {
 				_iface.IPv4 = append(_iface.IPv4, ip.String())
 				_iface.IPv4Network = utils.NewValue(network.String())
-			}
-			if len(iface.GetHardwareAddr().String()) > 0 {
-				_iface.MacAddress = utils.NewValue(iface.GetHardwareAddr().String())
 			}
 		}
 		multiNetworkInfo = append(multiNetworkInfo, _iface)

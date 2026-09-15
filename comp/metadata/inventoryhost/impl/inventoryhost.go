@@ -205,8 +205,9 @@ func (ih *invHost) fillData() {
 	}
 
 	networkInfo, err := networkGet()
+	var jsonNetworkInfo interface{}
 	if err == nil {
-		_, warnings, err = networkInfo.AsJSON()
+		jsonNetworkInfo, warnings, err = networkInfo.AsJSON()
 	}
 	if err != nil {
 		ih.log.Errorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
@@ -216,11 +217,16 @@ func (ih *invHost) fillData() {
 		ih.data.IPAddress = networkInfo.IPAddress
 		ih.data.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		ih.data.MacAddress = networkInfo.MacAddress
-		jsonInterfaces, err := json.Marshal(networkInfo.Interfaces)
-		if err != nil {
-			ih.log.Errorf("failed to marshal network interfaces: %s", err) //nolint:errcheck
+		jsonNetworkInfoMap, ok := jsonNetworkInfo.(map[string]interface{})
+		if !ok {
+			ih.log.Errorf("failed to read network interfaces from gohai JSON") //nolint:errcheck
 		} else {
-			ih.data.Interfaces = string(jsonInterfaces)
+			jsonInterfaces, err := json.Marshal(jsonNetworkInfoMap["interfaces"])
+			if err != nil {
+				ih.log.Errorf("failed to marshal network interfaces: %s", err) //nolint:errcheck
+			} else {
+				ih.data.Interfaces = string(jsonInterfaces)
+			}
 		}
 	}
 
