@@ -76,10 +76,14 @@ dd_agent_go_test(
         },
         "//conditions:default": {},
     }),
-    # Windows MS Store / Appx collection needs an elevated token. Opt in:
-    #   bazel test //pkg/inventory/software:software_test
-    # from an elevated prompt.
-    tags = ["manual"],
+    # Windows MS Store / Appx collection needs an elevated token. Linux-safe
+    # tests still run in normal Bazel coverage; opt Windows in explicitly from
+    # an elevated prompt with:
+    #   bazel test --//:windows_elevated_tests=True //pkg/inventory/software:software_test
+    target_compatible_with = select({
+        "//:windows_elevated_tests_disabled": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),  # keep
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
