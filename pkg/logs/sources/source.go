@@ -11,8 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
 )
 
@@ -51,6 +53,10 @@ type LogSource struct {
 	BytesRead        *status.CountInfo
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilters is resolved on first use by TagFilters; nil means no filtering.
+	// The Once is a pointer so LogSource stays copyable, as lock already requires.
+	tagFilters    TagFilter
+	tagFilterOnce *sync.Once
 }
 
 // NewLogSource creates a new log source.
@@ -67,11 +73,61 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
+		tagFilterOnce:    &sync.Once{},
 	}
 	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
+}
+
+// TagFilters returns this source's compiled tag filter, or nil. Compiling on
+// first use rather than at registration is what lets sources built outside
+// LogSources.AddSource pick up the agent-wide filter.
+func (s *LogSource) TagFilters() TagFilter {
+	if s == nil || s.tagFilterOnce == nil {
+		return nil
+	}
+	s.tagFilterOnce.Do(s.resolveTagFilters)
+	return s.tagFilters
+}
+
+// resolveTagFilters merges the source's own tag_filters with the agent-wide
+// block. An unparseable source block falls back to the global filter alone.
+func (s *LogSource) resolveTagFilters() {
+	global := tagfilter.Global()
+
+	var perSource *tagfilter.Filters
+	if s.Config != nil {
+		compiled, err := s.Config.TagFilters.Compile()
+		if err != nil {
+			message := fmt.Sprintf("Invalid tag_filters, applying global tag filters only: %v", err)
+			log.Warnf("%s: %s", s.Name, message)
+			s.Messages.AddMessage("tag_filters", message)
+		} else {
+			perSource = compiled
+			for _, warning := range perSource.Warnings() {
+				log.Warnf("%s tag_filters: %s", s.Name, warning)
+			}
+		}
+	}
+
+	merged := tagfilter.NewScoped(global, perSource)
+	if merged.IsEmpty() {
+		return
+	}
+	if merged.IsIncludeOnly() {
+		message := "tag_filters include is set but no exclude patterns are configured, so no tags will be dropped; " +
+			"include is not an allowlist, it only rescues tags from exclude. " +
+			"List the tags you want dropped under exclude."
+		s.Messages.AddMessage("tag_filters_include_only", message)
+		// Only the source's own mistake is logged here; setupTagFilters already logged the global one.
+		if perSource.IsIncludeOnly() {
+			log.Warnf("%s: %s", s.Name, message)
+		}
+	}
+	s.RegisterInfo(newTagFilterInfo(global, perSource))
+	s.tagFilters = merged
 }
 
 // AddInput registers an input as being handled by this source.
@@ -166,11 +222,12 @@ func (s *LogSource) GetInfo(key string) status.InfoProvider {
 	return s.info.Get(key)
 }
 
-// GetInfoStatus returns a primitive representation of the info for the status page
-func (s *LogSource) GetInfoStatus() map[string][]string {
+// GetInfoStatus returns a primitive representation of the info for the status page. Pass
+// verbose to include providers that opted out of the default view.
+func (s *LogSource) GetInfoStatus(verbose bool) map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info.Rendered()
+	return s.info.Rendered(verbose)
 }
 
 // HideFromStatus hides the source from the status output

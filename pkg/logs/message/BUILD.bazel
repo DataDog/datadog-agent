@@ -24,6 +24,7 @@ dd_agent_go_test(
         "origin_slice_aliasing_test.go",
         "origin_test.go",
         "status_test.go",
+        "tagfilter_test.go",
     ],
     embed = [":message"],
     deps = [

@@ -470,14 +470,24 @@ func (m *MessageMetadata) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// Tags returns all tags that this message is attached with.
+// Tags returns the message's tags, unfiltered. See Origin.Tags.
 func (m *MessageMetadata) Tags() []string {
 	return m.Origin.Tags()
 }
 
-// TagsToString returns all tags that this message is attached with, as a string.
+// TagsToString returns the message's tags as a string, unfiltered. See Origin.Tags.
 func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString()
+}
+
+// TransportTags returns the tags to ship to the intake. See Origin.TransportTags.
+func (m *MessageMetadata) TransportTags() []string {
+	return m.Origin.TransportTags()
+}
+
+// TransportTagsToString returns TransportTags as a comma-separated string.
+func (m *MessageMetadata) TransportTagsToString() string {
+	return m.Origin.TransportTagsToString()
 }
 
 // Count returns the number of messages

@@ -63,7 +63,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	return Status{
 		IsRunning:            b.getIsRunning(),
 		Endpoints:            b.getEndpoints(),
-		Integrations:         b.getIntegrations(),
+		Integrations:         b.getIntegrations(verbose),
 		Tailers:              tailers,
 		StatusMetrics:        b.getMetricsStatus(),
 		ProcessFileStats:     b.getProcessFileStats(),
@@ -310,7 +310,7 @@ func (b *Builder) getErrors() []string {
 }
 
 // getIntegrations returns all the information about the logs integrations.
-func (b *Builder) getIntegrations() []Integration {
+func (b *Builder) getIntegrations(verbose bool) []Integration {
 	var integrations []Integration
 	for name, logSources := range b.groupSourcesByName() {
 		var sources []Source
@@ -321,7 +321,7 @@ func (b *Builder) getIntegrations() []Integration {
 				Status:        b.toString(source.Status()),
 				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
-				Info:          source.GetInfoStatus(),
+				Info:          source.GetInfoStatus(verbose),
 			})
 		}
 		integrations = append(integrations, Integration{
@@ -338,7 +338,7 @@ func (b *Builder) getTailers() []Tailer {
 	tailerStatus := make([]Tailer, 0, len(tailers))
 	for _, tailer := range tailers {
 
-		info := tailer.GetInfo().Rendered()
+		info := tailer.GetInfo().Rendered(true)
 
 		tailerStatus = append(tailerStatus, Tailer{
 			ID:   tailer.GetID(),

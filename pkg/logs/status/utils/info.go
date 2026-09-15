@@ -32,6 +32,17 @@ type InfoProvider interface {
 	Info() []string
 }
 
+// VerboseInfoProvider is omitted from `agent status` unless `-v` is set.
+type VerboseInfoProvider interface {
+	InfoProvider
+	IsVerbose() bool
+}
+
+func isVerboseOnly(p InfoProvider) bool {
+	v, ok := p.(VerboseInfoProvider)
+	return ok && v.IsVerbose()
+}
+
 // CountInfo records a simple count
 type CountInfo struct {
 	count *atomic.Int64
@@ -151,13 +162,16 @@ func (i *InfoRegistry) All() []InfoProvider {
 	return info
 }
 
-// Rendered renders the info for display on the status page.
-func (i *InfoRegistry) Rendered() map[string][]string {
+// Rendered renders info for the status page. Non-verbose output omits VerboseInfoProvider.
+func (i *InfoRegistry) Rendered(verbose bool) map[string][]string {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 	info := make(map[string][]string)
 
 	for _, v := range i.info {
+		if !verbose && isVerboseOnly(v) {
+			continue
+		}
 		if len(v.Info()) == 0 {
 			continue
 		}

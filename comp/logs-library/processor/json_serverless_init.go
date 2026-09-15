@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -46,7 +47,8 @@ func (j *jsonServerlessInitEncoder) primeTagsFromMessage(tagsStr string) {
 }
 
 // SetServerlessInitTagCache pre-populates the JSONServerlessInitEncoder's cache
-// with the provided tags. This must be called (instead of clearing the cache)
+// with the provided tags, minus any dropped by the agent-wide tag filter.
+// This must be called (instead of clearing the cache)
 // whenever the log tag set changes at runtime (e.g. after /run appends
 // lambda_microvm_id). Setting the cache directly prevents in-flight pre-run
 // messages — whose origin.tags were snapshotted before the update — from being
@@ -60,6 +62,9 @@ func SetServerlessInitTagCache(tags []string) {
 		if len(tags) == 0 {
 			enc.cachedTags.Store(nil) // reset: next Encode re-derives from the message
 			return
+		}
+		if f := tagfilter.Global(); !f.IsEmpty() {
+			tags = f.Apply(tags)
 		}
 		s := strings.Join(tags, ",")
 		enc.cachedTags.Store(&s)
@@ -100,7 +105,7 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		// only true because SetServerlessInitTagCache is the sole path for changing
 		// tags after startup; if a caller ever needs per-message tags, this cache
 		// needs to go away, not be patched.
-		tagsStr = msg.TagsToString()
+		tagsStr = msg.TransportTagsToString()
 		j.primeTagsFromMessage(tagsStr)
 	}
 

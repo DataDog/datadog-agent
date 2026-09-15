@@ -26,27 +26,116 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	// tagFilterOverride replaces the LogSource's filter when set.
+	tagFilterOverride TagFilter
 }
 
-// NewOrigin returns a new Origin
+// NewOrigin returns a new Origin.
 func NewOrigin(source *sources.LogSource) *Origin {
-	return &Origin{
-		LogSource: source,
-	}
+	return &Origin{LogSource: source}
 }
 
-// Tags returns the tags of the origin.
+// TagFilter drops tags that must not leave the Agent. nil means no filtering.
+type TagFilter = sources.TagFilter
+
+// Tags returns the origin's tags, unfiltered. Agent-local consumers (e.g.
+// anomaly detection) need every tag; encoders must use TransportTags.
 //
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
-// TagsPayload returns the raw tag payload of the origin.
+// TransportTags returns the origin's tags after the source's tag filter.
+//
+// The returned slice must not be modified by the caller.
+func (o *Origin) TransportTags() []string {
+	return o.appendTransportTags(make([]string, 0, o.tagCapacity()))
+}
+
+// TransportTagsToString encodes TransportTags as a comma-separated string.
+func (o *Origin) TransportTagsToString() string {
+	tags := o.TransportTags()
+
+	if len(tags) == 0 {
+		return ""
+	}
+
+	return strings.Join(tags, ",")
+}
+
+// SetTagFilters overrides the filter this origin inherits from its LogSource.
+func (o *Origin) SetTagFilters(f TagFilter) {
+	o.tagFilterOverride = f
+}
+
+// TagFilters returns the filter applied on the intake path, if any.
+func (o *Origin) TagFilters() TagFilter {
+	if o == nil {
+		return nil
+	}
+	if o.tagFilterOverride != nil {
+		return o.tagFilterOverride
+	}
+	return o.LogSource.TagFilters()
+}
+
+// appendTransportTags appends the tags that survive the filter, in the same
+// order and grouping as tagsToStringArray.
+func (o *Origin) appendTransportTags(dst []string) []string {
+	if o == nil || o.LogSource == nil {
+		return dst
+	}
+	sourceCategory := o.LogSource.Config.SourceCategory
+	configTags := o.LogSource.Config.Tags
+
+	f := o.TagFilters()
+	if f == nil {
+		dst = append(dst, o.tags...)
+		if sourceCategory != "" {
+			dst = append(dst, "sourcecategory:"+sourceCategory)
+		}
+		return append(dst, configTags...)
+	}
+
+	for _, tag := range o.tags {
+		if f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	if sourceCategory != "" {
+		if tag := "sourcecategory:" + sourceCategory; f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	for _, tag := range configTags {
+		if f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	return dst
+}
+
+func (o *Origin) tagCapacity() int {
+	if o == nil || o.LogSource == nil {
+		return 0
+	}
+	n := len(o.tags) + len(o.LogSource.Config.Tags)
+	if o.LogSource.Config.SourceCategory != "" {
+		n++
+	}
+	return n
+}
+
+// TagsPayload returns the RFC5424 structured-data tag payload, with tag
+// filtering applied. ddsource is not filtered; ddsourcecategory is, so that
+// excluding `sourcecategory` drops it on this transport as it does on HTTP,
+// where it travels inside ddtags.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
 	}
+	f := o.TagFilters()
 
 	var tagsPayload []byte
 
@@ -55,14 +144,18 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
+	if sourceCategory != "" && (f == nil || f.Retains("sourcecategory:"+sourceCategory)) {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
-	var tags []string
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, o.tags...)
-	tags = append(tags, processingTags...)
+	tags := make([]string, 0, len(o.LogSource.Config.Tags)+len(o.tags)+len(processingTags))
+	for _, group := range [3][]string{o.LogSource.Config.Tags, o.tags, processingTags} {
+		for _, tag := range group {
+			if f == nil || f.Retains(tag) {
+				tags = append(tags, tag)
+			}
+		}
+	}
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
@@ -103,7 +196,7 @@ func AppendTagMetadataBytes(baseBytes int, tags []string) int {
 	return totalBytes
 }
 
-// TagsToString encodes tags to a single string, in a comma separated format
+// TagsToString encodes Tags as a comma-separated string. Unfiltered; see Tags.
 func (o *Origin) TagsToString() string {
 	tags := o.tagsToStringArray()
 
