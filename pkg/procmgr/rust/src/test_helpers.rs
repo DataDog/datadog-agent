@@ -298,17 +298,49 @@ pub const TEST_SLEEP_SECS: u32 = 60;
 /// Alternate sleep duration for reload tests that need a different command line.
 pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
 
-/// `ProcessConfig` for a long-running child used in stop/reload/shutdown tests.
+/// Sleep duration for graceful-stop test children.
 ///
-/// Long-running child that exits promptly on graceful stop (SIGTERM / CTRL_BREAK).
+/// Intentionally long so the child outlives the test unless stopped gracefully.
+pub const GRACEFUL_STOP_SLEEP_SECS: u32 = 3600;
+
+/// Command for a long-running child that exits promptly on graceful stop
+/// (SIGTERM on Unix, CTRL_BREAK on Windows).
+#[cfg(unix)]
 pub fn graceful_stop_cmd() -> (String, Vec<String>) {
-    (
-        python_exe(),
-        vec![
-            "-c".into(),
-            "import os,signal,time;def _exit(*a): os._exit(0);[signal.signal(getattr(signal,n),_exit) for n in ('SIGTERM','SIGINT','SIGBREAK') if hasattr(signal,n)];time.sleep(3600)".into(),
-        ],
-    )
+    let (cmd, args) = sleep_cmd(GRACEFUL_STOP_SLEEP_SECS);
+    (cmd.to_string(), args)
+}
+
+#[cfg(windows)]
+fn resolve_test_runfile(path: String) -> String {
+    let candidate = std::path::Path::new(&path);
+    if candidate.is_absolute() {
+        return path;
+    }
+    for var in ["RUNFILES_DIR", "TEST_SRCDIR"] {
+        if let Ok(root) = std::env::var(var) {
+            let resolved = std::path::Path::new(&root).join(candidate);
+            if resolved.exists() {
+                return resolved.to_string_lossy().into_owned();
+            }
+        }
+    }
+    path
+}
+
+#[cfg(windows)]
+fn graceful_sleeper_exe() -> String {
+    if let Ok(path) = std::env::var("GRACEFUL_SLEEPER_BIN")
+        && !path.is_empty()
+    {
+        return resolve_test_runfile(path);
+    }
+    "graceful-sleeper.exe".to_string()
+}
+
+#[cfg(windows)]
+pub fn graceful_stop_cmd() -> (String, Vec<String>) {
+    (graceful_sleeper_exe(), vec![])
 }
 
 /// `ProcessConfig` for a child that exits on graceful stop without force-kill.

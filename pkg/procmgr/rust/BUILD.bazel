@@ -90,6 +90,15 @@ rust_binary(
 )
 
 rust_binary(
+    name = "graceful-sleeper",
+    testonly = True,
+    srcs = ["src/test_bins/graceful_sleeper.rs"],
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@crates//:windows-sys"],
+)
+
+rust_binary(
     name = "dd-procmgr",
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
@@ -148,6 +157,18 @@ pkg_install(
 # Tests
 # ============================================================================
 
+_DD_PROCMGRD_GRACEFUL_SLEEPER_ENV = select({
+    "@platforms//os:windows": {
+        "GRACEFUL_SLEEPER_BIN": "$(rootpath :graceful-sleeper)",
+    },
+    "//conditions:default": {},
+})
+
+_DD_PROCMGRD_GRACEFUL_SLEEPER_DATA = select({
+    "@platforms//os:windows": [":graceful-sleeper"],
+    "//conditions:default": [],
+})
+
 _DD_PROCMGRD_TEST_ENV = select({
     "@platforms//os:windows": {
         "RUST_TEST_THREADS": "1",
@@ -201,7 +222,6 @@ _DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS = [
     ("process_normal_exit_stop_flag", "test_normal_exit_not_affected_by_stop_flag"),
     # shutdown::tests
     ("shutdown_all_graceful", "test_shutdown_all_graceful"),
-    ("shutdown_graceful_stop_signal", "test_shutdown_graceful_stop_signal"),
     ("shutdown_sigkill_timeout", "test_shutdown_all_sigkill_on_timeout"),
     ("shutdown_after_spawn", "test_shutdown_all_after_spawn_watcher_owns_handle"),
     ("shutdown_ordered_reverse", "test_shutdown_ordered_reverse"),
@@ -213,11 +233,23 @@ _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES = dd_procmgrd_isolated_integration_
     _DD_PROCMGRD_TEST_ENV,
 )
 
+# Spawns a CTRL_BREAK-aware child on Windows (graceful-sleeper); Unix uses /bin/sleep.
+dd_procmgrd_lib_test(
+    name = "dd-procmgrd_shutdown_graceful_stop_signal_test",
+    args = ["test_shutdown_graceful_stop_signal"],
+    data = _DD_PROCMGRD_GRACEFUL_SLEEPER_DATA,
+    env = _DD_PROCMGRD_TEST_ENV | _DD_PROCMGRD_GRACEFUL_SLEEPER_ENV,
+)
+
 # Fast/unit tests only. Spawn-heavy integration tests are skipped here and run via
 # dedicated targets above.
 dd_procmgrd_lib_test(
     name = "dd-procmgrd_test",
-    args = dd_procmgrd_skip_args_for_isolated(_DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS),
+    args = dd_procmgrd_skip_args_for_isolated(
+        _DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS + [
+            ("shutdown_graceful_stop_signal", "test_shutdown_graceful_stop_signal"),
+        ],
+    ),
     env = _DD_PROCMGRD_TEST_ENV,
 )
 
@@ -225,7 +257,9 @@ dd_procmgrd_lib_test(
 #   bazel test //pkg/procmgr/rust:dd-procmgrd_all_tests
 test_suite(
     name = "dd-procmgrd_all_tests",
-    tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES],
+    tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES] + [
+        ":dd-procmgrd_shutdown_graceful_stop_signal_test",
+    ],
 )
 
 rust_test(

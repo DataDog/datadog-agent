@@ -103,13 +103,12 @@ fn create_managed_child(
     }
 
     let pid = process_info.dwProcessId;
-    let handle = ProcessHandle::from_borrowed(pid, process_info.hProcess).map_err(|e| {
+    let handle = ProcessHandle::from_borrowed(pid, process_info.hProcess).inspect_err(|_| {
         let _ = terminate_process(process_info.hProcess);
         unsafe {
             CloseHandle(process_info.hProcess);
             CloseHandle(process_info.hThread);
         }
-        e
     })?;
     unsafe {
         CloseHandle(process_info.hProcess);
