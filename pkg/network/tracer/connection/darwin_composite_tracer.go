@@ -27,10 +27,9 @@ import (
 // counters, and lifecycle; the sidecars may only enrich an existing NStat
 // connection with packet evidence or otherwise missing process identity.
 type darwinCompositeTracer struct {
-	primary    *nstatTracer
-	packet     *darwinPacketSidecar
-	reconciler *darwinLibprocReconciler
-
+	primary             *nstatTracer
+	packet              *darwinPacketSidecar
+	reconciler          *darwinLibprocReconciler
 	packetRequested     bool
 	reconcilerRequested bool
 	packetError         error
@@ -44,37 +43,46 @@ type darwinCompositeTracer struct {
 	stopSidecarsOnce       sync.Once
 }
 
-// newDarwinCompositeTracer constructs the complete backend without selecting
-// it from the production Darwin tracer path.
-//
-//nolint:unused // The production backend selection is introduced in the integration commit.
+// newDarwinCompositeTracer constructs the complete backend used by the opt-in
+// NStat modes in the production Darwin tracer path.
 func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error) {
 	primary, err := newNStatTracer(cfg)
 	if err != nil {
 		return nil, err
 	}
 	composite := newDarwinCompositeTracerWithComponents(primary, nil, nil)
-	composite.packetRequested = true
-	composite.reconcilerRequested = true
+	composite.packetRequested = cfg.DarwinConnectionTracerPacketEnabled
+	composite.reconcilerRequested = cfg.DarwinConnectionTracerLibprocEnabled
 
-	packetSource, packetErr := filter.NewLibpcapSource(
-		filter.OptSnapLen(darwinPrefixLimit),
-		filter.OptBPFFilter("tcp"),
-	)
-	if packetErr != nil {
-		composite.packetError = packetErr
-		log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
-	} else {
-		packetFanout := filter.NewPacketSourceFanout(packetSource)
-		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
+	if cfg.DarwinConnectionTracerPacketEnabled {
+		packetSource, packetErr := filter.NewLibpcapSource(
+			filter.OptSnapLen(cfg.DarwinConnectionTracerPacketSnaplen),
+			filter.OptBPFBufferSize(cfg.DarwinConnectionTracerPacketBufferSize),
+			filter.OptBPFFilter("tcp"),
+		)
+		if packetErr != nil {
+			composite.packetError = packetErr
+			log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
+		} else {
+			packetFanout := filter.NewPacketSourceFanout(packetSource)
+			composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
+		}
 	}
 
-	scanner, scannerErr := libproc.NewNativeScanner(libproc.DefaultLimits)
-	if scannerErr != nil {
-		log.Warnf("Darwin NStat libproc reconciliation unavailable: %v", scannerErr)
-	} else {
-		composite.reconciler = newDarwinLibprocReconciler(scanner, primary, darwinLibprocInterval)
+	if cfg.DarwinConnectionTracerLibprocEnabled {
+		scanner, scannerErr := libproc.NewNativeScanner(libproc.Limits{
+			MaxPIDs:         cfg.DarwinConnectionTracerLibprocMaxPIDs,
+			MaxFDsPerPID:    cfg.DarwinConnectionTracerLibprocMaxFDsPerPID,
+			MaxObservations: cfg.DarwinConnectionTracerLibprocMaxObservations,
+		})
+		if scannerErr != nil {
+			composite.reconcilerError = scannerErr
+			log.Warnf("Darwin NStat libproc reconciliation unavailable: %v", scannerErr)
+		} else {
+			composite.reconciler = newDarwinLibprocReconciler(scanner, primary, cfg.DarwinConnectionTracerLibprocInterval)
+		}
 	}
+	composite.configureSidecarCallbacks()
 	return composite, nil
 }
 
@@ -93,12 +101,23 @@ func newDarwinCompositeTracerWithComponents(
 	}
 	if packet != nil {
 		composite.packetRequested = true
-		packet.setFailureCallback(composite.handlePacketFailure)
 	}
 	if reconciler != nil {
 		composite.reconcilerRequested = true
 	}
+	composite.configureSidecarCallbacks()
 	return composite
+}
+
+func (t *darwinCompositeTracer) configureSidecarCallbacks() {
+	packet := t.packet
+	reconciler := t.reconciler
+	if packet != nil {
+		packet.setFailureCallback(t.handlePacketFailure)
+	}
+	if reconciler != nil {
+		reconciler.setResultCallback(t.handleReconcilerResult)
+	}
 }
 
 func (t *darwinCompositeTracer) Start(closeCallback func(*network.ConnectionStats)) error {
@@ -186,6 +205,12 @@ func (t *darwinCompositeTracer) handlePacketFailure(err error) {
 	defer t.mu.Unlock()
 	t.packetError = err
 	t.publishPacketStatusLocked()
+}
+
+func (t *darwinCompositeTracer) handleReconcilerResult(err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.reconcilerError = err
 }
 
 func (t *darwinCompositeTracer) setRuntimeFailureCallback(callback func(error)) {
