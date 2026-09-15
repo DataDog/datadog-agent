@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -25,6 +26,8 @@ import (
 const (
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
+	// genAIAttributePrefix is used to identify GenAI spans that should be stored as LLM spans.
+	genAIAttributePrefix = "gen_ai."
 	// tagOrigin specifies the origin of the trace.
 	// DEPRECATED: Origin is now specified as a TraceChunk field.
 	tagOrigin = "_dd.origin"
@@ -145,6 +148,24 @@ func (a *Agent) validateAndFixType(ts *info.TagStats, spanType string) string {
 	return spanType
 }
 
+func hasGenAIAttribute(meta map[string]string) bool {
+	for key := range meta {
+		if strings.HasPrefix(key, genAIAttributePrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasGenAIAttributeV1(s *idx.InternalSpan) bool {
+	for keyRef := range s.Attributes() {
+		if strings.HasPrefix(s.Strings.Get(keyRef), genAIAttributePrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // validateAndFixHTTPStatusCode handles HTTP status code validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (string, bool) {
 	if !isValidStatusCode(sc) {
@@ -261,6 +282,9 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	s.Start = a.validateAndFixStartTime(ts, s.Start, s.Duration)
 
 	s.Type = a.validateAndFixType(ts, s.Type)
+	if hasGenAIAttribute(s.Meta) {
+		s.Type = "llm"
+	}
 
 	if env := semantics.LookupString(reg, spanAccessor, semantics.ConceptDDEnv); env != "" {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
@@ -328,6 +352,9 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	s.SetStart(a.validateAndFixStartTimeV1(ts, s.Start(), s.Duration()))
 
 	s.SetType(a.validateAndFixType(ts, s.Type()))
+	if hasGenAIAttributeV1(s) {
+		s.SetType("llm")
+	}
 
 	if env := s.Env(); env != "" {
 		s.SetEnv(normalizeutil.NormalizeTagValue(env))
