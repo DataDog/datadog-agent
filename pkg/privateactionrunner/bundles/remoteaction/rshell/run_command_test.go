@@ -680,6 +680,109 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
 	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
 	assert.Contains(t, logs, "privilegedEnabled=false")
+	assert.Contains(t, logs, "agentPolicy=<nil>")
+}
+
+func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorElevatableCommands:        []string{"rshell:cat"},
+		PrivilegedEnabled:                 true,
+		PrivilegedSocket:                  "",
+	})
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "AllowedCommands:[rshell:cat]")
+	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
+}
+
+func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+
+	assert.Nil(t, handler.buildAgentPolicy())
+}
+
+func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:truncate"},
+		OperatorAllowedCommandsConfigured: true,
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+	assert.Nil(t, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
+		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, policy.ElevatableCommands)
+	assert.Nil(t, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+}
+
+func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{"/var/log:ro"},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorAllowedPathsConfigured:    true,
+		OperatorAllowedSystemServices:     map[string][]string{"mysql.service": {"read"}},
+		OperatorElevatableCommands:        []string{"rshell:truncate"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:cat"}, policy.AllowedCommands)
+	// operatorAllowedPaths is normalized by cleanPathList/reducePathListToBroadest
+	// in newRunCommandHandler, which appends a trailing separator.
+	assert.Equal(t, []string{"/var/log/:ro"}, policy.AllowedPaths)
+	assert.Equal(t, map[string][]string{"mysql.service": {"read"}}, policy.AllowedSystemServices)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.AllowedSystemServices)
+	assert.Empty(t, policy.AllowedSystemServices)
 }
 
 func TestWholeScriptRootIsRejected(t *testing.T) {
