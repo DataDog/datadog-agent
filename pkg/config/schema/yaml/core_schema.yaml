@@ -2483,6 +2483,45 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: How many workers are used by the no-aggregation pipeline.
+  dogstatsd_client_drop_detection:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        description: Enables Agent Health detection of DogStatsD client-reported
+          payload drops.
+      dropped_ratio_threshold:
+        node_type: setting
+        type: number
+        default: 0.01
+        description: DogStatsD UDS client payload-byte drop ratio above which a
+          telemetry window is unhealthy. Values range from 0 to 1; 0.01 represents
+          1 percent.
+        tags:
+        - golang_type:float64
+      unhealthy_confirmation_window:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        description: Amount of continuously unhealthy DogStatsD UDS client telemetry
+          required before reporting a dropped-payload Agent Health issue, to ignore
+          transient bad flushes.
+        tags:
+        - golang_type:duration
+      recovery_confirmation_window:
+        node_type: setting
+        type: string
+        default: 30m0s
+        format: duration
+        description: Amount of continuously healthy DogStatsD UDS client telemetry
+          required before resolving a dropped-payload Agent Health issue, to prevent
+          intermittent drops from repeatedly resolving and reopening the issue.
+        tags:
+        - golang_type:duration
   metric_lookback:
     node_type: section
     type: object

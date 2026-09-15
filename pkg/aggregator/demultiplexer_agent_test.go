@@ -71,6 +71,65 @@ func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 	return batch
 }
 
+type recordingFinalSerieFlushObserver struct {
+	series                  []string
+	seriesCountAtCompletion []int
+}
+
+func (o *recordingFinalSerieFlushObserver) ObserveFinalDogStatsDSerie(serie *metrics.Serie) {
+	o.series = append(o.series, serie.Name)
+}
+
+func (o *recordingFinalSerieFlushObserver) CompleteFinalDogStatsDSerieFlush() {
+	o.seriesCountAtCompletion = append(o.seriesCountAtCompletion, len(o.series))
+}
+
+func TestFinalDogStatsDSerieObserverCompletesAfterAllWorkers(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	mockConfig.SetInTest("dogstatsd_pipeline_count", 2)
+
+	observer := &recordingFinalSerieFlushObserver{}
+	opts := demuxTestOptions()
+	opts.FinalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
+	opts.FinalDogStatsDSerieFlushListener = observer
+	deps := createDemuxDeps(t, opts, eventplatform.NewDefaultParams())
+	demux := deps.Demultiplexer
+	t.Cleanup(demux.Stop)
+	require.Len(t, demux.statsd.workers, 2)
+
+	serializer := &MockSerializerIterableSerie{}
+	serializer.On("AreSeriesEnabled").Return(true)
+	serializer.On("AreSketchesEnabled").Return(true)
+	serializer.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = serializer
+	demux.sharedSerializer = serializer
+
+	start := time.Now()
+	for worker := range demux.statsd.workers {
+		demux.AggregateSamples(TimeSamplerID(worker), metrics.MetricSampleBatch{{
+			Name:      fmt.Sprintf("worker.%d.metric", worker),
+			Value:     1,
+			Mtype:     metrics.GaugeType,
+			Timestamp: float64(start.Unix()),
+		}})
+	}
+	require.Eventually(t, func() bool {
+		for _, worker := range demux.statsd.workers {
+			if len(worker.samplesChan) != 0 {
+				return false
+			}
+		}
+		return true
+	}, time.Second, time.Millisecond)
+
+	demux.ForceFlushToSerializer(start.Add(30*time.Second), true, false)
+
+	require.Contains(t, observer.series, "worker.0.metric")
+	require.Contains(t, observer.series, "worker.1.metric")
+	require.Equal(t, []int{len(observer.series)}, observer.seriesCountAtCompletion)
+}
+
 // the option is NOT enabled, this metric should go into the first
 // timesampler of the statsd stack.
 type recordingDogStatsDNoAggLookback struct {

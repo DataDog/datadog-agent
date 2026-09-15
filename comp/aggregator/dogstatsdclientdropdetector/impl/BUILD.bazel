@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["dogstatsdclientdropdetector.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/healthplatform/issues/dogstatsdclientdrops",
+        "//comp/healthplatform/store/def",
+        "//pkg/util/uuid",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["dogstatsdclientdropdetector_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/aggregator/dogstatsdclientdropdetector/def",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//comp/healthplatform/issues/dogstatsdclientdrops",
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/mock",
+        "//pkg/util/uuid",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//require",
+    ],
+)
