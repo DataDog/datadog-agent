@@ -61,7 +61,7 @@ if mountpoint -q /sys/fs/cgroup; then
   umount -R /sys/fs/cgroup
 fi
 awk '$0 ~ / - cgroup(2)? / { found=1 } END { exit found ? 1 : 0 }' /proc/self/mountinfo
-exec env DD_API_KEY=%s DD_DD_URL=%s DD_ENHANCED_METRICS=true AWS_LAMBDA_MICROVM_IMAGE_ARN=%s AWS_LAMBDA_MICROVM_IMAGE_VERSION=e2e %s /bin/sh -c 'sleep 8'
+exec env DD_API_KEY=%s DD_DD_URL=%s DD_DOGSTATSD_PORT=18125 DD_ENHANCED_METRICS=true AWS_LAMBDA_MICROVM_IMAGE_ARN=%s AWS_LAMBDA_MICROVM_IMAGE_VERSION=e2e %s /bin/sh -c 'sleep 8'
 `, shellQuote(fakeIntakeAPIKey), shellQuote(s.Env().FakeIntake.URL), shellQuote(microVMImageARN), shellQuote(serverlessInitRemotePath))
 	command := "sudo -n unshare --mount --propagation private /bin/sh -c " + shellQuote(runScript)
 	s.Env().RemoteHost.MustExecute(command)
