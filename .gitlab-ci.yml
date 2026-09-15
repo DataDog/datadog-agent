@@ -358,7 +358,6 @@ variables:
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
