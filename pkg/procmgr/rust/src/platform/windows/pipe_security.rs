@@ -54,13 +54,13 @@ fn setup_security_descriptor_with_retries() -> Result<String> {
         match setup_security_descriptor_once() {
             Ok(sd) => return Ok(sd),
             Err(err) => {
-                last_err = Some(err);
                 if attempt < SID_LOOKUP_MAX_ATTEMPTS {
                     log::warn!(
                         "installed agent user SID lookup failed (attempt {attempt}/{SID_LOOKUP_MAX_ATTEMPTS}): {err:#}; retrying"
                     );
                     std::thread::sleep(SID_LOOKUP_RETRY_DELAY);
                 }
+                last_err = Some(err);
             }
         }
     }
