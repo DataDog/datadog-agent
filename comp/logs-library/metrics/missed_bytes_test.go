@@ -55,14 +55,14 @@ func TestMissedBytesRecord(t *testing.T) {
 	}{
 		{
 			name:   "one loss carries its bytes and rotation count",
-			record: func(tr *missedBytesTracker, _ *clock.Mock) { tr.record("nginx", "web", 4096) },
+			record: func(tr *missedBytesTracker, _ *clock.Mock) { tr.record("nginx", "web", 4096, "") },
 			want:   []string{"nginx:web 4096/1"},
 		},
 		{
 			name: "repeated losses for one tuple accumulate",
 			record: func(tr *missedBytesTracker, clk *clock.Mock) {
 				for _, n := range []int64{100, 250, 25} {
-					tr.record("nginx", "web", n)
+					tr.record("nginx", "web", n, "")
 					clk.Add(time.Minute)
 				}
 			},
@@ -71,10 +71,10 @@ func TestMissedBytesRecord(t *testing.T) {
 		{
 			name: "distinct tuples stay separate, sorted by source then service",
 			record: func(tr *missedBytesTracker, _ *clock.Mock) {
-				tr.record("nginx", "web", 10)
-				tr.record("apache", "web", 20)
-				tr.record("nginx", "api", 30)
-				tr.record("apache", "api", 40)
+				tr.record("nginx", "web", 10, "")
+				tr.record("apache", "web", 20, "")
+				tr.record("nginx", "api", 30, "")
+				tr.record("apache", "api", 40, "")
 			},
 			want: []string{"apache:api 40/1", "apache:web 20/1", "nginx:api 30/1", "nginx:web 10/1"},
 		},
@@ -92,9 +92,9 @@ func TestMissedBytesRecord(t *testing.T) {
 func TestMissedBytesLastLossAt(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
-	tr.record("nginx", "web", 100)
+	tr.record("nginx", "web", 100, "")
 	clk.Add(time.Minute)
-	tr.record("nginx", "web", 100)
+	tr.record("nginx", "web", 100, "")
 
 	summaries := tr.collectAndPrune()
 	require.Len(t, summaries, 1)
@@ -104,7 +104,7 @@ func TestMissedBytesLastLossAt(t *testing.T) {
 func TestMissedBytesWindowExpiry(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
-	tr.record("nginx", "web", 512)
+	tr.record("nginx", "web", 512, "")
 
 	clk.Add(missedBytesWindow - missedBytesBucketSize)
 	require.Equal(t, []string{"nginx:web 512/1"}, summarize(tr.collectAndPrune()))
@@ -126,8 +126,8 @@ func TestMissedBytesBoundedWithoutCollect(t *testing.T) {
 	// Ten windows of hourly rotations: one steady tuple plus a fresh one each hour to
 	// push against the key cap. collectAndPrune is never called in the loop.
 	for hour := 0; hour < 10*bucketsPerWindow; hour++ {
-		tr.record(steady.source, steady.service, 1)
-		tr.record(fmt.Sprintf("churn-%03d", hour), "svc", 1)
+		tr.record(steady.source, steady.service, 1, "")
+		tr.record(fmt.Sprintf("churn-%03d", hour), "svc", 1, "")
 		clk.Add(missedBytesBucketSize)
 
 		require.LessOrEqual(t, len(tr.entries), missedBytesMaxKeys+1,
@@ -152,7 +152,7 @@ func TestMissedBytesOverflowFoldsIntoSharedKey(t *testing.T) {
 
 	const overflow = 5
 	for i := 0; i < missedBytesMaxKeys+overflow; i++ {
-		tr.record(fmt.Sprintf("source-%03d", i), "svc", 10)
+		tr.record(fmt.Sprintf("source-%03d", i), "svc", 10, "")
 	}
 
 	require.Len(t, tr.entries, missedBytesMaxKeys+1,
@@ -169,7 +169,7 @@ func TestMissedBytesBoundsKeyLength(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 
 	long := strings.Repeat("a", 4096)
-	tr.record(long, strings.Repeat("é", 4096), 10)
+	tr.record(long, strings.Repeat("é", 4096), 10, "")
 
 	require.Len(t, tr.entries, 1)
 	for key := range tr.entries {
@@ -182,14 +182,14 @@ func TestMissedBytesBoundsKeyLength(t *testing.T) {
 func TestMissedBytesNonPositiveIgnored(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 
-	tr.record("nginx", "web", 0)
-	tr.record("nginx", "web", -100)
+	tr.record("nginx", "web", 0, "")
+	tr.record("nginx", "web", -100, "")
 
 	assert.Empty(t, tr.collectAndPrune())
 	assert.Empty(t, tr.entries, "a rotation that lost no bytes must not allocate an entry")
 
-	tr.record("nginx", "web", 200)
-	tr.record("nginx", "web", 0)
+	tr.record("nginx", "web", 200, "")
+	tr.record("nginx", "web", 0, "")
 
 	assert.Equal(t, []string{"nginx:web 200/1"}, summarize(tr.collectAndPrune()),
 		"a zero-byte rotation must not count as a rotation")
@@ -219,7 +219,7 @@ func TestMissedBytesConcurrentRecord(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < 500; i++ {
-				tr.record(fmt.Sprintf("source-%d", (g+i)%4), "svc", 3)
+				tr.record(fmt.Sprintf("source-%d", (g+i)%4), "svc", 3, "")
 			}
 		}(g)
 	}
@@ -228,4 +228,55 @@ func TestMissedBytesConcurrentRecord(t *testing.T) {
 	<-readerDone
 
 	require.Len(t, tr.collectAndPrune(), 4)
+}
+
+func TestMissedBytesRecordsBottleneckAtLossTime(t *testing.T) {
+	tr, clk := newTestMissedBytesTracker()
+
+	tr.record("nginx", "web", 10, "strategy")
+	tr.record("nginx", "web", 10, "strategy")
+	clk.Add(2 * missedBytesBucketSize)
+	tr.record("nginx", "web", 10, NoBottleneck)
+
+	summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+	assert.Equal(t, map[string]int64{"strategy": 2, NoBottleneck: 1}, summary.Bottlenecks,
+		"counts must survive the roll from one bucket to the next")
+}
+
+// An unregistered pipeline monitor must not be recorded as a healthy one.
+func TestMissedBytesUnattributedLossHasNoBottleneck(t *testing.T) {
+	tr, _ := newTestMissedBytesTracker()
+
+	tr.record("nginx", "web", 10, "")
+
+	summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+	assert.Nil(t, summary.Bottlenecks)
+}
+
+func TestMissedBytesBottlenecksAgeOutWithTheirBucket(t *testing.T) {
+	tr, clk := newTestMissedBytesTracker()
+
+	tr.record("nginx", "web", 10, "worker")
+	clk.Add(missedBytesWindow + missedBytesBucketSize)
+	tr.record("nginx", "web", 10, "processor")
+
+	summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+	assert.Equal(t, map[string]int64{"processor": 1}, summary.Bottlenecks,
+		"a stage blamed outside the window must not stay blamed")
+}
+
+// Stage names are a closed set today, but a name that started carrying an instance would
+// otherwise grow the per-bucket map without bound.
+func TestMissedBytesBottlenecksAreCapped(t *testing.T) {
+	tr, _ := newTestMissedBytesTracker()
+
+	const overflow = 5
+	for i := 0; i < missedBytesMaxBottlenecks+overflow; i++ {
+		tr.record("nginx", "web", 10, fmt.Sprintf("destination_%03d", i))
+	}
+
+	summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+	assert.Len(t, summary.Bottlenecks, missedBytesMaxBottlenecks+1,
+		"at most the cap plus the shared overflow label")
+	assert.Equal(t, int64(overflow), summary.Bottlenecks[missedBytesOverflowLabel])
 }
