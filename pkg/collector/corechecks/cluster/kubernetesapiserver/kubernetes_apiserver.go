@@ -77,6 +77,14 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
+	eventsDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		CheckName,
+		"events_dropped",
+		[]string{},
+		"Number of Kubernetes events dropped because the collection buffer was full.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
 	componentStatusMaxVersion = semver.MustParse(componentStatusMaxVersionString)
 )
 
@@ -216,6 +224,10 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
 	}
 
+	if k.instance.useEventWatchCollection() {
+		eventsDropped.InitializeToZero()
+	}
+
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
@@ -329,7 +341,7 @@ func (k *KubeASCheck) Run() error {
 		var events []event.Event
 		var err error
 		if k.instance.useEventWatchCollection() {
-			events, err = k.newEventCollectionCheck(sender)
+			events, err = k.newEventCollectionCheck()
 		} else {
 			events, err = k.legacyEventCollectionCheck()
 		}
@@ -426,7 +438,7 @@ func (k *KubeASCheck) Cancel() {
 	k.stopEventCollection()
 }
 
-func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Event, error) {
+func (k *KubeASCheck) newEventCollectionCheck() ([]event.Event, error) {
 	k.mu.Lock()
 	ec := k.eventCollection.EventCollector
 	k.mu.Unlock()
@@ -437,7 +449,7 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	events := ec.Drain()
 
-	sender.Gauge("datadog.cluster_agent.kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
+	k.reportEventLoss(ec)
 
 	// Persist the delivered-up-to checkpoint so a restart resumes from here.
 	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, ec.Checkpoint(), time.Now()); err != nil {
@@ -451,6 +463,17 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 	}
 
 	return ddevents, nil
+}
+
+// reportEventLoss accounts for the events the collector could not buffer since the last run.
+func (k *KubeASCheck) reportEventLoss(ec *apiserver.EventCollector) {
+	dropped := ec.DrainDropped()
+	if dropped == 0 {
+		return
+	}
+
+	eventsDropped.Add(float64(dropped))
+	log.Warnf("Dropped %d Kubernetes events: the %d-event collection buffer filled up between check runs. Raise event_collection_buffer_size if this persists.", dropped, k.instance.EventCollectionBufferSize)
 }
 
 func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
