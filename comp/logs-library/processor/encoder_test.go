@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -437,6 +438,23 @@ func TestPassthroughEncoder(t *testing.T) {
 	err := PassthroughEncoder.Encode(msg, "any-host", nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "hello world", string(msg.GetContent()))
+}
+
+// Anomaly detection shares the origin's tags with the logs pipeline, so a
+// filter reaching this encoder must still not narrow what it observes.
+func TestPassthroughEncoderIgnoresFilter(t *testing.T) {
+	logsConfig := &config.LogsConfig{Source: "a", Tags: []string{"drop:me", "keep:me"}}
+	source := sources.NewLogSource("", logsConfig)
+
+	msg := newMessage([]byte("hello world"), source, message.StatusInfo)
+	msg.State = message.StateRendered
+
+	filter, _ := tagfilter.Compile(nil, []string{"drop:*"})
+	err := PassthroughEncoder.Encode(msg, "any-host", filter)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "hello world", string(msg.GetContent()))
+	assert.Equal(t, []string{"drop:me", "keep:me"}, msg.Origin.Tags())
 }
 
 func TestJSONServerlessInitEncoder(t *testing.T) {
