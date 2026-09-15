@@ -151,7 +151,11 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 		return source.Source{}, err
 	}
 
-	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
+	return source.Source{
+		Kind:             source.HostnameKind,
+		Identifier:       hostnameIdentifier,
+		SourceIdentifier: source.SourceIdentifier{Primary: hostnameIdentifier},
+	}, nil
 }
 
 // Exporter translate OTLP metrics into the Datadog format and sends

@@ -876,3 +876,46 @@ func TestGetHost(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAzureResourceID(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		resourceID string
+		expected   azureResourceID
+		expectErr  bool
+	}{
+		{
+			name:       "valid Azure Container Apps resource ID",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			expected: azureResourceID{
+				SubscriptionID: "sub-123",
+				ResourceGroup:  "my-rg",
+				ResourceName:   "my-app",
+			},
+		},
+		{
+			name:      "empty resource ID",
+			expectErr: true,
+		},
+		{
+			name:       "too few segments",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg",
+			expectErr:  true,
+		},
+		{
+			name:       "not an Azure resource ID",
+			resourceID: "arn:aws:ecs:us-east-1:123456789012:task/my-task",
+			expectErr:  true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := parseAzureResourceID(tt.resourceID)
+			if tt.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
