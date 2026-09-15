@@ -21,7 +21,7 @@ type captureHandle struct {
 	logs []observerdef.LogView
 }
 
-func (h *captureHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *captureHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	// Copy tags so the captured view remains valid after the callback returns.
 	tags := make([]string, len(msg.Tags()))

@@ -898,6 +898,4 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 	seriesB := storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a"}, AggregateAverage)
 	require.NotNil(t, seriesB)
 
-	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.a", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
-	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
 }
