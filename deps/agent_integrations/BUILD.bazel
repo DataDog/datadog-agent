@@ -20,6 +20,7 @@ py_binary(
     name = "build_wheel_tool",
     srcs = ["build_wheel.py"],
     main = "build_wheel.py",
+    visibility = ["//visibility:public"],
     deps = [
         requirement("hatchling"),
     ],
@@ -38,6 +39,7 @@ entrypoints_dirname = select({
 install_wheels(
     name = "integrations",
     srcs = [
+        "//deps/gstatus:gstatus_wheel",
         "@integration_source_packages//:all_wheels",
         "@pip//file",
     ] + select(
