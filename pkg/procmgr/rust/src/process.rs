@@ -347,6 +347,8 @@ impl ManagedProcess {
         if let Some(pid) = self.pid
             && let Err(e) = platform::send_graceful_stop(pid)
         {
+            #[cfg(test)]
+            eprintln!("[{}] graceful stop failed: {e}", self.name);
             warn!("[{}] graceful stop failed: {e}", self.name);
         }
     }

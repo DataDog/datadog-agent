@@ -430,7 +430,7 @@ fn materialize_windows_test_executable(src: &std::path::Path) -> std::path::Path
 }
 
 #[cfg(windows)]
-fn graceful_sleeper_exe() -> String {
+pub(crate) fn graceful_sleeper_exe() -> String {
     static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHED
         .get_or_init(|| {

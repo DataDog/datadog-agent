@@ -95,6 +95,7 @@ rust_binary(
     srcs = ["src/test_bins/graceful_sleeper.rs"],
     edition = "2024",
     target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@crates//:windows-sys"],
 )
 
 rust_binary(
@@ -234,6 +235,13 @@ _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES = dd_procmgrd_isolated_integration_
 
 # Spawns a CTRL_BREAK-aware child on Windows (graceful-sleeper); Unix uses /bin/sleep.
 dd_procmgrd_lib_test(
+    name = "dd-procmgrd_send_graceful_stop_graceful_sleeper_test",
+    args = ["test_send_graceful_stop_reaches_graceful_sleeper"],
+    data = _DD_PROCMGRD_GRACEFUL_SLEEPER_DATA,
+    env = _DD_PROCMGRD_TEST_ENV | _DD_PROCMGRD_GRACEFUL_SLEEPER_ENV,
+)
+
+dd_procmgrd_lib_test(
     name = "dd-procmgrd_shutdown_graceful_stop_signal_test",
     args = ["test_shutdown_graceful_stop_signal"],
     data = _DD_PROCMGRD_GRACEFUL_SLEEPER_DATA,
@@ -247,6 +255,10 @@ dd_procmgrd_lib_test(
     args = dd_procmgrd_skip_args_for_isolated(
         _DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS + [
             ("shutdown_graceful_stop_signal", "test_shutdown_graceful_stop_signal"),
+            (
+                "send_graceful_stop_graceful_sleeper",
+                "test_send_graceful_stop_reaches_graceful_sleeper",
+            ),
         ],
     ),
     env = _DD_PROCMGRD_TEST_ENV,
@@ -257,6 +269,7 @@ dd_procmgrd_lib_test(
 test_suite(
     name = "dd-procmgrd_all_tests",
     tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES] + [
+        ":dd-procmgrd_send_graceful_stop_graceful_sleeper_test",
         ":dd-procmgrd_shutdown_graceful_stop_signal_test",
     ],
 )

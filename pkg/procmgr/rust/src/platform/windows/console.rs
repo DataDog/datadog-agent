@@ -87,10 +87,9 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         let _ignore_ctrl = IgnoreCtrlGuard::install()?;
         detach_console();
         if AttachConsole(pid) == 0 {
-            anyhow::bail!(
-                "AttachConsole({pid}) failed: {}",
-                std::io::Error::last_os_error()
-            );
+            let err = std::io::Error::last_os_error();
+            eprintln!("send_graceful_stop: AttachConsole({pid}) failed: {err}");
+            anyhow::bail!("AttachConsole({pid}) failed: {err}");
         }
         struct DetachOnDrop;
         impl Drop for DetachOnDrop {
@@ -102,10 +101,11 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         // Managed children are spawned with CREATE_NEW_PROCESS_GROUP, so pid == pgid.
         let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
         if ok == 0 {
-            anyhow::bail!(
-                "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
-                std::io::Error::last_os_error()
+            let err = std::io::Error::last_os_error();
+            eprintln!(
+                "send_graceful_stop: GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {err}"
             );
+            anyhow::bail!("GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {err}");
         }
         std::thread::sleep(Duration::from_millis(200));
     }
@@ -118,4 +118,52 @@ pub fn send_force_kill(pid: u32) -> Result<()> {
 
 pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    use super::send_graceful_stop;
+    use crate::test_helpers;
+    use windows_sys::Win32::System::Threading::{CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
+
+    #[test]
+    fn test_send_graceful_stop_reaches_graceful_sleeper() {
+        let mut child = Command::new(test_helpers::graceful_sleeper_exe())
+            .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn graceful-sleeper");
+        let pid = child.id();
+        std::thread::sleep(Duration::from_millis(100));
+
+        let started = Instant::now();
+        send_graceful_stop(pid).expect("send_graceful_stop");
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => {
+                    assert!(
+                        started.elapsed() < Duration::from_secs(2),
+                        "graceful-sleeper took {:?} to exit after CTRL_BREAK",
+                        started.elapsed()
+                    );
+                    return;
+                }
+                Ok(None) => {}
+                Err(err) => panic!("try_wait failed: {err}"),
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                panic!(
+                    "graceful-sleeper did not exit within 2s after send_graceful_stop (pid={pid})"
+                );
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
 }
