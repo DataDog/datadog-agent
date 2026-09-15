@@ -956,8 +956,8 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
-		// CRDs are owned by the Linux release. Disable the four CRDs that
-		// datadog/datadog enables by default in its datadog-crds dependency
+		// CRDs are owned by the Linux release. Disable the CRDs that
+		// datadog/datadog enables by default in its datadog-crds dependencies
 		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
 		// datadog-crds subchart renders CRDs via templates/ with Helm
 		// ownership annotations, so if the Windows release tries to create
@@ -967,7 +967,14 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 				"datadogMetrics":                      pulumi.Bool(false),
 				"datadogPodAutoscalers":               pulumi.Bool(false),
 				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
-				"datadogInstrumentations":             pulumi.Bool(false),
+			},
+		},
+		// DatadogInstrumentation is installed through a separate aliased
+		// datadog-crds dependency. The Linux release owns this cluster-scoped
+		// CRD, so the Windows release must not render it.
+		"datadog-instrumentation-crd": pulumi.Map{
+			"crds": pulumi.Map{
+				"datadogInstrumentations": pulumi.Bool(false),
 			},
 		},
 	}
