@@ -57,33 +57,11 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     }
     fill_cgroup_context(entry, &event->cgroup);
 
-    // should we sample this event for activity dumps ?
+    // v1: check if this PID is traced by an activity dump
     struct activity_dump_config *config = lookup_or_delete_traced_pid(event->process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_BIND)) {
             event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-        }
-    }
-
-    if (!(event->event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        struct bind_connect_sample_key_t bind_key;
-        __builtin_memset(&bind_key, 0, sizeof(bind_key));
-        bind_key.pid = event->process.pid;
-        bind_key.family = event->family;
-        bind_key.port = event->port;
-        bind_key.protocol = event->protocol;
-        bind_key.addr[0] = event->addr[0];
-        bind_key.addr[1] = event->addr[1];
-
-        u32 bind_cookie = 0;
-        u32 bind_refresh_needed = 0;
-        if (approve_bind_sample(&bind_key, &bind_cookie, &bind_refresh_needed) == SAMPLED) {
-            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-            event->sample_cookie = bind_cookie;
-        } else if (bind_refresh_needed) {
-            struct sample_refresh_event_t ev = {};
-            ev.cookie = bind_cookie;
-            send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
         }
     }
 
