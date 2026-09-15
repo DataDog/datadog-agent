@@ -34,7 +34,6 @@ func TestReportFDB(t *testing.T) {
 
 		ms.ReportFDB(config, collectTime, []metadata.FDBEntryMetadata{{
 			DeviceID:       config.DeviceID,
-			FDBID:          1,
 			MacAddress:     "00:09:0f:09:0a:09",
 			InterfaceIndex: 1000014,
 		}})
@@ -51,9 +50,8 @@ func TestReportFDB(t *testing.T) {
 		require.NoError(t, json.Unmarshal(payload, &raw))
 		assert.NotContains(t, raw, "fdb_status")
 		entry := raw["fdb_entries"].([]any)[0].(map[string]any)
-		assert.Len(t, entry, 4)
+		assert.Len(t, entry, 3)
 		assert.Contains(t, entry, "device_id")
-		assert.Contains(t, entry, "fdb_id")
 		assert.Contains(t, entry, "mac_address")
 		assert.Contains(t, entry, "interface_index")
 	})

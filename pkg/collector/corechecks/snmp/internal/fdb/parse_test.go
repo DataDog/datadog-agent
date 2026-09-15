@@ -12,30 +12,26 @@ import (
 )
 
 func TestParseQBridgeIndex(t *testing.T) {
-	fdbID, mac, ok := parseQBridgeIndex("1.10.20.30.40.50.60")
+	mac, ok := parseQBridgeIndex("1.10.20.30.40.50.60")
 	assert.True(t, ok)
-	assert.Equal(t, uint32(1), fdbID)
 	assert.Equal(t, "0a:14:1e:28:32:3c", mac)
 
-	_, _, ok = parseQBridgeIndex("10.20.30.40.50")
+	_, ok = parseQBridgeIndex("10.20.30.40.50")
 	assert.False(t, ok)
 
-	_, _, ok = parseQBridgeIndex("1.10.20.30.40.50.256")
+	_, ok = parseQBridgeIndex("1.10.20.30.40.50.256")
 	assert.False(t, ok)
 
-	fdbID, mac, ok = parseQBridgeIndex("4001.0.9.15.9.10.9")
+	mac, ok = parseQBridgeIndex("4001.0.9.15.9.10.9")
 	assert.True(t, ok)
-	assert.Equal(t, uint32(4001), fdbID)
 	assert.Equal(t, "00:09:0f:09:0a:09", mac)
 
-	fdbID, mac, ok = parseQBridgeIndex("196608.0.16.219.255.16.1")
+	mac, ok = parseQBridgeIndex("196608.0.16.219.255.16.1")
 	assert.True(t, ok)
-	assert.Equal(t, uint32(196608), fdbID)
 	assert.Equal(t, "00:10:db:ff:10:01", mac)
 
-	fdbID, mac, ok = parseQBridgeIndex("1.6.0.12.41.21.230.31")
+	mac, ok = parseQBridgeIndex("1.6.0.12.41.21.230.31")
 	assert.True(t, ok)
-	assert.Equal(t, uint32(1), fdbID)
 	assert.Equal(t, "00:0c:29:15:e6:1f", mac)
 }
 

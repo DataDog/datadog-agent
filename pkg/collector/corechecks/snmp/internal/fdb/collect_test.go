@@ -28,7 +28,6 @@ func TestCollectQBridge(t *testing.T) {
 	require.Len(t, result.Entries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3c", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(10), result.Entries[0].InterfaceIndex)
-	assert.Equal(t, uint32(1), result.Entries[0].FDBID)
 }
 
 func TestCollectBridgeFallback(t *testing.T) {
@@ -43,10 +42,9 @@ func TestCollectBridgeFallback(t *testing.T) {
 	require.Len(t, result.Entries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3d", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(20), result.Entries[0].InterfaceIndex)
-	assert.Zero(t, result.Entries[0].FDBID)
 }
 
-func TestCollectFilters(t *testing.T) {
+func TestCollectFiltersInvalidRows(t *testing.T) {
 	sess := session.CreateFakeSession()
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
 	// learned unicast
@@ -64,19 +62,26 @@ func TestCollectFilters(t *testing.T) {
 	// zero port
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.70", 0)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.70", 3)
-	// self (not learned)
+	// Status values are deliberately ignored.
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.80", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.80", 4)
-	// mgmt (not learned)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.81", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.81", 5)
 
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	require.Len(t, result.Entries, 1)
-	assert.Equal(t, "0a:14:1e:28:32:3c", result.Entries[0].MacAddress)
+	require.Len(t, result.Entries, 3)
+	assert.ElementsMatch(t, []string{
+		"0a:14:1e:28:32:3c",
+		"0a:14:1e:28:32:50",
+		"0a:14:1e:28:32:51",
+	}, []string{
+		result.Entries[0].MacAddress,
+		result.Entries[1].MacAddress,
+		result.Entries[2].MacAddress,
+	})
 }
 
-func TestCollectMissingStatusKept(t *testing.T) {
+func TestCollectWithoutStatusTable(t *testing.T) {
 	sess := session.CreateFakeSession()
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
@@ -91,7 +96,6 @@ func TestCollectTruncatedDiscardsRows(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
 	for i := 1; i <= 5; i++ {
 		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50."+itoa(i), 1)
-		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50."+itoa(i), 3)
 	}
 
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 2, MaxDuration: time.Second, BulkMaxRepetitions: 10})
@@ -104,11 +108,9 @@ func TestCollectTruncatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
 	sess := session.CreateFakeSession()
 	for i := 1; i <= 3; i++ {
 		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50."+itoa(i), 1)
-		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50."+itoa(i), 3)
 	}
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
 	sess.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
-	sess.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
 
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
 	assert.Equal(t, OutcomeTruncated, result.Outcome)
@@ -122,7 +124,6 @@ func TestCollectPortMapTruncationDiscardsRows(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 102)
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.3", 103)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 3)
-	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3)
 
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
 	assert.Equal(t, OutcomeTruncated, result.Outcome)

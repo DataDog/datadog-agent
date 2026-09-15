@@ -33,7 +33,6 @@ func TestCollectAristaQBridgeWalk(t *testing.T) {
 	require.Equal(t, OutcomeSuccess, result.Outcome)
 	assert.Equal(t, SourceQBridge, result.Source)
 	require.Len(t, result.Entries, 1)
-	assert.Equal(t, uint32(4001), result.Entries[0].FDBID)
 	assert.Equal(t, "00:09:0f:09:0a:09", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(1000014), result.Entries[0].InterfaceIndex)
 }
@@ -43,7 +42,6 @@ func TestCollectCiscoCatalystBridgeFallbackWalk(t *testing.T) {
 	require.Equal(t, OutcomeSuccess, result.Outcome)
 	assert.Equal(t, SourceBridge, result.Source)
 	require.Len(t, result.Entries, 1)
-	assert.Zero(t, result.Entries[0].FDBID)
 	assert.Equal(t, "00:cc:fc:51:71:92", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(10101), result.Entries[0].InterfaceIndex)
 }
@@ -78,11 +76,10 @@ func TestCollectProcurveDropsMulticast(t *testing.T) {
 	assert.Equal(t, int32(28), result.Entries[0].InterfaceIndex)
 }
 
-func TestCollectJuniperLargeFDBIDDropsPortZero(t *testing.T) {
+func TestCollectJuniperDropsPortZero(t *testing.T) {
 	result := collectFixture(t, "juniper_ex3400.walk")
 	require.Equal(t, OutcomeSuccess, result.Outcome)
 	require.Len(t, result.Entries, 1)
-	assert.Equal(t, uint32(196608), result.Entries[0].FDBID)
 	assert.Equal(t, "00:10:db:ff:10:01", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(610), result.Entries[0].InterfaceIndex)
 }
@@ -91,7 +88,6 @@ func TestCollectEdgeSwitchLengthPrefixedMAC(t *testing.T) {
 	result := collectFixture(t, "edgeswitch_10xp.snmprec")
 	require.Equal(t, OutcomeSuccess, result.Outcome)
 	require.Len(t, result.Entries, 1)
-	assert.Equal(t, uint32(1), result.Entries[0].FDBID)
 	assert.Equal(t, "00:0c:29:15:e6:1f", result.Entries[0].MacAddress)
 	assert.Equal(t, int32(5), result.Entries[0].InterfaceIndex)
 }

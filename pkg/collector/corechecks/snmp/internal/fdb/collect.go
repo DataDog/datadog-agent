@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -57,10 +56,9 @@ type Result struct {
 }
 
 type tableSpec struct {
-	portOID   string
-	statusOID string
-	source    string
-	qbridge   bool
+	portOID string
+	source  string
+	qbridge bool
 }
 
 // Collect walks Q-BRIDGE then BRIDGE and resolves bridge ports to ifIndex.
@@ -95,7 +93,7 @@ func collect(sess session.Session, cfg config) Result {
 	}
 	portMap := buildPortIfIndexMap(portMapResult.values)
 
-	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, statusOID: oidDot1qTpFdbStatus, source: SourceQBridge, qbridge: true}
+	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, source: SourceQBridge, qbridge: true}
 	entries, reason, err := collectTable(sess, cfg, deadline, portMap, qbridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
@@ -104,7 +102,7 @@ func collect(sess session.Session, cfg config) Result {
 		return successResult(start, SourceQBridge, entries)
 	}
 
-	bridge := tableSpec{portOID: oidDot1dTpFdbPort, statusOID: oidDot1dTpFdbStatus, source: SourceBridge, qbridge: false}
+	bridge := tableSpec{portOID: oidDot1dTpFdbPort, source: SourceBridge, qbridge: false}
 	entries, reason, err = collectTable(sess, cfg, deadline, portMap, bridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
@@ -147,19 +145,9 @@ func collectTable(sess session.Session, cfg config, deadline time.Time, portMap 
 		return nil, "", nil
 	}
 
-	statuses := walkColumn(sess, spec.statusOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
-	if statuses.reason != "" {
-		return nil, statuses.reason, statuses.err
-	}
-	if statuses.err != nil {
-		// Status is advisory; keep port rows when the device does not provide it.
-		log.Debugf("fdb status walk failed for %s: %v", spec.source, statuses.err)
-		statuses.values = nil
-	}
-
 	var entries []metadata.FDBEntryMetadata
 	for index, portVal := range ports.values {
-		entry, ok := buildEntry(cfg.DeviceID, spec, index, portVal, statuses.values[index], portMap)
+		entry, ok := buildEntry(cfg.DeviceID, spec, index, portVal, portMap)
 		if !ok {
 			continue
 		}
@@ -168,12 +156,11 @@ func collectTable(sess session.Session, cfg config, deadline time.Time, portMap 
 	return entries, "", nil
 }
 
-func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestore.ResultValue, statusVal valuestore.ResultValue, portMap map[int32]int32) (metadata.FDBEntryMetadata, bool) {
-	var fdbID uint32
+func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestore.ResultValue, portMap map[int32]int32) (metadata.FDBEntryMetadata, bool) {
 	var mac string
 	var ok bool
 	if spec.qbridge {
-		fdbID, mac, ok = parseQBridgeIndex(index)
+		mac, ok = parseQBridgeIndex(index)
 	} else {
 		mac, ok = parseBridgeIndex(index)
 	}
@@ -184,20 +171,12 @@ func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestor
 	if !ok || port <= 0 {
 		return metadata.FDBEntryMetadata{}, false
 	}
-	if statusVal.Value != nil {
-		status, statusOK := resultInt32(statusVal)
-		if statusOK && status != fdbStatusLearned {
-			return metadata.FDBEntryMetadata{}, false
-		}
-	}
-
 	ifIndex, mapped := portMap[port]
 	if !mapped {
 		return metadata.FDBEntryMetadata{}, false
 	}
 	return metadata.FDBEntryMetadata{
 		DeviceID:       deviceID,
-		FDBID:          fdbID,
 		MacAddress:     mac,
 		InterfaceIndex: ifIndex,
 	}, true

@@ -15,7 +15,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "//pkg/networkdevice/metadata",
-        "//pkg/util/log",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

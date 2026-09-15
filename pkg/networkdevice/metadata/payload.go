@@ -232,7 +232,6 @@ type DiagnosisMetadata struct {
 // FDBEntryMetadata is one resolved FDB observation timestamped by the enclosing payload.
 type FDBEntryMetadata struct {
 	DeviceID       string `json:"device_id"`
-	FDBID          uint32 `json:"fdb_id,omitempty"`
 	MacAddress     string `json:"mac_address"`
 	InterfaceIndex int32  `json:"interface_index"`
 }
