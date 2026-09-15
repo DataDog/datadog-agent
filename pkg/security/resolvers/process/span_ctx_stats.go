@@ -123,19 +123,27 @@ func (s spanCtxStatus) warn() bool {
 	}
 }
 
+// isVanishedTargetError reports whether err is how a target that stopped
+// existing mid-resolution surfaces: a /proc entry or a mapped file that is gone
+// by the time we open it, or a memory read against a dead process.
+func isVanishedTargetError(err error) bool {
+	return errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.ENOENT) ||
+		errors.Is(err, syscall.EIO) || errors.Is(err, io.EOF)
+}
+
 // classifySpanCtxError maps an error to a status
 func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
 	case err == nil:
 		return spanCtxOK
+	case errors.Is(err, errSpanCtxGone), isVanishedTargetError(err):
+		return spanCtxGone
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported):
 		return spanCtxUnsupported
 	case errors.Is(err, errSpanCtxMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, errSpanCtxGone):
-		return spanCtxGone
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
 	case errors.Is(err, otelprocessctx.ErrUnpublished):
@@ -152,8 +160,6 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO), errors.Is(err, io.EOF):
-		return spanCtxGone
 	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
 		return spanCtxUnreadable
 	default:
