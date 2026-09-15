@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    Collecting the Agent's own internal telemetry with the ``go_expvar`` check is
+    deprecated. ``conf.d/go_expvar.d/agent_stats.yaml.example`` is marked as deprecated
+    and will be removed in a future release; use the new
+    ``conf.d/openmetrics.d/agent_stats.yaml.example`` instead, which collects the
+    equivalent metrics from the Agent's ``/telemetry`` endpoint. The ``go_expvar`` check
+    itself is not deprecated and remains supported for instrumenting your own Go
+    applications.
+enhancements:
+  - |
+    Add a ``conf.d/openmetrics.d/agent_stats.yaml.example`` configuration file that
+    collects the Agent's internal telemetry from its OpenMetrics-style ``/telemetry``
+    endpoint, mirroring the metrics collected by the deprecated
+    ``conf.d/go_expvar.d/agent_stats.yaml.example``.
+  - |
+    Add internal telemetry equivalents for Agent expvars that previously had none:
+    ``aggregator__flush_time`` and ``aggregator__flush_count`` (tagged by ``flush_type``)
+    for the per-flush timings and counts, ``aggregator__number_of_flush`` for the total
+    number of aggregator flushes, and ``scheduler__queue_size`` (tagged by ``interval``)
+    for the number of checks scheduled in each job queue.
