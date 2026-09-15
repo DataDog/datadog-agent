@@ -23,6 +23,40 @@ const (
 	ScanMethodTagName  = "scan_method" // ScanMethodTagName defines the tag name for scan method
 )
 
+// Names of the CycloneDX component properties added by the runtime enrichment
+// of a SBOM, describing how the package was seen being used at runtime. They
+// are declared here so that the producer (the runtime security SBOM resolver),
+// the merger (the remote SBOM collector) and the consumers agree on them.
+const (
+	LastAccessProperty    = "LastSeenRunning" // LastAccessProperty holds the last time the package was seen running, as a unix timestamp
+	HasSetSuidBitProperty = "HasSetSuidBit"   // HasSetSuidBitProperty reports whether one of the package files has the setuid bit set
+	RunningAsRootProperty = "RunningAsRoot"   // RunningAsRootProperty reports whether the package was seen running as root
+)
+
+// IsEnriched reports whether bom went through runtime enrichment, i.e. whether
+// any of its components carries the runtime properties above. An enriched BOM
+// carries them on its very first component, so the scan only runs to completion
+// for a BOM that was never enriched.
+func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
+	if bom == nil {
+		return false
+	}
+
+	for _, component := range bom.Components {
+		if component == nil {
+			continue
+		}
+
+		for _, property := range component.Properties {
+			if property != nil && property.Name == LastAccessProperty {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // ErrScanNotSupported reports that a scan can never succeed for the given image
 // and must not be retried. Exporting an image on a remote snapshotter such as
 // nydus to a tarball is such a case. Its layers live in the snapshotter rather

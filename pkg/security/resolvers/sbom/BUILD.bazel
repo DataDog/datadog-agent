@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/sbom",
         "//pkg/security/resolvers/sbom/types",
         "//pkg/security/secl/containerutils",
         "//pkg/util/pointer",
@@ -18,7 +19,6 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/workloadmeta/def",
-            "//pkg/sbom",
             "//pkg/security/config",
             "//pkg/security/metrics",
             "//pkg/security/resolvers/cgroup/model",
@@ -38,7 +38,6 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/workloadmeta/def",
-            "//pkg/sbom",
             "//pkg/security/config",
             "//pkg/security/metrics",
             "//pkg/security/resolvers/cgroup/model",

@@ -206,6 +206,9 @@ type Resolver struct {
 	sbomsCacheHit         *atomic.Uint64
 	sbomsCacheMiss        *atomic.Uint64
 
+	enrichedSBOMForwarded      *atomic.Uint64
+	enrichedSBOMForwardDropped *atomic.Uint64
+
 	wmeta workloadmeta.Component
 
 	// Callback for when SBOM policies should be generated
@@ -251,6 +254,9 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		failedSBOMGenerations: atomic.NewUint64(0),
 		wmeta:                 wmeta,
 		pendingFileEvents:     pendingFileEvents,
+
+		enrichedSBOMForwarded:      atomic.NewUint64(0),
+		enrichedSBOMForwardDropped: atomic.NewUint64(0),
 	}
 
 	sboms, err := simplelru.NewLRU(maxSBOMEntries, resolver.onSBOMEvicted)
@@ -1047,6 +1053,19 @@ func (r *Resolver) SetPolicyGeneratorCallback(cb func(workloadKey string, contai
 	r.policyGeneratorCb = cb
 }
 
+// CountEnrichedSBOMForwarded records an enriched SBOM that was successfully
+// handed over to its consumer.
+func (r *Resolver) CountEnrichedSBOMForwarded() {
+	r.enrichedSBOMForwarded.Inc()
+}
+
+// CountEnrichedSBOMForwardDropped records an enriched SBOM that was computed but
+// couldn't be handed over to its consumer. Listeners are notified synchronously,
+// so a slow consumer drops rather than blocks the debouncer.
+func (r *Resolver) CountEnrichedSBOMForwardDropped() {
+	r.enrichedSBOMForwardDropped.Inc()
+}
+
 // SendStats sends stats
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
@@ -1086,6 +1105,18 @@ func (r *Resolver) SendStats() error {
 	if val := int64(r.failedSBOMGenerations.Swap(0)); val > 0 {
 		if err := r.statsdClient.Count(metrics.MetricSBOMResolverFailedSBOMGenerations, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverFailedSBOMGenerations: %w", err)
+		}
+	}
+
+	if val := int64(r.enrichedSBOMForwarded.Swap(0)); val > 0 {
+		if err := r.statsdClient.Count(metrics.MetricSBOMResolverEnrichedSBOMForwarded, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverEnrichedSBOMForwarded: %w", err)
+		}
+	}
+
+	if val := int64(r.enrichedSBOMForwardDropped.Swap(0)); val > 0 {
+		if err := r.statsdClient.Count(metrics.MetricSBOMResolverEnrichedSBOMForwardDropped, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverEnrichedSBOMForwardDropped: %w", err)
 		}
 	}
 
