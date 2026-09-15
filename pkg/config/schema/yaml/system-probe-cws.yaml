@@ -724,6 +724,9 @@ properties:
             - open
             - dns
             - bind
+            - mount
+            - move_mount
+            - pivot_root
             items:
               type: string
           excluded_images:

@@ -38,6 +38,7 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Metadata: mtdt.ToProto(&p.Metadata),
 		Tags:     make([]string, len(p.tags)),
 		Tree:     activity_tree.ToProto(p.ActivityTree),
+		Mounts:   activity_tree.MountsToProto(p.ActivityTree),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -59,6 +60,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 	copy(p.tags, ad.Tags)
 
 	activity_tree.ProtoDecodeActivityTree(p.ActivityTree, ad.Tree)
+	activity_tree.ProtoDecodeMounts(p.ActivityTree, ad.Mounts)
 }
 
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
@@ -150,6 +152,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		Metadata:        mtdt.ToProto(&p.Metadata),
 		ProfileContexts: make(map[string]*adprotov1.ProfileContext),
 		Tree:            activity_tree.ToProto(p.ActivityTree),
+		Mounts:          activity_tree.MountsToProto(p.ActivityTree),
 		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
 		Disabled:        !p.isEnabled,
 	}
@@ -222,6 +225,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	}
 
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
+	activity_tree.ProtoDecodeMounts(output.ActivityTree, input.Mounts)
 }
 
 // LoadProtoFromFile loads proto profile from file
