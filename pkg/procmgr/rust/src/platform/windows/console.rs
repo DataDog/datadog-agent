@@ -82,6 +82,9 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
 
     unsafe {
+        // Ignore CTRL_BREAK on the caller before attaching so we do not exit when the
+        // signal is delivered to our process group.
+        let _ignore_ctrl = IgnoreCtrlGuard::install()?;
         detach_console();
         if AttachConsole(pid) == 0 {
             anyhow::bail!(
@@ -95,15 +98,12 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
                 detach_console();
             }
         }
-        // Keep the ignore handler until after detach: CTRL_BREAK delivery is async and
-        // pgid 0 broadcasts to every process on the attached console, including us.
-        let _ignore_ctrl = IgnoreCtrlGuard::install()?;
         let _detach = DetachOnDrop;
-        // CREATE_NEW_PROCESS_GROUP is ignored with CREATE_NEW_CONSOLE, so child pid is not pgid.
-        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        // Managed children are spawned with CREATE_NEW_PROCESS_GROUP, so pid == pgid.
+        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
         if ok == 0 {
             anyhow::bail!(
-                "GenerateConsoleCtrlEvent(CTRL_BREAK, 0) for pid {pid} failed: {}",
+                "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
                 std::io::Error::last_os_error()
             );
         }

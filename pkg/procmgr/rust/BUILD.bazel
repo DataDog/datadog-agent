@@ -95,7 +95,6 @@ rust_binary(
     srcs = ["src/test_bins/graceful_sleeper.rs"],
     edition = "2024",
     target_compatible_with = ["@platforms//os:windows"],
-    deps = ["@crates//:windows-sys"],
 )
 
 rust_binary(
