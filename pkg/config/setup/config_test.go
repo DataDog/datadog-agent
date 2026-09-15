@@ -929,6 +929,86 @@ data_plane:
 	})
 }
 
+func TestEnableAgentIPCForSystemProbeSecurity(t *testing.T) {
+	t.Run("stays closed when neither feature is enabled", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, 0, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, 0, cfg.GetInt("agent_ipc.port"))
+	})
+
+	t.Run("stays closed when the feature runs in the security-agent", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+runtime_security_config:
+  enabled: true
+  direct_send_from_system_probe: false
+`)
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, 0, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, 0, cfg.GetInt("agent_ipc.port"))
+	})
+
+	t.Run("opens for CWS shipping from system-probe", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+runtime_security_config:
+  enabled: true
+`)
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, defaultSecurityAgentIPCConfigRefreshInterval, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, defaultSecurityAgentIPCPort, cfg.GetInt("agent_ipc.port"))
+		// Derived defaults, so an explicit configuration still wins later.
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("agent_ipc.port"))
+		assert.False(t, cfg.IsConfigured("agent_ipc.port"))
+	})
+
+	t.Run("opens for CSPM shipping from system-probe", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+compliance_config:
+  enabled: true
+`)
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, defaultSecurityAgentIPCConfigRefreshInterval, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, defaultSecurityAgentIPCPort, cfg.GetInt("agent_ipc.port"))
+	})
+
+	t.Run("explicit agent_ipc settings are preserved", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+runtime_security_config:
+  enabled: true
+agent_ipc:
+  port: 6789
+  config_refresh_interval: 15
+`)
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, 15, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, 6789, cfg.GetInt("agent_ipc.port"))
+	})
+
+	t.Run("does not set a port when the socket is requested", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+runtime_security_config:
+  enabled: true
+agent_ipc:
+  use_socket: true
+`)
+
+		EnableAgentIPCForSystemProbeSecurity(cfg)
+
+		assert.Equal(t, defaultSecurityAgentIPCConfigRefreshInterval, cfg.GetInt("agent_ipc.config_refresh_interval"))
+		assert.Equal(t, 0, cfg.GetInt("agent_ipc.port"))
+	})
+}
+
 func TestDataPlaneDefaults(t *testing.T) {
 	cfg := confFromYAML(t, "")
 
