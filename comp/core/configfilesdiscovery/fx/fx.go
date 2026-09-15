@@ -66,6 +66,7 @@ func newOptionalComponent(reqs Requires) Provides {
 		EventPlatform: reqs.EventPlatform,
 		Collectors: map[string]configfilesdiscoveryimpl.ConfigCollector{
 			collectors.KafkaIntegrationName:    collectors.NewKafka(),
+			collectors.PgbouncerIntegrationName: collectors.NewPgbouncer(),
 			collectors.PostgresIntegrationName: collectors.NewPostgres(),
 			collectors.RedisIntegrationName:    collectors.NewRedis(),
 			collectors.SparkIntegrationName:    collectors.NewSpark(),

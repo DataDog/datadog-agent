@@ -1,0 +1,26 @@
+services:
+  pgbouncer-env-configfilesdiscovery:
+    image: edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd
+    container_name: pgbouncer-env-configfilesdiscovery
+    environment:
+      AUTH_TYPE: md5
+      DATABASE_URL: postgres://configfilesdiscovery:must-not-be-forwarded@postgres-configfilesdiscovery/configfilesdiscovery
+      DB_HOST: postgres-configfilesdiscovery
+      DB_NAME: configfilesdiscovery
+      DB_PASSWORD: must-not-be-forwarded
+      DB_USER: configfilesdiscovery
+      MAX_CLIENT_CONN: "100"
+      POOL_MODE: transaction
+      SERVER_RESET_QUERY: DISCARD ALL
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "pgbouncer": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 5432
+              }
+            ]
+          }
+        }
