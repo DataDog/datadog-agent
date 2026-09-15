@@ -73,7 +73,8 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 1) == 0 {
             anyhow::bail!("SetConsoleCtrlHandler: {}", std::io::Error::last_os_error());
         }
-        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+        // CREATE_NEW_PROCESS_GROUP is ignored with CREATE_NEW_CONSOLE, so child pid is not pgid.
+        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
         if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 0) == 0 {
             log::warn!(
                 "SetConsoleCtrlHandler(remove console ctrl ignore handler) failed: {}",
@@ -82,7 +83,7 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         }
         if ok == 0 {
             anyhow::bail!(
-                "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
+                "GenerateConsoleCtrlEvent(CTRL_BREAK, 0) for pid {pid} failed: {}",
                 std::io::Error::last_os_error()
             );
         }
