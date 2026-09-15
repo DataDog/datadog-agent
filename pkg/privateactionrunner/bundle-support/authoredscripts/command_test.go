@@ -31,8 +31,13 @@ func TestConfigureCommand_PreservesProcessAttributes(t *testing.T) {
 func TestNewCommand_InjectsParameters(t *testing.T) {
 	session := newTestSession(t)
 	pkg := &Package{
-		Command:  []string{"/bin/echo"},
-		Manifest: &Manifest{},
+		Command: []string{"/bin/echo"},
+		Manifest: &Manifest{
+			ParameterEnvMapping: map[string]string{
+				"targetURL": "PAR_ENV_TARGET_URL",
+				"count":     "PAR_ENV_COUNT",
+			},
+		},
 	}
 
 	cmd, err := NewCommand(context.Background(), pkg, session, map[string]interface{}{
@@ -69,7 +74,8 @@ func TestNewCommand_RejectsCollisionWithAllowedEnvVar(t *testing.T) {
 	pkg := &Package{
 		Command: []string{"/bin/echo"},
 		Manifest: &Manifest{
-			Config: ScriptConfig{AllowedEnvVars: []string{"PAR_ENV_NAME"}},
+			AllowedEnvVars:      []string{"PAR_ENV_NAME"},
+			ParameterEnvMapping: map[string]string{"name": "PAR_ENV_NAME"},
 		},
 	}
 
