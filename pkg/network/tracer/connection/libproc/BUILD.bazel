@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "libproc",
+    srcs = [
+        "scanner.go",
+        "scanner_darwin.c",
+        "scanner_darwin.go",
+        "scanner_darwin.h",
+        "scanner_darwin_nocgo.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-lproc",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-lproc",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/libproc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/process/util",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/process/util",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "libproc_test",
+    srcs = ["scanner_test.go"],
+    embed = [":libproc"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
