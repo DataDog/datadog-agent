@@ -4,7 +4,7 @@
   "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v134290001-043596c1",
   "features": {
     "registry.ddbuild.io/workspaces/features/claude-code:0.1.136903543": {},
-    "registry.ddbuild.io/workspaces/features/trajectory:0.1.121704661": {},
+    "registry.ddbuild.io/workspaces/features/trajectory:0.2.137654420": {},
     "registry.ddbuild.io/workspaces/features/codex:0.1.116595837": {},
     "registry.ddbuild.io/workspaces/features/base:0.4.133474527": {
       "installDeveloperTools": "false"
