@@ -201,7 +201,7 @@ func (s *registryDurabilitySuite) readRegistryState() (registryState, error) {
 }
 
 func (s *registryDurabilitySuite) seedLargeRegistry() {
-	_, err := s.Env().RemoteHost.Execute(`Stop-Service -Name ` + agentServiceName)
+	_, err := s.Env().RemoteHost.Execute(`Stop-Service -Force -Name ` + agentServiceName)
 	require.NoError(s.T(), err, "failed to stop the Agent before seeding the registry")
 
 	command := fmt.Sprintf(
