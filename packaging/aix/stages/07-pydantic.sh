@@ -114,11 +114,9 @@ log "Setting Rust environment for pydantic-core build"
 export CC=/opt/freeware/bin/gcc
 export CXX=/opt/freeware/bin/g++
 export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
-export CARGO_HOME=/opt/cargo
 
 log "  CC=$CC"
 log "  CXX=$CXX"
-log "  CARGO_HOME=$CARGO_HOME"
 log "  Rust toolchain: $(cargo --version 2>/dev/null || echo "cargo not found — install rust${RUST_VERSION}.ppc")"
 
 # ─── Step 3: Check wheel cache ────────────────────────────────────────────────

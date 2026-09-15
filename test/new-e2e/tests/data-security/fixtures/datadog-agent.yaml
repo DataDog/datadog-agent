@@ -1,0 +1,4 @@
+shared_library_check:
+  enabled: true
+data_security:
+  enabled: true

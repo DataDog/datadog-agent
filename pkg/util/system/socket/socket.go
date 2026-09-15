@@ -15,12 +15,11 @@ import (
 	"time"
 )
 
-// IsAvailable returns if a socket at path is available
-// first boolean returns if socket path exists
-// second boolean returns if socket is reachable
-func IsAvailable(path string, timeout time.Duration) (bool, bool) {
+// IsAvailable reports whether a socket at path exists. The second return
+// value is nil if reachable, or the permission-denied error otherwise.
+func IsAvailable(path string, timeout time.Duration) (bool, error) {
 	if !checkExists(path) {
-		return false, false
+		return false, nil
 	}
 
 	// Assuming socket file exists (bind() done)
@@ -32,14 +31,14 @@ func IsAvailable(path string, timeout time.Duration) (bool, bool) {
 	// as if a path exists and we do have access, it's likely that a process will re-use it later.
 	conn, err := net.DialTimeout("unix", path, timeout)
 	if err != nil && errors.Is(err, os.ErrPermission) {
-		return true, false
+		return true, err
 	}
 
 	if conn != nil {
 		conn.Close()
 	}
 
-	return true, true
+	return true, nil
 }
 
 func checkExists(path string) bool {

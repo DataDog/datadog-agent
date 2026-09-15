@@ -300,6 +300,8 @@ container_image.logs_dd_url: %[1]s:%[2]d
 container_image.logs_no_ssl: true
 sbom.logs_dd_url: %[1]s:%[2]d
 sbom.logs_no_ssl: true
+sds_result.forwarder.logs_dd_url: %[1]s:%[2]d
+sds_result.forwarder.logs_no_ssl: true
 service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
 service_discovery.forwarder.logs_no_ssl: true
 config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d

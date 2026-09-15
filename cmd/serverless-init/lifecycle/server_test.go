@@ -101,6 +101,14 @@ func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mock
 	return srv, metric, trace, logs, emitter, drainer
 }
 
+func TestLifecycleMetricNames(t *testing.T) {
+	assert.Equal(t, "aws.lambda.microvm.enhanced.run", runMetricName)
+	assert.Equal(t, "aws.lambda.microvm.enhanced.suspend", suspendMetricName)
+	assert.Equal(t, "aws.lambda.microvm.enhanced.resume", resumeMetricName)
+	assert.Equal(t, "aws.lambda.microvm.enhanced.terminate", terminateMetricName)
+	assert.Equal(t, "aws.lambda.microvm.enhanced.validate", validateMetricName)
+}
+
 // /ready with a nil ChildHandle is a wiring bug. The handler logs WARN and
 // returns 503. Production setup() always constructs a non-nil handle (real
 // *Child in init mode, NoopChildHandle in sidecar mode); only legacy unit

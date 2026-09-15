@@ -7,8 +7,14 @@
      AIX should add an entry to the current (unreleased) section below. -->
 
 ## Unreleased
-
 <!-- Add entries here for changes not yet in a release. -->
+
+
+--
+
+## 7.84.0-devel.git.927.0ff5ac6-1 (2026-09-10)
+
+- Update github.com/power-devops/perfstat to fix various memory leaks, in particular in the disk check.
 
 ---
 

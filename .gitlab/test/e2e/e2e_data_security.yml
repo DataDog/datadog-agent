@@ -1,0 +1,15 @@
+---
+# e2e stage - data security jobs
+# Owned by: sensitive-data-scanner
+# Manual-only until the tests are proven.
+# TODO(DATASEC-317): remove the manual-only flag once the suite is proven.
+
+new-e2e-data-security:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/data-security
+    TEAM: sensitive-data-scanner
+    EXTRA_PARAMS: --skip "Windows"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"

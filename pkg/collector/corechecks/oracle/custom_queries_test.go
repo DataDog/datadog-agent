@@ -59,6 +59,20 @@ func TestCustomQueries(t *testing.T) {
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
 
+type customQuerySequenceClock struct {
+	clock.Clock
+	times []time.Time
+}
+
+func (c *customQuerySequenceClock) Now() time.Time {
+	if len(c.times) == 0 {
+		panic("custom query sequence clock has no remaining times")
+	}
+	now := c.times[0]
+	c.times = c.times[1:]
+	return now
+}
+
 func TestCustomQueriesRespectIndependentCollectionIntervals(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -114,6 +128,106 @@ func TestCustomQueriesRespectIndependentCollectionIntervals(t *testing.T) {
 
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 	sender.AssertNumberOfCalls(t, "Gauge", 5)
+}
+
+func TestCustomQueryIntervalsStartWhenEachQueryStarts(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	firstInterval := int64(300)
+	secondInterval := int64(60)
+	queries := []config.CustomQuery{
+		{
+			MetricPrefix:       "oracle.slow_first",
+			Query:              "SELECT 1 FROM slow_first",
+			Columns:            []config.CustomQueryColumns{{Name: "value", Type: "gauge"}},
+			CollectionInterval: &firstInterval,
+		},
+		{
+			MetricPrefix:       "oracle.later_query",
+			Query:              "SELECT 1 FROM later_query",
+			Columns:            []config.CustomQueryColumns{{Name: "value", Type: "gauge"}},
+			CollectionInterval: &secondInterval,
+		},
+	}
+
+	for _, query := range queries {
+		dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+		dbMock.ExpectQuery(query.Query).WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(1))
+	}
+
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	sender.SetupAcceptAll()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+	chk.config.InstanceConfig.CustomQueries = queries
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+	chk.clock = &customQuerySequenceClock{
+		Clock: clock.New(),
+		times: []time.Time{
+			base,                        // First query starts.
+			base.Add(120 * time.Second), // Second query starts after the first query completes.
+			base.Add(130 * time.Second), // Next check evaluates the first query.
+			base.Add(130 * time.Second), // Only 10 seconds have elapsed for the second query.
+		},
+	}
+
+	require.NoError(t, chk.CustomQueries())
+	require.NoError(t, chk.CustomQueries())
+
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+	sender.AssertNumberOfCalls(t, "Gauge", 2)
+}
+
+func TestCustomQueryCanBecomeDueWhileEarlierQueryRuns(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	firstInterval := int64(300)
+	secondInterval := int64(60)
+	queries := []config.CustomQuery{
+		{
+			MetricPrefix:       "oracle.slow_first",
+			Query:              "SELECT 1 FROM slow_first",
+			Columns:            []config.CustomQueryColumns{{Name: "value", Type: "gauge"}},
+			CollectionInterval: &firstInterval,
+		},
+		{
+			MetricPrefix:       "oracle.later_query",
+			Query:              "SELECT 1 FROM later_query",
+			Columns:            []config.CustomQueryColumns{{Name: "value", Type: "gauge"}},
+			CollectionInterval: &secondInterval,
+		},
+	}
+
+	for _, query := range queries {
+		dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+		dbMock.ExpectQuery(query.Query).WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(1))
+	}
+
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	sender.SetupAcceptAll()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+	chk.config.InstanceConfig.CustomQueries = queries
+	chk.customQueryLastRuns = []time.Time{{}, base}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+	chk.clock = &customQuerySequenceClock{
+		Clock: clock.New(),
+		times: []time.Time{
+			base.Add(30 * time.Second), // The first query starts before the second query is due.
+			base.Add(61 * time.Second), // The second query becomes due while the first query runs.
+		},
+	}
+
+	require.NoError(t, chk.CustomQueries())
+
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+	sender.AssertNumberOfCalls(t, "Gauge", 2)
 }
 
 func TestFailedCustomQueryAttemptConsumesCollectionInterval(t *testing.T) {
