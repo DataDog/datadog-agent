@@ -68,7 +68,7 @@ type statusInfo struct {
 }
 
 func (s *statusInfo) isZombie() bool {
-	return len(s.status) > 0 && s.status[0] == 'Z'
+	return s != nil && len(s.status) > 0 && s.status[0] == 'Z'
 }
 
 type statInfo struct {
