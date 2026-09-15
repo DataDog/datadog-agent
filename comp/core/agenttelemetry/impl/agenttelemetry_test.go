@@ -116,11 +116,20 @@ func (s *senderMock) sendLogsCalls() int {
 // Runner mock (TODO: use use mock.Mock)
 type runnerMock struct {
 	mock.Mock
-	jobs []job
+	jobs    []job
+	removed map[jobID]bool
 }
 
+// run executes every job that is still registered.
+//
+// This includes the dynamic profiles poll job. That is safe because createAtel leaves
+// the dynamic profiles manager's fetcher nil, so poll() logs and returns without touching the
+// network or the disk -- do not wire a default fetcher there.
 func (r *runnerMock) run() {
-	for _, j := range r.jobs {
+	for i, j := range r.jobs {
+		if r.removed[jobID(i+1)] {
+			continue
+		}
 		j.Run()
 	}
 }
@@ -132,8 +141,40 @@ func (r *runnerMock) stop() context.Context {
 	return context.Background()
 }
 
-func (r *runnerMock) addJob(j job) {
+func (r *runnerMock) addJob(j job) jobID {
 	r.jobs = append(r.jobs, j)
+	return jobID(len(r.jobs))
+}
+
+func (r *runnerMock) removeJob(id jobID) {
+	if r.removed == nil {
+		r.removed = make(map[jobID]bool)
+	}
+	r.removed[id] = true
+}
+
+// liveJobs returns the jobs that have not been removed.
+func (r *runnerMock) liveJobs() []job {
+	live := make([]job, 0, len(r.jobs))
+	for i, j := range r.jobs {
+		if r.removed[jobID(i+1)] {
+			continue
+		}
+		live = append(live, j)
+	}
+	return live
+}
+
+// metricJobs returns the live metric-profile jobs, skipping the errortracking flush and
+// dynamic profiles poll jobs.
+func (r *runnerMock) metricJobs() []job {
+	metrics := make([]job, 0, len(r.jobs))
+	for _, j := range r.liveJobs() {
+		if j.kind == jobKindMetrics {
+			metrics = append(metrics, j)
+		}
+	}
+	return metrics
 }
 
 func newRunnerMock() runner {
@@ -276,6 +317,9 @@ func getTestAtel(t *testing.T,
 	}
 
 	cfg := configmock.NewFromYAML(t, YAMLConf)
+	// Contain any accidental dynamic-profiles cache write in the test's temp dir
+	// rather than the real run_path.
+	cfg.SetDefault("run_path", t.TempDir())
 	log := makeLogMock(t)
 
 	var err error
@@ -304,7 +348,7 @@ func findErrortrackingJob(t *testing.T, runner *runnerMock) job {
 	t.Helper()
 
 	for _, scheduledJob := range runner.jobs {
-		if scheduledJob.profiles == nil {
+		if scheduledJob.kind == jobKindErrortracking {
 			return scheduledJob
 		}
 	}
@@ -678,13 +722,15 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 7 jobs with different schedules:
+	// Default configuration has 7 metric-profile jobs with different schedules, plus
+	// the dynamic profiles poll job.
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 7, len(r.(*runnerMock).metricJobs()))
+	assert.Equal(t, 8, len(r.(*runnerMock).jobs))
 
-	// Verify we have the expected number of profiles across all jobs
+	// Verify we have the expected number of profiles across all metric jobs
 	totalProfiles := 0
-	for _, job := range r.(*runnerMock).jobs {
+	for _, job := range r.(*runnerMock).metricJobs() {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)

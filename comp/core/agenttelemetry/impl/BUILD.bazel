@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "agenttelemetry.go",
         "config.go",
+        "dynamic_profiles.go",
         "errortracking_sender.go",
         "logs_payload.go",
         "runner.go",
@@ -45,6 +46,8 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "agenttelemetry_test.go",
+        "dynamic_profiles_test.go",
+        "dynamic_profiles_unix_test.go",
         "errortracking_sender_test.go",
         "utils_test.go",
     ],
@@ -65,6 +68,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_uber_go_atomic//:atomic",

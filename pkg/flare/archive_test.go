@@ -123,6 +123,47 @@ func TestVersionHistory(t *testing.T) {
 	mock.AssertFileContent("mockfilecontent", "version-history.json")
 }
 
+func TestAgentTelemetryDynamicProfiles(t *testing.T) {
+	// Both files must live in one directory, so this cannot use createTestFile (a fresh TempDir per call).
+	writePair := func(t *testing.T, dir, documentName, attemptName string) {
+		t.Helper()
+		for _, name := range []string{documentName, attemptName} {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("mockfilecontent"), os.ModePerm))
+		}
+	}
+
+	t.Run("defaults to run_path", func(t *testing.T) {
+		dir := t.TempDir()
+		writePair(t, dir, "agent-telemetry-dynamic-profiles.json", "agent-telemetry-dynamic-profiles-attempt.json")
+
+		confMock := configmock.New(t)
+		confMock.SetInTest("run_path", dir)
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		getAgentTelemetryDynamicProfiles(context.Background(), mock)
+
+		mock.AssertFileContent("mockfilecontent", "agent-telemetry-dynamic-profiles.json")
+		mock.AssertFileContent("mockfilecontent", "agent-telemetry-dynamic-profiles-attempt.json")
+	})
+
+	// The manager honours agent_telemetry.dynamic_profiles.cache_path, so the flare must too -- otherwise it collects
+	// nothing at all for exactly the users who configured it.
+	t.Run("honours cache_path", func(t *testing.T) {
+		dir := t.TempDir()
+		writePair(t, dir, "custom-profiles.json", "custom-profiles-attempt.json")
+
+		confMock := configmock.New(t)
+		confMock.SetInTest("run_path", t.TempDir())
+		confMock.SetInTest("agent_telemetry.dynamic_profiles.cache_path", filepath.Join(dir, "custom-profiles.json"))
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		getAgentTelemetryDynamicProfiles(context.Background(), mock)
+
+		mock.AssertFileContent("mockfilecontent", "custom-profiles.json")
+		mock.AssertFileContent("mockfilecontent", "custom-profiles-attempt.json")
+	})
+}
+
 func TestProcessAgentFullConfig(t *testing.T) {
 	type ProcessConfig struct {
 		Enabled string `yaml:"enabled"`
