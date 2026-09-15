@@ -143,6 +143,9 @@ using System.Runtime.InteropServices;
 
 public static class DatadogGlobalSacl
 {
+    private const int ERROR_FILE_NOT_FOUND = 2;
+    private const UInt32 ACL_REVISION = 2;
+    private const int ACL_HEADER_SIZE = 8;
     private const UInt32 TOKEN_QUERY = 0x0008;
     private const UInt32 TOKEN_ADJUST_PRIVILEGES = 0x0020;
     private const UInt32 SE_PRIVILEGE_ENABLED = 0x0002;
@@ -169,6 +172,10 @@ public static class DatadogGlobalSacl
     [return: MarshalAs(UnmanagedType.U1)]
     [DllImport("advapi32.dll", EntryPoint = "AuditSetGlobalSaclW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool AuditSetGlobalSacl(string ObjectTypeName, IntPtr Acl);
+
+    [return: MarshalAs(UnmanagedType.Bool)]
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool InitializeAcl(IntPtr Acl, UInt32 AclLength, UInt32 AclRevision);
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr Memory);
@@ -203,8 +210,15 @@ public static class DatadogGlobalSacl
     {
         EnableSecurityPrivilege();
         IntPtr acl;
-        if (!AuditQueryGlobalSacl("File", out acl))
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (!AuditQueryGlobalSacl("File", out acl)) {
+            int queryError = Marshal.GetLastWin32Error();
+            // A host with no global File resource SACL is the normal clean
+            // state. Represent it as an empty ACL so SetFileSacl can restore
+            // that state with a valid initialized empty ACL.
+            if (queryError == ERROR_FILE_NOT_FOUND)
+                return new byte[0];
+            throw new Win32Exception(queryError);
+        }
         if (acl == IntPtr.Zero)
             return new byte[0];
         try {
@@ -222,8 +236,12 @@ public static class DatadogGlobalSacl
         EnableSecurityPrivilege();
         IntPtr acl = IntPtr.Zero;
         try {
-            if (value.Length != 0) {
-                acl = Marshal.AllocHGlobal(value.Length);
+            int aclLength = value.Length == 0 ? ACL_HEADER_SIZE : value.Length;
+            acl = Marshal.AllocHGlobal(aclLength);
+            if (value.Length == 0) {
+                if (!InitializeAcl(acl, (UInt32)aclLength, ACL_REVISION))
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+            } else {
                 Marshal.Copy(value, 0, acl, value.Length);
             }
             if (!AuditSetGlobalSacl("File", acl))

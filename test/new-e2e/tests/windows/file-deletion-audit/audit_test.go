@@ -80,7 +80,7 @@ func TestDecodeFileDeletionEventsXMLProductionShape(t *testing.T) {
 
 func TestDecodeFileDeletionEventsXMLDoesNotCorrelateDifferentProcessOrHandle(t *testing.T) {
 	const input = `<Events>
-	<Event><System><EventID>4663</EventID><TimeCreated SystemTime="2026-01-01T00:00:00Z"/><EventRecordID>10</EventRecordID></System><EventData><Data Name="ProcessId">0x1</Data><Data Name="HandleId">0x2</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4663</EventID><TimeCreated SystemTime="2026-01-01T00:00:00Z"/><EventRecordID>10</EventRecordID></System><EventData><Data Name="ObjectName">C:\Windows\example.dll</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x1</Data><Data Name="HandleId">0x2</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
 	<Event><System><EventID>4660</EventID><TimeCreated SystemTime="2026-01-01T00:00:01Z"/><EventRecordID>11</EventRecordID></System><EventData><Data Name="ProcessId">0x9</Data><Data Name="HandleId">0x2</Data></EventData></Event>
 	<Event><System><EventID>4660</EventID><TimeCreated SystemTime="2026-01-01T00:00:02Z"/><EventRecordID>12</EventRecordID></System><EventData><Data Name="ProcessId">0x1</Data><Data Name="HandleId">0x9</Data></EventData></Event>
 </Events>`
@@ -118,6 +118,22 @@ func TestDecodeFileDeletionEventsXMLRejectsMissingMetadata(t *testing.T) {
 
 	_, err = DecodeFileDeletionEventsXML(`<Events><Event><System><EventID>4663</EventID><EventRecordID>4</EventRecordID><TimeCreated SystemTime="not-a-time"/></System></Event></Events>`)
 	assert.ErrorContains(t, err, "timestamp")
+}
+
+func TestDecodeFileDeletionEventsXMLRetainsMissingAttribution(t *testing.T) {
+	const input = `<Events>
+	<Event><System><EventID>4663</EventID><EventRecordID>4</EventRecordID><TimeCreated SystemTime="2026-01-01T00:00:00Z"/></System><EventData><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4663</EventID><EventRecordID>5</EventRecordID><TimeCreated SystemTime="2026-01-01T00:00:01Z"/></System><EventData><Data Name="ObjectName">C:\Windows\example.dll</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4663</EventID><EventRecordID>6</EventRecordID><TimeCreated SystemTime="2026-01-01T00:00:02Z"/></System><EventData><Data Name="ObjectName">C:\Windows\complete.dll</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+</Events>`
+
+	events, err := DecodeFileDeletionEventsXML(input)
+	require.NoError(t, err)
+	require.Len(t, events, 3)
+	assert.Empty(t, events[0].ObjectName)
+	assert.Empty(t, events[1].ProcessName)
+	assert.Equal(t, `C:\Windows\complete.dll`, events[2].ObjectName)
+	assert.Equal(t, `C:\Windows\System32\msiexec.exe`, events[2].ProcessName)
 }
 
 func TestDecodeSecurityLogCheckpoint(t *testing.T) {
@@ -228,23 +244,34 @@ func TestClassifyDeletionEvent(t *testing.T) {
 			classification: DeletionOutsideOperation,
 		},
 		{
-			name: "read access remains diagnostic",
+			name: "read access without process attribution remains diagnostic",
 			modify: func(event *FileDeletionEvent) {
 				event.AccessMask = "0x1"
+				event.ProcessName = ""
 			},
 			classification: DeletionNonDeleteAccess,
 		},
 		{
-			name: "unconfirmed delete access remains diagnostic",
+			name: "unconfirmed delete access without process attribution remains diagnostic",
 			modify: func(event *FileDeletionEvent) {
 				event.DeletionConfirmed = false
+				event.ProcessName = ""
 			},
 			classification: DeletionUnconfirmedAccess,
 		},
 		{
-			name: "excluded root remains diagnostic",
+			name: "outside-root delete without process attribution remains diagnostic",
+			modify: func(event *FileDeletionEvent) {
+				event.ObjectName = `C:\Users\example.txt`
+				event.ProcessName = ""
+			},
+			classification: DeletionOutsideSystemRoot,
+		},
+		{
+			name: "excluded root without process attribution remains diagnostic",
 			modify: func(event *FileDeletionEvent) {
 				event.ObjectName = `C:\WINDOWS\Installer\cache.tmp`
+				event.ProcessName = ""
 			},
 			exclusions:     []string{`c:/windows/installer/`},
 			classification: DeletionExcludedSystemPath,
@@ -278,6 +305,36 @@ func TestClassifyDeletionEvent(t *testing.T) {
 			assert.Equal(t, test.classification, result.Classification)
 			assert.Equal(t, test.blocks, result.Blocks)
 			assert.Equal(t, event.ProcessID, result.Event.ProcessID)
+		})
+	}
+}
+
+func TestClassifyDeletionEventRejectsMissingAttribution(t *testing.T) {
+	base := FileDeletionEvent{
+		RecordID:          150,
+		ObjectName:        `C:\Windows\System32\owned.dll`,
+		ProcessName:       `C:\Windows\System32\msiexec.exe`,
+		HandleID:          "0x123",
+		AccessMask:        "0x10000",
+		DeletionConfirmed: true,
+	}
+	tests := []struct {
+		name        string
+		modify      func(*FileDeletionEvent)
+		missingName string
+	}{
+		{name: "object name", modify: func(event *FileDeletionEvent) { event.ObjectName = "" }, missingName: "ObjectName"},
+		{name: "process name", modify: func(event *FileDeletionEvent) { event.ProcessName = "" }, missingName: "ProcessName"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := base
+			test.modify(&event)
+			result, err := ClassifyDeletionEvent(event, SecurityLogCheckpoint{RecordID: 100}, SecurityLogCheckpoint{RecordID: 200}, `C:\Windows`, nil)
+			assert.ErrorContains(t, err, "missing "+test.missingName)
+			assert.Equal(t, DeletionInvalidEvidence, result.Classification)
+			assert.NotEmpty(t, result.EvidenceError)
 		})
 	}
 }

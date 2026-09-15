@@ -244,29 +244,50 @@ func ClassifyDeletionEvent(event FileDeletionEvent, start, end SecurityLogCheckp
 		result.EvidenceError = err.Error()
 		return result, err
 	}
+	if !hasDeletionAccess {
+		result.Classification = DeletionNonDeleteAccess
+		return result, nil
+	}
 
-	if hasDeletionAccess && !isUsableHandleID(event.HandleID) {
+	if !isUsableHandleID(event.HandleID) {
 		err := errors.New("event 4663 with deletion access has no usable HandleId")
 		result.Classification = DeletionInvalidEvidence
 		result.EvidenceError = err.Error()
 		return result, err
 	}
-
-	switch {
-	case !hasDeletionAccess:
-		result.Classification = DeletionNonDeleteAccess
-	case !event.DeletionConfirmed:
+	if !event.DeletionConfirmed {
 		result.Classification = DeletionUnconfirmedAccess
-	case !windowsPathWithin(event.ObjectName, monitoredRoot):
-		result.Classification = DeletionOutsideSystemRoot
-	case windowsPathWithinAny(event.ObjectName, exclusions):
-		result.Classification = DeletionExcludedSystemPath
-	case !isControlledInstallerProcess(event.ProcessName):
-		result.Classification = DeletionUncontrolledProcess
-	default:
-		result.Classification = DeletionBlocksControlledInstaller
-		result.Blocks = true
+		return result, nil
 	}
+
+	if strings.TrimSpace(event.ObjectName) == "" {
+		err := fmt.Errorf("event 4663 record %d is missing ObjectName", event.RecordID)
+		result.Classification = DeletionInvalidEvidence
+		result.EvidenceError = err.Error()
+		return result, err
+	}
+	if !windowsPathWithin(event.ObjectName, monitoredRoot) {
+		result.Classification = DeletionOutsideSystemRoot
+		return result, nil
+	}
+	if windowsPathWithinAny(event.ObjectName, exclusions) {
+		result.Classification = DeletionExcludedSystemPath
+		return result, nil
+	}
+
+	if strings.TrimSpace(event.ProcessName) == "" {
+		err := fmt.Errorf("event 4663 record %d is missing ProcessName", event.RecordID)
+		result.Classification = DeletionInvalidEvidence
+		result.EvidenceError = err.Error()
+		return result, err
+	}
+	if !isControlledInstallerProcess(event.ProcessName) {
+		result.Classification = DeletionUncontrolledProcess
+		return result, nil
+	}
+
+	result.Classification = DeletionBlocksControlledInstaller
+	result.Blocks = true
 	return result, nil
 }
 
