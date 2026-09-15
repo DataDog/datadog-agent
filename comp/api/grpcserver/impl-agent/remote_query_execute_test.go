@@ -433,7 +433,8 @@ func (s *captureRemoteQueryExecuteStreamServer) Send(chunk *pb.RemoteQueryExecut
 // TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext proves the optional
 // trace-continuation metadata crosses the AgentSecure proto boundary with its exact
 // values: the active trace ID, the action.run span's own ID as the parent, and the
-// propagated sampling priority.
+// propagated sampling priority — here a positive keep priority, the only domain the
+// bridge forwards.
 func TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration:    "postgres",
@@ -456,8 +457,10 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext(t *testing.T) {
 
 // TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext proves invalid
 // trace context is dropped fail-open, never fatal: a nil message, a zero trace or
-// parent ID, or an out-of-domain sampling priority leaves the typed request with
-// no trace context, and the request itself stays valid so execution is unchanged.
+// parent ID, or any non-keep sampling priority — including the tracer's drop
+// priorities, which the integration's strict carrier validation would reject —
+// leaves the typed request with no trace context, and the request itself stays
+// valid so execution is unchanged.
 func TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -466,8 +469,10 @@ func TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext(t *testing.T
 		{name: "absent", traceContext: nil},
 		{name: "zero trace id", traceContext: &pb.RemoteQueryTraceContext{TraceId: 0, ParentId: 2, SamplingPriority: 2}},
 		{name: "zero parent id", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 0, SamplingPriority: 2}},
-		{name: "priority above domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: 3}},
-		{name: "priority below domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: -2}},
+		{name: "priority above keep domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: 3}},
+		{name: "priority below keep domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: -2}},
+		{name: "auto drop priority", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: 0}},
+		{name: "user drop priority", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: -1}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

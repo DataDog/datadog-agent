@@ -186,9 +186,11 @@ var (
 // RemoteQueryTraceContext carries the optional trace-continuation metadata the
 // private-action-runner attaches at the Remote Queries action boundary: the active
 // trace ID, the action.run span's own ID as the downstream parent, and the effective
-// sampling priority. It is observability metadata only — never signed task data and
-// never an authorization, routing, or result-validation input — and it is optional
-// end to end: absent or invalid values leave the query executing exactly as before.
+// sampling priority — restricted to the positive keep priorities 1 and 2, the exact
+// domain the integration's strict carrier validation accepts. It is observability
+// metadata only — never signed task data and never an authorization, routing, or
+// result-validation input — and it is optional end to end: absent or invalid values
+// leave the query executing exactly as before.
 type RemoteQueryTraceContext struct {
 	TraceID          uint64
 	SpanID           uint64
@@ -197,18 +199,23 @@ type RemoteQueryTraceContext struct {
 
 const (
 	// remoteQuerySamplingPriorityMin and remoteQuerySamplingPriorityMax bound the
-	// supported sampling-priority domain: the Datadog tracer priorities UserDrop
-	// (-1), AutoDrop (0), AutoKeep (1), and UserKeep (2). A propagated priority
-	// outside the domain is unsupported trace context and is dropped, never fatal.
-	remoteQuerySamplingPriorityMin = -1
+	// only sampling-priority values that may cross the bridge: the tracer's positive
+	// keep priorities, AutoKeep (1) and UserKeep (2), which are exactly the values the
+	// integration's strict carrier validation accepts. A propagated priority outside
+	// the keep domain — the tracer's drop priorities UserDrop (-1) and AutoDrop (0), or
+	// any other integer — is unsupported trace context and is dropped, never fatal.
+	remoteQuerySamplingPriorityMin = 1
 	remoteQuerySamplingPriorityMax = 2
 )
 
 // NewRemoteQueryTraceContext validates the optional propagated trace context and
 // returns the normalized value, or nil when the context is invalid: a zero trace or
-// parent ID cannot identify a real trace, and an out-of-domain sampling priority is
-// unsupported. Invalid context is dropped without failing the request, so an untraced
-// or old caller executes exactly as before.
+// parent ID cannot identify a real trace, and only the positive keep sampling
+// priorities 1 and 2 are supported — the integration's strict carrier validation
+// accepts exactly those, so anything else (including the tracer's drop priorities
+// -1 and 0) must never be emitted. Invalid context is dropped without failing the
+// request, so an untraced or old caller executes exactly as before, and optional
+// invalid metadata never becomes a strict query-validation failure downstream.
 func NewRemoteQueryTraceContext(traceID, spanID uint64, samplingPriority int) *RemoteQueryTraceContext {
 	if traceID == 0 || spanID == 0 {
 		return nil
@@ -932,8 +939,9 @@ func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, err
 // API/application keys from Agent config, so they never appear on the request wire. The
 // optional propagated trace context is revalidated here and emitted as the top-level
 // traceContext object — decimal-string IDs and the integer sampling priority — only
-// when a supported context is present; absent stays absent and invalid is dropped
-// without failing the run.
+// when a supported keep-priority context is present; absent stays absent and invalid
+// — including any non-keep priority — is dropped without failing the run, so the
+// integration never receives a carrier its strict validation would reject.
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	if req.ResultDelivery == nil {
 		return "", errors.New("result_delivery is required")

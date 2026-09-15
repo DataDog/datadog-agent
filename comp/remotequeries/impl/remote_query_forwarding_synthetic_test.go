@@ -244,6 +244,46 @@ func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
 	assert.Contains(t, runner.streamSeen, `"uploadId":"upload-243021"`)
 }
 
+// TestExecuteStreamDropsNonKeepTraceContext proves the bridge contract holds
+// through the full dispatch path: a hand-assembled typed request carrying nonzero
+// IDs with a non-keep sampling priority — a drop priority (0, -1) or any other
+// integer outside {1, 2} — reaches the integration request with no traceContext
+// key at all. The integration's strict carrier validation accepts exactly the
+// positive keep priorities, so the Agent must never emit a carrier it would
+// reject: the invalid optional metadata is dropped without failing the run.
+func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		traceContext *RemoteQueryTraceContext
+	}{
+		{name: "auto drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: 0}},
+		{name: "user drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: -1}},
+		{name: "priority above keep domain", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: 3}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+				{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
+			})
+			service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+			req, err := NewRemoteQueryExecuteRequest(
+				"postgres",
+				RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+				"SELECT 1 AS value",
+				false,
+				syntheticForwardDelivery(),
+			)
+			require.NoError(t, err)
+			req.TraceContext = tc.traceContext
+
+			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+			require.Nil(t, result.Error, "invalid trace context must never fail the run")
+			assert.NotContains(t, runner.streamSeen, "traceContext")
+			assert.NotContains(t, runner.streamSeen, "1234567890123456789")
+		})
+	}
+}
+
 // TestExecuteStreamForwardsNoTraceContextWhenAbsent proves the coexistence
 // contract: a request without the optional metadata produces integration request
 // JSON with no traceContext key at all, byte-identical to the old bridge output.

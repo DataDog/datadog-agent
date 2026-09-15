@@ -198,9 +198,11 @@ func TestExecuteStreamStaleFailsBeforeMarshal(t *testing.T) {
 
 // TestNewRemoteQueryTraceContextValidatesOptionalMetadata proves the optional
 // trace context is accepted only in its supported shape: non-zero trace and
-// parent IDs (64-bit unsigned, exercising the largest representable value) and a
-// sampling priority inside the Datadog tracer's priority domain. Anything else
-// is invalid metadata and normalizes to nil — dropped, never fatal.
+// parent IDs (64-bit unsigned, exercising the largest representable value) and
+// one of the positive keep sampling priorities (1 AutoKeep, 2 UserKeep) — the
+// exact domain the integration's strict carrier validation accepts. Anything
+// else, including the tracer's drop priorities, is invalid metadata and
+// normalizes to nil — dropped, never fatal.
 func TestNewRemoteQueryTraceContextValidatesOptionalMetadata(t *testing.T) {
 	const maxUint64 = ^uint64(0)
 	tests := []struct {
@@ -212,13 +214,13 @@ func TestNewRemoteQueryTraceContextValidatesOptionalMetadata(t *testing.T) {
 	}{
 		{name: "user keep", traceID: 1234567890123456789, spanID: 9876543210987654321, samplingPriority: 2, valid: true},
 		{name: "auto keep", traceID: 1, spanID: 2, samplingPriority: 1, valid: true},
-		{name: "auto drop", traceID: 1, spanID: 2, samplingPriority: 0, valid: true},
-		{name: "user drop", traceID: 1, spanID: 2, samplingPriority: -1, valid: true},
 		{name: "largest 64-bit values", traceID: maxUint64, spanID: maxUint64, samplingPriority: 2, valid: true},
 		{name: "zero trace id", traceID: 0, spanID: 2, samplingPriority: 2, valid: false},
 		{name: "zero parent id", traceID: 1, spanID: 0, samplingPriority: 2, valid: false},
-		{name: "priority above domain", traceID: 1, spanID: 2, samplingPriority: 3, valid: false},
-		{name: "priority below domain", traceID: 1, spanID: 2, samplingPriority: -2, valid: false},
+		{name: "priority above keep domain", traceID: 1, spanID: 2, samplingPriority: 3, valid: false},
+		{name: "priority below keep domain", traceID: 1, spanID: 2, samplingPriority: -2, valid: false},
+		{name: "auto drop priority", traceID: 1, spanID: 2, samplingPriority: 0, valid: false},
+		{name: "user drop priority", traceID: 1, spanID: 2, samplingPriority: -1, valid: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -286,6 +288,8 @@ func TestMarshalExecuteRequestOmitsAbsentTraceContext(t *testing.T) {
 // TestMarshalExecuteRequestDropsInvalidTraceContext proves invalid metadata is
 // dropped without failing the run: the request still marshals, and the
 // integration request omits the key exactly as if no context had been attached.
+// Drop priorities (0, -1) are dropped the same way, so the integration never
+// receives a carrier its strict keep-priority validation would reject.
 func TestMarshalExecuteRequestDropsInvalidTraceContext(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
@@ -293,8 +297,10 @@ func TestMarshalExecuteRequestDropsInvalidTraceContext(t *testing.T) {
 	}{
 		{name: "zero trace id", traceContext: &RemoteQueryTraceContext{TraceID: 0, SpanID: 2, SamplingPriority: 2}},
 		{name: "zero parent id", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 0, SamplingPriority: 2}},
-		{name: "priority above domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: 3}},
-		{name: "priority below domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: -2}},
+		{name: "priority above keep domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: 3}},
+		{name: "priority below keep domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: -2}},
+		{name: "auto drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: 0}},
+		{name: "user drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: -1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			requestJSON, err := marshalExecuteRequest(traceContextExecuteRequest(t, tc.traceContext))
