@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    APM : The trace-agent now batches and zstd-compresses APM library telemetry payloads before
+    forwarding them to Datadog, reducing the number of outbound requests and the network
+    bandwidth used by the telemetry proxy.
