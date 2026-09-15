@@ -240,6 +240,7 @@ new-e2e-apm*                            @DataDog/agent-apm
 new-e2e-cws*                            @DataDog/agent-security
 new-e2e-sbom*                           @DataDog/agent-security
 new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent
 # --- Fleet / installer (non-Windows) ---
@@ -252,7 +253,7 @@ new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/gpu-monitoring-agent
 # --- Action platform / discovery ---
-new-e2e-privateactionrunner             @DataDog/action-platform
+new-e2e-privateactionrunner*            @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
 # --- Windows-only jobs (single owner: windows-products) ---
 new-e2e-windows-*                       @DataDog/windows-products

@@ -145,6 +145,9 @@ func (s *server) BuildServer() http.Handler {
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
 		remoteAgentRegistry: s.remoteAgentRegistry,
 	})
+	pb.RegisterRemoteCommandProviderServer(grpcServer, &remoteCommandProviderServer{
+		remoteAgentRegistry: s.remoteAgentRegistry,
+	})
 
 	return grpcServer
 }

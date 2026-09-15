@@ -9,6 +9,7 @@ dd_agent_go_test(
     ],
     data = ["fixtures/system-probe.yaml"],
     embedsrcs = ["fixtures/system-probe.yaml"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
