@@ -183,6 +183,56 @@ var (
 	errLimitsMustBeObject = errors.New("limits must be an object")
 )
 
+// RemoteQueryTraceContext carries the optional trace-continuation metadata the
+// private-action-runner attaches at the Remote Queries action boundary: the active
+// trace ID, the action.run span's own ID as the downstream parent, and the effective
+// sampling priority. It is observability metadata only — never signed task data and
+// never an authorization, routing, or result-validation input — and it is optional
+// end to end: absent or invalid values leave the query executing exactly as before.
+type RemoteQueryTraceContext struct {
+	TraceID          uint64
+	SpanID           uint64
+	SamplingPriority int
+}
+
+const (
+	// remoteQuerySamplingPriorityMin and remoteQuerySamplingPriorityMax bound the
+	// supported sampling-priority domain: the Datadog tracer priorities UserDrop
+	// (-1), AutoDrop (0), AutoKeep (1), and UserKeep (2). A propagated priority
+	// outside the domain is unsupported trace context and is dropped, never fatal.
+	remoteQuerySamplingPriorityMin = -1
+	remoteQuerySamplingPriorityMax = 2
+)
+
+// NewRemoteQueryTraceContext validates the optional propagated trace context and
+// returns the normalized value, or nil when the context is invalid: a zero trace or
+// parent ID cannot identify a real trace, and an out-of-domain sampling priority is
+// unsupported. Invalid context is dropped without failing the request, so an untraced
+// or old caller executes exactly as before.
+func NewRemoteQueryTraceContext(traceID, spanID uint64, samplingPriority int) *RemoteQueryTraceContext {
+	if traceID == 0 || spanID == 0 {
+		return nil
+	}
+	if samplingPriority < remoteQuerySamplingPriorityMin || samplingPriority > remoteQuerySamplingPriorityMax {
+		return nil
+	}
+	return &RemoteQueryTraceContext{
+		TraceID:          traceID,
+		SpanID:           spanID,
+		SamplingPriority: samplingPriority,
+	}
+}
+
+// normalizeRemoteQueryTraceContext revalidates an already-typed trace context at the
+// integration request boundary, so a hand-assembled typed request can emit only a
+// supported context on the wire.
+func normalizeRemoteQueryTraceContext(traceContext *RemoteQueryTraceContext) *RemoteQueryTraceContext {
+	if traceContext == nil {
+		return nil
+	}
+	return NewRemoteQueryTraceContext(traceContext.TraceID, traceContext.SpanID, traceContext.SamplingPriority)
+}
+
 type remoteQueryStreamRunner interface {
 	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
 }
@@ -311,6 +361,9 @@ type RemoteQueryExecuteRequest struct {
 	IncludeSchema    bool
 	ResultDelivery   *RemoteQueryResultDelivery
 	MatchFingerprint string
+	// TraceContext is the optional propagated trace-continuation metadata; nil
+	// means the caller is untraced and the integration request omits the field.
+	TraceContext *RemoteQueryTraceContext
 }
 
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
@@ -437,6 +490,7 @@ type remoteQueryExecuteRequest struct {
 	IncludeSchema    bool
 	ResultDelivery   *RemoteQueryResultDelivery
 	MatchFingerprint string
+	TraceContext     *RemoteQueryTraceContext
 }
 
 type remoteQueryExecuteRequestJSON struct {
@@ -547,6 +601,17 @@ type remoteQueryProduceJSONPagesRequestJSON struct {
 	Query          string                         `json:"query"`
 	IncludeSchema  bool                           `json:"includeSchema"`
 	ResultDelivery *remoteQueryResultDeliveryJSON `json:"resultDelivery"`
+	TraceContext   *remoteQueryTraceContextJSON   `json:"traceContext,omitempty"`
+}
+
+// remoteQueryTraceContextJSON is the optional trace-continuation object of the
+// integration request. The IDs cross as unsigned decimal strings so the exact
+// 64-bit value survives without numeric precision or format drift, and the
+// sampling priority is an integer. Absence stays absent.
+type remoteQueryTraceContextJSON struct {
+	TraceID          string `json:"traceId"`
+	ParentID         string `json:"parentId"`
+	SamplingPriority int    `json:"samplingPriority"`
 }
 
 // remoteQueryResultDeliveryJSON is the result-delivery handle forwarded to the
@@ -821,6 +886,7 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 		Query:            r.Query,
 		IncludeSchema:    r.IncludeSchema,
 		MatchFingerprint: r.MatchFingerprint,
+		TraceContext:     r.TraceContext,
 	}
 	if r.ResultDelivery != nil {
 		internal.ResultDelivery = r.ResultDelivery
@@ -836,6 +902,7 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 		IncludeSchema:    req.IncludeSchema,
 		ResultDelivery:   req.ResultDelivery,
 		MatchFingerprint: req.MatchFingerprint,
+		TraceContext:     req.TraceContext,
 	}
 }
 
@@ -862,7 +929,11 @@ func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, err
 // operation and the explicit includeSchema flag, and carries the full upload handle —
 // including baseUrl — so the integration can upload page files directly; the session
 // has no upload token, so the request cannot carry one. The integration reads the org
-// API/application keys from Agent config, so they never appear on the request wire.
+// API/application keys from Agent config, so they never appear on the request wire. The
+// optional propagated trace context is revalidated here and emitted as the top-level
+// traceContext object — decimal-string IDs and the integer sampling priority — only
+// when a supported context is present; absent stays absent and invalid is dropped
+// without failing the run.
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	if req.ResultDelivery == nil {
 		return "", errors.New("result_delivery is required")
@@ -892,6 +963,13 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 				TimeoutMs:      limits.TimeoutMs,
 			},
 		},
+	}
+	if traceContext := normalizeRemoteQueryTraceContext(req.TraceContext); traceContext != nil {
+		wireReq.TraceContext = &remoteQueryTraceContextJSON{
+			TraceID:          strconv.FormatUint(traceContext.TraceID, 10),
+			ParentID:         strconv.FormatUint(traceContext.SpanID, 10),
+			SamplingPriority: traceContext.SamplingPriority,
+		}
 	}
 	requestJSON, err := json.Marshal(wireReq)
 	if err != nil {

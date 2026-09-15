@@ -830,3 +830,131 @@ func TestHeadSamplingStillAppliesWithoutExplicitPriority(t *testing.T) {
 
 	assert.Empty(t, telem.extractCompletedSpans())
 }
+
+func TestTraceContextFromContext_NoActiveSpan(t *testing.T) {
+	// A background context carries no span: there is no trace identity to report.
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	_, ok := TraceContextFromContext(context.Background())
+	assert.False(t, ok)
+
+	// WithService/WithSamplingPriority alone do not create a trace identity,
+	// mirroring EnvFromContext: no zero-valued identity may leak downstream.
+	_, ok = TraceContextFromContext(WithService(context.Background(), "svc"))
+	assert.False(t, ok)
+	_, ok = TraceContextFromContext(WithSamplingPriority(context.Background(), 1))
+	assert.False(t, ok)
+}
+
+func TestTraceContextFromContext_MatchesActiveSpan(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	span, ctx := StartSpanFromContext(context.Background(), "op")
+	traceCtx, ok := TraceContextFromContext(ctx)
+
+	require.True(t, ok)
+	assert.Equal(t, span.span.TraceID, traceCtx.TraceID)
+	assert.Equal(t, span.span.SpanID, traceCtx.SpanID)
+	// The POC's effective keep behavior: an unpropagated priority is the flush
+	// default (2), the value extractCompletedSpans stamps on the completed spans
+	// of such a trace.
+	assert.Equal(t, defaultSamplingPriority, traceCtx.SamplingPriority)
+}
+
+func TestTraceContextFromContext_PropagatedPriority(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	ctx := WithSamplingPriority(context.Background(), 1)
+	span, ctx := StartSpanFromContext(ctx, "op")
+	traceCtx, ok := TraceContextFromContext(ctx)
+
+	require.True(t, ok)
+	assert.Equal(t, 1, traceCtx.SamplingPriority)
+	assert.Equal(t, span.span.TraceID, traceCtx.TraceID)
+}
+
+func TestTraceContextFromContext_PriorityOverrideAfterSpan(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	_, ctx := StartSpanFromContext(WithSamplingPriority(context.Background(), 1), "op")
+	// A later override changes the effective continuation priority, exactly as it
+	// would for a child span or a child process reading EnvFromContext.
+	ctx = WithSamplingPriority(ctx, 2)
+	traceCtx, ok := TraceContextFromContext(ctx)
+
+	require.True(t, ok)
+	assert.Equal(t, 2, traceCtx.SamplingPriority)
+}
+
+func TestTraceContextFromContext_InnermostActiveSpan(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	_, parentCtx := StartSpanFromContext(context.Background(), "parent")
+	child, childCtx := StartSpanFromContext(parentCtx, "child")
+	traceCtx, ok := TraceContextFromContext(childCtx)
+
+	require.True(t, ok)
+	// The reported span ID is the innermost active span's own ID: work continued
+	// from this context is a child of that span, not of its parent.
+	assert.Equal(t, child.span.SpanID, traceCtx.SpanID)
+	assert.Equal(t, child.span.TraceID, traceCtx.TraceID)
+}
+
+func TestTraceContextFromContext_DroppedTraceReportsNone(t *testing.T) {
+	// A dropped trace (priority <= 0 short-circuits to the drop sentinel) has no
+	// real trace identity to continue: the caller must execute without
+	// propagation rather than forward the internal sentinel ID.
+	for _, priority := range []int{0, -1} {
+		t.Run(fmt.Sprintf("priority %d", priority), func(t *testing.T) {
+			globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+			ctx := WithSamplingPriority(context.Background(), priority)
+			span, ctx := StartSpanFromContext(ctx, "op")
+			require.Equal(t, uint64(dropTraceID), span.span.TraceID)
+
+			_, ok := TraceContextFromContext(ctx)
+			assert.False(t, ok)
+		})
+	}
+}
+
+func TestTraceContextFromContext_IsAnImmutableValue(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	span, ctx := StartSpanFromContext(context.Background(), "op")
+	traceCtx, ok := TraceContextFromContext(ctx)
+	require.True(t, ok)
+
+	original := traceCtx
+	traceCtx.TraceID = 999
+	traceCtx.SpanID = 888
+	traceCtx.SamplingPriority = -1
+
+	// The returned value is a copy: mutating it changes neither the active span
+	// nor the next read, so no mutable span internals are exposed.
+	reread, ok := TraceContextFromContext(ctx)
+	require.True(t, ok)
+	assert.Equal(t, original, reread)
+	assert.Equal(t, span.span.TraceID, reread.TraceID)
+	assert.Equal(t, span.span.SpanID, reread.SpanID)
+}
+
+func TestTraceContextFromContext_PropagatedIDsKeepTraceContinuity(t *testing.T) {
+	// The Remote Queries PAR flow: the action.run span is started from the
+	// task-supplied trace and parent IDs, and the trace context must report the
+	// supplied trace ID with the action.run span's own ID — never the task's
+	// parent ID.
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	const taskTraceID = uint64(1234567890123456789)
+	const taskParentSpanID = uint64(200)
+	span, ctx := StartSpanFromUint64IDs(context.Background(), "action.run", taskTraceID, taskParentSpanID)
+	defer span.Finish(nil)
+
+	traceCtx, ok := TraceContextFromContext(ctx)
+	require.True(t, ok)
+	assert.Equal(t, taskTraceID, traceCtx.TraceID)
+	assert.Equal(t, span.span.SpanID, traceCtx.SpanID)
+	assert.NotEqual(t, taskParentSpanID, traceCtx.SpanID)
+	assert.Equal(t, defaultSamplingPriority, traceCtx.SamplingPriority)
+}

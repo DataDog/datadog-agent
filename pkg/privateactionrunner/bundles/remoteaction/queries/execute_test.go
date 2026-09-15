@@ -11,7 +11,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -1216,4 +1218,151 @@ func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, e
 	chunk := s.chunks[0]
 	s.chunks = s.chunks[1:]
 	return chunk, nil
+}
+
+// activeActionRunContext mirrors the private-action-runner task executor: the
+// action.run span is started from the task-supplied trace and parent IDs, so the
+// context the action runs under carries the action.run span's own identity.
+func activeActionRunContext(t *testing.T, taskTraceID, taskParentSpanID uint64) (context.Context, telemetry.TraceContext) {
+	t.Helper()
+	ctx := telemetry.WithService(context.Background(), observability.ParService)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, taskTraceID, taskParentSpanID)
+	t.Cleanup(func() { span.Finish(nil) })
+	traceCtx, ok := telemetry.TraceContextFromContext(ctx)
+	require.True(t, ok, "the action.run context must report an active trace")
+	return ctx, traceCtx
+}
+
+// executeInputsForTraceContextTests is the minimal valid execute-mode input.
+func executeInputsForTraceContextTests() map[string]interface{} {
+	return map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT 1 AS value",
+		"resultDelivery": resultDeliveryInputs(),
+	}
+}
+
+// TestExecuteActionAttachesActiveActionRunTraceContext proves the execute dispatch
+// carries the active action.run trace through the AgentSecure request: the trace ID
+// is the task's trace, the parent ID is the action.run span's own ID — not the
+// task-supplied parent — and the sampling priority is the mini-tracer's effective
+// keep priority. The typed field also survives a binary proto round-trip, so the
+// generated bindings carry it on the real gRPC boundary.
+func TestExecuteActionAttachesActiveActionRunTraceContext(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	const taskTraceID = uint64(1234567890123456789)
+	const taskParentSpanID = uint64(200)
+	ctx, activeTrace := activeActionRunContext(t, taskTraceID, taskParentSpanID)
+
+	_, err := action.Run(ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	traceContext := client.request.GetTraceContext()
+	require.NotNil(t, traceContext, "the AgentSecure execute request must carry the active action.run trace context")
+	assert.Equal(t, taskTraceID, traceContext.GetTraceId())
+	assert.Equal(t, activeTrace.SpanID, traceContext.GetParentId())
+	assert.NotEqual(t, taskParentSpanID, traceContext.GetParentId(), "the parent ID must be the action.run span, not its parent")
+	assert.Equal(t, int32(2), traceContext.GetSamplingPriority())
+
+	// Generated-binding contract surface: the typed field serializes on the
+	// binary gRPC wire and decodes back to the same request.
+	encoded, err := proto.Marshal(client.request)
+	require.NoError(t, err)
+	decoded := &pb.RemoteQueryExecuteRequest{}
+	require.NoError(t, proto.Unmarshal(encoded, decoded))
+	assert.True(t, proto.Equal(client.request, decoded))
+}
+
+// TestExecuteActionOmitsTraceContextWithoutActiveTrace proves trace propagation is
+// fail-open: a background context and a dropped trace (priority <= 0) leave the
+// optional field absent, and the request executes exactly as before.
+func TestExecuteActionOmitsTraceContextWithoutActiveTrace(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+	}{
+		{name: "background context", ctx: context.Background()},
+		{name: "dropped trace", ctx: func() context.Context {
+			ctx := telemetry.WithSamplingPriority(context.Background(), 0)
+			_, ctx = telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, 1234, 200)
+			return ctx
+		}()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+				finalEvent(0, validReceipt(), nil),
+				finalMarker(1),
+			}}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+			output, err := action.Run(tc.ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
+
+			require.NoError(t, err)
+			require.NotNil(t, client.request)
+			assert.Nil(t, client.request.GetTraceContext(), "no active trace means no traceContext field")
+			assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+		})
+	}
+}
+
+// TestExecuteActionResolveOnlyIsUnchangedByTraceContext proves the resolveOnly mode
+// never gains trace propagation: the resolve request is side-effect-free Agent-local
+// matching with no integration execution and no upload, and its credential-free
+// shape stays exactly the integration and target.
+func TestExecuteActionResolveOnlyIsUnchangedByTraceContext(t *testing.T) {
+	client := &captureBridgeClient{resolveResp: &pb.RemoteQueryResolveResponse{
+		Status:           "matched",
+		MatchFingerprint: testFingerprint,
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	ctx, _ := activeActionRunContext(t, 1234567890123456789, 200)
+
+	output, err := action.Run(ctx, resolveOnlyTaskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+	}), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.resolveRequest)
+	assert.Equal(t, "postgres", client.resolveRequest.GetIntegration())
+	assert.Equal(t, "localhost", client.resolveRequest.GetTarget().GetHost())
+	assert.Nil(t, client.request, "the streaming execute RPC is never opened in resolve mode")
+	assert.Equal(t, "matched", output.(map[string]interface{})["status"])
+}
+
+// TestExecuteActionIgnoresTaskSuppliedTraceContext proves the propagated trace
+// context is the runner's own active action.run identity, never task data: a
+// stale or hostile AP input carrying a traceContext object is tolerated by the
+// tolerant input decode but never reaches the AgentSecure request when the
+// action has no active trace.
+func TestExecuteActionIgnoresTaskSuppliedTraceContext(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	inputs := executeInputsForTraceContextTests()
+	inputs["traceContext"] = map[string]interface{}{
+		"traceId":          "1111111111111111111",
+		"parentId":         "2222222222222222222",
+		"samplingPriority": 2,
+	}
+
+	_, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	assert.Nil(t, client.request.GetTraceContext(), "trace context is read from the action context only, never from task inputs")
+	evidence, err := json.Marshal(client.request)
+	require.NoError(t, err)
+	assert.NotContains(t, string(evidence), "1111111111111111111")
 }

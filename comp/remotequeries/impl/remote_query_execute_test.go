@@ -7,6 +7,7 @@ package remotequeriesimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -193,4 +194,134 @@ func TestExecuteStreamStaleFailsBeforeMarshal(t *testing.T) {
 	assert.Zero(t, runner.executeCalls)
 	assert.Empty(t, runner.streamSeen)
 	assert.Equal(t, 1, runner.resolveCalls)
+}
+
+// TestNewRemoteQueryTraceContextValidatesOptionalMetadata proves the optional
+// trace context is accepted only in its supported shape: non-zero trace and
+// parent IDs (64-bit unsigned, exercising the largest representable value) and a
+// sampling priority inside the Datadog tracer's priority domain. Anything else
+// is invalid metadata and normalizes to nil — dropped, never fatal.
+func TestNewRemoteQueryTraceContextValidatesOptionalMetadata(t *testing.T) {
+	const maxUint64 = ^uint64(0)
+	tests := []struct {
+		name             string
+		traceID          uint64
+		spanID           uint64
+		samplingPriority int
+		valid            bool
+	}{
+		{name: "user keep", traceID: 1234567890123456789, spanID: 9876543210987654321, samplingPriority: 2, valid: true},
+		{name: "auto keep", traceID: 1, spanID: 2, samplingPriority: 1, valid: true},
+		{name: "auto drop", traceID: 1, spanID: 2, samplingPriority: 0, valid: true},
+		{name: "user drop", traceID: 1, spanID: 2, samplingPriority: -1, valid: true},
+		{name: "largest 64-bit values", traceID: maxUint64, spanID: maxUint64, samplingPriority: 2, valid: true},
+		{name: "zero trace id", traceID: 0, spanID: 2, samplingPriority: 2, valid: false},
+		{name: "zero parent id", traceID: 1, spanID: 0, samplingPriority: 2, valid: false},
+		{name: "priority above domain", traceID: 1, spanID: 2, samplingPriority: 3, valid: false},
+		{name: "priority below domain", traceID: 1, spanID: 2, samplingPriority: -2, valid: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traceContext := NewRemoteQueryTraceContext(tt.traceID, tt.spanID, tt.samplingPriority)
+			if !tt.valid {
+				assert.Nil(t, traceContext)
+				return
+			}
+			require.NotNil(t, traceContext)
+			assert.Equal(t, tt.traceID, traceContext.TraceID)
+			assert.Equal(t, tt.spanID, traceContext.SpanID)
+			assert.Equal(t, tt.samplingPriority, traceContext.SamplingPriority)
+		})
+	}
+}
+
+// traceContextExecuteRequest builds a valid execute request carrying the optional
+// trace context, the way the AgentSecure gRPC mapping assembles one.
+func traceContextExecuteRequest(t *testing.T, traceContext *RemoteQueryTraceContext) remoteQueryExecuteRequest {
+	t.Helper()
+	req, err := NewRemoteQueryExecuteRequest("postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		remoteQueryProofSeedQuery, false, pagedTestDelivery())
+	require.NoError(t, err)
+	req.TraceContext = traceContext
+	return req.internal()
+}
+
+// TestMarshalExecuteRequestEmitsTraceContextContractShape pins the exact
+// integration-request JSON contract: the optional top-level traceContext object
+// carries the trace ID and parent ID as unsigned decimal strings — so the exact
+// 64-bit value survives without numeric precision or format drift — and the
+// sampling priority as an integer.
+func TestMarshalExecuteRequestEmitsTraceContextContractShape(t *testing.T) {
+	requestJSON, err := marshalExecuteRequest(traceContextExecuteRequest(t,
+		NewRemoteQueryTraceContext(1234567890123456789, 9876543210987654321, 2)))
+	require.NoError(t, err)
+
+	assert.Contains(t, requestJSON,
+		`"traceContext":{"traceId":"1234567890123456789","parentId":"9876543210987654321","samplingPriority":2}`)
+
+	// The object is the exact wire contract, not a loose superset.
+	var wire struct {
+		TraceContext struct {
+			TraceID          string `json:"traceId"`
+			ParentID         string `json:"parentId"`
+			SamplingPriority int    `json:"samplingPriority"`
+		} `json:"traceContext"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(requestJSON), &wire))
+	assert.Equal(t, "1234567890123456789", wire.TraceContext.TraceID)
+	assert.Equal(t, "9876543210987654321", wire.TraceContext.ParentID)
+	assert.Equal(t, 2, wire.TraceContext.SamplingPriority)
+}
+
+// TestMarshalExecuteRequestOmitsAbsentTraceContext proves absence stays absent:
+// a request without the optional metadata emits no traceContext key, so an old
+// integration sees byte-identical request JSON.
+func TestMarshalExecuteRequestOmitsAbsentTraceContext(t *testing.T) {
+	requestJSON, err := marshalExecuteRequest(traceContextExecuteRequest(t, nil))
+	require.NoError(t, err)
+	assert.NotContains(t, requestJSON, "traceContext")
+}
+
+// TestMarshalExecuteRequestDropsInvalidTraceContext proves invalid metadata is
+// dropped without failing the run: the request still marshals, and the
+// integration request omits the key exactly as if no context had been attached.
+func TestMarshalExecuteRequestDropsInvalidTraceContext(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		traceContext *RemoteQueryTraceContext
+	}{
+		{name: "zero trace id", traceContext: &RemoteQueryTraceContext{TraceID: 0, SpanID: 2, SamplingPriority: 2}},
+		{name: "zero parent id", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 0, SamplingPriority: 2}},
+		{name: "priority above domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: 3}},
+		{name: "priority below domain", traceContext: &RemoteQueryTraceContext{TraceID: 1, SpanID: 2, SamplingPriority: -2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requestJSON, err := marshalExecuteRequest(traceContextExecuteRequest(t, tc.traceContext))
+			require.NoError(t, err)
+			assert.NotContains(t, requestJSON, "traceContext")
+		})
+	}
+}
+
+// TestRemoteQueryExecuteRequestTraceContextRoundTrip proves the optional metadata
+// survives the typed-request conversions unchanged: a validated context crossing
+// internal() and remoteQueryExecuteRequestFromInternal keeps its exact values.
+func TestRemoteQueryExecuteRequestTraceContextRoundTrip(t *testing.T) {
+	traceContext := NewRemoteQueryTraceContext(1234567890123456789, 9876543210987654321, 1)
+
+	internal := traceContextExecuteRequest(t, traceContext)
+	require.NotNil(t, internal.TraceContext)
+	public := remoteQueryExecuteRequestFromInternal(internal)
+	require.NotNil(t, public.TraceContext)
+	assert.Equal(t, traceContext, public.TraceContext)
+
+	roundTripped := public.internal()
+	require.NotNil(t, roundTripped.TraceContext)
+	assert.Equal(t, traceContext, roundTripped.TraceContext)
+
+	// An absent context stays absent through the same conversions.
+	absent := traceContextExecuteRequest(t, nil)
+	assert.Nil(t, remoteQueryExecuteRequestFromInternal(absent).TraceContext)
+	assert.Nil(t, remoteQueryExecuteRequestFromInternal(absent).internal().TraceContext)
 }

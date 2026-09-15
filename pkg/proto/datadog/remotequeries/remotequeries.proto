@@ -48,6 +48,17 @@ message RemoteQueryResultDelivery {
     RemoteQueryUploadLimits limits = 8;
 }
 
+// RemoteQueryTraceContext carries the optional trace-continuation metadata of the
+// private-action-runner trace active at the Remote Queries action boundary. It is
+// observability metadata only: never signed task data and never an authorization,
+// routing, or result-validation input. parent_id is the action.run span's own ID, so
+// the integration's traced intake requests are its children.
+message RemoteQueryTraceContext {
+    uint64 trace_id = 1;
+    uint64 parent_id = 2;
+    int32 sampling_priority = 3;
+}
+
 // RemoteQueryExecuteRequest is the credential-free Remote Queries request. The
 // result contract is fixed: the integration produces bounded JSON page files
 // and uploads them directly to its-agent-intake. There is no inline result-byte
@@ -58,6 +69,9 @@ message RemoteQueryResultDelivery {
 // resolution before any SQL execution and fails closed with
 // target_resolution_stale when the selected match no longer holds. Empty means
 // no revalidation (local and direct paths keep working unchanged).
+// trace_context is the optional observability metadata of the active PAR trace;
+// a request without it, and a receiver that finds it absent or invalid, executes
+// exactly as before.
 message RemoteQueryExecuteRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
@@ -65,6 +79,7 @@ message RemoteQueryExecuteRequest {
     bool include_schema = 4;
     RemoteQueryResultDelivery result_delivery = 5;
     string match_fingerprint = 6;
+    RemoteQueryTraceContext trace_context = 7;
 }
 
 message RemoteQueryStreamMetadata {

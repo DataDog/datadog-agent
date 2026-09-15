@@ -568,6 +568,14 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	// The resolve-time fingerprint is opaque: it crosses the boundary for the pre-SQL
 	// revalidation and is never validated locally.
 	execReq.MatchFingerprint = req.GetMatchFingerprint()
+	// The optional trace-continuation metadata is validated fail-open: absent or
+	// invalid values leave the request executing exactly as before, and nothing
+	// about the delivery handle or the fingerprint validation changes.
+	execReq.TraceContext = remotequeriesimpl.NewRemoteQueryTraceContext(
+		req.GetTraceContext().GetTraceId(),
+		req.GetTraceContext().GetParentId(),
+		int(req.GetTraceContext().GetSamplingPriority()),
+	)
 	return execReq, nil
 }
 

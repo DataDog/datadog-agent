@@ -429,3 +429,58 @@ func (s *captureRemoteQueryExecuteStreamServer) Send(chunk *pb.RemoteQueryExecut
 	s.chunks = append(s.chunks, chunk)
 	return nil
 }
+
+// TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext proves the optional
+// trace-continuation metadata crosses the AgentSecure proto boundary with its exact
+// values: the active trace ID, the action.run span's own ID as the parent, and the
+// propagated sampling priority.
+func TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext(t *testing.T) {
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT 1 AS value",
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
+		TraceContext: &pb.RemoteQueryTraceContext{
+			TraceId:          1234567890123456789,
+			ParentId:         9876543210987654321,
+			SamplingPriority: 2,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, req.TraceContext)
+	assert.Equal(t, uint64(1234567890123456789), req.TraceContext.TraceID)
+	assert.Equal(t, uint64(9876543210987654321), req.TraceContext.SpanID)
+	assert.Equal(t, 2, req.TraceContext.SamplingPriority)
+}
+
+// TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext proves invalid
+// trace context is dropped fail-open, never fatal: a nil message, a zero trace or
+// parent ID, or an out-of-domain sampling priority leaves the typed request with
+// no trace context, and the request itself stays valid so execution is unchanged.
+func TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext(t *testing.T) {
+	tests := []struct {
+		name         string
+		traceContext *pb.RemoteQueryTraceContext
+	}{
+		{name: "absent", traceContext: nil},
+		{name: "zero trace id", traceContext: &pb.RemoteQueryTraceContext{TraceId: 0, ParentId: 2, SamplingPriority: 2}},
+		{name: "zero parent id", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 0, SamplingPriority: 2}},
+		{name: "priority above domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: 3}},
+		{name: "priority below domain", traceContext: &pb.RemoteQueryTraceContext{TraceId: 1, ParentId: 2, SamplingPriority: -2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+				Integration:    "postgres",
+				Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+				Query:          "SELECT 1 AS value",
+				ResultDelivery: validRemoteQueryResultDeliveryProto(),
+				TraceContext:   tt.traceContext,
+			})
+
+			require.NoError(t, err, "invalid trace context must never fail the request")
+			assert.Nil(t, req.TraceContext)
+		})
+	}
+}

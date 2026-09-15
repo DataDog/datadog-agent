@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -316,7 +317,7 @@ func (a *ExecuteAction) Run(
 		return output, nil
 	}
 
-	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(inputs))
+	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(ctx, inputs))
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
@@ -330,8 +331,12 @@ func (a *ExecuteAction) Run(
 // remoteQueryExecuteRequestFromInputs maps the AP action input to the credential-free
 // AgentSecure request. The fixed operation is emitted by the Agent's native request
 // mapping; the bundle carries the integration, target, query, the explicit includeSchema
-// flag, and the backend-owned result delivery.
-func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
+// flag, and the backend-owned result delivery. The active action.run trace context rides
+// along as optional observability metadata: the parent ID is the action.run span's own
+// ID — the span active on the context, not the AP-supplied parent — and an absent or
+// dropped trace context leaves the field unset so the request executes exactly as
+// before.
+func remoteQueryExecuteRequestFromInputs(ctx context.Context, inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
 	req := &pb.RemoteQueryExecuteRequest{
 		Integration: inputs.Integration,
 		Target: &pb.RemoteQueryTarget{
@@ -365,7 +370,24 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 		}
 		req.ResultDelivery = protoDelivery
 	}
+	req.TraceContext = remoteQueryTraceContextFromContext(ctx)
 	return req
+}
+
+// remoteQueryTraceContextFromContext attaches the active private-action-runner trace
+// to the AgentSecure request. The mini-tracer reports no context for a background
+// context or a dropped trace, in which case the optional field stays absent: trace
+// propagation is fail-open and never gates execution.
+func remoteQueryTraceContextFromContext(ctx context.Context) *pb.RemoteQueryTraceContext {
+	traceCtx, ok := telemetry.TraceContextFromContext(ctx)
+	if !ok {
+		return nil
+	}
+	return &pb.RemoteQueryTraceContext{
+		TraceId:          traceCtx.TraceID,
+		ParentId:         traceCtx.SpanID,
+		SamplingPriority: int32(traceCtx.SamplingPriority),
+	}
 }
 
 // remoteQueryExecuteOutputFromStream consumes the AgentSecure stream and builds the
