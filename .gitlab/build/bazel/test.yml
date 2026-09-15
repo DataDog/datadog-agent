@@ -57,12 +57,6 @@
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
 
-bazel:coverage:linux-amd64:
-  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
-
-bazel:coverage:linux-arm64:
-  extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
-
 .bazel:test:linux:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
@@ -95,12 +89,6 @@ bazel:test:linux-arm64:
       - coverage-bazel-*.out
   variables:
     COVERAGE_FILE: coverage-bazel-*.out
-
-bazel:coverage:macos-amd64:
-  extends: [.bazel:runner:macos-amd64, .bazel:coverage:macos]
-
-bazel:coverage:macos-arm64:
-  extends: [.bazel:runner:macos-arm64, .bazel:coverage:macos]
 
 .bazel:test:macos:
   extends: [.bazel:test:reporting, .bazel:test]
