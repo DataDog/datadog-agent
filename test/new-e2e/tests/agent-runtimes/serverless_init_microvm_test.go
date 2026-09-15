@@ -51,7 +51,7 @@ func (s *serverlessInitMicroVMSuite) TestEnhancedCPUMetricsReachFakeIntake() {
 	intake := s.Env().FakeIntake.Client()
 	require.NoError(s.T(), intake.FlushServerAndResetAggregators())
 
-	localBinary := findServerlessInitRunfile(s.T())
+	localBinary := findServerlessInitBinary(s.T())
 	s.Env().RemoteHost.CopyFile(localBinary, serverlessInitRemotePath)
 	s.Env().RemoteHost.MustExecute("chmod 0755 " + serverlessInitRemotePath)
 
@@ -80,8 +80,15 @@ exec env DD_API_KEY=%s DD_DD_URL=%s DD_ENHANCED_METRICS=true AWS_LAMBDA_MICROVM_
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func findServerlessInitRunfile(t *testing.T) string {
+func findServerlessInitBinary(t *testing.T) string {
 	t.Helper()
+
+	if binary := os.Getenv("SERVERLESS_INIT_BINARY"); binary != "" {
+		if info, err := os.Stat(binary); err == nil && !info.IsDir() {
+			return binary
+		}
+		require.FailNowf(t, "serverless-init binary was not found", "SERVERLESS_INIT_BINARY=%q", binary)
+	}
 
 	workspace := os.Getenv("TEST_WORKSPACE")
 	for _, root := range []string{os.Getenv("RUNFILES_DIR"), os.Getenv("TEST_SRCDIR")} {
@@ -89,14 +96,16 @@ func findServerlessInitRunfile(t *testing.T) string {
 			continue
 		}
 		for _, workspaceName := range []string{workspace, "_main", "datadog-agent", ""} {
-			candidate := filepath.Join(root, workspaceName, "cmd", "serverless-init", "serverless-init")
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				return candidate
+			for _, binaryName := range []string{"serverless-init_/serverless-init", "serverless-init"} {
+				candidate := filepath.Join(root, workspaceName, "cmd", "serverless-init", binaryName)
+				if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+					return candidate
+				}
 			}
 		}
 	}
 
-	require.FailNow(t, "serverless-init binary was not found in Bazel runfiles")
+	require.FailNow(t, "serverless-init binary was not found; set SERVERLESS_INIT_BINARY for non-Bazel runs")
 	return ""
 }
 
