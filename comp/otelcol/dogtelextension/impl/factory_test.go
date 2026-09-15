@@ -48,7 +48,6 @@ func TestNewFactoryForAgent_CreatesExtension(t *testing.T) {
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		hostname,
-		nil, // workloadmeta
 		nil, // tagger
 		ipcmock.New(t),
 		noopsimpl.GetCompatComponent(),
@@ -76,7 +75,6 @@ func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		hostname,
-		nil,
 		nil,
 		ipcmock.New(t),
 		noopsimpl.GetCompatComponent(),

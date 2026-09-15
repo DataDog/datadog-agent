@@ -24,7 +24,6 @@ import (
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	dogtelmetrics "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -54,13 +53,12 @@ type dogtelExtension struct {
 	coreConfig coreconfig.Component
 
 	// Core components injected from FX
-	serializer   serializer.MetricSerializer
-	hostname     hostnameinterface.Component
-	workloadmeta workloadmeta.Component
-	tagger       tagger.Component
-	ipc          ipc.Component
-	telemetry    telemetry.Component
-	secrets      secrets.Component
+	serializer serializer.MetricSerializer
+	hostname   hostnameinterface.Component
+	tagger     tagger.Component
+	ipc        ipc.Component
+	telemetry  telemetry.Component
+	secrets    secrets.Component
 
 	// Build info for metric tags
 	buildInfo component.BuildInfo
@@ -153,11 +151,11 @@ func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
 	var serie *agentmetrics.Serie
 	switch {
 	case fargate.GetOrchestrator() == fargate.ECS:
-		tasks := e.workloadmeta.ListECSTasks()
-		if len(tasks) != 1 {
-			return fmt.Errorf("expected exactly one ECS task on Fargate, got %d", len(tasks))
+		taskARN, err := fetchECSTaskARN(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get ECS task ARN: %w", err)
 		}
-		serie = dogtelmetrics.CreateFargateLivenessSerie(tasks[0].ID, uint64(now), buildTags)
+		serie = dogtelmetrics.CreateFargateLivenessSerie(taskARN, uint64(now), buildTags)
 	case isAzureContainerApps():
 		serie = dogtelmetrics.CreateAzureContainerAppsLivenessSerie(
 			os.Getenv(containerAppReplicaNameEnvVar),
