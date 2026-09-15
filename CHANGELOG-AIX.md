@@ -9,6 +9,7 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
+- Fix `hostname_fqdn` on AIX: AIX `hostname` has no `-f` flag, so the agent always failed to detect the FQDN and fell back to the short hostname. The agent now resolves the host's fully qualified domain name itself (canonical name from `/etc/hosts` or DNS, matching `hostname -f` semantics on other platforms).
 
 --
 
