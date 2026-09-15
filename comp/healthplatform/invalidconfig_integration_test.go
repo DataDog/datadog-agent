@@ -8,6 +8,7 @@
 package healthplatform
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -88,7 +89,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
-			cfg.SetInTest("agent_ipc.port", "not-a-number")
+			cfg.SetInTest("agent_ipc.port", "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 			return cfg
 		}),
 		telemetrymock.Module(),
@@ -108,8 +109,10 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}
 		for _, p := range payloads {
 			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-				errorsStruct := iss.GetExtra().GetFields()["errors"].GetStructValue()
-				return errorsStruct != nil && len(errorsStruct.GetFields()) > 0
+				fields := iss.GetExtra().GetFields()
+				errorsStruct := fields["errors"].GetStructValue()
+				violations := fields["violations"].GetListValue()
+				return errorsStruct != nil && len(errorsStruct.GetFields()) > 0 && violations != nil && len(violations.GetValues()) > 0
 			}
 		}
 		return false
@@ -134,4 +137,16 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	vals := portErrors.GetListValue().GetValues()
 	require.NotEmpty(t, vals)
 	assert.Contains(t, vals[0].GetStringValue(), "want integer")
+
+	fields := receivedIssue.GetExtra().GetFields()
+	assert.Equal(t, float64(1), fields["violations_version"].GetNumberValue())
+	violations := fields["violations"].GetListValue().GetValues()
+	require.Len(t, violations, 1)
+	portViolation := violations[0].GetStructValue().GetFields()
+	assert.Equal(t, "/agent_ipc/port", portViolation["path"].GetStringValue())
+	assert.Equal(t, "0", portViolation["default_value"].GetStringValue())
+
+	receivedJSON, err := json.Marshal(receivedIssue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(receivedJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 }

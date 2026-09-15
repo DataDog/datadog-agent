@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add structured details to Agent Health invalid-configuration reports,
+    including expected and received types and authoritative defaults. The
+    reports do not include configured values.

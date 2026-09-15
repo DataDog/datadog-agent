@@ -160,6 +160,7 @@ go_library(
     deps = [
         "@com_github_datadog_zstd//:zstd",
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//kind",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
@@ -172,5 +173,6 @@ dd_agent_go_test(
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//assert/yaml",
+        "@com_github_stretchr_testify//require",
     ],
 )
