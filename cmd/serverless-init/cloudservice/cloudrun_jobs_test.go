@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -107,14 +108,38 @@ func TestCloudRunJobsGetInventoryData(t *testing.T) {
 
 	inv := service.GetInventoryData()
 
+	jobInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job"
 	assert.Equal(t, InventoryData{
-		WorkloadType: workloadTypeCloudRunJob,
-		ResourceID:   "projects/test_project/locations/test_region/jobs/test_job",
-		ResourceName: "test_job",
-		Region:       "test_region",
-		GCPProjectID: "test_project",
-		DeploymentID: "test_execution",
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       jobInventoryID + "/executions/test_execution",
+		ParentResourceID: jobInventoryID,
+		ResourceName:     "test_job",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
 	}, inv)
+}
+
+// TestCloudRunJobsGetInventoryDataMissingExecution pins that the resource_id
+// falls back to the job rather than dangling on an empty execution segment.
+func TestCloudRunJobsGetInventoryDataMissingExecution(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"location":   "test_region",
+			"project_id": "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	os.Unsetenv("CLOUD_RUN_EXECUTION")
+
+	inv := service.GetInventoryData()
+
+	jobInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job"
+	assert.Equal(t, jobInventoryID, inv.ResourceID)
+	assert.Equal(t, jobInventoryID, inv.ParentResourceID)
 }
 
 func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {

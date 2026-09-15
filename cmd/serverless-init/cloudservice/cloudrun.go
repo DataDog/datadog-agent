@@ -72,6 +72,10 @@ const (
 	cloudRunServiceTagPrefix = "gcr."
 )
 
+// cloudRunInventoryIDPrefix qualifies the inventory resource and parent ids of
+// every Cloud Run variant with the API host serving them.
+const cloudRunInventoryIDPrefix = "//run.googleapis.com/"
+
 const (
 	// Cloud Run Function tags
 	cloudRunFunctionTagPrefix = "gcrfx."
@@ -201,9 +205,9 @@ func cloudRunFunctionCCRID(project, region, service, functionTarget string) stri
 // GetInventoryData derives the inventory metadata fields for Cloud Run services
 // and functions.
 //
-// The service-level CCRID is the stable parent. For a service the resource_id
-// is the revision under it; parent_resource_id is the service CCRID. For a
-// function the resource_id is the function CCRID (which already nests under the
+// The revision is the deployed instance in both variants, so it is the
+// resource_id, and parent_resource_id is the resource it revises: the service
+// for a service, the function for a function (which itself nests under the
 // service path).
 func (c *CloudRun) GetInventoryData() InventoryData {
 	metadata := c.resolveMetadata()
@@ -213,39 +217,44 @@ func (c *CloudRun) GetInventoryData() InventoryData {
 	revision := os.Getenv(revisionNameEnvVar)
 
 	serviceCCRID := cloudRunServiceCCRID(project, region, service)
-	serviceInventoryID := "//run.googleapis.com/" + serviceCCRID
 
 	if c.isFunction {
+		functionCCRID := cloudRunFunctionCCRID(project, region, service, os.Getenv(functionTargetEnvVar))
 		return InventoryData{
 			WorkloadType:     workloadTypeCloudRunFunction,
-			ResourceID:       cloudRunFunctionCCRID(project, region, service, os.Getenv(functionTargetEnvVar)),
-			ParentResourceID: serviceInventoryID,
+			ResourceID:       cloudRunInventoryID(cloudRunRevisionCCRID(functionCCRID, revision)),
+			ParentResourceID: cloudRunInventoryID(functionCCRID),
 			ResourceName:     service,
 			Region:           region,
 			GCPProjectID:     project,
-			DeploymentID:     revision,
 		}
 	}
 
 	return InventoryData{
 		WorkloadType:     workloadTypeCloudRunService,
-		ResourceID:       "//run.googleapis.com/" + cloudRunRevisionCCRID(serviceCCRID, revision),
-		ParentResourceID: serviceInventoryID,
+		ResourceID:       cloudRunInventoryID(cloudRunRevisionCCRID(serviceCCRID, revision)),
+		ParentResourceID: cloudRunInventoryID(serviceCCRID),
 		ResourceName:     service,
 		Region:           region,
 		GCPProjectID:     project,
-		DeploymentID:     revision,
 	}
 }
 
-// cloudRunRevisionCCRID extends a service CCRID with the revision segment. It
-// returns the service CCRID unchanged when the revision is unknown so the
-// resource_id never dangles on a trailing empty segment.
-func cloudRunRevisionCCRID(serviceCCRID, revision string) string {
-	if serviceCCRID == "" || revision == "" {
-		return serviceCCRID
+// cloudRunRevisionCCRID extends the CCRID of a revisable resource (a service or
+// a function) with the revision segment. It returns that CCRID unchanged when
+// the revision is unknown so the resource_id never dangles on a trailing empty
+// segment.
+func cloudRunRevisionCCRID(revisableCCRID, revision string) string {
+	if revisableCCRID == "" || revision == "" {
+		return revisableCCRID
 	}
-	return fmt.Sprintf("%s/revisions/%s", serviceCCRID, revision)
+	return fmt.Sprintf("%s/revisions/%s", revisableCCRID, revision)
+}
+
+// cloudRunInventoryID qualifies a Cloud Run CCRID with the API host that the
+// inventory resource and parent ids are keyed on.
+func cloudRunInventoryID(ccrid string) string {
+	return cloudRunInventoryIDPrefix + ccrid
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set

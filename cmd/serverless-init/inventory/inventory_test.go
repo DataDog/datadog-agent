@@ -76,24 +76,48 @@ func TestSubmitGatedOff(t *testing.T) {
 	assert.Zero(t, ia.submits, "Submit must not enqueue a payload when the ramp gate is off")
 }
 
-func TestSetDeploymentIDWhenEnabled(t *testing.T) {
+func TestSetResourceIDWhenEnabled(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	ia := newFakeComponent()
 
-	SetDeploymentID(ia, conf, "vm-abc123")
+	SetResourceID(ia, conf, "vm-abc123")
 
-	assert.Equal(t, "vm-abc123", ia.fields["deployment_id"])
+	assert.Equal(t, "vm-abc123", ia.fields["resource_id"])
 }
 
-func TestSetDeploymentIDGatedOff(t *testing.T) {
+func TestSetResourceIDGatedOff(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", false, model.SourceAgentRuntime)
 	ia := newFakeComponent()
 
-	SetDeploymentID(ia, conf, "vm-abc123")
+	SetResourceID(ia, conf, "vm-abc123")
 
-	assert.Empty(t, ia.fields, "deployment_id must not be set when the ramp gate is off")
+	assert.Empty(t, ia.fields, "resource_id must not be set when the ramp gate is off")
+}
+
+// The MicroVM lifecycle server reports the stored instance id on /resume, which
+// is empty when no /run delivered one; the image ARN that Inject derived must
+// survive that.
+func TestSetResourceIDIgnoresEmptyID(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+	ia := newFakeComponent()
+	ia.Set("resource_id", "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image")
+
+	SetResourceID(ia, conf, "")
+
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image", ia.fields["resource_id"])
+}
+
+func TestInjectOmitsDeprecatedDeploymentID(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+	ia := newFakeComponent()
+
+	Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
+
+	assert.NotContains(t, ia.fields, "deployment_id")
 }
 
 func TestNewCapabilitiesReportsOneUUIDForProcessLifetime(t *testing.T) {

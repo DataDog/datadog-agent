@@ -75,7 +75,6 @@ func TestContainerAppGetInventoryData(t *testing.T) {
 		Region:              "eastus",
 		AzureSubscriptionID: "test_subscription_id",
 		AzureResourceGroup:  "test_resource_group",
-		DeploymentID:        "test_revision",
 	}, inv)
 }
 
@@ -94,7 +93,6 @@ func TestContainerAppGetInventoryDataWithoutAzureIDs(t *testing.T) {
 		WorkloadType: workloadTypeAzureContainerApp,
 		ResourceName: "test_app_name",
 		Region:       "eastus",
-		DeploymentID: "test_revision",
 	}, inv)
 }
 

@@ -48,14 +48,10 @@ type InventoryData struct {
 	AzureResourceGroup  string
 	Runtime             string
 
-	// ParentResourceID is the CCRID of the stable parent for revision-capable
-	// workloads (e.g. the Cloud Run service behind a revision). Empty when the
-	// workload has no distinct parent.
+	// ParentResourceID is the CCRID of the immediate stable parent one level
+	// above ResourceID (e.g. the Cloud Run service behind a revision). Empty when
+	// the workload has no distinct parent.
 	ParentResourceID string
-
-	// DeploymentID identifies the deployment/revision instance when the platform
-	// exposes one.
-	DeploymentID string
 }
 
 // GetInventoryData returns the inventory metadata fields for this cloud
@@ -66,11 +62,13 @@ type InventoryData struct {
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
 
 // GetInventoryData returns the inventory metadata fields for AWS MicroVM,
-// derived from the image ARN env var.
+// derived from the image ARN env var. The image is the stable parent every
+// instance runs from, so it is the ParentResourceID.
 //
 // The per-instance MicroVM id is not known at derivation time (the platform
-// only delivers it in the /run lifecycle hook body), so DeploymentID is left
-// empty here and filled in at submission time.
+// only delivers it in the /run lifecycle hook body), so ResourceID starts as
+// the image ARN and narrows to the instance id at submission time. That keeps
+// resource_id populated for a payload built before the first /run.
 func (m *MicroVM) GetInventoryData() InventoryData {
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
 	if arn == "" {
@@ -78,10 +76,11 @@ func (m *MicroVM) GetInventoryData() InventoryData {
 	}
 	region, accountID, imageName := parseMicroVMARN(arn)
 	return InventoryData{
-		WorkloadType: workloadTypeAWSMicroVM,
-		ResourceID:   arn,
-		ResourceName: imageName,
-		Region:       region,
-		AWSAccountID: accountID,
+		WorkloadType:     workloadTypeAWSMicroVM,
+		ResourceID:       arn,
+		ParentResourceID: arn,
+		ResourceName:     imageName,
+		Region:           region,
+		AWSAccountID:     accountID,
 	}
 }
