@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package authoredscripts
+// Package authoredscriptcatalog adapts Fleet Remote Config catalogs to the
+// catalog consumed by the authored-scripts bundle.
+package authoredscriptcatalog
 
 import (
 	"errors"
@@ -16,26 +18,36 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 
 	installercatalog "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog"
+	installercatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 )
 
 const authoredScriptPackagePrefix = "com.datadoghq.authoredscripts."
 
-// RemoteCatalog adapts complete Fleet catalog snapshots to authored-script
+// New returns the authored-script catalog for the current rollout state. When
+// Remote Config is enabled, the returned catalog fails closed until its first
+// complete snapshot is received.
+func New(enabled bool, product string, client rcclient.Client) authoredscripts.Catalog {
+	if !enabled || product == "" {
+		return authoredscripts.NewStaticCatalog()
+	}
+
+	catalog := &remoteCatalog{}
+	client.Subscribe(product, installercatalogrc.NewUpdateHandler(catalog.replace))
+	return catalog
+}
+
+// remoteCatalog adapts complete Fleet catalog snapshots to authored-script
 // lookups. It is safe for Remote Config updates and action lookups to occur
 // concurrently.
-type RemoteCatalog struct {
+type remoteCatalog struct {
 	mu      sync.RWMutex
 	catalog installercatalog.Catalog
 }
 
-// NewRemoteCatalog creates an empty authored-script catalog. Lookups fail
-// closed until the first catalog snapshot is applied.
-func NewRemoteCatalog() *RemoteCatalog {
-	return &RemoteCatalog{}
-}
-
-// Replace atomically replaces the current catalog snapshot.
-func (c *RemoteCatalog) Replace(next installercatalog.Catalog) error {
+// replace atomically replaces the current catalog snapshot.
+func (c *remoteCatalog) replace(next installercatalog.Catalog) error {
 	if c == nil {
 		return errors.New("authored-script remote catalog is not configured")
 	}
@@ -68,12 +80,12 @@ func (c *RemoteCatalog) Replace(next installercatalog.Catalog) error {
 }
 
 // Lookup resolves the single compatible catalog package authorized for key.
-func (c *RemoteCatalog) Lookup(key string) (Descriptor, error) {
+func (c *remoteCatalog) Lookup(key string) (authoredscripts.Descriptor, error) {
 	if c == nil {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+		return authoredscripts.Descriptor{}, fmt.Errorf("%w: %q", authoredscripts.ErrPackageNotConfigured, key)
 	}
 	if !strings.HasPrefix(key, authoredScriptPackagePrefix) || len(key) == len(authoredScriptPackagePrefix) {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+		return authoredscripts.Descriptor{}, fmt.Errorf("%w: %q", authoredscripts.ErrPackageNotConfigured, key)
 	}
 
 	packageName := strings.ToLower(key)
@@ -87,15 +99,15 @@ func (c *RemoteCatalog) Lookup(key string) (Descriptor, error) {
 			continue
 		}
 		if match != nil {
-			return Descriptor{}, fmt.Errorf("%w: multiple compatible packages match %q", ErrPackageNotConfigured, key)
+			return authoredscripts.Descriptor{}, fmt.Errorf("%w: multiple compatible packages match %q", authoredscripts.ErrPackageNotConfigured, key)
 		}
 		match = pkg
 	}
 	if match == nil {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+		return authoredscripts.Descriptor{}, fmt.Errorf("%w: %q", authoredscripts.ErrPackageNotConfigured, key)
 	}
 
-	return Descriptor{
+	return authoredscripts.Descriptor{
 		FQN:     key,
 		Package: match.Name,
 		Version: match.Version,

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "authoredscriptcatalog",
+    srcs = ["catalog.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/authoredscriptcatalog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/catalog",
+        "//pkg/fleet/installer/catalog/remoteconfig",
+        "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/bundle-support/authoredscripts",
+        "@com_github_google_go_containerregistry//pkg/name",
+    ],
+)
+
+dd_agent_go_test(
+    name = "authoredscriptcatalog_test",
+    srcs = ["catalog_test.go"],
+    embed = [":authoredscriptcatalog"],
+    deps = [
+        "//pkg/fleet/installer/catalog",
+        "//pkg/privateactionrunner/bundle-support/authoredscripts",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//require",
+    ],
+)

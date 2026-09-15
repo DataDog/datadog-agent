@@ -34,13 +34,12 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	installercatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/authoredscriptcatalog"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
-	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -223,18 +222,6 @@ func newPrivateActionRunnerWithAuthoredScriptCatalogProduct(
 	}, nil
 }
 
-func (p *PrivateActionRunner) newAuthoredScriptCatalog(enabled bool) authoredscriptssupport.Catalog {
-	if !enabled || p.authoredScriptCatalogProduct == "" {
-		return authoredscriptssupport.NewStaticCatalog()
-	}
-	catalog := authoredscriptssupport.NewRemoteCatalog()
-	p.rcClient.Subscribe(
-		p.authoredScriptCatalogProduct,
-		installercatalogrc.NewUpdateHandler(catalog.Replace),
-	)
-	return catalog
-}
-
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
 	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter)
 	if err != nil {
@@ -332,7 +319,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	authoredScriptCatalog := p.newAuthoredScriptCatalog(cfg.AuthoredScriptsEnabled)
+	authoredScriptCatalog := authoredscriptcatalog.New(cfg.AuthoredScriptsEnabled, p.authoredScriptCatalogProduct, p.rcClient)
 	taskExecutor := runners.NewWorkflowTaskExecutorWithAuthoredScriptCatalog(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka, authoredScriptCatalog)
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
@@ -463,7 +450,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
-	authoredScriptCatalog := p.newAuthoredScriptCatalog(cfg.AuthoredScriptsEnabled)
+	authoredScriptCatalog := authoredscriptcatalog.New(cfg.AuthoredScriptsEnabled, p.authoredScriptCatalogProduct, p.rcClient)
 
 	p.workflowRunner, err = runners.NewWorkflowRunnerWithAuthoredScriptCatalog(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka, authoredScriptCatalog)
 	if err != nil {
