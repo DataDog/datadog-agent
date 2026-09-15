@@ -482,6 +482,32 @@ properties:
         node_type: setting
         type: string
         default: default
+  remote_config:
+    node_type: section
+    type: object
+    comment: |-
+      Network Device Monitoring configuration delivered by Remote
+      Configuration. The backend writes one document per Agent whose
+      top-level keys are NDM features.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Enable the Remote-Configuration-driven NDM component. Off by
+          default while the Remote Configuration product is still the
+          MANAGED_DEPLOYMENTS_DEBUG placeholder.
+  credentials:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: object
+    comment: |-
+      SNMP credentials pushed by Fleet Automation. Instances delivered by
+      Remote Configuration reference these entries by their id, because
+      Remote Configuration does not carry encrypted values yet.
   snmp_traps:
     node_type: section
     type: object
