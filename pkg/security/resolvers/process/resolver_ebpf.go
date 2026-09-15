@@ -1711,7 +1711,7 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	}
 
 	// skip the agent itself: attribute the key to the requester, not the broker
-	if e.IMDS.CredentialSource == model.CredentialSourceEKSPodIdentityStr && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
+	if e.IMDS.CredentialSource == uint32(model.CredentialSourceEKSPodIdentity) && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
 		return
 	}
 

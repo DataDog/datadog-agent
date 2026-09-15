@@ -1166,7 +1166,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
-	e.CredentialSource = CredentialSource(binary.NativeEndian.Uint32(data[0:4])).String()
+	e.CredentialSource = binary.NativeEndian.Uint32(data[0:4])
 
 	// the HTTP payload captured by the kernel follows the credential source
 	body := data[4:]
@@ -1249,7 +1249,7 @@ func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
 			e.CloudProvider = IMDSAWSCloudProvider
 
 			// v1/v2 only applies to the instance metadata service
-			if e.CredentialSource == CredentialSourceIMDSStr {
+			if e.CredentialSource == uint32(CredentialSourceIMDS) {
 				e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
 					len(header.Get("x-aws-ec2-metadata-token")) > 0
 			}

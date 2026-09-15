@@ -37,14 +37,13 @@ const imdsCredentialsResponse = "HTTP/1.1 200 OK\r\n" +
 
 func TestIMDSEventUnmarshalCredentialSource(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		source   CredentialSource
-		expected string
+		name   string
+		source CredentialSource
 	}{
-		{"imds", CredentialSourceIMDS, CredentialSourceIMDSStr},
-		{"eks pod identity", CredentialSourceEKSPodIdentity, CredentialSourceEKSPodIdentityStr},
-		{"ecs", CredentialSourceECS, CredentialSourceECSStr},
-		{"unknown", CredentialSourceUnknown, CredentialSourceUnknownStr},
+		{"imds", CredentialSourceIMDS},
+		{"eks pod identity", CredentialSourceEKSPodIdentity},
+		{"ecs", CredentialSourceECS},
+		{"unknown", CredentialSourceUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := &IMDSEvent{}
@@ -53,7 +52,7 @@ func TestIMDSEventUnmarshalCredentialSource(t *testing.T) {
 			read, err := e.UnmarshalBinary(data)
 			require.NoError(t, err)
 			assert.Equal(t, len(data), read, "the whole buffer should be consumed")
-			assert.Equal(t, tc.expected, e.CredentialSource)
+			assert.Equal(t, uint32(tc.source), e.CredentialSource)
 		})
 	}
 }
@@ -66,7 +65,7 @@ func TestIMDSEventUnmarshalPodIdentityResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, IMDSResponseType, e.Type)
-	assert.Equal(t, CredentialSourceEKSPodIdentityStr, e.CredentialSource)
+	assert.Equal(t, uint32(CredentialSourceEKSPodIdentity), e.CredentialSource)
 	assert.Equal(t, IMDSAWSCloudProvider, e.CloudProvider)
 	assert.Equal(t, "ASIAIOSFODNN7EXAMPLE", e.AWS.SecurityCredentials.AccessKeyID)
 	assert.Equal(t, "2324-05-01T12:00:00Z", e.AWS.SecurityCredentials.ExpirationRaw)
@@ -99,7 +98,7 @@ func TestIMDSEventUnmarshalIMDSResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, IMDSResponseType, e.Type)
-	assert.Equal(t, CredentialSourceIMDSStr, e.CredentialSource)
+	assert.Equal(t, uint32(CredentialSourceIMDS), e.CredentialSource)
 	assert.Equal(t, "EC2ws", e.Server)
 	assert.Equal(t, "ASIAIOSFODNN7EXAMPLE", e.AWS.SecurityCredentials.AccessKeyID)
 	assert.Equal(t, "Success", e.AWS.SecurityCredentials.Code)
@@ -118,7 +117,7 @@ func TestIMDSEventUnmarshalPodIdentityRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, IMDSRequestType, e.Type)
-	assert.Equal(t, CredentialSourceEKSPodIdentityStr, e.CredentialSource)
+	assert.Equal(t, uint32(CredentialSourceEKSPodIdentity), e.CredentialSource)
 	assert.Equal(t, "/v1/credentials", e.URL)
 	assert.Equal(t, "169.254.170.23", e.Host)
 	assert.Equal(t, "aws-sdk-go-v2", e.UserAgent)

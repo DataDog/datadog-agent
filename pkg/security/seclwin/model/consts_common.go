@@ -107,29 +107,9 @@ const (
 	CredentialSourceECS
 )
 
-const (
-	// CredentialSourceUnknownStr is the SECL value of CredentialSourceUnknown
-	CredentialSourceUnknownStr = ""
-	// CredentialSourceIMDSStr is the SECL value of CredentialSourceIMDS
-	CredentialSourceIMDSStr = "imds"
-	// CredentialSourceEKSPodIdentityStr is the SECL value of CredentialSourceEKSPodIdentity
-	CredentialSourceEKSPodIdentityStr = "eks_pod_identity"
-	// CredentialSourceECSStr is the SECL value of CredentialSourceECS
-	CredentialSourceECSStr = "ecs"
-)
-
 // String returns the SECL representation of the credential source
 func (cs CredentialSource) String() string {
-	switch cs {
-	case CredentialSourceIMDS:
-		return CredentialSourceIMDSStr
-	case CredentialSourceEKSPodIdentity:
-		return CredentialSourceEKSPodIdentityStr
-	case CredentialSourceECS:
-		return CredentialSourceECSStr
-	default:
-		return CredentialSourceUnknownStr
-	}
+	return credentialSourceStrings[cs]
 }
 
 // EventSource is the source of the event
@@ -430,6 +410,14 @@ var (
 		"EGRESS":  Egress,
 	}
 
+	// CredentialSourceConstants is the list of supported credential sources
+	// generate_constants:Credential sources,Credential sources are the endpoints that can serve cloud credentials.
+	CredentialSourceConstants = map[string]CredentialSource{
+		"IMDS":             CredentialSourceIMDS,
+		"EKS_POD_IDENTITY": CredentialSourceEKSPodIdentity,
+		"ECS":              CredentialSourceECS,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
 	exitCauseConstants = map[string]sharedconsts.ExitCause{
 		"EXITED":     sharedconsts.ExitExited,
@@ -523,6 +511,7 @@ var (
 	l3ProtocolStrings          = map[L3Protocol]string{}
 	l4ProtocolStrings          = map[L4Protocol]string{}
 	networkDirectionStrings    = map[NetworkDirection]string{}
+	credentialSourceStrings    = map[CredentialSource]string{}
 	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
 	addressFamilyStrings       = map[uint16]string{}
 	tlsVersionStrings          = map[uint16]string{}
@@ -620,6 +609,13 @@ func initNetworkDirectionContants() {
 	for k, v := range NetworkDirectionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		networkDirectionStrings[v] = k
+	}
+}
+
+func initCredentialSourceConstants() {
+	for k, v := range CredentialSourceConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		credentialSourceStrings[v] = k
 	}
 }
 
@@ -725,6 +721,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
+	initCredentialSourceConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()

@@ -763,11 +763,11 @@ func TestEKSPodIdentityResponse(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_eks_pod_identity_request",
-			Expression: fmt.Sprintf(`imds.credential_source == "eks_pod_identity" && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`imds.credential_source == EKS_POD_IDENTITY && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
 		},
 		{
 			ID:         "test_rule_eks_pod_identity_response",
-			Expression: fmt.Sprintf(`imds.credential_source == "eks_pod_identity" && imds.type == "response" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
+			Expression: fmt.Sprintf(`imds.credential_source == EKS_POD_IDENTITY && imds.type == "response" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
 		},
 	}
 
@@ -818,7 +818,7 @@ func TestEKSPodIdentityResponse(t *testing.T) {
 		test.WaitSignalFromRule(t, queryPodIdentity, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_eks_pod_identity_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong event type")
-			assert.Equal(t, model.CredentialSourceEKSPodIdentityStr, event.IMDS.CredentialSource, "wrong credential source")
+			assert.Equal(t, uint32(model.CredentialSourceEKSPodIdentity), event.IMDS.CredentialSource, "wrong credential source")
 			assert.Equal(t, podIdentityAddr, event.IMDS.Host, "wrong Host")
 			assert.Equal(t, testutils.EKSPodIdentityCredentialsURL, event.IMDS.URL, "wrong URL")
 			// the Pod Identity Agent has no v1/v2 notion
@@ -832,7 +832,7 @@ func TestEKSPodIdentityResponse(t *testing.T) {
 		test.WaitSignalFromRule(t, queryPodIdentity, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_eks_pod_identity_response")
 			assert.Equal(t, "response", event.IMDS.Type, "wrong event type")
-			assert.Equal(t, model.CredentialSourceEKSPodIdentityStr, event.IMDS.CredentialSource, "wrong credential source")
+			assert.Equal(t, uint32(model.CredentialSourceEKSPodIdentity), event.IMDS.CredentialSource, "wrong credential source")
 			// the endpoint sends no identifying header, so it is resolved as AWS
 			assert.Equal(t, model.IMDSAWSCloudProvider, event.IMDS.CloudProvider, "wrong cloud provider")
 			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong AccessKeyID")

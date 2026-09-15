@@ -1588,7 +1588,7 @@ func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
 	agent.ProcessCacheEntry.FileEvent.SetPathnameStr("/eks-pod-identity-agent")
 	resolver.AddForkEntry(agent, model.CGroupContext{}, nil)
 
-	agent.IMDS.CredentialSource = model.CredentialSourceEKSPodIdentityStr
+	agent.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
 	agent.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1611,7 +1611,7 @@ func TestAWSSecurityCredentialsPodIdentityRequester(t *testing.T) {
 	proc.ProcessCacheEntry.FileEvent.SetPathnameStr("/usr/bin/my-app")
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
-	proc.IMDS.CredentialSource = model.CredentialSourceEKSPodIdentityStr
+	proc.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),

@@ -457,7 +457,7 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 		Host:             e.Host,
 		UserAgent:        e.UserAgent,
 		Server:           e.Server,
-		CredentialSource: e.CredentialSource,
+		CredentialSource: model.CredentialSource(e.CredentialSource).String(),
 		AWS:              aws,
 	}
 }
