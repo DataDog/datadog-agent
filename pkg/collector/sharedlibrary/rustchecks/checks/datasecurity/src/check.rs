@@ -1,11 +1,11 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use shlib_core::*;
 
 use crate::backend;
 use crate::config::{CheckConfig, SubTask};
 use crate::constants::SDS_RESULT_EVENT_TYPE;
 use crate::proto::{self, Status as ScanStatus};
-use crate::result::{ScanOutcome, build_sds_result};
+use crate::result::{build_sds_result, ScanOutcome};
 use crate::scanning::Scanner;
 
 /// Check entrypoint.
@@ -92,29 +92,27 @@ fn run_sub_task(
 /// Fetches the sub task's data and scans it, returning the matches and the
 /// scanned-table statistics.
 fn run_scan(scanner: &Scanner, sub_task: &SubTask) -> Result<ScanOutcome> {
-    let data = backend::fetch_data(sub_task).context("fetching sub task data")?;
-    let matches = scanner
-        .scan(data.columns)
-        .context("scanning sub task data")?;
+    let mut data = backend::fetch_data(sub_task).context("fetching sub task data")?;
+    let scanned_row_count = data.rows.len() as i64;
+    let matches = scanner.scan(&mut data).context("scanning sub task data")?;
     Ok(ScanOutcome {
         matches,
         scanned_columns: data.scanned_columns,
-        scanned_row_count: data.scanned_row_count,
+        scanned_row_count,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use prost::Message;
-    use serde_json::json;
     use shlib_core::stubs::AggregatorStub;
 
-    use crate::backend::{ScanData, ScannedColumn, mock};
+    use crate::backend::{mock, ScanData, ScannedColumn};
     use crate::constants::SDS_RESULT_EVENT_TYPE;
     use crate::proto::{
-        PostgresScannedColumn, PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult,
-        ScanTaskMetadata, ScanningSource, SdsResultPayload, Status, TableMatch, scan_location,
-        scanning_source,
+        scan_location, scanning_source, PostgresScannedColumn, PostgresTable, Resource,
+        ScanLocation, ScanMetadata, ScanResult, ScanTaskMetadata, ScanningSource, SdsResultPayload,
+        Status, TableMatch,
     };
 
     use super::check;
@@ -145,10 +143,6 @@ scan_data:
         // The mock engine returns this in place of a real query: two scanned
         // columns, `email` (which matches) and `name` (which does not).
         mock::set_data(ScanData {
-            columns: json!({
-                "email": ["alice@corp.io", "bob@corp.io hatem@corp.io"],
-                "name": ["alice", "bob"],
-            }),
             scanned_columns: vec![
                 ScannedColumn {
                     name: "email".to_string(),
@@ -159,7 +153,13 @@ scan_data:
                     data_type: "varchar".to_string(),
                 },
             ],
-            scanned_row_count: 2,
+            rows: vec![
+                vec![Some("alice@corp.io".to_string()), Some("alice".to_string())],
+                vec![
+                    Some("bob@corp.io hatem@corp.io".to_string()),
+                    Some("bob".to_string()),
+                ],
+            ],
         });
 
         let aggregator = AggregatorStub::new();
