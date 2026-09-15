@@ -102,7 +102,7 @@ func collect(sess session.Session, cfg config) Result {
 	if err != nil {
 		return errorResult(start, err)
 	}
-	if len(entries) > 0 {
+	if entries != nil {
 		return successResult(start, SourceQBridge, entries)
 	}
 
@@ -154,7 +154,7 @@ func collectTable(sess session.Session, cfg config, deadline time.Time, portMap 
 		return nil, reason, err
 	}
 
-	var entries []metadata.FDBEntryMetadata
+	entries := make([]metadata.FDBEntryMetadata, 0, len(ports.values))
 	for index, portVal := range ports.values {
 		if !learnedStatus(statuses, index) {
 			continue

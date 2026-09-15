@@ -182,6 +182,37 @@ func TestCollectPortMapTruncationDiscardsRows(t *testing.T) {
 	assert.Empty(t, result.Entries)
 }
 
+func TestCollectPopulatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
+	sess := session.CreateFakeSession()
+	// Q-BRIDGE rows exist but their bridge ports are unmapped.
+	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
+	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3)
+	// BRIDGE-MIB would succeed if fallback ran.
+	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
+	sess.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
+	sess.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
+
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceQBridge, result.Source)
+	assert.Empty(t, result.Entries)
+}
+
+func TestWalkRejectedRowsCountTowardLimit(t *testing.T) {
+	prefix := oidDot1qTpFdbPort
+	res := walkColumn(&fixedBulkSession{
+		version: gosnmp.Version2c,
+		packet: &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{
+			{Name: prefix + ".1.1", Type: gosnmp.Null, Value: nil},
+			{Name: prefix + ".1.2", Type: gosnmp.Null, Value: nil},
+			{Name: prefix + ".1.3", Type: gosnmp.Integer, Value: 1},
+		}},
+	}, prefix, 10, 2, time.Time{})
+	assert.Equal(t, reasonMaxEntries, res.reason)
+	assert.ErrorIs(t, res.err, errWalkMaxEntries)
+	assert.Empty(t, res.values)
+}
+
 func TestCollectEmptySuccess(t *testing.T) {
 	sess := session.CreateFakeSession()
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})

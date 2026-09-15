@@ -46,7 +46,7 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			return walkResult{values: values, reason: reasonMaxDuration, err: errWalkMaxDuration}
 		}
 
-		packet, err := nextPacket(sess, curOID, bulkMaxRepetitions, useGetNext, maxRows-len(values))
+		packet, err := nextPacket(sess, curOID, bulkMaxRepetitions, useGetNext, maxRows-len(seen))
 		if err != nil {
 			return walkResult{values: values, err: err}
 		}
@@ -77,16 +77,16 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			}
 			seen[oid] = struct{}{}
 			inTableNew++
+			lastOID = oid
+			if len(seen) > maxRows {
+				return walkResult{values: values, reason: reasonMaxEntries, err: errWalkMaxEntries}
+			}
 			_, value, err := valuestore.GetResultValueFromPDU(pdu)
 			if err != nil {
 				continue
 			}
 			index := oid[len(prefix):]
 			values[index] = value
-			lastOID = oid
-			if len(values) > maxRows {
-				return walkResult{values: values, reason: reasonMaxEntries, err: errWalkMaxEntries}
-			}
 		}
 		if inTableNew == 0 {
 			if inTableRepeat > 0 && !leftSubtree {

@@ -65,6 +65,7 @@ func TestCollectArubaPrefersQBridgeAndFiltersSelf(t *testing.T) {
 func TestCollectIfotecWithoutPortMapDropsEntries(t *testing.T) {
 	result := collectFixture(t, "ifotec.snmprec")
 	require.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceQBridge, result.Source)
 	assert.Empty(t, result.Entries)
 }
 
