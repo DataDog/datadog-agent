@@ -493,13 +493,13 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
-	k8s.io/api v0.35.5
+	k8s.io/api v0.36.3
 	k8s.io/apiextensions-apiserver v0.35.5
-	k8s.io/apimachinery v0.35.6
-	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
+	k8s.io/apimachinery v0.36.3
+	k8s.io/autoscaler/vertical-pod-autoscaler v1.7.1
 	k8s.io/cli-runtime v0.35.5
-	k8s.io/client-go v0.35.5
-	k8s.io/component-base v0.35.5
+	k8s.io/client-go v0.36.3
+	k8s.io/component-base v0.36.3
 	k8s.io/cri-api v0.35.5
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
@@ -507,7 +507,7 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.18.0
 	k8s.io/kubectl v0.35.5
 	k8s.io/kubelet v0.35.5
-	k8s.io/metrics v0.35.5
+	k8s.io/metrics v0.36.3
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	mvdan.cc/sh/v3 v3.14.1
 	pgregory.net/rapid v1.3.0
@@ -1164,6 +1164,7 @@ require (
 	k8s.io/kms v0.35.5 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.53.0 // indirect
