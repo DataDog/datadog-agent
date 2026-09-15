@@ -4929,9 +4929,19 @@
           "property_doc_link": "mount-fs_type-doc"
         },
         {
+          "name": "mount.mount_id",
+          "definition": "Mount ID of the mount",
+          "property_doc_link": "mount-mount_id-doc"
+        },
+        {
           "name": "mount.mountpoint.path",
           "definition": "Path of the mount point",
           "property_doc_link": "mount-mountpoint-path-doc"
+        },
+        {
+          "name": "mount.origin",
+          "definition": "How this mount was created",
+          "property_doc_link": "mount-origin-doc"
         },
         {
           "name": "mount.retval",
@@ -16444,6 +16454,18 @@
       "examples": []
     },
     {
+      "name": "mount.mount_id",
+      "link": "mount-mount_id-doc",
+      "type": "int",
+      "definition": "Mount ID of the mount",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.mountpoint.path",
       "link": "mount-mountpoint-path-doc",
       "type": "string",
@@ -16454,6 +16476,23 @@
       "constants": "",
       "constants_link": "",
       "examples": []
+    },
+    {
+      "name": "mount.origin",
+      "link": "mount-origin-doc",
+      "type": "int",
+      "definition": "How this mount was created",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "Mount origins",
+      "constants_link": "mount-origins",
+      "examples": [
+        {
+          "expression": "mount.origin == MOUNT_ORIGIN_PIVOT_ROOT",
+          "description": "Matches a mount created by pivot_root"
+        }
+      ]
     },
     {
       "name": "mount.root.path",
@@ -20780,6 +20819,49 @@
         {
           "name": "MAP_32BIT",
           "architecture": "amd64"
+        }
+      ]
+    },
+    {
+      "name": "Mount origins",
+      "link": "mount-origins",
+      "description": "Mount origins describe how a mount was created.",
+      "all": [
+        {
+          "name": "MOUNT_ORIGIN_UNKNOWN",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_PROCFS",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_EVENT",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_UNSHARE",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_FSMOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_OPEN_TREE",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_LISTMOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_MOVE_MOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "MOUNT_ORIGIN_PIVOT_ROOT",
+          "architecture": "all"
         }
       ]
     },
