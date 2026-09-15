@@ -146,7 +146,9 @@ func TestTransportTagsPayload_DdtagsFiltered(t *testing.T) {
 	assert.NotContains(t, payload, "drop:me")
 }
 
-func TestTransportTagsPayload_NilFilterMatchesTagsPayload(t *testing.T) {
+// An inert filter must be byte-transparent: TagsPayload delegates here with a
+// nil filter, so only a non-nil one exercises Keep and Retains.
+func TestTransportTagsPayload_InertFilterMatchesTagsPayload(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
@@ -157,5 +159,10 @@ func TestTransportTagsPayload_NilFilterMatchesTagsPayload(t *testing.T) {
 	origin.SetTags([]string{"foo:bar", "baz"})
 
 	processingTags := []string{"processing:tag"}
-	assert.Equal(t, origin.TagsPayload(processingTags), origin.TransportTagsPayload(nil, processingTags))
+	inert := &fakeTagFilter{}
+
+	assert.Equal(t,
+		"[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz,processing:tag\"]",
+		string(origin.TransportTagsPayload(inert, processingTags)))
+	assert.Equal(t, origin.TagsPayload(processingTags), origin.TransportTagsPayload(inert, processingTags))
 }
