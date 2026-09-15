@@ -1,7 +1,7 @@
 ---
 name: follow-pr
 description: >-
-  Monitor the current PR's GitLab pipeline to completion, then report success or investigate a failure.
+  Monitor the current PR's GitLab pipeline to completion, then report success, auto-fix, or investigate a failure.
   Use when the user asks to follow, babysit, watch, or wait on a PR/pipeline, or just after pushing to / creating a PR.
 argument-hint: "[<ref> | --pipeline <id>] [--fix-mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
 model: sonnet
