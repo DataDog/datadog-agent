@@ -306,25 +306,6 @@ func TestRelationFilterChunksAtOracleLimit(t *testing.T) {
 	assert.Contains(t, filters[1], "T1000")
 }
 
-func TestCapMetadataRowsAcrossOwnerBatches(t *testing.T) {
-	rows := []schemaRowDB{
-		{ConID: 3, Owner: "A", TableName: "T1", ColumnName: "C1", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-		{ConID: 3, Owner: "A", TableName: "T1", ColumnName: "C2", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-		{ConID: 3, Owner: "B", TableName: "T2", ColumnName: "C1", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-		{ConID: 3, Owner: "C", TableName: "T3", ColumnName: "C1", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-		{ConID: 4, Owner: "D", TableName: "T4", ColumnName: "C1", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-		{ConID: 4, Owner: "E", TableName: "T5", ColumnName: "C1", TotalTables: sql.NullInt64{Int64: 1, Valid: true}},
-	}
-
-	capped, truncated := capMetadataRows(rows, 2)
-	require.Len(t, capped, 5)
-	assert.Equal(t, []string{"T1", "T1", "T2", "T4", "T5"}, []string{
-		capped[0].TableName, capped[1].TableName, capped[2].TableName, capped[3].TableName, capped[4].TableName,
-	})
-	assert.Contains(t, truncated, int64(3))
-	assert.NotContains(t, truncated, int64(4))
-}
-
 func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -349,8 +330,11 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 		ownerRows.AddRow(3, fmt.Sprintf("APP%04d", i), 1000+i)
 	}
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(ownerRows)
-	dbMock.ExpectQuery("APP0999").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 1))
-	dbMock.ExpectQuery("APP1000").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP1000", "T2", 1))
+	dbMock.ExpectQuery("APP0999").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP0000", "T1"))
+	dbMock.ExpectQuery("APP1000").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP1000", "T2"))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 0))
 
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet())
@@ -422,6 +406,8 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP", "ORDERS"))
 
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
@@ -503,6 +489,8 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP", "ORDERS"))
 
 	// A NULL TABLE_NAME forces StructScan to fail.
 	mainRows := sqlmock.NewRows([]string{
@@ -702,30 +690,135 @@ func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 	assert.Equal(t, "APP0999", strings.Trim(strings.Split(chunks[0], ", ")[len(strings.Split(chunks[0], ", "))-1], "'"))
 }
 
-func TestFetchMetadataRowsDropsRowsNotInOwners(t *testing.T) {
+func TestTableIdentitiesKeepsMaxPlusOnePerContainer(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
 
-	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(
-		sqlmock.NewRows([]string{
-			"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-			"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
-			"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
-			"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
-			"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
-			"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
-		}).
-			AddRow(3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", 1,
-				"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil).
-			AddRow(3, "GHOST", "PHANTOM", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", 1,
-				"COL", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil))
+	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).
+		AddRow(3, "APP", "A").
+		AddRow(3, "APP", "B").
+		AddRow(3, "APP", "C"))
+	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).
+		AddRow(4, "APP", "A").
+		AddRow(4, "APP", "B"))
 
-	owners := map[ownerKey]string{{conID: 3, owner: "APP"}: "104"}
-	rows, err := c.fetchMetadataRows(context.Background(), schemasQueryTemplate, []string{"'APP'"}, owners, nil)
+	owners := map[ownerKey]string{
+		{conID: 3, owner: "APP"}: "1",
+		{conID: 4, owner: "APP"}: "1",
+	}
+	keys, truncated, err := c.tableIdentities(context.Background(), []string{"'APP'"}, owners, "", 2)
 	require.NoError(t, err)
+	require.Len(t, keys, 4)
+	assert.Equal(t, []tableKey{
+		{conID: 3, owner: "APP", table: "A"},
+		{conID: 3, owner: "APP", table: "B"},
+		{conID: 4, owner: "APP", table: "A"},
+		{conID: 4, owner: "APP", table: "B"},
+	}, keys)
+	assert.Contains(t, truncated, int64(3))
+	assert.NotContains(t, truncated, int64(4))
+}
 
-	require.Len(t, rows, 1, "the row for an owner absent from the owners map must be dropped")
-	assert.Equal(t, "ORDERS", rows[0].TableName)
+func TestTableIdentityQueryUsesOracle12CompatibleLimit(t *testing.T) {
+	assert.Contains(t, tableIdentitiesQueryTemplate, "ROWNUM <= /*IDENTITY_LIMIT*/")
+	assert.NotContains(t, tableIdentitiesQueryTemplate, "FETCH FIRST")
+	assert.NotContains(t, tableIdentitiesQueryTemplate, "OFFSET")
+}
+
+func TestObjectTablesAreExcludedFromOrdinaryTableBranches(t *testing.T) {
+	assert.Contains(t, tableIdentitiesQueryTemplate, "NOT EXISTS (\n\t\t\t\tSELECT 1 FROM cdb_object_tables")
+	assert.Contains(t, schemasQueryTemplate, "NOT EXISTS (\n\t\tSELECT 1 FROM cdb_object_tables")
+}
+
+func TestOwnerListForKeysIsDistinctAndSorted(t *testing.T) {
+	keys := []tableKey{
+		{conID: 3, owner: "REPORTING", table: "R"},
+		{conID: 3, owner: "APP", table: "B"},
+		{conID: 3, owner: "APP", table: "A"},
+	}
+	assert.Equal(t, "'APP', 'REPORTING'", ownerListForKeys(keys))
+}
+
+func TestForEachTablePageBoundsPageSize(t *testing.T) {
+	keys := make([]tableKey, schemaRelationPageSize*2+1)
+	var pageSizes []int
+	err := forEachTablePage(keys, func(page []tableKey) error {
+		pageSizes = append(pageSizes, len(page))
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int{schemaRelationPageSize, schemaRelationPageSize, 1}, pageSizes)
+}
+
+func TestHydrateTablePageFailsWhenSelectedTableDisappears(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(emptyTablesRows())
+	err := c.hydrateTablePage(context.Background(), []tableKey{{conID: 3, owner: "APP", table: "ORDERS"}}, 50, func(schemaRowDB) {})
+	require.ErrorContains(t, err, "selected table 3.APP.ORDERS disappeared before hydration")
+}
+
+func TestSchemaCollectorKeepsTableWithNoEligibleColumns(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	var events []schemaEvent
+	collector := newSchemaCollector(&c, func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	}, nil, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableWithoutColumns(emptyTablesRows(), 3, "APP", "EMPTY"))
+	require.NoError(t, c.hydrateTablePage(context.Background(), []tableKey{{conID: 3, owner: "APP", table: "EMPTY"}}, 50, collector.add))
+	collector.finish()
+
+	require.Len(t, events, 1)
+	table := events[0].Metadata[0].Schemas[0].Tables[0]
+	assert.Equal(t, "EMPTY", table.Name)
+	assert.Empty(t, table.Columns)
+}
+
+func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.0.0.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.MaxTables = schemaRelationPageSize + 1
+	c.config.Schemas.MaxColumns = 50
+	collectViews := false
+	c.config.Schemas.CollectViews = &collectViews
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 1))
+	identityRows := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"})
+	firstPageRows := emptyTablesRows()
+	for i := 0; i <= schemaRelationPageSize; i++ {
+		name := fmt.Sprintf("T%03d", i)
+		identityRows.AddRow(3, "APP", name)
+		if i < schemaRelationPageSize {
+			addTableRow(firstPageRows, 3, "APP", name, 0)
+		}
+	}
+	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(identityRows)
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(firstPageRows)
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnError(errors.New("second page failed"))
+
+	require.ErrorContains(t, c.SchemaCollection(), "second page failed")
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	call := sender.Calls[0]
+	var event schemaEvent
+	require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+	assert.Len(t, event.Metadata[0].Schemas[0].Tables, schemaRelationPageSize)
 }
 
 func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
@@ -766,14 +859,8 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	expectedFilter := regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
 	require.Contains(t, expectedFilter, "REGEXP_LIKE")
 
-	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows([]string{
-		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
-		"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
-		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
-		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
-		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
-	}))
+	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}))
 
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
@@ -782,7 +869,14 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string, totalTables int) *sqlmock.Rows {
 	return rows.AddRow(
 		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", totalTables,
-		"C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "Y", nil,
+		1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "Y", nil,
+	)
+}
+
+func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string) *sqlmock.Rows {
+	return rows.AddRow(
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", nil,
+		0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil,
 	)
 }
 
@@ -791,7 +885,7 @@ func emptyTablesRows() *sqlmock.Rows {
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
-		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
+		"COLUMN_PRESENT", "COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	})

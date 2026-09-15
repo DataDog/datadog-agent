@@ -33,38 +33,42 @@ const objectIDsQuery = `SELECT con_id, owner, object_name, object_id FROM cdb_ob
 WHERE object_type = 'TABLE' AND /*RELATIONS*/`
 
 // CDB_* scans must be owner-scoped; unfiltered scans can consume tens of millions of buffer gets.
-// Object tables exist only in cdb_object_tables, while their columns remain in cdb_tab_cols;
+// Object table metadata comes from cdb_object_tables, while its columns remain in cdb_tab_cols;
 // cdb_object_tables also lacks CLUSTERING and READ_ONLY.
 //
-// Limits are applied before joining columns so a table is never split. Window totals are selected
-// before the limits so payloads can report truncation without another query.
-const schemasQueryTemplate = `WITH ranked_tables AS (
-	SELECT con_id, owner, table_name, is_object,
-		ROW_NUMBER() OVER (PARTITION BY con_id ORDER BY owner, table_name) AS rn,
-		COUNT(*) OVER (PARTITION BY con_id) AS total_tables
-	FROM (
-		SELECT t.con_id, t.owner, t.table_name, 'N' AS is_object
+// Relation identities are selected before columns so a table is never split.
+const tableIdentitiesQueryTemplate = `SELECT con_id, owner, table_name FROM (
+	SELECT con_id, owner, table_name FROM (
+		SELECT t.con_id, t.owner, t.table_name
 		FROM cdb_tables t
-		WHERE t.nested = 'NO'
+		WHERE t.con_id = /*CON_ID*/
+			AND t.nested = 'NO'
 			AND t.secondary = 'N'
 			AND NVL(t.dropped, 'NO') = 'NO'
 			AND (t.iot_type IS NULL OR t.iot_type = 'IOT')
 			AND t.table_name NOT LIKE 'BIN$%'
 			AND t.owner IN (/*OWNERS*/)
+			AND NOT EXISTS (
+				SELECT 1 FROM cdb_object_tables ot
+				WHERE ot.con_id = t.con_id AND ot.owner = t.owner AND ot.table_name = t.table_name
+			)
 			/*TABLE_FILTERS*/
 		UNION ALL
-		SELECT t.con_id, t.owner, t.table_name, 'Y' AS is_object
+		SELECT t.con_id, t.owner, t.table_name
 		FROM cdb_object_tables t
-		WHERE t.nested = 'NO'
+		WHERE t.con_id = /*CON_ID*/
+			AND t.nested = 'NO'
 			AND t.secondary = 'N'
 			AND NVL(t.dropped, 'NO') = 'NO'
 			AND (t.iot_type IS NULL OR t.iot_type = 'IOT')
 			AND t.table_name NOT LIKE 'BIN$%'
 			AND t.owner IN (/*OWNERS*/)
 			/*TABLE_FILTERS*/
+		ORDER BY owner, table_name
 	)
-),
-ranked_columns AS (
+) WHERE ROWNUM <= /*IDENTITY_LIMIT*/`
+
+const schemasQueryTemplate = `WITH ranked_columns AS (
 	SELECT c.con_id, c.owner, c.table_name, c.column_name, c.column_id, c.internal_column_id,
 		c.virtual_column, c.hidden_column, c.data_type, c.data_type_owner, c.data_type_mod,
 		c.data_length, c.char_length, c.data_precision, c.data_scale, c.char_used, c.nullable,
@@ -73,6 +77,7 @@ ranked_columns AS (
 		COUNT(*) OVER (PARTITION BY c.con_id, c.owner, c.table_name) AS total_columns
 	FROM cdb_tab_cols c
 	WHERE c.owner IN (/*OWNERS*/)
+		AND /*COLUMN_RELATIONS*/
 		AND NOT (c.hidden_column = 'YES' AND c.user_generated = 'NO')
 )
 SELECT
@@ -91,12 +96,13 @@ SELECT
 	t.last_analyzed,
 	'-' AS object_type_owner,
 	'-' AS object_type,
-	rt.total_tables,
-	c.column_name,
+	CAST(NULL AS NUMBER) AS total_tables,
+	CASE WHEN c.column_name IS NULL THEN 0 ELSE 1 END AS column_present,
+	NVL(c.column_name, '-') AS column_name,
 	c.column_id,
 	c.internal_column_id,
-	c.virtual_column,
-	c.hidden_column,
+	NVL(c.virtual_column, '-') AS virtual_column,
+	NVL(c.hidden_column, '-') AS hidden_column,
 	c.data_type,
 	c.data_type_owner,
 	c.data_type_mod,
@@ -105,15 +111,18 @@ SELECT
 	c.data_precision,
 	c.data_scale,
 	NVL(c.char_used, '-') AS char_used,
-	c.nullable,
+	NVL(c.nullable, '-') AS nullable,
 	c.data_default_vc,
 	c.total_columns
 FROM cdb_tables t
-JOIN ranked_tables rt
-	ON rt.con_id = t.con_id AND rt.owner = t.owner AND rt.table_name = t.table_name AND rt.is_object = 'N'
-JOIN ranked_columns c
+LEFT JOIN ranked_columns c
 	ON c.con_id = t.con_id AND c.owner = t.owner AND c.table_name = t.table_name
-WHERE rt.rn <= /*MAX_TABLES*/ AND c.col_rn <= /*MAX_COLUMNS*/
+WHERE /*RELATIONS*/
+	AND NOT EXISTS (
+		SELECT 1 FROM cdb_object_tables ot
+		WHERE ot.con_id = t.con_id AND ot.owner = t.owner AND ot.table_name = t.table_name
+	)
+	AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
 UNION ALL
 SELECT
 	t.con_id,
@@ -131,12 +140,13 @@ SELECT
 	t.last_analyzed,
 	NVL(t.table_type_owner, '-') AS object_type_owner,
 	NVL(t.table_type, '-') AS object_type,
-	rt.total_tables,
-	c.column_name,
+	CAST(NULL AS NUMBER) AS total_tables,
+	CASE WHEN c.column_name IS NULL THEN 0 ELSE 1 END AS column_present,
+	NVL(c.column_name, '-') AS column_name,
 	c.column_id,
 	c.internal_column_id,
-	c.virtual_column,
-	c.hidden_column,
+	NVL(c.virtual_column, '-') AS virtual_column,
+	NVL(c.hidden_column, '-') AS hidden_column,
 	c.data_type,
 	c.data_type_owner,
 	c.data_type_mod,
@@ -145,15 +155,13 @@ SELECT
 	c.data_precision,
 	c.data_scale,
 	NVL(c.char_used, '-') AS char_used,
-	c.nullable,
+	NVL(c.nullable, '-') AS nullable,
 	c.data_default_vc,
 	c.total_columns
 FROM cdb_object_tables t
-JOIN ranked_tables rt
-	ON rt.con_id = t.con_id AND rt.owner = t.owner AND rt.table_name = t.table_name AND rt.is_object = 'Y'
-JOIN ranked_columns c
+LEFT JOIN ranked_columns c
 	ON c.con_id = t.con_id AND c.owner = t.owner AND c.table_name = t.table_name
-WHERE rt.rn <= /*MAX_TABLES*/ AND c.col_rn <= /*MAX_COLUMNS*/
+WHERE /*RELATIONS*/ AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
 ORDER BY con_id, owner, table_name, internal_column_id`
 
 // These 21c+ views are optional and separately granted.
@@ -294,6 +302,7 @@ FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 const (
 	maxSchemaOwners            = 1000
 	maxSchemaRelationsPerQuery = 1000
+	schemaRelationPageSize     = 100
 )
 
 const (
@@ -388,6 +397,7 @@ type schemaRowDB struct {
 	ObjectType       string         `db:"OBJECT_TYPE"`
 	TotalTables      sql.NullInt64  `db:"TOTAL_TABLES"`
 	TotalColumns     sql.NullInt64  `db:"TOTAL_COLUMNS"`
+	ColumnPresent    sql.NullInt64  `db:"COLUMN_PRESENT"`
 	ColumnName       string         `db:"COLUMN_NAME"`
 	InternalColumnID sql.NullInt64  `db:"INTERNAL_COLUMN_ID"`
 	DataType         sql.NullString `db:"DATA_TYPE"`
@@ -729,13 +739,16 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		}
 	}
 
-	s.currentTable.Columns = append(s.currentTable.Columns, schemaColumn{
-		Name:      r.ColumnName,
-		DataType:  dataType(r),
-		Nullable:  r.Nullable == "Y",
-		Virtual:   r.VirtualColumn == "YES",
-		Invisible: r.HiddenColumn == "YES",
-	})
+	columnPresent := (r.ColumnPresent.Valid && r.ColumnPresent.Int64 == 1) || (!r.ColumnPresent.Valid && r.ColumnName != "")
+	if columnPresent {
+		s.currentTable.Columns = append(s.currentTable.Columns, schemaColumn{
+			Name:      r.ColumnName,
+			DataType:  dataType(r),
+			Nullable:  r.Nullable == "Y",
+			Virtual:   r.VirtualColumn == "YES",
+			Invisible: r.HiddenColumn == "YES",
+		})
+	}
 }
 
 func (s *schemaCollector) finish() {
@@ -1049,62 +1062,136 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	return names
 }
 
-func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLists []string, owners map[ownerKey]string, extra map[string]string) ([]schemaRowDB, error) {
-	var all []schemaRowDB
-	for _, ownerList := range ownerLists {
-		query := strings.ReplaceAll(template, "/*OWNERS*/", ownerList)
-		for placeholder, value := range extra {
-			query = strings.ReplaceAll(query, placeholder, value)
-		}
+func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners map[ownerKey]string, tableFilters string, maxTables int) ([]tableKey, map[int64]struct{}, error) {
+	byContainer := make(map[int64][]tableKey)
+	seen := make(map[tableKey]struct{})
+	containerSet := make(map[int64]struct{})
+	for key := range owners {
+		containerSet[key.conID] = struct{}{}
+	}
+	containerIDs := make([]int64, 0, len(containerSet))
+	for conID := range containerSet {
+		containerIDs = append(containerIDs, conID)
+	}
+	sort.Slice(containerIDs, func(i, j int) bool { return containerIDs[i] < containerIDs[j] })
 
-		err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
-			var r schemaRowDB
-			if err := rows.StructScan(&r); err != nil {
-				return err
+	for _, conID := range containerIDs {
+		for _, ownerList := range ownerLists {
+			remaining := maxTables + 1 - len(byContainer[conID])
+			if remaining == 0 {
+				break
 			}
-			if _, ok := owners[ownerKey{conID: r.ConID, owner: r.Owner}]; ok {
-				all = append(all, r)
+			query := strings.ReplaceAll(tableIdentitiesQueryTemplate, "/*OWNERS*/", ownerList)
+			query = strings.ReplaceAll(query, "/*TABLE_FILTERS*/", tableFilters)
+			query = strings.ReplaceAll(query, "/*CON_ID*/", strconv.FormatInt(conID, 10))
+			query = strings.ReplaceAll(query, "/*IDENTITY_LIMIT*/", strconv.Itoa(remaining))
+			err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+				var (
+					rowConID int64
+					owner    string
+					table    string
+				)
+				if err := rows.Scan(&rowConID, &owner, &table); err != nil {
+					return err
+				}
+				if _, ok := owners[ownerKey{conID: rowConID, owner: owner}]; !ok {
+					return nil
+				}
+				key := tableKey{conID: rowConID, owner: owner, table: table}
+				if _, ok := seen[key]; ok {
+					return nil
+				}
+				seen[key] = struct{}{}
+				byContainer[rowConID] = append(byContainer[rowConID], key)
+				return nil
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
 		}
 	}
-	return all, nil
+
+	truncated := make(map[int64]struct{})
+	var keys []tableKey
+	for conID, containerKeys := range byContainer {
+		if len(containerKeys) > maxTables {
+			truncated[conID] = struct{}{}
+			containerKeys = containerKeys[:maxTables]
+		}
+		keys = append(keys, containerKeys...)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		return keys[i].table < keys[j].table
+	})
+	return keys, truncated, nil
 }
 
-func capMetadataRows(rows []schemaRowDB, maxRelations int) ([]schemaRowDB, map[int64]struct{}) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].ConID != rows[j].ConID {
-			return rows[i].ConID < rows[j].ConID
-		}
-		if rows[i].Owner != rows[j].Owner {
-			return rows[i].Owner < rows[j].Owner
-		}
-		return rows[i].TableName < rows[j].TableName
-	})
-
-	selected := make(map[tableKey]struct{})
-	counts := make(map[int64]int)
-	truncated := make(map[int64]struct{})
-	capped := make([]schemaRowDB, 0, len(rows))
-	for _, row := range rows {
-		if row.TotalTables.Valid && row.TotalTables.Int64 > int64(maxRelations) {
-			truncated[row.ConID] = struct{}{}
-		}
-		key := tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}
-		if _, ok := selected[key]; !ok {
-			if counts[row.ConID] >= maxRelations {
-				truncated[row.ConID] = struct{}{}
-				continue
-			}
-			selected[key] = struct{}{}
-			counts[row.ConID]++
-		}
-		capped = append(capped, row)
+func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumns int, add func(schemaRowDB)) error {
+	allowed := make(map[tableKey]struct{}, len(keys))
+	hydrated := make(map[tableKey]struct{}, len(keys))
+	for _, key := range keys {
+		allowed[key] = struct{}{}
 	}
-	return capped, truncated
+	filters := relationFilterChunks(allowed, relationColumnNames{conID: "t.con_id", owner: "t.owner", relation: "t.table_name"})
+	columnFilters := relationFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"})
+	for i, filter := range filters {
+		query := strings.ReplaceAll(schemasQueryTemplate, "/*OWNERS*/", ownerListForKeys(keys))
+		query = strings.ReplaceAll(query, "/*RELATIONS*/", filter)
+		query = strings.ReplaceAll(query, "/*COLUMN_RELATIONS*/", columnFilters[i])
+		query = strings.ReplaceAll(query, "/*MAX_COLUMNS*/", strconv.Itoa(maxColumns))
+		if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+			var row schemaRowDB
+			if err := rows.StructScan(&row); err != nil {
+				return err
+			}
+			hydrated[tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}] = struct{}{}
+			add(row)
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	for key := range allowed {
+		if _, ok := hydrated[key]; !ok {
+			return fmt.Errorf("selected table %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
+		}
+	}
+	return nil
+}
+
+func ownerListForKeys(keys []tableKey) string {
+	owners := make(map[string]struct{})
+	for _, key := range keys {
+		owners[key.owner] = struct{}{}
+	}
+	names := make([]string, 0, len(owners))
+	for owner := range owners {
+		names = append(names, owner)
+	}
+	sort.Strings(names)
+	for i := range names {
+		names[i] = "'" + escapeSQLLiteral(names[i]) + "'"
+	}
+	return strings.Join(names, ", ")
+}
+
+func forEachTablePage(keys []tableKey, process func([]tableKey) error) error {
+	for start := 0; start < len(keys); start += schemaRelationPageSize {
+		end := start + schemaRelationPageSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		if err := process(keys[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func schemaCollectionVersionSupported(version string) bool {
@@ -1138,32 +1225,34 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return nil
 	}
 
-	extra := map[string]string{
-		"/*TABLE_FILTERS*/": regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables),
-		"/*MAX_TABLES*/":    strconv.Itoa(c.config.Schemas.MaxTables),
-		"/*MAX_COLUMNS*/":   strconv.Itoa(c.config.Schemas.MaxColumns),
-	}
-	rows, err := c.fetchMetadataRows(ctx, schemasQueryTemplate, ownerListChunks(names), owners, extra)
+	tableFilters := regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
+	keys, cappedContainers, err := c.tableIdentities(ctx, ownerListChunks(names), owners, tableFilters, c.config.Schemas.MaxTables)
 	if err != nil {
-		return fmt.Errorf("failed to query schemas: %w", err)
+		return fmt.Errorf("failed to query table identities: %w", err)
 	}
-	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxTables)
 
 	emit := func(payload []byte) {
 		sender.EventPlatformEvent(payload, "dbm-metadata")
 	}
-	collector := newSchemaCollector(c, emit, nil, owners, containers)
-	collector.truncatedContainers = cappedContainers
-	for _, r := range rows {
-		collector.add(r)
+	tablesTotal := 0
+	if err := forEachTablePage(keys, func(page []tableKey) error {
+		collector := newSchemaCollector(c, emit, nil, owners, containers)
+		collector.truncatedContainers = cappedContainers
+		if err := c.hydrateTablePage(ctx, page, c.config.Schemas.MaxColumns, collector.add); err != nil {
+			return err
+		}
+		collector.finish()
+		tablesTotal += collector.tablesTotal
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to query schemas: %w", err)
 	}
-	collector.finish()
 
 	for conID := range cappedContainers {
 		log.Warnf("%s table collection stopped at max_tables=%d for container %d; some tables were not collected",
 			c.logPrompt, c.config.Schemas.MaxTables, conID)
 	}
-	log.Debugf("%s schema collection sent %d tables", c.logPrompt, collector.tablesTotal)
+	log.Debugf("%s schema collection sent %d tables", c.logPrompt, tablesTotal)
 	sender.Commit()
 	return nil
 }
