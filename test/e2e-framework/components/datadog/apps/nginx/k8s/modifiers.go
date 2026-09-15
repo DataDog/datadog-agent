@@ -8,6 +8,7 @@ package k8s
 import (
 	"errors"
 	"maps"
+	"strings"
 
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -178,6 +179,46 @@ func WithAnnotations(annotations map[string]string) DeploymentModifier {
 
 		return nil
 	}
+}
+
+// WithoutDatadogAnnotations removes Datadog Autodiscovery annotations from a Deployment's pod template.
+func WithoutDatadogAnnotations() DeploymentModifier {
+	return func(d *appsv1.DeploymentArgs) error {
+		metadata, err := ensureDeploymentPodMetadata(d)
+		if err != nil {
+			return err
+		}
+
+		annotations, ok := metadata.Annotations.(pulumi.StringMap)
+		if !ok {
+			return errors.New("type check failed for pod template annotations")
+		}
+		for key := range annotations {
+			if strings.HasPrefix(key, "ad.datadoghq.com/") {
+				delete(annotations, key)
+			}
+		}
+		return nil
+	}
+}
+
+// WithoutDatadogServiceAnnotations removes Datadog Autodiscovery annotations from a Service.
+func WithoutDatadogServiceAnnotations(service *corev1.ServiceArgs) error {
+	metadata, ok := service.Metadata.(*metav1.ObjectMetaArgs)
+	if !ok {
+		return errors.New("type check failed for service metadata")
+	}
+
+	annotations, ok := metadata.Annotations.(pulumi.StringMap)
+	if !ok {
+		return errors.New("type check failed for service annotations")
+	}
+	for key := range annotations {
+		if strings.HasPrefix(key, "ad.datadoghq.com/") {
+			delete(annotations, key)
+		}
+	}
+	return nil
 }
 
 // WithImagePullSecrets sets the pod spec's ImagePullSecrets (e.g. for private registries).
