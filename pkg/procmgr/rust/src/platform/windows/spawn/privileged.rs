@@ -215,6 +215,9 @@ mod tests {
         .expect("request");
 
         let err = validate_privileged_stdio(DATADOG_AGENT_PROCESS, &request).unwrap_err();
-        assert!(err.to_string().contains("stdout/stderr must be inherit or null"));
+        assert!(
+            err.to_string()
+                .contains("stdout/stderr must be inherit or null")
+        );
     }
 }
