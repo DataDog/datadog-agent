@@ -193,6 +193,7 @@ docker_image_build_otel:
 
 ddot_byoc_package_build_test_linux_oci:
   extends: .ddot_byoc_oci_build_test
+  timeout: 1h 15m
   variables:
     DDOT_BYOC_PACKAGE_TYPE: linux
     DDOT_BYOC_OCI_REPO: ddot-byoc-linux
@@ -200,6 +201,7 @@ ddot_byoc_package_build_test_linux_oci:
 
 ddot_byoc_package_build_test_windows_oci:
   extends: .ddot_byoc_oci_build_test
+  timeout: 1h 40m
   variables:
     DDOT_BYOC_PACKAGE_TYPE: windows
     DDOT_BYOC_OCI_REPO: ddot-byoc-windows

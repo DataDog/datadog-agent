@@ -15,4 +15,5 @@ import (
 // Component provides trace payload modification functionality
 type Component interface {
 	payload.TracerPayloadModifier
+	payload.TracerPayloadModifierV1
 }

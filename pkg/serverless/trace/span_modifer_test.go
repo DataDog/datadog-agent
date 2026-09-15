@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -26,7 +27,84 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
+
+// Ensure spanModifier implements both the pb and idx modifier interfaces.
+var (
+	_ agent.SpanModifier   = (*spanModifier)(nil)
+	_ agent.SpanModifierV1 = (*spanModifier)(nil)
+)
+
+func TestSpanModifierSetsOrigin(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "cloudrun"}
+
+	t.Run("sets span tag and chunk origin when empty", func(t *testing.T) {
+		span := &pb.Span{}
+		chunk := &pb.TraceChunk{Spans: []*pb.Span{span}}
+
+		sm.ModifySpan(chunk, span)
+
+		assert.Equal(t, "cloudrun", span.Meta[ddOriginTagName])
+		assert.Equal(t, "cloudrun", chunk.Origin, "chunk origin should be populated when empty")
+	})
+
+	t.Run("does not overwrite an existing span tag or chunk origin", func(t *testing.T) {
+		span := &pb.Span{Meta: map[string]string{ddOriginTagName: "existing-span"}}
+		chunk := &pb.TraceChunk{Origin: "existing-chunk", Spans: []*pb.Span{span}}
+
+		sm.ModifySpan(chunk, span)
+
+		assert.Equal(t, "existing-span", span.Meta[ddOriginTagName])
+		assert.Equal(t, "existing-chunk", chunk.Origin, "chunk origin should not be overwritten")
+	})
+
+	t.Run("tolerates a nil chunk", func(t *testing.T) {
+		span := &pb.Span{}
+		assert.NotPanics(t, func() { sm.ModifySpan(nil, span) })
+		assert.Equal(t, "cloudrun", span.Meta[ddOriginTagName])
+	})
+}
+
+func TestSpanModifierV1SetsOrigin(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "cloudrun"}
+
+	t.Run("sets span attribute and chunk origin when empty", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{})
+		chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, make([]byte, 16), 0)
+
+		sm.ModifySpanV1(chunk, span)
+
+		got, ok := span.GetAttributeAsString(ddOriginTagName)
+		assert.True(t, ok)
+		assert.Equal(t, "cloudrun", got)
+		assert.Equal(t, "cloudrun", chunk.Origin(), "chunk origin should be populated when empty")
+	})
+
+	t.Run("does not overwrite an existing span attribute or chunk origin", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{})
+		span.SetStringAttribute(ddOriginTagName, "existing-span")
+		chunk := idx.NewInternalTraceChunk(strings, 0, "existing-chunk", nil, []*idx.InternalSpan{span}, false, make([]byte, 16), 0)
+
+		sm.ModifySpanV1(chunk, span)
+
+		got, _ := span.GetAttributeAsString(ddOriginTagName)
+		assert.Equal(t, "existing-span", got)
+		assert.Equal(t, "existing-chunk", chunk.Origin(), "chunk origin should not be overwritten")
+	})
+
+	t.Run("tolerates a nil chunk", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{})
+		assert.NotPanics(t, func() { sm.ModifySpanV1(nil, span) })
+		got, ok := span.GetAttributeAsString(ddOriginTagName)
+		assert.True(t, ok)
+		assert.Equal(t, "cloudrun", got)
+	})
+}
 
 type mockTraceWriter struct {
 	mu       sync.Mutex
@@ -108,4 +186,111 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 		testOriginTags(false, origin)
 		os.Unsetenv(cloudServiceEnvVar)
 	}
+}
+
+// TestSpanModifierModifySpanBeforeSetTags verifies that ModifySpan only
+// applies the _dd.origin tag when SetTags has never been called, since
+// spanModifier.tags starts as an unset atomic.Pointer.
+func TestSpanModifierModifySpanBeforeSetTags(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	span := &pb.Span{Meta: map[string]string{}}
+
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "lambda", span.Meta[ddOriginTagName])
+	assert.Len(t, span.Meta, 1)
+}
+
+// TestSpanModifierModifySpanAppliesTagsSetDynamically verifies that tags
+// applied via SetTags after construction are picked up by ModifySpan, the
+// mechanism MicroVM uses to deliver the lambda_microvm_id tag once it becomes
+// known at /run time.
+func TestSpanModifierModifySpanAppliesTagsSetDynamically(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-123"})
+
+	span := &pb.Span{Meta: map[string]string{}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "lambda", span.Meta[ddOriginTagName])
+	assert.Equal(t, "vm-123", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierModifySpanV1AppliesTagsSetDynamically is the V1 (idx)
+// equivalent of TestSpanModifierModifySpanAppliesTagsSetDynamically, verifying
+// that dynamically-set runtime tags reach V1 spans as well.
+func TestSpanModifierModifySpanV1AppliesTagsSetDynamically(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-123"})
+
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{})
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, make([]byte, 16), 0)
+
+	sm.ModifySpanV1(chunk, span)
+
+	origin, ok := span.GetAttributeAsString(ddOriginTagName)
+	assert.True(t, ok)
+	assert.Equal(t, "lambda", origin)
+	microvmID, ok := span.GetAttributeAsString("lambda_microvm_id")
+	assert.True(t, ok)
+	assert.Equal(t, "vm-123", microvmID)
+}
+
+// TestSpanModifierModifySpanPreservesExistingOrigin verifies that ModifySpan
+// does not overwrite a span's existing _dd.origin when the dynamically-set
+// tags also contain _dd.origin. Every CloudService.GetTags() sets _dd.origin
+// (e.g. MicroVM sets "lambdamicrovm"), and that value flows into the tags
+// applied here via SetTags/UpdateRuntimeTags — so without this guard, every
+// span would have a tracer-supplied origin (e.g. "rum") silently replaced.
+func TestSpanModifierModifySpanPreservesExistingOrigin(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{ddOriginTagName: "lambdamicrovm", "lambda_microvm_id": "vm-123"})
+
+	span := &pb.Span{Meta: map[string]string{ddOriginTagName: "rum"}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "rum", span.Meta[ddOriginTagName], "must not overwrite a tracer-supplied origin")
+	assert.Equal(t, "vm-123", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierModifySpanReflectsLatestSetTags verifies that a later
+// SetTags call replaces the tag set used by subsequent ModifySpan calls.
+func TestSpanModifierModifySpanReflectsLatestSetTags(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-1"})
+	sm.SetTags(map[string]string{"lambda_microvm_id": "vm-2"})
+
+	span := &pb.Span{Meta: map[string]string{}}
+	sm.ModifySpan(&pb.TraceChunk{}, span)
+
+	assert.Equal(t, "vm-2", span.Meta["lambda_microvm_id"])
+}
+
+// TestSpanModifierSetTagsConcurrentWithModifySpan exercises SetTags and
+// ModifySpan concurrently under the race detector. This is a regression test
+// for the data race Codex flagged on PR #53036: MicroVM's /run hook calls
+// SetTags from a goroutine that runs concurrently with the trace agent's
+// span-processing loop, which calls ModifySpan on every span.
+func TestSpanModifierSetTagsConcurrentWithModifySpan(t *testing.T) {
+	sm := &spanModifier{ddOrigin: "lambda"}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			sm.SetTags(map[string]string{"lambda_microvm_id": "vm-1"})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			span := &pb.Span{Meta: map[string]string{}}
+			sm.ModifySpan(&pb.TraceChunk{}, span)
+		}
+	}()
+	wg.Wait()
+
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-1"}, *sm.tags.Load())
 }

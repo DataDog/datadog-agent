@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -284,8 +284,8 @@ type BufferedAggregator struct {
 	observerHandle observer.Handle
 
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan  chan utilstrings.Matcher
-	flushFilterList utilstrings.Matcher
+	filterListChan  chan metricname.Matcher
+	flushFilterList metricname.Matcher
 
 	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
@@ -361,7 +361,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan:    make(chan utilstrings.Matcher),
+		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
 		tagFilterListChan: make(chan filterlist.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),

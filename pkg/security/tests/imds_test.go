@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 )
 
+var _ = declare(TestAWSIMDSv1Request, testOpts{networkIngressEnabled: true})
+
 func TestAWSIMDSv1Request(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -68,7 +70,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +96,8 @@ func TestAWSIMDSv1Request(t *testing.T) {
 		}, "test_rule_aws_imds_v1_request")
 	})
 }
+
+var _ = declare(TestAWSIMDSv1Response, testOpts{networkIngressEnabled: true})
 
 func TestAWSIMDSv1Response(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -143,7 +147,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +176,8 @@ func TestAWSIMDSv1Response(t *testing.T) {
 		}, "test_rule_aws_imds_v1_response")
 	})
 }
+
+var _ = declare(TestAWSIMDSv2Request, testOpts{networkIngressEnabled: true})
 
 func TestAWSIMDSv2Request(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -221,7 +227,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,6 +259,8 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	})
 }
 
+var _ = declare(TestAWSIMDSv2Response, testOpts{networkIngressEnabled: true})
+
 func TestAWSIMDSv2Response(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -272,7 +280,7 @@ func TestAWSIMDSv2Response(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_aws_imds_v2_response",
-			Expression: fmt.Sprintf(`imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsTypeTestValue, path.Base(executable)),
+			Expression: fmt.Sprintf(`imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "%s" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsTypeTestValue, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
 		},
 	}
 
@@ -296,7 +304,7 @@ func TestAWSIMDSv2Response(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,6 +337,8 @@ func TestAWSIMDSv2Response(t *testing.T) {
 		}, "test_rule_aws_imds_v2_response")
 	})
 }
+
+var _ = declare(TestGCPIMDS, testOpts{networkIngressEnabled: true})
 
 func TestGCPIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -373,7 +383,7 @@ func TestGCPIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,6 +414,8 @@ func TestGCPIMDS(t *testing.T) {
 		}, "test_rule_gcp_imds_request")
 	})
 }
+
+var _ = declare(TestAzureIMDS, testOpts{networkIngressEnabled: true})
 
 func TestAzureIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -448,7 +460,7 @@ func TestAzureIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,6 +491,8 @@ func TestAzureIMDS(t *testing.T) {
 		}, "test_rule_azure_imds_request")
 	})
 }
+
+var _ = declare(TestIBMIMDS, testOpts{networkIngressEnabled: true})
 
 func TestIBMIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -523,7 +537,7 @@ func TestIBMIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,6 +568,8 @@ func TestIBMIMDS(t *testing.T) {
 		}, "test_rule_idbm_imds_request")
 	})
 }
+
+var _ = declare(TestOracleIMDS, testOpts{networkIngressEnabled: true})
 
 func TestOracleIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -598,7 +614,7 @@ func TestOracleIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,6 +645,8 @@ func TestOracleIMDS(t *testing.T) {
 		}, "test_rule_oracle_imds_request")
 	})
 }
+
+var _ = declare(TestIMDSProcessContext, testOpts{networkIngressEnabled: true})
 
 func TestIMDSProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -678,7 +696,7 @@ func TestIMDSProcessContext(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,17 +59,18 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 
 	status = getStatus(components[1])
 	flag = string(components[2])
+	stream := getStream(components[1])
 
 	msg.SetContent(content)
 	msg.Status = status
 	msg.ParsingExtra = message.ParsingExtra{
 		IsPartial: isPartial(flag),
+		Stream:    stream,
 	}
 	// Optionally tag the stream (stdout/stderr) so downstream consumers can filter by origin.
 	// Controlled by logs_config.add_logsource_tag (disabled by default).
 	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
-		stream := string(components[1]) // "stdout" or "stderr"
-		if stream == "stdout" || stream == "stderr" {
+		if stream != "" {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
 		}
 	}
@@ -92,14 +93,25 @@ func isPartial(flag string) bool {
 	return flag == "P"
 }
 
+func getStream(streamType []byte) string {
+	switch string(streamType) {
+	case message.StreamStdout:
+		return message.StreamStdout
+	case message.StreamStderr:
+		return message.StreamStderr
+	default:
+		return ""
+	}
+}
+
 // getStatus returns the status of the message based on
 // the value of the STREAM_TYPE field in the header,
 // returns the status INFO by default
 func getStatus(streamType []byte) string {
 	switch string(streamType) {
-	case "stdout":
+	case message.StreamStdout:
 		return message.StatusInfo
-	case "stderr":
+	case message.StreamStderr:
 		return message.StatusError
 	default:
 		return message.StatusInfo

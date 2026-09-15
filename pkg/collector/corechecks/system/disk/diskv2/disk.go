@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -148,6 +149,7 @@ type Check struct {
 	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
 	partitionEnumInFlight atomic.Bool
+	diskUsageInFlight     sync.Map // map[string]struct{}
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -663,8 +665,10 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
+		defer func() {
+			c.partitionEnumInFlight.Store(false)
+		}()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
-		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
@@ -676,6 +680,10 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+	if _, loaded := c.diskUsageInFlight.LoadOrStore(mountpoint, struct{}{}); loaded {
+		return nil, fmt.Errorf("disk usage call for mountpoint %s skipped — a previous call is still in progress, which may indicate an inaccessible or orphaned volume on the system", mountpoint)
+	}
+
 	type usageResult struct {
 		usage *gopsutil_disk.UsageStat
 		err   error
@@ -685,13 +693,12 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	timeoutCh := c.clock.After(timeout)
 	// Start the disk usage call in a separate goroutine.
 	go func() {
+		defer func() {
+			c.diskUsageInFlight.Delete(mountpoint)
+		}()
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
-		// Use select to avoid writing to resultCh if timeout already occurred.
-		select {
-		case resultCh <- usageResult{usage, err}:
-		case <-timeoutCh:
-		}
+		resultCh <- usageResult{usage, err}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
 	select {

@@ -296,6 +296,7 @@ func (a *logAgent) startSchedulers() {
 
 		a.log.Info("logs-agent started")
 		a.started.Store(status.StatusRunning)
+		metrics.MarkLogsAgentRunning()
 	})
 }
 

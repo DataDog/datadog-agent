@@ -1,0 +1,24 @@
+{
+  "policies": [
+    {
+      "description": "deny SSI in targeted-namespace (overrides helm target)",
+      "id": {"hi": 10, "lo": 3},
+      "version": 1,
+      "rules": {
+        "node_type": "EvaluatorNode",
+        "node": {
+          "description": "namespace name targeted-namespace",
+          "eval_type": "StrEvaluator",
+          "eval": {
+            "id": "NAMESPACE_NAME",
+            "cmp": "CMP_EXACT",
+            "value": "targeted-namespace"
+          }
+        }
+      },
+      "actions": [
+        {"action": "INJECT_DENY"}
+      ]
+    }
+  ]
+}

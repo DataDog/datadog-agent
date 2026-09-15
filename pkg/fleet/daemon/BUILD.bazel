@@ -5,6 +5,7 @@ go_library(
     name = "daemon",
     srcs = [
         "daemon.go",
+        "ddot_state.go",
         "local_api.go",
         "local_api_unix.go",
         "local_api_windows.go",
@@ -29,6 +30,7 @@ go_library(
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/procmgr/coat",
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
@@ -48,6 +50,7 @@ dd_agent_go_test(
     name = "daemon_test",
     srcs = [
         "daemon_test.go",
+        "ddot_state_test.go",
         "local_api_test.go",
         "remote_config_test.go",
         "task_db_test.go",
@@ -58,6 +61,7 @@ dd_agent_go_test(
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/repository",
+        "//pkg/procmgr/coat",
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
         "//pkg/version",

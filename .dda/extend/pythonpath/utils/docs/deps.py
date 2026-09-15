@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+COMMAND_DEPENDENCIES = ["pyyaml==6.0.1"]
+
 DEPENDENCIES = (
     "zensical~=0.0.50",
     # Fetching data

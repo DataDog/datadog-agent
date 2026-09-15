@@ -47,11 +47,11 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-1", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
+		first := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
 		require.Len(t, first.Chunks, 1)
 		assert.Len(t, first.Chunks[0], 1)
 
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
 		assert.Empty(t, second.Chunks, "duplicate pull manifest should be skipped")
 	})
 
@@ -60,8 +60,8 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		ld1 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v1", false)
 		ld2 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v2", false)
 
-		logsmapping.TranslateK8sObjects(ld1, cache, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, false)
+		logsmapping.TranslateK8sObjects(ld1, cache, logger, false, 0)
+		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, false, 0)
 		require.Len(t, second.Chunks, 1)
 		assert.Len(t, second.Chunks[0], 1, "updated resourceVersion should not be skipped")
 	})
@@ -70,16 +70,16 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-3", "v1", true)
 
-		logsmapping.TranslateK8sObjects(ld, cache, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
+		logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
 		require.Len(t, second.Chunks, 1, "watch events should always be forwarded")
 	})
 
 	t.Run("nil cache disables deduplication", func(t *testing.T) {
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-4", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, nil, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld, nil, logger, false)
+		first := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
+		second := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
 		require.Len(t, first.Chunks, 1)
 		require.Len(t, second.Chunks, 1, "nil cache should not deduplicate")
 	})

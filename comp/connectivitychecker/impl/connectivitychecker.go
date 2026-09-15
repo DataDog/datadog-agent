@@ -65,7 +65,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
-	reqs.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { comp.restartTimer() })
+	reqs.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64, _ model.Source) { comp.restartTimer() })
 
 	provides := Provides{Comp: comp}
 	return provides, nil

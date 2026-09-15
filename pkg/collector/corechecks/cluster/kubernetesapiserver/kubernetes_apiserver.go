@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -514,6 +514,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 		for _, condition := range component.Conditions {
 			statusCheck := servicecheck.ServiceCheckUnknown
 			message := ""
+			statusValue := 0.0
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
 			if condition.Type != "Healthy" {
@@ -526,6 +527,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 			case "True":
 				statusCheck = servicecheck.ServiceCheckOK
 				message = condition.Message
+				statusValue = 1.0
 			case "False":
 				statusCheck = servicecheck.ServiceCheckCritical
 				message = condition.Error
@@ -536,6 +538,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 
 			tags := []string{"component:" + component.Name}
 			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
+			sender.Gauge("datadog.cluster_agent."+component.Name+".component_status", statusValue, "", tags)
 		}
 	}
 	return nil

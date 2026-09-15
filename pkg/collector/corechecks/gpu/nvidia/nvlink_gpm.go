@@ -43,26 +43,27 @@ func newNVLinkGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	return collector, nil
 }
 
-func (c *nvlinkGpmCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkGpmCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkGpmCollector) Name() CollectorName {
 	return nvlinkGPM
 }
 
-func (c *nvlinkGpmCollector) Collect() ([]*Metric, error) {
-	metrics := make([]*Metric, 0)
+func (c *nvlinkGpmCollector) Collect() ([]Sample, error) {
+	var samples []Sample
 	var errs []error
 	for port := range c.perPortCollector {
-		portMetrics, err := c.getPortMetrics(port)
+		portSamples, err := c.getPortMetrics(port)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("get port metrics for port %d: %w", port, err))
 			continue
 		}
-		metrics = append(metrics, portMetrics...)
+		samples = append(samples, portSamples...)
 	}
-	return metrics, errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }
 
 func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, error) {
@@ -104,12 +105,12 @@ func (c *nvlinkGpmCollector) getOrCreateGpmCollector(port int) (*gpmCollector, e
 	return gpmCollector, nil
 }
 
-func (c *nvlinkGpmCollector) getPortMetrics(port int) ([]*Metric, error) {
+func (c *nvlinkGpmCollector) getPortMetrics(port int) ([]Sample, error) {
 	collector, err := c.getOrCreateGpmCollector(port)
 	if err != nil {
 		return nil, err
 	}
-	metrics, err := collector.Collect()
+	samples, err := collector.Collect()
 	if err != nil {
 		return nil, err
 	}
@@ -117,10 +118,14 @@ func (c *nvlinkGpmCollector) getPortMetrics(port int) ([]*Metric, error) {
 	// GPM returns data in MiB/s, we need to convert to kB/s. Also, set priority high
 	// to override metrics from fields collectors and add the nvlink_port tag.
 	portTag := nvlinkPortTag(port)
-	for _, metric := range metrics {
+	for _, sample := range samples {
+		metric, ok := sample.(*Metric)
+		if !ok {
+			return nil, fmt.Errorf("GPM collector returned unexpected sample type %T", sample)
+		}
 		metric.Value = metric.Value * 1024
-		metric.Priority = High
-		metric.Tags = append(metric.Tags, portTag)
+		metric.priority = High
+		metric.tags = append(metric.tags, portTag)
 	}
-	return metrics, nil
+	return samples, nil
 }

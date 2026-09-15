@@ -70,6 +70,30 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 
 To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
 
+## Shelling Out to Pulumi
+
+Every pulumi invocation outside `kernel_matrix_testing/` (which owns its own backend
+convention) goes through `run_pulumi` / `pulumi_json` / `pulumi_stack_names` in
+`tasks/e2e_framework/tool.py`. Do not add a bare `ctx.run("pulumi …")` or
+`subprocess.run(["pulumi", …])`.
+
+The helper is what makes the tasks work on machines that do not look like a dev laptop —
+a Datadog workspace, for instance, where the OS user is `bits` for everyone and
+`PULUMI_CONFIG_PASSPHRASE` is never exported. It resolves the project directory, the
+passphrase (from `~/.test_infra_config.yaml` when the environment has none) and the
+`--ci` backend in one place:
+
+- **Secrets travel in `env=`, never in the command string** — argv is visible in `/proc`
+  and in `echo=True` traces. Invoke merges `env=` into the parent environment, so this
+  composes with ambient variables instead of replacing them.
+- **Cloud resource names come from `get_resource_owner_id()`**, not `getpass.getuser()`.
+  It prefers `$REAL_USER` and appends `$WORKSPACE_NAME`, so two remote dev VMs owned by
+  the same developer do not collide on stack or EC2 keypair names in the shared account.
+  The Go equivalent is `localProfile.NamePrefix()`.
+- **A capability that a headless box lacks must degrade, not crash** — see
+  `notify_linux` and `copy_to_clipboard_if_supported`, which probe for `notify-send` and
+  a clipboard before use. Probe *before* any blocking prompt.
+
 ## Incremental Refactoring: Making Task Logic Bazel-Callable
 
 We are incrementally splitting invoke-coupled code from pure logic so that the

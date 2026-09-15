@@ -17,6 +17,7 @@ var (
 	Ubuntu2204E2EARM = NewDescriptorWithArch(Ubuntu, "22-04-e2e", ARM64Arch)
 
 	DebianDefault = Debian12
+	Debian11E2E   = NewDescriptor(Debian, "11-e2e")
 	Debian12      = NewDescriptor(Debian, "12")
 
 	AmazonLinuxDefault = AmazonLinux2023

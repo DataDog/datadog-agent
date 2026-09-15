@@ -282,30 +282,34 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
 		}
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
-		xmlpath := filepath.Join(xmlDir, junitfilePrefix+".xml")
-		jsonpath := filepath.Join(jsonDir, junitfilePrefix+".json")
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
-		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+		for _, group := range testPasses(pkg, testsuiteArgs, envVars, filepath.Dir(testsuite)) {
+			suffix, groupArgs := groupPass(testsuiteArgs, group)
+			xmlpath := filepath.Join(xmlDir, junitfilePrefix+suffix+".xml")
+			jsonpath := filepath.Join(jsonDir, junitfilePrefix+suffix+".json")
 
-		cmd.Env = append(cmd.Environ(), envVars...)
+			args := buildCommandArgs(pkg, xmlpath, jsonpath, groupArgs, testConfig)
+			cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
-		cmd.Dir = filepath.Dir(testsuite)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+			cmd.Env = append(cmd.Environ(), envVars...)
 
-		if err := cmd.Run(); err != nil {
-			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
-		}
+			cmd.Dir = filepath.Dir(testsuite)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 
-		if err := addProperties(xmlpath, props); err != nil {
-			return fmt.Errorf("xml add props: %s", err)
+			if err := cmd.Run(); err != nil {
+				// log but do not return error
+				fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
+			}
+
+			if err := addProperties(xmlpath, props); err != nil {
+				return fmt.Errorf("xml add props: %s", err)
+			}
 		}
 	}
 

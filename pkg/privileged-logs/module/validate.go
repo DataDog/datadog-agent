@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 )
 
 func isAllowed(path, allowedPrefix string) bool {
@@ -85,10 +87,10 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.F
 		return nil, fmt.Errorf("non-log file not allowed: %s", resolvedPath)
 	}
 
-	// We use openPathWithoutSymlinks on the resolved path to verify each
+	// We use common.OpenPathWithoutSymlinks on the resolved path to verify each
 	// component with O_NOFOLLOW to ensure that none of the path components
 	// were replaced with symlinks after we called EvalSymlinks.
-	file, err = openPathWithoutSymlinks(resolvedPath)
+	file, err = common.OpenPathWithoutSymlinks(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open path %s: %w", resolvedPath, err)
 	}

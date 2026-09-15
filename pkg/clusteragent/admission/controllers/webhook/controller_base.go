@@ -255,7 +255,7 @@ func (c *controllerBase) triggerReconciliation() {
 }
 
 func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
-	selector := &metav1.LabelSelector{
+	return &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
 				Key:      common.NamespaceLabelKey,
@@ -264,10 +264,6 @@ func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
 			},
 		},
 	}
-	if c.config.addAKSSelectors {
-		selector.MatchExpressions = append(selector.MatchExpressions, common.AzureAKSLabelSelectorRequirement()...)
-	}
-	return selector
 }
 
 func (c *controllerBase) getSecret() (*corev1.Secret, error) {

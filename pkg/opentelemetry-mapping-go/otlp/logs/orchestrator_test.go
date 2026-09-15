@@ -13,7 +13,43 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 )
+
+func TestGetManifestType(t *testing.T) {
+	tests := []struct {
+		name         string
+		kind         string
+		expectedType int
+	}{
+		{
+			name:         "known kind Pod",
+			kind:         "Pod",
+			expectedType: int(orchestratormodel.K8sPod),
+		},
+		{
+			name:         "known kind Deployment",
+			kind:         "Deployment",
+			expectedType: int(orchestratormodel.K8sDeployment),
+		},
+		{
+			name:         "unknown kind treated as custom resource",
+			kind:         "MyCustomResource",
+			expectedType: int(orchestratormodel.K8sCR),
+		},
+		{
+			name:         "empty kind treated as unset",
+			kind:         "",
+			expectedType: int(orchestratormodel.K8sUnsetType),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedType, getManifestType(tt.kind))
+		})
+	}
+}
 
 func TestBuildManifestFromK8sResource_NodeName(t *testing.T) {
 	tests := []struct {

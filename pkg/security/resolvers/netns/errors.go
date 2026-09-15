@@ -9,6 +9,7 @@ package netns
 
 import (
 	"errors"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/vishvananda/netlink"
@@ -26,6 +27,8 @@ const (
 	errorClassLinkNotFound = "link_not_found"
 	// errorClassNoSuchDevice is reported when an interface is gone while its classifier is attached
 	errorClassNoSuchDevice = "no_such_device"
+	// errorClassFilterNotFound is reported when the filter of an interface is gone right after being added
+	errorClassFilterNotFound = "filter_not_found"
 	// errorClassClassifierExists is reported when the eBPF manager already holds a classifier for an interface
 	errorClassClassifierExists = "classifier_exists"
 	// errorClassQueueFull is reported when a classifier request is dropped because the queue is full
@@ -43,6 +46,7 @@ const (
 var errorClasses = []string{
 	errorClassLinkNotFound,
 	errorClassNoSuchDevice,
+	errorClassFilterNotFound,
 	errorClassClassifierExists,
 	errorClassQueueFull,
 	errorClassNetlinkSocket,
@@ -74,6 +78,10 @@ func (nr *Resolver) sendErrorStats() {
 	}
 }
 
+// tcFilterNotFoundMsg ends the failure the eBPF manager returns when the filter it just added is
+// already missing from the interface it reads back. That one carries no cause to match it on.
+const tcFilterNotFoundMsg = "filter not found"
+
 // classifyTCClassifierError returns the class of a TC classifier setup failure.
 func classifyTCClassifierError(err error) string {
 	var linkNotFound netlink.LinkNotFoundError
@@ -85,6 +93,8 @@ func classifyTCClassifierError(err error) string {
 		return errorClassNoSuchDevice
 	case errors.Is(err, manager.ErrIdentificationPairInUse):
 		return errorClassClassifierExists
+	case strings.Contains(err.Error(), tcFilterNotFoundMsg):
+		return errorClassFilterNotFound
 	default:
 		return errorClassUnknown
 	}

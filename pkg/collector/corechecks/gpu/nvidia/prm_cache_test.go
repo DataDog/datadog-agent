@@ -31,8 +31,7 @@ func TestPRMCacheRefresh(t *testing.T) {
 		}
 	}))
 
-	cache := NewPRMCache()
-	cache.client = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+	cache := NewPRMCache(sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath)))
 	cache.RegisterRequest(model.PRMRequest{DeviceUUID: "GPU-1", Port: 1, Group: 34})
 
 	require.NoError(t, cache.Refresh())
@@ -56,8 +55,7 @@ func TestPRMCacheRefreshPartialError(t *testing.T) {
 		}
 	}))
 
-	cache := NewPRMCache()
-	cache.client = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+	cache := NewPRMCache(sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath)))
 	cache.RegisterRequest(model.PRMRequest{DeviceUUID: "GPU-1", Port: 1, Group: 34})
 	cache.RegisterRequest(model.PRMRequest{DeviceUUID: "GPU-1", Port: 2, Group: 34})
 
@@ -79,8 +77,7 @@ func TestPRMCacheRefreshFailure(t *testing.T) {
 		}
 	}))
 
-	cache := NewPRMCache()
-	cache.client = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+	cache := NewPRMCache(sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath)))
 	cache.RegisterRequest(model.PRMRequest{DeviceUUID: "GPU-1", Port: 1, Group: 34})
 
 	err := cache.Refresh()

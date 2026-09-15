@@ -80,6 +80,35 @@ func NewServer(handler http.Handler) *httptest.Server {
 	return httptest.NewServer(handlerWitHeader)
 }
 
+// newSeriesServer answers each series endpoint with its own body. getMetric fetches
+// /api/v1/series, /api/v2/series and /api/intake/metrics/v3/series in a single call, and each
+// aggregator only understands its own wire format, so a server that replies with one shared
+// body would hand two of the three something they cannot parse.
+func newSeriesServer(byEndpoint map[string][]byte) *httptest.Server {
+	return NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if body, ok := byEndpoint[r.URL.Query().Get("endpoint")]; ok {
+			w.Write(body)
+			return
+		}
+		w.Write([]byte(`{"payloads":[]}`))
+	}))
+}
+
+// newRawPayloadsResponse renders one uncompressed payload as a /fakeintake/payloads response.
+func newRawPayloadsResponse(t *testing.T, contentType string, data []byte) []byte {
+	t.Helper()
+
+	response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+		Payloads: []api.Payload{{
+			Timestamp:   time.Now(),
+			Data:        data,
+			ContentType: contentType,
+		}},
+	})
+	require.NoError(t, err)
+	return response
+}
+
 func newAgentDiscoveryPayloadData(t *testing.T, payloads ...*agentdiscovery.AgentDiscoveryPayload) []byte {
 	t.Helper()
 
@@ -155,9 +184,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetric", func(t *testing.T) {
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2SeriesResponse)
-		}))
+		ts := newSeriesServer(map[string][]byte{metricsEndpoint: apiV2SeriesResponse})
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
@@ -167,10 +194,22 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, aggregator.FilterByTags(metrics, []string{"totoro"}))
 	})
 
+	t.Run("getMetric merges the v1 series endpoint", func(t *testing.T) {
+		body := `{"series":[{"metric":"e2e.v1.gauge","points":[[1697177070,3]],"tags":["version:7.46.0"],"host":"my-host","type":"gauge","interval":10}]}`
+		ts := newSeriesServer(map[string][]byte{
+			metricsV1Endpoint: newRawPayloadsResponse(t, "application/json", []byte(body)),
+		})
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		metrics, err := client.getMetric("e2e.v1.gauge")
+		require.NoError(t, err)
+		require.Len(t, metrics, 1)
+		assert.NotEmpty(t, aggregator.FilterByTags(metrics, []string{"version:7.46.0"}))
+	})
+
 	t.Run("FilterMetrics", func(t *testing.T) {
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2SeriesResponse)
-		}))
+		ts := newSeriesServer(map[string][]byte{metricsEndpoint: apiV2SeriesResponse})
 		defer ts.Close()
 
 		client := NewClient(ts.URL)

@@ -206,6 +206,43 @@ func TestConsumeContainerTagsFromResource(t *testing.T) {
 	}, newAttrs)
 }
 
+func TestContainerImageTags(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		// Set up resource with one or two container image tags
+		// (Multiple tags can be reported if the same image has been pulled under 2 different tags on the same node)
+		for _, tags := range [][]any{{"main_image_tag"}, {"main_image_tag", "extra_image_tag"}} {
+			res := pcommon.NewResource()
+			assert.NoError(t, res.Attributes().FromRaw(map[string]any{
+				string(semconv127.ContainerImageTagsKey): tags,
+			}))
+			// Extract first image tag as image_tag tag
+			assert.Equal(t, map[string]string{
+				"image_tag": "main_image_tag",
+			}, ContainerTagsFromResourceAttributes(res.Attributes()))
+			containerTags, newRes := ConsumeContainerTagsFromResource(res)
+			assert.Equal(t, map[string]string{
+				"image_tag": "main_image_tag",
+			}, containerTags)
+			// ConsumeContainerTagsFromResource keeps OTel semantic conventions as span attributes
+			assert.Equal(t, map[string]any{
+				string(semconv127.ContainerImageTagsKey): tags,
+			}, newRes.Attributes().AsRaw())
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, tags := range []any{int64(42), []any{}} {
+			res := pcommon.NewResource()
+			assert.NoError(t, res.Attributes().FromRaw(map[string]any{
+				string(semconv127.ContainerImageTagsKey): tags,
+			}))
+			// Don't crash/panic, return no tag
+			assert.Equal(t, map[string]string{}, ContainerTagsFromResourceAttributes(res.Attributes()))
+			containerTags, _ := ConsumeContainerTagsFromResource(res)
+			assert.Equal(t, map[string]string{}, containerTags)
+		}
+	})
+}
+
 func TestContainerTagFromAttributes(t *testing.T) {
 	attributeMap := map[string]string{
 		string(semconv127.ContainerNameKey):         "sample_app",

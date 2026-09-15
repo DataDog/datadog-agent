@@ -1,0 +1,36 @@
+---
+# config_schema jobs
+# Contains jobs which publish, as pipeline artifacts, the documents generated
+# from the Agent config schema (pkg/config/schema/yaml).
+# They only run on deploy pipelines, so that every released Agent version comes
+# with the config templates and the JSON Schemas matching that exact version.
+
+.config_schema_artifacts:
+  stage: deploy_packages
+  rules: !reference [.on_deploy]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  # The schema tasks only read the YAML schema from the repository: no artifact
+  # from any other job is needed.
+  needs: []
+
+generate_config_templates:
+  extends: .config_schema_artifacts
+  script:
+    - dda inv -- -e schema.template-all
+  artifacts:
+    expire_in: 3 months
+    paths:
+      - pkg/config/example/
+
+generate_config_json_schema:
+  extends: .config_schema_artifacts
+  variables:
+    JSON_SCHEMA_OUTPUT_DIR: $CI_PROJECT_DIR/json-schema
+  script:
+    - dda inv -- -e schema.produce-jsonschema --output-dir $JSON_SCHEMA_OUTPUT_DIR
+  artifacts:
+    expire_in: 3 months
+    paths:
+      - json-schema/datadog.json
+      - json-schema/system-probe.json

@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/container_publish_job_templates.yml
-
 .dev_a7-windows-common:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy

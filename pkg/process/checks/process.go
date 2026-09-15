@@ -217,8 +217,20 @@ func (p *ProcessCheck) SupportsRunOptions() bool {
 	return true
 }
 
-// Name returns the name of the ProcessCheck.
+// Name returns the operational name of the ProcessCheck.
 func (p *ProcessCheck) Name() string { return ProcessCheckName }
+
+// StatusNames returns the user-facing names of the features using the ProcessCheck for Agent status.
+func (p *ProcessCheck) StatusNames() []string {
+	names := make([]string, 0, 2)
+	if p.config.GetBool("process_config.process_collection.enabled") {
+		names = append(names, ProcessCheckName)
+	}
+	if p.sysConfig.GetBool("discovery.enabled") {
+		names = append(names, ServiceDiscoveryCheckName)
+	}
+	return names
+}
 
 // Realtime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) Realtime() bool { return false }
