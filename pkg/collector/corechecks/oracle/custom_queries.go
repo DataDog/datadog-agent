@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,8 +39,51 @@ func concatenateError(input error, new string) error {
 	return fmt.Errorf("%w %s", input, new)
 }
 
+func shouldExecuteCustomQuery(lastExecutionTime *time.Time, collectionInterval *int64, now time.Time) bool {
+	if collectionInterval == nil {
+		return true
+	}
+	if lastExecutionTime.IsZero() || now.Sub(*lastExecutionTime).Seconds() >= float64(*collectionInterval) {
+		*lastExecutionTime = now
+		return true
+	}
+	return false
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) CustomQueries() error {
+	var customQueries []config.CustomQuery
+
+	if len(c.config.InstanceConfig.CustomQueries) > 0 {
+		customQueries = append(customQueries, c.config.InstanceConfig.CustomQueries...)
+	}
+	if len(c.config.InitConfig.CustomQueries) > 0 {
+		switch c.config.UseGlobalCustomQueries {
+		case "true":
+			customQueries = make([]config.CustomQuery, len(c.config.InitConfig.CustomQueries))
+			copy(customQueries, c.config.InitConfig.CustomQueries)
+		case "false":
+		case "extend":
+			customQueries = append(customQueries, c.config.InitConfig.CustomQueries...)
+		default:
+			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend"`, c.config.UseGlobalCustomQueries)
+		}
+	}
+
+	if len(c.customQueryLastRuns) != len(customQueries) {
+		c.customQueryLastRuns = make([]time.Time, len(customQueries))
+	}
+	queriesToRun := make([]config.CustomQuery, 0, len(customQueries))
+	now := c.clock.Now()
+	for i, query := range customQueries {
+		if shouldExecuteCustomQuery(&c.customQueryLastRuns[i], query.CollectionInterval, now) {
+			queriesToRun = append(queriesToRun, query)
+		}
+	}
+	if len(queriesToRun) == 0 {
+		return nil
+	}
+
 	/*
 	 * We are creating a dedicated DB connection for custom queries. Custom queries is
 	 * the only feature that switches to PDBs (all other queries are running against the
@@ -60,25 +104,7 @@ func (c *Check) CustomQueries() error {
 
 	var metricRows []metricRow
 	var allErrors error
-	var customQueries []config.CustomQuery
-
-	if len(c.config.InstanceConfig.CustomQueries) > 0 {
-		customQueries = append(customQueries, c.config.InstanceConfig.CustomQueries...)
-	}
-	if len(c.config.InitConfig.CustomQueries) > 0 {
-		switch c.config.UseGlobalCustomQueries {
-		case "true":
-			customQueries = make([]config.CustomQuery, len(c.config.InitConfig.CustomQueries))
-			copy(customQueries, c.config.InitConfig.CustomQueries)
-		case "false":
-		case "extend":
-			customQueries = append(customQueries, c.config.InitConfig.CustomQueries...)
-		default:
-			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend"`, c.config.UseGlobalCustomQueries)
-		}
-	}
-
-	for _, q := range customQueries {
+	for _, q := range queriesToRun {
 		metricRows = metricRows[:0]
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix

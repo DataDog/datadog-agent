@@ -307,6 +307,47 @@ int test_process_set(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// test_snapshot_credentials configures all four Uid/Gid values, then waits
+// to be collected by the process snapshot. The test runs it with effective
+// UID/GID zero so the filesystem IDs can be distinct from the other three.
+int test_snapshot_credentials(int argc, char **argv) {
+    if (argc != 9) {
+        fprintf(stderr, "%s: Please pass real, effective, saved and filesystem UID and GID.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    uid_t uid = (uid_t)atoi(argv[1]);
+    uid_t euid = (uid_t)atoi(argv[2]);
+    uid_t suid = (uid_t)atoi(argv[3]);
+    uid_t fsuid = (uid_t)atoi(argv[4]);
+    gid_t gid = (gid_t)atoi(argv[5]);
+    gid_t egid = (gid_t)atoi(argv[6]);
+    gid_t sgid = (gid_t)atoi(argv[7]);
+    gid_t fsgid = (gid_t)atoi(argv[8]);
+
+    if (setresgid(gid, egid, sgid) != 0) {
+        perror("setresgid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsgid(fsgid);
+    if (setfsgid(fsgid) != fsgid) {
+        fprintf(stderr, "setfsgid failed\n");
+        return EXIT_FAILURE;
+    }
+    if (setresuid(uid, euid, suid) != 0) {
+        perror("setresuid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsuid(fsuid);
+    if (setfsuid(fsuid) != fsuid) {
+        fprintf(stderr, "setfsuid failed\n");
+        return EXIT_FAILURE;
+    }
+
+    pause();
+    return EXIT_SUCCESS;
+}
+
 int self_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please pass a command name\n");
@@ -1955,6 +1996,143 @@ int test_dnsloop(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// subreaper test: sets the current process as a subreaper, forks a child that
+// forks a grandchild and immediately exits. The grandchild is reparented to the
+// subreaper, performs 50 fork/exit cycles to stress the process cache, then
+// opens the file given as argument.
+// Usage: syscall_tester subreaper <filepath>
+int test_subreaper(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: subreaper <filepath>\n");
+        return EXIT_FAILURE;
+    }
+    char *filepath = argv[1];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // child: fork a grandchild and exit immediately
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // Build a chain of 50 fork/exit: each process forks a child,
+            // the parent exits, and the last child in the chain opens the file.
+            // Every intermediate process is reparented to the subreaper.
+            for (int i = 0; i < 50; i++) {
+                pid_t p = fork();
+                if (p < 0) {
+                    // fork failed: this process opens the file instead
+                    break;
+                }
+                if (p > 0) {
+                    // parent: exit, child will be reparented to subreaper
+                    _exit(EXIT_SUCCESS);
+                }
+                // child: continue the loop to fork the next level
+            }
+
+            // Wait for the previous process in the chain to exit and for
+            // the kernel to complete reparenting before opening the file.
+            sleep(1);
+
+            int fd = open(filepath, O_RDONLY | O_CREAT, 0400);
+            if (fd > 0)
+                close(fd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // child exits, grandchild will be reparented to the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for child, then wait for all reparented descendants.
+    // With the fork/exit chain, every intermediate process is reparented to
+    // this subreaper. We must stay alive and reap them all so that the last
+    // child in the chain still has us as its parent when it opens the file.
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
+// subreaper-with-var: sets the current process as a subreaper, forks an
+// intermediate child which opens <trigger_file> (to fire a rule that sets an
+// inherited process-scoped SECL variable), then forks a grandchild and exits.
+// The grandchild waits for the kernel to complete reparenting onto the
+// subreaper, then opens <check_file>. The intermediate is now gone from the
+// grandchild's parent chain, so a rule reading the inherited variable on the
+// <check_file> event must rely on a pre-reparent snapshot to still see the
+// value set on the intermediate.
+// Usage: syscall_tester subreaper-with-var <trigger_file> <check_file>
+int test_subreaper_with_var(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: subreaper-with-var <trigger_file> <check_file>\n");
+        return EXIT_FAILURE;
+    }
+    char *trigger_file = argv[1];
+    char *check_file = argv[2];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // intermediate: open trigger_file so the set-variable rule fires on
+        // this process scope, then fork a grandchild and exit.
+        int fd = open(trigger_file, O_RDONLY | O_CREAT, 0400);
+        if (fd > 0)
+            close(fd);
+
+        // give the agent a moment to process the trigger event before we exit
+        sleep(1);
+
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // grandchild: wait for the kernel reparenting to settle, then open
+            // check_file so the inheritance-check rule evaluates against the
+            // post-reparent process context.
+            sleep(2);
+
+            int gfd = open(check_file, O_RDONLY | O_CREAT, 0400);
+            if (gfd > 0)
+                close(gfd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // intermediate exits; the kernel reparents grandchild onto the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for the intermediate, then reap the reparented grandchild
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
 /* clone3 is not wrapped by glibc, call it directly. */
 static pid_t sys_clone3(void *args, size_t size) {
     return (pid_t)syscall(__NR_clone3, args, size);
@@ -2079,6 +2257,8 @@ int main(int argc, char **argv) {
             exit_code = test_mkdirat_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-credentials") == 0) {
             exit_code = test_process_set(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "snapshot-credentials") == 0) {
+            exit_code = test_snapshot_credentials(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "accept") == 0) {
@@ -2153,6 +2333,10 @@ int main(int argc, char **argv) {
             exit_code = test_udploop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper") == 0) {
+            exit_code = test_subreaper(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper-with-var") == 0) {
+            exit_code = test_subreaper_with_var(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-clone-into-cgroup") == 0) {
             exit_code = test_clone_into_cgroup(sub_argc, sub_argv);
         } else {

@@ -187,33 +187,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
     return SAMPLED;
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
-    u64 event_sampling_dns_enabled = 0;
-    LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
-    u64 event_sampling_dns_rate = 0;
-    LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
-    u64 event_sampling_dns_threshold = 60;
-    LOAD_CONSTANT("event_sampling_dns_threshold", event_sampling_dns_threshold);
-
-    if (!event_sampling_dns_enabled) {
-        return DISCARDED;
-    }
-
-    // ignore kworkers
-    if (IS_KERNEL_THREAD(pid)) {
-        return DISCARDED;
-    }
-
-    monitor_event_sample_total(EVENT_DNS);
-
-    if (!sampling_admission_check(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, (u8)event_sampling_dns_threshold)) {
-        return DISCARDED;
-    }
-
-    monitor_event_sample_sampled(EVENT_DNS);
-    return SAMPLED;
-}
-
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
     u64 event_sampling_connect_enabled = 0;
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
@@ -580,11 +553,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         return DISCARDED;
     }
 
-    u32 ppid = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
-    if (pid_entry != NULL) {
-        ppid = pid_entry->ppid;
-    }
+    u32 ppid = get_current_ppid();
 
     struct process_path_key_t key = {
         .ppid = ppid,

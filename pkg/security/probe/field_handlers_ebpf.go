@@ -75,7 +75,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true, newEntryCb)
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.PPid, ev.PIDContext.ExecInode, true, newEntryCb)
 	}
 
 	if ev.ProcessCacheEntry == nil {
@@ -88,7 +88,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 
 // ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
 func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
-	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, true, nil)
+	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, nil)
 }
 
 // ResolveFilePath resolves the inode to a full path
@@ -779,6 +779,7 @@ func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	ev.GoLabels.Resolved = true
 
 	spanID, traceID, err := fh.resolvers.GoLabelsCtxResolver.Resolve(ev.GoLabels.ID)
+	fh.resolvers.ProcessResolver.CountGoLabelsLookup(err)
 	if err != nil {
 		seclog.Tracef("unable to resolve the go labels span context: %s", err)
 		return
@@ -797,6 +798,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 	ev.SpanContext.HasExtraAttrs = false
 
 	rawAttrs, err := fh.resolvers.OTelAttrsResolver.Resolve(ev.SpanContext.ExtraAttrsID)
+	fh.resolvers.ProcessResolver.CountOTelAttrsLookup(err)
 	if err != nil {
 		seclog.Tracef("unable to resolve the otel span attributes: %s", err)
 		return
