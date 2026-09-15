@@ -9,5 +9,10 @@ package fdb
 const (
 	oidDot1dBasePortIfIndex = "1.3.6.1.2.1.17.1.4.1.2"
 	oidDot1qTpFdbPort       = "1.3.6.1.2.1.17.7.1.2.2.1.2"
+	oidDot1qTpFdbStatus     = "1.3.6.1.2.1.17.7.1.2.2.1.3"
 	oidDot1dTpFdbPort       = "1.3.6.1.2.1.17.4.3.1.2"
+	oidDot1dTpFdbStatus     = "1.3.6.1.2.1.17.4.3.1.3"
+
+	// fdbStatusLearned is BRIDGE-MIB / Q-BRIDGE-MIB learned(3).
+	fdbStatusLearned int32 = 3
 )

@@ -27,7 +27,7 @@ dd_agent_go_test(
         "walk_corpus_test.go",
         "walk_fixtures_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/*"]),
     embed = [":fdb"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/session",

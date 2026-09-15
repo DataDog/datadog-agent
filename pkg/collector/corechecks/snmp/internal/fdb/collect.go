@@ -56,9 +56,10 @@ type Result struct {
 }
 
 type tableSpec struct {
-	portOID string
-	source  string
-	qbridge bool
+	portOID   string
+	statusOID string
+	source    string
+	qbridge   bool
 }
 
 // Collect walks Q-BRIDGE then BRIDGE and resolves bridge ports to ifIndex.
@@ -93,17 +94,20 @@ func collect(sess session.Session, cfg config) Result {
 	}
 	portMap := buildPortIfIndexMap(portMapResult.values)
 
-	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, source: SourceQBridge, qbridge: true}
-	entries, reason, err := collectTable(sess, cfg, deadline, portMap, qbridge)
+	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, statusOID: oidDot1qTpFdbStatus, source: SourceQBridge, qbridge: true}
+	entries, reason, err, started := collectTable(sess, cfg, deadline, portMap, qbridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
+	}
+	if err != nil && started {
+		return errorResult(start, err)
 	}
 	if err == nil && len(entries) > 0 {
 		return successResult(start, SourceQBridge, entries)
 	}
 
-	bridge := tableSpec{portOID: oidDot1dTpFdbPort, source: SourceBridge, qbridge: false}
-	entries, reason, err = collectTable(sess, cfg, deadline, portMap, bridge)
+	bridge := tableSpec{portOID: oidDot1dTpFdbPort, statusOID: oidDot1dTpFdbStatus, source: SourceBridge, qbridge: false}
+	entries, reason, err, _ = collectTable(sess, cfg, deadline, portMap, bridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
@@ -133,27 +137,64 @@ func buildPortIfIndexMap(values map[string]valuestore.ResultValue) map[int32]int
 	return out
 }
 
-func collectTable(sess session.Session, cfg config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error) {
+func collectTable(sess session.Session, cfg config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error, bool) {
 	ports := walkColumn(sess, spec.portOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
 	if ports.reason != "" {
-		return nil, ports.reason, ports.err
+		return nil, ports.reason, ports.err, len(ports.values) > 0
 	}
 	if ports.err != nil {
-		return nil, "", ports.err
+		return nil, "", ports.err, len(ports.values) > 0
 	}
 	if len(ports.values) == 0 {
-		return nil, "", nil
+		return nil, "", nil, false
+	}
+
+	statuses, reason, err := walkStatus(sess, spec.statusOID, cfg, deadline)
+	if reason != "" || err != nil {
+		return nil, reason, err, true
 	}
 
 	var entries []metadata.FDBEntryMetadata
 	for index, portVal := range ports.values {
+		if !learnedStatus(statuses, index) {
+			continue
+		}
 		entry, ok := buildEntry(cfg.DeviceID, spec, index, portVal, portMap)
 		if !ok {
 			continue
 		}
 		entries = append(entries, entry)
 	}
-	return entries, "", nil
+	return entries, "", nil, true
+}
+
+func walkStatus(sess session.Session, statusOID string, cfg config, deadline time.Time) (map[string]valuestore.ResultValue, string, error) {
+	if statusOID == "" {
+		return nil, "", nil
+	}
+	statuses := walkColumn(sess, statusOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
+	if statuses.reason != "" {
+		return nil, statuses.reason, statuses.err
+	}
+	if statuses.err != nil {
+		if len(statuses.values) > 0 {
+			return nil, "", statuses.err
+		}
+		return nil, "", nil
+	}
+	return statuses.values, "", nil
+}
+
+func learnedStatus(statuses map[string]valuestore.ResultValue, index string) bool {
+	if len(statuses) == 0 {
+		return true
+	}
+	value, ok := statuses[index]
+	if !ok {
+		return false
+	}
+	status, ok := resultInt32(value)
+	return ok && status == fdbStatusLearned
 }
 
 func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestore.ResultValue, portMap map[int32]int32) (metadata.FDBEntryMetadata, bool) {

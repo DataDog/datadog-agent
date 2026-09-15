@@ -44,21 +44,26 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			return walkResult{values: values, err: err}
 		}
 
-		inTable := 0
+		inTableNew := 0
+		inTableRepeat := 0
+		leftSubtree := false
 		lastOID := curOID
 		for _, pdu := range packet.Variables {
 			oid := strings.TrimLeft(pdu.Name, ".")
 			if pdu.Type == gosnmp.EndOfContents || pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchInstance || pdu.Type == gosnmp.NoSuchObject {
+				leftSubtree = true
 				continue
 			}
 			if !strings.HasPrefix(oid, prefix) {
+				leftSubtree = true
 				continue
 			}
 			if _, ok := seen[oid]; ok {
+				inTableRepeat++
 				continue
 			}
 			seen[oid] = struct{}{}
-			inTable++
+			inTableNew++
 			_, value, err := valuestore.GetResultValueFromPDU(pdu)
 			if err != nil {
 				continue
@@ -70,11 +75,14 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 				return walkResult{values: values, reason: reasonMaxEntries, err: fmt.Errorf("fdb walk exceeded max entries")}
 			}
 		}
-		if inTable == 0 {
+		if inTableNew == 0 {
+			if inTableRepeat > 0 && !leftSubtree {
+				return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
+			}
 			return walkResult{values: values}
 		}
 		if lastOID == curOID {
-			return walkResult{values: values}
+			return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
 		}
 		curOID = lastOID
 	}

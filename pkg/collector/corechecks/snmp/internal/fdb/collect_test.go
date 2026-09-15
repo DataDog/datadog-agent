@@ -6,10 +6,13 @@
 package fdb
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,23 +65,15 @@ func TestCollectFiltersInvalidRows(t *testing.T) {
 	// zero port
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.70", 0)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.70", 3)
-	// Status values are deliberately ignored.
+	// self(4) and mgmt(5) must not be treated as host locations.
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.80", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.80", 4)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.81", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.81", 5)
 
 	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	require.Len(t, result.Entries, 3)
-	assert.ElementsMatch(t, []string{
-		"0a:14:1e:28:32:3c",
-		"0a:14:1e:28:32:50",
-		"0a:14:1e:28:32:51",
-	}, []string{
-		result.Entries[0].MacAddress,
-		result.Entries[1].MacAddress,
-		result.Entries[2].MacAddress,
-	})
+	require.Len(t, result.Entries, 1)
+	assert.Equal(t, "0a:14:1e:28:32:3c", result.Entries[0].MacAddress)
 }
 
 func TestCollectWithoutStatusTable(t *testing.T) {
@@ -102,6 +97,43 @@ func TestCollectTruncatedDiscardsRows(t *testing.T) {
 	assert.Equal(t, OutcomeTruncated, result.Outcome)
 	assert.Equal(t, reasonMaxEntries, result.Reason)
 	assert.Empty(t, result.Entries)
+}
+
+func TestCollectPartialQBridgeErrorDoesNotFallBackToBridge(t *testing.T) {
+	inner := session.CreateFakeSession()
+	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
+	inner.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
+	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
+
+	result := collect(&failAfterPrefix{FakeSession: inner, prefix: oidDot1qTpFdbPort}, config{
+		DeviceID:           "d",
+		MaxEntries:         100,
+		MaxDuration:        time.Second,
+		BulkMaxRepetitions: 10,
+	})
+	assert.Equal(t, OutcomeError, result.Outcome)
+	assert.Empty(t, result.Entries)
+	assert.NotEqual(t, SourceBridge, result.Source)
+}
+
+func TestCollectQBridgeUnsupportedFallsBackToBridge(t *testing.T) {
+	inner := session.CreateFakeSession()
+	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
+
+	result := collect(&failFirstPrefix{FakeSession: inner, prefix: oidDot1qTpFdbPort}, config{
+		DeviceID:           "d",
+		MaxEntries:         100,
+		MaxDuration:        time.Second,
+		BulkMaxRepetitions: 10,
+	})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceBridge, result.Source)
+	require.Len(t, result.Entries, 1)
+	assert.Equal(t, "0a:14:1e:28:32:3d", result.Entries[0].MacAddress)
 }
 
 func TestCollectTruncatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
@@ -150,6 +182,19 @@ func TestCollectUsesFixedEntryLimit(t *testing.T) {
 	assert.Empty(t, result.Entries)
 }
 
+func TestWalkRepeatingOIDIsError(t *testing.T) {
+	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
+	packet := &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{{
+		Name:  oid,
+		Type:  gosnmp.Integer,
+		Value: 1,
+	}}}
+	res := walkColumn(&fixedBulkSession{packet: packet}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.Error(t, res.err)
+	assert.Empty(t, res.reason)
+	assert.Contains(t, res.err.Error(), "did not advance")
+}
+
 func TestWalkDeadline(t *testing.T) {
 	sess := session.CreateFakeSession()
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
@@ -161,3 +206,58 @@ func TestWalkDeadline(t *testing.T) {
 func itoa(n int) string {
 	return strconv.Itoa(n)
 }
+
+type failAfterPrefix struct {
+	*session.FakeSession
+	prefix string
+	seen   bool
+}
+
+func (s *failAfterPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+	if matchesOIDPrefix(oids, s.prefix) {
+		if s.seen {
+			return nil, fmt.Errorf("simulated timeout")
+		}
+		s.seen = true
+	}
+	return s.FakeSession.GetBulk(oids, bulkMaxRepetitions)
+}
+
+type failFirstPrefix struct {
+	*session.FakeSession
+	prefix string
+}
+
+func (s *failFirstPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+	if matchesOIDPrefix(oids, s.prefix) {
+		return nil, fmt.Errorf("unsupported")
+	}
+	return s.FakeSession.GetBulk(oids, bulkMaxRepetitions)
+}
+
+func matchesOIDPrefix(oids []string, prefix string) bool {
+	return len(oids) == 1 && strings.HasPrefix(strings.TrimLeft(oids[0], "."), prefix)
+}
+
+type fixedBulkSession struct {
+	packet *gosnmp.SnmpPacket
+}
+
+func (s *fixedBulkSession) Connect() error { return nil }
+func (s *fixedBulkSession) Close() error   { return nil }
+func (s *fixedBulkSession) Get([]string) (*gosnmp.SnmpPacket, error) {
+	return s.packet, nil
+}
+func (s *fixedBulkSession) GetBulk([]string, uint32) (*gosnmp.SnmpPacket, error) {
+	return s.packet, nil
+}
+func (s *fixedBulkSession) GetNext([]string) (*gosnmp.SnmpPacket, error) {
+	return s.packet, nil
+}
+func (s *fixedBulkSession) GetSnmpGetCount() uint32     { return 0 }
+func (s *fixedBulkSession) GetSnmpGetBulkCount() uint32 { return 0 }
+func (s *fixedBulkSession) GetSnmpGetNextCount() uint32 { return 0 }
+func (s *fixedBulkSession) GetVersion() gosnmp.SnmpVersion {
+	return gosnmp.Version2c
+}
+func (s *fixedBulkSession) IsUnconnectedUDP() bool { return false }
