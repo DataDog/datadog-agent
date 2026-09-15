@@ -323,6 +323,12 @@ fn resolve_test_runfile(path: String) -> String {
             if resolved.exists() {
                 return resolved.to_string_lossy().into_owned();
             }
+            if candidate.extension().is_none() {
+                let resolved = std::path::Path::new(&root).join(candidate.with_extension("exe"));
+                if resolved.exists() {
+                    return resolved.to_string_lossy().into_owned();
+                }
+            }
         }
     }
     path

@@ -48,8 +48,12 @@ fn detach_console() {
     reset_std_handles();
 }
 
-unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
-    TRUE
+unsafe extern "system" fn ignore_console_ctrl_events(ctrl: u32) -> i32 {
+    if ctrl == CTRL_BREAK_EVENT {
+        TRUE
+    } else {
+        0
+    }
 }
 
 struct IgnoreCtrlGuard;
@@ -107,7 +111,7 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
                 std::io::Error::last_os_error()
             );
         }
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(200));
     }
     Ok(())
 }
