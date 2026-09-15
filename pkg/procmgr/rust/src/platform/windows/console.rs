@@ -49,11 +49,7 @@ fn detach_console() {
 }
 
 unsafe extern "system" fn ignore_console_ctrl_events(ctrl: u32) -> i32 {
-    if ctrl == CTRL_BREAK_EVENT {
-        TRUE
-    } else {
-        0
-    }
+    if ctrl == CTRL_BREAK_EVENT { TRUE } else { 0 }
 }
 
 struct IgnoreCtrlGuard;

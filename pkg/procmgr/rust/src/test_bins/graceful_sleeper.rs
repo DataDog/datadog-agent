@@ -9,9 +9,7 @@
 //! `ping.exe`, which ignores console control events.
 
 use windows_sys::Win32::Foundation::TRUE;
-use windows_sys::Win32::System::Console::{
-    CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler,
-};
+use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler};
 
 unsafe extern "system" fn on_console_ctrl(ctrl: u32) -> i32 {
     if ctrl == CTRL_BREAK_EVENT || ctrl == CTRL_C_EVENT {
