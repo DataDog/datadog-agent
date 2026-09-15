@@ -17,7 +17,8 @@ package_aix-ppc64:
     - !reference [.manual]
   script:
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
-    - aix_run_cmd <<EOF
+    - |
+      aix_run_cmd <<EOF
       set -eux
       cd $AIX_AGENT_SRC
       env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
