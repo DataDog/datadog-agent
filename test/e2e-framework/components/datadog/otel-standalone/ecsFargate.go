@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	ecsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 )
 
 // otelConfigEnvVarName is the environment variable that carries the OTel config
@@ -85,14 +86,20 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 		},
 		PortMappings: ecs.TaskDefinitionPortMappingArray{},
 		VolumesFrom:  ecs.TaskDefinitionVolumeFromArray{},
+		// Without this the container is a black box: if the otel-agent process
+		// fails to start or crashes, ECS only reports the container-level exit
+		// code/reason, not why. Route stdout/stderr to Datadog logs via firelens,
+		// mirroring the pattern every other Fargate app in this framework uses.
+		LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("otel-agent"), pulumi.String("standalone-otel-agent"), apiKeySSMParamName),
 	}
 
 	taskDef, err := ecs.NewFargateTaskDefinition(e.Ctx(), namer.ResourceName("taskdef"), &ecs.FargateTaskDefinitionArgs{
 		Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 			"otel-agent": *container,
+			"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 		},
 		Cpu:    pulumi.StringPtr("512"),
-		Memory: pulumi.StringPtr("1024"),
+		Memory: pulumi.StringPtr("2048"),
 		ExecutionRole: &awsx.DefaultRoleWithPolicyArgs{
 			RoleArn: pulumi.StringPtr(e.ECSTaskExecutionRole()),
 		},
