@@ -11,6 +11,8 @@ mod stdio;
 
 #[cfg(all(windows, not(test)))]
 pub(crate) use agent_password_logon::{AgentSpawnLogon, resolve_agent_spawn_logon};
+#[cfg(windows)]
+pub(crate) use profile::DATADOG_AGENT_PROCESS;
 pub(crate) use profile::SpawnProfile;
 pub(crate) use request::SpawnRequest;
 pub(crate) use stdio::StdioSetting;
