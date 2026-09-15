@@ -250,6 +250,16 @@ func TestWalkSNMPv1NoSuchNameCompletes(t *testing.T) {
 	assert.Empty(t, res.values)
 }
 
+func TestWalkEmptyFirstPacketIsError(t *testing.T) {
+	res := walkColumn(&fixedBulkSession{
+		packet:  &gosnmp.SnmpPacket{Variables: nil},
+		version: gosnmp.Version2c,
+	}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "did not advance")
+	assert.Empty(t, res.values)
+}
+
 func TestWalkEmptyPacketAfterRowsIsError(t *testing.T) {
 	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
 	res := walkColumn(&sequencedBulkSession{

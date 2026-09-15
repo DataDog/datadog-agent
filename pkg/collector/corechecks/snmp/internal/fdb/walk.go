@@ -92,7 +92,7 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			if inTableRepeat > 0 && !leftSubtree {
 				return walkResult{values: values, err: errWalkNoAdvance}
 			}
-			if packet != nil && len(packet.Variables) == 0 && len(values) > 0 {
+			if packet != nil && len(packet.Variables) == 0 {
 				return walkResult{values: values, err: errWalkNoAdvance}
 			}
 			return walkResult{values: values}
