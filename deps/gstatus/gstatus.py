@@ -4,7 +4,7 @@
 Thin entry point that drives the vendored glustercli/glusterlib packages to
 collect GlusterFS cluster/volume/brick status and emit it as JSON (or text).
 
-This is a from-source replacement for the upstream PyInstaller-frozen
+This is a lightweight Python script replacement for the upstream PyInstaller-frozen
 ``gstatus`` binary. The frozen binary bundled a full Python interpreter and
 ~8 MiB of crypto/SSH dependencies (cryptography, PyNaCl, bcrypt, paramiko,
 cffi) that are unnecessary for local status collection — the Datadog glusterfs
