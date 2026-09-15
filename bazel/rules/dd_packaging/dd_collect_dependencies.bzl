@@ -27,7 +27,12 @@ def _get_deps(ctx, attr_names):
 _WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
-    direct = target[DdPackagingInfo].installed_files if DdPackagingInfo in target else []
+    if DdPackagingInfo in target:
+        direct = target[DdPackagingInfo].installed_files
+    elif PackageFilegroupInfo in target:
+        direct = [target[PackageFilegroupInfo]]
+    else:
+        direct = []
     transitive = [
         dep[_CollectedPackagingInfo].pkg_filegroups
         for dep in _get_deps(ctx, _WALKED_ATTRS)
@@ -51,6 +56,11 @@ _collect_dd_packaging_aspect = aspect(
         - cdeps: go_library/go_binary -> cc_library edges (the cgo boundary)
         - data: cc_library -> _dd_cc_packaged_rule edges (a runtime, dlopen'd
           dependency rather than a link-time one)
+
+        A visited node contributes its files directly if it carries
+        DdPackagingInfo, or, failing that, a plain PackageFilegroupInfo (e.g.
+        a bare pkg_filegroup/pkg_files reached via data, with no dd_cc_packaged
+        wrapper, since headers-only deps have no compiled artifact to wrap).
     """,
     attr_aspects = _WALKED_ATTRS,
 )
