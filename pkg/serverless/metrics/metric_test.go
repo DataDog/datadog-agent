@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -30,6 +29,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -87,9 +87,9 @@ func (f *countingForwarder) GetDomainResolvers() []resolver.DomainResolver {
 	return f.resolvers
 }
 
-// SubmitTransaction increments the sketch counter when a sketch-series transaction arrives.
+// SubmitTransaction increments the sketch counter when a sketch-series transaction reaches the intake.
 func (f *countingForwarder) SubmitTransaction(txn *transaction.HTTPTransaction) error {
-	if strings.Contains(txn.Endpoint.Name, "sketch") {
+	if txn.Endpoint.Name == endpoints.SketchSeriesEndpoint.Name {
 		f.sketchCount.Add(1)
 	}
 	return nil

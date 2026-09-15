@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import secrets
@@ -18,6 +17,7 @@ from tasks.e2e_framework.tool import (
     ask_yesno,
     error,
     get_aws_cmd,
+    get_resource_owner_id,
     info,
     warn,
     write_secret_file,
@@ -26,6 +26,9 @@ from tasks.e2e_framework.tool import (
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
+# Every resource the E2E framework relies on -- AMIs, subnets, ECR registries, KMS keys,
+# the fakeintake ECS cluster -- is pinned to this region.
+DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_KEY_TYPE = "rsa"
 # Accounts not listed here default to 'account-admin'. Keep in sync with the
 # `profile:` entries in test/e2e-framework/resources/aws/environmentDefaults.go.
@@ -36,19 +39,20 @@ def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
 
 
-def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
+def setup_aws_config(ctx: Context, config: Config, account: str | None = None, team: str | None = None):
     """
     Configure AWS keypair, SSO profile and team tag with computed defaults.
 
     Idempotent: re-running on a fully configured machine prints "✓ already configured"
     lines and exits without prompts. The only interactive step is the team tag, asked
-    once on first setup.
+    once on first setup — and skipped entirely when `team` is passed explicitly
+    (e.g. `dda inv e2e.setup --team=agent-platform` for non-interactive runs).
     """
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
     aws = config.configParams.aws
-    user = getpass.getuser()
+    user = get_resource_owner_id()
 
     # Account
     if account:
@@ -68,20 +72,26 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
-    setup_aws_sso_config(config)
+    # The wizard path never prompts: the profile is a pure default, safe to append
+    # unconditionally. The interactive yes/no confirmations only live in the
+    # standalone `e2e.setup.aws-sso` task.
+    setup_aws_sso_config(config, interactive=False)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
     # output if the session is not valid.
     _ensure_aws_keypair(ctx, config)
 
-    # Team tag — single prompt, only on first setup.
+    # Team tag — passed explicitly via --team (non-interactive), else asked once on
+    # first setup only. Falls back to 'unspecified' when the user just hits enter.
+    if team:
+        aws.teamTag = team.strip()
     if not aws.teamTag:
-        team = ask(
+        team_answer = ask(
             "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
             color="cyan",
         ).strip()
-        aws.teamTag = team or "unspecified"
+        aws.teamTag = team_answer or "unspecified"
         if aws.teamTag == "unspecified":
             warn(
                 "Team tag set to 'unspecified' — update aws.teamTag in ~/.test_infra_config.yaml later for cost attribution"
@@ -189,7 +199,7 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
     role = ACCOUNT_ADMIN_ROLE_BY_ACCOUNT.get(aws.account, 'account-admin')
     acct_id = 376334461865
     start_url = 'https://d-906757b57c.awsapps.com/start/#'
-    region = 'us-east-1'
+    region = DEFAULT_AWS_REGION
 
     aws_conf_path = Path.home().joinpath(".aws", "config")
     profile_name = f'sso-{aws.account}-{role}'
@@ -401,7 +411,7 @@ def aws_resolve_keypair_opts(
     if awsConf.keyPairName:
         default_keypair_name = awsConf.keyPairName
     else:
-        default_keypair_name = getpass.getuser()
+        default_keypair_name = get_resource_owner_id()
     if awsConf.privateKeyPath:
         default_private_key_path = awsConf.privateKeyPath
     else:

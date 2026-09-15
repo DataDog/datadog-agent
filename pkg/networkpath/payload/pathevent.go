@@ -114,6 +114,8 @@ const (
 	TestRunTypeScheduled TestRunType = "scheduled"
 	// TestRunTypeDynamic is a dynamic test run.
 	TestRunTypeDynamic TestRunType = "dynamic"
+	// TestRunTypeFast is a fast test run.
+	TestRunTypeFast TestRunType = "fast"
 	// TestRunTypeTriggered is a triggered test run.
 	TestRunTypeTriggered TestRunType = "triggered"
 )
@@ -134,8 +136,19 @@ const (
 type DynamicTestProfile string
 
 const (
-	// DynamicTestProfileBaseline is an included CNM baseline test.
-	DynamicTestProfileBaseline DynamicTestProfile = "baseline"
+	// DynamicTestProfileBasic is a CNM basic-mode dynamic test.
+	DynamicTestProfileBasic DynamicTestProfile = "basic"
+	// DynamicTestProfileStandard is a CNM standard-mode dynamic test.
+	DynamicTestProfileStandard DynamicTestProfile = "standard"
+)
+
+// DynamicTestClass is which coverage group a completed dynamic test belongs to.
+// Profile is how the path was selected; class is assigned after the run.
+type DynamicTestClass string
+
+const (
+	// DynamicTestClassCore is assigned to every completed basic dynamic test.
+	DynamicTestClassCore DynamicTestClass = "core"
 )
 
 // SourceProduct defines the product that originated the path
@@ -268,6 +281,7 @@ type NetworkPath struct {
 	TestRunType        TestRunType            `json:"test_run_type"`
 	TestConfigSource   TestConfigSource       `json:"test_config_source,omitempty"`
 	DynamicTestProfile DynamicTestProfile     `json:"dynamic_test_profile,omitempty"`
+	DynamicTestClass   DynamicTestClass       `json:"dynamic_test_class,omitempty"`
 	SourceProduct      SourceProduct          `json:"source_product"`
 	CollectorType      CollectorType          `json:"collector_type"`
 	Protocol           Protocol               `json:"protocol"`

@@ -1,0 +1,193 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build windows
+
+package powershell
+
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"regexp"
+	"slices"
+	"strings"
+
+	yaml "go.yaml.in/yaml/v2"
+)
+
+// allowlistVersion is the only supported allowlist schema version.
+const allowlistVersion = 1
+
+// allowedParam constrains a single cmdlet parameter: whether it is required and
+// what values are acceptable. A value constraint is mandatory — every declared
+// parameter must set either AllowedValues (an exact set) or Pattern (a regex,
+// which is anchored to the whole value at parse time).
+type allowedParam struct {
+	Required      bool     `yaml:"required"`
+	AllowedValues []string `yaml:"allowed_values"`
+	Pattern       string   `yaml:"pattern"`
+
+	compiledPattern *regexp.Regexp
+}
+
+// allowedCmdlet is the policy for a single Get-* cmdlet.
+type allowedCmdlet struct {
+	Module     string                  `yaml:"module"`
+	Parameters map[string]allowedParam `yaml:"parameters"`
+}
+
+// allowlist is the admin-owned policy of which cmdlets and parameters may run.
+type allowlist struct {
+	Version        int                      `yaml:"version"`
+	AllowedCmdlets map[string]allowedCmdlet `yaml:"allowed_cmdlets"`
+}
+
+// parseAllowlist unmarshals and validates the admin allowlist. It fails closed:
+// any structural problem returns an error and the caller must run nothing.
+func parseAllowlist(data []byte) (*allowlist, error) {
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return nil, errors.New("allowlist is empty")
+	}
+
+	var a allowlist
+	if err := yaml.UnmarshalStrict(data, &a); err != nil {
+		return nil, fmt.Errorf("could not parse allowlist: %w", err)
+	}
+	if a.Version != allowlistVersion {
+		return nil, fmt.Errorf("unsupported allowlist version %d (expected %d)", a.Version, allowlistVersion)
+	}
+	if len(a.AllowedCmdlets) == 0 {
+		return nil, errors.New("allowlist has no allowed_cmdlets")
+	}
+
+	// Sorted so a collision below names the two keys in a stable order.
+	seenCmdlets := make(map[string]string, len(a.AllowedCmdlets))
+	for _, name := range slices.Sorted(maps.Keys(a.AllowedCmdlets)) {
+		cmd := a.AllowedCmdlets[name]
+		// PowerShell resolves cmdlet names case-insensitively, but these are Go map
+		// keys, so two such entries would be two policies for one cmdlet.
+		if prior, dup := seenCmdlets[strings.ToLower(name)]; dup {
+			return nil, fmt.Errorf("allowlist entries %q and %q differ only in case; declare only one", prior, name)
+		}
+		seenCmdlets[strings.ToLower(name)] = name
+
+		if err := validateGetCmdletName(name); err != nil {
+			return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
+		}
+		// module is required so every allowlisted cmdlet is pinned to a module by
+		// default. Use "*" to explicitly opt out of the module check.
+		if strings.TrimSpace(cmd.Module) == "" {
+			return nil, fmt.Errorf("allowlist entry %q: module is required (use \"*\" to skip the module check)", name)
+		}
+		seenParams := make(map[string]string, len(cmd.Parameters))
+		for _, pName := range slices.Sorted(maps.Keys(cmd.Parameters)) {
+			p := cmd.Parameters[pName]
+			// Parameter names are case-insensitive to PowerShell too, and the splat
+			// table is keyed by them.
+			if prior, dup := seenParams[strings.ToLower(pName)]; dup {
+				return nil, fmt.Errorf("allowlist entry %q parameters %q and %q differ only in case; declare only one", name, prior, pName)
+			}
+			seenParams[strings.ToLower(pName)] = pName
+
+			if err := validateIdentifier("parameter", pName); err != nil {
+				return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
+			}
+			// Every declared parameter must constrain its values, making the
+			// value axis default-deny like the cmdlet/parameter names.
+			if len(p.AllowedValues) == 0 && p.Pattern == "" {
+				return nil, fmt.Errorf("allowlist entry %q parameter %q must define allowed_values or pattern", name, pName)
+			}
+			if p.Pattern != "" {
+				// Compile bare first for the error only: the anchored form below
+				// reports on its own \z wrapper, not on the admin's pattern.
+				if _, err := regexp.Compile(p.Pattern); err != nil {
+					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern %q: %w", name, pName, p.Pattern, err)
+				}
+				// Anchor the pattern so it must match the ENTIRE value, not a
+				// substring. Go's regexp is unanchored by default, so an
+				// unanchored pattern like 'PROD-CL01' would also accept
+				// "PROD-CL01' OR '1'='1". \A and \z bind to the start and end of
+				// the whole string. A span check would not do: Go matches
+				// leftmost-first, so 'a|ab' yields "a" against "ab".
+				re, err := regexp.Compile(`\A(?:` + p.Pattern + `)\z`)
+				if err != nil {
+					return nil, fmt.Errorf("allowlist entry %q parameter %q: invalid pattern %q: %w", name, pName, p.Pattern, err)
+				}
+				p.compiledPattern = re
+				cmd.Parameters[pName] = p
+			}
+		}
+	}
+	return &a, nil
+}
+
+// validateInstance rejects any cmdlet, or cmdlet parameter name or value, that
+// policy does not permit. It deliberately does not constrain `where` values: those
+// are carried as data and can only narrow rows, so that is policy, not safety.
+func (a *allowlist) validateInstance(inst *instanceConfig) error {
+	if err := a.validateCmdletUse(inst.Cmdlet, inst.Parameters); err != nil {
+		return err
+	}
+	// tag_queries invoke additional cmdlets; those must be allowlisted too.
+	// They take no user-supplied parameters, so only the cmdlet name is checked.
+	for i := range inst.TagQueries {
+		if err := a.validateCmdletUse(inst.TagQueries[i].TargetCmdlet, nil); err != nil {
+			return fmt.Errorf("tag_queries: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateCmdletUse verifies a cmdlet is allowlisted and that the given
+// parameters satisfy the policy for that cmdlet.
+func (a *allowlist) validateCmdletUse(cmdlet string, params []parameterEntry) error {
+	policy, ok := a.AllowedCmdlets[cmdlet]
+	if !ok {
+		return fmt.Errorf("cmdlet %q is not in the allowlist", cmdlet)
+	}
+
+	provided := make(map[string]struct{}, len(params))
+	for i := range params {
+		entry := params[i]
+		provided[entry.Name] = struct{}{}
+		p, ok := policy.Parameters[entry.Name]
+		if !ok {
+			return fmt.Errorf("parameter %q of cmdlet %q is not permitted by the allowlist", entry.Name, cmdlet)
+		}
+		if err := p.validateValue(scalarToString(entry.Value)); err != nil {
+			return fmt.Errorf("cmdlet %q parameter %q: %w", cmdlet, entry.Name, err)
+		}
+	}
+
+	for pName, p := range policy.Parameters {
+		if !p.Required {
+			continue
+		}
+		if _, ok := provided[pName]; !ok {
+			return fmt.Errorf("cmdlet %q requires parameter %q", cmdlet, pName)
+		}
+	}
+	return nil
+}
+
+// validateValue checks a stringified parameter value against the policy's
+// allowed_values / pattern constraints.
+func (p *allowedParam) validateValue(value string) error {
+	if len(p.AllowedValues) > 0 {
+		for _, v := range p.AllowedValues {
+			if v == value {
+				return nil
+			}
+		}
+		return fmt.Errorf("value %q is not in allowed_values", value)
+	}
+	if p.compiledPattern != nil {
+		if !p.compiledPattern.MatchString(value) {
+			return fmt.Errorf("value %q does not match pattern %q", value, p.Pattern)
+		}
+	}
+	return nil
+}

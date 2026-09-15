@@ -2,10 +2,6 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
-# Install tailscale so workspace devcontainers can connect to the Headscale
-# overlay network and reach agent-sandbox private VMs
-curl -fsSL https://tailscale.com/install.sh | sh
-
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
 usermod -aG build-shared bits

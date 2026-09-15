@@ -115,9 +115,7 @@ anomaly_detection:
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, tc.yaml)
 			lc := &testLifecycle{}
-			telComp := telemetryimpl.GetCompatComponent()
-			telComp.Reset()
-			t.Cleanup(telComp.Reset)
+			telComp := telemetryimpl.NewMock(t)
 
 			_, err := NewComponent(Requires{
 				Lifecycle: lc,
@@ -141,9 +139,7 @@ anomaly_detection:
         source: dogstatsd
 `)
 	lc := &testLifecycle{}
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
@@ -205,6 +201,7 @@ anomaly_detection:
 			provides, err := NewComponent(Requires{
 				Lifecycle: &testLifecycle{},
 				Config:    cfg,
+				Telemetry: telemetryimpl.NewMock(t),
 			})
 			require.NoError(t, err)
 			obs, ok := provides.Comp.(*observerImpl)

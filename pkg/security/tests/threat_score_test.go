@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
+var _ = declareInlineConfig(TestActivityDumpsThreatScore)
+
 func TestActivityDumpsThreatScore(t *testing.T) {
 	SkipIfNotAvailable(t)
 

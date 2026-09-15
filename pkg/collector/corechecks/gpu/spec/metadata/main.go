@@ -54,8 +54,9 @@ type metadataEntry struct {
 }
 
 type config struct {
-	metadataPath    string
-	defaultInterval int
+	metadataPath      string
+	defaultInterval   int
+	includeHistograms bool
 }
 
 func main() {
@@ -74,6 +75,7 @@ func parseFlags() config {
 	cfg := config{}
 	flag.StringVar(&cfg.metadataPath, "metadata-path", "", "Path to integrations-core gpu/metadata.csv")
 	flag.IntVar(&cfg.defaultInterval, "default-interval", 16, "Interval value to write to metadata.csv for all GPU metrics")
+	flag.BoolVar(&cfg.includeHistograms, "include-histograms", false, "Include histogram metrics in metadata.csv")
 	flag.Parse()
 	return cfg
 }
@@ -172,6 +174,10 @@ func updateMetadataEntries(entries map[string]metadataEntry, cfg config) (map[st
 		}
 
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
+		if metricSpec.Metadata.MetricType == "histogram" && !cfg.includeHistograms {
+			delete(entries, prefixedMetricName)
+			continue
+		}
 		entry, found := entries[prefixedMetricName]
 		if !found {
 			entry = metadataEntry{
@@ -190,7 +196,10 @@ func updateMetadataEntries(entries map[string]metadataEntry, cfg config) (map[st
 			return nil, fmt.Errorf("split unit: %w", err)
 		}
 
-		entry.MetricType = metricSpec.Metadata.MetricType
+		entry.MetricType, err = metadataMetricType(metricSpec.Metadata.MetricType)
+		if err != nil {
+			return nil, fmt.Errorf("map metric type for %q: %w", metricName, err)
+		}
 		entry.Interval = strconv.Itoa(cfg.defaultInterval)
 		entry.Description = metricSpec.Metadata.Description
 
@@ -198,6 +207,21 @@ func updateMetadataEntries(entries map[string]metadataEntry, cfg config) (map[st
 	}
 
 	return entries, nil
+}
+
+func metadataMetricType(metricType string) (string, error) {
+	switch metricType {
+	case "gauge":
+		return "gauge", nil
+	case "rate":
+		return "gauge", nil
+	case "count", "monotonic_count":
+		return "count", nil
+	case "counter", "histogram", "historate":
+		return "rate", nil
+	default:
+		return "", fmt.Errorf("unsupported metric type %q", metricType)
+	}
 }
 
 func splitUnit(unit string) (string, string, error) {

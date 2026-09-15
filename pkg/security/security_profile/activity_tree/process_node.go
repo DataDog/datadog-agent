@@ -125,8 +125,7 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 // ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
 func (pi *ProcessInfo) ToModelProcess(containerID containerutils.ContainerID) model.Process {
 	return model.Process{
-		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid},
-		PPid:             pi.PPid,
+		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid, PPid: pi.PPid},
 		Cookie:           pi.Cookie,
 		IsThread:         pi.IsThread,
 		IsExecExec:       pi.IsExecExec,
