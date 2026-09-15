@@ -8,7 +8,6 @@ package statusimpl
 
 import (
 	"embed"
-	"fmt"
 	"io"
 	"time"
 
@@ -130,6 +129,6 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		hp["lastSuccessAt"] = egressStatus.LastSuccessAt.Format(time.RFC1123)
 	}
 	if egressStatus.LastError != nil {
-		hp["lastError"] = fmt.Sprintf("%v", egressStatus.LastError)
+		hp["lastError"] = egressStatus.LastError.Error()
 	}
 }
