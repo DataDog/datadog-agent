@@ -5,21 +5,14 @@ binary so callers don't have to repeat them.  The x_defs at binary level
 override the placeholder values set in //pkg/version:version (x_defs there
 default to "0.0.0-dev").
 
-Version string strategy: build_version/agent_version/agent_version_url_safe/base_branch/
-milestone/agent_payload_version are all computed once by
-//bazel/rules/variables:variables.bzl's compute_version_variables() (the same function
-package_naming.bzl uses), so this file, package_naming.bzl, and the other packaging
-rules never disagree on these values.
+Version string strategy:
+- Build default version based on release.json values
 - The agent_version parameter, when passed, overrides both AgentVersion and AgentVersionURLSafe
   so the two stay in sync. Used by callers that compute their own version outside of
   PACKAGE_VERSION, e.g. host-profiler's nightly/dev-branch build.
 
-x_defs values may reference any of the common variables via Python-style format
-placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}; they are expanded with
-.format(**subs) against the same substitution dict compute_version_variables() (plus the
-resolved agent_version/agent_version_url_safe) produces. Available placeholders:
-{build_version}, {agent_version}, {agent_version_url_safe}, {base_branch}, {milestone},
-{agent_payload_version}.
+x_defs values may reference any of the common variables Python-style format
+placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}.
 
 Run-path strategy, selected via //:linux_and_release and @platforms//os:linux:
 - Linux + release (//:linux_and_release): /opt/datadog-packages/run
@@ -60,6 +53,7 @@ def dd_agent_go_binary(
         gotags = None,
         exact_gotags = None,
         agent_version = None,
+        x_defs = None,
         **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
@@ -81,9 +75,8 @@ def dd_agent_go_binary(
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
       agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
                      encoded) instead of deriving them from PACKAGE_VERSION/release.json.
-      **kwargs: arguments to be forwarded to go_binary. x_defs values are expanded with
-                .format() against the common substitution dict before being applied — see
-                the module docstring for available placeholders.
+      x_defs: Additional x_defs. The values undergo variable expansion.
+      **kwargs: arguments to be forwarded to go_binary.
     """
     # TODO: When --stamp support is in place, also inject:
     #   _VERSION_PKG + ".Commit": "{STABLE_GIT_COMMIT}",
@@ -97,8 +90,8 @@ def dd_agent_go_binary(
     if agent_version:
         agent_version_url_safe = standard_to_url_safe(agent_version)
     else:
-        agent_version_url_safe = common["agent_version_url_safe"]
         agent_version = common["agent_version"]
+        agent_version_url_safe = common["agent_version_url_safe"]
 
     subs = dict(common)
     subs["agent_version"] = agent_version
@@ -117,7 +110,7 @@ def dd_agent_go_binary(
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
     }
 
-    existing_x_defs = kwargs.pop("x_defs", {})
+    existing_x_defs = x_defs or {}
     expanded_x_defs = {k: v.format(**subs) for k, v in existing_x_defs.items()}
     release_x_defs.update(expanded_x_defs)
     dev_x_defs.update(expanded_x_defs)

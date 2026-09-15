@@ -1,16 +1,11 @@
 """variables. A single, shared source of build-time substitution values.
 
-Several rules and macros (dd_agent_pkg_mklink, dd_agent_expand_template,
-package_name_variables, dd_agent_go_binary) each independently derive values
-like the agent version or the install directory from environment variables,
-release.json, and build settings. This file centralizes that computation so
-there is exactly one place that knows how to compute each value.
+Extract various values from release.json, the environment, and flags to create
+a substitution dictionary that can be used by packaging rules.  The canonical
+case is to allow rules to set values based on the release version.
 
 Most consumers are rules and can depend on the `variables` target below and
-read its DdBuildTimeVariables provider. dd_agent_go_binary is a legacy macro
-(no ctx, runs at loading time) and cannot read a provider off a target, so the
-version-related subset of the computation is also exposed as a plain function,
-compute_version_variables(), that does not require ctx.
+read its DdBuildTimeVariables provider.
 """
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
