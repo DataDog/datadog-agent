@@ -1,0 +1,27 @@
+---
+# Build nosys.so (the LD_PRELOAD shim installed in the agent, cluster-agent,
+# and base-image containers), instead of recompiling it from source inside
+# every image's own `docker build`.
+.nosys_seccomp-build_common:
+  stage: binary_build
+  timeout: 15m
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: []
+  script:
+    - bazel build --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM} //Dockerfiles/nosys-seccomp:nosys.so
+    - cp -v "$(bazelisk info bazel-bin)/Dockerfiles/nosys-seccomp/nosys.so" Dockerfiles/nosys-seccomp/nosys.so
+  artifacts:
+    paths:
+      - Dockerfiles/nosys-seccomp/nosys.so
+
+nosys_seccomp-build_amd64:
+  extends: [.bazel:runner:linux-amd64, .nosys_seccomp-build_common]
+  variables:
+    NOSYS_SECCOMP_BAZEL_PLATFORM: linux_x86_64
+
+nosys_seccomp-build_arm64:
+  extends: [.bazel:runner:linux-arm64, .nosys_seccomp-build_common]
+  variables:
+    NOSYS_SECCOMP_BAZEL_PLATFORM: linux_arm64

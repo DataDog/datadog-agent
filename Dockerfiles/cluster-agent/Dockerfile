@@ -2,11 +2,6 @@ ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 ARG BASE_IMAGE_REGISTRY=docker.io
 
-# nosys.so is no longer built here. It's compiled from Dockerfiles/agent's
-# nosys-seccomp stage and handed in via the `artifacts` build context (see
-# .docker_build_cluster_agent in .gitlab/deploy/container_build/docker_linux.yml),
-# so this image doesn't need its own gcc/libseccomp-dev toolchain stage.
-
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble

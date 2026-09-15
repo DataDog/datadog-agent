@@ -395,6 +395,13 @@ def system_tests(_):
     pass
 
 
+NOSYS_SECCOMP_TARGET = "//Dockerfiles/nosys-seccomp:nosys.so"
+NOSYS_SECCOMP_BAZEL_PLATFORMS = {
+    "amd64": "//bazel/platforms:linux_x86_64",
+    "arm64": "//bazel/platforms:linux_arm64",
+}
+
+
 @task
 def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=None, push=False):
     """
@@ -414,10 +421,15 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
+    bazel("build", f"--platforms={NOSYS_SECCOMP_BAZEL_PLATFORMS[arch]}", NOSYS_SECCOMP_TARGET)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    nosys_so_dest = f"{build_context}/nosys.so"
+    shutil.copy2(os.path.join(bazel_bin, "Dockerfiles", "nosys-seccomp", "nosys.so"), nosys_so_dest)
+
     if tag is None:
         tag = AGENT_TAG
 
-    common_build_opts = f"-t {tag} -f {dockerfile_path}"
+    common_build_opts = f"-t {tag} -f {dockerfile_path} --build-context artifacts={build_context}"
 
     # Build with the testing target
     if not skip_tests:
@@ -429,6 +441,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         ctx.run(f"docker push {tag}")
 
     ctx.run(f"rm {build_context}/{deb_glob}")
+    ctx.run(f"rm -f {nosys_so_dest}")
 
 
 @task(

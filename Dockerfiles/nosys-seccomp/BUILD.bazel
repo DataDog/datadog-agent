@@ -1,0 +1,22 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# nosys.so is LD_PRELOAD'd into the agent, cluster-agent, and base-image
+# containers to force ENOSYS on syscalls (faccessat2, clone3) that older
+# Docker seccomp profiles block outright instead of reporting as
+# unimplemented.
+cc_binary(
+    name = "nosys.so",
+    srcs = ["nosys.c"],
+    additional_linker_inputs = ["nosys.sym"],
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-O2",
+        "-fPIC",
+    ],
+    linkopts = ["-Wl,--version-script=$(location nosys.sym)"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = ["@libseccomp"],
+)
