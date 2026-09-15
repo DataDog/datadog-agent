@@ -628,7 +628,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 			resolveErr = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
 		}
 
-		w.Resolver = func(path []string, value string) (string, error) {
+		w.Resolver = func(_ []string, value string) (string, error) {
 			if ok, handle := utils.IsEnc(value); ok {
 				if !r.shouldResolvedSecret(handle, origin, imageName, kubeNamespace) {
 					return value, nil

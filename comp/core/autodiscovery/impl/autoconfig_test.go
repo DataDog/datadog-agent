@@ -808,7 +808,10 @@ func TestRefreshConfig(t *testing.T) {
 
 func TestSecretRefreshesAreCoalescedByOrigin(t *testing.T) {
 	deps := createDeps(t)
-	schedulerController := scheduler.NewControllerAndStart()
+	// No worker is needed for this test: it asserts the resolver is reprocessed
+	// once after callbacks are coalesced. Keeping the controller stopped avoids
+	// racing its worker against test teardown under the race detector.
+	schedulerController := scheduler.NewController()
 	defer schedulerController.Stop()
 
 	config := integration.Config{
