@@ -118,6 +118,26 @@ func TestCollectPartialQBridgeErrorDoesNotFallBackToBridge(t *testing.T) {
 	assert.NotEqual(t, SourceBridge, result.Source)
 }
 
+func TestCollectStatusWalkErrorDiscardsRows(t *testing.T) {
+	inner := session.CreateFakeSession()
+	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
+	inner.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
+	inner.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3)
+	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
+	inner.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
+
+	result := collect(&failFirstPrefix{FakeSession: inner, prefix: oidDot1qTpFdbStatus}, config{
+		DeviceID:           "d",
+		MaxEntries:         100,
+		MaxDuration:        time.Second,
+		BulkMaxRepetitions: 10,
+	})
+	assert.Equal(t, OutcomeError, result.Outcome)
+	assert.Empty(t, result.Entries)
+	assert.NotEqual(t, SourceBridge, result.Source)
+}
+
 func TestCollectQBridgeUnsupportedFallsBackToBridge(t *testing.T) {
 	inner := session.CreateFakeSession()
 	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
@@ -182,6 +202,24 @@ func TestCollectUsesFixedEntryLimit(t *testing.T) {
 	assert.Empty(t, result.Entries)
 }
 
+func TestWalkSNMPErrorStatusIsError(t *testing.T) {
+	res := walkColumn(&fixedBulkSession{
+		packet:  &gosnmp.SnmpPacket{Error: gosnmp.GenErr},
+		version: gosnmp.Version2c,
+	}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "error-status")
+}
+
+func TestWalkSNMPv1NoSuchNameCompletes(t *testing.T) {
+	res := walkColumn(&fixedBulkSession{
+		packet:  &gosnmp.SnmpPacket{Error: gosnmp.NoSuchName},
+		version: gosnmp.Version1,
+	}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.NoError(t, res.err)
+	assert.Empty(t, res.values)
+}
+
 func TestWalkRepeatingOIDIsError(t *testing.T) {
 	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
 	packet := &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{{
@@ -189,7 +227,7 @@ func TestWalkRepeatingOIDIsError(t *testing.T) {
 		Type:  gosnmp.Integer,
 		Value: 1,
 	}}}
-	res := walkColumn(&fixedBulkSession{packet: packet}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	res := walkColumn(&fixedBulkSession{packet: packet, version: gosnmp.Version2c}, oidDot1qTpFdbPort, 10, 100, time.Time{})
 	assert.Error(t, res.err)
 	assert.Empty(t, res.reason)
 	assert.Contains(t, res.err.Error(), "did not advance")
@@ -240,7 +278,8 @@ func matchesOIDPrefix(oids []string, prefix string) bool {
 }
 
 type fixedBulkSession struct {
-	packet *gosnmp.SnmpPacket
+	packet  *gosnmp.SnmpPacket
+	version gosnmp.SnmpVersion
 }
 
 func (s *fixedBulkSession) Connect() error { return nil }
@@ -258,6 +297,6 @@ func (s *fixedBulkSession) GetSnmpGetCount() uint32     { return 0 }
 func (s *fixedBulkSession) GetSnmpGetBulkCount() uint32 { return 0 }
 func (s *fixedBulkSession) GetSnmpGetNextCount() uint32 { return 0 }
 func (s *fixedBulkSession) GetVersion() gosnmp.SnmpVersion {
-	return gosnmp.Version2c
+	return s.version
 }
 func (s *fixedBulkSession) IsUnconnectedUDP() bool { return false }

@@ -43,6 +43,12 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 		if err != nil {
 			return walkResult{values: values, err: err}
 		}
+		if packet != nil && packet.Error != gosnmp.NoError {
+			if useGetNext && packet.Error == gosnmp.NoSuchName {
+				return walkResult{values: values}
+			}
+			return walkResult{values: values, err: fmt.Errorf("snmp error-status: %s", packet.Error)}
+		}
 
 		inTableNew := 0
 		inTableRepeat := 0

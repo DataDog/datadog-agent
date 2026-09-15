@@ -177,10 +177,7 @@ func walkStatus(sess session.Session, statusOID string, cfg config, deadline tim
 		return nil, statuses.reason, statuses.err
 	}
 	if statuses.err != nil {
-		if len(statuses.values) > 0 {
-			return nil, "", statuses.err
-		}
-		return nil, "", nil
+		return nil, "", statuses.err
 	}
 	return statuses.values, "", nil
 }
