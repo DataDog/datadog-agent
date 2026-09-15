@@ -272,6 +272,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	privateActionRunnerYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
+		ProcessValue: func(data any) any {
+			wrapped := data
+			scrubber.ScrubDataObj(&wrapped)
+			scrubPrivateActionRunnerCredentialValues(wrapped)
+			return wrapped
+		},
+		LastUpdated: parseVersion("7.85.0"),
+	}
+
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
@@ -352,6 +363,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
 	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
+	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -552,6 +564,42 @@ func scrubAllLeafValues(data interface{}) interface{} {
 		return defaultReplacement
 	default:
 		return defaultReplacement
+	}
+}
+
+func scrubPrivateActionRunnerCredentialValues(data interface{}) {
+	credentials, ok := mapValue(data, "credentials")
+	if !ok {
+		return
+	}
+
+	values, ok := mapValue(credentials, "values")
+	if !ok {
+		return
+	}
+
+	setMapValue(credentials, "values", scrubAllLeafValues(values))
+}
+
+func mapValue(data interface{}, key string) (interface{}, bool) {
+	switch value := data.(type) {
+	case map[string]interface{}:
+		result, ok := value[key]
+		return result, ok
+	case map[interface{}]interface{}:
+		result, ok := value[key]
+		return result, ok
+	default:
+		return nil, false
+	}
+}
+
+func setMapValue(data interface{}, key string, value interface{}) {
+	switch target := data.(type) {
+	case map[string]interface{}:
+		target[key] = value
+	case map[interface{}]interface{}:
+		target[key] = value
 	}
 }
 
