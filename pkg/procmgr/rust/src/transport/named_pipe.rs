@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context as _, Result};
-use log::info;
+use log::{info, warn};
 use std::ffi::OsString;
 use std::future::Future;
 use std::io;
@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::HANDLE;
@@ -168,11 +169,24 @@ async fn accept_loop(
         }
 
         let connected = server;
-        server = create_pipe_server(&ServerOptions::new(), &pipe_name)
-            .context("failed to create next named pipe instance")?;
-
         if tx.send(Ok(NamedPipeIo::new(connected))).await.is_err() {
             break;
+        }
+
+        loop {
+            match create_pipe_server(&ServerOptions::new(), &pipe_name) {
+                Ok(next) => {
+                    server = next;
+                    break;
+                }
+                Err(e) => {
+                    warn!(
+                        "failed to create next named pipe instance on {}: {e}; retrying",
+                        pipe_name.to_string_lossy()
+                    );
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+            }
         }
     }
 
