@@ -4,6 +4,7 @@ runtime_security_config:
 system_probe_config:
   debug_port: 7654
   telemetry_enabled: true
+  sysprobe_socket: /var/run/sysprobe.sock
 
 network_config:
   enabled: true
