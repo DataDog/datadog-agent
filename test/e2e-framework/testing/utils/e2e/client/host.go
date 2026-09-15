@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -61,6 +63,12 @@ type sshExecutor struct {
 	privateKeyPassphrase []byte
 	buildCommand         buildCommandFn
 	scrubber             *scrubber.Scrubber
+
+	// containerName is non-empty for the docker transport: commands run
+	// via `docker exec` instead of SSH, and file operations use commands
+	// (cat, mkdir, ...) instead of SFTP. Set by NewHost when the HostOutput
+	// declares Transport "docker"; the SSH fields above are unused in that case.
+	containerName string
 }
 
 // A Host client that is connected to an [ssh.Client].
@@ -76,7 +84,45 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
+// executeDocker runs a command inside the container via docker exec.
+// It is the docker transport for the sshExecutor: same error semantics,
+// no SSH connection, no reconnect.
+func (h *sshExecutor) executeDocker(command, scrubbedCommand string) (string, error) {
+	cmd := exec.Command("docker", "exec", h.containerName, "sh", "-c", command)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("docker exec %s: %w (stderr: %s)", h.containerName, err, stderr.String())
+	}
+	return stdout.String(), nil
+}
+
+// NewHost builds a Host client. Transport "docker" (with Address as the
+// container name) uses docker exec instead of SSH; all other transports use
+// the existing SSH path unchanged.
 func NewHost(context Context, hostOutput outputs.HostOutput) (*Host, error) {
+	if hostOutput.Transport == "docker" {
+		return newDockerHost(context, hostOutput)
+	}
+	return newSSHHost(context, hostOutput)
+}
+
+func newDockerHost(ctx Context, out outputs.HostOutput) (*Host, error) {
+	executor := &sshExecutor{
+		context:       ctx,
+		containerName: out.Address,
+		scrubber:      scrubber.NewWithDefaults(),
+		buildCommand:  buildCommandFactory(out.OSFamily),
+	}
+	return &Host{
+		sshExecutor:          executor,
+		convertPathSeparator: convertPathSeparatorFactory(out.OSFamily),
+		osFamily:             out.OSFamily,
+	}, nil
+}
+
+func newSSHHost(context Context, hostOutput outputs.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
@@ -130,6 +176,9 @@ func NewHost(context Context, hostOutput outputs.HostOutput) (*Host, error) {
 
 // Reconnect closes the current ssh client and creates a new one, with retries.
 func (h *sshExecutor) Reconnect() error {
+	if h.containerName != "" {
+		return nil // docker exec has no persistent connection to establish
+	}
 	h.context.Logf("Reconnecting to host")
 	if h.client != nil {
 		_ = h.client.Close()
@@ -168,6 +217,9 @@ func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string,
 func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
 	h.context.Logf("Executing command `%s`", scrubbedCommand)
+	if h.containerName != "" {
+		return h.executeDocker(command, scrubbedCommand)
+	}
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -271,6 +323,16 @@ func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
 func (h *Host) FileExists(path string) (bool, error) {
 	h.context.Logf("Checking if file exists: %s", path)
 	path = h.convertPathSeparator(path)
+	if h.containerName != "" {
+		_, err := h.Execute(fmt.Sprintf("test -f %s", path))
+		if err == nil {
+			return true, nil
+		}
+		if strings.Contains(err.Error(), "exit status 1") {
+			return false, nil
+		}
+		return false, err
+	}
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
@@ -338,6 +400,10 @@ func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte,
 // ReadFile reads the content of the file, return bytes read and error if any
 func (h *Host) ReadFile(path string) ([]byte, error) {
 	h.context.Logf("Reading file at %s", path)
+	if h.containerName != "" {
+		content, err := h.Execute(fmt.Sprintf("cat %s", path))
+		return []byte(content), err
+	}
 	return h.readFileWithClient(h.getSFTPClient(), path)
 }
 
@@ -351,6 +417,15 @@ func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 	h.context.Logf("Writing to file at %s", path)
 	path = h.convertPathSeparator(path)
+	if h.containerName != "" {
+		// base64 avoids shell-quoting issues with arbitrary content
+		encoded := base64.StdEncoding.EncodeToString(content)
+		_, err := h.Execute(fmt.Sprintf("echo %s | base64 -d > %s", encoded, path))
+		if err != nil {
+			return 0, err
+		}
+		return int64(len(content)), nil
+	}
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
@@ -434,6 +509,10 @@ func (h *Host) Lstat(path string) (fs.FileInfo, error) {
 func (h *Host) MkdirAll(path string) error {
 	h.context.Logf("Creating directory %s", path)
 	path = h.convertPathSeparator(path)
+	if h.containerName != "" {
+		_, err := h.Execute(fmt.Sprintf("mkdir -p %s", path))
+		return err
+	}
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
@@ -445,6 +524,10 @@ func (h *Host) MkdirAll(path string) error {
 func (h *Host) Remove(path string) error {
 	h.context.Logf("Removing %s", path)
 	path = h.convertPathSeparator(path)
+	if h.containerName != "" {
+		_, err := h.Execute(fmt.Sprintf("rm -f %s", path))
+		return err
+	}
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
@@ -456,6 +539,10 @@ func (h *Host) Remove(path string) error {
 func (h *Host) RemoveAll(path string) error {
 	h.context.Logf("Removing all under %s", path)
 	path = h.convertPathSeparator(path)
+	if h.containerName != "" {
+		_, err := h.Execute(fmt.Sprintf("rm -rf %s", path))
+		return err
+	}
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
