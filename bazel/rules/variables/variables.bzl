@@ -39,7 +39,7 @@ def _url_safe_to_standard(url_safe):
       "7.81.0"                                   -> "7.81.0"  (clean release, no change)
 
     Args:
-      standard: url safe version agent version strings
+      url_safe: url safe version agent version strings
 
     Returns:
       Standard version string
