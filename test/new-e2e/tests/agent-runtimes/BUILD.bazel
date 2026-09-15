@@ -40,6 +40,7 @@ dd_agent_go_test(
         "rtloader_multiprocessing_lib_common_test.go",
         "rtloader_multiprocessing_lib_nix_test.go",
         "rtloader_multiprocessing_lib_win_test.go",
+        "serverless_init_microvm_test.go",
         "shared_library_common_test.go",
         "shared_library_nix_test.go",
         "shared_library_win_test.go",
@@ -57,6 +58,7 @@ dd_agent_go_test(
         "infra/fixtures/custom_mycheck.py",
         "rtloader/python-check/multi_pid_check.py",
         "rtloader/python-check/multi_pid_check.yaml",
+        "//cmd/serverless-init",
     ],
     embed = [":agent-runtimes"],
     embedsrcs = [
