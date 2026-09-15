@@ -78,7 +78,7 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    let enrolled = enrollment::ensure(&ipc).await?;
+    let enrolled = enrollment::ensure(&ipc, bootstrap.configured_identity.as_ref()).await?;
     let config = par_control::config::Config::from_agent(
         &agent_config,
         dd_url_explicit,

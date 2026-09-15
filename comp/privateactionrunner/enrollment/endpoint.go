@@ -8,6 +8,7 @@ package enrollment
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,17 @@ import (
 const route = "/private-action-runner/ensure-enrollment"
 
 type enrollAndPersistFunc func(context.Context, config.Component, *parenrollment.AgentIdentifier) (*parenrollment.Result, error)
+
+// ConfiguredIdentity is an identity resolved from par-control's local configuration.
+type ConfiguredIdentity struct {
+	URN        string `json:"urn"`
+	PrivateKey string `json:"private_key"`
+}
+
+// Request contains the optional sidecar-local identity.
+type Request struct {
+	ConfiguredIdentity *ConfiguredIdentity `json:"configured_identity,omitempty"`
+}
 
 // Response is the identity par-control uses to authenticate with OPMS.
 type Response struct {
@@ -57,7 +69,15 @@ func NewProvider(requires Requires) Provider {
 
 func handler(cfg config.Component, hostnameComp hostname.Component, enroll enrollAndPersistFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		response, err := ensure(r.Context(), cfg, hostnameComp, enroll)
+		var request Request
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil {
+			http.Error(w, "invalid enrollment request", http.StatusBadRequest)
+			return
+		}
+
+		response, err := ensure(r.Context(), cfg, hostnameComp, request, enroll)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
@@ -69,7 +89,7 @@ func handler(cfg config.Component, hostnameComp hostname.Component, enroll enrol
 	}
 }
 
-func ensure(ctx context.Context, cfg config.Component, hostnameComp hostname.Component, enroll enrollAndPersistFunc) (*Response, error) {
+func ensure(ctx context.Context, cfg config.Component, hostnameComp hostname.Component, request Request, enroll enrollAndPersistFunc) (*Response, error) {
 	if !cfg.GetBool(par.PAREnabled) || !cfg.GetBool(par.PARSplitEnabled) {
 		return nil, errors.New("Private Action Runner split mode is disabled")
 	}
@@ -79,33 +99,62 @@ func ensure(ctx context.Context, cfg config.Component, hostnameComp hostname.Com
 	if enabled, err := fips.Enabled(); err == nil && enabled {
 		return nil, errors.New("private_action_runner.split_enabled is not supported by the FIPS Agent")
 	}
-
 	agentID, err := parenrollment.GetAgentIdentifier(ctx, hostnameComp)
 	if err != nil {
 		return nil, err
 	}
-	identity, err := parenrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
+	persisted, err := parenrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-	if identity != nil && !parenrollment.ShouldReenroll(agentID, identity, cfg.GetString("api_key")) {
-		applyIdentity(cfg, identity)
-	} else if cfg.GetString(par.PARUrn) == "" || cfg.GetString(par.PARPrivateKey) == "" {
-		if !cfg.GetBool(par.PARSelfEnroll) {
-			return nil, errors.New("no Private Action Runner identity is configured and self-enrollment is disabled")
-		}
-		if _, err := enroll(ctx, cfg, agentID); err != nil {
-			return nil, err
-		}
-		identity, err = parenrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
-		if err != nil {
-			return nil, err
-		}
-		applyIdentity(cfg, identity)
+	if persisted != nil && !parenrollment.ShouldReenroll(agentID, persisted, cfg.GetString("api_key")) {
+		applyIdentity(cfg, persisted)
+		return responseFor(persisted.URN, persisted.PrivateKey)
 	}
+	if err := validateConfiguredIdentity(request.ConfiguredIdentity); err != nil {
+		return nil, err
+	}
+	if request.ConfiguredIdentity != nil {
+		return responseFor(request.ConfiguredIdentity.URN, request.ConfiguredIdentity.PrivateKey)
+	}
+	if !cfg.GetBool(par.PARSelfEnroll) {
+		return nil, errors.New("no Private Action Runner identity is configured and self-enrollment is disabled")
+	}
+	if _, err := enroll(ctx, cfg, agentID); err != nil {
+		return nil, err
+	}
+	persisted, err = parenrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if persisted == nil {
+		return nil, errors.New("the resolved Private Action Runner identity is incomplete")
+	}
+	applyIdentity(cfg, persisted)
+	return responseFor(persisted.URN, persisted.PrivateKey)
+}
 
-	urn := cfg.GetString(par.PARUrn)
-	privateKey := cfg.GetString(par.PARPrivateKey)
+func validateConfiguredIdentity(identity *ConfiguredIdentity) error {
+	if identity == nil {
+		return nil
+	}
+	if identity.URN == "" || identity.PrivateKey == "" {
+		return errors.New("configured identity requires both urn and private_key")
+	}
+	if _, err := parutil.ParseRunnerURN(identity.URN); err != nil {
+		return fmt.Errorf("failed to parse the configured Private Action Runner URN: %w", err)
+	}
+	key, err := parutil.Base64ToJWK(identity.PrivateKey)
+	if err != nil {
+		return errors.New("failed to parse the configured Private Action Runner private key")
+	}
+	if _, ok := key.Key.(*ecdsa.PrivateKey); !ok {
+		return errors.New("configured Private Action Runner key is not an ECDSA private key")
+	}
+	return nil
+}
+
+func responseFor(urn, privateKey string) (*Response, error) {
 	if urn == "" || privateKey == "" {
 		return nil, errors.New("the resolved Private Action Runner identity is incomplete")
 	}

@@ -77,8 +77,12 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 
 	_, err = s.Env().RemoteHost.Execute(`[Environment]::SetEnvironmentVariable('DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS', 'true', 'Machine')`)
 	s.Require().NoError(err)
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
+	if err := s.runProcmgr("stop", parControlProcess); err != nil {
+		// par-control can exit cleanly before the provisioner applies split-mode config.
+		s.waitForProcessStates(parControlProcess, []string{"Created", "Exited", "Stopped"}, 10*time.Second)
+	}
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
+	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
 // TestExecutorStartsForSignedWork proves the MSI's named-pipe mTLS path and

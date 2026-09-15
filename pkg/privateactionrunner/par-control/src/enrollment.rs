@@ -3,8 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use datadog_agent_commons::ipc::config::RemoteAgentClientConfiguration;
+use std::fmt;
+
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ConfiguredIdentity {
+    pub urn: String,
+    pub private_key: String,
+}
+
+impl fmt::Debug for ConfiguredIdentity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConfiguredIdentity")
+            .field("urn", &self.urn)
+            .field("private_key", &"<redacted>")
+            .finish()
+    }
+}
+
+#[derive(serde::Serialize)]
+struct EnsureRequest<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    configured_identity: Option<&'a ConfiguredIdentity>,
+}
 
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +39,10 @@ pub struct Enrollment {
     pub agent_version: String,
 }
 
-pub async fn ensure(ipc: &RemoteAgentClientConfiguration) -> Result<Enrollment> {
+pub async fn ensure(
+    ipc: &RemoteAgentClientConfiguration,
+    configured_identity: Option<&ConfiguredIdentity>,
+) -> Result<Enrollment> {
     let tls = datadog_agent_commons::ipc::tls::build_ipc_client_ipc_tls_config(
         ipc.auth.ipc_cert_file_path(),
     )
@@ -29,20 +55,29 @@ pub async fn ensure(ipc: &RemoteAgentClientConfiguration) -> Result<Enrollment> 
         .use_preconfigured_tls(tls)
         .build()
         .context("building Core Agent IPC client")?;
+    let request = serde_json::to_vec(&EnsureRequest {
+        configured_identity,
+    })
+    .context("encoding Core Agent enrollment request")?;
     let response = client
         .post(format!(
             "https://127.0.0.1:{}/agent/private-action-runner/ensure-enrollment",
             ipc.cmd_port
         ))
         .bearer_auth(token)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(request)
         .send()
         .await
         .context("calling Core Agent enrollment endpoint")?;
-    ensure!(
-        response.status().is_success(),
-        "Core Agent enrollment endpoint returned {}",
-        response.status()
-    );
+    let status = response.status();
+    if !status.is_success() {
+        let detail = response.text().await.unwrap_or_default().trim().to_string();
+        if detail.is_empty() {
+            bail!("Core Agent enrollment endpoint returned {status}");
+        }
+        bail!("Core Agent enrollment endpoint returned {status}: {detail}");
+    }
 
     let body = response
         .bytes()
@@ -82,6 +117,22 @@ mod tests {
             "runner_id": "runner",
             "agent_version": "7.83.0",
         })
+    }
+
+    #[test]
+    fn serializes_configured_identity_without_debugging_the_key() {
+        let identity = ConfiguredIdentity {
+            urn: "runner-urn".to_string(),
+            private_key: "secret-key".to_string(),
+        };
+        let encoded = serde_json::to_value(EnsureRequest {
+            configured_identity: Some(&identity),
+        })
+        .unwrap();
+
+        assert_eq!(encoded["configured_identity"]["urn"], "runner-urn");
+        assert_eq!(encoded["configured_identity"]["private_key"], "secret-key");
+        assert!(!format!("{identity:?}").contains("secret-key"));
     }
 
     #[test]
