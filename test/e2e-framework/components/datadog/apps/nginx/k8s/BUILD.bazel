@@ -18,17 +18,3 @@ go_library(
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )
-
-dd_agent_go_test(
-    name = "k8s_test",
-    srcs = ["modifiers_test.go"],
-    embed = [":k8s"],
-    deps = [
-        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
-        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
-        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
-        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
-)
