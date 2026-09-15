@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.26.0
+go 1.26.7
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -266,7 +266,7 @@ require (
 	github.com/elastic/go-freelru v0.16.0
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
-	github.com/envoyproxy/gateway v1.7.4
+	github.com/envoyproxy/gateway v1.9.1
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
 	github.com/fatih/structtag v1.2.0
@@ -493,26 +493,26 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
-	k8s.io/api v0.35.5
-	k8s.io/apiextensions-apiserver v0.35.5
-	k8s.io/apimachinery v0.35.6
+	k8s.io/api v0.36.3
+	k8s.io/apiextensions-apiserver v0.36.3
+	k8s.io/apimachinery v0.36.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
-	k8s.io/cli-runtime v0.35.5
-	k8s.io/client-go v0.35.5
-	k8s.io/component-base v0.35.5
+	k8s.io/cli-runtime v0.36.3
+	k8s.io/client-go v0.36.3
+	k8s.io/component-base v0.36.3
 	k8s.io/cri-api v0.35.5
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
 	k8s.io/kube-state-metrics/v2 v2.18.0
-	k8s.io/kubectl v0.35.5
+	k8s.io/kubectl v0.36.3
 	k8s.io/kubelet v0.35.5
-	k8s.io/metrics v0.35.5
+	k8s.io/metrics v0.36.3
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	mvdan.cc/sh/v3 v3.14.1
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.35.0
-	sigs.k8s.io/gateway-api v1.5.1
+	sigs.k8s.io/gateway-api v1.6.1
 	sigs.k8s.io/karpenter v1.9.0
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -665,7 +665,7 @@ require (
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/docker/cli v29.8.0+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
-	github.com/docker/docker-credential-helpers v0.9.4 // indirect
+	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20250430191550-ac36954387e7 // indirect
@@ -676,7 +676,7 @@ require (
 	github.com/elastic/go-perf v0.0.0-20260224073651-af0ee0c731b7 // indirect
 	github.com/elastic/lunes v0.2.2 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
-	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
+	github.com/envoyproxy/go-control-plane/envoy v1.37.1-0.20260729145720-a2d8c7492908 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
@@ -697,7 +697,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
-	github.com/go-openapi/analysis v0.25.5 // indirect
+	github.com/go-openapi/analysis v0.26.0 // indirect
 	github.com/go-openapi/errors v0.22.8 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-openapi/jsonreference v1.0.0 // indirect
@@ -716,7 +716,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.28.0 // indirect
 	github.com/go-openapi/swag/typeutils v0.28.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
-	github.com/go-openapi/validate v0.26.1 // indirect
+	github.com/go-openapi/validate v0.26.3 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
@@ -1060,7 +1060,7 @@ require (
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.etcd.io/etcd/api/v3 v3.6.11 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.11 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.6.14 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
 	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -1157,18 +1157,19 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
-	k8s.io/apiserver v0.35.5 // indirect
+	k8s.io/apiserver v0.36.3 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
-	k8s.io/component-helpers v0.35.5 // indirect
+	k8s.io/component-helpers v0.36.3 // indirect
 	k8s.io/csi-translation-lib v0.35.3 // indirect
-	k8s.io/kms v0.35.5 // indirect
+	k8s.io/kms v0.36.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.53.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
-	sigs.k8s.io/controller-runtime v0.23.3 // indirect
+	sigs.k8s.io/controller-runtime v0.24.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
