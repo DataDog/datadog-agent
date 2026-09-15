@@ -1498,6 +1498,7 @@ core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
 core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/iobufpool,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/pgdatetime,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/pgio,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/stmtcache,MIT,Copyright (c) 2013-2021 Jack Christensen
