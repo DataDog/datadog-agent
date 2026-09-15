@@ -346,7 +346,12 @@
 /docs/dev/agent_api.md                                       @DataDog/agent-runtimes
 /docs/dev/checks/                                            @DataDog/agent-runtimes
 /docs/cloud-workload-security/                               @DataDog/documentation @DataDog/agent-security
-/docs/public/components/                                     @DataDog/agent-runtimes
+/docs/public/architecture/components/                        @DataDog/agent-runtimes
+/docs/public/tutorials/components/                           @DataDog/agent-runtimes
+/docs/public/how-to/components/                              @DataDog/agent-runtimes
+/docs/public/guidelines/components.md                        @DataDog/agent-runtimes
+/docs/public/reference/components/                           @DataDog/agent-runtimes
+/docs/public/how-to/run-jmxfetch.md                           @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
