@@ -7,14 +7,10 @@ use anyhow::{Context, Result};
 use log::info;
 use std::ffi::OsString;
 use std::path::PathBuf;
-#[cfg(not(windows))]
-use tokio::process::Command;
 
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 
-#[cfg(not(windows))]
-use super::stdio::to_command_stdio;
 use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
@@ -27,32 +23,26 @@ pub(crate) struct SpawnRequest {
 }
 
 impl SpawnRequest {
-    #[cfg(windows)]
     pub(crate) fn command(&self) -> &str {
         &self.command
     }
 
-    #[cfg(windows)]
     pub(crate) fn args(&self) -> &[String] {
         &self.args
     }
 
-    #[cfg(windows)]
     pub(crate) fn env(&self) -> &[(String, String)] {
         &self.env
     }
 
-    #[cfg(windows)]
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
         self.working_dir.as_ref()
     }
 
-    #[cfg(windows)]
     pub(crate) fn stdout_setting(&self) -> &StdioSetting {
         &self.stdout_setting
     }
 
-    #[cfg(windows)]
     pub(crate) fn stderr_setting(&self) -> &StdioSetting {
         &self.stderr_setting
     }
@@ -69,22 +59,6 @@ impl SpawnRequest {
             stdout_setting: parse_stdio_setting(&config.stdout),
             stderr_setting: parse_stdio_setting(&config.stderr),
         })
-    }
-
-    #[cfg(not(windows))]
-    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
-        let mut cmd = Command::new(&self.command);
-        cmd.args(&self.args);
-        cmd.env_clear();
-        for (k, v) in &self.env {
-            cmd.env(k, v);
-        }
-        if let Some(dir) = &self.working_dir {
-            cmd.current_dir(dir);
-        }
-        cmd.stdout(to_command_stdio(&self.stdout_setting, stdout_inheritable));
-        cmd.stderr(to_command_stdio(&self.stderr_setting, stderr_inheritable));
-        cmd
     }
 }
 

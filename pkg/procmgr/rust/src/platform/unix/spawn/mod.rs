@@ -3,14 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod stdio;
+
 use anyhow::{Context, Result};
 use log::info;
+use tokio::process::Command;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
 use crate::spawn::SpawnRequest;
 
 use super::{setup_process_group, stderr_inheritable, stdout_inheritable};
+use stdio::to_command_stdio;
 
 impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
@@ -26,5 +30,22 @@ impl ManagedProcess {
             )
         })?;
         Ok(ProcessHandle::from_child(child))
+    }
+}
+
+impl SpawnRequest {
+    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
+        let mut cmd = Command::new(self.command());
+        cmd.args(self.args());
+        cmd.env_clear();
+        for (k, v) in self.env() {
+            cmd.env(k, v);
+        }
+        if let Some(dir) = self.working_dir() {
+            cmd.current_dir(dir);
+        }
+        cmd.stdout(to_command_stdio(self.stdout_setting(), stdout_inheritable));
+        cmd.stderr(to_command_stdio(self.stderr_setting(), stderr_inheritable));
+        cmd
     }
 }
