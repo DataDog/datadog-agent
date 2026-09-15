@@ -64,6 +64,8 @@ var (
 	testRemoteAPIRequestJSON, _ = json.Marshal(testRemoteAPIRequest)
 )
 
+func alwaysCatalogReady() bool { return true }
+
 type callbackMock struct {
 	mock.Mock
 }
@@ -171,7 +173,7 @@ func TestCatalogUpdateFirstCatalogAppliedCallback(t *testing.T) {
 
 func TestRemoteAPIRequest(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
 	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil)
 	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return()
 
@@ -184,7 +186,7 @@ func TestRemoteAPIRequest(t *testing.T) {
 
 func TestRemoteAPIRequestBadConfig(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
 	callback.On("applyStateCallback", "test", mock.MatchedBy(func(s state.ApplyStatus) bool {
 		return s.State == state.ApplyStateError
 	})).Return()
@@ -198,7 +200,7 @@ func TestRemoteAPIRequestBadConfig(t *testing.T) {
 
 func TestRemoteAPIRequestError(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
 	err := errors.New("test error")
 	callback.On("handleRemoteAPIRequest", mock.Anything).Return(err)
 	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()}).Return()
@@ -212,7 +214,7 @@ func TestRemoteAPIRequestError(t *testing.T) {
 
 func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 	callback := &callbackMock{}
-	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, alwaysCatalogReady)
 	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil)
 	callback.On("applyStateCallback", "test1", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Times(1).Return()
 
@@ -225,4 +227,20 @@ func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)
+}
+
+// TestRemoteAPIRequestWaitsForCatalog pins the property the UPDATER_TASK/UPDATER_CATALOG_DD
+// decoupling relies on: subscribing to tasks no longer waits for a catalog, but executing one
+// still does. A task delivered before any catalog has been applied must be left unacknowledged,
+// not executed or errored, so remote-config redelivers it once a catalog exists.
+func TestRemoteAPIRequestWaitsForCatalog(t *testing.T) {
+	callback := &callbackMock{}
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return false })
+
+	handler(map[string]state.RawConfig{
+		"test": {Config: testRemoteAPIRequestJSON},
+	}, callback.applyStateCallback)
+
+	callback.AssertNotCalled(t, "handleRemoteAPIRequest", mock.Anything)
+	callback.AssertNotCalled(t, "applyStateCallback", mock.Anything, mock.Anything)
 }
