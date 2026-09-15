@@ -318,7 +318,7 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(s.baselineConfig))
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
-	s.Require().NoError(s.runProcmgr("start", parControlProcess))
+	s.startControl()
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
@@ -357,8 +357,16 @@ func (s *linuxPARSplitSuite) restartControl(config, expectedState string) {
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(config))
-	s.Require().NoError(s.runProcmgr("start", parControlProcess))
+	s.startControl()
 	s.waitForProcessState(parControlProcess, expectedState, 2*time.Minute)
+}
+
+func (s *linuxPARSplitSuite) startControl() {
+	err := s.runProcmgr("start", parControlProcess)
+	if err != nil {
+		// An on-failure restart may win the race with this explicit start.
+		s.Require().ErrorContains(err, "already running")
+	}
 }
 
 func (s *linuxPARSplitSuite) writeConfig(config string) error {
