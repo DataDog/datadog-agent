@@ -463,13 +463,13 @@ type modificationsDetail struct {
 }
 
 type indexKeyPart struct {
-	Column     string `json:"column,omitempty"`
+	Column     string `json:"name,omitempty"`
 	Expression string `json:"expression,omitempty"`
 }
 
 type indexInfo struct {
 	Name    string         `json:"name"`
-	Unique  bool           `json:"unique"`
+	Unique  bool           `json:"is_unique"`
 	Type    string         `json:"index_type,omitempty"`
 	Columns []indexKeyPart `json:"columns,omitempty"`
 }
