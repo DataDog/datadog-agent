@@ -11,7 +11,12 @@ on it:
 Handle → Storage → Detect → Correlate → Report
 ```
 
-Data enters through lightweight **Handles** (non-blocking, copy-on-send).
+Data enters through lightweight **Handles** (non-blocking scalar snapshot on
+send). Metric handles reject name/source/host-only processing rules before
+enqueueing, retain immutable resolved-tag views, and defer tag materialization,
+tag-dependent filtering, muting, and canonicalization to the dispatch
+goroutine; log handles still copy caller-owned content and tags before
+enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
