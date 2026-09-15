@@ -379,8 +379,7 @@ type Status struct {
 				Name       string `json:"Name"`
 			} `json:"Sketches"`
 		} `json:"FlushCount"`
-		HostnameUpdate int `json:"HostnameUpdate"`
-		MetricTags     struct {
+		MetricTags struct {
 			Series struct {
 				Above100 int `json:"Above100"`
 				Above90  int `json:"Above90"`

@@ -3,8 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package telemetry is a check to collect and send limited subset of internal telemetry from the
-// core agent. The check implements a subset of openmetrics v2 check functionality.
+// Package telemetry is a check to collect and send the small set of internal telemetry that the core
+// agent reports out of the box, that is, the metrics registered with telemetry.Options{DefaultMetric:
+// true}. The check implements a subset of openmetrics v2 check functionality.
+//
+// It is deliberately not a general purpose way to ship internal telemetry: to collect more than the
+// default set, scrape the agent's Prometheus-style `/telemetry` endpoint with the openmetrics check.
+// See conf.d/openmetrics.d/agent_stats.yaml.example.
 package telemetry
 
 import (
@@ -39,19 +44,6 @@ func (c *checkImpl) Run() error {
 		return err
 	}
 
-	// Remote Agent Registry telemetry lives in the regular registry. Gather it on a best-effort basis so failures there
-	// do not prevent the customer-facing telemetry check from reporting Core Agent default telemetry values.
-	var regularMfs []*dto.MetricFamily
-	if gathered, err := c.telemetry.Gather(false); err != nil {
-		log.Warnf("failed to gather regular telemetry metrics for default telemetry merge: %v", err)
-	} else {
-		regularMfs = gathered
-	}
-
-	mergeLabelsByMetric := discoverMergeLabels(mfs, regularMfs)
-	mergedMetrics := collectMergeMetrics(mfs, false, mergeLabelsByMetric)
-	mergedMetrics.merge(collectMergeMetrics(regularMfs, true, mergeLabelsByMetric))
-
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -59,7 +51,6 @@ func (c *checkImpl) Run() error {
 
 	sender.SetNoIndex(true)
 
-	c.sendMergedMetrics(mergedMetrics, sender)
 	c.handleMetricFamilies(mfs, sender)
 
 	return nil
@@ -67,9 +58,7 @@ func (c *checkImpl) Run() error {
 
 func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.Sender) {
 	for _, mf := range mfs {
-		// Merged metrics are emitted explicitly by sendMergedMetrics so overlapping regular-registry values can be included
-		// without changing customer-facing metric names or tags.
-		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
+		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 {
 			continue
 		}
 
