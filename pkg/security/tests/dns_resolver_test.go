@@ -23,17 +23,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func injectHexDump(iface string, hexDump string) error {
-	packetData := []byte{}
+func hexToPacket(hexDump string) ([]byte, error) {
+	packetData := make([]byte, 0, len(hexDump)/2)
 	for i := 0; i < len(hexDump); i += 2 {
 		var byteValue byte
 		_, err := fmt.Sscanf(hexDump[i:i+2], "%x", &byteValue)
 		if err != nil {
-			return fmt.Errorf("error converting hex dump to bytes: %v", err)
+			return nil, fmt.Errorf("error converting hex dump to bytes: %v", err)
 		}
 		packetData = append(packetData, byteValue)
 	}
+	return packetData, nil
+}
 
+func sendRawPacket(iface string, packetData []byte) error {
 	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, syscall.ETH_P_IP)
 	if err != nil {
 		return fmt.Errorf("failed to create raw socket: %v", err)
@@ -50,12 +53,19 @@ func injectHexDump(iface string, hexDump string) error {
 		Ifindex:  ifaceIndex,
 	}
 
-	err = syscall.Sendto(fd, packetData, 0, addr)
-	if err != nil {
+	if err := syscall.Sendto(fd, packetData, 0, addr); err != nil {
 		return fmt.Errorf("failed to send packet: %v", err)
 	}
 
 	return nil
+}
+
+func injectHexDump(iface string, hexDump string) error {
+	packetData, err := hexToPacket(hexDump)
+	if err != nil {
+		return err
+	}
+	return sendRawPacket(iface, packetData)
 }
 
 func getInterfaceIndex(iface string) (int, error) {
