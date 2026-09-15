@@ -16,6 +16,8 @@ import (
 
 	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 const removeAllMaxElapsedTime = time.Minute
@@ -25,11 +27,23 @@ func RemoveAll(ctx context.Context, path string) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 200 * time.Millisecond
 	b.MaxInterval = 5 * time.Second
+	start := time.Now()
+	attempts := 0
 
-	return removeAll(ctx, func() error { return os.RemoveAll(path) },
+	err := removeAll(ctx, func() error {
+		attempts++
+		return os.RemoveAll(path)
+	},
 		backoff.WithBackOff(b),
 		backoff.WithMaxElapsedTime(removeAllMaxElapsedTime),
 	)
+	if attempts > 1 {
+		if span, ok := telemetry.SpanFromContext(ctx); ok {
+			span.SetTag("paths.remove_all.attempts", attempts)
+			span.SetTag("paths.remove_all.retry_duration_ms", time.Since(start).Milliseconds())
+		}
+	}
+	return err
 }
 
 func removeAll(ctx context.Context, remove func() error, opts ...backoff.RetryOption) error {
