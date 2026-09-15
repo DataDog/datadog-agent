@@ -18,9 +18,9 @@ use super::win32::duplicate_primary_token;
 /// Resolved spawn identity for Windows spawn.
 ///
 /// We either reuse procmgrd's access token (when it already runs as the target account)
-/// or call `LogonUser` for a primary token. Password retrieval comes from the installer
-/// LSA secret in a separate change. This type only holds the resolved account and which
-/// path to take.
+/// or call `LogonUser` for a primary token when the supervisor and installed account differ.
+/// Reading the installer LSA password for cross-account logon lands in a follow-up PR.
+/// This type only holds the resolved account and which path to take.
 const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
 
 fn intended_user_for_profile(profile: SpawnProfile) -> String {

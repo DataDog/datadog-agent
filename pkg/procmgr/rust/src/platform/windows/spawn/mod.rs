@@ -9,9 +9,11 @@
 //! Routing lives in `managed.rs`; shared `CreateProcess*` job attach and resume logic
 //! in `create_process.rs`.
 //!
-//! Three paths (see `managed.rs`):
-//! - **Privileged** and **agent inherit**: `CreateProcessW` via `inherit_supervisor`
-//! - **Agent logon**: `LogonUser` + `CreateProcessAsUserW` via `primary_token`
+//! Two profiles, three routing paths (see `managed.rs`):
+//! - **Privileged**: `CreateProcessW` via `inherit_supervisor`
+//! - **Agent inherit** (supervisor already runs as the target account): `CreateProcessW` via
+//!   `inherit_supervisor`
+//! - **Agent logon** (cross-account): `LogonUser` + `CreateProcessAsUserW` via `primary_token`
 
 mod create_process;
 mod credential;
