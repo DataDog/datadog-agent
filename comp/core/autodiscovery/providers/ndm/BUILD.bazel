@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "ndm_test",
+    srcs = [
+        "config_keys_test.go",
+        "document_test.go",
+        "ndm_test.go",
+        "provider_test.go",
+    ],
+    embed = [":ndm"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/ndm/handler",
+        "//comp/core/autodiscovery/providers/ndm/snmp",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/log/mock",
+        "//pkg/config/mock",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_library(
+    name = "ndm",
+    srcs = [
+        "document.go",
+        "provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/ndm/handler",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/log/def",
+        "//pkg/remoteconfig/state",
+    ],
+)
