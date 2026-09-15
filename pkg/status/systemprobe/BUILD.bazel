@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "systemprobe",
@@ -8,7 +9,16 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",
-        "//comp/core/sysprobeconfig/def",
         "//pkg/system-probe/api/client",
+    ],
+)
+
+dd_agent_go_test(
+    name = "systemprobe_test",
+    srcs = ["status_test.go"],
+    embed = [":systemprobe"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

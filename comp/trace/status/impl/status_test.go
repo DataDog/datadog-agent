@@ -7,7 +7,11 @@ package statusimpl
 
 import (
 	"bytes"
+	"context"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestStatusOut(t *testing.T) {
@@ -88,4 +93,109 @@ func TestSemanticCoreRendered(t *testing.T) {
 	assert.Contains(t, out, "Source: Remote Config")
 	assert.Contains(t, out, "hash-rc")
 	assert.Contains(t, out, "rc-1.0")
+}
+
+func TestGetStatusDetailsMatchesText(t *testing.T) {
+	ipc := ipcmock.New(t)
+	server := ipc.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{
+			"pid": 123,
+			"uptime": 10,
+			"memstats": {"Alloc": 1024},
+			"config": {
+				"Hostname": "trace-host",
+				"ReceiverHost": "localhost",
+				"ReceiverPort": 8126,
+				"Endpoints": [{"Host": "https://trace.agent.example"}]
+			},
+			"receiver": [],
+			"ratebyservice_filtered": {},
+			"trace_writer": {"Payloads": 2, "Traces": 3, "Events": 4, "Bytes": 1024, "Errors": 0},
+			"stats_writer": {"Payloads": 5, "StatsBuckets": 6, "Bytes": 2048, "Errors": 0},
+			"trace_semantics": {"Source": "remote-config", "ContentHash": "hash-rc", "Version": "rc-1.0"}
+		}`))
+		assert.NoError(t, err)
+	}))
+
+	port := server.Listener.Addr().(*net.TCPAddr).Port
+
+	configComponent := config.NewMock(t)
+	configComponent.SetInTest("apm_config.debug.port", port)
+	configComponent.SetInTest("server_timeout", 1)
+
+	provides := NewComponent(Requires{
+		Config: configComponent,
+		Client: ipc.GetClient(),
+	})
+	require.Same(t, provides.Comp, provides.StatusProvider.Provider)
+
+	var expected bytes.Buffer
+	require.NoError(t, provides.StatusProvider.Provider.Text(false, &expected))
+
+	response, err := provides.Comp.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+	require.NoError(t, err)
+	require.Contains(t, response.NamedSections, "Details")
+	assert.Equal(t, expected.String(), response.NamedSections["Details"].Fields[""])
+}
+
+func TestGetStatusDetailsCancellation(t *testing.T) {
+	const testTimeout = 5 * time.Second
+
+	requestStarted := make(chan struct{})
+	requestCanceled := make(chan struct{})
+	releaseRequest := make(chan struct{})
+
+	ipc := ipcmock.New(t)
+	server := ipc.NewMockServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		close(requestStarted)
+		select {
+		case <-request.Context().Done():
+			close(requestCanceled)
+		case <-releaseRequest:
+		}
+	}))
+	defer close(releaseRequest)
+
+	configComponent := config.NewMock(t)
+	configComponent.SetInTest("apm_config.debug.port", server.Listener.Addr().(*net.TCPAddr).Port)
+	configComponent.SetInTest("server_timeout", 30)
+
+	provider := NewComponent(Requires{
+		Config: configComponent,
+		Client: ipc.GetClient(),
+	}).Comp
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type result struct {
+		response *pbcore.GetStatusDetailsResponse
+		err      error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		response, err := provider.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
+		resultCh <- result{response: response, err: err}
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(testTimeout):
+		t.Fatal("trace status request did not start")
+	}
+	cancel()
+
+	select {
+	case <-requestCanceled:
+	case <-time.After(testTimeout):
+		t.Fatal("trace status request was not canceled")
+	}
+
+	select {
+	case result := <-resultCh:
+		require.NoError(t, result.err)
+		require.Contains(t, result.response.NamedSections, "Details")
+		assert.Contains(t, result.response.NamedSections["Details"].Fields[""], context.Canceled.Error())
+	case <-time.After(testTimeout):
+		t.Fatal("GetStatusDetails did not return after cancellation")
+	}
 }

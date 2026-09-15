@@ -15,6 +15,7 @@ import (
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	tracestatus "github.com/DataDog/datadog-agent/comp/trace/status/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -25,6 +26,7 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	Status    tracestatus.Component
 }
 
 // Provides defines the output of the remoteagent component
@@ -54,6 +56,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		remoteAgentServer: remoteAgentServer,
 	}
 
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), reqs.Status)
 	remoteAgentServer.Start()
 
 	provides := Provides{

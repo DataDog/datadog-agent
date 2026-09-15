@@ -7,7 +7,9 @@
 package systemprobeimpl
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -24,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/security/flareregistry"
+	statussystemprobe "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -97,21 +101,30 @@ type remoteagentImpl struct {
 }
 
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	text, registered, err := statusregistry.GetTextOrError()
-	if !registered {
-		return &pbcore.GetStatusDetailsResponse{}, nil
+	var details bytes.Buffer
+	if err := statussystemprobe.RenderText(module.GetStats(), &details); err != nil {
+		return nil, fmt.Errorf("render system probe status: %w", err)
 	}
-	if err != nil {
-		return &pbcore.GetStatusDetailsResponse{}, nil
-	}
-	return &pbcore.GetStatusDetailsResponse{
-		NamedSections: map[string]*pbcore.StatusSection{
-			"Compliance": {
-				Fields: map[string]string{
-					"": text,
-				},
+
+	namedSections := map[string]*pbcore.StatusSection{
+		"Details": {
+			Fields: map[string]string{
+				"": details.String(),
 			},
 		},
+	}
+
+	text, registered, err := statusregistry.GetTextOrError()
+	if err == nil && registered {
+		namedSections["Compliance"] = &pbcore.StatusSection{
+			Fields: map[string]string{
+				"": text,
+			},
+		}
+	}
+
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: namedSections,
 	}, nil
 }
 

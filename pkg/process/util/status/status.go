@@ -124,9 +124,14 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.
 	}
 }
 
-func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
+func getExpvars(ctx context.Context, expVarURL string) (s ProcessExpvars, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, expVarURL, nil)
+	if err != nil {
+		return s, ConnectionError{err}
+	}
+
 	client := http.Client{}
-	resp, err := client.Get(expVarURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
@@ -141,10 +146,10 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 	return
 }
 
-// GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
+// GetStatusWithContext returns a Status object with runtime information about process-agent.
+func GetStatusWithContext(ctx context.Context, coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig, hostname)
-	processExpVars, err := getExpvars(expVarURL)
+	processExpVars, err := getExpvars(ctx, expVarURL)
 	if err != nil {
 		return nil, err
 	}
@@ -154,4 +159,9 @@ func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname host
 		Core:    coreStatus,
 		Expvars: processExpVars,
 	}, nil
+}
+
+// GetStatus returns a Status object with runtime information about process-agent.
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
+	return GetStatusWithContext(context.Background(), coreConfig, expVarURL, hostname)
 }

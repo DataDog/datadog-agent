@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	processstatus "github.com/DataDog/datadog-agent/comp/process/status/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -27,6 +28,7 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	Status    processstatus.Component
 	Telemetry telemetry.Component
 }
 
@@ -60,6 +62,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), reqs.Status)
 
 	remoteAgentServer.Start()
 
