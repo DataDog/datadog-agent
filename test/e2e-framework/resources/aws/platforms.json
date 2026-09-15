@@ -20,12 +20,12 @@
     },
     "amazon-linux-ecs": {
         "arm64": {
-            "2": "ami-0dcf2251579699482",
-            "2023": "ami-0101b61d5b36d62a1"
+            "2": "ami-05af65b876afa23a2",
+            "2023": "ami-01e77a4b4409a8bbb"
         },
         "x86_64": {
-            "2": "ami-0e37628daf9e2446b",
-            "2023": "ami-0dca33706e9d8da76"
+            "2": "ami-0704bd8ac5c7b681d",
+            "2023": "ami-006c0e3a6f274ae48"
         }
     },
     "centos": {
