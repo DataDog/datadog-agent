@@ -109,7 +109,9 @@ func (a *FileDeletionAudit) EnsureEnabled() error {
 	if _, err := a.host.Execute(fmt.Sprintf(`auditpol.exe /set /subcategory:"%s" /success:enable`, fileSystemAuditSubcategory)); err != nil {
 		return fmt.Errorf("enable successful File System auditing: %w", err)
 	}
-	cmd := fmt.Sprintf(`auditpol.exe /resourceSACL /set /type:File /user:%s /success /access:0x10040`, everyoneSID)
+	// Quote the SID so PowerShell passes the curly braces literally instead of
+	// parsing them as a script block before invoking auditpol.
+	cmd := fmt.Sprintf(`auditpol.exe /resourceSACL /set /type:File /user:"%s" /success /access:0x10040`, everyoneSID)
 	if _, err := a.host.Execute(cmd); err != nil {
 		return fmt.Errorf("enable global File deletion resource SACL: %w", err)
 	}
