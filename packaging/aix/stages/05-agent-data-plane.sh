@@ -28,6 +28,7 @@ ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}
 export CARGO_TARGET_DIR
 
+export APP_BUILD_TIME="2026-09-15T15:00:00Z" #TODO: remove before merge, this is just a workaround for a saluki build issue that is fixed in the next release
 if [ "${ADP_AIX_BUILD_COMMAND+x}" != x ]; then
     ADP_AIX_BUILD_COMMAND="make build-adp-aix"
 fi

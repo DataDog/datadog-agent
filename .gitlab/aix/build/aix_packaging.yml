@@ -21,8 +21,7 @@ package_aix-ppc64:
       aix_run_cmd <<EOF
       set -eux
       cd $AIX_AGENT_SRC
-      # TODO: remove APP_BUILD_TIME once we update to a version including https://github.com/DataDog/saluki/pull/2588
-      env AGENT_BUILD=1 APP_BUILD_TIME=2026-09-15T15:00:00Z sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
