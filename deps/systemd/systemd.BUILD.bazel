@@ -40,6 +40,7 @@ _HEADERS = glob(["src/systemd/*.h"])
 cc_library(
     name = "systemd_headers",
     hdrs = _HEADERS,
+    data = [":all_files"],
     strip_include_prefix = "src",
     visibility = ["//visibility:public"],
 )
