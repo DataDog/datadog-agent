@@ -102,12 +102,19 @@ func TestCollectTruncatedDiscardsRows(t *testing.T) {
 func TestCollectPartialQBridgeErrorDoesNotFallBackToBridge(t *testing.T) {
 	inner := session.CreateFakeSession()
 	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
-	inner.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
 	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
 	inner.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
 	inner.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
 
-	result := collect(&failAfterPrefix{FakeSession: inner, prefix: oidDot1qTpFdbPort}, config{
+	result := collect(&incompleteThenFail{
+		FakeSession: inner,
+		prefix:      oidDot1qTpFdbPort,
+		first: &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{{
+			Name:  oidDot1qTpFdbPort + ".1.10.20.30.40.50.60",
+			Type:  gosnmp.Integer,
+			Value: 1,
+		}}},
+	}, config{
 		DeviceID:           "d",
 		MaxEntries:         100,
 		MaxDuration:        time.Second,
@@ -250,6 +257,21 @@ func TestWalkSNMPv1NoSuchNameCompletes(t *testing.T) {
 	assert.Empty(t, res.values)
 }
 
+func TestWalkStopsWhenPageLeavesSubtree(t *testing.T) {
+	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
+	res := walkColumn(&sequencedBulkSession{
+		version: gosnmp.Version2c,
+		packets: []*gosnmp.SnmpPacket{{
+			Variables: []gosnmp.SnmpPDU{
+				{Name: oid, Type: gosnmp.Integer, Value: 1},
+				{Name: oid + ".end", Type: gosnmp.EndOfMibView, Value: nil},
+			},
+		}},
+	}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.NoError(t, res.err)
+	require.Len(t, res.values, 1)
+}
+
 func TestWalkEmptyFirstPacketIsError(t *testing.T) {
 	res := walkColumn(&fixedBulkSession{
 		packet:  &gosnmp.SnmpPacket{Variables: nil},
@@ -298,18 +320,21 @@ func itoa(n int) string {
 	return strconv.Itoa(n)
 }
 
-type failAfterPrefix struct {
+// incompleteThenFail returns one in-table page without EndOfMibView, then errors.
+type incompleteThenFail struct {
 	*session.FakeSession
 	prefix string
+	first  *gosnmp.SnmpPacket
 	seen   bool
 }
 
-func (s *failAfterPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+func (s *incompleteThenFail) GetBulk(oids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	if matchesOIDPrefix(oids, s.prefix) {
 		if s.seen {
 			return nil, errors.New("simulated timeout")
 		}
 		s.seen = true
+		return s.first, nil
 	}
 	return s.FakeSession.GetBulk(oids, bulkMaxRepetitions)
 }
@@ -349,7 +374,7 @@ func (s *sequencedBulkSession) GetNext([]string) (*gosnmp.SnmpPacket, error) {
 }
 func (s *sequencedBulkSession) nextPacket() (*gosnmp.SnmpPacket, error) {
 	if s.i >= len(s.packets) {
-		return s.packets[len(s.packets)-1], nil
+		return nil, errors.New("unexpected extra request")
 	}
 	p := s.packets[s.i]
 	s.i++

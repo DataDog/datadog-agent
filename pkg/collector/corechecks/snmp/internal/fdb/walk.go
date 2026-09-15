@@ -97,6 +97,9 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			}
 			return walkResult{values: values}
 		}
+		if leftSubtree {
+			return walkResult{values: values}
+		}
 		if lastOID == curOID {
 			return walkResult{values: values, err: errWalkNoAdvance}
 		}
