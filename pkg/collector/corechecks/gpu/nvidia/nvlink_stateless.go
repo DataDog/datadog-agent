@@ -8,94 +8,97 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func nvlinkErrorCounterSample(device ddnvml.Device, metricName string, counter nvml.NvLinkErrorCounter) ([]Sample, uint64, error) {
+type nvlinkApiCallInfo struct {
+	Name    string                                                     // Name of the API call for logging/debugging
+	Handler func(ddnvml.Device, uint64, int) ([]Sample, uint64, error) // Function to handle the API call for a port and return samples (samples, newTimestamp, error)
+}
+
+func nvlinkErrorCounterSample(device ddnvml.Device, metricName string, counter nvml.NvLinkErrorCounter, port int) ([]Sample, uint64, error) {
 	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_HOPPER {
 		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetNvLinkErrorCounter", nvml.ERROR_NOT_SUPPORTED)
 	}
 
-	var samples []Sample
-	var multiErr []error
-
-	ports, err := getSupportedNvlinkPorts(device, func(port int) ([]Sample, error) {
-		if _, probeErr := device.GetNvLinkErrorCounter(port-1, counter); probeErr != nil {
-			if ddnvml.IsAPIUnsupportedOnDevice(probeErr, device) {
-				return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, probeErr)
-			}
-			return nil, probeErr
-		}
-		return nil, nil
-	})
-
+	link := port - 1
+	value, err := device.GetNvLinkErrorCounter(link, counter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("get supported NVLink ports: %w", err)
+		return nil, 0, fmt.Errorf("get %s for port %d: %w", metricName, port, err)
 	}
 
-	for _, port := range ports {
-		link := port - 1
-		value, counterErr := device.GetNvLinkErrorCounter(link, counter)
-		if counterErr != nil {
-			if ddnvml.IsAPIUnsupportedOnDevice(counterErr, device) {
-				return nil, 0, fmt.Errorf("%w: %w", errUnsupportedDevice, counterErr)
-			}
-			multiErr = append(multiErr, fmt.Errorf("get %s for port %d: %w", metricName, port, counterErr))
-			continue
-		}
+	samples := []Sample{&Metric{
+		baseSample: baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
+		Name:       metricName,
+		Value:      float64(value),
+		Type:       metrics.GaugeType,
+	}}
 
-		samples = append(samples, &Metric{
-			baseSample: baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
-			Name:       metricName,
-			Value:      float64(value),
-			Type:       metrics.GaugeType,
-		})
-	}
-
-	if len(samples) == 0 {
-		return nil, 0, fmt.Errorf("%w: no NVLink error counter metrics collected", errUnsupportedDevice)
-	}
-
-	return samples, 0, errors.Join(multiErr...)
+	return samples, 0, nil
 }
 
-func createNVLinkStatelessAPIs() []apiCallInfo {
-	return []apiCallInfo{
+func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
+	nvlinkApiCalls := []nvlinkApiCallInfo{
 		{
 			Name: "nvlink_error_dl_replay",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				return nvlinkErrorCounterSample(device, "nvlink.errors.replay", nvml.NVLINK_ERROR_DL_REPLAY)
+			Handler: func(device ddnvml.Device, _ uint64, port int) ([]Sample, uint64, error) {
+				return nvlinkErrorCounterSample(device, "nvlink.errors.replay", nvml.NVLINK_ERROR_DL_REPLAY, port)
 			},
 		},
 		{
 			Name: "nvlink_error_dl_recovery",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				return nvlinkErrorCounterSample(device, "nvlink.errors.recovery", nvml.NVLINK_ERROR_DL_RECOVERY)
+			Handler: func(device ddnvml.Device, _ uint64, port int) ([]Sample, uint64, error) {
+				return nvlinkErrorCounterSample(device, "nvlink.errors.recovery", nvml.NVLINK_ERROR_DL_RECOVERY, port)
 			},
 		},
 		{
 			Name: "nvlink_error_dl_crc_flit",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				return nvlinkErrorCounterSample(device, "nvlink.errors.crc.flit", nvml.NVLINK_ERROR_DL_CRC_FLIT)
+			Handler: func(device ddnvml.Device, _ uint64, port int) ([]Sample, uint64, error) {
+				return nvlinkErrorCounterSample(device, "nvlink.errors.crc.flit", nvml.NVLINK_ERROR_DL_CRC_FLIT, port)
 			},
 		},
 		{
 			Name: "nvlink_error_dl_ecc",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				return nvlinkErrorCounterSample(device, "nvlink.errors.ecc", nvml.NVLINK_ERROR_DL_ECC_DATA)
+			Handler: func(device ddnvml.Device, _ uint64, port int) ([]Sample, uint64, error) {
+				return nvlinkErrorCounterSample(device, "nvlink.errors.ecc", nvml.NVLINK_ERROR_DL_ECC_DATA, port)
 			},
 		},
 	}
+
+	var apiCalls []apiCallInfo
+	for _, nvlinkApiCall := range nvlinkApiCalls {
+		ports, err := getSupportedNvlinkPorts(device, func(port int) ([]Sample, error) {
+			samples, _, err := nvlinkApiCall.Handler(device, 0, port)
+			return samples, err
+		})
+		if err != nil {
+			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkApiCall.Name, err)
+
+			// only skip ports if the error is because the API is unsupported
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				continue
+			}
+		}
+
+		for _, port := range ports {
+			apiCalls = append(apiCalls, apiCallInfo{
+				Name: nvlinkApiCall.Name,
+				Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+					return nvlinkApiCall.Handler(device, 0, port)
+				},
+			})
+		}
+	}
+
+	return apiCalls
 }
 
-var nvlinkStatelessAPIFactory = createNVLinkStatelessAPIs
-
 func newNVLinkStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(nvlinkStateless, device, nvlinkStatelessAPIFactory())
+	return NewBaseCollector(nvlinkStateless, device, createNVLinkStatelessAPIs(device))
 }
