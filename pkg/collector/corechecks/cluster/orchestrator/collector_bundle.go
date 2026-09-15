@@ -160,6 +160,7 @@ func (cb *CollectorBundle) prepareCollectors() {
 	}
 
 	defer cb.importBuiltinCollectors()
+	defer cb.importDRACollectors()
 
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
@@ -467,6 +468,31 @@ func (cb *CollectorBundle) EnableTerminatedResourceBundle() {
 }
 
 // importBuiltinCollectors imports the builtin collectors into the bundle.
+// importDRACollectors appends the DRA collectors when the check asks for them.
+//
+// Appended rather than selected: the resources are registered as non-stable so
+// discovery never activates them on its own, and naming them in the check's
+// collectors list would replace the default selection instead of adding to it.
+// Deferred alongside importBuiltinCollectors so it runs whichever way the rest
+// of the bundle was filled.
+func (cb *CollectorBundle) importDRACollectors() {
+	// Accepted from datadog.yaml as well as the check instance, so it can be
+	// set through DD_ORCHESTRATOR_EXPLORER_COLLECT_DRA_RESOURCES. The
+	// orchestrator instance config ships inside the image as an
+	// autodiscovery template, so an instance-only flag would not be reachable
+	// from a Helm value or an operator env var.
+	enabled := cb.check.instance.CollectDRAResources
+	if !enabled && cb.check.cfg != nil {
+		enabled = cb.check.cfg.GetBool("orchestrator_explorer.collect_dra_resources")
+	}
+	if !enabled {
+		return
+	}
+	for _, name := range []string{"resourceclaims", "resourceslices"} {
+		cb.addCollectorFromConfig(name, false)
+	}
+}
+
 func (cb *CollectorBundle) importBuiltinCollectors() {
 	// add builtin CR collectors
 	builtinCollectors := cb.getBuiltinCustomResourceCollectors()

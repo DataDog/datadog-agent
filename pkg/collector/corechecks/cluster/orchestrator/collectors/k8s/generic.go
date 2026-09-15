@@ -24,6 +24,14 @@ type GenericResource struct {
 	Version  string
 	Stable   bool
 	NodeType pkgorchestratormodel.NodeType
+
+	// IsDefaultVersion marks the one version of a resource that the inventory
+	// should treat as canonical. Exactly one entry per Name must set it: the
+	// discovery path dedupes by Name and picks whichever version the API server
+	// actually serves, but the no-discovery fallback (StableCollectors, used
+	// when discovery fails) selects on IsDefaultVersion and would otherwise
+	// start an informer per registered version, all but one of them 404ing.
+	IsDefaultVersion bool
 }
 
 // NewCollectorVersions creates a new collector versions for the generic resource.
@@ -40,7 +48,7 @@ func (r GenericResource) NewGenericCollector() *CRCollector {
 	}
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:                     true,
+			IsDefaultVersion:                     r.IsDefaultVersion,
 			IsStable:                             r.Stable,
 			IsManifestProducer:                   true,
 			IsMetadataProducer:                   false,
