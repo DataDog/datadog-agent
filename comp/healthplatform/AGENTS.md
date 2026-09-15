@@ -128,7 +128,7 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 - **The agent never derives this value at runtime.** Each module defines its own `const IssueType` next to `IssueName` (following the same format rule above) and sets it explicitly in `BuildIssue`, exactly like `IssueName`. `store.ReportIssue` passes it through unmodified — it is not validated, backfilled, or overwritten. Any default derivation from `IssueName` for issues that omit it is the backend's responsibility, not the agent's — do not add that logic here to avoid duplicating it.
 - Export as `const IssueType` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueType = IssueType` in the `BuildIssue` file
 - Path A modules also implement `Template.IssueType() string` (mirroring `IssueName() string`) returning the same const — the runner's minimal-fallback proto uses it when `BuildIssue` errors
-- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `loadFromDisk`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
+- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `loadPersistedState`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
 
 ### `Title` — human sentence, instance-specific
 
