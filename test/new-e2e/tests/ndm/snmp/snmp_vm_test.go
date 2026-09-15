@@ -141,6 +141,7 @@ secret_backend_arguments:
 
 func (v *snmpVMSuite) TestFDBMetadata() {
 	setupDevice(v.Require(), v.Env().RemoteHost)
+	v.Require().NoError(v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkFDBMetadata(c, v.Env().FakeIntake)

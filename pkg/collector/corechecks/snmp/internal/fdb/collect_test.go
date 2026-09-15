@@ -189,6 +189,17 @@ func TestCollectPortMapTruncationDiscardsRows(t *testing.T) {
 	assert.Empty(t, result.Entries)
 }
 
+func TestCollectPopulatedBridgeKeepsSourceWhenFiltered(t *testing.T) {
+	sess := session.CreateFakeSession()
+	sess.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
+	sess.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
+
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceBridge, result.Source)
+	assert.Empty(t, result.Entries)
+}
+
 func TestCollectPopulatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
 	sess := session.CreateFakeSession()
 	// Q-BRIDGE rows exist but their bridge ports are unmapped.

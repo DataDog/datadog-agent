@@ -111,11 +111,11 @@ func collect(sess session.Session, cfg config) Result {
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
-	if err == nil && len(entries) > 0 {
-		return successResult(start, SourceBridge, entries)
-	}
 	if err != nil {
 		return errorResult(start, err)
+	}
+	if entries != nil {
+		return successResult(start, SourceBridge, entries)
 	}
 
 	return successResult(start, "", nil)
