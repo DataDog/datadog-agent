@@ -93,6 +93,13 @@ func TestParActionsAllowlist_DefaultCurrentOSFreshInstall(t *testing.T) {
 }
 
 func TestPrepareAPMInjectorReinstall(t *testing.T) {
+	// The real detector inspects the host it runs on, so every subtest pins it.
+	// Subtests that care about the reverted-wiring path override it with true.
+	stubDetector := func(t *testing.T, requiresReinstall bool) {
+		previous := detectAPMInjectorReinstall
+		detectAPMInjectorReinstall = func(context.Context) bool { return requiresReinstall }
+		t.Cleanup(func() { detectAPMInjectorReinstall = previous })
+	}
 	prepare := func(setup *Setup) (bool, error) {
 		return setup.prepareAPMInjectorReinstall(context.Background(), resolvePackages(setup.Env, setup.Packages))
 	}
@@ -108,6 +115,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	}
 
 	t.Run("leaves a new standalone injector installation unchanged", func(t *testing.T) {
+		stubDetector(t, false)
 		spy := &setupInstallerSpy{}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAPMInjectPackage, "0.69.0-1")
@@ -119,10 +127,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("reinstalls a stale standalone injector", func(t *testing.T) {
-		previousDetector := detectAPMInjectorReinstall
-		detectAPMInjectorReinstall = func() bool { return true }
-		t.Cleanup(func() { detectAPMInjectorReinstall = previousDetector })
-
+		stubDetector(t, true)
 		spy := &setupInstallerSpy{installed: true}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAPMInjectPackage, "0.69.0-1")
@@ -134,6 +139,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("ignores Agent-only installation", func(t *testing.T) {
+		stubDetector(t, true)
 		spy := &setupInstallerSpy{isInstalledErr: errors.New("must not be called")}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
@@ -145,6 +151,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("leaves a new injector installation unchanged", func(t *testing.T) {
+		stubDetector(t, false)
 		spy := &setupInstallerSpy{}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAgentPackage, "7.80.4-1")
@@ -158,6 +165,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("does not reinstall for the same Agent version", func(t *testing.T) {
+		stubDetector(t, false)
 		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "7.84.0"}}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAgentPackage, "7.84.0-1")
@@ -168,7 +176,20 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 		assert.False(t, reinstall, "an idempotent run must preserve injector experiments and avoid hook downtime")
 	})
 
+	t.Run("reinstalls an uninstrumented host on the same Agent version", func(t *testing.T) {
+		stubDetector(t, true)
+		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "7.84.0"}}
+		setup := newSetup(spy)
+		setup.Packages.Install(DatadogAgentPackage, "7.84.0-1")
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.69.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall, "re-running the install script must restore instrumentation the user reverted")
+	})
+
 	t.Run("reinstalls when the requested Agent differs", func(t *testing.T) {
+		stubDetector(t, false)
 		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "7.80.4"}}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAgentPackage, "7.84.0-devel.git.1-1")
@@ -180,6 +201,7 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("uses the resolved Agent version override", func(t *testing.T) {
+		stubDetector(t, false)
 		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "7.84.0"}}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAgentPackage, "7.84.0-1")
