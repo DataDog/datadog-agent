@@ -15,7 +15,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // allowlistVersion is the only supported allowlist schema version.

@@ -51,10 +51,13 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.159.0
 	go.opentelemetry.io/collector/service v0.159.0
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v2 v2.4.4
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
-require golang.org/x/sys v0.47.0 // indirect
+require (
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+)
 
 require (
 	cloud.google.com/go/auth v0.21.0 // indirect
@@ -502,7 +505,6 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect

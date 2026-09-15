@@ -7,7 +7,7 @@
 package config
 
 import (
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 // GenDatadogAgentConfig generates a datadog agent configuration from the given parameters
