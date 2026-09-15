@@ -326,7 +326,6 @@ impl HttpOpms {
         builder: reqwest::ClientBuilder,
         root_cert_store: Option<rustls::RootCertStore>,
     ) -> Result<Self> {
-        crate::tls::initialize_crypto_provider()?;
         let base_url = parse_base_url(&base_url)?;
         let mut tls_builder = ClientTLSConfigBuilder::new()
             .with_min_tls_version(min_tls_version(&options.tls.min_tls_version));
@@ -633,6 +632,7 @@ mod tests {
 
     #[test]
     fn extra_headers_override_standard_headers() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let opms = HttpOpms::new(
             "http://localhost:8080".to_string(),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
@@ -726,6 +726,7 @@ mod tests {
     /// Health checks must preserve retry-after and server-time headers on non-200 responses.
     #[tokio::test]
     async fn health_check_is_a_signed_get_that_surfaces_server_pacing() {
+        crate::tls::initialize_crypto_provider().unwrap();
         for (status_line, expected_status) in [("200 OK", 200_u16), ("429 Too Many Requests", 429)]
         {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -805,6 +806,7 @@ mod tests {
 
     #[tokio::test]
     async fn uses_configured_https_proxy() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let proxy_port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {

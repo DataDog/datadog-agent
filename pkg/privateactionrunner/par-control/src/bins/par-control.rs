@@ -60,6 +60,8 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
+    par_control::tls::initialize_crypto_provider()?;
+
     let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
     let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
 
