@@ -378,7 +378,8 @@ fn resolve_bazel_runfile(path: &str) -> std::path::PathBuf {
         return resolved;
     }
 
-    let relative = std::path::Path::new(&normalize_runfile_key(path));
+    let normalized = normalize_runfile_key(path);
+    let relative = std::path::Path::new(&normalized);
     if relative.is_absolute() && relative.is_file() {
         return relative.to_path_buf();
     }
@@ -439,9 +440,10 @@ fn graceful_sleeper_exe() -> String {
     static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHED
         .get_or_init(|| {
-            let manifest_key = std::env::var("GRACEFUL_SLEEPER_BIN")
-                .filter(|path| !path.is_empty())
-                .unwrap_or_else(|_| "graceful-sleeper.exe".to_string());
+            let manifest_key = match std::env::var("GRACEFUL_SLEEPER_BIN") {
+                Ok(path) if !path.is_empty() => path,
+                _ => "graceful-sleeper.exe".to_string(),
+            };
             let resolved = resolve_bazel_runfile(&manifest_key);
             if !resolved.is_file() {
                 panic!(
