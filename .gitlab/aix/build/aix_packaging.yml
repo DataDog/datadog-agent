@@ -17,7 +17,11 @@ package_aix-ppc64:
     - !reference [.manual]
   script:
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
-    - aix_run_cmd env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+    - aix_run_cmd <<EOF
+      set -eux
+      cd $AIX_AGENT_SRC
+      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
     - copy_file_from_aix /opt/dd-build/*.bff $CI_PROJECT_DIR/
