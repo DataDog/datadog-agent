@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    On AIX, the ``hostname_fqdn`` option now reports the host's fully qualified
-    domain name. The AIX ``hostname`` command has no ``-f`` flag, so the Agent
-    previously failed to detect the FQDN and always fell back to the short
-    hostname. The FQDN is now resolved by the Agent itself.
