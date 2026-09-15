@@ -28,7 +28,7 @@ import (
 )
 
 // runtimeDirLogState dedupes the runtime-directory warnings, which would
-// otherwise repeat once per asset compiled (secureRuntimeDir runs inside the
+// otherwise repeat once per asset compiled (secureDir runs inside the
 // per-asset compile()).
 var runtimeDirLogState struct {
 	sync.Mutex
@@ -54,9 +54,9 @@ func logRuntimeDirOnce(reason string) bool {
 // runtime-directory component was moved aside and recreated. A recurring reclaim
 // points at something else recreating the directory as non-root, so it is worth
 // surfacing rather than doing it silently.
-func logRuntimeDirReclaimed(p string) {
+func logRuntimeDirReclaimed(purpose, p string) {
 	if logRuntimeDirOnce("reclaimed:" + p) {
-		log.Warnf("recreated runtime compiler output directory component %s: it was not a root-owned directory", p)
+		log.Warnf("recreated %s component %s: it was not a root-owned directory", purpose, p)
 	}
 }
 
@@ -108,6 +108,18 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 
 	var kernelHeaders []string
 	if opts.UseKernelHeaders {
+		// Validate the agent's dedicated temporary directory *before* the header
+		// search runs. GetKernelHeaders reuses, and recursively deletes the contents
+		// of, subdirectories of ebpf.KernelHeaderDownloadDir, which lives under
+		// ebpf.AgentTmpDir.
+		if err := secureDir(agentTmpDirPurpose, ebpf.AgentTmpDir); err != nil {
+			if logRuntimeDirOnce(err.Error()) {
+				log.Warnf("skipping runtime compilation: %v", err)
+			}
+			a.tm.compilationResult = headerFetchErr
+			return nil, err
+		}
+
 		headerOpts := headers.HeaderOptions{
 			DownloadEnabled: config.EnableKernelHeaderDownload,
 			Dirs:            config.KernelHeadersDirs,
@@ -133,7 +145,7 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := secureRuntimeDir(outputDir); err != nil {
+	if err := secureDir(compilerOutputDirPurpose, outputDir); err != nil {
 		// Surface the policy refusal distinctly so operators can tell "runtime
 		// compilation disabled because the output directory is not under root's
 		// control" apart from an ordinary compilation failure. compile() runs
@@ -215,7 +227,14 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // runtime_compiler_output_dir default (pkg/config/setup/system_probe_settings.go).
 const dedicatedDirName = "datadog-agent"
 
-// secureRuntimeDir ensures the runtime-compiler output directory exists, is
+// Purposes passed to secureDir, used in its refusal messages so an operator can
+// tell which directory was rejected.
+const (
+	compilerOutputDirPurpose = "compiler output directory"
+	agentTmpDirPurpose       = "agent temporary directory"
+)
+
+// secureDir ensures the given directory exists, is
 // root-only (0700), and that it and every ancestor up to the filesystem root is
 // a real directory owned by root and not writable by other users. The compiler
 // writes object files here and system-probe later re-reads them to load into the
@@ -258,8 +277,8 @@ const dedicatedDirName = "datadog-agent"
 // or above the sticky boundary, and anything outside the datadog-agent subtree
 // are all still refused, so unexpected or broken layouts fail closed rather than
 // being silently rewritten.
-func secureRuntimeDir(outputDir string) error {
-	components, err := runtimeDirComponents(outputDir)
+func secureDir(purpose, dir string) error {
+	components, err := runtimeDirComponents(purpose, dir)
 	if err != nil {
 		return err
 	}
@@ -272,7 +291,7 @@ func secureRuntimeDir(outputDir string) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		retryable, err := ensureRuntimeDirChain(components)
+		retryable, err := ensureRuntimeDirChain(purpose, components)
 		if err == nil {
 			return nil
 		}
@@ -281,16 +300,16 @@ func secureRuntimeDir(outputDir string) error {
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("unable to secure compiler output directory %s after %d attempts: %w", outputDir, maxAttempts, lastErr)
+	return fmt.Errorf("unable to secure %s %s after %d attempts: %w", purpose, dir, maxAttempts, lastErr)
 }
 
 // runtimeDirComponents returns the absolute form of outputDir and every ancestor
 // up to the filesystem root, ordered root-first: index 0 is the filesystem root
 // ("/") and the last element is the leaf output directory.
-func runtimeDirComponents(outputDir string) ([]string, error) {
-	abs, err := filepath.Abs(outputDir)
+func runtimeDirComponents(purpose, dir string) ([]string, error) {
+	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
+		return nil, fmt.Errorf("unable to resolve %s %s: %w", purpose, dir, err)
 	}
 	var components []string
 	for p := filepath.Clean(abs); ; {
@@ -335,7 +354,7 @@ func runtimeDirComponents(outputDir string) ([]string, error) {
 //     permissions. A symlink or non-directory at a path component is unexpected
 //     rather than a routine leftover, so it is still refused (fail-closed)
 //     instead of being rewritten.
-func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
+func ensureRuntimeDirChain(purpose string, components []string) (retryable bool, err error) {
 	// Walk root -> leaf so we know a component sits below a verified sticky
 	// boundary, and inside the agent's dedicated subtree, before we decide
 	// whether its failure is reclaimable.
@@ -357,21 +376,21 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 			// directories and will not create through a symlink at p.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
 				// A racing actor may have created p first; re-walking re-checks it.
-				return true, fmt.Errorf("unable to create compiler output directory component %s: %w", p, mErr)
+				return true, fmt.Errorf("unable to create %s component %s: %w", purpose, p, mErr)
 			}
 			continue
 		}
 		if lerr != nil {
-			return false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
+			return false, fmt.Errorf("unable to verify %s component %s: %w", purpose, p, lerr)
 		}
 
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
+			return false, fmt.Errorf("unable to read ownership of %s component %s", purpose, p)
 		}
 		// The last component is the leaf output directory, which is held to the
 		// stricter no-group/other-write rule (see verifyDirComponent).
-		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
+		if verr := verifyDirComponent(purpose, p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
 			// the sticky boundary, inside the agent's dedicated subtree, and only
 			// as root. info.Mode().IsDir() is false for a symlink or a regular
@@ -384,11 +403,11 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 			if rErr := reclaimDirComponent(p); rErr != nil {
 				return false, fmt.Errorf("%w (attempted reclaim failed: %v)", verr, rErr)
 			}
-			logRuntimeDirReclaimed(p)
+			logRuntimeDirReclaimed(purpose, p)
 			// Recreate this component fresh; deeper components were removed with
 			// the reclaimed subtree and are created as the walk continues.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
-				return true, fmt.Errorf("unable to recreate compiler output directory component %s after reclaim: %w", p, mErr)
+				return true, fmt.Errorf("unable to recreate %s component %s after reclaim: %w", purpose, p, mErr)
 			}
 			continue
 		}
@@ -449,18 +468,18 @@ func reclaimDirComponent(p string) error {
 // interpose an entry at one of those names between our check and the compiler's
 // write. The leaf must therefore have no group/other write bits regardless of the
 // sticky bit; isLeaf selects that stricter rule.
-func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) error {
+func verifyDirComponent(purpose, p string, mode os.FileMode, uid uint32, isLeaf bool) error {
 	if mode&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
+		return fmt.Errorf("refusing to use %s: %s is a symlink", purpose, p)
 	}
 	if !mode.IsDir() {
-		return fmt.Errorf("refusing to use compiler output directory: %s is not a directory", p)
+		return fmt.Errorf("refusing to use %s: %s is not a directory", purpose, p)
 	}
 	if uid != 0 {
-		return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, uid)
+		return fmt.Errorf("refusing to use %s: %s is not owned by root (uid=%d)", purpose, p, uid)
 	}
 	if mode.Perm()&0022 != 0 && (isLeaf || mode&os.ModeSticky == 0) {
-		return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root (mode=%#o)", p, mode.Perm())
+		return fmt.Errorf("refusing to use %s: %s is writable by non-root (mode=%#o)", purpose, p, mode.Perm())
 	}
 	return nil
 }
