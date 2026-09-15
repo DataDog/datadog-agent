@@ -173,7 +173,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # (its 'type Component' definition) rather than by name, so a wrongly-named file is reported
     # here instead of silently failing to be recognized as the component's definition.
     if comp.version == 2 and pathlib.Path(comp.def_file).name != 'component.go':
-        return f"** {comp.def_file} should be renamed to 'component.go'. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+        return f"** {comp.def_file} should be renamed to 'component.go'. See https://datadoghq.dev/datadog-agent/guidelines/components/#file-hierarchy"
 
     # Definition file `component.go` (v1) or `def/component.go` (v2) must use `package <compname>`
     pkgname = parse_package_name(comp.def_file)
@@ -183,7 +183,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
     for mock_definition in mock_definitions:
         if any(line.startswith(mock_definition) for line in def_content):
-            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/guidelines/components/#mocks"
 
     # Allowlist of components that do not use an implementation folder
     if comp.path in components_missing_implementation_folder:
@@ -192,7 +192,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Implementation folder or folders must exist
     impl_folders = locate_implementation_folders(comp)
     if len(impl_folders) == 0:
-        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/guidelines/components/#file-hierarchy"
 
     if comp.version == 2:
         # Implementation source files should use correct package name, and shouldn't import fx (except tests)

@@ -1,13 +1,3 @@
-
-<!-- !!! warning "TODO: rework this entire page to include:"
-
-    * Basic info about fx and dependency injection
-    * Provide, Supply and Invoke function
-    * fx App
-    * value groups
-    * Lifecycle (TODO decide how we want to offer lifecycle within depending on FX)
-    * ... -->
-
 # Overview of Fx
 
 The Agent uses [Fx](https://uber-go.github.io/fx) as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.
@@ -48,21 +38,26 @@ Fx also needs to know when an instance is *required*, and this is where the magi
       }
       ```
 * Functions passed to [`fx.Invoke`](https://pkg.go.dev/go.uber.org/fx#Invoke):
+
     ```go
     fx.Invoke(func(sc scrubber.Component) {
         fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
     })
     ```
-    Like constructors, Invoked functions can take multiple arguments, and can optionally return an error. Invoked functions are called automatically when an app is created.
-* Pointers passed to [`fx.Populate`](https://pkg.go.dev/go.uber.org/fx#Populate).
-   ```go
-   var sc scrubber.Component
-   // ...
-   fx.Populate(&sc)
-   ```
-   Populate is useful in tests to fill an existing variable with a provided value. It's equivalent to `fx.Invoke(func(tmp scrubber.Component) { *sc = tmp })`.
 
-    Functions can take multple arguments of different types, requiring all of them.
+    Like constructors, Invoked functions can take multiple arguments, and can optionally return an error. Invoked functions are called automatically when an app is created.
+
+* Pointers passed to [`fx.Populate`](https://pkg.go.dev/go.uber.org/fx#Populate).
+
+    ```go
+    var sc scrubber.Component
+    // ...
+    fx.Populate(&sc)
+    ```
+
+    Populate is useful in tests to fill an existing variable with a provided value. It's equivalent to `fx.Invoke(func(tmp scrubber.Component) { *sc = tmp })`.
+
+    Functions can take multiple arguments of different types, requiring all of them.
 
 ## Apps and Options
 
@@ -193,8 +188,7 @@ type provides struct {
 ```
 ///
 
-Here, a component requests all the types added to the `server` group. This takes the form of a slice received at
-instantiation (note once again the `group` label but in `fx.In` struct).
+Here, a component requests all the types added to the `server` group. This takes the form of a slice received at instantiation (note once again the `group` label but in `fx.In` struct).
 
 /// tab | :octicons-file-code-16: server/server.go
 ```go
@@ -205,6 +199,6 @@ type dependencies struct {
 ```
 ///
 
-# Day-to-Day Usage
+## Next steps
 
-Day-to-day, the Agent's use of Fx is fairly formulaic. Following the [component guidelines](creating-components.md), or just copying from other components, should be enough to make things work without a deep understanding of Fx's functionality.
+Follow the [component creation tutorial](../../tutorials/components/creating-components.md) to apply these concepts, or see how to [use components in a binary](../../how-to/components/using-components.md). The [component guidelines](../../guidelines/components.md) describe the conventions Agent components must follow.

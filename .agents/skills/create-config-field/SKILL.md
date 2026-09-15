@@ -16,11 +16,7 @@ the `pkg/config/setup/*_settings.go` files are generated from the schema, and so
 are `datadog.yaml.example` / `system-probe.yaml.example`, the JSON Schema
 published to SchemaStore, and the runtime config validation.
 
-Full reference: `docs/public/agent-schema/` — [index](../../../docs/public/agent-schema/index.md),
-[keywords](../../../docs/public/agent-schema/keywords.md),
-[examples](../../../docs/public/agent-schema/examples.md),
-[cli](../../../docs/public/agent-schema/cli.md),
-[faq](../../../docs/public/agent-schema/faq.md).
+Read the [schema overview](../../../docs/public/architecture/agent-schema/index.md), [keyword reference](../../../docs/public/reference/agent-schema/keywords.md), [annotated examples](../../../docs/public/architecture/agent-schema/examples.md), [CLI reference](../../../docs/public/reference/agent-schema/cli.md), [settings how-to](../../../docs/public/how-to/agent-schema/settings.md), and [schema workflows](../../../docs/public/how-to/agent-schema/workflows.md).
 
 ## Where settings live
 
@@ -129,7 +125,7 @@ dda inv schema.lint
 
 ## Keyword quick reference
 
-Full up-to-date details in `docs/public/agent-schema/keywords.md`.
+Full up-to-date details in `docs/public/reference/agent-schema/keywords.md`.
 
 | Keyword | Where | Notes |
 |---|---|---|

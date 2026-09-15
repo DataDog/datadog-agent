@@ -1,11 +1,10 @@
 # Using components
 
-Using components within other components is covered on the [create components page](creating-components.md).
+Using components within other components is covered on the [create components page](../../tutorials/components/creating-components.md).
 
-Now let's explore how to use components in your binaries. One of the core idea behind component design is to be able to
-create new binaries for customers by aggregating components.
+Now let's explore how to use components in your binaries. One of the core idea behind component design is to be able to create new binaries for customers by aggregating components.
 
-## the `cmd` folder
+## The `cmd` folder
 
 All `main` functions and binary entry points should be in the `cmd` folder.
 
@@ -55,11 +54,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 ```
 ///
 
-The code above creates a test command that does nothing. As you can see, `fxutil.OneShot` helpers are being used. These
-helpers initialize an Fx app with all the wanted dependencies.
+The code above creates a test command that does nothing. As you can see, `fxutil.OneShot` helpers are being used. These helpers initialize an Fx app with all the wanted dependencies.
 
-The next section explains how to request a
-dependency.
+The next section explains how to request a dependency.
 
 ## Importing components
 
@@ -69,7 +66,7 @@ For a component to be instantiated, it must be one of the following:
 
 + Required as a parameter by the `callback` function
 + Required as a dependency from other components already marked for instantiation
-+ Directly asked for by using `fx.Invoke`. More on this on the [Fx page](fx.md).
++ Directly asked for by using `fx.Invoke`. More on this on the [Fx page](../../architecture/components/fx.md).
 
 Let's require the `log` components:
 
@@ -95,8 +92,7 @@ func myTestCallback(logger log.Component) {
 
 ## Importing bundles
 
-Now let's say you want to include the core bundle instead. The core bundle offers many basic features (logger, config,
-telemetry, flare, ...).
+Now let's say you want to include the core bundle instead. The core bundle offers many basic features (logger, config, telemetry, flare, ...).
 
 ```go
 import (
@@ -121,18 +117,15 @@ func myTestCallback(conf config.Component) {
 }
 ```
 
-It's very important to understand that since `myTestCallback` only uses the `config.Component`, not all components from
-the `core` bundle are instantiated! The `core.Bundle` instructs Fx how to create components, but only the ones required
-are created.
+It's very important to understand that since `myTestCallback` only uses the `config.Component`, not all components from the `core` bundle are instantiated! The `core.Bundle` instructs Fx how to create components, but only the ones required are created.
 
-In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. Fx handles
-all of this.
+In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. Fx handles all of this.
 
 ## Using plain data types with Fx
 
 As your migration to components is not finished, you might need to manually instruct Fx on how to use plain types.
 
-You will need to use `fx.Supply` for this. More details can be found [here](fx.md).
+You will need to use `fx.Supply` for this. More details can be found [here](../../architecture/components/fx.md).
 
 But here is a quick example:
 
