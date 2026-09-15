@@ -703,7 +703,7 @@ func tagsEqual(a, b []string) bool {
 const tagInternMaxSize = 4096
 
 // hashTags computes a fnv64a hash over sorted tags without constructing the
-// joined string. Distinct from seriesKeyHash (which includes namespace+name).
+// joined string. It is used only for tag interning, not series identity.
 // Returns 0 only for empty input; remaps the rare zero hash to 1 as sentinel.
 func hashTags(tags []string) uint64 {
 	if len(tags) == 0 {

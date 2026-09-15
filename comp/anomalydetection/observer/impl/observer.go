@@ -1075,8 +1075,8 @@ func prepareMetricIngestWithContextKey(source string, contextKey uint64, sample 
 		return metricIngestDecision{source: normalizedSource}
 	}
 
-	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
-	// storage, and downstream Add calls hit the tagsSorted fast path.
+	// Canonicalize once for tag-aware filtering and downstream storage's sorted
+	// tag interning fast path.
 	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
 	if precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate) {
 		return metricIngestDecision{source: normalizedSource}

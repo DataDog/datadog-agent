@@ -92,7 +92,7 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", "", tags)
+	h := testStorageKeyForIdentity("check", "system.cpu.user", "", tags)
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
@@ -114,7 +114,7 @@ func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
 
 	require.NotNil(t, decision.metric)
 	assert.Equal(t,
-		seriesKeyHash("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
+		testStorageKeyForIdentity("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
 		decision.metric.storageKey,
 	)
 }
@@ -383,7 +383,7 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 
 	tags := []string{"env:prod", "service:web"}
 	filter.publishMutedSnapshot(map[uint64]struct{}{
-		seriesKeyHash("dogstatsd", "system.cpu.user", "", tags): {},
+		testStorageKeyForIdentity("dogstatsd", "system.cpu.user", "", tags): {},
 	})
 	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",

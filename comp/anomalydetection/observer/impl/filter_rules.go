@@ -207,7 +207,7 @@ func (f *metricsFilterRules) precheck(name, source, host string) metricFilterPre
 }
 
 // isAllowed returns true if the metric should be ingested.
-// tags must be sorted so the mute hash matches seriesKeyHash in storage.
+// tags must be sorted for rule matching and mute-key construction.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
 	return f.isAllowedWithHost(name, source, "", tags)
 }

@@ -43,6 +43,10 @@ func testContextKeyForIdentity(name, host string, tags []string) uint64 {
 	return uint64(ckey.NewSliceKeyGenerator().Generate(name, host, tags))
 }
 
+func testStorageKeyForMetric(namespace string, sample observerdef.MetricView) uint64 {
+	return storageKeyForContextKey(namespace, testContextKeyFor(sample))
+}
+
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	return prepareMetricIngestWithContextKey(source, testContextKeyFor(sample), sample, filter)
 }
