@@ -32,6 +32,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/networkdevice/metadata",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

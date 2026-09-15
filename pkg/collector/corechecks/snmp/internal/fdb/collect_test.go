@@ -138,7 +138,7 @@ func TestCollectStatusWalkErrorDiscardsRows(t *testing.T) {
 	assert.NotEqual(t, SourceBridge, result.Source)
 }
 
-func TestCollectQBridgeUnsupportedFallsBackToBridge(t *testing.T) {
+func TestCollectQBridgeFirstPageErrorDoesNotFallBack(t *testing.T) {
 	inner := session.CreateFakeSession()
 	inner.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 20)
 	inner.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
@@ -150,10 +150,9 @@ func TestCollectQBridgeUnsupportedFallsBackToBridge(t *testing.T) {
 		MaxDuration:        time.Second,
 		BulkMaxRepetitions: 10,
 	})
-	assert.Equal(t, OutcomeSuccess, result.Outcome)
-	assert.Equal(t, SourceBridge, result.Source)
-	require.Len(t, result.Entries, 1)
-	assert.Equal(t, "0a:14:1e:28:32:3d", result.Entries[0].MacAddress)
+	assert.Equal(t, OutcomeError, result.Outcome)
+	assert.Empty(t, result.Entries)
+	assert.NotEqual(t, SourceBridge, result.Source)
 }
 
 func TestCollectTruncatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
@@ -220,6 +219,19 @@ func TestWalkSNMPv1NoSuchNameCompletes(t *testing.T) {
 	assert.Empty(t, res.values)
 }
 
+func TestWalkEmptyPacketAfterRowsIsError(t *testing.T) {
+	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
+	res := walkColumn(&sequencedBulkSession{
+		version: gosnmp.Version2c,
+		packets: []*gosnmp.SnmpPacket{
+			{Variables: []gosnmp.SnmpPDU{{Name: oid, Type: gosnmp.Integer, Value: 1}}},
+			{Variables: nil},
+		},
+	}, oidDot1qTpFdbPort, 10, 100, time.Time{})
+	assert.Error(t, res.err)
+	assert.Contains(t, res.err.Error(), "did not advance")
+}
+
 func TestWalkRepeatingOIDIsError(t *testing.T) {
 	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
 	packet := &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{{
@@ -276,6 +288,37 @@ func (s *failFirstPrefix) GetBulk(oids []string, bulkMaxRepetitions uint32) (*go
 func matchesOIDPrefix(oids []string, prefix string) bool {
 	return len(oids) == 1 && strings.HasPrefix(strings.TrimLeft(oids[0], "."), prefix)
 }
+
+type sequencedBulkSession struct {
+	packets []*gosnmp.SnmpPacket
+	i       int
+	version gosnmp.SnmpVersion
+}
+
+func (s *sequencedBulkSession) Connect() error { return nil }
+func (s *sequencedBulkSession) Close() error   { return nil }
+func (s *sequencedBulkSession) Get([]string) (*gosnmp.SnmpPacket, error) {
+	return s.nextPacket()
+}
+func (s *sequencedBulkSession) GetBulk([]string, uint32) (*gosnmp.SnmpPacket, error) {
+	return s.nextPacket()
+}
+func (s *sequencedBulkSession) GetNext([]string) (*gosnmp.SnmpPacket, error) {
+	return s.nextPacket()
+}
+func (s *sequencedBulkSession) nextPacket() (*gosnmp.SnmpPacket, error) {
+	if s.i >= len(s.packets) {
+		return s.packets[len(s.packets)-1], nil
+	}
+	p := s.packets[s.i]
+	s.i++
+	return p, nil
+}
+func (s *sequencedBulkSession) GetSnmpGetCount() uint32        { return 0 }
+func (s *sequencedBulkSession) GetSnmpGetBulkCount() uint32    { return 0 }
+func (s *sequencedBulkSession) GetSnmpGetNextCount() uint32    { return 0 }
+func (s *sequencedBulkSession) GetVersion() gosnmp.SnmpVersion { return s.version }
+func (s *sequencedBulkSession) IsUnconnectedUDP() bool         { return false }
 
 type fixedBulkSession struct {
 	packet  *gosnmp.SnmpPacket

@@ -1407,11 +1407,11 @@ collect_device_metadata: false
 collect_fdb: true
 `)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	var payloads []metadata.NetworkDevicesMetadata
 	sender := mocksender.NewMockSender(t, "123")
@@ -1484,11 +1484,11 @@ collect_device_metadata: false
 collect_fdb: true
 `)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	sender := mocksender.NewMockSender(t, "123")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

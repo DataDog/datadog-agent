@@ -85,6 +85,9 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			if inTableRepeat > 0 && !leftSubtree {
 				return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
 			}
+			if packet != nil && len(packet.Variables) == 0 && len(values) > 0 {
+				return walkResult{values: values, err: fmt.Errorf("fdb walk did not advance")}
+			}
 			return walkResult{values: values}
 		}
 		if lastOID == curOID {

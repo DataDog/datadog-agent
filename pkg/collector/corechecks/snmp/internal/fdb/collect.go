@@ -95,19 +95,19 @@ func collect(sess session.Session, cfg config) Result {
 	portMap := buildPortIfIndexMap(portMapResult.values)
 
 	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, statusOID: oidDot1qTpFdbStatus, source: SourceQBridge, qbridge: true}
-	entries, reason, err, started := collectTable(sess, cfg, deadline, portMap, qbridge)
+	entries, reason, err := collectTable(sess, cfg, deadline, portMap, qbridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
-	if err != nil && started {
+	if err != nil {
 		return errorResult(start, err)
 	}
-	if err == nil && len(entries) > 0 {
+	if len(entries) > 0 {
 		return successResult(start, SourceQBridge, entries)
 	}
 
 	bridge := tableSpec{portOID: oidDot1dTpFdbPort, statusOID: oidDot1dTpFdbStatus, source: SourceBridge, qbridge: false}
-	entries, reason, err, _ = collectTable(sess, cfg, deadline, portMap, bridge)
+	entries, reason, err = collectTable(sess, cfg, deadline, portMap, bridge)
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
@@ -137,21 +137,21 @@ func buildPortIfIndexMap(values map[string]valuestore.ResultValue) map[int32]int
 	return out
 }
 
-func collectTable(sess session.Session, cfg config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error, bool) {
+func collectTable(sess session.Session, cfg config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error) {
 	ports := walkColumn(sess, spec.portOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
 	if ports.reason != "" {
-		return nil, ports.reason, ports.err, len(ports.values) > 0
+		return nil, ports.reason, ports.err
 	}
 	if ports.err != nil {
-		return nil, "", ports.err, len(ports.values) > 0
+		return nil, "", ports.err
 	}
 	if len(ports.values) == 0 {
-		return nil, "", nil, false
+		return nil, "", nil
 	}
 
 	statuses, reason, err := walkStatus(sess, spec.statusOID, cfg, deadline)
 	if reason != "" || err != nil {
-		return nil, reason, err, true
+		return nil, reason, err
 	}
 
 	var entries []metadata.FDBEntryMetadata
@@ -165,7 +165,7 @@ func collectTable(sess session.Session, cfg config, deadline time.Time, portMap 
 		}
 		entries = append(entries, entry)
 	}
-	return entries, "", nil, true
+	return entries, "", nil
 }
 
 func walkStatus(sess session.Session, statusOID string, cfg config, deadline time.Time) (map[string]valuestore.ResultValue, string, error) {
