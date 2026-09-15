@@ -751,6 +751,14 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
+// SendLogs sends records immediately as an agent-logs telemetry payload.
+func (a *atel) SendLogs(payload agenttelemetry.LogsPayload) error {
+	if !a.enabled {
+		return errors.New("agent telemetry is not enabled")
+	}
+	return a.sender.sendLogsBatch(a.cancelCtx, payload.Logs)
+}
+
 // SubmitErrorLog is the per-log entry point. Non-blocking: enqueues
 // into the bounded errLogsCh buffer; on overflow, drops silently and
 // increments errLogsDropped (the calling goroutine — the slog handler

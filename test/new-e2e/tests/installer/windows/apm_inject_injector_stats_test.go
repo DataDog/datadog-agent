@@ -130,7 +130,7 @@ func (s *testInjectorStats) TestQueryStatsAfterInjection() {
 }
 
 // queryInjectorStats queries the system-probe for injector stats using NamedPipeCmd.exe
-func (s *testInjectorStats) queryInjectorStats(forceRefresh bool) map[string]interface{} {
+func (s *baseAPMInjectSuite) queryInjectorStats(forceRefresh bool) map[string]interface{} {
 
 	if forceRefresh {
 		// Query system-probe's /telemetry endpoint to trigger the telemetry scheduler to collect stats.
@@ -181,6 +181,11 @@ func (s *testInjectorStats) verifyStatsStructure(stats map[string]interface{}) {
 		"pe_memory_allocation_failures",
 		"pe_injection_context_allocated",
 		"pe_injection_context_cleanedup",
+		"crashes_during_injection",
+		"crashes_post_injection",
+		"boot_recovery_crash_boots_detected",
+		"boot_recovery_driver_self_disabled",
+		"boot_recovery_stability_timer_fired",
 	}
 
 	for _, field := range expectedFields {
@@ -198,7 +203,7 @@ func (s *testInjectorStats) verifyStatsStructure(stats map[string]interface{}) {
 
 // enableInjectorTelemetry enables reporting of injector telemetry via system-probe config
 // Uses the read/modify/write pattern to preserve existing config settings
-func (s *testInjectorStats) enableInjectorTelemetry() {
+func (s *baseAPMInjectSuite) enableInjectorTelemetry() {
 	host := s.Env().RemoteHost
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
 	s.Require().NoError(err)
@@ -230,7 +235,7 @@ func (s *testInjectorStats) enableInjectorTelemetry() {
 }
 
 // readYamlConfig reads and unmarshals a YAML config file from the remote host
-func (s *testInjectorStats) readYamlConfig(path string) (map[string]interface{}, error) {
+func (s *baseAPMInjectSuite) readYamlConfig(path string) (map[string]interface{}, error) {
 	host := s.Env().RemoteHost
 	configBytes, err := host.ReadFile(path)
 	if err != nil {
@@ -247,7 +252,7 @@ func (s *testInjectorStats) readYamlConfig(path string) (map[string]interface{},
 }
 
 // writeYamlConfig marshals and writes a YAML config file to the remote host
-func (s *testInjectorStats) writeYamlConfig(path string, config map[string]interface{}) error {
+func (s *baseAPMInjectSuite) writeYamlConfig(path string, config map[string]interface{}) error {
 	host := s.Env().RemoteHost
 	configYaml, err := yaml.Marshal(config)
 	if err != nil {
@@ -259,7 +264,7 @@ func (s *testInjectorStats) writeYamlConfig(path string, config map[string]inter
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
-func (s *testInjectorStats) installCurrentAgentVersionWithAPMInject(opts ...Option) {
+func (s *baseAPMInjectSuite) installCurrentAgentVersionWithAPMInject(opts ...Option) {
 	output, err := s.InstallScript().Run(opts...)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)
@@ -276,7 +281,7 @@ func (s *testInjectorStats) installCurrentAgentVersionWithAPMInject(opts ...Opti
 	s.waitForServiceRunning()
 }
 
-func (s *testInjectorStats) waitForServiceRunning() {
+func (s *baseAPMInjectSuite) waitForServiceRunning() {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }
 
@@ -306,7 +311,7 @@ func (s *testInjectorStats) logInjectorDiagnostics() {
 	}
 }
 
-func (s *testInjectorStats) querySystemProbe(queryPath string) (string, error) {
+func (s *baseAPMInjectSuite) querySystemProbe(queryPath string) (string, error) {
 	// PowerShell script with inline C# to query system-probe with a named pipe.
 	scriptTemplate := `
 $code = @"

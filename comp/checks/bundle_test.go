@@ -16,6 +16,7 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -28,6 +29,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() tagger.Component { return fakeTagger }),
 		fx.Supply(core.BundleParams{}),
 		agenttelemetryfx.Module(),
+		etwfx.Module(),
 		fx.Supply(crashreport.WinCrashReporter{}),
 	)
 }

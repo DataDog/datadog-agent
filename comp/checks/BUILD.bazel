@@ -27,6 +27,7 @@ dd_agent_go_test(
             "//comp/core/agenttelemetry/fx",
             "//comp/core/tagger/def",
             "//comp/core/tagger/fx-mock",
+            "//comp/etw/fx",
             "//pkg/util/crashreport",
             "//pkg/util/fxutil",
             "@org_uber_go_fx//:fx",
