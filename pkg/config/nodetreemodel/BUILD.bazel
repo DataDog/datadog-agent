@@ -25,7 +25,7 @@ go_library(
         "//pkg/util/log",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_spf13_cast//:cast",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
     ],
 )

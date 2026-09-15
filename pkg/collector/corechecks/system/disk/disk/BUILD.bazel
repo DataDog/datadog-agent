@@ -22,7 +22,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
@@ -34,7 +34,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/autodiscovery/integration",
@@ -46,7 +46,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/autodiscovery/integration",
@@ -58,7 +58,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/autodiscovery/integration",
@@ -70,7 +70,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/autodiscovery/integration",
@@ -82,7 +82,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/autodiscovery/integration",
@@ -94,7 +94,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/autodiscovery/integration",
@@ -106,7 +106,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
@@ -118,7 +118,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/autodiscovery/integration",
@@ -130,7 +130,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/autodiscovery/integration",
@@ -142,7 +142,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:osx": [
             "//comp/core/autodiscovery/integration",
@@ -154,7 +154,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/core/autodiscovery/integration",
@@ -166,7 +166,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/core/autodiscovery/integration",
@@ -178,7 +178,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/autodiscovery/integration",
@@ -190,7 +190,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//disk",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/collector/check",
