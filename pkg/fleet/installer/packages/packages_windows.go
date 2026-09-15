@@ -15,7 +15,6 @@ var (
 		"datadog-agent":              datadogAgentPackage,
 		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
 		"datadog-apm-inject":         apmInjectPackage,
-		"datadog-agent-ddot":         datadogAgentDDOTPackage,
 	}
 
 	// packageCommands is a map of package names to their command handlers
