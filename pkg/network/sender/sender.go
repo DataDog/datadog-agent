@@ -23,7 +23,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"go4.org/intern"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -438,7 +438,11 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				d.log.Errorf("Unable to encode message header: %s", err)
 				continue
 			}
-			zw := zstd.NewWriter(dstBuf)
+			zw, err := zstd.NewWriter(dstBuf)
+			if err != nil {
+				d.log.Errorf("Unable to create zstd writer: %s", err)
+				continue
+			}
 
 			builder.Reset(zw)
 			d.encodeConfiguration(builder)

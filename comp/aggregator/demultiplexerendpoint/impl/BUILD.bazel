@@ -13,7 +13,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/dogstatsd/config",
         "//pkg/util/http",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
     ],
 )
 

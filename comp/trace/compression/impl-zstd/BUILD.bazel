@@ -9,6 +9,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/trace/compression/def",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
     ],
 )

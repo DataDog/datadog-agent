@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const (
@@ -83,7 +83,7 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	case encodingDeflate:
 		rc, err = zlib.NewReader(r.Body)
 	case encodingZstd:
-		rc = zstd.NewReader(r.Body)
+		rc, err = zstd.NewReader(r.Body)
 	default:
 		rc = r.Body
 	}
