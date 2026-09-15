@@ -12,41 +12,188 @@ import (
 	"unsafe"
 )
 
+// PrefixSuffix marks an entry in a matcher list as a prefix pattern: an entry
+// ending with it matches every metric name starting with the rest of the entry.
+const PrefixSuffix = "*"
+
 // Matcher tests a metric name for match against a list of metric names.
 // See `NewMatcher` for details.
 type Matcher struct {
-	data        []string
-	matchPrefix bool
+	// exact contains the entries matched by equality.
+	// Invariants:
+	// - sorted and deduplicated,
+	// - no entry has an element of `prefixes` as a prefix.
+	exact []string
+	// prefixes contains the entries matched by prefix, without their
+	// trailing `PrefixSuffix`.
+	// Invariants:
+	// - sorted and deduplicated,
+	// - for all i, j such that i != j, !HasPrefix(prefixes[i], prefixes[j]).
+	prefixes []string
 }
 
 // NewMatcher creates a new metric name matcher.
-// Use `matchPrefix` to  create a prefixes matcher.
 //
-// Entries are taken verbatim. They are expected to already be normalized, i.e.
-// to be metric names as the backend stores and displays them, which is what
-// users copy into a filter list. `Test` normalizes the name it is given, so the
-// comparison happens in that same name space.
+// Entries are taken verbatim, apart from the trailing `*` described below. They
+// are expected to already be normalized, i.e. to be metric names as the backend
+// stores and displays them, which is what users copy into a filter list. `Test`
+// normalizes the name it is given, so the comparison happens in that same name
+// space.
+//
+// An entry ending with `*` is a prefix pattern: `foo.*` matches every metric
+// name starting with `foo.` (including `foo.` itself). A `*` anywhere else in an
+// entry is matched literally, and can therefore never match, since a normalized
+// name contains no `*`.
+//
+// Use `matchPrefix` to treat every entry as a prefix, whether or not it ends
+// with `*`. A trailing `*` is always stripped, so an entry written as a prefix
+// pattern behaves the same regardless of `matchPrefix`.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
-	data = slices.Clone(data)
-	sort.Strings(data)
+	var exact, prefixes []string
 
-	if matchPrefix && len(data) > 0 {
-		// Make sure that elements identify unique prefixes.
-		i := 0
-		for j := 1; j < len(data); j++ {
-			if strings.HasPrefix(data[j], data[i]) {
-				continue
-			}
-			i++
-			data[i] = data[j]
+	for _, entry := range data {
+		if prefix, ok := strings.CutSuffix(entry, PrefixSuffix); ok {
+			// Sub-slicing shares the backing bytes of `entry`: stripping the
+			// trailing `*` does not allocate.
+			prefixes = append(prefixes, prefix)
+			continue
 		}
-
-		data = data[:i+1]
+		if matchPrefix {
+			prefixes = append(prefixes, entry)
+			continue
+		}
+		exact = append(exact, entry)
 	}
 
+	prefixes = compactPrefixes(prefixes)
+	exact = compactExact(exact, prefixes)
+
 	return Matcher{
-		data:        data,
-		matchPrefix: matchPrefix,
+		exact:    exact,
+		prefixes: prefixes,
+	}
+}
+
+// NormalizeEntries returns `entries` normalized into the name space `Matcher`
+// compares in, along with the entries that were dropped because no metric name
+// the intake stores can match them (see `NormalizeAppend` and
+// `NormalizePrefixAppend` for what that rules out).
+//
+// Entries are the raw strings a user or Remote Config provides, so this is where
+// the `*` marker documented on `NewMatcher` is accounted for: the marker is not
+// part of the name, and a prefix is normalized as a prefix rather than as a
+// complete metric name, which is what keeps `service_*` from widening into
+// `service*`. The marker is preserved, so the result is a filter list of the same
+// shape as the input, ready to hand to `NewMatcher` — or to report back to the
+// user as the list actually in effect.
+//
+// Dropped entries are returned rather than logged: this package has no logger,
+// and the caller knows which setting they came from.
+func NormalizeEntries(entries []string, matchPrefix bool) (normalized, dropped []string) {
+	normalized = make([]string, 0, len(entries))
+	// Reuse this stack buffer to normalize every entry.
+	var buf [MaxLength]byte
+
+	for _, entry := range entries {
+		name, hasStar := strings.CutSuffix(entry, PrefixSuffix)
+
+		var key []byte
+		var ok bool
+		if hasStar || matchPrefix {
+			key, ok = NormalizePrefixAppend(buf[:0], name)
+		} else {
+			key, ok = NormalizeAppend(buf[:0], name)
+		}
+		if !ok {
+			dropped = append(dropped, entry)
+			continue
+		}
+
+		// Only put back a marker the entry had: with `matchPrefix` every entry
+		// is a prefix already, whether or not it is written as one.
+		if hasStar {
+			normalized = append(normalized, string(key)+PrefixSuffix)
+			continue
+		}
+		normalized = append(normalized, string(key))
+	}
+
+	return normalized, dropped
+}
+
+// compactPrefixes sorts `prefixes` and removes the entries identifying a
+// prefix already identified by a shorter entry, so that elements identify
+// unique prefixes.
+//
+// `prefixes` is reordered and compacted in place: it must be a slice the caller
+// owns, which is the case for the one `NewMatcher` builds by appending.
+func compactPrefixes(prefixes []string) []string {
+	if len(prefixes) == 0 {
+		return nil
+	}
+
+	sort.Strings(prefixes)
+
+	i := 0
+	for j := 1; j < len(prefixes); j++ {
+		// Sorting guarantees that any entry having prefixes[i] as a prefix
+		// comes right after it, so keeping the last retained entry is enough.
+		if strings.HasPrefix(prefixes[j], prefixes[i]) {
+			continue
+		}
+		i++
+		prefixes[i] = prefixes[j]
+	}
+
+	return prefixes[:i+1]
+}
+
+// compactExact sorts `exact`, deduplicates it and removes the entries already
+// matched by one of `prefixes`, which must already be compacted.
+//
+// As in `compactPrefixes`, `exact` is reordered and compacted in place.
+func compactExact(exact, prefixes []string) []string {
+	if len(exact) == 0 {
+		return nil
+	}
+
+	sort.Strings(exact)
+	exact = slices.Compact(exact)
+
+	if len(prefixes) == 0 {
+		return exact
+	}
+
+	exact = slices.DeleteFunc(exact, func(name string) bool {
+		return testPrefixes(prefixes, name)
+	})
+	if len(exact) == 0 {
+		return nil
+	}
+
+	return exact
+}
+
+// RestrictExact returns a Matcher that shares this Matcher's compiled
+// `prefixes` — a derived matcher that must still match every prefix this one
+// matches (e.g. a histogram-aggregate name derived from a metric matched by
+// prefix) has nothing new to compute there, so the slice is shared rather
+// than rebuilt — restricted to the exact entries for which `keep` returns
+// true.
+//
+// m.exact is already sorted, deduplicated, and free of entries covered by a
+// prefix; filtering by `keep` preserves all three properties, so the result
+// needs no re-sorting or re-compaction against `prefixes`.
+func (m Matcher) RestrictExact(keep func(string) bool) Matcher {
+	var exact []string
+	for _, e := range m.exact {
+		if keep(e) {
+			exact = append(exact, e)
+		}
+	}
+	return Matcher{
+		exact:    exact,
+		prefixes: m.prefixes,
 	}
 }
 
@@ -55,11 +202,22 @@ func (m *Matcher) Len() int {
 	if m == nil {
 		return 0
 	}
-	return len(m.data)
+	return len(m.exact) + len(m.prefixes)
 }
 
-// Test returns true if the given metric name matches one in the matcher list,
-// or is matching by prefix if the matcher has been created with `matchPrefix`.
+// MatchesAll reports whether the matcher matches every metric name the intake
+// stores, which is what an entry of a lone `*` (or any empty entry in
+// `matchPrefix` mode) asks for. Compaction leaves that empty prefix as the only
+// entry, since every name starts with it.
+func (m *Matcher) MatchesAll() bool {
+	if m == nil {
+		return false
+	}
+	return len(m.prefixes) == 1 && m.prefixes[0] == ""
+}
+
+// Test returns true if the given metric name is equal to one of the exact
+// entries of the matcher, or starts with one of its prefix entries.
 //
 // The name is normalized before being compared. The Agent sees names exactly as
 // they were submitted, but the intake rewrites them on ingest, so a raw name
@@ -75,7 +233,7 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
-	if len(m.data) == 0 {
+	if m.Len() == 0 {
 		return false
 	}
 
@@ -95,29 +253,42 @@ func (m *Matcher) Test(name string) bool {
 	return m.search(unsafe.String(unsafe.SliceData(key), len(key)))
 }
 
-// search looks name up in the compiled list. name must already be normalized.
+// search looks name up in the compiled lists. name must already be normalized.
 func (m *Matcher) search(name string) bool {
-	i := sort.SearchStrings(m.data, name)
-
-	// SearchStrings returns an index such that either:
-	// - data[i] == name
-	// - data[i-1] < name (if i > 0) && data[i] > name (if i < len(m.data))
-	//
-	// If for some j, data[j] is a prefix of name, then:
-	//
-	// - j < i, because any prefix of a string is less than string itself,
-	//
-	// - if j < i - 1, then strings in range [j+1, i-1] would have
-	// data[j] as a prefix, which is impossible by construction of
-	// data.
-	//
-	// Thus j must be i - 1.
-	if m.matchPrefix && i > 0 && strings.HasPrefix(name, m.data[i-1]) {
+	if len(m.prefixes) > 0 && testPrefixes(m.prefixes, name) {
 		return true
 	}
-	if i < len(m.data) {
-		return name == m.data[i]
+
+	if len(m.exact) > 0 {
+		i := sort.SearchStrings(m.exact, name)
+		if i < len(m.exact) {
+			return name == m.exact[i]
+		}
 	}
 
 	return false
+}
+
+// testPrefixes returns true if `name` starts with one of the entries of
+// `prefixes`, which must be sorted and identify unique prefixes.
+func testPrefixes(prefixes []string, name string) bool {
+	i := sort.SearchStrings(prefixes, name)
+
+	// SearchStrings returns an index such that either:
+	// - prefixes[i] == name
+	// - prefixes[i-1] < name (if i > 0) && prefixes[i] > name (if i < len)
+	//
+	// If for some j, prefixes[j] is a strict prefix of name, then:
+	//
+	// - j < i, because any prefix of a string is less than the string itself,
+	//
+	// - if j < i - 1, then entries in range [j+1, i-1] would have prefixes[j]
+	// as a prefix, which is impossible by construction of prefixes.
+	//
+	// Thus j must be i - 1, and the only other candidate is prefixes[i] being
+	// equal to name.
+	if i > 0 && strings.HasPrefix(name, prefixes[i-1]) {
+		return true
+	}
+	return i < len(prefixes) && name == prefixes[i]
 }

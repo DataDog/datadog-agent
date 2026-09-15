@@ -22,12 +22,6 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 
 	cfg["histogram_aggregates"] = []string{"avg", "max", "median"}
 	cfg["histogram_percentiles"] = []string{"0.73", "0.22"}
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
-
 	bl := []string{
 		"foo",
 		"bar",
@@ -41,9 +35,127 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 		"bar.22percentile",
 		"count",
 	}
+	cfg["metric_filterlist"] = bl
 
-	filtered := filterList.createHistogramsFilterList(bl)
-	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"})
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	histo := filterList.GetHistoFilterList()
+
+	// Only names ending in a configured histogram aggregate or percentile
+	// suffix belong in the histogram-specific filter list.
+	for _, kept := range []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"} {
+		require.True(histo.Test(kept), "%s should be in the histogram filter list", kept)
+	}
+	for _, dropped := range []string{"foo", "bar", "baz", "foomax", "foo.count", "bar.50percentile", "count"} {
+		require.False(histo.Test(dropped), "%s should not be in the histogram filter list", dropped)
+	}
+}
+
+func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
+	require := require.New(t)
+
+	bl := []string{
+		"foo",         // exact, no aggregate suffix
+		"foo.avg",     // exact, aggregate suffix
+		"bar.*",       // prefix: can match bar.histo.avg
+		"baz.9*",      // prefix: can match baz.95percentile
+		"qux.avg.*",   // prefix
+		"count.other", // exact, no aggregate suffix
+	}
+
+	newFilterList := func(matchPrefix bool) *FilterList {
+		cfg := map[string]interface{}{
+			"histogram_aggregates":           []string{"avg", "max", "median"},
+			"histogram_percentiles":          []string{"0.73"},
+			"metric_filterlist":              bl,
+			"metric_filterlist_match_prefix": matchPrefix,
+		}
+		logComponent := logmock.New(t)
+		configComponent := config.NewMockWithOverrides(t, cfg)
+		telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+		return NewFilterList(logComponent, configComponent, telemetryComponent)
+	}
+
+	// Every prefix entry has to be kept: it can match an aggregate-suffixed name
+	// that the exact suffix check cannot recognise.
+	histo := newFilterList(false).GetHistoFilterList()
+	require.True(histo.Test("foo.avg"), "exact entry with an aggregate suffix should be kept")
+	require.True(histo.Test("bar.anything"), "bar.* prefix should be kept unconditionally")
+	require.True(histo.Test("baz.95percentile"), "baz.9* prefix should be kept unconditionally")
+	require.True(histo.Test("qux.avg.x"), "qux.avg.* prefix should be kept unconditionally")
+	require.False(histo.Test("foo"), "exact entry without an aggregate suffix should not be kept")
+	require.False(histo.Test("count.other"), "exact entry without an aggregate suffix should not be kept")
+
+	// With the legacy global prefix mode, every entry becomes a prefix, so the
+	// histogram filter list is compiled identically to the main one.
+	filterListPrefix := newFilterList(true)
+	main := filterListPrefix.GetMetricFilterList()
+	histoPrefix := filterListPrefix.GetHistoFilterList()
+	for _, name := range []string{"foo", "fooX", "foo.avg", "bar.anything", "baz.95percentile", "qux.avg.x", "count.other", "count.otherX"} {
+		require.Equal(main.Test(name), histoPrefix.Test(name), "%s should match the histogram list iff it matches the main list", name)
+	}
+}
+
+func TestMetricFilterListPrefixEntries(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["metric_filterlist"] = []string{"exact.metric", "prefixed.metric.*"}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+
+	require.True(t, matcher.Test("exact.metric"))
+	require.False(t, matcher.Test("exact.metric.suffix"))
+	require.True(t, matcher.Test("prefixed.metric."))
+	require.True(t, matcher.Test("prefixed.metric.anything"))
+	require.False(t, matcher.Test("prefixed.metric"))
+	require.False(t, matcher.Test("other.metric"))
+
+	// A prefix entry is kept in the histogram subset, so it also applies to the
+	// aggregates derived at flush time.
+	histo := filterList.GetHistoFilterList()
+	require.True(t, histo.Test("prefixed.metric.histo.avg"))
+	require.False(t, histo.Test("exact.metric"))
+}
+
+func TestMetricFilterListLegacyBlocklistPrefixEntries(t *testing.T) {
+	cfg := make(map[string]interface{})
+	// The deprecated setting is used when metric_filterlist is empty, and
+	// supports the same per-entry prefixes.
+	cfg["statsd_metric_blocklist"] = []string{"legacy.*"}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(t, matcher.Test("legacy.metric"))
+	require.False(t, matcher.Test("other.metric"))
+}
+
+func TestMetricFilterListGlobalMatchPrefixStripsStar(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["metric_filterlist"] = []string{"foo.*", "bar"}
+	cfg["metric_filterlist_match_prefix"] = true
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+	// `foo.*` is a prefix on `foo.`, not on the literal `foo.*`.
+	require.True(t, matcher.Test("foo.metric"))
+	require.False(t, matcher.Test("foo"))
+	// The global flag still turns a plain entry into a prefix.
+	require.True(t, matcher.Test("bar.metric"))
 }
 
 // TestMetricFilterListNormalizesEntries verifies that metric_filterlist entries
@@ -77,13 +189,85 @@ func TestMetricFilterListNormalizesEntries(t *testing.T) {
 	require.False(matcher.Test("unrelated.metric"), "unrelated metric must not match")
 }
 
-// TestNormalizeMetricNamesDropsUnstorable verifies the helper drops names the
-// intake would reject outright rather than keeping them as dead entries.
-func TestNormalizeMetricNamesDropsUnstorable(t *testing.T) {
+// TestMetricFilterListNormalizesPrefixEntries verifies that normalization and
+// per-entry prefixes compose: the prefix of a raw entry is normalized, and the
+// entry keeps matching by prefix.
+func TestMetricFilterListNormalizesPrefixEntries(t *testing.T) {
 	require := require.New(t)
 
-	in := []string{"valid.metric", "", "123", "...", "another.valid"}
-	out := normalizeMetricNames(in, logmock.New(t))
+	cfg := map[string]interface{}{
+		// Normalizes to the prefix entry `my_metric.*`.
+		"metric_filterlist": []string{"my metric.*"},
+	}
 
-	require.Equal([]string{"valid.metric", "another.valid"}, out)
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("my metric.count"), "raw name should match the normalized prefix")
+	require.True(matcher.Test("my_metric.count"), "normalized name should match the prefix")
+	require.True(matcher.Test("my_metric."), "the prefix itself should match")
+	require.False(matcher.Test("my_metric"), "shorter than the prefix, should not match")
+	require.False(matcher.Test("other.metric"))
+}
+
+// TestNormalizeMetricNames verifies the wiring around
+// metricname.NormalizeEntries, which owns the entry format and is tested there:
+// the prefix mode is passed through, and unusable entries are dropped from the
+// list the component keeps rather than reported some other way.
+func TestNormalizeMetricNames(t *testing.T) {
+	require := require.New(t)
+
+	logComponent := logmock.New(t)
+	// `123.*` can never match a stored name and is dropped; `service_` only
+	// keeps its boundary when the whole list is prefixes.
+	in := []string{"my metric-name.*", "123.*", "service_", "exact"}
+
+	require.Equal(
+		[]string{"my_metric_name.*", "service", "exact"},
+		normalizeMetricNames(in, false, logComponent),
+	)
+	require.Equal(
+		[]string{"my_metric_name.*", "service_", "exact"},
+		normalizeMetricNames(in, true, logComponent),
+	)
+}
+
+// TestMetricFilterListPrefixBoundaryIsNotWidened is the end-to-end form of
+// TestNormalizeMetricNamesKeepsPrefixBoundary: `service_*` must drop the
+// `service_` family only, and leave `service.requests` alone.
+func TestMetricFilterListPrefixBoundaryIsNotWidened(t *testing.T) {
+	for name, cfg := range map[string]map[string]interface{}{
+		"per-entry prefix": {
+			"metric_filterlist": []string{"service_*"},
+		},
+		"global match prefix": {
+			"metric_filterlist":              []string{"service_"},
+			"metric_filterlist_match_prefix": true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			logComponent := logmock.New(t)
+			configComponent := config.NewMockWithOverrides(t, cfg)
+			telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+			filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+			matcher := filterList.GetMetricFilterList()
+
+			// The family the entry names, submitted raw or normalized.
+			require.True(matcher.Test("service_requests"))
+			require.True(matcher.Test("service requests"))
+			require.True(matcher.Test("service-requests"))
+
+			// Anything past that boundary is a different metric.
+			require.False(matcher.Test("service.requests"), "the period boundary is a different family")
+			require.False(matcher.Test("services.requests"))
+			require.False(matcher.Test("serviceother"))
+			require.False(matcher.Test("service"))
+		})
+	}
 }

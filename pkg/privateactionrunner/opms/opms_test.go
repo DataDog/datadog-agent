@@ -319,6 +319,12 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
 }
 
+func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
+}
+
 func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")

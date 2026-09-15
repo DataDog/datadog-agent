@@ -460,6 +460,30 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(3, want.SpansFiltered.Load())
 	})
 
+	t.Run("Block-all-V1-does-not-write-empty-payload", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{".*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		span := testutil.GetTestSpanV1(strings)
+		span.SetResource("blocked resource")
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(span, int32(sampler.PriorityUserKeep))
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        want,
+		})
+
+		assert.EqualValues(t, 1, want.TracesFiltered.Load())
+		assert.EqualValues(t, 1, want.SpansFiltered.Load())
+		assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
+	})
+
 	t.Run("BlacklistPayload", func(t *testing.T) {
 		// Regression test for DataDog/datadog-agent#6500
 		cfg := config.New()

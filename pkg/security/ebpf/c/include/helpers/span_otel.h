@@ -20,6 +20,74 @@ int __attribute__((always_inline)) unregister_otel_tls() {
     return 0;
 }
 
+// --- OTel process context (OTEP 4719) ---
+
+// prctl(2) options, hardcoded because the kernel headers the agent builds
+// against predate them.
+#ifndef PR_SET_VMA
+#define PR_SET_VMA 0x53564d41
+#endif
+#ifndef PR_SET_VMA_ANON_NAME
+#define PR_SET_VMA_ANON_NAME 0
+#endif
+
+#define OTEL_CTX_VMA_NAME "OTEL_CTX"
+#define OTEL_CTX_VMA_NAME_SIZE sizeof(OTEL_CTX_VMA_NAME)
+
+// handle_otel_process_ctx_naming records that the prctl syscall the current
+// thread is entering names a mapping OTEL_CTX. The name is only readable from
+// /proc/<pid>/maps once the syscall returned, so the event is left to the exit
+// side.
+static void __attribute__((always_inline)) handle_otel_process_ctx_naming(int option, unsigned long arg2, const char *name) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+    if (option != PR_SET_VMA || arg2 != PR_SET_VMA_ANON_NAME) {
+        return;
+    }
+
+    // 1 more than the size to count the NUL terminator
+    char vma_name[OTEL_CTX_VMA_NAME_SIZE + 1] = {};
+    if (bpf_probe_read_str(&vma_name, sizeof(vma_name), name) != OTEL_CTX_VMA_NAME_SIZE) {
+        return;
+    }
+
+    char expected[OTEL_CTX_VMA_NAME_SIZE] = OTEL_CTX_VMA_NAME;
+#pragma unroll
+    for (int i = 0; i < OTEL_CTX_VMA_NAME_SIZE - 1; i++) {
+        if (vma_name[i] != expected[i]) {
+            return;
+        }
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u8 naming = 1;
+    bpf_map_update_elem(&otel_process_ctx_naming, &pid_tgid, &naming, BPF_ANY);
+}
+
+// send_otel_process_ctx_naming_event tells user space that a process just
+// published or updated its OTel process context.
+//
+// return value of the prctl is deliberately ignored: the OTEP 4719 protocol doesn't
+// ask for it to succeed.
+static void __attribute__((always_inline)) send_otel_process_ctx_naming_event(void *ctx) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!bpf_map_lookup_elem(&otel_process_ctx_naming, &pid_tgid)) {
+        return;
+    }
+    bpf_map_delete_elem(&otel_process_ctx_naming, &pid_tgid);
+
+    struct otel_process_ctx_event_t event = {};
+    event.event.type = EVENT_OTEL_PROCESS_CTX;
+    event.pid = pid_tgid >> 32;
+
+    send_event(ctx, EVENT_OTEL_PROCESS_CTX, event);
+}
+
 // A forked child keeps the parent's address space, so its TLS copy still holds
 // the record.
 static int __attribute__((always_inline)) inherit_otel_tls(u32 ppid, u32 pid) {
@@ -96,11 +164,11 @@ static struct otel_span_attrs_t * __attribute__((always_inline)) lookup_otel_spa
     return bpf_map_lookup_elem(&otel_span_attrs, &key);
 }
 
-// Fills span from the current thread's OTel context record. Returns 1 on
-// success, 0 when there is nothing to read.
-int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t *span) {
+// Fills span from the current thread's OTel context record. Returns
+// SPAN_CTX_EVENT_OK on success, or the reason nothing was filled otherwise.
+static u32 __attribute__((always_inline)) fill_span_context_otel(struct span_context_t *span) {
     if (!span) {
-        return 0;
+        return SPAN_CTX_EVENT_NONE;
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -108,22 +176,25 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
 
     struct otel_tls_t *otls = bpf_map_lookup_elem(&otel_tls, &tgid);
     if (!otls) {
-        return 0;
+        return SPAN_CTX_EVENT_NONE;
     }
 
     // Go runtimes publish their context through pprof labels instead.
     if (otls->runtime != OTEL_RUNTIME_NATIVE) {
-        return 0;
+        return SPAN_CTX_EVENT_NONE;
     }
 
     u64 tsd_base = read_thread_pointer();
     if (tsd_base == 0) {
-        return 0;
+        return SPAN_CTX_EVENT_NO_THREAD_POINTER;
     }
 
     void *record_ptr = NULL;
-    if (otel_tls_read(otls, tsd_base, &record_ptr) || record_ptr == NULL) {
-        return 0;
+    if (otel_tls_read(otls, tsd_base, &record_ptr)) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (record_ptr == NULL) {
+        return SPAN_CTX_EVENT_NONE;
     }
 
     // valid is checked on both sides of the copy below: the instrumented thread
@@ -131,21 +202,27 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
     u8 valid_before = 0;
     int ret = bpf_probe_read_user(&valid_before, sizeof(valid_before),
                                   record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
-    if (ret < 0 || valid_before != 1) {
-        return 0;
+    if (ret < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (valid_before != 1) {
+        return SPAN_CTX_EVENT_NONE;
     }
 
     struct otel_thread_ctx_record_t record = {};
     ret = bpf_probe_read_user(&record, sizeof(record), record_ptr);
     if (ret < 0) {
-        return 0;
+        return SPAN_CTX_EVENT_READ_FAULT;
     }
 
     u8 valid_after = 0;
     ret = bpf_probe_read_user(&valid_after, sizeof(valid_after),
                               record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
-    if (ret < 0 || record.valid != 1 || valid_after != 1) {
-        return 0;
+    if (ret < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (record.valid != 1 || valid_after != 1) {
+        return SPAN_CTX_EVENT_TORN;
     }
 
     // The W3C trace id is big-endian: bytes[0..7] are its high 64 bits.
@@ -170,7 +247,9 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
         // large to bounce through the 512-byte stack.
         u32 attrs_id = mint_otel_span_attrs_id();
         struct otel_span_attrs_t *entry = lookup_otel_span_attrs_entry(attrs_id);
-        if (attrs_id != 0 && entry != NULL) {
+        if (attrs_id == 0 || entry == NULL) {
+            monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, SPAN_CTX_EVENT_MAP_ERROR);
+        } else {
             // id is cleared here and stamped below, so a reader never matches an
             // entry whose data is still the previous snapshot's.
             entry->id = 0;
@@ -180,14 +259,16 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
             // only ever reads data[:size].
             ret = bpf_probe_read_user(entry->data, attrs_size,
                                       record_ptr + sizeof(struct otel_thread_ctx_record_t));
-            if (ret >= 0) {
+            if (ret < 0) {
+                monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, SPAN_CTX_EVENT_ATTRS_READ_FAULT);
+            } else {
                 entry->id = attrs_id;
                 span->extra_attrs_id = attrs_id;
             }
         }
     }
 
-    return 1;
+    return SPAN_CTX_EVENT_OK;
 }
 
 #endif

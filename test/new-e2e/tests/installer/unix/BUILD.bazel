@@ -31,6 +31,7 @@ dd_agent_go_test(
         "upgrade_scenario_test.go",
     ],
     embed = [":unix"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
@@ -38,6 +39,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/fakeintake/client",
         "//test/new-e2e/tests/installer/host",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

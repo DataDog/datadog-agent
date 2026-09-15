@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Remove system-probe module-restart CLI command.

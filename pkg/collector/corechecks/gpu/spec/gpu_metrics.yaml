@@ -348,6 +348,7 @@ metrics:
   device.total:
     metadata:
       metric_type: gauge
+      unit: device
       description: Number of GPU devices found in the host
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -598,6 +599,7 @@ metrics:
   errors.xid.total:
     metadata:
       metric_type: gauge
+      unit: error
       used_in_dd_ui: true
       description: >-
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
