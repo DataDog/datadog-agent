@@ -281,7 +281,7 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 	assert.Nil(t, collector.basicSelector)
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 	pathtest := <-collector.pathtestInputChan
-	assert.Empty(t, pathtest.DynamicTestProfile)
+	assert.Equal(t, payload.DynamicTestProfileStandard, pathtest.DynamicTestProfile)
 	assert.False(t, pathtest.RunOnce)
 }
 

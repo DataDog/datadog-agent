@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -37,6 +38,21 @@ const (
 	// AppliedPolicyEnvVar is the environment variable that contains the compact JSON of the policy that was applied to the pod.
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
+
+// allowedTracerConfigPrefixes are the env var name prefixes accepted for tracer configs supplied
+// via Targets, remote-config policies, or the tracer-configs annotation. This keeps the mechanism
+// from being used as a generic env var injector while still allowing DD_* and OTel-native OTEL_*
+// configuration (e.g. activating a tracer's OTel mode with OTEL_TRACES_EXPORTER).
+var allowedTracerConfigPrefixes = []string{"DD_", "OTEL_"}
+
+func hasAllowedTracerConfigPrefix(name string) bool {
+	for _, prefix := range allowedTracerConfigPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // policySet is matcher.policies aligned with injection targets by index, so a
 // match resolves directly to its injection config. An empty set (no targets, no
@@ -175,13 +191,12 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			libVersions = pinnedLibraries.libs
 		}
 
-		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
-		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
-		// vars in the future, we could relax this requirement.
+		// Convert the tracer configs to env vars. We only allow DD_ and OTEL_ prefixed names to avoid
+		// this from being used as a generic env var injector.
 		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
 		for j, tc := range t.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = tc.AsEnvVar()
 		}
@@ -244,8 +259,8 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 
 		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
 		for j, tc := range p.Outcome.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
 		}
@@ -295,7 +310,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 	// Check for the init_container mode's per-language init containers.
-	for _, lang := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		lang := language(supportedLang)
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
@@ -638,7 +654,7 @@ func containsVolume(pod *corev1.Pod, volumeName string) bool {
 
 // extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
 // alongside the locally injected libraries. It is the annotation-based equivalent of a target's
-// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// ddTraceConfigs. Invalid input (malformed JSON or a name without an allowed prefix) is logged and skipped
 // rather than failing the mutation, mirroring the lenient handling of the other local SDK
 // injection annotations.
 func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
@@ -655,10 +671,10 @@ func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
 
 	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
 	for _, tc := range tracerConfigs {
-		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
-		// so this cannot be used as a generic env var injector.
-		if !strings.HasPrefix(tc.Name, "DD_") {
-			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ or OTEL_
+		// prefixed names so this cannot be used as a generic env var injector.
+		if !hasAllowedTracerConfigPrefix(tc.Name) {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_ or OTEL_, skipping", tc.Name, annotation.TracerConfigs)
 			continue
 		}
 		envVars = append(envVars, tc.AsEnvVar())
@@ -671,7 +687,8 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	libs := []libInfo{}
 
 	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		l := language(supportedLang)
 		// Check for a custom library image.
 		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
 		if found {

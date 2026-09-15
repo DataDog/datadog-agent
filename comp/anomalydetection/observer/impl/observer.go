@@ -28,8 +28,8 @@ import (
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -70,6 +70,7 @@ type observation struct {
 type metricObs struct {
 	name      string
 	value     float64
+	host      string
 	tags      []string
 	timestamp int64
 }
@@ -85,9 +86,11 @@ func (m *metricObs) GetValue() float64 {
 	return m.value
 }
 
-func (m *metricObs) GetRawTags() []string {
-	return m.tags
+func (m *metricObs) GetTags() tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(m.tags)
 }
+
+func (m *metricObs) GetHost() string { return m.host }
 
 func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 
@@ -262,11 +265,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
 	}
 
-	telemetryComp := deps.Telemetry
-	if telemetryComp == nil {
-		telemetryComp = noopsimpl.GetCompatComponent()
-	}
-	obsTelemetry := newObserverTelemetry(telemetryComp)
+	obsTelemetry := newObserverTelemetry(deps.Telemetry)
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
@@ -700,6 +699,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Host:      series.Host,
 					Tags:      series.Tags,
 					Aggregate: agg,
 				}
@@ -1073,17 +1073,18 @@ type metricIngestDecision struct {
 
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
+	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
-	precheck := filter.precheck(name, normalizedSource)
+	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
-	tags := canonicalizeTags(sample.GetRawTags())
-	if filter.isMuted(name, normalizedSource, tags) ||
-		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
+	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
+	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
+		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -1096,6 +1097,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
+			host:      host,
 			tags:      tags,
 			timestamp: timestamp,
 		},

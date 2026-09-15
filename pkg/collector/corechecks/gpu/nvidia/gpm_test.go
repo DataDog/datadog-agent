@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -34,7 +35,7 @@ func TestGPMCollectorSupportDetection(t *testing.T) {
 	mockLib := nvmltestutil.SetupMockNVML(t, testutil.WithGpmSupport(false))
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 	assert.Equal(t, 2, mockLib.GpmSampleFreeCount(), "all allocated samples should be freed")
@@ -47,7 +48,7 @@ func TestGPMCollectorSampleAllocFailure(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to allocate GPM sample")
@@ -71,7 +72,7 @@ func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 		}),
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 }
@@ -94,7 +95,7 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.NoError(t, err)
 	assert.NotNil(t, collector)
 	gpmCol := collector.(*gpmCollector)
@@ -183,7 +184,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
 
@@ -208,4 +209,63 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	assert.True(t, foundMetrics["metric1"])
 	assert.True(t, foundMetrics["metric3"])
 	assert.Equal(t, 2, mockLib.GpmSampleAllocCount())
+}
+
+func TestGPMCollectorLegacySMActive(t *testing.T) {
+	const smUtilValue = 42.0
+
+	for _, tc := range []struct {
+		name                string
+		legacySMActive      bool
+		expectedMetricNames []string
+	}{
+		{
+			name:                "disabled",
+			legacySMActive:      false,
+			expectedMetricNames: []string{"sm_utilization"},
+		},
+		{
+			name:                "enabled",
+			legacySMActive:      true,
+			expectedMetricNames: []string{"sm_utilization", "sm_active"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockLib := nvmltestutil.SetupMockNVML(t,
+				testutil.WithGpmSupport(true),
+				testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+					nvml.GPM_METRIC_SM_UTIL: {Value: smUtilValue, Return: nvml.SUCCESS},
+				}),
+			)
+			mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+
+			collector, err := newGPMCollectorWithMetrics(
+				mockDevice,
+				map[nvml.GpmMetricId]gpmMetric{
+					nvml.GPM_METRIC_SM_UTIL: {
+						name:       "sm_utilization",
+						metricType: metrics.GaugeType,
+					},
+				},
+				&CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: tc.legacySMActive}},
+			)
+			require.NoError(t, err)
+
+			collectedMetrics, err := collector.Collect()
+			require.NoError(t, err)
+			require.Len(t, collectedMetrics, len(tc.expectedMetricNames))
+
+			metricsByName := make(map[string]*Metric, len(collectedMetrics))
+			for _, metric := range requireMetrics(t, collectedMetrics) {
+				metricsByName[metric.Name] = metric
+			}
+
+			for _, name := range tc.expectedMetricNames {
+				metric := metricsByName[name]
+				require.NotNil(t, metric)
+				assert.Equal(t, smUtilValue, metric.Value)
+				assert.Equal(t, High, metric.Priority())
+			}
+		})
+	}
 }

@@ -73,6 +73,7 @@ dd_agent_go_test(
         "rtloader/python-check/multi_pid_check.py",
         "rtloader/python-check/multi_pid_check.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//pkg/util/option",
         "//test/e2e-framework/components/datadog/agent",
