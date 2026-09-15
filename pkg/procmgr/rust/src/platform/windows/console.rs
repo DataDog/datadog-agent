@@ -122,6 +122,7 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
 
 #[cfg(all(test, windows))]
 mod tests {
+    use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
