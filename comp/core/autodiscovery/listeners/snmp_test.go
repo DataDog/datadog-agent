@@ -594,8 +594,6 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	entityID1 := subnet.config.Digest("192.168.0.1")
 	l.createService(entityID1, subnet, "192.168.0.1", deviceInfo, 0, 0, true)
 
-	// Services are published asynchronously, so wait for the event rather than sampling the
-	// channel length.
 	svc := collectServices(t, newSvc, 1, 2*time.Second)[0]
 	assert.Equal(t, "192.168.0.1", svc.deviceIP)
 	assert.False(t, svc.pending)
@@ -1170,15 +1168,6 @@ func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
 	assert.Equal(t, 0, device.Failures)
 }
 
-// TestCheckDeviceConcurrentSubnetAccess exercises many workers scanning a single subnet at once,
-// which is what production does whenever `network_devices.autodiscovery.workers` is above 1.
-//
-// It is a regression test for AGENT-16950: checkDevice used to read, write and iterate
-// subnet.devices (through writeCache) with no lock held, while deleteService and registerService
-// mutated the same map under the listener lock. That is an unsynchronized concurrent map access
-// and the Go runtime aborts the process with
-// "fatal error: concurrent map iteration and map write".
-//
 // Must be run with -race to be meaningful.
 func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
 	l, factory := setupTestListener(t, []interface{}{
@@ -1191,8 +1180,7 @@ func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
 	l.delService = delSvc
 	l.config.AllowedFailures = 2
 
-	// Drain the service channels. They are unbuffered in production, so this also covers the
-	// case where a send happens while a lock is held.
+	// Unbuffered in production, so draining also covers sends made under a lock.
 	drained := make(chan struct{})
 	go func() {
 		defer close(drained)
@@ -1210,8 +1198,7 @@ func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
 	require.Len(t, subnets, 1)
 	subnet := subnets[0]
 
-	// Half of the IPs answer, half do not, so both the failure-reset path in checkDevice and the
-	// eviction path in deleteService run concurrently against the same devices map.
+	// Half answer, half do not, so the failure-reset and eviction paths run concurrently.
 	const numIPs = 40
 	for i := 1; i <= numIPs; i += 2 {
 		factory.mu.Lock()
@@ -1236,24 +1223,18 @@ func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
 	close(l.stop)
 	<-drained
 
-	// Sanity check that the run actually discovered devices rather than no-oping.
 	subnet.devicesMu.Lock()
 	found := len(subnet.devices)
 	subnet.devicesMu.Unlock()
 	assert.NotZero(t, found, "expected the concurrent scan to discover at least one device")
 }
 
-// TestCreateServiceDoesNotBlockOnAutodiscovery is a regression test for the lock contention half
-// of AGENT-16950: createService used to send on the unbuffered newService channel while holding
-// the listener lock, so a slow autodiscovery consumer stalled every other listener goroutine
-// (the crash dump showed 421 goroutines blocked on Lock()). Discovery must now make progress
-// regardless of how slow the consumer is, so createService returns without anyone reading.
 func TestCreateServiceDoesNotBlockOnAutodiscovery(t *testing.T) {
 	l, _ := setupTestListener(t, []interface{}{
 		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
 	}, nil)
 
-	// Deliberately unbuffered and never read from, standing in for a stalled consumer.
+	// Unbuffered and never read from: a stalled consumer.
 	newSvc := make(chan Service)
 	l.newService = newSvc
 	l.delService = make(chan Service)
@@ -1284,16 +1265,11 @@ func TestCreateServiceDoesNotBlockOnAutodiscovery(t *testing.T) {
 	}
 }
 
-// TestServiceEventsPublishedInOrder pins the ordering guarantee that publishing off the listener
-// lock has to preserve. Autodiscovery reads additions and deletions from two independent channels
-// and selects between them, so if a device's re-addition can overtake its pending deletion the
-// device ends up in l.services but unscheduled, and is never re-registered.
 func TestServiceEventsPublishedInOrder(t *testing.T) {
 	l, _ := setupTestListener(t, []interface{}{
 		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
 	}, nil)
 
-	// Unbuffered, like the real autodiscovery channels.
 	newSvc := make(chan Service)
 	delSvc := make(chan Service)
 	l.newService = newSvc
@@ -1302,11 +1278,10 @@ func TestServiceEventsPublishedInOrder(t *testing.T) {
 
 	svc := &SNMPService{entityID: "entity-1", deviceIP: "192.168.0.1"}
 
-	// A deletion followed by a re-addition of the same entity.
 	l.enqueueService(svc, true)
 	l.enqueueService(svc, false)
 
-	// Consume exactly as autodiscovery does: select across both channels.
+	// Consume as autodiscovery does: select across both channels.
 	var got []string
 	for i := 0; i < 2; i++ {
 		select {

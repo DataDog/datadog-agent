@@ -50,9 +50,7 @@ const (
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
 	tagSeparator             = ","
-	// warnWorkersThreshold is the worker count above which we warn. It is not a hard cap: very
-	// large pools multiply concurrent SNMP sessions and in-flight cache writes, which degrades
-	// the whole listener when the scanned devices are slow or unreachable.
+	// warnWorkersThreshold is the worker count above which we warn. Not a hard cap.
 	warnWorkersThreshold = 100
 )
 
@@ -68,13 +66,8 @@ type SNMPListener struct {
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
 
-	// Service transitions are queued here and published by a single goroutine. Autodiscovery
-	// reads additions and deletions from two independent channels and selects between them, so
-	// it can observe them in either order: publishing from the discovery workers directly would
-	// let a device's re-addition overtake its pending deletion, leaving it in l.services but
-	// unscheduled, and never re-registered because registerDevice skips known entities.
-	// Enqueuing happens under the listener lock so the queue order matches the order in which
-	// l.services was mutated, while the blocking channel sends stay off the lock.
+	// Service transitions are queued under the listener lock and published in order by a
+	// single goroutine, so the blocking channel sends stay off the lock.
 	eventsMu      sync.Mutex
 	eventsCond    *sync.Cond
 	pendingEvents []serviceEvent
@@ -100,17 +93,16 @@ type SNMPService struct {
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
-// snmpSubnet holds the discovery state of a single configured network. It is always shared
-// between the discovery workers through a pointer and must never be copied: `devicesMu` and
-// `devicesScannedCounter` are only meaningful when every worker refers to the same instance.
+// snmpSubnet holds the discovery state of a single configured network. Shared between
+// discovery workers by pointer, never copied.
 type snmpSubnet struct {
 	adIdentifier string
 	config       snmp.Config
 	startingIP   net.IP
 	network      net.IPNet
 	cacheKey     string
-	// devicesMu guards `devices` and the persistent cache entry stored at `cacheKey`.
-	// When both are needed, the listener lock is always taken before devicesMu.
+	// devicesMu guards `devices` and the cache entry at `cacheKey`. Lock order is
+	// listener lock, then devicesMu.
 	devicesMu             sync.Mutex
 	devices               map[string]deviceCache
 	devicesScannedCounter atomic.Uint32
@@ -146,9 +138,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}, nil
 }
 
-// startPublisher brings up the publication goroutine, at most once. It is called both from
-// Listen and from the first enqueue, so that callers wiring the service channels up directly
-// do not have to know about it.
+// startPublisher brings up the publication goroutine, at most once.
 func (l *SNMPListener) startPublisher() {
 	l.publisherOnce.Do(func() {
 		l.eventsMu.Lock()
@@ -168,9 +158,8 @@ func (l *SNMPListener) stopped() bool {
 	}
 }
 
-// enqueueService queues a service transition for publication. It never blocks, so it is safe to
-// call with the listener lock held, which is how the queue stays ordered consistently with the
-// mutations of l.services.
+// enqueueService queues a service transition for publication. Never blocks, so it is safe
+// to call with the listener lock held.
 func (l *SNMPListener) enqueueService(svc *SNMPService, removed bool) {
 	if svc == nil {
 		return
@@ -184,9 +173,7 @@ func (l *SNMPListener) enqueueService(svc *SNMPService, removed bool) {
 	l.eventsMu.Unlock()
 }
 
-// publishServices drains the queue in order, one event at a time. It runs on its own goroutine
-// and holds no listener lock while sending, so a slow autodiscovery consumer cannot stall
-// device discovery.
+// publishServices drains the queue in order on its own goroutine, holding no listener lock.
 func (l *SNMPListener) publishServices() {
 	for {
 		l.eventsMu.Lock()
@@ -281,8 +268,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 }
 
-// writeCacheLocked persists the subnet's known devices. The caller must hold subnet.devicesMu:
-// this function iterates `devices`, so any concurrent write to that map is a fatal runtime error.
+// writeCacheLocked persists the subnet's known devices. The caller must hold subnet.devicesMu.
 func (l *SNMPListener) writeCacheLocked(subnet *snmpSubnet) {
 	devices := make([]deviceCache, 0, len(subnet.devices))
 	for _, device := range subnet.devices {
@@ -670,8 +656,7 @@ func (l *SNMPListener) registerDedupedDevices() {
 }
 
 // registerServiceLocked marks a pending service as registered and queues its publication.
-// The listener lock must be held, so that the queued event is ordered against the other
-// transitions of l.services.
+// The listener lock must be held.
 func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.PendingDevice) {
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
@@ -681,10 +666,7 @@ func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.Pending
 	}
 	svc.pending = false
 
-	// Lock order is always listener -> subnet. The cache write stays here, under both locks:
-	// snapshotting and writing must be atomic, or a slower goroutine holding an older snapshot
-	// could overwrite the file after a newer one and drop a device from the cache. This path
-	// only runs the first time a device is seen, so it is not the hot one.
+	// Held under both locks: an older snapshot must not overwrite a newer cache file.
 	svc.subnet.devicesMu.Lock()
 	svc.subnet.devices[svc.entityID] = deviceCache{
 		IP:        net.ParseIP(svc.deviceIP),
@@ -707,8 +689,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		return
 	}
 
-	// Account the failure under the subnet lock only. The cache write is disk I/O and must not
-	// run while the listener lock is held, or every worker serialises behind it.
+	// Subnet lock only: this cache write is disk I/O and must stay off the listener lock.
 	subnet.devicesMu.Lock()
 	device, exists := subnet.devices[entityID]
 	if !exists {
@@ -742,7 +723,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 func (l *SNMPListener) Stop() {
 	close(l.stop)
 
-	// Wake the publisher so it observes the stop instead of blocking on an empty queue.
+	// Wake the publisher so it observes the stop.
 	l.eventsMu.Lock()
 	if l.eventsCond != nil {
 		l.eventsCond.Broadcast()
