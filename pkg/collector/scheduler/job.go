@@ -144,21 +144,30 @@ func (jq *jobQueue) removeJob(id checkid.ID) error {
 	return fmt.Errorf("check with id %s is not in this Job Queue", id)
 }
 
+// size returns how many checks are currently scheduled in the queue.
+func (jq *jobQueue) size() int {
+	jq.mu.RLock()
+	defer jq.mu.RUnlock()
+
+	return jq.sizeLocked()
+}
+
+func (jq *jobQueue) sizeLocked() int {
+	nJobs := 0
+	for _, bucket := range jq.buckets {
+		nJobs += bucket.size()
+	}
+	return nJobs
+}
+
 func (jq *jobQueue) stats() map[string]interface{} {
 	jq.mu.RLock()
 	defer jq.mu.RUnlock()
 
-	nJobs := 0
-	nBuckets := 0
-	for _, bucket := range jq.buckets {
-		nJobs += bucket.size()
-		nBuckets++
-	}
-
 	return map[string]interface{}{
 		"Interval": jq.interval / time.Second,
-		"Buckets":  nBuckets,
-		"Size":     nJobs,
+		"Buckets":  len(jq.buckets),
+		"Size":     jq.sizeLocked(),
 		"Shadow":   jq.isShadow,
 	}
 }

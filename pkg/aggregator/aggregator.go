@@ -85,12 +85,34 @@ func (s *Stats) copy() *Stats {
 	}
 }
 
+// flushTelemetryNames maps the expvar names of the flush stats (aggregator/Flush/<name> and
+// aggregator/FlushCount/<name>) to the snake_case value used for the flush_type label of their
+// telemetry counterparts.
+var flushTelemetryNames = map[string]string{
+	// Flush times.
+	"ChecksMetricSampleFlushTime": "checks_metric_sample",
+	"ServiceCheckFlushTime":       "service_check",
+	"EventFlushTime":              "event",
+	"MainFlushTime":               "main",
+	"MetricSketchFlushTime":       "metric_sketch",
+	"ManifestsTime":               "manifests",
+	// Flush counts.
+	"ServiceChecks": "service_checks",
+	"Series":        "series",
+	"Events":        "events",
+	"Sketches":      "sketches",
+	"Manifests":     "manifests",
+}
+
 func newFlushTimeStats(name string) {
 	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
 
 func addFlushTime(name string, value int64) {
 	flushTimeStats[name].add(value)
+	if flushType, ok := flushTelemetryNames[name]; ok {
+		tlmFlushTime.Set(float64(value), flushType)
+	}
 }
 
 func newFlushCountStats(name string) {
@@ -99,6 +121,9 @@ func newFlushCountStats(name string) {
 
 func addFlushCount(name string, value int64) {
 	flushCountStats[name].add(value)
+	if flushType, ok := flushTelemetryNames[name]; ok {
+		tlmFlushCount.Set(float64(value), flushType)
+	}
 }
 
 func expStatsMap(statsMap map[string]*Stats) func() interface{} {
@@ -150,6 +175,12 @@ var (
 
 	tlmFlush = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
+	tlmFlushTime = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_time",
+		[]string{"flush_type"}, "Duration in nanoseconds of the last flush, by flush type")
+	tlmFlushCount = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_count",
+		[]string{"flush_type"}, "Number of items handled by the last flush, by flush type")
+	tlmNumberOfFlush = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "number_of_flush",
+		"Number of flushes done by the aggregator")
 
 	tlmChannelSize = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "channel_size",
 		[]string{"shard"}, "Size of the aggregator channel")

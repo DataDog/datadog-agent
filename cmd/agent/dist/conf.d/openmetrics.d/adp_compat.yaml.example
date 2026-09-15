@@ -2,11 +2,11 @@
 # Agent Data Plane. It restores datadog.agent.dogstatsd.* and
 # datadog.agent.forwarder.transactions.* metrics sourced from ADP.
 #
-# Remove the dogstatsd/*, dogstatsd-udp/*, and dogstatsd-uds/* entries from
-# go_expvar.d/agent_stats.yaml to avoid stale zero values from Core Agent expvars.
-# Keep forwarder/* entries in go_expvar.d/agent_stats.yaml because they still
-# reflect Core Agent forwarder activity. ADP forwarder metrics appear here with
-# tag source:agent-data-plane.
+# Remove the dogstatsd and forwarder blocks from openmetrics.d/agent_stats.yaml to avoid
+# double-counting; ADP forwarder metrics appear here with tag source:agent-data-plane. If you
+# are still using the deprecated go_expvar.d/agent_stats.yaml, remove its dogstatsd/*,
+# dogstatsd-udp/* and dogstatsd-uds/* entries instead to avoid stale zero values from Core
+# Agent expvars, and keep its forwarder/* entries, which still reflect Core Agent activity.
 #
 # Counter metrics use type: rate to match the go_expvar check behavior.
 instances:
