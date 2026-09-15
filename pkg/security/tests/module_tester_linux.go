@@ -1425,10 +1425,27 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if err := retry(tm.t, func() error {
 		d, err := tm.GetDumpFromDocker(dockerInstance)
 		if err != nil {
+			// Nothing offers the cgroup for tracing when the container is migrated
+			// into it rather than exec'ing in it, so ask for the dump instead. A
+			// requested dump takes DifferentiateArgs from the request, where an
+			// offered one reads it from the config, so pass it along to keep the two
+			// paths interchangeable.
+			if _, reqErr := managers.DumpActivity(&api.ActivityDumpParams{
+				ContainerID:       dockerInstance.containerID,
+				DifferentiateArgs: tm.secconfig.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
+			}); reqErr != nil {
+				return reqErr
+			}
 			return err
 		}
 		if d == nil {
 			return fmt.Errorf("no dump found for container %s", dockerInstance.containerID)
+		}
+		if d.CGroupID == "" {
+			// A request that lands before the container reaches the process cache
+			// collects nothing in kernel space, so drop it and ask again.
+			_, _ = managers.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: dockerInstance.containerID})
+			return fmt.Errorf("dump for container %s has no cgroup yet", dockerInstance.containerID)
 		}
 		dump = d
 		return nil
