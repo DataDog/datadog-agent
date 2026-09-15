@@ -8,6 +8,8 @@
 package spec
 
 import (
+	"math"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,4 +93,249 @@ func TestValidateEmittedMetricsAllowsZeroNVSwitchWithNoActiveNVLink(t *testing.T
 
 	require.NoError(t, err)
 	require.False(t, result.HasFailures())
+}
+
+func TestValidateEmittedMetricsAllowsMissingOptionalTag(t *testing.T) {
+	value := 42.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"fan_speed": {
+					CustomTags: []string{"fan_index"},
+					Support:    MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+			},
+		},
+		Tags: &TagsSpec{Tags: map[string]TagSpec{
+			"fan_index": {Regex: regexp.MustCompile(`^\d+$`), Optional: true},
+		}},
+	}
+	config := GPUConfig{Architecture: "hopper", DeviceMode: DeviceModePhysical}
+
+	result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+		"fan_speed": {{Value: &value}},
+	}, nil, ValidationOptions{})
+
+	require.NoError(t, err)
+	require.False(t, result.HasFailures())
+	require.Equal(t, 0, result.Metrics["fan_speed"].TagResults["fan_index"].Missing)
+}
+
+func TestValidateEmittedMetricsAgainstSpecExternalValues(t *testing.T) {
+	value := 10.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"temperature": {
+					Validator: &MetricValidator{
+						NvidiaSMI:      true,
+						ValueTolerance: &MetricValueTolerance{Absolute: ptrTo(1.0)},
+					},
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+				"unmarked": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+			},
+		},
+		Tags: &TagsSpec{},
+	}
+	config := GPUConfig{Architecture: "hopper", DeviceMode: DeviceModePhysical}
+	emitted := map[string][]MetricObservation{
+		"temperature": {{Value: &value}},
+		"unmarked":    {{Value: &value}},
+	}
+
+	t.Run("matches reference", func(t *testing.T) {
+		reference := 10.5
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, emitted, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.False(t, result.HasFailures())
+		require.Contains(t, result.Metrics, "unmarked")
+	})
+
+	t.Run("mismatch reports observed and reference values", func(t *testing.T) {
+		reference := 8.0
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, emitted, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+		require.Contains(t, result.Metrics["temperature"].InvalidValueSamples[0], "value 10 differs from known-good value 8")
+	})
+
+	t.Run("missing reference fails", func(t *testing.T) {
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, emitted, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{},
+		})
+		require.NoError(t, err)
+		require.True(t, result.HasFailures())
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+	})
+
+	t.Run("non-finite observed value fails", func(t *testing.T) {
+		reference := 10.0
+		notANumber := math.NaN()
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"temperature": {{Value: &notANumber}},
+			"unmarked":    {{Value: &value}},
+		}, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.True(t, result.HasFailures())
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+		require.Contains(t, result.Metrics["temperature"].InvalidValueSamples[0], "not finite")
+	})
+
+	t.Run("empty observations fail", func(t *testing.T) {
+		reference := 10.0
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"temperature": {},
+			"unmarked":    {{Value: &value}},
+		}, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.True(t, result.HasFailures())
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+		require.Contains(t, result.Metrics["temperature"].InvalidValueSamples[0], "observation is missing")
+	})
+
+	t.Run("external validation still checks unmarked metrics", func(t *testing.T) {
+		reference := 10.0
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"temperature": {{Value: &value}},
+		}, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.Metrics["unmarked"].Missing)
+	})
+}
+
+func TestValidationAvailabilityOptions(t *testing.T) {
+	value := 1.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"required": {
+					Support: MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+				"optional": {
+					Optional: true,
+					Validator: &MetricValidator{
+						Range: &MetricValidatorRange{Min: ptrTo(0.0), Max: ptrTo(1.0)},
+					},
+					Support: MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+				"ebpf": {
+					ConfigRequired: []ConfigFeature{ConfigFeatureSystemProbeEBPF},
+					Support:        MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+				"workload": {
+					WorkloadOnly: true,
+					Tagsets:      []string{"process", "container"},
+					Support:      MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+			},
+		},
+		Tags: &TagsSpec{
+			Tags: map[string]TagSpec{
+				"pid":                 {},
+				"kube_container_name": {},
+			},
+			Tagsets: map[string]TagsetSpec{
+				"process":   {Tags: []string{"pid"}, WorkloadOnly: true},
+				"container": {Tags: []string{"kube_container_name"}, WorkloadOnly: true},
+			},
+		},
+	}
+	config := GPUConfig{Architecture: "hopper", DeviceMode: DeviceModePhysical}
+
+	t.Run("optional metrics may be absent", func(t *testing.T) {
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"required": {{Value: &value}},
+		}, nil, ValidationOptions{})
+		require.NoError(t, err)
+		require.False(t, result.HasFailures())
+		require.NotContains(t, result.Metrics, "optional")
+		require.NotContains(t, result.Metrics, "ebpf")
+		require.NotContains(t, result.Metrics, "workload")
+	})
+
+	t.Run("emitted optional metrics are validated", func(t *testing.T) {
+		invalid := 2.0
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"required": {{Value: &value}},
+			"optional": {{Value: &invalid}},
+		}, nil, ValidationOptions{})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.Metrics["optional"].InvalidValue)
+	})
+
+	t.Run("enabled config feature requires metric", func(t *testing.T) {
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"required": {{Value: &value}},
+		}, nil, ValidationOptions{
+			ConfigFeatures: map[ConfigFeature]bool{ConfigFeatureSystemProbeEBPF: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.Metrics["ebpf"].Missing)
+	})
+
+	t.Run("selected workload tagsets are required", func(t *testing.T) {
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"required": {{Value: &value}},
+			"workload": {{Value: &value, Tags: []string{"pid:123"}}},
+		}, nil, ValidationOptions{
+			WorkloadActive:  true,
+			WorkloadTagsets: map[string]bool{"process": true},
+		})
+		require.NoError(t, err)
+		require.False(t, result.HasFailures())
+	})
+
+	t.Run("invalid enabled tagset is rejected", func(t *testing.T) {
+		_, err := ValidateEmittedMetricsAgainstSpec(specs, config, nil, nil, ValidationOptions{
+			WorkloadTagsets: map[string]bool{"unknown": true},
+		})
+		require.ErrorContains(t, err, `unknown enabled workload tagset "unknown"`)
+	})
+}
+
+func TestExternalValidationDoesNotRepeatStaticFailure(t *testing.T) {
+	value := 101.0
+	reference := 100.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"sm_active": {
+					Validator: &MetricValidator{
+						Range:              &MetricValidatorRange{Min: ptrTo(0.0), Max: ptrTo(100.0)},
+						NvidiaSMI:          true,
+						CalibratedWorkload: true,
+						ValueTolerance:     &MetricValueTolerance{Absolute: ptrTo(15.0)},
+					},
+					Support: MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+			},
+		},
+		Tags: &TagsSpec{},
+	}
+
+	result, err := ValidateEmittedMetricsAgainstSpec(specs, GPUConfig{DeviceMode: DeviceModePhysical}, map[string][]MetricObservation{
+		"sm_active": {{Value: &value}},
+	}, nil, ValidationOptions{
+		NvidiaSMIValues:          map[string]*float64{"sm_active": &reference},
+		CalibratedWorkloadValues: map[string]*float64{"sm_active": &reference},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Metrics["sm_active"].InvalidValue)
 }

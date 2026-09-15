@@ -41,6 +41,20 @@ type SmiSample struct {
 	GraphicsActivity *float64
 }
 
+// SmiCollectionOption configures nvidia-smi sample collection.
+type SmiCollectionOption func(*smiCollectionConfig)
+
+type smiCollectionConfig struct {
+	includeGPM bool
+}
+
+// WithGPM requests the graphics activity GPM metric.
+func WithGPM() SmiCollectionOption {
+	return func(config *smiCollectionConfig) {
+		config.includeGPM = true
+	}
+}
+
 // RequireSmi ensures the nvidia-smi binary exists on the system path.
 func RequireSmi(t *testing.T) {
 	_, err := exec.LookPath(nvidiaSmi)
@@ -48,9 +62,15 @@ func RequireSmi(t *testing.T) {
 }
 
 // CollectSmiSample runs nvidia-smi dmon for the given device and returns the parsed sample.
-func CollectSmiSample(deviceID string) (*SmiSample, error) {
-	gpmMetrics := []string{
-		"1", // Graphics Activity
+func CollectSmiSample(deviceID string, options ...SmiCollectionOption) (*SmiSample, error) {
+	config := smiCollectionConfig{}
+	for _, option := range options {
+		option(&config)
+	}
+
+	gpmMetrics := []string{}
+	if config.includeGPM {
+		gpmMetrics = append(gpmMetrics, "1") // Graphics Activity
 	}
 	// GPM metrics are a delta between consecutive samples, so the first dmon
 	// cycle always reports "-". Run multiple cycles and read a later line.
@@ -80,21 +100,69 @@ func CollectSmiSample(deviceID string) (*SmiSample, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bad gpu index %q: %w", values[0], err)
 	}
-	return &SmiSample{
-		Index:            idx,
-		PowerWatts:       parseFloatField(values[1]),
-		GPUTempC:         parseFloatField(values[2]),
-		MemTempC:         parseFloatField(values[3]),
-		SMUtilPct:        parseFloatField(values[4]),
-		MemUtilPct:       parseFloatField(values[5]),
-		EncoderPct:       parseFloatField(values[6]),
-		DecoderPct:       parseFloatField(values[7]),
-		JPEGPct:          parseFloatField(values[8]),
-		OFAPct:           parseFloatField(values[9]),
-		MemClockMHz:      parseFloatField(values[10]),
-		ProcClockMHz:     parseFloatField(values[11]),
-		GraphicsActivity: parseFloatField(values[12]),
-	}, nil
+	sample := &SmiSample{
+		Index:        idx,
+		PowerWatts:   parseFloatField(values[1]),
+		GPUTempC:     parseFloatField(values[2]),
+		MemTempC:     parseFloatField(values[3]),
+		SMUtilPct:    parseFloatField(values[4]),
+		MemUtilPct:   parseFloatField(values[5]),
+		EncoderPct:   parseFloatField(values[6]),
+		DecoderPct:   parseFloatField(values[7]),
+		JPEGPct:      parseFloatField(values[8]),
+		OFAPct:       parseFloatField(values[9]),
+		MemClockMHz:  parseFloatField(values[10]),
+		ProcClockMHz: parseFloatField(values[11]),
+	}
+	if config.includeGPM {
+		sample.GraphicsActivity = parseFloatField(values[12])
+	}
+	return sample, nil
+}
+
+// MetricValues returns SMI readings normalized to GPU core-check metric units.
+// gr_engine_active falls back to SM utilization when GPM graphics activity is
+// unavailable.
+func (s *SmiSample) MetricValues() map[string]*float64 {
+	if s == nil {
+		return nil
+	}
+
+	values := map[string]*float64{
+		"temperature":          s.GPUTempC,
+		"memory.temperature":   s.MemTempC,
+		"sm_active":            s.SMUtilPct,
+		"encoder_active":       s.EncoderPct,
+		"decoder_active":       s.DecoderPct,
+		"clock.speed.memory":   s.MemClockMHz,
+		"clock.speed.graphics": s.ProcClockMHz,
+		"gr_engine_active":     s.GraphicsActivity,
+	}
+	if values["gr_engine_active"] == nil {
+		values["gr_engine_active"] = s.SMUtilPct
+	}
+	if s.PowerWatts != nil {
+		milliwatts := *s.PowerWatts * 1000
+		values["power.usage"] = &milliwatts
+	} else {
+		values["power.usage"] = nil
+	}
+	return values
+}
+
+// NvidiaSMIMetricNames lists GPU spec metric names with an SMI adapter.
+func NvidiaSMIMetricNames() map[string]struct{} {
+	return map[string]struct{}{
+		"power.usage":          {},
+		"temperature":          {},
+		"memory.temperature":   {},
+		"sm_active":            {},
+		"encoder_active":       {},
+		"decoder_active":       {},
+		"clock.speed.memory":   {},
+		"clock.speed.graphics": {},
+		"gr_engine_active":     {},
+	}
 }
 
 // parseFloatField returns nil for "-" or unparseable values.

@@ -39,7 +39,7 @@ var gpuBurnerHTTPClient = &http.Client{Timeout: gpuBurnerStatusTimeout}
 
 // GPUBurnerMetrics is the live GPU metric snapshot returned by gpu-burner.
 type GPUBurnerMetrics struct {
-	SMActive float64 `json:"sm_active"`
+	SMActive *float64 `json:"sm_active"`
 }
 
 // GPUBurnerWorker describes a gpu-burner worker returned by its status API.
@@ -64,6 +64,14 @@ type GPUBurner struct {
 	mu        sync.Mutex
 	exited    bool
 	exitErr   error
+}
+
+// MetricValues returns gpu-burner status values keyed by GPU spec metric name.
+func (m *GPUBurnerMetrics) MetricValues() map[string]*float64 {
+	if m == nil {
+		return nil
+	}
+	return map[string]*float64{"sm_active": m.SMActive}
 }
 
 func requireGPUBurner(t *testing.T) string {
