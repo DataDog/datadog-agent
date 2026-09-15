@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 use std::ptr;
+#[cfg(test)]
+use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::Security::{
     EqualSid, GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser,
@@ -150,7 +152,8 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
+        // Call with empty name and domain to retrieve their sizes and allocate them once.
+        if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
             ptr::null_mut(),
@@ -158,7 +161,13 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                return Err(err);
+            }
+        }
 
         let mut name = vec![0u16; name_size as usize];
         let mut domain = vec![0u16; domain_size as usize];
