@@ -22,6 +22,10 @@ var linuxScriptTemplate string
 //go:embed Fix-DockerLogPermissions.ps1
 var windowsScriptTemplate string
 
+// impactMsg stays scoped to Docker: the check proves only that a Docker socket
+// exists and cannot be opened, so another runtime may still serve the node.
+const impactMsg = "The Agent cannot query the Docker daemon, so Docker-backed container metrics, container image collection and container image vulnerability scanning are unavailable, as is Docker log collection over the socket. Workloads on another runtime such as containerd or CRI-O are unaffected."
+
 // DockerPermissionIssue provides complete issue template (metadata + OS-specific remediation)
 type DockerPermissionIssue struct{}
 
@@ -51,7 +55,7 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 		"integration": "docker",
 		"dir_path":    dockerDir,
 		"os":          osName,
-		"impact":      "The agent will fall back to socket tailing, which may hit limits with high volume logs",
+		"impact":      impactMsg,
 	})
 
 	if err != nil {
