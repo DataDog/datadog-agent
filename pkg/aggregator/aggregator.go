@@ -163,7 +163,6 @@ var (
 	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
-	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorOrchestratorManifests            = expvar.Int{}
@@ -244,7 +243,6 @@ func init() {
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
-	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("OrchestratorManifests", &aggregatorOrchestratorManifests)
@@ -297,8 +295,6 @@ type BufferedAggregator struct {
 	haAgent                haagent.Component
 	configID               string
 	hostname               string
-	hostnameUpdate         chan string
-	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
 	stopChan  chan chan struct{}
@@ -380,8 +376,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		haAgent:                     haAgent,
 		configID:                    configID,
 		hostname:                    hostname,
-		hostnameUpdate:              make(chan string),
-		hostnameUpdateDone:          make(chan struct{}),
 		flushChan:                   make(chan flushTrigger),
 		stopChan:                    make(chan chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
