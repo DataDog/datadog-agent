@@ -23,11 +23,7 @@ func NewTracer(cfg *config.Config, _ telemetry.Component) (Tracer, error) {
 		cfg,
 		func() (Tracer, error) { return newEbpfLessTracer(cfg) },
 		func() (Tracer, error) {
-			compositeCfg := *cfg
-			if cfg.DarwinConnectionTracerBackend == config.DarwinConnectionTracerNStat {
-				compositeCfg.DarwinConnectionTracerPacketEnabled = false
-			}
-			return newDarwinCompositeTracer(&compositeCfg)
+			return newDarwinCompositeTracer(darwinCompositeConfig(cfg))
 		},
 	)
 }
@@ -48,4 +44,18 @@ func newDarwinTracer(cfg *config.Config, newEbpfless, newComposite func() (Trace
 	default:
 		return nil, fmt.Errorf("unknown Darwin connection tracer backend %q", cfg.DarwinConnectionTracerBackend)
 	}
+}
+
+// darwinCompositeConfig copies cfg and applies backend packet-enrichment policy.
+// nstat forces packet capture off. auto is complete nstat-pcap and forces it on.
+// nstat-pcap keeps the packet_enabled kill switch. The caller's cfg is not mutated.
+func darwinCompositeConfig(cfg *config.Config) *config.Config {
+	compositeCfg := *cfg
+	switch cfg.DarwinConnectionTracerBackend {
+	case config.DarwinConnectionTracerNStat:
+		compositeCfg.DarwinConnectionTracerPacketEnabled = false
+	case config.DarwinConnectionTracerAuto:
+		compositeCfg.DarwinConnectionTracerPacketEnabled = true
+	}
+	return &compositeCfg
 }
