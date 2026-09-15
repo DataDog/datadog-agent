@@ -22,6 +22,24 @@ package(default_visibility = ["//visibility:private"])
     ]
 ]
 
+# Generates workload_protection_agent_config.schema.json from pkg/security/config/config.go.
+run_binary(
+    name = "workload_protection_agent_config_schema_gen",
+    srcs = ["//pkg/security/config:config_doc_input"],
+    outs = ["workload_protection_agent_config_schema_gen/workload_protection_agent_config.schema.json"],
+    args = [
+        "-input=pkg/security/config/config.go",
+        "-output=$(execpath workload_protection_agent_config_schema_gen/workload_protection_agent_config.schema.json)",
+    ],
+    tool = "//pkg/security/generators/config_doc",
+)
+
+write_source_file(
+    name = "workload_protection_agent_config_schema",
+    in_file = ":workload_protection_agent_config_schema_gen",
+    out_file = "workload_protection_agent_config.schema.json",
+)
+
 # Markdown doc generation: renders Jinja2 templates using the committed JSON
 # schemas as inputs. Platform-neutral — reads committed source files so it runs
 # on any OS without needing the Linux-only Go generator.
@@ -96,7 +114,8 @@ run_binary(
 # Umbrella target: updates all five CWS markdown docs in one shot using the
 # committed JSON schemas as inputs. Platform-neutral — can run on any OS.
 # The JSON schemas themselves are updated by backend_linux_schema /
-# backend_windows_schema (Linux-only), called from cws_go_generate.
+# backend_windows_schema (Linux-only) and workload_protection_agent_config_schema,
+# called from cws_go_generate.
 write_source_files(
     name = "cws_docs",
     files = {
