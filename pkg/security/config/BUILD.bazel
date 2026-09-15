@@ -26,6 +26,13 @@ go_library(
     ],
 )
 
+# config.go is the sole input to //pkg/security/generators/config_doc.
+filegroup(
+    name = "config_doc_input",
+    srcs = ["config.go"],
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
+)
+
 go_stringer(
     name = "enum_string",
     src = "dump.go",
