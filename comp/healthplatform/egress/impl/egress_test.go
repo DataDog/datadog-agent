@@ -45,6 +45,20 @@ func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderde
 	return e
 }
 
+// drainResolved replicates the channel-drain case that run()'s background
+// select loop performs, so tick() can be driven deterministically in tests
+// without starting the real ticker goroutine.
+func drainResolved(e *egress) {
+	for {
+		select {
+		case issue := <-e.resolvedCh:
+			e.resolved[issue.Id] = issue
+		default:
+			return
+		}
+	}
+}
+
 func TestTickSendsActiveIssues(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1", Title: "Test"}))
 	var reports []*healthplatformpayload.HealthReport
@@ -250,8 +264,9 @@ func TestObserverReceivesResolvedFromStore(t *testing.T) {
 
 	// Store resolves the issue — flows into e.resolvedCh via the observer
 	// registered in newTestEgress, exactly as it would through the real store.
-	// tick() drains resolvedCh itself, so no manual drain is needed here.
+	// drainResolved replicates run()'s select loop consuming it between ticks.
 	store.ResolveIssue("issue-1")
+	drainResolved(e)
 
 	// Second tick: issue-1 now appears as a resolved tombstone.
 	e.tick()
@@ -337,9 +352,10 @@ func TestStatusStaysHealthyDuringIdlePeriodAfterSuccess(t *testing.T) {
 	require.True(t, e.Status().Healthy)
 
 	// The issue resolves and is sent once as a tombstone, then the store is
-	// empty and every subsequent tick takes the skip path. tick() drains
-	// resolvedCh itself, so no manual drain is needed here.
+	// empty and every subsequent tick takes the skip path. drainResolved
+	// replicates run()'s select loop consuming the tombstone between ticks.
 	store.ResolveIssue("issue-1")
+	drainResolved(e)
 	e.tick()
 	require.Empty(t, e.resolved)
 
@@ -355,13 +371,12 @@ func TestStatusStaysHealthyDuringIdlePeriodAfterSuccess(t *testing.T) {
 	assert.NoError(t, s.LastError)
 }
 
-// TestStatusRetriesResolvedTombstoneAfterFailure verifies the fix for the
-// select race between run()'s ticker and resolvedCh cases: even when a tick
-// fires right as an issue resolves -- before run()'s select loop has drained
-// the tombstone into e.resolved -- tick() drains resolvedCh itself first, so
-// the tombstone is retried rather than mistaken for "nothing to report".
-// Status only recovers once that retry actually succeeds.
-func TestStatusRetriesResolvedTombstoneAfterFailure(t *testing.T) {
+// TestStatusUnaffectedByUndrainedTombstone verifies that a tick landing in
+// the window between an issue resolving and run()'s select loop draining its
+// tombstone off resolvedCh does not touch Status at all: with nothing in
+// e.resolved yet, that tick takes the skip path, so a stale error from a
+// prior failure is left exactly as-is rather than misread as recovered.
+func TestStatusUnaffectedByUndrainedTombstone(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
 	var erroring atomic.Bool
 	erroring.Store(true)
@@ -378,11 +393,15 @@ func TestStatusRetriesResolvedTombstoneAfterFailure(t *testing.T) {
 	require.False(t, e.Status().Healthy, "failed send must report unhealthy")
 
 	// The issue resolves in the store; its tombstone is left sitting in
-	// resolvedCh, exactly as if run()'s ticker case had won the select race
-	// against the resolvedCh case.
+	// resolvedCh, exactly as if run()'s select loop hasn't processed it yet.
 	store.ResolveIssue("issue-1")
 
 	erroring.Store(false)
+	e.tick()
+	require.False(t, e.Status().Healthy, "an undrained tombstone must not be mistaken for \"nothing to report\"")
+
+	// run()'s select loop eventually drains the tombstone between ticks.
+	drainResolved(e)
 	e.tick()
 
 	s := e.Status()
@@ -409,8 +428,10 @@ func TestStatusStaysUnhealthyWhenPersistentFailureOutlivesResolvedIssue(t *testi
 	require.False(t, e.Status().Healthy, "failed send must report unhealthy")
 
 	// The issue resolves, but the forwarder keeps failing for an unrelated,
-	// persistent reason.
+	// persistent reason. drainResolved replicates run()'s select loop
+	// consuming the tombstone between ticks.
 	store.ResolveIssue("issue-1")
+	drainResolved(e)
 
 	for i := 0; i < 5; i++ {
 		e.tick()
