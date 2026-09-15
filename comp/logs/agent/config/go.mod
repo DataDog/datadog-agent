@@ -14,7 +14,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
 	github.com/stretchr/testify v1.12.1
-	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 )
 
@@ -62,6 +61,7 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

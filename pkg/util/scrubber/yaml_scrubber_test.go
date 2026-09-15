@@ -309,6 +309,17 @@ additional_endpoints:
 		assert.Contains(t, scrubbed, "site: datadoghq.com")
 	})
 
+	t.Run("URL-keyed map: DELA fallback is fully scrubbed", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - DELA(org-uuid, aws, fallback=supersecretXYZ)
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+		assert.NotContains(t, scrubbed, "XYZ")
+	})
+
 	t.Run("URL-keyed map: ENC placeholders are preserved", func(t *testing.T) {
 		input := `additional_endpoints:
   "https://mydomain.datadoghq.com":
@@ -351,6 +362,18 @@ additional_endpoints:
 		assert.Contains(t, scrubbed, "443")
 		assert.Contains(t, scrubbed, "10516")
 		assert.Contains(t, scrubbed, "/v1")
+	})
+
+	t.Run("list-of-endpoint-structs: DELA fallback is fully scrubbed", func(t *testing.T) {
+		input := `logs_config:
+  additional_endpoints:
+    - api_key: DELA(org-uuid, aws, fallback=supersecretXYZ)
+      host: agent-http-intake.logs.datadoghq.com
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+		assert.NotContains(t, scrubbed, "XYZ")
 	})
 }
 

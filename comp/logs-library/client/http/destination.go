@@ -53,12 +53,13 @@ const (
 
 // HTTP errors.
 var (
-	errClient  = errors.New("client error")
-	errServer  = errors.New("server error")
-	tlmSend    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse   = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
-	tlmDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
+	errClient             = errors.New("client error")
+	errServer             = errors.New("server error")
+	errCredentialNotReady = errors.New("delegated credential not ready")
+	tlmSend               = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse              = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle               = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped            = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -284,6 +285,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			latency: latency,
 			err:     err,
 		}
+		if errors.Is(err, errCredentialNotReady) {
+			// Skip this copy until the endpoint has a credential. Retrying here would block
+			// reliable delivery to the other destinations.
+			d.updateRetryState(nil, isRetrying)
+			output <- payload
+			return destinationResult{latency: latency}
+		}
 
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
@@ -301,7 +309,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			d.updateRetryState(nil, isRetrying)
 			return result
 		}
-
 		if d.shouldRetry {
 			if d.updateRetryState(err, isRetrying) {
 				continue
@@ -323,6 +330,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 }
 
 func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
+	apiKey, ready := d.endpoint.GetAPIKeyIfReady()
+	if !ready {
+		return client.NewRetryableError(errCredentialNotReady)
+	}
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
@@ -358,7 +369,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 
-	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
+	req.Header.Set("DD-API-KEY", apiKey)
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
