@@ -23,7 +23,7 @@ import (
 
 	patch "github.com/evanphx/json-patch/v5"
 	"github.com/itchyny/gojq"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
 // FileOperationType is the type of operation to perform on the config.

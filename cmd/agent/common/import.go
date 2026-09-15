@@ -311,7 +311,7 @@ func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
 	}
 
 	if _, ok := data["init_config"]; ok {
-		if initConfig, ok := data["init_config"].(map[interface{}]interface{}); ok {
+		if initConfig, ok := data["init_config"].(map[string]interface{}); ok {
 			if _, ok := initConfig["min_collection_interval"]; ok {
 				if minCollectionInterval, ok := initConfig["min_collection_interval"].(int); ok {
 					delete(initConfig, "min_collection_interval")
@@ -327,7 +327,7 @@ func insertMinCollectionInterval(rawData map[interface{}]interface{}, interval i
 	if _, ok := rawData["instances"]; ok {
 		if instances, ok := rawData["instances"].([]interface{}); ok {
 			for _, rawInstance := range instances {
-				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+				if instance, ok := rawInstance.(map[string]interface{}); ok {
 					instance["min_collection_interval"] = interval
 				}
 			}

@@ -22,7 +22,7 @@ type RemoteWindowsAgentAssertions struct {
 // RemoteWindowsAgentConfigAssertions provides assertions for Agent configuration
 type RemoteWindowsAgentConfigAssertions struct {
 	*RemoteWindowsAgentAssertions
-	config map[interface{}]interface{}
+	config map[string]interface{}
 }
 
 // RuntimeConfig gets the Agent runtime config and returns a config assertions helper
@@ -36,7 +36,7 @@ func (r *RemoteWindowsAgentAssertions) RuntimeConfig(commandArgs ...string) *Rem
 	)
 	r.require.NoError(err)
 
-	var config map[interface{}]interface{}
+	var config map[string]interface{}
 	err = yaml.Unmarshal([]byte(output), &config)
 	r.require.NoError(err)
 
@@ -65,7 +65,7 @@ func (c *RemoteWindowsAgentConfigAssertions) getConfigValue(key string) interfac
 		// Navigate deeper
 		next, exists := current[k]
 		c.require.True(exists, "config key %s not found", key)
-		nextMap, ok := next.(map[interface{}]interface{})
+		nextMap, ok := next.(map[string]interface{})
 		c.require.True(ok, "config key %s is not a nested object", strings.Join(keys[:i+1], "."))
 		current = nextMap
 	}

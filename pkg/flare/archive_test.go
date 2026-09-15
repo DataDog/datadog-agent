@@ -143,7 +143,7 @@ func TestProcessAgentFullConfig(t *testing.T) {
 	exp := `api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 dd_url: https://my-url.com
 process_config:
-  enabled: "true"
+    enabled: "true"
 `
 	// Setting an unused port to avoid problem when test run next to running Process Agent
 	port := 56789

@@ -86,9 +86,9 @@ func TestString(t *testing.T) {
 
 	expected := `check_name: foo
 init_config:
-  fooBarBaz: test
+    fooBarBaz: test
 instances:
-- justFoo
+    - justFoo
 logs_config: null
 `
 	assert.Equal(t, config.String(), expected)
@@ -188,13 +188,13 @@ func TestDigest(t *testing.T) {
 		InitConfig: Data(""),
 		Instances:  []Data{Data("tags: [\"foo\", \"foo:bar\"]")},
 	}
-	assert.Equal(t, "acf96a2e562b1adf", simpleConfigWithTags.Digest())
+	assert.Equal(t, "6d541d82f98a3694", simpleConfigWithTags.Digest())
 	simpleConfigWithOtherTags := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
 		Instances:  []Data{Data("tags: [\"foo\", \"foo:baf\"]")},
 	}
-	assert.Equal(t, "3aa6edecf7fa8bcd", simpleConfigWithOtherTags.Digest())
+	assert.Equal(t, "102a95188b4c77b1", simpleConfigWithOtherTags.Digest())
 
 	// assert a character change in a tag produces different hash
 	assert.NotEqual(t, simpleConfigWithTags.Digest(), simpleConfigWithOtherTags.Digest())
@@ -204,7 +204,7 @@ func TestDigest(t *testing.T) {
 		InitConfig: Data(""),
 		Instances:  []Data{Data("tags: [\"foo:bar\", \"foo\"]")},
 	}
-	assert.Equal(t, "acf96a2e562b1adf", simpleConfigWithTagsDifferentOrder.Digest())
+	assert.Equal(t, "6d541d82f98a3694", simpleConfigWithTagsDifferentOrder.Digest())
 
 	// assert an order change in the tags list doesn't change the hash
 	assert.Equal(t, simpleConfigWithTags.Digest(), simpleConfigWithTagsDifferentOrder.Digest())

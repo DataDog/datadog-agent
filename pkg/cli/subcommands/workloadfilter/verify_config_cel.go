@@ -8,6 +8,7 @@
 package workloadfilterlist
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,7 +40,9 @@ func verifyCELConfig(writer io.Writer, reader io.Reader) error {
 	err = json.Unmarshal(data, &ruleBundles)
 	if err != nil {
 		// If JSON fails, try YAML
-		err = yaml.UnmarshalStrict(data, &ruleBundles)
+		strictDecoder := yaml.NewDecoder(bytes.NewReader(data))
+		strictDecoder.KnownFields(true)
+		err = strictDecoder.Decode(&ruleBundles)
 		if err != nil {
 			fmt.Fprintf(writer, "%s Failed to unmarshal input (tried JSON and YAML)\n", color.HiRedString("✗"))
 			return fmt.Errorf("failed to parse input: %w", err)

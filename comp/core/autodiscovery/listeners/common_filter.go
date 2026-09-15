@@ -142,7 +142,7 @@ func instanceMetricRenameTargets(inst integration.Data) []string {
 	}
 	var targets []string
 	for _, entry := range slices.Concat(raw.Metrics, raw.ExtraMetrics) {
-		m, ok := entry.(map[interface{}]interface{})
+		m, ok := entry.(map[string]interface{})
 		if !ok {
 			continue // plain string (or any other scalar): pass-through, no rename
 		}
@@ -150,7 +150,7 @@ func instanceMetricRenameTargets(inst integration.Data) []string {
 			switch v := value.(type) {
 			case string:
 				targets = append(targets, v)
-			case map[interface{}]interface{}:
+			case map[string]interface{}:
 				if name, ok := v["name"].(string); ok {
 					targets = append(targets, name)
 				}

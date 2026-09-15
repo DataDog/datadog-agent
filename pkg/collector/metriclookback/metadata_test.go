@@ -41,7 +41,7 @@ func TestWithShadowExecutionModeAddsInternalMetadataToCopy(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(shadowInstance, &raw))
 	assert.Equal(t, "first", raw["name"])
 	assert.Equal(t, []interface{}{"env:test"}, raw["tags"])
-	assert.Equal(t, integration.RawMap{"execution_mode": "shadow"}, raw["_datadog"])
+	assert.Equal(t, map[string]interface{}{"execution_mode": "shadow"}, raw["_datadog"])
 }
 
 func TestWithShadowExecutionModePreservesExistingInternalMetadata(t *testing.T) {
@@ -52,7 +52,7 @@ func TestWithShadowExecutionModePreservesExistingInternalMetadata(t *testing.T) 
 	require.NoError(t, err)
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(shadowInstance, &raw))
-	assert.Equal(t, integration.RawMap{
+	assert.Equal(t, map[string]interface{}{
 		"existing":       "value",
 		"execution_mode": "shadow",
 	}, raw["_datadog"])
@@ -66,7 +66,7 @@ func TestWithShadowExecutionModeOverridesUserExecutionMode(t *testing.T) {
 	require.NoError(t, err)
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(shadowInstance, &raw))
-	assert.Equal(t, integration.RawMap{"execution_mode": "shadow"}, raw["_datadog"])
+	assert.Equal(t, map[string]interface{}{"execution_mode": "shadow"}, raw["_datadog"])
 }
 
 func TestWithShadowExecutionModeReturnsParseErrors(t *testing.T) {

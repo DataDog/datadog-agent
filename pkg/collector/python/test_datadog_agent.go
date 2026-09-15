@@ -89,7 +89,7 @@ func testSetExternalTags(t *testing.T) {
 
 	yamlPayload, _ := yaml.Marshal(payload)
 	assert.Equal(t,
-		"- - test_hostname\n  - test_source_type:\n    - tag1\n    - tag2\n",
+		"- - test_hostname\n  - test_source_type:\n        - tag1\n        - tag2\n",
 		string(yamlPayload))
 }
 

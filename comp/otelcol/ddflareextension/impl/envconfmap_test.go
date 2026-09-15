@@ -43,13 +43,13 @@ func TestEnvConfMap_useEnvVarNames(t *testing.T) {
 
 	provided = envConfMap.useEnvVarNames(provided)
 	expected := `exporters:
-  datadog:
-    api:
-      key: ${env:ENV1}
-      site: ${env:ENV2}
-    hostname: otelcol-docker
-    traces:
-      span_name_as_resource_name: true`
+    datadog:
+        api:
+            key: ${env:ENV1}
+            site: ${env:ENV2}
+        hostname: otelcol-docker
+        traces:
+            span_name_as_resource_name: true`
 
 	require.Equal(t, expected, mapToYAML(t, provided))
 }
@@ -68,10 +68,10 @@ func TestEnvConfMap_useEnvVarValues(t *testing.T) {
 
 	results := envConfMap.useEnvVarValues(provided)
 	expected := `exporters:
-  datadog:
-    api:
-      key: REDACTED
-      site: datadoghq.com`
+    datadog:
+        api:
+            key: REDACTED
+            site: datadoghq.com`
 
 	require.Equal(t, expected, mapToYAML(t, results))
 

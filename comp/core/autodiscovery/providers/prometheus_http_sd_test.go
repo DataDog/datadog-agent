@@ -915,7 +915,6 @@ func TestRenameLabelsAppliedToSDTags(t *testing.T) {
 	assert.Contains(t, tags, "service:node", "unmapped SD labels should be untouched")
 
 	// rename_labels stays in the instance so the OpenMetrics check still renames
-	// scraped labels of the same name. (YAML v2 decodes nested maps with
-	// interface{} keys.)
-	assert.Equal(t, map[interface{}]interface{}{"experiment": "appXYZ.experiment"}, instance["rename_labels"])
+	// scraped labels of the same name.
+	assert.Equal(t, map[string]interface{}{"experiment": "appXYZ.experiment"}, instance["rename_labels"])
 }

@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
 type configFormat struct {

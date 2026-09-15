@@ -1378,18 +1378,18 @@ func TestConfigAssignAtPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
-  https://url1.com:
-  - first
-  - changed
-  https://url2.eu:
-  - third
-process_config:
-  additional_endpoints:
     https://url1.com:
-    - fourth
-    - fifth
+        - first
+        - changed
     https://url2.eu:
-    - modified
+        - third
+process_config:
+    additional_endpoints:
+        https://url1.com:
+            - fourth
+            - fifth
+        https://url2.eu:
+            - modified
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1462,7 +1462,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `secret_backend_arguments:
-- password1
+    - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
 `

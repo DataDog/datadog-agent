@@ -26,7 +26,7 @@ go_library(
         "//pkg/collector/check/stats",
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
 

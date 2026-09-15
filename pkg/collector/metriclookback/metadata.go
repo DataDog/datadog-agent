@@ -33,14 +33,12 @@ func WithShadowExecutionMode(instance integration.Data) (integration.Data, error
 		rawConfig = integration.RawMap{}
 	}
 
-	var metadata map[interface{}]interface{}
+	var metadata map[string]interface{}
 	switch typedMetadata := rawConfig[ExecutionMetadataKey].(type) {
-	case integration.RawMap:
-		metadata = typedMetadata
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		metadata = typedMetadata
 	default:
-		metadata = map[interface{}]interface{}{}
+		metadata = map[string]interface{}{}
 	}
 	metadata[ExecutionModeKey] = ShadowExecutionMode
 	rawConfig[ExecutionMetadataKey] = metadata

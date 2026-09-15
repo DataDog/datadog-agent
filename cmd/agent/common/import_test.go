@@ -143,7 +143,7 @@ func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile 
 	// proxy settings
 	oldProxies, err := legacy.BuildProxySettings(oldConfig)
 	require.NoError(t, err, "Failed to read old proxy settings")
-	migratedProxies := migratedConf["proxy"].(map[interface{}]interface{})
+	migratedProxies := migratedConf["proxy"].(map[string]interface{})
 	assert.Equal(t, oldProxies["https"], migratedProxies["https"])
 	assert.Equal(t, oldProxies["http"], migratedProxies["http"])
 
@@ -155,11 +155,11 @@ func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile 
 	assert.ElementsMatch(t, oldTags, migratedConf["tags"].([]interface{}))
 
 	// Some second level parameters
-	migratedProcessConfig := migratedConf["process_config"].(map[interface{}]interface{})
-	processConfigProcessCollection := migratedProcessConfig["process_collection"].(map[interface{}]interface{})
+	migratedProcessConfig := migratedConf["process_config"].(map[string]interface{})
+	processConfigProcessCollection := migratedProcessConfig["process_collection"].(map[string]interface{})
 	assert.Equal(t, oldConfig["process_agent_enabled"], strconv.FormatBool(processConfigProcessCollection["enabled"].(bool)))
 
-	migratedApmConfig := migratedConf["apm_config"].(map[interface{}]interface{})
+	migratedApmConfig := migratedConf["apm_config"].(map[string]interface{})
 	assert.Equal(t, toBool(oldConfig["apm_enabled"]), migratedApmConfig["enabled"])
 }
 
