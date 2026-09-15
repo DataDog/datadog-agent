@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -36,12 +37,12 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname, a.config)
 
 	// setup the pipeline provider that Provides pairs of processor and sender
-	pipelineProvider := buildPipelineProvider(a, processingRules, diagnosticMessageReceiver, destinationsCtx)
+	pipelineProvider := buildPipelineProvider(a, processingRules, tagFilters, diagnosticMessageReceiver, destinationsCtx)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
@@ -101,12 +102,13 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
-func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
+func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
 		diagnosticMessageReceiver,
 		processingRules,
+		tagFilters,
 		a.endpoints,
 		destinationsCtx,
 		NewStatusProvider(),
@@ -126,9 +128,9 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 //   - destinationsCtx: New context for new transport connections
 //   - pipelineProvider: New pipeline with updated endpoints and configuration
 //   - launchers: New launchers connected to the new pipeline
-func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	destinationsCtx := client.NewDestinationsContext()
-	pipelineProvider := buildPipelineProvider(a, processingRules, a.diagnosticMessageReceiver, destinationsCtx)
+	pipelineProvider := buildPipelineProvider(a, processingRules, tagFilters, a.diagnosticMessageReceiver, destinationsCtx)
 
 	// recreate launchers with new pipelineProvider
 	// use OLD: sources, auditor, tracker

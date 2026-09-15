@@ -59,6 +59,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},
 		nil,
+		nil, // CWS security events are not logs and are never filtered
 		endpoints,
 		context,
 		&seccommon.NoopStatusProvider{},

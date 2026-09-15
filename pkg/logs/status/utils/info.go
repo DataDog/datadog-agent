@@ -32,6 +32,12 @@ type InfoProvider interface {
 	Info() []string
 }
 
+// VerboseInfoProvider is an InfoProvider that should only render on the verbose status page.
+type VerboseInfoProvider interface {
+	InfoProvider
+	IsVerbose() bool
+}
+
 // CountInfo records a simple count
 type CountInfo struct {
 	count *atomic.Int64
@@ -153,11 +159,20 @@ func (i *InfoRegistry) All() []InfoProvider {
 
 // Rendered renders the info for display on the status page.
 func (i *InfoRegistry) Rendered() map[string][]string {
+	return i.RenderedVerbose(false)
+}
+
+// RenderedVerbose renders the info for display on the status page. Providers implementing
+// VerboseInfoProvider are skipped when verbose is false and IsVerbose() is true.
+func (i *InfoRegistry) RenderedVerbose(verbose bool) map[string][]string {
 	i.lock.Lock()
 	defer i.lock.Unlock()
 	info := make(map[string][]string)
 
 	for _, v := range i.info {
+		if vp, ok := v.(VerboseInfoProvider); ok && vp.IsVerbose() && !verbose {
+			continue
+		}
 		if len(v.Info()) == 0 {
 			continue
 		}

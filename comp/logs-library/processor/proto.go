@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // ProtoEncoder is a shared proto encoder.
@@ -28,7 +29,7 @@ func NewProtoEncoder(useContainerTimestamp bool) Encoder {
 }
 
 // Encode encodes a message into a protobuf byte array.
-func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
+func (p *protoEncoder) Encode(msg *message.Message, hostname string, filter sources.TagFilter) error {
 	if msg.State != message.StateRendered {
 		return errors.New("message passed to encoder isn't rendered")
 	}
@@ -50,7 +51,7 @@ func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.Tags(),
+		Tags:      msg.Origin.TransportTags(filter),
 	}
 	encoded, err := log.Marshal()
 

@@ -338,6 +338,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 		Source:      source.Config.Source,
 		Service:     source.Config.Service,
 		Tags:        source.Config.Tags,
+		TagFilters:  source.Config.TagFilters,
 	})
 
 	fileSource.SetSourceType(sources.IntegrationSourceType)

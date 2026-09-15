@@ -42,8 +42,25 @@ func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
+// TransportTags returns the origin's tags after f, for encoders that inline
+// tags (JSON, protobuf). Agent-local consumers use Tags(), which is never
+// filtered.
+func (o *Origin) TransportTags(f sources.TagFilter) []string {
+	if f == nil {
+		return o.Tags()
+	}
+	return f.Keep(o.tagsToStringArray())
+}
+
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
+	return o.TransportTagsPayload(nil, processingTags)
+}
+
+// TransportTagsPayload is TagsPayload with f applied to ddtags and
+// ddsourcecategory. ddsource is never filtered. A nil f is the identity, which
+// keeps this the only place the raw payload is assembled.
+func (o *Origin) TransportTagsPayload(f sources.TagFilter, processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
 	}
@@ -55,7 +72,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
+	if sourceCategory != "" && (f == nil || f.Retains("sourcecategory:"+sourceCategory)) {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
@@ -63,6 +80,9 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
 	tags = append(tags, processingTags...)
+	if f != nil {
+		tags = f.Keep(tags)
+	}
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)

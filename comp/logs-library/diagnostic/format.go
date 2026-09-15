@@ -8,6 +8,7 @@ package diagnostic
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -31,6 +32,10 @@ func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) 
 		hname = "unknown"
 	}
 
+	// Live view of the source's current rules, not a per-message snapshot --
+	// fine only because logs_config.tag_filters cannot change at runtime.
+	filter, _ := m.Origin.LogSource.TagFilter()
+
 	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
 		m.Origin.LogSource.Name,
 		m.Origin.LogSource.Config.Type,
@@ -39,6 +44,6 @@ func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) 
 		hname,
 		m.Origin.Service(),
 		m.Origin.Source(),
-		m.TagsToString(),
+		strings.Join(m.Origin.TransportTags(filter), ","),
 		string(redactedMsg))
 }
