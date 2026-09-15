@@ -11,12 +11,16 @@ go_library(
         "execution.go",
         "manifest.go",
         "package.go",
+        "remote_catalog.go",
         "session.go",
         "static_catalog.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//pkg/fleet/installer/catalog",
+        "@com_github_google_go_containerregistry//pkg/name",
+    ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
             "//pkg/privateactionrunner/libs/artifactstore",

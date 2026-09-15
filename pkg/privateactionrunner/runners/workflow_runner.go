@@ -18,6 +18,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -49,8 +50,25 @@ func NewWorkflowRunner(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
+	return NewWorkflowRunnerWithAuthoredScriptCatalog(configuration, keysManager, verifier, opmsClient, traceroute, eventPlatform, ipcClient, ha, ka, authoredscripts.NewStaticCatalog())
+}
+
+// NewWorkflowRunnerWithAuthoredScriptCatalog creates a workflow runner using
+// the provided authored-script catalog.
+func NewWorkflowRunnerWithAuthoredScriptCatalog(
+	configuration *config.Config,
+	keysManager taskverifier.KeysManager,
+	verifier taskverifier.TaskVerifier,
+	opmsClient opms.Client,
+	traceroute traceroute.Component,
+	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
+	ha helmactions.Component,
+	ka kubeactions.Component,
+	authoredScriptCatalog authoredscripts.Catalog,
+) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor := NewWorkflowTaskExecutorWithAuthoredScriptCatalog(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, authoredScriptCatalog)
 
 	return &WorkflowRunner{
 		config:          configuration,

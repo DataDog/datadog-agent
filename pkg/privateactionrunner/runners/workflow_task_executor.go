@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -51,8 +52,24 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) *WorkflowTaskExecutor {
+	return NewWorkflowTaskExecutorWithAuthoredScriptCatalog(configuration, taskVerifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, authoredscripts.NewStaticCatalog())
+}
+
+// NewWorkflowTaskExecutorWithAuthoredScriptCatalog creates a task executor
+// using the provided authored-script catalog.
+func NewWorkflowTaskExecutorWithAuthoredScriptCatalog(
+	configuration *config.Config,
+	taskVerifier taskverifier.TaskVerifier,
+	traceroute traceroute.Component,
+	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
+	encryptionStore *encryptioncontext.Store,
+	ha helmactions.Component,
+	ka kubeactions.Component,
+	authoredScriptCatalog authoredscripts.Catalog,
+) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
+		registry:     privatebundles.NewRegistryWithAuthoredScriptCatalog(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, authoredScriptCatalog),
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     resolver.NewPrivateCredentialResolver(),

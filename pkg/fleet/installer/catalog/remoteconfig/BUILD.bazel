@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remoteconfig",
+    srcs = ["remote_config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog/remoteconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/catalog",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+    ],
+)

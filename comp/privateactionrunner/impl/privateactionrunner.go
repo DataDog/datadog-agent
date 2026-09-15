@@ -34,11 +34,13 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	installercatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -47,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -82,14 +85,15 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     model.ReaderWriter
-	hostnameGetter hostnameinterface.Component
-	rcClient       pkgrcclient.Client
-	logger         log.Component
-	tagger         tagger.Component
-	traceroute     traceroute.Component
-	eventPlatform  eventplatform.Component
-	ipc            ipc.Component
+	coreConfig                   model.ReaderWriter
+	hostnameGetter               hostnameinterface.Component
+	rcClient                     pkgrcclient.Client
+	authoredScriptCatalogProduct string
+	logger                       log.Component
+	tagger                       tagger.Component
+	traceroute                   traceroute.Component
+	eventPlatform                eventplatform.Component
+	ipc                          ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -130,7 +134,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := newPrivateActionRunnerWithAuthoredScriptCatalogProduct(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), state.ProductUpdaterCatalogDD, reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -157,7 +161,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := newPrivateActionRunnerWithAuthoredScriptCatalogProduct(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), state.ProductUpdaterCatalogDD, reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -171,7 +175,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 }
 
 func NewPrivateActionRunner(
-	_ context.Context,
+	ctx context.Context,
 	coreConfig model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
@@ -184,20 +188,51 @@ func NewPrivateActionRunner(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*PrivateActionRunner, error) {
+	return newPrivateActionRunnerWithAuthoredScriptCatalogProduct(ctx, coreConfig, hostnameGetter, rcClient, "", logger, taggerComp, tracerouteComp, eventPlatform, ipcComp, metricsClient, ha, ka)
+}
+
+func newPrivateActionRunnerWithAuthoredScriptCatalogProduct(
+	_ context.Context,
+	coreConfig model.ReaderWriter,
+	hostnameGetter hostnameinterface.Component,
+	rcClient pkgrcclient.Client,
+	authoredScriptCatalogProduct string,
+	logger log.Component,
+	taggerComp tagger.Component,
+	tracerouteComp traceroute.Component,
+	eventPlatform eventplatform.Component,
+	ipcComp ipc.Component,
+	metricsClient statsdclient.ClientInterface,
+	ha helmactions.Component,
+	ka kubeactions.Component,
+) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
-		coreConfig:     coreConfig,
-		hostnameGetter: hostnameGetter,
-		rcClient:       rcClient,
-		logger:         logger,
-		tagger:         taggerComp,
-		traceroute:     tracerouteComp,
-		eventPlatform:  eventPlatform,
-		ipc:            ipcComp,
-		metricsClient:  metricsClient,
-		startChan:      make(chan struct{}),
-		ha:             ha,
-		ka:             ka,
+		coreConfig:                   coreConfig,
+		hostnameGetter:               hostnameGetter,
+		rcClient:                     rcClient,
+		authoredScriptCatalogProduct: authoredScriptCatalogProduct,
+		logger:                       logger,
+		tagger:                       taggerComp,
+		traceroute:                   tracerouteComp,
+		eventPlatform:                eventPlatform,
+		ipc:                          ipcComp,
+		metricsClient:                metricsClient,
+		startChan:                    make(chan struct{}),
+		ha:                           ha,
+		ka:                           ka,
 	}, nil
+}
+
+func (p *PrivateActionRunner) newAuthoredScriptCatalog(enabled bool) authoredscriptssupport.Catalog {
+	if !enabled || p.authoredScriptCatalogProduct == "" {
+		return authoredscriptssupport.NewStaticCatalog()
+	}
+	catalog := authoredscriptssupport.NewRemoteCatalog()
+	p.rcClient.Subscribe(
+		p.authoredScriptCatalogProduct,
+		installercatalogrc.NewUpdateHandler(catalog.Replace),
+	)
+	return catalog
 }
 
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
@@ -297,7 +332,8 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	authoredScriptCatalog := p.newAuthoredScriptCatalog(cfg.AuthoredScriptsEnabled)
+	taskExecutor := runners.NewWorkflowTaskExecutorWithAuthoredScriptCatalog(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka, authoredScriptCatalog)
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
@@ -427,8 +463,9 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
+	authoredScriptCatalog := p.newAuthoredScriptCatalog(cfg.AuthoredScriptsEnabled)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunnerWithAuthoredScriptCatalog(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka, authoredScriptCatalog)
 	if err != nil {
 		return err
 	}

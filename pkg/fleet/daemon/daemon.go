@@ -249,7 +249,7 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
 	}
-	catalogPackage, ok := catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	catalogPackage, ok := catalog.GetPackage(pkg, version, runtime.GOOS, runtime.GOARCH)
 	if !ok {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
@@ -652,7 +652,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		experimentPackage, ok := d.catalog.GetPackage(request.Package, params.Version, runtime.GOOS, runtime.GOARCH)
 		if !ok {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,

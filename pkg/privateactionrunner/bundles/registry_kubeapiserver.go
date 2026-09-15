@@ -15,6 +15,7 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -63,6 +64,12 @@ type Registry struct {
 }
 
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) *Registry {
+	return NewRegistryWithAuthoredScriptCatalog(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, helmactions, ka, nil)
+}
+
+// NewRegistryWithAuthoredScriptCatalog creates the Cluster Agent registry.
+// Authored scripts are not registered in this build, so the catalog is unused.
+func NewRegistryWithAuthoredScriptCatalog(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component, _ authoredscriptssupport.Catalog) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
