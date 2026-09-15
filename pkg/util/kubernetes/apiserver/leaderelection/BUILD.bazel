@@ -65,6 +65,7 @@ dd_agent_go_test(
         "//pkg/errors",
         "//pkg/util/cache",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/retry",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

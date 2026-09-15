@@ -10,6 +10,7 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -30,6 +31,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
@@ -143,10 +145,10 @@ func TestNewLeaseAcquiring(t *testing.T) {
 			switch tt.lockType {
 			case cmLock.ConfigMapsResourceLock:
 				_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
-				require.True(t, errors.IsNotFound(err))
+				require.True(t, apierrors.IsNotFound(err))
 			case rl.LeasesResourceLock:
 				_, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
-				require.True(t, errors.IsNotFound(err))
+				require.True(t, apierrors.IsNotFound(err))
 			}
 			var err error
 			le.leaderElector, err = le.newElection()
@@ -255,7 +257,7 @@ func TestSubscribe(t *testing.T) {
 			require.Len(t, le.subscribers, 2)
 
 			err := tc.getTokenFunc(client)
-			require.True(t, errors.IsNotFound(err))
+			require.True(t, apierrors.IsNotFound(err))
 
 			le.leaderElector, err = le.newElection()
 			require.NoError(t, err)
@@ -645,3 +647,116 @@ func (g *dummyGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge { re
 
 // WithTags does nothing
 func (g *dummyGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }
+
+// TestWaitForLeaderEngine_RetriesOnTransientFailure tests that WaitForLeaderEngine retries on transient failures.
+func TestWaitForLeaderEngine_RetriesOnTransientFailure(t *testing.T) {
+	ResetGlobalLeaderEngine()
+	defer ResetGlobalLeaderEngine()
+
+	previousSleep := waitForLeaderEngineSleep
+	waitForLeaderEngineSleep = func(_ time.Duration) <-chan time.Time {
+		fired := make(chan time.Time, 1)
+		fired <- time.Now()
+		return fired
+	}
+	defer func() { waitForLeaderEngineSleep = previousSleep }()
+
+	const transientFailures = 2
+	var attempts int
+	initFn := func() error {
+		attempts++
+		if attempts <= transientFailures {
+			return fmt.Errorf("transient apiserver blip (attempt %d)", attempts)
+		}
+		return nil
+	}
+
+	globalLeaderEngine = &LeaderEngine{
+		ctx:             context.Background(),
+		HolderIdentity:  "test-pod",
+		LeaseName:       "datadog-leader-election",
+		LeaderNamespace: "default",
+		LeaseDuration:   60 * time.Second,
+		leaderMetric:    &dummyGauge{},
+	}
+	require.NoError(t, globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
+		Name:              "leaderElection",
+		AttemptMethod:     initFn,
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 1 * time.Millisecond,
+		MaxRetryDelay:     5 * time.Minute,
+	}))
+
+	le, err := WaitForLeaderEngine(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, le)
+	assert.Equal(t, transientFailures+1, attempts, "init must be retried past transient failures")
+	assert.Equal(t, retry.OK, globalLeaderEngine.initRetry.RetryStatus())
+}
+
+// TestWaitForLeaderEngine_ContextCancelled tests that WaitForLeaderEngine aborts when the context is cancelled while init keeps failing.
+func TestWaitForLeaderEngine_ContextCancelled(t *testing.T) {
+	ResetGlobalLeaderEngine()
+	defer ResetGlobalLeaderEngine()
+
+	initFn := func() error { return errors.New("apiserver still down") }
+
+	globalLeaderEngine = &LeaderEngine{
+		ctx:             context.Background(),
+		HolderIdentity:  "test-pod",
+		LeaseName:       "datadog-leader-election",
+		LeaderNamespace: "default",
+		LeaseDuration:   60 * time.Second,
+		leaderMetric:    &dummyGauge{},
+	}
+	require.NoError(t, globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
+		Name:              "leaderElection",
+		AttemptMethod:     initFn,
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 1 * time.Millisecond,
+		MaxRetryDelay:     5 * time.Minute,
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := WaitForLeaderEngine(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Context deadline reached")
+}
+
+// TestWaitForLeaderEngine_IdempotentCreate tests that WaitForLeaderEngine is idempotent.
+func TestWaitForLeaderEngine_IdempotentCreate(t *testing.T) {
+	ResetGlobalLeaderEngine()
+	defer ResetGlobalLeaderEngine()
+
+	var attempts int
+	initFn := func() error {
+		attempts++
+		return nil
+	}
+
+	globalLeaderEngine = &LeaderEngine{
+		ctx:             context.Background(),
+		HolderIdentity:  "test-pod",
+		LeaseName:       "datadog-leader-election",
+		LeaderNamespace: "default",
+		LeaseDuration:   60 * time.Second,
+		leaderMetric:    &dummyGauge{},
+	}
+	require.NoError(t, globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
+		Name:              "leaderElection",
+		AttemptMethod:     initFn,
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 1 * time.Millisecond,
+		MaxRetryDelay:     5 * time.Minute,
+	}))
+	preExisting := globalLeaderEngine
+
+	le, err := WaitForLeaderEngine(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, le)
+	assert.Same(t, preExisting, le, "WaitForLeaderEngine must reuse the existing global engine")
+	assert.Equal(t, 1, attempts)
+	assert.Equal(t, retry.OK, globalLeaderEngine.initRetry.RetryStatus())
+}
