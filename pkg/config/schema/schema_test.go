@@ -12,6 +12,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/assert/yaml"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -194,9 +195,9 @@ func TestValidateCoreConfigDetailed(t *testing.T) {
 func TestValidateCoreConfigDetailedRootPath(t *testing.T) {
 	initTestSchema(t)
 	c := jsonschema.NewCompiler()
-	assert.NoError(t, c.AddResource("root_type_schema", map[string]interface{}{"type": "integer"}))
+	require.NoError(t, c.AddResource("root_type_schema", map[string]interface{}{"type": "integer"}))
 	rootTypeSchema, err := c.Compile("root_type_schema")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	previousCoreSchemaGetter := coreSchemaGetter
 	t.Cleanup(func() { coreSchemaGetter = previousCoreSchemaGetter })
 	coreSchemaGetter = func() (*jsonschema.Schema, error) { return rootTypeSchema, nil }
