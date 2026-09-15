@@ -26,10 +26,9 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR split mode
-	// (helm-charts PR #2904). Drop this override once the e2e framework's global HelmVersion
-	// default is bumped to at least this value.
-	minHelmChartVersion = "3.243.0"
+	// minHelmChartVersion is the earliest Datadog chart release that configures both the
+	// Core Agent and PAR sidecar for split mode (helm-charts PRs #2904 and #2918).
+	minHelmChartVersion = "3.245.1"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -56,11 +55,6 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
-    agent:
-      envDict:
-        # The released chart does not propagate PAR settings to the Core Agent yet.
-        DD_PRIVATE_ACTION_RUNNER_ENABLED: "true"
-        DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED: "%t"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
@@ -152,7 +146,6 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 					splitEnabled,
 					runnerURN,
 					privateKeyB64,
-					splitEnabled,
 					systemServiceOperatorPolicy,
 				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
