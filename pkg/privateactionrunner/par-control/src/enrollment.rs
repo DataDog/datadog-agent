@@ -17,7 +17,6 @@ pub struct Enrollment {
 }
 
 pub async fn ensure(ipc: &RemoteAgentClientConfiguration) -> Result<Enrollment> {
-    crate::tls::initialize_crypto_provider()?;
     let tls = datadog_agent_commons::ipc::tls::build_ipc_client_ipc_tls_config(
         ipc.auth.ipc_cert_file_path(),
     )
