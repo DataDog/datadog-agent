@@ -106,10 +106,8 @@ dd_agent_go_test(
         "//cmd/system-probe/command",
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/configstreamconsumer/testutil",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
-        "//pkg/configstreambootstrap",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ] + select({
@@ -119,6 +117,7 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/log/mock",
@@ -126,6 +125,7 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],
     }),

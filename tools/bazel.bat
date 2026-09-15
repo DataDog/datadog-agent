@@ -2,6 +2,9 @@
 setlocal EnableDelayedExpansion
 >nul chcp 65001
 
+:: Bazel hashes `SystemRoot` verbatim, so pin it to CI's de facto casing to avoid cache misses on dev machines
+set "SystemRoot=%SystemRoot:WINDOWS=Windows%"
+
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 >&2 type "%~dp0bazelisk.md"
@@ -73,6 +76,19 @@ set "more_than_8dot3_chars=%TEMP%\123456789.1234"
 for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
   >&2 echo 🔴 For `bazel` to work properly, please enable 8.3 short names on %%~di:
   >&2 echo     fsutil 8dot3name set %%~di 0
+  exit /b 2
+)
+
+:: Check symlink creation privilege (required by rules_python bootstrap on Windows)
+set "_sl_probe=%TEMP%\bazel_sl_probe_%RANDOM%_%RANDOM%"
+set "_sl_target=%TEMP%\bazel_sl_target_%RANDOM%_%RANDOM%"
+>"!_sl_target!" type nul
+2>nul mklink "!_sl_probe!" "!_sl_target!" >nul
+set "_sl_rc=!errorlevel!"
+2>nul del /f /q "!_sl_probe!" "!_sl_target!"
+if !_sl_rc! neq 0 (
+  >&2 echo 🔴 For `bazel` to work properly, please enable Windows Developer Mode, which grants symlink creation privilege:
+  >&2 echo     Settings ^> System ^> Advanced ^> For developers ^> Developer Mode
   exit /b 2
 )
 

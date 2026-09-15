@@ -11,11 +11,14 @@ import os
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -135,6 +138,59 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
+@contextmanager
+def _shared_orchestrion_jobserver():
+    """
+    Start a single `orchestrion server` and point `ORCHESTRION_JOBSERVER_URL` at it, so every `orchestrion go test -c`
+    invocation started underneath this context shares its package-resolution cache instead of each starting its own:
+    orchestrion only auto-shares a job server across invocations that reuse the same `go build` $WORK directory, which
+    independent top-level `orchestrion go test -c` processes never do.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        log_file = os.path.join(tmp_dir, "server.log")
+        url_file = os.path.join(tmp_dir, "server.url")
+        with open(log_file, "wb") as log:
+            server = subprocess.Popen(
+                ["orchestrion", "server", f"-url-file={url_file}", "-inactivity-timeout=15m"],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        try:
+            timeout = datetime.timedelta(seconds=10)
+            deadline = time.monotonic() + timeout.total_seconds()
+            url = ""
+            while time.monotonic() < deadline:
+                if os.path.exists(url_file):
+                    url = Path(url_file).read_text().strip()
+                    if url:
+                        break
+                try:
+                    server.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    continue
+                raise Exit(
+                    f"orchestrion server exited early with code {server.returncode}:\n{Path(log_file).read_text()}"
+                )
+            if not url:
+                raise Exit(
+                    f"orchestrion server did not report readiness within {timeout}:\n{Path(log_file).read_text()}"
+                )
+
+            with environ({"ORCHESTRION_JOBSERVER_URL": url}):
+                yield
+        finally:
+            # Orchestrion watches the url file and shuts itself down once it disappears.
+            if os.path.exists(url_file):
+                os.remove(url_file)
+            for escalate in lambda: None, server.terminate, server.kill:
+                escalate()
+                try:
+                    server.communicate(timeout=timeout.total_seconds())
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+
+
 def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
     """
     Build a single test binary for the given package.
@@ -223,7 +279,7 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"):
+    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {
@@ -1142,26 +1198,19 @@ def cleanup_remote_stacks(ctx, stack_regex):
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)
-        successful_stack = set()
+        destroyed_stack = set()
         failed_stack = set()
         for exit_code, stdout, stderr, stack in res:
             if exit_code != 0:
                 failed_stack.add(stack)
             else:
-                successful_stack.add(stack)
-            if stdout or stderr:
-                print(f"Stack {stack}: {stdout} {stderr}".rstrip())
+                destroyed_stack.add(stack)
+            print(f"Stack {stack}: {stdout} {stderr}")
 
-    for stack in successful_stack:
-        if remote_stack_cleaning:
-            print(f"Stack {stack} cleanup request submitted successfully")
-        else:
-            print(f"Stack {stack} destroyed successfully")
+    for stack in destroyed_stack:
+        print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
-        if remote_stack_cleaning:
-            print(f"Failed to submit cleanup request for stack {stack}")
-        else:
-            print(f"Failed to destroy stack {stack}")
+        print(f"Failed to destroy stack {stack}")
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
