@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use std::sync::Mutex;
+use std::time::Duration;
 use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, TRUE};
 use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
@@ -51,6 +52,32 @@ unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
     TRUE
 }
 
+struct IgnoreCtrlGuard;
+
+impl IgnoreCtrlGuard {
+    fn install() -> Result<Self> {
+        unsafe {
+            if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 1) == 0 {
+                anyhow::bail!("SetConsoleCtrlHandler: {}", std::io::Error::last_os_error());
+            }
+        }
+        Ok(Self)
+    }
+}
+
+impl Drop for IgnoreCtrlGuard {
+    fn drop(&mut self) {
+        unsafe {
+            if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 0) == 0 {
+                log::warn!(
+                    "SetConsoleCtrlHandler(remove console ctrl ignore handler) failed: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+        }
+    }
+}
+
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
 
@@ -68,25 +95,19 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
                 detach_console();
             }
         }
+        // Keep the ignore handler until after detach: CTRL_BREAK delivery is async and
+        // pgid 0 broadcasts to every process on the attached console, including us.
+        let _ignore_ctrl = IgnoreCtrlGuard::install()?;
         let _detach = DetachOnDrop;
-
-        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 1) == 0 {
-            anyhow::bail!("SetConsoleCtrlHandler: {}", std::io::Error::last_os_error());
-        }
         // CREATE_NEW_PROCESS_GROUP is ignored with CREATE_NEW_CONSOLE, so child pid is not pgid.
         let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 0) == 0 {
-            log::warn!(
-                "SetConsoleCtrlHandler(remove console ctrl ignore handler) failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
         if ok == 0 {
             anyhow::bail!(
                 "GenerateConsoleCtrlEvent(CTRL_BREAK, 0) for pid {pid} failed: {}",
                 std::io::Error::last_os_error()
             );
         }
+        std::thread::sleep(Duration::from_millis(50));
     }
     Ok(())
 }
