@@ -32,6 +32,12 @@ type MockFile struct {
 	fileContents fileContents // Data to return for each read
 	currentPos   int64        // Track position for Seek
 	name         string       // Name of the file
+	readErrors   []error      // Optional errors returned before normal reads
+}
+
+// SetReadErrors configures errors to return before the mock resumes normal reads.
+func (m *MockFile) SetReadErrors(readErrors ...error) {
+	m.readErrors = append(m.readErrors[:0], readErrors...)
 }
 
 type fileContents struct {
@@ -112,6 +118,13 @@ func (m *MockFile) CurrentPos() int {
 
 // Read reads data from the file
 func (m *MockFile) Read(p []byte) (int, error) {
+	if len(m.readErrors) > 0 {
+		err := m.readErrors[0]
+		m.readErrors = m.readErrors[1:]
+		if err != nil {
+			return 0, err
+		}
+	}
 	data := m.fileContents.getBytesAt(m.readIdx)
 	if data == nil {
 		return 0, io.EOF

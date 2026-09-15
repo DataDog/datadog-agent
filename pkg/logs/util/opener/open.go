@@ -7,17 +7,23 @@
 package opener
 
 import (
+	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/afero"
 
 	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // FileOpener is an interface that defines the method to open a log file.
 type FileOpener interface {
 	OpenLogFile(path string) (afero.File, error)
+	// ReadDirectRange opens path with the requested read-only flags
+	// (e.g. O_DIRECT) and returns up to the first count bytes.
+	ReadDirectRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error)
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
 }
@@ -37,6 +43,20 @@ type fileOpenerImpl struct {
 // function should be used instead. This will minimize avoidable error logs for failed privilege escalation attempts.
 func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
 	return internalOpener.OpenLogFile(path)
+}
+
+func (f *fileOpenerImpl) ReadDirectRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
+	if err := requireDirectOpenFlags(openFlags); err != nil {
+		return nil, err
+	}
+	return readDirectRange(path, count)
+}
+
+func requireDirectOpenFlags(openFlags []types.FileOpenFlag) error {
+	if !slices.Contains(openFlags, types.FileOpenFlagDirect) {
+		return fmt.Errorf("direct read: no supported open flags in %v", openFlags)
+	}
+	return nil
 }
 
 // OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.

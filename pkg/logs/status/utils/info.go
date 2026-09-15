@@ -95,6 +95,13 @@ func (m *MappedInfo) RemoveMessage(key string) {
 	delete(m.messages, key)
 }
 
+// Clear removes all messages.
+func (m *MappedInfo) Clear() {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	clear(m.messages)
+}
+
 // InfoKey returns the key
 func (m *MappedInfo) InfoKey() string {
 	return m.key
