@@ -101,7 +101,7 @@ You may see:
 
 ## Step 5: Act on the outcome
 
-- **Pipeline Success:** stop monitoring and report the pipeline succeeded.
+- **Pipeline Success:** stop monitoring and report the pipeline succeeded, using the [final report](#final-report) template.
 - **Some job failed, but the pipeline is still running**:
     Most jobs on `datadog-agent` CI retry once automatically on any failure (`.gitlab-ci.yml`'s
     default `retry: max: 1, when: always`), so a first-attempt failure alone isn't yet evidence
@@ -125,7 +125,12 @@ Route each block by its `Blame` field — never by whether `Incident` happens to
 - **`upstream`:** if `Incident` is active and still breaking, continue to [Step 7](#step-7-watch-an-unresolved-incident) and wait it out. If `stable` or `resolved`, tell the user it's safe to rebase onto `main` and re-run — say plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress). If no incident is declared at all, say CI looks broken on `main` with nothing declared for it — worth surfacing loudly. Investigation ends here for that job.
 - **`infra` or `flake`:** report the verdict and its suggested action (typically a retry, citing the evidence `/triage-ci-failure` gave you). Investigation ends here for that job.
 - **`inconclusive`:** report the evidence and the two most likely readings. Investigation ends here for that job.
-- **`pr-code`:** collect every `pr-code` block from this pipeline and invoke `/handle-pr-ci-failure` once with all of them together, passing `--mode`/`--max-fix-cycles`/`--policy` set to the values resolved in [Step 2](#step-2-resolve-the-autonomy-policy). Continue to [Step 8](#step-8-decide-whether-to-keep-going) with its result.
+- **`pr-code`:** collect every `pr-code` block from this pipeline. Before invoking the handler, check for repeats against every push made earlier in this same run:
+  1. If any `Failure signature` matches one from an earlier push, that fix didn't work — tell `/handle-pr-ci-failure` explicitly that this failure already survived one autonomous attempt, so it treats that root cause as blocked rather than reattempting it as `safe`.
+  2. If the fix-cycle budget is already fully consumed, tell `/handle-pr-ci-failure` it has no push budget left this run, so it should investigate every root cause without committing or pushing, same as `no-autofix`.
+  3. Otherwise, nothing to flag — invoke it normally.
+
+  Either way, invoke `/handle-pr-ci-failure` once with all of this pipeline's `pr-code` blocks together, passing `--mode`/`--max-fix-cycles`/`--policy` set to the values resolved in [Step 2](#step-2-resolve-the-autonomy-policy). Continue to [Step 8](#step-8-decide-whether-to-keep-going) with its result.
 
 ## Step 7: watch an unresolved incident
 
@@ -153,17 +158,29 @@ Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.
 
 Read `/handle-pr-ci-failure`'s result block:
 
-- **`Outcome: pushed`:** it consumed one fix cycle. Work through these checks in order:
-  1. Compare this pipeline's `Failure signatures` against any push from earlier in this same run. If they match, the earlier fix didn't work — don't push again; report that and hand the fresh triage result back to `/handle-pr-ci-failure` so it investigates rather than fixes.
-  2. If the cycle budget is already spent, report that and stop — don't push a further fix even if it looks safe.
-  3. Otherwise, go back to [Step 3](#step-3-start-monitoring) to watch the replacement pipeline at the `Pushed SHA`, then return here through [Step 6](#step-6-follow-up-on-failures) once it finishes.
-- **`Outcome: committed-not-pushed`:** report the local commit and the remaining complex root cause(s) blocking a push, then stop and let the user decide.
-- **`Outcome: needs-user` or `blocked`:** report the evidence and the specific question `/handle-pr-ci-failure` asked for, then stop.
+- **`Outcome: pushed`:** record its `Failure signatures` and increment the cycle count — [Step 6](#step-6-follow-up-on-failures) needs both for the repeat/budget checks on the *next* pipeline. Go back to [Step 3](#step-3-start-monitoring) to watch the replacement pipeline at the `Pushed SHA` regardless of whether the budget is now exhausted; you still need to confirm this fix actually worked before you can stop. Return here through Step 6 once it finishes.
+- **`Outcome: committed-not-pushed`:** report the local commit and the remaining complex root cause(s) blocking a push using the [final report](#final-report) template, then stop and let the user decide.
+- **`Outcome: needs-user` or `blocked`:** report the evidence and the specific question `/handle-pr-ci-failure` asked for using the [final report](#final-report) template, then stop.
 
 Every trip back through this loop re-runs `/triage-ci-failure` from scratch on the new pipeline — never reuse an earlier verdict for a different pipeline.
+
+## Final report
+
+Whenever you stop for good — pipeline succeeded, an upstream/infra/flake verdict ended investigation, or `/handle-pr-ci-failure` returned anything other than a fresh `pushed`, close with this block instead of ad hoc prose:
+
+```text
+Follow-PR report
+Pipeline: <final pipeline id> (<SHA>)
+Status: succeeded | failed | needs-user
+Fixes pushed: <count> — <commit SHAs, or none>
+Cycles consumed: <N>/<max_fix_cycles>
+Remaining issues: <summary, or none>
+User decision needed: <question, or none>
+End follow-PR report
+```
 
 ## Examples
 
 - A missed rename breaks a lint job. `/triage-ci-failure` returns one `pr-code` block; `/handle-pr-ci-failure` classifies it `safe`, fixes it, verifies with `dda inv linter.go`, commits, and pushes. Step 8 sees `Outcome: pushed` (cycle 1 of 2), goes back to Step 3, and the replacement pipeline goes green.
 - A test fails intermittently under `-race`. `/handle-pr-ci-failure` classifies it `complex`, reproduces it locally, tries two distinct hypotheses, and stops with `Outcome: needs-user` and an uncommitted candidate diff — nothing is pushed.
-- A pushed fix's replacement pipeline fails again with the same `Failure signature`. Step 8 recognizes the repeat, does not push a second attempt, and routes back into `/handle-pr-ci-failure` to investigate instead.
+- A pushed fix's replacement pipeline fails again with the same `Failure signature`. Step 6 recognizes the repeat before invoking the handler, tells it not to reattempt a fix, and it investigates instead — no second push happens.

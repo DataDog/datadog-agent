@@ -143,9 +143,15 @@ Blame: pr-code | upstream | infra | flake | inconclusive
 Failure signature: <stable failing command/test/error, e.g. "TestFoo/bar: assert.Equal want=1 got=2">
 Evidence: <one-line summary of the hard evidence from Steps 1-4>
 Proposed fix: <smallest concrete fix, or none>
-Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848 | none
+Incident: <one of the forms below, or none>
 End CI triage result
 ```
+
+Concrete `Incident` forms:
+- `IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848`
+- `IR-59848 (stable, probably safe to retry) — https://app.datadoghq.com/incidents/59848`
+- `IR-59848 (resolved) — https://app.datadoghq.com/incidents/59848`
+- `none`
 
 `Proposed fix` is `none` for every `Blame` except `pr-code` — only a PR-caused failure gets a concrete fix proposed. For example:
 
@@ -154,9 +160,23 @@ CI triage result
 Job: lint_go_linux-x64
 Pipeline SHA: 8f2c1e9a4b1d7e3f0a9c6b5d4e3f2a1b0c9d8e7f
 Blame: pr-code
-Failure signature: pkg/foo/bar.go:42: ineffectual assignment to err (ineffassign)
+Failure signature: pkg/foo/bar.go: ineffectual assignment to err (ineffassign)
 Evidence: introduced in this PR's commit a1b2c3d; the same job passes on main at the same base commit
 Proposed fix: remove the unused `err :=` reassignment on line 42
+Incident: none
+End CI triage result
+```
+
+A second example, for a failure that turned out inconclusive rather than PR-caused:
+
+```
+CI triage result
+Job: new-e2e-container-images
+Pipeline SHA: 3c7b1a0f9e8d6c5b4a3f2e1d0c9b8a7f6e5d4c3b
+Blame: inconclusive
+Failure signature: TestContainerImages/pull_public_image: context deadline exceeded
+Evidence: fails intermittently on main too (3/40 runs over the last 2 days); no matching incident found; the job's own diff and log show no clear infra or PR-code signal
+Proposed fix: none
 Incident: none
 End CI triage result
 ```
