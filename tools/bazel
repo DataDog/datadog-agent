@@ -66,6 +66,16 @@ if [ -z "${CI-}" ]; then
   fi
 fi
 
+startup_args=()
+if [ -n "${CI-}" ] ; then
+   # CI defaults
+   startup_args+=(--max_idle_secs=300)  # 5 minutes
+else
+   # Interactive defaults
+   startup_args+=(--max_idle_secs=28800)  # 8 hours
+fi
+
+# Splice extra_args in right after the bazel command
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
 if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   args=()
@@ -80,4 +90,4 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
-exec "$BAZEL_REAL" "$@"
+exec "$BAZEL_REAL" "${startup_args[@]}" "$@"
