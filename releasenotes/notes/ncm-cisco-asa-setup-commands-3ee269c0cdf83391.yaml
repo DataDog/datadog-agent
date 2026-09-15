@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Network Config Management: Fixes running configuration collection for Cisco
+    ASA devices. In 7.83.0, device profile setup commands were sent together with
+    the main command in a single SSH exec session, which Cisco ASA does not
+    support. Config collection for Cisco ASA devices could therefore fail or
+    return incomplete output. Setup commands now run in their own exec channel.
