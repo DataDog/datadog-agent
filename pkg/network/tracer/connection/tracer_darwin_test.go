@@ -86,3 +86,44 @@ func TestDarwinTracerBackendSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestDarwinCompositeConfigPacketEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		backend       string
+		packetEnabled bool
+		wantEnabled   bool
+	}{
+		{
+			name:          "auto forces packet on",
+			backend:       config.DarwinConnectionTracerAuto,
+			packetEnabled: false,
+			wantEnabled:   true,
+		},
+		{
+			name:          "nstat forces packet off",
+			backend:       config.DarwinConnectionTracerNStat,
+			packetEnabled: true,
+			wantEnabled:   false,
+		},
+		{
+			name:          "nstat-pcap honors kill switch",
+			backend:       config.DarwinConnectionTracerNStatPcap,
+			packetEnabled: false,
+			wantEnabled:   false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				DarwinConnectionTracerBackend:       tc.backend,
+				DarwinConnectionTracerPacketEnabled: tc.packetEnabled,
+			}
+
+			got := darwinCompositeConfig(cfg)
+
+			require.Equal(t, tc.wantEnabled, got.DarwinConnectionTracerPacketEnabled)
+			require.Equal(t, tc.packetEnabled, cfg.DarwinConnectionTracerPacketEnabled)
+			require.Equal(t, tc.backend, got.DarwinConnectionTracerBackend)
+		})
+	}
+}
