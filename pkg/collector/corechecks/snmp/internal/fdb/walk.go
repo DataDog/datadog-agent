@@ -7,7 +7,6 @@ package fdb
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -25,8 +24,6 @@ const (
 var (
 	errWalkMaxDuration = errors.New("fdb walk exceeded max duration")
 	errWalkMaxEntries  = errors.New("fdb walk exceeded max entries")
-	errWalkNoAdvance   = errors.New("fdb walk did not advance")
-	errWalkUndecodable = errors.New("fdb walk produced no decodable values")
 )
 
 type walkResult struct {
@@ -47,62 +44,42 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			return walkResult{values: values, reason: reasonMaxDuration, err: errWalkMaxDuration}
 		}
 
-		packet, err := nextPacket(sess, curOID, bulkMaxRepetitions, useGetNext, maxRows-len(seen))
+		packet, err := nextPacket(sess, curOID, bulkMaxRepetitions, useGetNext, maxRows-len(values))
 		if err != nil {
 			return walkResult{values: values, err: err}
 		}
-		if packet != nil && packet.Error != gosnmp.NoError {
-			if useGetNext && packet.Error == gosnmp.NoSuchName {
-				return finishWalk(values, seen)
-			}
-			return walkResult{values: values, err: fmt.Errorf("snmp error-status: %s", packet.Error)}
-		}
 
-		inTableNew := 0
-		inTableRepeat := 0
-		leftSubtree := false
+		inTable := 0
 		lastOID := curOID
 		for _, pdu := range packet.Variables {
 			oid := strings.TrimLeft(pdu.Name, ".")
 			if pdu.Type == gosnmp.EndOfContents || pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchInstance || pdu.Type == gosnmp.NoSuchObject {
-				leftSubtree = true
 				continue
 			}
 			if !strings.HasPrefix(oid, prefix) {
-				leftSubtree = true
 				continue
 			}
 			if _, ok := seen[oid]; ok {
-				inTableRepeat++
 				continue
 			}
 			seen[oid] = struct{}{}
-			inTableNew++
-			lastOID = oid
-			if len(seen) > maxRows {
-				return walkResult{values: values, reason: reasonMaxEntries, err: errWalkMaxEntries}
-			}
+			inTable++
 			_, value, err := valuestore.GetResultValueFromPDU(pdu)
 			if err != nil {
 				continue
 			}
 			index := oid[len(prefix):]
 			values[index] = value
-		}
-		if inTableNew == 0 {
-			if inTableRepeat > 0 && !leftSubtree {
-				return walkResult{values: values, err: errWalkNoAdvance}
+			lastOID = oid
+			if len(values) > maxRows {
+				return walkResult{values: values, reason: reasonMaxEntries, err: errWalkMaxEntries}
 			}
-			if packet != nil && len(packet.Variables) == 0 {
-				return walkResult{values: values, err: errWalkNoAdvance}
-			}
-			return finishWalk(values, seen)
 		}
-		if leftSubtree {
-			return finishWalk(values, seen)
+		if inTable == 0 {
+			return walkResult{values: values}
 		}
 		if lastOID == curOID {
-			return walkResult{values: values, err: errWalkNoAdvance}
+			return walkResult{values: values}
 		}
 		curOID = lastOID
 	}
@@ -125,11 +102,4 @@ func nextPacket(sess session.Session, curOID string, bulkMaxRepetitions uint32, 
 		rep = 1
 	}
 	return sess.GetBulk([]string{curOID}, rep)
-}
-
-func finishWalk(values map[string]valuestore.ResultValue, seen map[string]struct{}) walkResult {
-	if len(seen) > 0 && len(values) == 0 {
-		return walkResult{values: values, err: errWalkUndecodable}
-	}
-	return walkResult{values: values}
 }

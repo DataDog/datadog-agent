@@ -99,10 +99,7 @@ func collect(sess session.Session, cfg config) Result {
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
-	if err != nil {
-		return errorResult(start, err)
-	}
-	if entries != nil {
+	if err == nil && len(entries) > 0 {
 		return successResult(start, SourceQBridge, entries)
 	}
 
@@ -111,11 +108,11 @@ func collect(sess session.Session, cfg config) Result {
 	if reason != "" {
 		return truncatedResult(start, reason)
 	}
+	if err == nil && len(entries) > 0 {
+		return successResult(start, SourceBridge, entries)
+	}
 	if err != nil {
 		return errorResult(start, err)
-	}
-	if entries != nil {
-		return successResult(start, SourceBridge, entries)
 	}
 
 	return successResult(start, "", nil)
@@ -150,7 +147,7 @@ func collectTable(sess session.Session, cfg config, deadline time.Time, portMap 
 	}
 
 	statuses, reason, err := walkStatus(sess, spec.statusOID, cfg, deadline)
-	if reason != "" || err != nil {
+	if reason != "" {
 		return nil, reason, err
 	}
 
@@ -177,7 +174,7 @@ func walkStatus(sess session.Session, statusOID string, cfg config, deadline tim
 		return nil, statuses.reason, statuses.err
 	}
 	if statuses.err != nil {
-		return nil, "", statuses.err
+		return nil, "", nil
 	}
 	return statuses.values, "", nil
 }
