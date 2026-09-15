@@ -19,7 +19,7 @@
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
 .if_light_pipeline: &if_light_pipeline
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/)
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
