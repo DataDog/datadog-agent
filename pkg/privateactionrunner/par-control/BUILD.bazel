@@ -22,8 +22,9 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
-        "src/bootstrap.rs",
+        "src/bootstrap_ipc.rs",
         "src/config.rs",
+        "src/enrollment.rs",
         "src/executor.rs",
         "src/jwt.rs",
         "src/lib.rs",
@@ -89,6 +90,7 @@ rust_binary(
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:clap",
+        "@crates//:datadog-agent-commons",
         "@crates//:log",
         "@crates//:tokio",
     ],

@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-pub mod bootstrap;
+pub mod bootstrap_ipc;
 pub mod config;
+pub mod enrollment;
 pub mod executor;
 pub mod jwt;
 pub mod opms;
