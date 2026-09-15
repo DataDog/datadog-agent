@@ -80,12 +80,15 @@ fn token_may_mutate(token: HANDLE) -> Option<bool> {
     token_is_installed_agent_user(token)
 }
 
-static INSTALLED_AGENT_USER_SID: OnceLock<Option<Vec<u8>>> = OnceLock::new();
+static INSTALLED_AGENT_USER_SID: OnceLock<Vec<u8>> = OnceLock::new();
 
 fn cached_installed_agent_user_sid() -> Option<&'static [u8]> {
-    INSTALLED_AGENT_USER_SID
-        .get_or_init(|| installed_agent_user_sid_bytes().ok())
-        .as_deref()
+    if let Some(sid) = INSTALLED_AGENT_USER_SID.get() {
+        return Some(sid.as_slice());
+    }
+    let sid = installed_agent_user_sid_bytes().ok()?;
+    let _ = INSTALLED_AGENT_USER_SID.set(sid);
+    INSTALLED_AGENT_USER_SID.get().map(|sid| sid.as_slice())
 }
 
 fn token_is_installed_agent_user(token: HANDLE) -> Option<bool> {

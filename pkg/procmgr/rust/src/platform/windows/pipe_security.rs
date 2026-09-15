@@ -6,9 +6,9 @@
 use std::ffi::OsStr;
 use std::io;
 use std::ptr;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
-use log::warn;
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::{HLOCAL, LocalFree};
 use windows_sys::Win32::Security::Authorization::{
@@ -21,28 +21,41 @@ use super::agent_service_sid::installed_agent_user_sid_string;
 use super::wide;
 
 const AGENT_PIPE_CLIENT_ACCESS_MASK: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
-const NAMED_PIPE_DEFAULT_SECURITY_DESCRIPTOR: &str = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)";
 const EVERYONE_SID: &str = "S-1-1-0";
+const SID_LOOKUP_MAX_ATTEMPTS: u32 = 5;
+const SID_LOOKUP_RETRY_DELAY: Duration = Duration::from_millis(500);
 
 pub(crate) fn create_pipe_server(
     options: &ServerOptions,
     pipe_name: &OsStr,
 ) -> io::Result<NamedPipeServer> {
-    let sddl = match setup_security_descriptor() {
-        Ok(sd) => sd,
-        Err(e) => {
-            warn!(
-                "failed to setup named pipe security descriptor, installed agent user ACE omitted: {e:#}"
-            );
-            NAMED_PIPE_DEFAULT_SECURITY_DESCRIPTOR.to_string()
-        }
-    };
+    let sddl = setup_security_descriptor()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:#}")))?;
     with_security_attributes(&sddl, |attrs| unsafe {
         options.create_with_security_attributes_raw(pipe_name, attrs)
     })
 }
 
 fn setup_security_descriptor() -> Result<String> {
+    let mut last_err = None;
+    for attempt in 1..=SID_LOOKUP_MAX_ATTEMPTS {
+        match setup_security_descriptor_once() {
+            Ok(sd) => return Ok(sd),
+            Err(err) => {
+                last_err = Some(err);
+                if attempt < SID_LOOKUP_MAX_ATTEMPTS {
+                    log::warn!(
+                        "installed agent user SID lookup failed (attempt {attempt}/{SID_LOOKUP_MAX_ATTEMPTS}): {err:#}; retrying"
+                    );
+                    std::thread::sleep(SID_LOOKUP_RETRY_DELAY);
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap())
+}
+
+fn setup_security_descriptor_once() -> Result<String> {
     let sid =
         installed_agent_user_sid_string().context("failed to get SID for installed agent user")?;
 
