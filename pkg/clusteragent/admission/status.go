@@ -10,14 +10,11 @@ package admission
 import (
 	"context"
 	"embed"
-	"errors"
-	"fmt"
-	"hash/fnv"
 	"io"
-	"strconv"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -35,14 +32,9 @@ func setProbe(p *admprobe.Probe) {
 	currentProbe.Store(p)
 }
 
-// getProbeStatus builds the complete probe status map for the agent status
-// output.
-//
-// The returned map always contains "Enabled" (bool). Depending on the state,
-// it also contains exactly one of:
-//   - "Error"    (string) — runtime config error (e.g. missing RBAC)
-//   - "Detail"   (string) — informational message (follower, not yet started)
-//   - "HasStats" (bool)   — execution stats are present
+// getProbeStatus builds the probe status map for the agent status output.
+// Always contains "Enabled"; also contains one of "Error", "Detail", or "HasStats"
+// depending on state.
 func getProbeStatus() map[string]interface{} {
 	result := map[string]interface{}{}
 
@@ -90,184 +82,34 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status["WebhookName"] = webhookName
 	status["SecretName"] = ns + "/" + secretName
 
-	validatingWebhookStatus, err := getValidatingWebhookStatus(webhookName, apiCl)
-	if err != nil {
-		status["ValidatingWebhookError"] = err.Error()
+	validatingWebhookStatus, validatingErr := admcommon.GetValidatingWebhookStatus(context.TODO(), webhookName, apiCl)
+	if validatingErr != nil {
+		status["ValidatingWebhookError"] = validatingErr.Error()
 	} else {
 		status["ValidatingWebhooks"] = validatingWebhookStatus
 	}
 
-	mutatingWebhookStatus, err := getMutatingWebhookStatus(webhookName, apiCl)
-	if err != nil {
-		status["MutatingWebhookError"] = err.Error()
+	mutatingWebhookStatus, mutatingErr := admcommon.GetMutatingWebhookStatus(context.TODO(), webhookName, apiCl)
+	if mutatingErr != nil {
+		status["MutatingWebhookError"] = mutatingErr.Error()
 	} else {
 		status["MutatingWebhooks"] = mutatingWebhookStatus
 	}
 
-	secretStatus, err := getSecretStatus(ns, secretName, apiCl)
-	if err != nil {
-		status["SecretError"] = err.Error()
+	secretStatus, secretErr := getSecretStatus(ns, secretName, apiCl)
+	if secretErr != nil {
+		status["SecretError"] = secretErr.Error()
 	} else {
 		status["Secret"] = secretStatus
 	}
 
+	// Running summarizes whether the enabled webhook types are registered with the API server.
+	validationDown := validatingErr != nil && pkgconfigsetup.Datadog().GetBool("admission_controller.validation.enabled")
+	mutationDown := mutatingErr != nil && pkgconfigsetup.Datadog().GetBool("admission_controller.mutation.enabled")
+	status["Running"] = !validationDown && !mutationDown && secretErr == nil
 	status["Probe"] = getProbeStatus()
 
 	return status
-}
-
-var getValidatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, errors.New("admission controller not started")
-}
-
-var getMutatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, errors.New("admission controller not started")
-}
-
-func getValidatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
-	validatingWebhookStatus := make(map[string]interface{})
-	validatingWebhook, err := apiCl.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return validatingWebhookStatus, err
-	}
-
-	validatingWebhookStatus["Name"] = validatingWebhook.GetName()
-	validatingWebhookStatus["CreatedAt"] = validatingWebhook.GetCreationTimestamp()
-	validatingWebhooksConfig := make(map[string]map[string]interface{})
-	validatingWebhookStatus["Webhooks"] = validatingWebhooksConfig
-	for _, w := range validatingWebhook.Webhooks {
-		validatingWebhooksConfig[w.Name] = make(map[string]interface{})
-		svc := w.ClientConfig.Service
-		if svc != nil {
-			port := "Port: None (default 443)"
-			path := "Path: None"
-			if svc.Port != nil {
-				port = fmt.Sprintf("Port: %d", *svc.Port)
-			}
-			if svc.Path != nil {
-				path = "Path: " + *svc.Path
-			}
-			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
-		}
-		if w.ObjectSelector != nil {
-			validatingWebhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()
-		}
-		for i, r := range w.Rules {
-			validatingWebhooksConfig[w.Name][fmt.Sprintf("Rule %d", i+1)] = fmt.Sprintf("Operations: %v - APIGroups: %v - APIVersions: %v - Resources: %v", r.Operations, r.Rule.APIGroups, r.Rule.APIVersions, r.Rule.Resources)
-		}
-		validatingWebhooksConfig[w.Name]["CA bundle digest"] = getDigest(w.ClientConfig.CABundle)
-	}
-
-	return validatingWebhookStatus, nil
-}
-
-func getValidatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
-	validatingWebhookStatus := make(map[string]interface{})
-	validatingWebhook, err := apiCl.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return validatingWebhookStatus, err
-	}
-
-	validatingWebhookStatus["Name"] = validatingWebhook.GetName()
-	validatingWebhookStatus["CreatedAt"] = validatingWebhook.GetCreationTimestamp()
-	validatingWebhooksConfig := make(map[string]map[string]interface{})
-	validatingWebhookStatus["Webhooks"] = validatingWebhooksConfig
-	for _, w := range validatingWebhook.Webhooks {
-		validatingWebhooksConfig[w.Name] = make(map[string]interface{})
-		svc := w.ClientConfig.Service
-		if svc != nil {
-			port := "Port: None (default 443)"
-			path := "Path: None"
-			if svc.Port != nil {
-				port = fmt.Sprintf("Port: %d", *svc.Port)
-			}
-			if svc.Path != nil {
-				path = "Path: " + *svc.Path
-			}
-			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
-		}
-		if w.ObjectSelector != nil {
-			validatingWebhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()
-		}
-		for i, r := range w.Rules {
-			validatingWebhooksConfig[w.Name][fmt.Sprintf("Rule %d", i+1)] = fmt.Sprintf("Operations: %v - APIGroups: %v - APIVersions: %v - Resources: %v", r.Operations, r.Rule.APIGroups, r.Rule.APIVersions, r.Rule.Resources)
-		}
-		validatingWebhooksConfig[w.Name]["CA bundle digest"] = getDigest(w.ClientConfig.CABundle)
-	}
-
-	return validatingWebhookStatus, nil
-}
-
-func getMutatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
-	mutatingWebhookStatus := make(map[string]interface{})
-	mutatingWebhook, err := apiCl.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return mutatingWebhookStatus, err
-	}
-
-	mutatingWebhookStatus["Name"] = mutatingWebhook.GetName()
-	mutatingWebhookStatus["CreatedAt"] = mutatingWebhook.GetCreationTimestamp()
-	mutatingWebhooksConfig := make(map[string]map[string]interface{})
-	mutatingWebhookStatus["Webhooks"] = mutatingWebhooksConfig
-	for _, w := range mutatingWebhook.Webhooks {
-		mutatingWebhooksConfig[w.Name] = make(map[string]interface{})
-		svc := w.ClientConfig.Service
-		if svc != nil {
-			port := "Port: None (default 443)"
-			path := "Path: None"
-			if svc.Port != nil {
-				port = fmt.Sprintf("Port: %d", *svc.Port)
-			}
-			if svc.Path != nil {
-				path = "Path: " + *svc.Path
-			}
-			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
-		}
-		if w.ObjectSelector != nil {
-			mutatingWebhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()
-		}
-		for i, r := range w.Rules {
-			mutatingWebhooksConfig[w.Name][fmt.Sprintf("Rule %d", i+1)] = fmt.Sprintf("Operations: %v - APIGroups: %v - APIVersions: %v - Resources: %v", r.Operations, r.Rule.APIGroups, r.Rule.APIVersions, r.Rule.Resources)
-		}
-		mutatingWebhooksConfig[w.Name]["CA bundle digest"] = getDigest(w.ClientConfig.CABundle)
-	}
-	return mutatingWebhookStatus, nil
-}
-
-func getMutatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
-	mutatingWebhookStatus := make(map[string]interface{})
-	mutatingWebhook, err := apiCl.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return mutatingWebhookStatus, err
-	}
-
-	mutatingWebhookStatus["Name"] = mutatingWebhook.GetName()
-	mutatingWebhookStatus["CreatedAt"] = mutatingWebhook.GetCreationTimestamp()
-	mutatingWebhooksConfig := make(map[string]map[string]interface{})
-	mutatingWebhookStatus["Webhooks"] = mutatingWebhooksConfig
-	for _, w := range mutatingWebhook.Webhooks {
-		mutatingWebhooksConfig[w.Name] = make(map[string]interface{})
-		svc := w.ClientConfig.Service
-		if svc != nil {
-			port := "Port: None (default 443)"
-			path := "Path: None"
-			if svc.Port != nil {
-				port = fmt.Sprintf("Port: %d", *svc.Port)
-			}
-			if svc.Path != nil {
-				path = "Path: " + *svc.Path
-			}
-			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
-		}
-		if w.ObjectSelector != nil {
-			mutatingWebhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()
-		}
-		for i, r := range w.Rules {
-			mutatingWebhooksConfig[w.Name][fmt.Sprintf("Rule %d", i+1)] = fmt.Sprintf("Operations: %v - APIGroups: %v - APIVersions: %v - Resources: %v", r.Operations, r.Rule.APIGroups, r.Rule.APIVersions, r.Rule.Resources)
-		}
-		mutatingWebhooksConfig[w.Name]["CA bundle digest"] = getDigest(w.ClientConfig.CABundle)
-	}
-	return mutatingWebhookStatus, nil
 }
 
 func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
@@ -279,7 +121,7 @@ func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]in
 	secretStatus["Name"] = secret.GetName()
 	secretStatus["Namespace"] = secret.GetNamespace()
 	secretStatus["CreatedAt"] = secret.GetCreationTimestamp()
-	secretStatus["CABundleDigest"] = getDigest(secret.Data["cert.pem"])
+	secretStatus["CABundleDigest"] = admcommon.Digest(secret.Data["cert.pem"])
 	cert, err := certificate.GetCertFromSecret(secret.Data)
 	if err != nil {
 		log.Errorf("Cannot get certificate from secret: %v", err)
@@ -287,12 +129,6 @@ func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]in
 	t := certificate.GetDurationBeforeExpiration(cert)
 	secretStatus["CertValidDuration"] = t.String()
 	return secretStatus, nil
-}
-
-func getDigest(b []byte) string {
-	h := fnv.New64()
-	_, _ = h.Write(b)
-	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // Provider provides the functionality to populate the status output
