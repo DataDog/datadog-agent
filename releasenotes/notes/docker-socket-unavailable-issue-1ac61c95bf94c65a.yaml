@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Health Platform: the Docker socket health check now also reports a
+    ``docker_socket_unavailable`` issue when the socket exists but cannot be
+    reached for a reason other than a permission error, such as the Docker
+    daemon not running or a stale socket file. Previously such failures were
+    silently ignored. The existing permission-denied detection is unchanged.
+  - |
+    Health Platform: ``docker_socket_permission`` and ``docker_socket_unavailable``
+    issue ids are now scoped per host, so that a fleet of hosts hitting the
+    same failure is no longer collapsed into a single reported issue.

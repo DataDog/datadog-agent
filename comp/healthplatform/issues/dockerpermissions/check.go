@@ -28,38 +28,63 @@ const (
 )
 
 // Check reports an issue for every Docker socket/named pipe that exists but
-// is unreachable because of a permission error.
-func Check() ([]runnerdef.IssueReport, error) {
+// is unreachable: a permission-denied error is reported as
+// "Docker Socket Permission", any other dial failure (connection refused,
+// stale socket, daemon down) is reported as "Docker Socket Unavailable".
+func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		return nil, nil
 	}
 
-	var unreachableSockets []string
-	for _, socketPath := range getDockerSocketPaths() {
+	permissionSockets, unavailableSockets := classifySockets(getDockerSocketPaths())
+
+	var reports []runnerdef.IssueReport
+	if len(permissionSockets) > 0 {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(IssueID),
+			IssueName: IssueName,
+			Source:    "docker",
+			Context: map[string]string{
+				"socketPaths": strings.Join(permissionSockets, ","),
+				"os":          runtime.GOOS,
+			},
+			Tags: []string{"docker-socket", "permissions"},
+		})
+	}
+	if len(unavailableSockets) > 0 {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(SocketUnavailableIssueID),
+			IssueName: SocketUnavailableIssueName,
+			Source:    "docker",
+			Context: map[string]string{
+				"socketPaths": strings.Join(unavailableSockets, ","),
+				"os":          runtime.GOOS,
+			},
+			Tags: []string{"docker-socket", "unavailable"},
+		})
+	}
+
+	return reports, nil
+}
+
+// classifySockets partitions socketPaths by why they are unreachable: a
+// permission-denied error, or any other dial failure (connection refused,
+// stale socket, daemon down). Paths that don't exist or are reachable are
+// omitted from both slices.
+func classifySockets(socketPaths []string) (permissionSockets, unavailableSockets []string) {
+	for _, socketPath := range socketPaths {
 		exists, err := socket.IsAvailable(socketPath, socketTimeout)
-		if exists && errors.Is(err, os.ErrPermission) {
-			unreachableSockets = append(unreachableSockets, socketPath)
+		switch {
+		case !exists || err == nil:
+			// absent or reachable -> not an issue
+		case errors.Is(err, os.ErrPermission):
+			permissionSockets = append(permissionSockets, socketPath)
+		default:
+			unavailableSockets = append(unavailableSockets, socketPath)
 		}
 	}
-
-	if len(unreachableSockets) > 0 {
-		return []runnerdef.IssueReport{
-			{
-				IssueID:   IssueID,
-				IssueName: IssueName,
-				Source:    "docker",
-				Context: map[string]string{
-					"socketPaths": strings.Join(unreachableSockets, ","),
-					"os":          runtime.GOOS,
-				},
-				Tags: []string{"docker-socket", "permissions"},
-			},
-		}, nil
-	}
-
-	// No issue detected
-	return nil, nil
+	return permissionSockets, unavailableSockets
 }
 
 // getDockerSocketPaths returns the default Docker socket paths to check

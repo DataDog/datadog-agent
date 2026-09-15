@@ -119,3 +119,97 @@ func (t *DockerPermissionIssue) buildWindows(socketPaths string) *healthplatform
 		},
 	}
 }
+
+// DockerSocketUnavailableIssue provides the issue template (metadata +
+// OS-specific remediation steps) for a Docker socket that exists but cannot
+// be reached for a reason other than a permission error (connection refused,
+// stale socket, daemon not running).
+type DockerSocketUnavailableIssue struct{}
+
+// NewDockerSocketUnavailableIssue creates a new Docker socket unavailable issue template
+func NewDockerSocketUnavailableIssue() *DockerSocketUnavailableIssue {
+	return &DockerSocketUnavailableIssue{}
+}
+
+// BuildIssue creates a complete issue with metadata and OS-specific remediation
+func (t *DockerSocketUnavailableIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	osName := context["os"]
+	if osName == "" {
+		osName = "linux" // fallback
+	}
+
+	socketPaths := context["socketPaths"]
+	if socketPaths == "" {
+		if osName == "windows" {
+			socketPaths = "//./pipe/docker_engine" // fallback
+		} else {
+			socketPaths = "/var/run/docker.sock" // fallback
+		}
+	}
+
+	issueExtra, err := structpb.NewStruct(map[string]any{
+		"integration":  "docker",
+		"socket_paths": socketPaths,
+		"os":           osName,
+		"impact":       "The agent cannot query the Docker daemon, so container metadata, logs, and checks that rely on the Docker API will be missing or incomplete.",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create issue extra: %v", err)
+	}
+
+	return &healthplatform.Issue{
+		IssueName:   SocketUnavailableIssueName,
+		IssueType:   SocketUnavailableIssueType,
+		Title:       fmt.Sprintf("Docker socket unavailable at '%s'", socketPaths),
+		Description: fmt.Sprintf("The Docker socket at %s exists but the agent could not connect to it. This is not a permission error — likely causes are the Docker daemon not running, a stale socket file left behind by a stopped daemon, or the daemon refusing connections.", socketPaths),
+		Category:    "availability",
+		Location:    "logs-agent",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
+		DetectedAt:  "", // Will be filled by health platform
+		Source:      "agent",
+		Extra:       issueExtra,
+		Remediation: t.buildRemediation(socketPaths, osName),
+		Tags:        []string{"docker", osName},
+	}, nil
+}
+
+// buildRemediation creates OS-specific remediation
+func (t *DockerSocketUnavailableIssue) buildRemediation(socketPaths, osName string) *healthplatform.Remediation {
+	if osName == "windows" {
+		return t.buildWindows(socketPaths)
+	}
+	return t.buildLinux(socketPaths) // linux, darwin
+}
+
+// buildLinux creates Linux-specific remediation steps. No auto-fix script is
+// provided since the root cause (daemon down, stale socket, ...) is unknown.
+func (t *DockerSocketUnavailableIssue) buildLinux(socketPaths string) *healthplatform.Remediation {
+	return &healthplatform.Remediation{
+		Summary: "Verify the Docker daemon is running and reachable at the affected socket(s).",
+		Steps: []*healthplatform.RemediationStep{
+			{Order: 1, Text: "Affected socket(s): " + socketPaths},
+			{Order: 2, Text: "Check whether the Docker daemon is running: sudo systemctl status docker"},
+			{Order: 3, Text: "If it is not running, start it: sudo systemctl start docker"},
+			{Order: 4, Text: "If it is running, confirm the socket path matches the daemon's configured listen address and that DOCKER_HOST (if set) points at it"},
+			{Order: 5, Text: "Restart the datadog-agent service: sudo systemctl restart datadog-agent"},
+			{Order: 6, Text: "Verify the issue is resolved by checking agent status: datadog-agent status"},
+		},
+	}
+}
+
+// buildWindows creates Windows-specific remediation steps. No auto-fix script
+// is provided since the root cause (daemon down, stale pipe, ...) is unknown.
+func (t *DockerSocketUnavailableIssue) buildWindows(socketPaths string) *healthplatform.Remediation {
+	return &healthplatform.Remediation{
+		Summary: "Verify the Docker daemon is running and reachable at the affected named pipe(s).",
+		Steps: []*healthplatform.RemediationStep{
+			{Order: 1, Text: "Affected named pipe(s): " + socketPaths},
+			{Order: 2, Text: "Open PowerShell as Administrator"},
+			{Order: 3, Text: "Check whether the Docker service is running: Get-Service docker"},
+			{Order: 4, Text: "If it is not running, start it: Start-Service docker"},
+			{Order: 5, Text: "If it is running, confirm the named pipe path matches the daemon's configuration"},
+			{Order: 6, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
+			{Order: 7, Text: "Verify the issue is resolved by checking agent status"},
+		},
+	}
+}
