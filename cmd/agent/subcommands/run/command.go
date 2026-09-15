@@ -43,6 +43,7 @@ import (
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
+	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
@@ -499,6 +500,7 @@ func getSharedFxOption() fx.Option {
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
 		networkpathrcproviderfx.Module(),
+		ndmrcconfigfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
