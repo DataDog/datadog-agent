@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM : Apply configured trace tag obfuscation to span-derived primary tags
+    received with client-computed stats.
