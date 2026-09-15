@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.225.1"
+	HelmVersion = "3.245.0"
 
 	// legacyBaseName is the base name every single-Agent installation used before
 	// per-installation resource names existed. Child resources keep their historical
