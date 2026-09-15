@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
@@ -88,58 +89,70 @@ type GCPConfig struct {
 	timeout        time.Duration
 }
 
-// CloudRun has helper functions for getting Google Cloud Run data
+// CloudRun has helper functions for getting Google Cloud Run data. isFunction
+// distinguishes a Cloud Run function (gen2) from a plain Cloud Run service and
+// is fixed at construction; everything variant-specific derives from it.
 type CloudRun struct {
-	spanNamespace string
+	isFunction bool
+
+	metadataOnce sync.Once
+	metadata     map[string]string
+}
+
+// resolveMetadata fetches the GCP metadata-service values once and caches them.
+// GetTags and GetInventoryData both trigger it, so exactly one network fetch
+// happens regardless of call order and neither method depends on the other
+// having run first. The cached map is read-only; callers that mutate clone it.
+func (c *CloudRun) resolveMetadata() map[string]string {
+	c.metadataOnce.Do(func() {
+		c.metadata = metadataHelperFunc(GetDefaultConfig(), c.cloudRunType())
+	})
+	return c.metadata
+}
+
+// cloudRunType maps the variant to the metadata enum.
+func (c *CloudRun) cloudRunType() CloudRunType {
+	if c.isFunction {
+		return CloudRunFunction
+	}
+	return CloudRunService
+}
+
+// tagPrefix returns the tag/span namespace prefix for this variant.
+func (c *CloudRun) tagPrefix() string {
+	if c.isFunction {
+		return cloudRunFunctionTagPrefix
+	}
+	return cloudRunServiceTagPrefix
 }
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	isCloudRun := c.spanNamespace == cloudRunServiceTagPrefix
-	var cloudRunType CloudRunType
-	if isCloudRun {
-		cloudRunType = CloudRunService
-	} else {
-		cloudRunType = CloudRunFunction
-	}
-	tags := metadataHelperFunc(GetDefaultConfig(), cloudRunType)
+	tags := maps.Clone(c.resolveMetadata())
 	tags["origin"] = CloudRunOrigin
 	tags["_dd.origin"] = CloudRunOrigin
 
-	revisionNameVal := os.Getenv(revisionNameEnvVar)
-	serviceNameVal := os.Getenv(ServiceNameEnvVar)
-	configNameVal := os.Getenv(configurationNameEnvVar)
-	if revisionNameVal != "" {
+	prefix := c.tagPrefix()
+
+	if revisionNameVal := os.Getenv(revisionNameEnvVar); revisionNameVal != "" {
 		tags[revisionName] = revisionNameVal
-		if isCloudRun {
-			tags[cloudRunServiceTagPrefix+revisionName] = revisionNameVal
-		} else {
-			tags[cloudRunFunctionTagPrefix+revisionName] = revisionNameVal
-		}
+		tags[prefix+revisionName] = revisionNameVal
 	}
 
-	if serviceNameVal != "" {
+	if serviceNameVal := os.Getenv(ServiceNameEnvVar); serviceNameVal != "" {
 		tags[serviceName] = serviceNameVal
-		if isCloudRun {
-			tags[cloudRunServiceTagPrefix+serviceName] = serviceNameVal
-		} else {
-			tags[cloudRunFunctionTagPrefix+serviceName] = serviceNameVal
-		}
+		tags[prefix+serviceName] = serviceNameVal
 	}
 
-	if configNameVal != "" {
+	if configNameVal := os.Getenv(configurationNameEnvVar); configNameVal != "" {
 		tags[configName] = configNameVal
-		if isCloudRun {
-			tags[cloudRunServiceTagPrefix+configName] = configNameVal
-		} else {
-			tags[cloudRunFunctionTagPrefix+configName] = configNameVal
-		}
+		tags[prefix+configName] = configNameVal
 	}
 
-	if c.spanNamespace == cloudRunFunctionTagPrefix {
+	if c.isFunction {
 		return c.getFunctionTags(tags)
 	}
-	tags[cloudRunServiceTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
+	tags[cloudRunServiceTagPrefix+resourceName] = cloudRunServiceCCRID(tags[projectID], tags[location], tags[serviceName])
 	return tags
 }
 
@@ -170,8 +183,69 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 		tags[cloudRunFunctionTagPrefix+functionSignature] = functionSignatureType
 	}
 
-	tags[cloudRunFunctionTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
+	tags[cloudRunFunctionTagPrefix+resourceName] = cloudRunFunctionCCRID(tags[projectID], tags[location], tags[serviceName], functionTargetVal)
 	return tags
+}
+
+// cloudRunServiceCCRID builds the service-level Canonical Cloud Resource ID.
+// It is the stable parent that revision- and function-level CCRIDs nest under.
+func cloudRunServiceCCRID(project, region, service string) string {
+	return fmt.Sprintf("projects/%s/locations/%s/services/%s", project, region, service)
+}
+
+// cloudRunFunctionCCRID extends the service CCRID with the function segment.
+func cloudRunFunctionCCRID(project, region, service, functionTarget string) string {
+	return fmt.Sprintf("%s/functions/%s", cloudRunServiceCCRID(project, region, service), functionTarget)
+}
+
+// GetInventoryData derives the inventory metadata fields for Cloud Run services
+// and functions.
+//
+// The service-level CCRID is the stable parent. For a service the resource_id
+// is the revision under it; parent_resource_id is the service CCRID. For a
+// function the resource_id is the function CCRID (which already nests under the
+// service path).
+func (c *CloudRun) GetInventoryData() InventoryData {
+	metadata := c.resolveMetadata()
+	project := metadata[projectID]
+	region := metadata[location]
+	service := os.Getenv(ServiceNameEnvVar)
+	revision := os.Getenv(revisionNameEnvVar)
+
+	serviceCCRID := cloudRunServiceCCRID(project, region, service)
+	serviceInventoryID := "//run.googleapis.com/" + serviceCCRID
+
+	if c.isFunction {
+		return InventoryData{
+			WorkloadType:     workloadTypeCloudRunFunction,
+			ResourceID:       cloudRunFunctionCCRID(project, region, service, os.Getenv(functionTargetEnvVar)),
+			ParentResourceID: serviceInventoryID,
+			ResourceName:     service,
+			Region:           region,
+			GCPProjectID:     project,
+			DeploymentID:     revision,
+		}
+	}
+
+	return InventoryData{
+		WorkloadType:     workloadTypeCloudRunService,
+		ResourceID:       "//run.googleapis.com/" + cloudRunRevisionCCRID(serviceCCRID, revision),
+		ParentResourceID: serviceInventoryID,
+		ResourceName:     service,
+		Region:           region,
+		GCPProjectID:     project,
+		DeploymentID:     revision,
+	}
+}
+
+// cloudRunRevisionCCRID extends a service CCRID with the revision segment. It
+// returns the service CCRID unchanged when the revision is unknown so the
+// resource_id never dangles on a trailing empty segment.
+func cloudRunRevisionCCRID(serviceCCRID, revision string) string {
+	if serviceCCRID == "" || revision == "" {
+		return serviceCCRID
+	}
+	return fmt.Sprintf("%s/revisions/%s", serviceCCRID, revision)
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
