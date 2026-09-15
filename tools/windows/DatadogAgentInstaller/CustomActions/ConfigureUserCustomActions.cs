@@ -95,35 +95,57 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Add ddagentuser to groups
         /// </summary>
-        private void ConfigureUserGroups()
+        internal void ConfigureUserGroups()
         {
+            var isDomainController = false;
             try
             {
-                if (_nativeMethods.IsReadOnlyDomainController())
-                {
-                    _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
-                                 " Install will continue, agent may not function properly if user has not been added to these groups.");
-                    return;
-                }
+                isDomainController = _nativeMethods.IsDomainController();
             }
             catch (Exception e)
             {
-                // On error assume the host is not a read-only domain controller
-                // If the host is actually a read-only domain controller then the following operations will fail
-                _session.Log($"Error determining if host is a read-only domain controller, continuing assuming it is not: {e}");
-                _session.Log("If the host is actually a read-only domain controller, ensure the LanmanServer/Server service is running.");
+                // On error assume the host is not a domain controller. The unsupported-write
+                // fallback must not be enabled unless this prerequisite was confirmed.
+                _session.Log($"Error determining if host is a domain controller, continuing assuming it is not: {e}");
             }
 
-            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
-            // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
-            // the same rights as LocalService, which can use ETW by default.
-            // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
-            //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
-            //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
-            //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
-            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
-            // Builtin\Event Log Readers
-            _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
+            var roleMetadataUnavailable = false;
+            if (isDomainController)
+            {
+                try
+                {
+                    if (_nativeMethods.IsReadOnlyDomainController())
+                    {
+                        _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                                     " Install will continue, agent may not function properly if user has not been added to these groups.");
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    roleMetadataUnavailable = true;
+                    _session.Log($"Error determining if host is a read-only domain controller, attempting group configuration: {e}");
+                }
+            }
+
+            try
+            {
+                _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+                // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
+                // the same rights as LocalService, which can use ETW by default.
+                // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
+                //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
+                //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
+                //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
+                _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
+                // Builtin\Event Log Readers
+                _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
+            }
+            catch (Win32Exception e) when (roleMetadataUnavailable && e.NativeErrorCode == 50)
+            {
+                _session.Log("The confirmed domain controller does not support local group writes and its read-only metadata was unavailable; " +
+                             "skipping remaining group configuration.");
+            }
         }
 
         /// <summary>
