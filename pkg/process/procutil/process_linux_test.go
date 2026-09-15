@@ -761,6 +761,13 @@ func TestParseStatusLine(t *testing.T) {
 	}
 }
 
+func TestStatusInfoIsZombie(t *testing.T) {
+	assert.False(t, (*statusInfo)(nil).isZombie())
+	assert.False(t, (&statusInfo{}).isZombie())
+	assert.False(t, (&statusInfo{status: []byte("R")}).isZombie())
+	assert.True(t, (&statusInfo{status: []byte("Z")}).isZombie())
+}
+
 func BenchmarkParseStatusLine(b *testing.B) {
 	probe := getProbeWithPermission()
 	defer probe.Close()
