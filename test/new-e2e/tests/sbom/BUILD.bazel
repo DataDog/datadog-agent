@@ -6,6 +6,7 @@ dd_agent_go_test(
         "base_test.go",
         "docker_test.go",
         "eks_test.go",
+        "hostpackageinuse_test.go",
         "k8s_test.go",
         "kind_helm_test.go",
         "kubeadm_test.go",
@@ -14,6 +15,7 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//pkg/util/pointer",
+        "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/apps/sbomtargets",
         "//test/e2e-framework/components/datadog/dockeragentparams",
@@ -30,6 +32,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/eks",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm",
