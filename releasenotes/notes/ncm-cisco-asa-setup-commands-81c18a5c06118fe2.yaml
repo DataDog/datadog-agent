@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Network Config Management: Fixes running configuration collection for Cisco
+    ASA devices. In 7.83.0, device profile setup commands were sent together with
+    the main command in a single SSH exec session, which Cisco ASA does not
+    support. Config collection for Cisco ASA devices could therefore fail or
+    return incomplete output. Setup commands now run in their own exec channel.

@@ -51,6 +51,24 @@ func NewRetryingSSHClient(reconnect func() (*ssh.Client, error)) (*RetryingSSHCl
 	}, nil
 }
 
+// Pinned runs fn against the current underlying connection. If fn fails with a
+// transient error, it reconnects once and runs fn again, so a sequence of
+// sessions (e.g. setup commands plus the main command) always executes on a
+// single connection rather than being split across a reconnect.
+func (r *RetryingSSHClient) Pinned(fn func(sshClient) error) error {
+	err := fn(r.Client)
+	if err != nil && isTransientSSH(err) {
+		newClient, clientErr := r.Reconnect()
+		if clientErr != nil {
+			return fmt.Errorf("reconnection failed with [%w]", clientErr)
+		}
+		_ = r.Client.Close()
+		r.Client = newClient
+		err = fn(r.Client)
+	}
+	return err
+}
+
 // NewSession opens a new Session for this client. (A session is a remote
 // execution of a program). If the first attempt to open a session fails because
 // the other end has closed the connection, this will attempt to reconnect and
