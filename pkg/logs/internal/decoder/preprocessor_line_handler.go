@@ -43,6 +43,16 @@ func (h *preprocessorLineHandler) flush() {
 	h.preprocessor.Flush()
 }
 
+// TakePendingContent implements preprocessor.PendingContentCarrier.
+func (h *preprocessorLineHandler) TakePendingContent() []preprocessor.PendingContent {
+	return h.preprocessor.TakePendingContent()
+}
+
+// SeedPendingContent implements preprocessor.PendingContentCarrier.
+func (h *preprocessorLineHandler) SeedPendingContent(pending []preprocessor.PendingContent) {
+	h.preprocessor.SeedPendingContent(pending)
+}
+
 // buildAutoMultilineLabeler constructs a Labeler configured from global settings and any
 // per-source overrides. It is shared by both aggregating and detecting preprocessor modes.
 func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) preprocessor.Labeler {

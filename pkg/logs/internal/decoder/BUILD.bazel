@@ -16,6 +16,7 @@ go_library(
         "multiline_handler.go",
         "noop_line_handler.go",
         "preprocessor_line_handler.go",
+        "rotation_handoff.go",
         "single_line_handler.go",
         "stream_decoder.go",
     ],
@@ -52,6 +53,7 @@ go_library(
         "//pkg/logs/status/utils",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -65,6 +67,7 @@ dd_agent_go_test(
         "line_parser_proptest_test.go",
         "line_parser_test.go",
         "multiline_handler_proptest_test.go",
+        "rotation_handoff_test.go",
         "single_line_handler_proptest_test.go",
         "single_line_handler_test.go",
     ],

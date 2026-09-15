@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -85,6 +86,59 @@ func (h *MultiLineHandler) flushChan() <-chan time.Time {
 
 func (h *MultiLineHandler) flush() {
 	h.sendBuffer()
+}
+
+// TakePendingContent implements preprocessor.PendingContentCarrier.
+func (h *MultiLineHandler) TakePendingContent() []preprocessor.PendingContent {
+	if h.buffer.Len() == 0 && h.linesLen == 0 {
+		return nil
+	}
+
+	content := make([]byte, h.buffer.Len())
+	copy(content, h.buffer.Bytes())
+	pending := preprocessor.PendingContent{
+		Msg:           h.msg,
+		Content:       content,
+		RawDataLen:    h.linesLen,
+		LinesCombined: h.linesCombined,
+		Truncated:     h.isBufferTruncated,
+	}
+
+	h.buffer.Reset()
+	h.linesLen = 0
+	h.checkpointLinesLen = 0
+	h.linesCombined = 0
+	h.shouldTruncate = false
+	h.isBufferTruncated = false
+
+	return []preprocessor.PendingContent{pending}
+}
+
+// SeedPendingContent implements preprocessor.PendingContentCarrier.
+func (h *MultiLineHandler) SeedPendingContent(pending []preprocessor.PendingContent) {
+	if len(pending) == 0 || pending[0].Msg == nil {
+		return
+	}
+
+	p := pending[0]
+	h.buffer.Reset()
+	h.buffer.Write(p.Content)
+	h.msg = p.Msg
+	h.linesLen = p.RawDataLen
+	h.checkpointLinesLen = 0
+	h.linesCombined = p.LinesCombined
+	h.isBufferTruncated = p.Truncated
+	// The group being carried over was opened by a line that matched the
+	// pattern, so the "never matched yet" guard must not re-fire here.
+	h.patternMatchedOnce = true
+
+	// Reuse the regular aggregation timeout so a carried-over group whose
+	// continuation never lands is still emitted instead of waiting forever.
+	if h.flushTimer == nil {
+		h.flushTimer = time.NewTimer(h.flushTimeout)
+	} else {
+		h.flushTimer.Reset(h.flushTimeout)
+	}
 }
 
 // process aggregates multiple lines to form a full multiline message,

@@ -308,6 +308,13 @@ func (l *LogsConfigKeys) aggregationTimeout() time.Duration {
 	return l.getConfig().GetDuration(l.getConfigKey("aggregation_timeout")) * time.Millisecond
 }
 
+// fingerprintRotationHandoffTimeout bounds how long a rotated-away file's
+// tailer keeps a partially aggregated group for the tailer that takes over the
+// new file, on the checksum-fingerprinting rotation path.
+func (l *LogsConfigKeys) fingerprintRotationHandoffTimeout() time.Duration {
+	return l.getConfig().GetDuration(l.getConfigKey("fingerprint_rotation_handoff_timeout")) * time.Millisecond
+}
+
 func (l *LogsConfigKeys) useV2API() bool {
 	return l.getConfig().GetBool(l.getConfigKey("use_v2_api"))
 }

@@ -146,6 +146,62 @@ func (s *stackTraceAggregator) IsEmpty() bool {
 	return !s.isBuffering()
 }
 
+// TakePendingContent implements PendingContentCarrier.
+func (s *stackTraceAggregator) TakePendingContent() []PendingContent {
+	if !s.isBuffering() {
+		return nil
+	}
+
+	content := make([]byte, s.buffer.Len())
+	copy(content, s.buffer.Bytes())
+	pending := PendingContent{
+		Msg:           s.messageBuf[0],
+		Content:       content,
+		RawDataLen:    s.rawDataLen,
+		LinesCombined: len(s.messageBuf),
+	}
+	s.resetBuffer()
+
+	return []PendingContent{pending}
+}
+
+// SeedPendingContent implements PendingContentCarrier.
+//
+// Unlike the other stages, the parser behind this one is stateful, so the
+// carried-over lines are replayed through it. If it does not recognise them as
+// a trace it simply will not combine, and the seeded content is emitted on its
+// own by the usual resolve path rather than being lost.
+func (s *stackTraceAggregator) SeedPendingContent(pending []PendingContent) {
+	if len(pending) == 0 || pending[0].Msg == nil {
+		return
+	}
+
+	p := pending[0]
+	msg := p.Msg
+	msg.SetContent(p.Content)
+	msg.RawDataLen = p.RawDataLen
+	msg.SetRawDataLenForCheckpoint(0)
+
+	s.messageBuf = append(s.messageBuf[:0], msg)
+	s.buffer.Reset()
+	s.buffer.Write(p.Content)
+	s.rawDataLen = p.RawDataLen
+	s.checkpointDataLen = 0
+
+	lines := bytes.Split(p.Content, message.EscapedLineFeed)
+	// IsStart also selects the active parser on a composite, so it has to run
+	// before Reset.
+	if !s.parser.IsStart(lines[0]) {
+		return
+	}
+	s.parser.Reset()
+	for _, line := range lines[1:] {
+		if !s.parser.AcceptLine(line) {
+			return
+		}
+	}
+}
+
 func (s *stackTraceAggregator) isBuffering() bool {
 	return len(s.messageBuf) > 0
 }

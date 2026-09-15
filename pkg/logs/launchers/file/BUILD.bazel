@@ -17,6 +17,7 @@ go_library(
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//comp/logs/auditor/def",
+        "//pkg/config/setup",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/launchers",
         "//pkg/logs/launchers/file/provider",
@@ -38,6 +39,10 @@ dd_agent_go_test(
     srcs = [
         "fingerprint_tailer_diagnostics_test.go",
         "launcher_privileged_logs_test.go",
+        "launcher_rotation_cri_partial_test.go",
+        "launcher_rotation_json_test.go",
+        "launcher_rotation_multiline_test.go",
+        "launcher_rotation_truncate_test.go",
         "launcher_test.go",
         "position_test.go",
     ],

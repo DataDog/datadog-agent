@@ -285,3 +285,51 @@ func (a *combiningAggregator) Flush() []AggregatedMessageWithTokens {
 func (a *combiningAggregator) IsEmpty() bool {
 	return a.bucket.isEmpty()
 }
+
+// TakePendingContent implements PendingContentCarrier.
+func (a *combiningAggregator) TakePendingContent() []PendingContent {
+	if a.bucket.isEmpty() || len(a.bucket.lines) == 0 {
+		return nil
+	}
+
+	content := make([]byte, 0, a.bucket.contentLen)
+	for i, line := range a.bucket.lines {
+		if i > 0 {
+			content = append(content, message.EscapedLineFeed...)
+		}
+		content = append(content, line.Msg.GetContent()...)
+	}
+
+	pending := PendingContent{
+		Msg:           a.bucket.lines[0].Msg,
+		Content:       content,
+		RawDataLen:    a.bucket.originalDataLen,
+		LinesCombined: len(a.bucket.lines),
+	}
+	a.bucket.reset()
+
+	return []PendingContent{pending}
+}
+
+// SeedPendingContent implements PendingContentCarrier.
+func (a *combiningAggregator) SeedPendingContent(pending []PendingContent) {
+	if len(pending) == 0 || pending[0].Msg == nil {
+		return
+	}
+
+	p := pending[0]
+	msg := p.Msg
+	msg.SetContent(p.Content)
+	// bucket emptiness is derived from the accumulated raw length, so a zero
+	// length here would make the seeded group invisible to the aggregator.
+	msg.RawDataLen = p.RawDataLen
+	if msg.RawDataLen <= 0 {
+		msg.RawDataLen = len(p.Content)
+	}
+	// The bytes were read from the rotated-away file, so they must not advance
+	// the replacement tailer's checkpoint.
+	msg.SetRawDataLenForCheckpoint(0)
+
+	a.bucket.reset()
+	a.bucket.add(msg, BorrowedTokens{})
+}

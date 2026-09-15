@@ -13,21 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DidRotate returns true if the file has been log-rotated.
+// DidRotateWithCause reports whether the file has been log-rotated, and what
+// kind of rotation it was.
 //
 // On Windows, log rotation is identified by the file size being smaller
-// than the last offset read.
-func (t *Tailer) DidRotate() (bool, error) {
+// than the last offset read, which is always a rewrite in place: the bytes
+// between the read offset and the previous size are unrecoverable.
+func (t *Tailer) DidRotateWithCause() (RotationCause, error) {
 	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
-		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
+		return NoRotation, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
 	defer f.Close()
 	lastReadOffset := t.lastReadOffset.Load()
 
 	st, err := f.Stat()
 	if err != nil {
-		return false, fmt.Errorf("stat %q: %w", f.Name(), err)
+		return NoRotation, fmt.Errorf("stat %q: %w", f.Name(), err)
 	}
 
 	// It is important to gather these values in this order, as both the file
@@ -41,8 +43,8 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	if fileSize < lastReadOffset {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
-		return true, nil
+		return RotationTruncated, nil
 	}
 
-	return false, nil
+	return NoRotation, nil
 }
