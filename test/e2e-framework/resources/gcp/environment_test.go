@@ -6,10 +6,20 @@
 package gcp
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
+
+func TestEnvironmentDefaultZones(t *testing.T) {
+	wantZones := []string{"us-central1-a", "us-central1-b", "us-central1-c"}
+	for _, envName := range []string{agentSandboxEnv, agentQaEnv} {
+		if got := getEnvironmentDefault(envName).ddInfra.defaultZones; !slices.Equal(got, wantZones) {
+			t.Errorf("getEnvironmentDefault(%q).ddInfra.defaultZones = %v, want %v", envName, got, wantZones)
+		}
+	}
+}
 
 func TestTruncateLabelValue(t *testing.T) {
 	tests := []struct {

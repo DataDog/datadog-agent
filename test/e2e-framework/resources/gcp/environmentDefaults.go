@@ -18,7 +18,6 @@ type environmentDefault struct {
 type gcpProvider struct {
 	project string
 	region  string
-	zone    string
 }
 
 type ddInfra struct {
@@ -26,6 +25,7 @@ type ddInfra struct {
 	defaultGKENodeCount     int
 	defaultNetworkName      string
 	defaultSubnetName       string
+	defaultZones            []string
 	defaultVMServiceAccount string
 	gke                     ddInfraGKE
 	openshift               ddInfraOpenShift
@@ -55,13 +55,13 @@ func agentSandboxDefault() environmentDefault {
 		gcp: gcpProvider{
 			project: "datadog-agent-sandbox",
 			region:  "us-central1",
-			zone:    "us-central1-a",
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",
 			defaultGKENodeCount:     1,
 			defaultNetworkName:      "datadog-agent-sandbox-us-central1",
 			defaultSubnetName:       "datadog-agent-sandbox-us-central1-private",
+			defaultZones:            []string{"us-central1-a", "us-central1-b", "us-central1-c"},
 			defaultVMServiceAccount: "vmserviceaccount@datadog-agent-sandbox.iam.gserviceaccount.com",
 			gke:                     ddInfraGKE{autopilot: false},
 			openshift:               ddInfraOpenShift{nestedVirtualization: false},
@@ -74,13 +74,13 @@ func agentQaDefault() environmentDefault {
 		gcp: gcpProvider{
 			project: "datadog-agent-qa",
 			region:  "us-central1",
-			zone:    "us-central1-a",
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",
 			defaultGKENodeCount:     1,
 			defaultNetworkName:      "datadog-agent-qa-us-central1",
 			defaultSubnetName:       "datadog-agent-qa-us-central1-private",
+			defaultZones:            []string{"us-central1-a", "us-central1-b", "us-central1-c"},
 			defaultVMServiceAccount: "vmserviceaccount@datadog-agent-qa.iam.gserviceaccount.com",
 			gke:                     ddInfraGKE{autopilot: false},
 			openshift:               ddInfraOpenShift{nestedVirtualization: false},
