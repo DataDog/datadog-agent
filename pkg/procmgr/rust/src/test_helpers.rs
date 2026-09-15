@@ -320,19 +320,13 @@ fn normalize_runfile_key(path: &str) -> String {
 fn runfile_lookup_keys(path: &str) -> Vec<String> {
     let normalized = normalize_runfile_key(path);
     let mut keys = vec![normalized.clone()];
-    if std::path::Path::new(&normalized)
-        .extension()
-        .is_none()
-    {
+    if std::path::Path::new(&normalized).extension().is_none() {
         keys.push(format!("{normalized}.exe"));
     }
     if let Some(base) = std::path::Path::new(&normalized).file_name() {
         let base = base.to_string_lossy();
         keys.push(base.to_string());
-        if std::path::Path::new(base.as_ref())
-            .extension()
-            .is_none()
-        {
+        if std::path::Path::new(base.as_ref()).extension().is_none() {
             keys.push(format!("{base}.exe"));
         }
     }
