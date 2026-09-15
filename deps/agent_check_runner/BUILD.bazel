@@ -1,0 +1,73 @@
+"""Agent Check Runner (ACR) - prebuilt payload shipped alongside the agent.
+
+Modelled on deps/agent_data_plane/BUILD.bazel. The important difference is that ADP installs a
+single binary and ACR installs a directory.
+"""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+_ARCHIVE_BY_CONDITION = {
+    "//:linux_x86_64": "agent_check_runner_linux_amd64",
+    "//:linux_arm64": "agent_check_runner_linux_arm64",
+}
+
+alias(
+    name = "archive_license_3rdparty",
+    actual = select({
+        condition: "@{}//:license_3rdparty".format(repo)
+        for condition, repo in _ARCHIVE_BY_CONDITION.items()
+    }),
+)
+
+# Installs to embedded/bin/agent-check-runner/, keeping the tree the archive ships:
+#
+#   embedded/bin/agent-check-runner/agent-check-runner
+#   embedded/bin/agent-check-runner/libstd-<hash>.so
+#   embedded/bin/agent-check-runner/adapters/lib{rust,python}_adapter_plugin.so
+#
+# `strip_prefix` removes exactly the archive's install prefix and nothing more, so what remains is
+# `agent-check-runner/...`.
+pkg_files(
+    name = "payload_files",
+    srcs = select({
+        condition: ["@{}//:payload".format(repo)]
+        for condition, repo in _ARCHIVE_BY_CONDITION.items()
+    }),
+    # The binary, the Rust stdlib and the adapter plugins are all executable.
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    strip_prefix = strip_prefix.from_root("opt/datadog-agent/embedded/bin"),
+)
+
+# The dependency manifest gets a component-qualified name, so it cannot collide.
+pkg_files(
+    name = "license_3rdparty_file",
+    srcs = [":archive_license_3rdparty"],
+    prefix = "LICENSES",
+    renames = {
+        ":archive_license_3rdparty": "LICENSE-agent-check-runner-3rdparty.csv",
+    },
+    strip_prefix = strip_prefix.files_only(),
+)
+
+# The per-license texts are NOT flattened into LICENSES/ the way ADP's are.
+pkg_files(
+    name = "license_texts",
+    srcs = select({
+        condition: ["@{}//:license_files".format(repo)]
+        for condition, repo in _ARCHIVE_BY_CONDITION.items()
+    }),
+    prefix = "LICENSES/agent-check-runner",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":license_3rdparty_file",
+        ":license_texts",
+        ":payload_files",
+    ],
+)

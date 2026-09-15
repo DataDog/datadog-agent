@@ -1,0 +1,13 @@
+#!/usr/bin/execlineb -P
+
+# Check if agent-check-runner exists before running.
+# Note the nested path: ACR installs a directory, not a bare binary, because it resolves its Rust
+# stdlib through an $ORIGIN rpath and its adapter plugins relative to current_exe().
+ifelse -n
+    { s6-test -x "/opt/datadog-agent/embedded/bin/agent-check-runner/agent-check-runner" }
+    {
+        foreground { /initlog.sh "agent-check-runner not bundled, disabling" }
+        foreground { /bin/s6-svc -d /var/run/s6/services/check-runner/ }
+    }
+    foreground { /initlog.sh "starting agent-check-runner" }
+    /opt/datadog-agent/embedded/bin/agent-check-runner/agent-check-runner --config /etc/datadog-agent/datadog.yaml run
