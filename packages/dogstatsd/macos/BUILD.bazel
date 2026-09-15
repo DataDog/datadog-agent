@@ -1,0 +1,42 @@
+"""macOS-specific DogStatsD content: binary and example config."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+)
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# dogstatsd's install root is fixed (unlike the agent's, which varies by
+# flavor), so the prefix is hardcoded rather than driven by --//:install_dir.
+pkg_files(
+    name = "dogstatsd_bin",
+    srcs = ["//cmd/dogstatsd"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "opt/datadog-dogstatsd/bin",
+)
+
+# dogstatsd always renders its example config with Linux defaults, even on
+# macOS builds — see //pkg/config:dogstatsd_config.
+pkg_files(
+    name = "config_example_files",
+    srcs = ["//pkg/config:dogstatsd_config"],
+    attributes = pkg_attributes(mode = "0644"),
+    renames = {"//pkg/config:dogstatsd_config": "opt/datadog-dogstatsd/etc/datadog-dogstatsd/dogstatsd.yaml.example"},
+)
+
+pkg_filegroup(
+    name = "macos_files",
+    srcs = [
+        ":config_example_files",
+        ":dogstatsd_bin",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":macos_files"],
+)
