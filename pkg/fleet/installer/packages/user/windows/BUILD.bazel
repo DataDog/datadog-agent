@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "windows",
     srcs = [
@@ -25,13 +27,9 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "windows_test",
-    srcs = [
-        "user_manual_test.go",
-        "user_test.go",
-    ],
+    name = "user_test",
+    srcs = ["user_test.go"],
     embed = [":windows"],
-    target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

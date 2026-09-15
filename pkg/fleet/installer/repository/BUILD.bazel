@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "repository",
     srcs = [
@@ -18,11 +20,15 @@ go_library(
 )
 
 dd_agent_go_test(
+    name = "repositories_test",
+    srcs = ["repositories_test.go"],
+    embed = [":repository"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+dd_agent_go_test(
     name = "repository_test",
-    srcs = [
-        "repositories_test.go",
-        "repository_test.go",
-    ],
+    srcs = ["repository_test.go"],
     embed = [":repository"],
     deps = [
         "//pkg/fleet/installer/symlink",
