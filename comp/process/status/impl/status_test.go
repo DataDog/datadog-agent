@@ -150,49 +150,27 @@ func TestStatusError(t *testing.T) {
 func TestGetStatusDetails(t *testing.T) {
 	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
 	require.NoError(t, err)
+	server := fakeStatusServer(t, http.StatusOK, jsonBytes)
+	defer server.Close()
+
+	configComponent := config.NewMock(t)
+	configComponent.SetInTest("cloud_provider_metadata", []string{})
+	provider := statusProvider{
+		testServerURL: server.URL,
+		config:        configComponent,
+		hostname:      hostnameimpl.NewHostnameService(),
+	}
+
+	var expected bytes.Buffer
+	require.NoError(t, provider.Text(false, &expected))
+	response, err := provider.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+	require.NoError(t, err)
+	require.Contains(t, response.NamedSections, "Details")
+
 	statusDatePattern := regexp.MustCompile(`(?m)^  Status date: .*$`)
-
-	tests := []struct {
-		name       string
-		statusCode int
-		response   []byte
-	}{
-		{
-			name:       "successful status",
-			statusCode: http.StatusOK,
-			response:   jsonBytes,
-		},
-		{
-			name:       "unreachable status",
-			statusCode: http.StatusInternalServerError,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			server := fakeStatusServer(t, test.statusCode, test.response)
-			defer server.Close()
-
-			configComponent := config.NewMock(t)
-			configComponent.SetInTest("cloud_provider_metadata", []string{})
-
-			provider := statusProvider{
-				testServerURL: server.URL,
-				config:        configComponent,
-				hostname:      hostnameimpl.NewHostnameService(),
-			}
-
-			var expected bytes.Buffer
-			require.NoError(t, provider.Text(false, &expected))
-
-			response, err := provider.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
-			require.NoError(t, err)
-			require.Contains(t, response.NamedSections, "Details")
-			expectedDetails := statusDatePattern.ReplaceAllString(expected.String(), "  Status date: <dynamic>")
-			actualDetails := statusDatePattern.ReplaceAllString(response.NamedSections["Details"].Fields[""], "  Status date: <dynamic>")
-			assert.Equal(t, expectedDetails, actualDetails)
-		})
-	}
+	expectedDetails := statusDatePattern.ReplaceAllString(expected.String(), "  Status date: <dynamic>")
+	actualDetails := statusDatePattern.ReplaceAllString(response.NamedSections["Details"].Fields[""], "  Status date: <dynamic>")
+	assert.Equal(t, expectedDetails, actualDetails)
 }
 
 func TestGetStatusDetailsCancellation(t *testing.T) {

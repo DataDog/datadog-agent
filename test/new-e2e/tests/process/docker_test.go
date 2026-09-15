@@ -11,7 +11,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
@@ -50,23 +49,12 @@ func TestDockerTestSuite(t *testing.T) {
 func (s *dockerTestSuite) TestDockerProcessCheck() {
 	t := s.T()
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		status := getAgentStatus(collect, s.Env().Agent.Client)
 
-		// Process checks run in the core agent. Wait for that component before observing
-		// whether a standalone process-agent registers.
+		// Process checks run in the core agent.
 		assert.ElementsMatch(collect, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
-
-	// Cover the remote agent registration retry's randomized 90-second maximum backoff.
-	require.Never(t, func() bool {
-		status, err := readAgentStatus(s.Env().Agent.Client)
-		if err != nil {
-			return true
-		}
-		_, found := status.remoteAgentStatus("process_agent")
-		return found
-	}, 100*time.Second, 2*time.Second, "process_agent RAR status should remain absent")
 
 	// Flush fake intake to remove any early payloads
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()

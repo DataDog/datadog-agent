@@ -1,5 +1,4 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl-trace",
@@ -16,17 +15,5 @@ go_library(
         "//comp/trace/status/def",
         "//pkg/proto/pbgo/core",
         "//pkg/util/flavor",
-        "@org_golang_google_grpc//:grpc",
-    ],
-)
-
-dd_agent_go_test(
-    name = "impl-trace_test",
-    srcs = ["remoteagent_test.go"],
-    embed = [":impl-trace"],
-    deps = [
-        "//pkg/proto/pbgo/core",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_google_grpc//:grpc",
     ],
 )

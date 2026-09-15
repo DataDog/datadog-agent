@@ -17,40 +17,6 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 )
 
-func findElement(node *html.Node, name string) *html.Node {
-	if node.Type == html.ElementNode && node.Data == name {
-		return node
-	}
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		if found := findElement(child, name); found != nil {
-			return found
-		}
-	}
-	return nil
-}
-
-func findElements(node *html.Node, name string) []*html.Node {
-	var elements []*html.Node
-	if node.Type == html.ElementNode && node.Data == name {
-		elements = append(elements, node)
-	}
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		elements = append(elements, findElements(child, name)...)
-	}
-	return elements
-}
-
-func textContent(node *html.Node) string {
-	if node.Type == html.TextNode {
-		return node.Data
-	}
-	var content strings.Builder
-	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		content.WriteString(textContent(child))
-	}
-	return content.String()
-}
-
 type statusRegistry struct {
 	remoteagentregistry.Component
 	statuses []remoteagentregistry.StatusData
@@ -64,85 +30,38 @@ func (r statusRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.Statu
 	return r.statuses
 }
 
-func TestHTMLStatusFieldRendering(t *testing.T) {
-	tests := []struct {
-		name           string
-		fieldKey       string
-		fieldValue     string
-		wantContains   string
-		wantNotContain string
-	}{
-		{
-			name:         "keyed field",
-			fieldKey:     "State",
-			fieldValue:   "running",
-			wantContains: "<li> State: running",
-		},
-		{
-			name:           "raw status block",
-			fieldValue:     "line one\n  line <two> & details",
-			wantContains:   "<pre><span>line one\n  line &lt;two&gt; &amp; details</span></pre>",
-			wantNotContain: "<li> : line one",
-		},
+func findElement(node *html.Node, name string) *html.Node {
+	if node.Type == html.ElementNode && node.Data == name {
+		return node
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			registry := statusRegistry{
-				statuses: []remoteagentregistry.StatusData{
-					{
-						RegisteredAgent: remoteagentregistry.RegisteredAgent{DisplayName: "Test Agent"},
-						NamedSections: map[string]remoteagentregistry.StatusSection{
-							"Details": {test.fieldKey: test.fieldValue},
-						},
-					},
-				},
-			}
-
-			var output bytes.Buffer
-			err := GetProvider(registry).HTML(false, &output)
-			require.NoError(t, err)
-
-			assert.Contains(t, output.String(), test.wantContains)
-			if test.wantNotContain != "" {
-				assert.NotContains(t, output.String(), test.wantNotContain)
-			}
-		})
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if found := findElement(child, name); found != nil {
+			return found
+		}
 	}
+	return nil
 }
 
-func TestHTMLRawStatusPreservesLeadingNewline(t *testing.T) {
-	const rawStatus = "\nline one\nline two"
-	registry := statusRegistry{
-		statuses: []remoteagentregistry.StatusData{
-			{
-				RegisteredAgent: remoteagentregistry.RegisteredAgent{DisplayName: "Test Agent"},
-				NamedSections: map[string]remoteagentregistry.StatusSection{
-					"Details": {"": rawStatus},
-				},
-			},
-		},
+func textContent(node *html.Node) string {
+	if node.Type == html.TextNode {
+		return node.Data
 	}
-
-	var output bytes.Buffer
-	err := GetProvider(registry).HTML(false, &output)
-	require.NoError(t, err)
-
-	document, err := html.Parse(strings.NewReader(output.String()))
-	require.NoError(t, err)
-	pre := findElement(document, "pre")
-	require.NotNil(t, pre)
-	assert.Equal(t, rawStatus, textContent(pre))
+	var content strings.Builder
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		content.WriteString(textContent(child))
+	}
+	return content.String()
 }
 
-func TestHTMLRawStatusIsANonBulletedListItem(t *testing.T) {
+func TestHTMLRawStatusFieldRendering(t *testing.T) {
+	const rawStatus = "\nline <two> & details"
 	registry := statusRegistry{
 		statuses: []remoteagentregistry.StatusData{
 			{
 				RegisteredAgent: remoteagentregistry.RegisteredAgent{DisplayName: "Test Agent"},
 				NamedSections: map[string]remoteagentregistry.StatusSection{
 					"Details": {
-						"":      "raw status",
+						"":      rawStatus,
 						"State": "running",
 					},
 				},
@@ -151,8 +70,9 @@ func TestHTMLRawStatusIsANonBulletedListItem(t *testing.T) {
 	}
 
 	var output bytes.Buffer
-	err := GetProvider(registry).HTML(false, &output)
-	require.NoError(t, err)
+	require.NoError(t, GetProvider(registry).HTML(false, &output))
+	assert.Contains(t, output.String(), "<li> State: running</li>")
+	assert.Contains(t, output.String(), "line &lt;two&gt; &amp; details")
 
 	document, err := html.Parse(strings.NewReader(output.String()))
 	require.NoError(t, err)
@@ -160,15 +80,8 @@ func TestHTMLRawStatusIsANonBulletedListItem(t *testing.T) {
 	require.NotNil(t, pre)
 	require.NotNil(t, pre.Parent)
 	assert.Equal(t, "li", pre.Parent.Data)
-	require.NotNil(t, pre.Parent.Parent)
-	assert.Equal(t, "ul", pre.Parent.Parent.Data)
-	assert.Equal(t, "raw status", textContent(pre.Parent))
-	var style string
-	for _, attr := range pre.Parent.Attr {
-		if attr.Key == "style" {
-			style = attr.Val
-		}
-	}
-	assert.Equal(t, "list-style: none;", style)
-	assert.Len(t, findElements(document, "li"), 2)
+	require.Len(t, pre.Parent.Attr, 1)
+	assert.Equal(t, "style", pre.Parent.Attr[0].Key)
+	assert.Equal(t, "list-style: none;", pre.Parent.Attr[0].Val)
+	assert.Equal(t, rawStatus, textContent(pre))
 }

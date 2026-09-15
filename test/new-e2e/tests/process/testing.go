@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -72,21 +71,12 @@ type remoteAgentStatus struct {
 	NamedSections map[string]map[string]string
 }
 
-func readAgentStatus(client agentclient.Agent) (AgentStatus, error) {
-	status, err := client.StatusWithError(agentclient.WithArgs([]string{"--json"}))
-	if err != nil {
-		return AgentStatus{}, fmt.Errorf("failed to get agent status: %w", err)
-	}
-	var statusMap AgentStatus
-	if err := json.Unmarshal([]byte(status.Content), &statusMap); err != nil {
-		return AgentStatus{}, fmt.Errorf("failed to unmarshal agent status: %w", err)
-	}
-	return statusMap, nil
-}
-
 func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
-	statusMap, err := readAgentStatus(client)
+	status, err := client.StatusWithError(agentclient.WithArgs([]string{"--json"}))
 	require.NoError(t, err)
+
+	var statusMap AgentStatus
+	require.NoError(t, json.Unmarshal([]byte(status.Content), &statusMap))
 	return statusMap
 }
 
