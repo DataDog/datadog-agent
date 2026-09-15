@@ -17,12 +17,14 @@ import (
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -103,6 +105,17 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	}
 
 	managerOptions.RemoveRlimit = true
+
+	if modifiers.NoPreallocOverrideSupported() {
+		if managerOptions.MapSpecEditors == nil {
+			managerOptions.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+		}
+
+		managerOptions.MapSpecEditors[oomMapName] = manager.MapSpecEditor{
+			Flags:      features.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditFlags,
+		}
+	}
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
