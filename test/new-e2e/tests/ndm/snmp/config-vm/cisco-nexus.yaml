@@ -5,3 +5,4 @@ instances:
   - ip_address: 127.0.0.1
     port: 1161
     community_string: "cisco-nexus"
+    collect_fdb: true

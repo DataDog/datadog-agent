@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed fixtures/ndm_bytes
@@ -58,5 +59,19 @@ func TestNDMAggregator(t *testing.T) {
 		assert.Equal(t, "device", ndmPayload.Diagnoses[0].ResourceType)
 		assert.Equal(t, int64(1743497402), ndmPayload.CollectTimestamp)
 		assert.Empty(t, ndmPayload.Subnet)
+	})
+
+	t.Run("parseNDMPayload should return FDB entries", func(t *testing.T) {
+		data := []byte(`[{"namespace":"default","integration":"snmp","fdb_entries":[{"device_id":"default:127.0.0.1","mac_address":"00:09:0f:09:0a:09","interface_index":2}],"collect_timestamp":1743497402}]`)
+		ndmPayloads, err := ParseNDMPayload(api.Payload{Data: data, Encoding: encodingJSON})
+		require.NoError(t, err)
+		require.Len(t, ndmPayloads, 1)
+		require.Len(t, ndmPayloads[0].FDBEntries, 1)
+
+		assert.Equal(t, FDBEntryMetadata{
+			DeviceID:       "default:127.0.0.1",
+			MacAddress:     "00:09:0f:09:0a:09",
+			InterfaceIndex: 2,
+		}, ndmPayloads[0].FDBEntries[0])
 	})
 }

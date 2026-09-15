@@ -138,3 +138,11 @@ secret_backend_arguments:
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 }
+
+func (v *snmpVMSuite) TestFDBMetadata() {
+	setupDevice(v.Require(), v.Env().RemoteHost)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkFDBMetadata(c, v.Env().FakeIntake)
+	}, 5*time.Minute, 10*time.Second)
+}
