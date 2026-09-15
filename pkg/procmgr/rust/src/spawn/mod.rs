@@ -8,6 +8,8 @@ mod agent_password_logon;
 mod profile;
 mod request;
 mod stdio;
+#[cfg(unix)]
+mod stdio_unix;
 
 #[cfg(all(windows, not(test)))]
 pub(crate) use agent_password_logon::{AgentSpawnLogon, resolve_agent_spawn_logon};

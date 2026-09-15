@@ -9,6 +9,7 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Security::TOKEN_QUERY;
 
 use crate::spawn::SpawnRequest;
+use crate::spawn::stdio::StdioSetting;
 
 use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::super::{install_root, program_data_root};
@@ -97,9 +98,13 @@ fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result
     );
 }
 
+fn is_inherit_or_null(setting: &StdioSetting) -> bool {
+    matches!(setting, StdioSetting::Inherit | StdioSetting::Null)
+}
+
 fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if !request.stdout_setting().is_inherit_or_null()
-        || !request.stderr_setting().is_inherit_or_null()
+    if !is_inherit_or_null(request.stdout_setting())
+        || !is_inherit_or_null(request.stderr_setting())
     {
         bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }

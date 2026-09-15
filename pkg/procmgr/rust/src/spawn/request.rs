@@ -13,8 +13,8 @@ use tokio::process::Command;
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 
-#[cfg(not(windows))]
-use super::stdio::to_command_stdio;
+#[cfg(unix)]
+use super::stdio_unix::to_command_stdio;
 use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
@@ -71,7 +71,7 @@ impl SpawnRequest {
         })
     }
 
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
         let mut cmd = Command::new(&self.command);
         cmd.args(&self.args);
