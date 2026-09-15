@@ -45,9 +45,10 @@ type BridgeClientFactory func() (BridgeClient, error)
 // the streaming AgentSecure execute RPC with the backend-injected upload contract.
 // The resolveOnly mode is the side-effect-free target resolution: the Agent re-runs
 // the same integration matcher execute uses and answers the structured zero/one/many
-// outcome, with the opaque match fingerprint for the unique case. Resolve mode never
-// dispatches a query, never creates a page writer, and never touches upload
-// credentials — enforced by the mode's input contract and request mapping.
+// outcome; a matched answer carries the status only, because there is no resolve-time
+// binding to revalidate on execute. Resolve mode never dispatches a query, never
+// creates a page writer, and never touches upload credentials — enforced by the
+// mode's input contract and request mapping.
 type ExecuteAction struct {
 	newBridgeClient BridgeClientFactory
 }
@@ -57,30 +58,27 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 }
 
 // ExecuteInputs is the AP action input injected by the backend: the integration,
-// target, query, the explicit includeSchema flag, the backend-owned resultDelivery
-// (authoritative run/task identity, artifact version, scoped upload instructions,
-// and effective limits), and the optional resolve-time matchFingerprint the Agent
-// revalidates before any SQL execution. The input carries no credentials: the org
+// target, query, the explicit includeSchema flag, and the backend-owned
+// resultDelivery (authoritative run/task identity, artifact version, scoped upload
+// instructions, and effective limits). The input carries no credentials: the org
 // API/application keys are read by the integration from Agent config, and the session
 // is identified solely by its upload id — there is no per-session upload token.
 // resolveOnly selects the side-effect-free resolution mode; when true the input is
 // target-only and the execute-only fields are forbidden (see validateResolveOnlyInputs).
 type ExecuteInputs struct {
-	Integration      string                `json:"integration"`
-	Target           TargetInputs          `json:"target"`
-	Query            string                `json:"query"`
-	IncludeSchema    bool                  `json:"includeSchema"`
-	ResultDelivery   *ResultDeliveryInputs `json:"resultDelivery"`
-	MatchFingerprint string                `json:"matchFingerprint"`
-	ResolveOnly      bool                  `json:"resolveOnly"`
+	Integration    string                `json:"integration"`
+	Target         TargetInputs          `json:"target"`
+	Query          string                `json:"query"`
+	IncludeSchema  bool                  `json:"includeSchema"`
+	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
+	ResolveOnly    bool                  `json:"resolveOnly"`
 
 	// Presence of the execute-only fields on the wire. Resolve mode forbids those
 	// fields by presence — an empty query or a null resultDelivery is still a
 	// contract violation — so the decode records presence alongside the values.
-	querySet            bool
-	includeSchemaSet    bool
-	resultDeliverySet   bool
-	matchFingerprintSet bool
+	querySet          bool
+	includeSchemaSet  bool
+	resultDeliverySet bool
 }
 
 // UnmarshalJSON decodes the AP action input tolerantly — execute-mode inputs keep
@@ -94,31 +92,28 @@ func (i *ExecuteInputs) UnmarshalJSON(data []byte) error {
 	}
 
 	var wire struct {
-		Integration      string                `json:"integration"`
-		Target           TargetInputs          `json:"target"`
-		Query            string                `json:"query"`
-		IncludeSchema    bool                  `json:"includeSchema"`
-		ResultDelivery   *ResultDeliveryInputs `json:"resultDelivery"`
-		MatchFingerprint string                `json:"matchFingerprint"`
-		ResolveOnly      bool                  `json:"resolveOnly"`
+		Integration    string                `json:"integration"`
+		Target         TargetInputs          `json:"target"`
+		Query          string                `json:"query"`
+		IncludeSchema  bool                  `json:"includeSchema"`
+		ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
+		ResolveOnly    bool                  `json:"resolveOnly"`
 	}
 	if err := json.Unmarshal(data, &wire); err != nil {
 		return err
 	}
 
 	*i = ExecuteInputs{
-		Integration:      wire.Integration,
-		Target:           wire.Target,
-		Query:            wire.Query,
-		IncludeSchema:    wire.IncludeSchema,
-		ResultDelivery:   wire.ResultDelivery,
-		MatchFingerprint: wire.MatchFingerprint,
-		ResolveOnly:      wire.ResolveOnly,
+		Integration:    wire.Integration,
+		Target:         wire.Target,
+		Query:          wire.Query,
+		IncludeSchema:  wire.IncludeSchema,
+		ResultDelivery: wire.ResultDelivery,
+		ResolveOnly:    wire.ResolveOnly,
 	}
 	_, i.querySet = raw["query"]
 	_, i.includeSchemaSet = raw["includeSchema"]
 	_, i.resultDeliverySet = raw["resultDelivery"]
-	_, i.matchFingerprintSet = raw["matchFingerprint"]
 	return nil
 }
 
@@ -236,14 +231,13 @@ func validateDeliveryInputs(delivery *ResultDeliveryInputs) error {
 
 // validateResolveOnlyInputs is the targeted strict validation of the resolveOnly
 // mode: a resolution dispatch carries exactly the integration and target, so the
-// execute-only fields — query, includeSchema, resultDelivery, and matchFingerprint —
-// are forbidden. Presence-based rejection is the conditional equivalent of the
-// structural guarantee the retired standalone resolve action enforced by decoding
-// with DisallowUnknownFields: a resolve-mode task cannot carry SQL, upload
-// instructions, or a fingerprint even when their values are empty, because the
-// fields themselves are the contract violation. The check runs after decode but
-// before the bridge client is ever created, so a malformed task never reaches the
-// Agent IPC.
+// execute-only fields — query, includeSchema, and resultDelivery — are forbidden.
+// Presence-based rejection is the conditional equivalent of the structural
+// guarantee the retired standalone resolve action enforced by decoding with
+// DisallowUnknownFields: a resolve-mode task cannot carry SQL or upload instructions
+// even when their values are empty, because the fields themselves are the contract
+// violation. The check runs after decode but before the bridge client is ever
+// created, so a malformed task never reaches the Agent IPC.
 func validateResolveOnlyInputs(inputs ExecuteInputs) error {
 	if inputs.querySet {
 		return errors.New("resolveOnly input must not carry query")
@@ -253,9 +247,6 @@ func validateResolveOnlyInputs(inputs ExecuteInputs) error {
 	}
 	if inputs.resultDeliverySet {
 		return errors.New("resolveOnly input must not carry resultDelivery")
-	}
-	if inputs.matchFingerprintSet {
-		return errors.New("resolveOnly input must not carry matchFingerprint")
 	}
 	return nil
 }
@@ -340,9 +331,8 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			Dbname:           inputs.Target.DBName,
 			DatabaseInstance: inputs.Target.DatabaseInstance,
 		},
-		Query:            inputs.Query,
-		IncludeSchema:    inputs.IncludeSchema,
-		MatchFingerprint: inputs.MatchFingerprint,
+		Query:         inputs.Query,
+		IncludeSchema: inputs.IncludeSchema,
 	}
 	if delivery := inputs.ResultDelivery; delivery != nil {
 		protoDelivery := &pb.RemoteQueryResultDelivery{
@@ -509,8 +499,8 @@ func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]inte
 // remoteQueryResolveRequestFromInputs maps the resolveOnly AP action input to the
 // credential-free AgentSecure resolve request: exactly the integration and the
 // target, mirroring execute's target mapping. The resolve request mapping carries
-// no query, no result delivery, and no fingerprint, so the side-effect-free
-// guarantee holds by construction of the mapping as well as of the input contract.
+// no query and no result delivery, so the side-effect-free guarantee holds by
+// construction of the mapping as well as of the input contract.
 func remoteQueryResolveRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryResolveRequest {
 	return &pb.RemoteQueryResolveRequest{
 		Integration: inputs.Integration,
@@ -525,9 +515,9 @@ func remoteQueryResolveRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryRe
 
 // remoteQueryResolveOutputFromResponse maps the typed AgentSecure resolve response
 // to the AP action output, mirroring execute's result-object conventions: exactly
-// {status}, plus matchFingerprint when the response carries one and the error
-// object when the response carries one. The mapping is deliberately opaque — an
-// unknown status or a matched response without a fingerprint passes through
+// {status}, plus the error object when the response carries one. A matched answer
+// carries the status only — there is no resolve-time binding to revalidate on
+// execute. The mapping is deliberately opaque — an unknown status passes through
 // unchanged so the dispatcher classifies well-formed contract violations itself
 // instead of the bundle collapsing them into a transport failure. Only a
 // structurally missing response or status fails closed.
@@ -540,9 +530,6 @@ func remoteQueryResolveOutputFromResponse(resp *pb.RemoteQueryResolveResponse) (
 		return nil, errors.New("remote query resolve response missing status")
 	}
 	output := map[string]interface{}{"status": status}
-	if fingerprint := resp.GetMatchFingerprint(); fingerprint != "" {
-		output["matchFingerprint"] = fingerprint
-	}
 	if code := resp.GetErrorCode(); code != "" {
 		output["error"] = map[string]interface{}{
 			"code":    code,

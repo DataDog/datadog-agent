@@ -50,9 +50,9 @@ func resolveTupleRequest() RemoteQueryResolveRequest {
 // TestRemoteQueryResolveServiceAnswersStructuredOutcomes proves the resolve
 // service reduces the integration-owned sweep to the match-before-execute
 // statuses: all no-match verdicts answer target_not_found, exactly one matched
-// verdict answers matched with a non-empty fingerprint, and more than one matched
-// verdict answers ambiguous_target. No secret from any instance config or verdict
-// metadata surfaces in any result.
+// verdict answers matched, and more than one matched verdict answers
+// ambiguous_target. No secret from any instance config or verdict metadata
+// surfaces in any result.
 func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 	service := NewRemoteQueryResolveService(resolveTestCollector(), true)
 
@@ -72,7 +72,6 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusTargetNotFound, result.Error.Code)
 		assert.Equal(t, "no matching integration check found", result.Error.Message)
-		assert.Empty(t, result.MatchFingerprint)
 		assert.NotContains(t, result.Error.Message, "secret-value")
 		assert.NotContains(t, result.Error.Message, "other-secret")
 	})
@@ -95,7 +94,6 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.Equal(t, http.StatusOK, result.HTTPStatus)
 		assert.Equal(t, statusMatched, result.Status)
 		assert.Nil(t, result.Error)
-		assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
 	})
 
 	// The resolver owns database eligibility: a requested database the raw instance
@@ -111,7 +109,6 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.Equal(t, http.StatusOK, result.HTTPStatus)
 		assert.Equal(t, statusMatched, result.Status)
 		assert.Nil(t, result.Error)
-		assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
 	})
 
 	t.Run("multiple matched verdicts", func(t *testing.T) {
@@ -129,14 +126,13 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.Equal(t, statusAmbiguous, result.Status)
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusAmbiguous, result.Error.Code)
-		assert.Empty(t, result.MatchFingerprint)
 	})
 }
 
 // TestRemoteQueryResolveServiceDatabaseInstanceTarget proves the managed-instance
 // selector is delegated to the resolver sweep like tuple matching: the matched
-// check's verdict decides, and the fingerprint binds the integration-reported
-// identity.
+// check's verdict decides, and the integration-reported identity is validated
+// against the pinned verdict contract.
 func TestRemoteQueryResolveServiceDatabaseInstanceTarget(t *testing.T) {
 	service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
 		fakeWrappedCheck{Check: resolveTestRunner("file", nil)},
@@ -149,7 +145,7 @@ func TestRemoteQueryResolveServiceDatabaseInstanceTarget(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, result.HTTPStatus)
 	assert.Equal(t, statusMatched, result.Status)
-	assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
+	assert.Nil(t, result.Error)
 }
 
 // TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors proves every
@@ -214,7 +210,6 @@ func TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors(t *testing.T)
 		assert.Equal(t, statusResolutionError, result.Status)
 		require.NotNil(t, result.Error)
 		assert.Equal(t, "another remote query is running on this Agent", result.Error.Message)
-		assert.Empty(t, result.MatchFingerprint)
 	})
 }
 
@@ -285,8 +280,8 @@ func TestRemoteQueryResolveServiceFailuresAreResolutionErrors(t *testing.T) {
 }
 
 // TestRemoteQueryResolveHandlerAnswersContractShape proves the HTTP diagnostic
-// endpoint answers the resolve output contract: status always, matchFingerprint
-// only when present, and the error object mirroring the status otherwise.
+// endpoint answers the resolve output contract: the status always, nothing else on
+// a matched answer, and the error object mirroring the status otherwise.
 func TestRemoteQueryResolveHandlerAnswersContractShape(t *testing.T) {
 	t.Run("matched", func(t *testing.T) {
 		handler := &remoteQueryResolveHandler{service: NewRemoteQueryResolveService(resolveTestCollector(), true)}
@@ -295,9 +290,8 @@ func TestRemoteQueryResolveHandlerAnswersContractShape(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		body := recorder.Body.String()
-		assert.Contains(t, body, `"status":"matched"`)
-		assert.Contains(t, body, `"matchFingerprint":"`)
-		assert.NotContains(t, body, `"error"`)
+		// The matched wire answer is exactly the status — no other field.
+		assert.JSONEq(t, `{"status":"matched"}`, body)
 		assert.NotContains(t, body, "secret-value")
 		assert.NotContains(t, body, "other-secret")
 		assert.NotContains(t, body, "mysql-secret")
@@ -315,7 +309,6 @@ func TestRemoteQueryResolveHandlerAnswersContractShape(t *testing.T) {
 		body := recorder.Body.String()
 		assert.Contains(t, body, `"status":"target_not_found"`)
 		assert.Contains(t, body, `"error":{"code":"target_not_found","message":"no matching integration check found"}`)
-		assert.NotContains(t, body, `"matchFingerprint"`)
 	})
 
 	t.Run("ambiguous", func(t *testing.T) {

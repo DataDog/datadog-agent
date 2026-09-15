@@ -301,16 +301,15 @@ type RemoteQueryResultDelivery struct {
 
 // RemoteQueryExecuteRequest is the typed request shared by the HTTP and gRPC callers. The
 // result contract is fixed: operation produce_json_pages with a required result delivery;
-// there is no inline result-byte path and no caller-provided format. MatchFingerprint is
-// the opaque resolve-time fingerprint to revalidate before any SQL execution: empty
-// means no revalidation, so local and direct paths keep working unchanged.
+// there is no inline result-byte path and no caller-provided format. There is no resolve-
+// time binding: execute resolves the target fresh under the admission mutex and executes
+// on a unique match, whatever the check identity is at execute time.
 type RemoteQueryExecuteRequest struct {
-	Integration      string
-	Target           RemoteQueryExecuteTarget
-	Query            string
-	IncludeSchema    bool
-	ResultDelivery   *RemoteQueryResultDelivery
-	MatchFingerprint string
+	Integration    string
+	Target         RemoteQueryExecuteTarget
+	Query          string
+	IncludeSchema  bool
+	ResultDelivery *RemoteQueryResultDelivery
 }
 
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
@@ -424,28 +423,22 @@ const (
 	RemoteQueryStatusInvalidRequest = statusInvalidRequest
 	// RemoteQueryStatusExecutorUnavailable reports an unavailable matched executor or bridge dependency.
 	RemoteQueryStatusExecutorUnavailable = statusExecutorUnavailable
-	// RemoteQueryStatusTargetResolutionStale reports an execute revalidation whose
-	// selected target no longer matches the resolve-time fingerprint: zero, multiple,
-	// or a different match than the one the fingerprint was issued for.
-	RemoteQueryStatusTargetResolutionStale = statusTargetResolutionStale
 )
 
 type remoteQueryExecuteRequest struct {
-	Integration      string
-	Target           remoteQueryTarget
-	Query            string
-	IncludeSchema    bool
-	ResultDelivery   *RemoteQueryResultDelivery
-	MatchFingerprint string
+	Integration    string
+	Target         remoteQueryTarget
+	Query          string
+	IncludeSchema  bool
+	ResultDelivery *RemoteQueryResultDelivery
 }
 
 type remoteQueryExecuteRequestJSON struct {
-	Integration      string                                `json:"integration"`
-	Target           *remoteQueryTargetRequestJSON         `json:"target"`
-	Query            string                                `json:"query"`
-	IncludeSchema    bool                                  `json:"includeSchema"`
-	ResultDelivery   *remoteQueryResultDeliveryRequestJSON `json:"resultDelivery"`
-	MatchFingerprint string                                `json:"matchFingerprint"`
+	Integration    string                                `json:"integration"`
+	Target         *remoteQueryTargetRequestJSON         `json:"target"`
+	Query          string                                `json:"query"`
+	IncludeSchema  bool                                  `json:"includeSchema"`
+	ResultDelivery *remoteQueryResultDeliveryRequestJSON `json:"resultDelivery"`
 }
 
 // remoteQueryResultDeliveryRequestJSON is the HTTP wire shape of the backend-injected
@@ -641,9 +634,6 @@ func parseExecuteRequest(r *http.Request) (RemoteQueryExecuteRequest, error) {
 	if err != nil {
 		return RemoteQueryExecuteRequest{}, err
 	}
-	// The resolve-time fingerprint is opaque: it is forwarded as-is for the
-	// pre-SQL revalidation and never validated locally.
-	req.MatchFingerprint = wireReq.MatchFingerprint
 	return req, nil
 }
 
@@ -771,38 +761,25 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 }
 
 // resolveExecutionTarget resolves the execution target under the already-held
-// admission mutex: one complete integration-owned candidate sweep, then the
-// fingerprint revalidation when the request carries one. The same unique match with
-// the same fingerprint proceeds; zero, multiple, or a different match — including any
-// changed eligible set or identity the sweep reports — answers target_resolution_stale
-// before marshalExecuteRequest, any SQL dispatch, or any database work. An absent
-// fingerprint keeps the plain zero/one/many outcomes. A sweep failure fails closed as
-// executor_unavailable with the sweep's sanitized message.
+// admission mutex: one complete integration-owned candidate sweep, then the plain
+// zero/one/many outcome. A unique match proceeds; zero matches answers
+// target_not_found and multiple matches answer ambiguous_target before
+// marshalExecuteRequest, any SQL dispatch, or any database work. There is no
+// resolve-time match binding: the target is resolved fresh here, so a match whose
+// check identity changed since a resolve call still executes as long as it is
+// still the unique match. A sweep failure fails closed as executor_unavailable
+// with the sweep's sanitized message.
 func (s *RemoteQueryExecuteService) resolveExecutionTarget(internal remoteQueryExecuteRequest) (integrationCheckMatch, RemoteQueryExecuteResult) {
 	resolution := resolveIntegrationTargets(s.collector, internal.Integration, internal.Target)
-	if resolution.status == statusResolutionError {
-		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, resolution.message)
-	}
-	if internal.MatchFingerprint != "" {
-		if resolution.status != statusMatched {
-			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusTargetResolutionStale, "target resolution changed since the selected match")
-		}
-		same, err := matchFingerprintEqual(internal.MatchFingerprint, internal.Integration, internal.Target, resolution.matches[0])
-		if err != nil {
-			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "could not revalidate the match fingerprint")
-		}
-		if !same {
-			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusTargetResolutionStale, "target resolution changed since the selected match")
-		}
-		return resolution.matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
-	}
 	switch resolution.status {
 	case statusMatched:
 		return resolution.matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
 	case statusTargetNotFound:
 		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, resolution.message)
-	default:
+	case statusAmbiguous:
 		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, resolution.message)
+	default:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, resolution.message)
 	}
 }
 
@@ -816,11 +793,10 @@ func remoteQueryExecuteErrorResult(httpStatus int, status string, message string
 
 func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 	internal := remoteQueryExecuteRequest{
-		Integration:      r.Integration,
-		Target:           remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName, DatabaseInstance: r.Target.DatabaseInstance},
-		Query:            r.Query,
-		IncludeSchema:    r.IncludeSchema,
-		MatchFingerprint: r.MatchFingerprint,
+		Integration:   r.Integration,
+		Target:        remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName, DatabaseInstance: r.Target.DatabaseInstance},
+		Query:         r.Query,
+		IncludeSchema: r.IncludeSchema,
 	}
 	if r.ResultDelivery != nil {
 		internal.ResultDelivery = r.ResultDelivery
@@ -830,12 +806,11 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 
 func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) RemoteQueryExecuteRequest {
 	return RemoteQueryExecuteRequest{
-		Integration:      req.Integration,
-		Target:           RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
-		Query:            req.Query,
-		IncludeSchema:    req.IncludeSchema,
-		ResultDelivery:   req.ResultDelivery,
-		MatchFingerprint: req.MatchFingerprint,
+		Integration:    req.Integration,
+		Target:         RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
+		Query:          req.Query,
+		IncludeSchema:  req.IncludeSchema,
+		ResultDelivery: req.ResultDelivery,
 	}
 }
 

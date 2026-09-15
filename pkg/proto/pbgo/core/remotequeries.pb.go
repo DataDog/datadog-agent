@@ -280,22 +280,18 @@ func (x *RemoteQueryResultDelivery) GetLimits() *RemoteQueryUploadLimits {
 // result contract is fixed: the integration produces bounded JSON page files
 // and uploads them directly to its-agent-intake. There is no inline result-byte
 // path, no caller-provided format, and no COPY mode. include_schema controls
-// the optional per-page schema emission; result_delivery is required.
-// match_fingerprint is the opaque fingerprint returned by RemoteQueryResolve
-// for the selected match: when non-empty, the Agent revalidates the target
-// resolution before any SQL execution and fails closed with
-// target_resolution_stale when the selected match no longer holds. Empty means
-// no revalidation (local and direct paths keep working unchanged).
+// the optional per-page schema emission; result_delivery is required. There is
+// no resolve-time binding: the Agent resolves the target fresh under the
+// admission mutex and executes on a unique match.
 type RemoteQueryExecuteRequest struct {
-	state            protoimpl.MessageState     `protogen:"open.v1"`
-	Integration      string                     `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	Target           *RemoteQueryTarget         `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
-	Query            string                     `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
-	IncludeSchema    bool                       `protobuf:"varint,4,opt,name=include_schema,json=includeSchema,proto3" json:"include_schema,omitempty"`
-	ResultDelivery   *RemoteQueryResultDelivery `protobuf:"bytes,5,opt,name=result_delivery,json=resultDelivery,proto3" json:"result_delivery,omitempty"`
-	MatchFingerprint string                     `protobuf:"bytes,6,opt,name=match_fingerprint,json=matchFingerprint,proto3" json:"match_fingerprint,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state          protoimpl.MessageState     `protogen:"open.v1"`
+	Integration    string                     `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	Target         *RemoteQueryTarget         `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	Query          string                     `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	IncludeSchema  bool                       `protobuf:"varint,4,opt,name=include_schema,json=includeSchema,proto3" json:"include_schema,omitempty"`
+	ResultDelivery *RemoteQueryResultDelivery `protobuf:"bytes,5,opt,name=result_delivery,json=resultDelivery,proto3" json:"result_delivery,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RemoteQueryExecuteRequest) Reset() {
@@ -361,13 +357,6 @@ func (x *RemoteQueryExecuteRequest) GetResultDelivery() *RemoteQueryResultDelive
 		return x.ResultDelivery
 	}
 	return nil
-}
-
-func (x *RemoteQueryExecuteRequest) GetMatchFingerprint() string {
-	if x != nil {
-		return x.MatchFingerprint
-	}
-	return ""
 }
 
 type RemoteQueryStreamMetadata struct {
@@ -1059,7 +1048,7 @@ func (x *RemoteQueryExecuteChunk) GetEvent() *RemoteQueryExecuteStreamEvent {
 // it carries only the integration and target. No query, no result delivery, and
 // no credentials can cross this boundary; the resolver re-runs the same
 // integration matcher execute uses and answers with the structured zero/one/many
-// outcome plus an opaque match fingerprint for the unique case.
+// outcome.
 type RemoteQueryResolveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Integration   string                 `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -1113,18 +1102,17 @@ func (x *RemoteQueryResolveRequest) GetTarget() *RemoteQueryTarget {
 }
 
 // RemoteQueryResolveResponse is the structured resolution outcome. status is one
-// of matched, target_not_found, ambiguous_target, or resolution_error; when
-// status is matched, match_fingerprint carries the opaque versioned fingerprint
-// the caller revalidates on execute. The error fields mirror the status when set
-// and never carry credentials or raw integration configuration.
+// of matched, target_not_found, ambiguous_target, or resolution_error; a matched
+// answer carries the status only, because there is no resolve-time binding to
+// revalidate on execute. The error fields mirror the status when set and never
+// carry credentials or raw integration configuration.
 type RemoteQueryResolveResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Status           string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	MatchFingerprint string                 `protobuf:"bytes,2,opt,name=match_fingerprint,json=matchFingerprint,proto3" json:"match_fingerprint,omitempty"`
-	ErrorCode        string                 `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorMessage     string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	ErrorCode     string                 `protobuf:"bytes,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RemoteQueryResolveResponse) Reset() {
@@ -1160,13 +1148,6 @@ func (*RemoteQueryResolveResponse) Descriptor() ([]byte, []int) {
 func (x *RemoteQueryResolveResponse) GetStatus() string {
 	if x != nil {
 		return x.Status
-	}
-	return ""
-}
-
-func (x *RemoteQueryResolveResponse) GetMatchFingerprint() string {
-	if x != nil {
-		return x.MatchFingerprint
 	}
 	return ""
 }
@@ -1211,14 +1192,13 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"\x10artifact_version\x18\x03 \x01(\x05R\x0fartifactVersion\x12\x1b\n" +
 	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
 	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12F\n" +
-	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"\xc4\x02\n" +
+	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"\x97\x02\n" +
 	"\x19RemoteQueryExecuteRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12@\n" +
 	"\x06target\x18\x02 \x01(\v2(.datadog.remotequeries.RemoteQueryTargetR\x06target\x12\x14\n" +
 	"\x05query\x18\x03 \x01(\tR\x05query\x12%\n" +
 	"\x0einclude_schema\x18\x04 \x01(\bR\rincludeSchema\x12Y\n" +
-	"\x0fresult_delivery\x18\x05 \x01(\v20.datadog.remotequeries.RemoteQueryResultDeliveryR\x0eresultDelivery\x12+\n" +
-	"\x11match_fingerprint\x18\x06 \x01(\tR\x10matchFingerprint\"\xfc\x01\n" +
+	"\x0fresult_delivery\x18\x05 \x01(\v20.datadog.remotequeries.RemoteQueryResultDeliveryR\x0eresultDelivery\"\xfc\x01\n" +
 	"\x19RemoteQueryStreamMetadata\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12 \n" +
 	"\vintegration\x18\x02 \x01(\tR\vintegration\x12`\n" +
@@ -1318,13 +1298,12 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"\x05event\x18\x04 \x01(\v24.datadog.remotequeries.RemoteQueryExecuteStreamEventR\x05eventJ\x04\b\x01\x10\x02\"\x7f\n" +
 	"\x19RemoteQueryResolveRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12@\n" +
-	"\x06target\x18\x02 \x01(\v2(.datadog.remotequeries.RemoteQueryTargetR\x06target\"\xa5\x01\n" +
+	"\x06target\x18\x02 \x01(\v2(.datadog.remotequeries.RemoteQueryTargetR\x06target\"x\n" +
 	"\x1aRemoteQueryResolveResponse\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\x12+\n" +
-	"\x11match_fingerprint\x18\x02 \x01(\tR\x10matchFingerprint\x12\x1d\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x03 \x01(\tR\terrorCode\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessageB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"error_code\x18\x02 \x01(\tR\terrorCode\x12#\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessageB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remotequeries_remotequeries_proto_rawDescOnce sync.Once

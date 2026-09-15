@@ -21,7 +21,7 @@ const (
 
 const (
 	// RemoteQueryStatusMatched reports exactly one loaded check matching the
-	// resolved target; the result always carries a non-empty match fingerprint.
+	// resolved target.
 	RemoteQueryStatusMatched = statusMatched
 	// RemoteQueryStatusResolutionError reports a resolve operation that could not
 	// complete matching: an internal or contract error, never a target miss.
@@ -30,8 +30,8 @@ const (
 
 // NewRemoteQueryResolveEndpointProvider registers the remote query resolve endpoint
 // on the internal Agent API. It mirrors the match-check diagnostic endpoint's shape
-// (strict integration + target request, config-gated) but answers with the
-// match-before-execute resolve statuses and the match fingerprint.
+// (strict integration + target request, config-gated) and answers with the
+// match-before-execute resolve statuses.
 func NewRemoteQueryResolveEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryResolveHandler{
 		service: NewRemoteQueryResolveService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesResolveEnabledConfig)),
@@ -46,9 +46,10 @@ type remoteQueryResolveHandler struct {
 // RemoteQueryResolveService resolves a Remote Queries target through the shared
 // integration matcher without side effects: no query, no result delivery, no page
 // writer, and no upload credentials ever reach this service. It answers the
-// structured zero/one/many outcome plus an opaque match fingerprint for the unique
-// case, and is shared by the HTTP diagnostic endpoint and the AgentSecure
-// RemoteQueryResolve RPC.
+// structured zero/one/many outcome, and is shared by the HTTP diagnostic endpoint
+// and the AgentSecure RemoteQueryResolve RPC. There is no resolve-time binding:
+// execute re-resolves the target fresh under the admission mutex instead of
+// revalidating a resolve-time answer.
 type RemoteQueryResolveService struct {
 	collector RemoteQueryCollector
 	enabled   bool
@@ -68,14 +69,13 @@ type RemoteQueryResolveRequest struct {
 	Target      RemoteQueryExecuteTarget
 }
 
-// RemoteQueryResolveResult is the resolve service result: the structured status,
-// the opaque match fingerprint when exactly one check matched, and a sanitized
-// error mirroring the status otherwise.
+// RemoteQueryResolveResult is the resolve service result: the structured status
+// and a sanitized error mirroring the status otherwise. A matched result carries
+// the status only — there is no resolve-time binding to revalidate at execute.
 type RemoteQueryResolveResult struct {
-	HTTPStatus       int
-	Status           string
-	MatchFingerprint string
-	Error            *RemoteQueryExecuteError
+	HTTPStatus int
+	Status     string
+	Error      *RemoteQueryExecuteError
 }
 
 // Resolve answers the structured zero/one/many outcome for the requested target.
@@ -108,17 +108,13 @@ func (s *RemoteQueryResolveService) Resolve(req RemoteQueryResolveRequest) Remot
 	if !remoteQueryExecutionAdmission() {
 		return remoteQueryResolveErrorResult(http.StatusServiceUnavailable, statusResolutionError, "another remote query is running on this Agent")
 	}
-	// Admission covers the sweep; the fingerprint hashes only values the sweep
-	// already captured, so the deferred release is panic-safe and still bounded.
+	// Admission covers the sweep; the answer is built from values the sweep already
+	// captured, so the deferred release is panic-safe and still bounded.
 	defer remoteQueryExecution.Unlock()
 	resolution := resolveIntegrationTargets(s.collector, integration, target)
 	switch resolution.status {
 	case statusMatched:
-		fingerprint, err := computeMatchFingerprint(integration, target, resolution.matches[0])
-		if err != nil {
-			return remoteQueryResolveErrorResult(http.StatusFailedDependency, statusResolutionError, "could not compute match fingerprint")
-		}
-		return RemoteQueryResolveResult{HTTPStatus: http.StatusOK, Status: statusMatched, MatchFingerprint: fingerprint}
+		return RemoteQueryResolveResult{HTTPStatus: http.StatusOK, Status: statusMatched}
 	case statusTargetNotFound:
 		return remoteQueryResolveErrorResult(http.StatusNotFound, statusTargetNotFound, resolution.message)
 	case statusAmbiguous:
@@ -161,20 +157,16 @@ func (h *remoteQueryResolveHandler) handle(w http.ResponseWriter, r *http.Reques
 }
 
 // remoteQueryResolveResponseJSON is the HTTP wire shape of the resolve outcome:
-// exactly the status, the optional match fingerprint, and the optional error
-// object mirroring the AP action output contract.
+// exactly the status and the optional error object mirroring the AP action output
+// contract. A matched answer is {"status":"matched"} only.
 type remoteQueryResolveResponseJSON struct {
-	Status           string         `json:"status"`
-	MatchFingerprint string         `json:"matchFingerprint,omitempty"`
-	Error            *responseError `json:"error,omitempty"`
+	Status string         `json:"status"`
+	Error  *responseError `json:"error,omitempty"`
 }
 
 func writeResolveResponse(w http.ResponseWriter, result RemoteQueryResolveResult) {
 	w.WriteHeader(result.HTTPStatus)
-	resp := remoteQueryResolveResponseJSON{
-		Status:           result.Status,
-		MatchFingerprint: result.MatchFingerprint,
-	}
+	resp := remoteQueryResolveResponseJSON{Status: result.Status}
 	if result.Error != nil {
 		resp.Error = &responseError{Code: result.Error.Code, Message: result.Error.Message}
 	}

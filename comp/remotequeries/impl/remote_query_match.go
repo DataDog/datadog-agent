@@ -51,15 +51,12 @@ const (
 	// resolve-operation statuses of the match-before-execute contract; the
 	// match-check diagnostic keeps its own statusOK vocabulary. statusResolutionError
 	// reports that matching itself could not complete (internal or contract
-	// error) — never a target miss. statusTargetResolutionStale is the execute-time
-	// revalidation failure: the selected target no longer matches the
-	// resolve-time fingerprint.
-	statusTargetNotFound        = "target_not_found"
-	statusAmbiguous             = "ambiguous_target"
-	statusResolutionError       = "resolution_error"
-	statusTargetResolutionStale = "target_resolution_stale"
-	statusInvalidRequest        = "invalid_request"
-	statusBridgeDisabled        = "bridge_disabled"
+	// error) — never a target miss.
+	statusTargetNotFound  = "target_not_found"
+	statusAmbiguous       = "ambiguous_target"
+	statusResolutionError = "resolution_error"
+	statusInvalidRequest  = "invalid_request"
+	statusBridgeDisabled  = "bridge_disabled"
 )
 
 // Requires defines dependencies for the Remote Queries POC endpoint provider.
@@ -423,8 +420,8 @@ type integrationCheckMatch struct {
 	// identity is the matched check's effective identity: the integration-reported
 	// sanitized identity for resolver-swept integrations (postgres), or the
 	// Go-parsed effective config for the explicitly Agent-matched integration
-	// (clickhouse). It carries no credentials and no raw config: it feeds the match
-	// fingerprint and nothing else.
+	// (clickhouse). It carries no credentials and no raw config: it is the
+	// resolver's answer contract, validated per verdict and never surfaced raw.
 	identity remoteQueryMatchIdentity
 }
 
@@ -551,7 +548,7 @@ func sweepIntegrationChecks(checks []check.Check, integration string, target rem
 }
 
 // newIntegrationCheckMatch builds one sanitized match entry. The identity carries
-// no credentials or raw config: it feeds the match fingerprint and nothing else.
+// no credentials or raw config: it is the resolver's validated answer contract.
 func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string, identity remoteQueryMatchIdentity) integrationCheckMatch {
 	return integrationCheckMatch{
 		check: chk,
@@ -573,11 +570,11 @@ type remoteQueryResolveVerdict struct {
 
 // RemoteQueryOperationResolveTarget is the side-effect-free per-check resolution
 // operation of the resolve-over-bridge contract. The request carries only the
-// operation and the target — no query, no result delivery, no fingerprint — and the
-// integration answers whether the requested target belongs to this check's
-// effective monitoring scope, reporting its sanitized effective identity when it
-// does. The Python entry point dispatches on this operation; the bridge transport
-// is unchanged.
+// operation and the target — no query, no result delivery — and the integration
+// answers whether the requested target belongs to this check's effective
+// monitoring scope, reporting its sanitized effective identity when it does. The
+// Python entry point dispatches on this operation; the bridge transport is
+// unchanged.
 const RemoteQueryOperationResolveTarget = "resolve_target"
 
 // remoteQueryResolveTargetRequestJSON is the bridge wire shape of the resolution
@@ -631,9 +628,8 @@ type remoteQueryResolveFinalJSON struct {
 }
 
 // remoteQueryResolveMatchJSON is the integration-reported sanitized match identity.
-// Pointer fields distinguish a genuinely absent field (nil, omitted from the
-// fingerprint) from a present-but-empty or present-but-invalid one, which fails
-// closed.
+// Pointer fields distinguish a genuinely absent field (nil) from a present-but-
+// empty or present-but-invalid one, which fails closed.
 type remoteQueryResolveMatchJSON struct {
 	Host             *string `json:"host,omitempty"`
 	Port             *int    `json:"port,omitempty"`
@@ -704,8 +700,8 @@ func parseUnmatchedResolveVerdict(metadataJSON string) (remoteQueryResolveVerdic
 }
 
 // validateResolveMatchIdentity enforces the pinned verdict contract: fields present
-// must be non-empty and valid, and the fields the selector and the fingerprint need
-// are required. A tuple target must identify its endpoint and the database the
+// must be non-empty and valid, and the fields the selector and verdict contracts
+// need are required. A tuple target must identify its endpoint and the database the
 // resolver admitted; a database_instance target must identify the rendered
 // identifier it matched on and the materialized database execution uses.
 func validateResolveMatchIdentity(matchJSON *remoteQueryResolveMatchJSON, target remoteQueryTarget) (remoteQueryMatchIdentity, error) {

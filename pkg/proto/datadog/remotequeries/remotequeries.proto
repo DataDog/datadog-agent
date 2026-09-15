@@ -52,19 +52,15 @@ message RemoteQueryResultDelivery {
 // result contract is fixed: the integration produces bounded JSON page files
 // and uploads them directly to its-agent-intake. There is no inline result-byte
 // path, no caller-provided format, and no COPY mode. include_schema controls
-// the optional per-page schema emission; result_delivery is required.
-// match_fingerprint is the opaque fingerprint returned by RemoteQueryResolve
-// for the selected match: when non-empty, the Agent revalidates the target
-// resolution before any SQL execution and fails closed with
-// target_resolution_stale when the selected match no longer holds. Empty means
-// no revalidation (local and direct paths keep working unchanged).
+// the optional per-page schema emission; result_delivery is required. There is
+// no resolve-time binding: the Agent resolves the target fresh under the
+// admission mutex and executes on a unique match.
 message RemoteQueryExecuteRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
     string query = 3;
     bool include_schema = 4;
     RemoteQueryResultDelivery result_delivery = 5;
-    string match_fingerprint = 6;
 }
 
 message RemoteQueryStreamMetadata {
@@ -165,20 +161,19 @@ message RemoteQueryExecuteChunk {
 // it carries only the integration and target. No query, no result delivery, and
 // no credentials can cross this boundary; the resolver re-runs the same
 // integration matcher execute uses and answers with the structured zero/one/many
-// outcome plus an opaque match fingerprint for the unique case.
+// outcome.
 message RemoteQueryResolveRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
 }
 
 // RemoteQueryResolveResponse is the structured resolution outcome. status is one
-// of matched, target_not_found, ambiguous_target, or resolution_error; when
-// status is matched, match_fingerprint carries the opaque versioned fingerprint
-// the caller revalidates on execute. The error fields mirror the status when set
-// and never carry credentials or raw integration configuration.
+// of matched, target_not_found, ambiguous_target, or resolution_error; a matched
+// answer carries the status only, because there is no resolve-time binding to
+// revalidate on execute. The error fields mirror the status when set and never
+// carry credentials or raw integration configuration.
 message RemoteQueryResolveResponse {
     string status = 1;
-    string match_fingerprint = 2;
-    string error_code = 3;
-    string error_message = 4;
+    string error_code = 2;
+    string error_message = 3;
 }

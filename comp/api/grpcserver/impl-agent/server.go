@@ -428,11 +428,12 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 
 // RemoteQueryResolve resolves an Agent-local Remote Queries target through the
 // shared integration matcher without executing SQL: exactly one loaded check match
-// answers matched with the opaque versioned fingerprint the caller revalidates on
-// execute, zero and multiple matches answer target_not_found and ambiguous_target,
-// and failures to complete matching answer resolution_error. The operation is
-// side-effect-free by construction: no query, no result delivery, and no
-// credentials ever cross the AgentSecure boundary.
+// answers matched, zero and multiple matches answer target_not_found and
+// ambiguous_target, and failures to complete matching answer resolution_error.
+// There is no resolve-time binding: execute resolves the target fresh instead of
+// revalidating a resolve-time answer. The operation is side-effect-free by
+// construction: no query, no result delivery, and no credentials ever cross the
+// AgentSecure boundary.
 func (s *serverSecure) RemoteQueryResolve(_ context.Context, req *pb.RemoteQueryResolveRequest) (*pb.RemoteQueryResolveResponse, error) {
 	if s.remoteQueriesResolve == nil {
 		return remoteQueryResolveErrorResponse(remotequeriesimpl.RemoteQueryStatusResolutionError, "remote query resolver is unavailable"), nil
@@ -458,13 +459,11 @@ func remoteQueryResolveRequestFromProto(req *pb.RemoteQueryResolveRequest) remot
 }
 
 // remoteQueryResolveResponseFromResult maps the sanitized resolver result to the
-// typed AgentSecure response. The error mirrors the status and never carries
-// credentials or raw integration configuration.
+// typed AgentSecure response. A matched answer carries the status only; the error
+// mirrors the status and never carries credentials or raw integration
+// configuration.
 func remoteQueryResolveResponseFromResult(result remotequeriesimpl.RemoteQueryResolveResult) *pb.RemoteQueryResolveResponse {
-	resp := &pb.RemoteQueryResolveResponse{
-		Status:           result.Status,
-		MatchFingerprint: result.MatchFingerprint,
-	}
+	resp := &pb.RemoteQueryResolveResponse{Status: result.Status}
 	if result.Error != nil {
 		resp.ErrorCode = result.Error.Code
 		resp.ErrorMessage = result.Error.Message
@@ -565,9 +564,6 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	if err != nil {
 		return remotequeriesimpl.RemoteQueryExecuteRequest{}, err
 	}
-	// The resolve-time fingerprint is opaque: it crosses the boundary for the pre-SQL
-	// revalidation and is never validated locally.
-	execReq.MatchFingerprint = req.GetMatchFingerprint()
 	return execReq, nil
 }
 

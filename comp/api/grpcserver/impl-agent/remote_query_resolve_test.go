@@ -99,7 +99,6 @@ func TestRemoteQueryResolveReturnsResolutionErrorWhenServiceMissing(t *testing.T
 	assert.Equal(t, remotequeriesimpl.RemoteQueryStatusResolutionError, resp.GetStatus())
 	assert.Equal(t, remotequeriesimpl.RemoteQueryStatusResolutionError, resp.GetErrorCode())
 	assert.Equal(t, "remote query resolver is unavailable", resp.GetErrorMessage())
-	assert.Empty(t, resp.GetMatchFingerprint())
 }
 
 // resolveMatchedEvents and resolveNotFoundEvents build the pinned per-check
@@ -124,7 +123,7 @@ func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 		}}, true),
 	}
 
-	t.Run("unique match answers matched with fingerprint", func(t *testing.T) {
+	t.Run("unique match answers matched", func(t *testing.T) {
 		resp, err := server.RemoteQueryResolve(context.Background(), &pb.RemoteQueryResolveRequest{
 			Integration: "postgres",
 			Target:      &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
@@ -133,7 +132,8 @@ func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Equal(t, remotequeriesimpl.RemoteQueryStatusMatched, resp.GetStatus())
-		assert.Regexp(t, `^[0-9a-f]{64}$`, resp.GetMatchFingerprint())
+		// A matched answer carries exactly the status: there is no resolve-time
+		// binding to revalidate on execute.
 		assert.Empty(t, resp.GetErrorCode())
 		assert.Empty(t, resp.GetErrorMessage())
 	})
@@ -155,7 +155,6 @@ func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 		assert.Equal(t, "target_not_found", resp.GetStatus())
 		assert.Equal(t, "target_not_found", resp.GetErrorCode())
 		assert.Equal(t, "no matching integration check found", resp.GetErrorMessage())
-		assert.Empty(t, resp.GetMatchFingerprint())
 	})
 
 	t.Run("multiple matches answer ambiguous_target", func(t *testing.T) {

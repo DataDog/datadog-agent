@@ -20,10 +20,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-// testExecuteFingerprint is a resolve-issued fingerprint placeholder for mapping
-// tests; its value is opaque to the mapping.
-const testExecuteFingerprint = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
 func TestRemoteQueryExecuteStreamReturnsSanitizedUnavailableWhenServiceMissing(t *testing.T) {
 	stream := &captureRemoteQueryExecuteStreamServer{}
 	err := (&serverSecure{}).RemoteQueryExecuteStream(&pb.RemoteQueryExecuteRequest{}, stream)
@@ -80,19 +76,15 @@ func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
 
 func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-		Integration:      "postgres",
-		Target:           &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
-		Query:            "SELECT city, country FROM cities ORDER BY city",
-		IncludeSchema:    true,
-		ResultDelivery:   validRemoteQueryResultDeliveryProto(),
-		MatchFingerprint: testExecuteFingerprint,
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT city, country FROM cities ORDER BY city",
+		IncludeSchema:  true,
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "postgres", req.Integration)
-	// The resolve-time fingerprint crosses the AgentSecure boundary opaquely for the
-	// pre-SQL revalidation.
-	assert.Equal(t, testExecuteFingerprint, req.MatchFingerprint)
 	assert.Equal(t, "localhost", req.Target.Host)
 	assert.Equal(t, 5432, req.Target.Port)
 	assert.Equal(t, "postgres", req.Target.DBName)

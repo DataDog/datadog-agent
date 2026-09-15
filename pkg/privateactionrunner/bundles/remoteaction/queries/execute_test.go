@@ -29,10 +29,6 @@ const (
 	testBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
 )
 
-// testFingerprint is the opaque resolve-time match fingerprint carried between the
-// resolve and execute modes.
-const testFingerprint = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
 func resultDeliveryInputs() map[string]interface{} {
 	return map[string]interface{}{
 		"runId":           testRunID,
@@ -647,29 +643,6 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	}, output)
 }
 
-// TestExecuteActionForwardsMatchFingerprint proves the optional resolve-time
-// fingerprint crosses the AgentSecure request boundary when the AP execute input
-// carries one.
-func TestExecuteActionForwardsMatchFingerprint(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
-		finalMarker(1),
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":      "postgres",
-		"target":           map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":            "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery":   resultDeliveryInputs(),
-		"matchFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-	}), nil)
-
-	require.NoError(t, err)
-	require.NotNil(t, client.request)
-	assert.Equal(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", client.request.GetMatchFingerprint())
-}
-
 func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		require.Fail(t, "bridge client should not be created for invalid inputs")
@@ -705,12 +678,11 @@ func TestBundleRegistersExecuteActionOnly(t *testing.T) {
 
 // TestExecuteActionResolveOnlyUsesCredentialFreeAgentSecureRequestShape proves the
 // resolveOnly mode routes to the resolve RPC with exactly the integration and
-// target: no query, no result delivery, no fingerprint echo, the execute stream is
-// never opened, and the private credentials never reach the AgentSecure request.
+// target: no query, no result delivery, the execute stream is never opened, and the
+// private credentials never reach the AgentSecure request.
 func TestExecuteActionResolveOnlyUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	client := &captureBridgeClient{resolveResp: &pb.RemoteQueryResolveResponse{
-		Status:           "matched",
-		MatchFingerprint: testFingerprint,
+		Status: "matched",
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
@@ -736,9 +708,10 @@ func TestExecuteActionResolveOnlyUsesCredentialFreeAgentSecureRequestShape(t *te
 
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
+	// The matched resolve output carries exactly the status: there is no
+	// resolve-time binding to revalidate on execute.
 	assert.Equal(t, map[string]interface{}{
-		"status":           "matched",
-		"matchFingerprint": testFingerprint,
+		"status": "matched",
 	}, out)
 }
 
@@ -747,8 +720,7 @@ func TestExecuteActionResolveOnlyUsesCredentialFreeAgentSecureRequestShape(t *te
 // mapping.
 func TestExecuteActionResolveOnlyAcceptsDatabaseInstanceTarget(t *testing.T) {
 	client := &captureBridgeClient{resolveResp: &pb.RemoteQueryResolveResponse{
-		Status:           "matched",
-		MatchFingerprint: testFingerprint,
+		Status: "matched",
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
@@ -775,27 +747,25 @@ func TestExecuteActionExplicitFalseResolveOnlyRunsExecute(t *testing.T) {
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":      "postgres",
-		"target":           map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":            "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery":   resultDeliveryInputs(),
-		"matchFingerprint": testFingerprint,
-		"resolveOnly":      false,
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": resultDeliveryInputs(),
+		"resolveOnly":    false,
 	}), nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, client.request)
 	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", client.request.GetQuery())
-	assert.Equal(t, testFingerprint, client.request.GetMatchFingerprint())
 	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
 }
 
 // TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC proves the resolveOnly
 // mode is side-effect-free by construction: a resolve-mode input carrying any
-// execute-only field — query, includeSchema, resultDelivery, or even a fingerprint —
-// never creates the bridge client. Rejection is presence-based: the empty-string,
-// explicit-false, and null variants are contract violations too, mirroring the
-// retired standalone resolve action's DisallowUnknownFields structural guarantee.
+// execute-only field — query, includeSchema, or resultDelivery — never creates the
+// bridge client. Rejection is presence-based: the empty-string, explicit-false, and
+// null variants are contract violations too, mirroring the retired standalone
+// resolve action's DisallowUnknownFields structural guarantee.
 func TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC(t *testing.T) {
 	executeOnlyInputs := []struct {
 		name  string
@@ -825,14 +795,6 @@ func TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC(t *testing.T)
 			name:  "resultDelivery null but present",
 			extra: map[string]interface{}{"resultDelivery": nil},
 		},
-		{
-			name:  "matchFingerprint",
-			extra: map[string]interface{}{"matchFingerprint": testFingerprint},
-		},
-		{
-			name:  "matchFingerprint empty but present",
-			extra: map[string]interface{}{"matchFingerprint": ""},
-		},
 	}
 
 	for _, tt := range executeOnlyInputs {
@@ -857,7 +819,6 @@ func TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC(t *testing.T)
 			require.ErrorAs(t, err, &parErr)
 			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
 			assert.NotContains(t, err.Error(), "SELECT secret")
-			assert.NotContains(t, err.Error(), testFingerprint)
 		})
 	}
 }
@@ -898,7 +859,7 @@ func TestExecuteActionResolveOnlyRejectsInvalidTargetBeforeRPC(t *testing.T) {
 
 // TestExecuteActionResolveOnlyPropagatesStructuredOutcomes proves the typed resolve
 // response maps to the AP output envelope: non-matched statuses carry the error object
-// mirroring the status, matched carries the fingerprint.
+// mirroring the status, and matched carries the status only.
 func TestExecuteActionResolveOnlyPropagatesStructuredOutcomes(t *testing.T) {
 	t.Run("target not found", func(t *testing.T) {
 		client := &captureBridgeClient{resolveResp: &pb.RemoteQueryResolveResponse{
@@ -970,12 +931,12 @@ func TestExecuteActionResolveOnlyPropagatesStructuredOutcomes(t *testing.T) {
 	})
 }
 
-// TestExecuteActionResolveOnlyPassesThroughWellFormedContractViolations proves the
-// bundle maps resolve responses opaquely: a matched response without a fingerprint
-// and an unknown status pass through unchanged so the dispatcher classifies them
-// (resolution_error) instead of the bundle collapsing them into a transport failure.
-func TestExecuteActionResolveOnlyPassesThroughWellFormedContractViolations(t *testing.T) {
-	t.Run("matched without fingerprint", func(t *testing.T) {
+// TestExecuteActionResolveOnlyPassesThroughStatusOpaquely proves the bundle maps
+// resolve responses opaquely: a matched response and an unknown status pass through
+// unchanged so the dispatcher classifies them (resolution_error for the unknown
+// case) instead of the bundle collapsing them into a transport failure.
+func TestExecuteActionResolveOnlyPassesThroughStatusOpaquely(t *testing.T) {
+	t.Run("matched", func(t *testing.T) {
 		client := &captureBridgeClient{resolveResp: &pb.RemoteQueryResolveResponse{Status: "matched"}}
 		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
