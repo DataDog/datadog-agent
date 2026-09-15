@@ -11,10 +11,9 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/DataDog/zstd"
+	"github.com/qri-io/jsonpointer"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"go.yaml.in/yaml/v3"
@@ -80,10 +79,8 @@ var (
 type Violation struct {
 	Message       string
 	Path          string
-	Rule          string
 	ActualType    string
 	ExpectedTypes []string
-	Required      bool
 }
 
 func collectValidationErrors(ve *jsonschema.ValidationError, out *[]string) {
@@ -96,13 +93,11 @@ func collectValidationErrors(ve *jsonschema.ValidationError, out *[]string) {
 	}
 }
 
-func collectViolations(sch *jsonschema.Schema, ve *jsonschema.ValidationError, out *[]Violation) {
+func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 	if len(ve.Causes) == 0 {
 		violation := Violation{
-			Message:  ve.Error(),
-			Path:     jsonPointer(ve.InstanceLocation),
-			Rule:     strings.Join(ve.ErrorKind.KeywordPath(), "/"),
-			Required: isRequired(sch, ve.InstanceLocation),
+			Message: ve.Error(),
+			Path:    jsonpointer.Pointer(ve.InstanceLocation).String(),
 		}
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
 			violation.ActualType = typeError.Got
@@ -112,81 +107,8 @@ func collectViolations(sch *jsonschema.Schema, ve *jsonschema.ValidationError, o
 		return
 	}
 	for _, cause := range ve.Causes {
-		collectViolations(sch, cause, out)
+		collectViolations(cause, out)
 	}
-}
-
-func jsonPointer(tokens []string) string {
-	if len(tokens) == 0 {
-		return ""
-	}
-
-	var builder strings.Builder
-	for _, token := range tokens {
-		builder.WriteByte('/')
-		builder.WriteString(strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1"))
-	}
-	return builder.String()
-}
-
-func isRequired(sch *jsonschema.Schema, path []string) bool {
-	if len(path) == 0 {
-		return false
-	}
-
-	current := dereferenceSchema(sch)
-	for index, token := range path {
-		if current == nil {
-			return false
-		}
-		if index == len(path)-1 {
-			return contains(current.Required, token)
-		}
-		current = dereferenceSchema(schemaAt(current, token))
-	}
-	return false
-}
-
-func dereferenceSchema(sch *jsonschema.Schema) *jsonschema.Schema {
-	seen := make(map[*jsonschema.Schema]struct{})
-	for sch != nil && sch.Ref != nil {
-		if _, found := seen[sch]; found {
-			return sch
-		}
-		seen[sch] = struct{}{}
-		sch = sch.Ref
-	}
-	return sch
-}
-
-func schemaAt(sch *jsonschema.Schema, token string) *jsonschema.Schema {
-	if property, found := sch.Properties[token]; found {
-		return property
-	}
-
-	index, err := strconv.Atoi(token)
-	if err != nil || index < 0 {
-		return nil
-	}
-	if items, ok := sch.Items.([]*jsonschema.Schema); ok && index < len(items) {
-		return items[index]
-	}
-	if items, ok := sch.Items.(*jsonschema.Schema); ok {
-		return items
-	}
-	if index < len(sch.PrefixItems) {
-		return sch.PrefixItems[index]
-	}
-	return sch.Items2020
-}
-
-func contains(values []string, value string) bool {
-	for _, candidate := range values {
-		if candidate == value {
-			return true
-		}
-	}
-	return false
 }
 
 func validateData(sch *jsonschema.Schema, config interface{}) ([]string, error) {
@@ -221,7 +143,7 @@ func validateDataDetailed(sch *jsonschema.Schema, config interface{}) ([]Violati
 		return []Violation{{Message: err.Error()}}, nil
 	}
 	var out []Violation
-	collectViolations(sch, ve, &out)
+	collectViolations(ve, &out)
 	return out, nil
 }
 

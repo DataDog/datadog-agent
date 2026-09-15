@@ -159,6 +159,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_zstd//:zstd",
+        "@com_github_qri_io_jsonpointer//:jsonpointer",
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_santhosh_tekuri_jsonschema_v6//kind",
         "@in_yaml_go_yaml_v3//:yaml",
