@@ -318,6 +318,7 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(s.baselineConfig))
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
+	s.restartAgent()
 	s.startControl()
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
@@ -357,8 +358,19 @@ func (s *linuxPARSplitSuite) restartControl(config, expectedState string) {
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(config))
+	s.restartAgent()
 	s.startControl()
 	s.waitForProcessState(parControlProcess, expectedState, 2*time.Minute)
+}
+
+func (s *linuxPARSplitSuite) restartAgent() {
+	host := s.Env().RemoteHost
+	_, err := host.Execute("sudo systemctl restart " + coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, err := host.Execute("sudo datadog-agent status")
+		require.NoError(c, err)
+	}, 2*time.Minute, 2*time.Second, "Core Agent should restart with the updated configuration")
 }
 
 func (s *linuxPARSplitSuite) startControl() {
