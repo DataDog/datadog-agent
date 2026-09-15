@@ -30,6 +30,15 @@ const (
 	maxProcEntries = 131072
 )
 
+// Sizes of the event sampling dedup maps. The userspace sample cookie LRU is sized from
+// these.
+const (
+	OpenSamplesMaxEntries    = 20000
+	BindSamplesMaxEntries    = 10000
+	ConnectSamplesMaxEntries = 10000
+	SyscallSamplesMaxEntries = 20000
+)
+
 var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
@@ -308,28 +317,28 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
-			MaxEntries: 20000,
+			MaxEntries: OpenSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingBindEnabled {
 		editors["bind_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: BindSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingConnectEnabled {
 		editors["connect_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: ConnectSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingSyscallsEnabled {
 		editors["syscall_samples"] = manager.MapSpecEditor{
-			MaxEntries: 20000,
+			MaxEntries: SyscallSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

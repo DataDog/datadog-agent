@@ -26,6 +26,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -57,9 +58,39 @@ type sampleCookieEntry struct {
 	imageTag      string
 }
 
-// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
-// so the cookie LRU can hold mappings for every possible dedup entry.
-const sampleCookieMapSize = 4096
+// isOrphaned reports whether the nodes this cookie points at have been evicted. A
+// ProcessNode can outlive the node sampled under it, so the leaf is checked too.
+// Callers must hold e.profile's lock.
+func (e sampleCookieEntry) isOrphaned() bool {
+	if e.processNode == nil || e.processNode.SeenIsEmpty() {
+		return true
+	}
+	return e.eventNodeBase != nil && e.eventNodeBase.SeenIsEmpty()
+}
+
+// sampleCookieMapSize sums the enabled kernel dedup maps. The kernel assumes a cookie it
+// refreshes is still mapped here, so a smaller LRU turns refreshes into misses and lets
+// nodes of running workloads be evicted.
+func sampleCookieMapSize(cfg *config.Config) int {
+	var size int
+	if cfg.RuntimeSecurity.EventSamplingOpenEnabled {
+		size += probes.OpenSamplesMaxEntries
+	}
+	if cfg.RuntimeSecurity.EventSamplingBindEnabled {
+		size += probes.BindSamplesMaxEntries
+	}
+	if cfg.RuntimeSecurity.EventSamplingConnectEnabled {
+		size += probes.ConnectSamplesMaxEntries
+	}
+	if cfg.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		size += probes.SyscallSamplesMaxEntries
+	}
+	if size == 0 {
+		// lru.New rejects non-positive sizes.
+		return 1
+	}
+	return size
+}
 
 const (
 	metricSourceRuntime = iota
@@ -191,7 +222,10 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
-	cookieMap, _ := lru.New[uint64, sampleCookieEntry](sampleCookieMapSize)
+	cookieMap, err := lru.New[uint64, sampleCookieEntry](sampleCookieMapSize(cfg))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate the sample cookie map: %w", err)
+	}
 
 	var containerFilter workloadfilter.FilterBundle
 	if filterStore != nil {
@@ -1531,7 +1565,7 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
-	if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
+	if entry.isOrphaned() {
 		m.sampleCookieMap.Remove(cookie)
 		return
 	}
@@ -1556,8 +1590,8 @@ func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
 	}
 }
 
-// purgeOrphanedCookies removes sampleCookieMap entries whose target ProcessNode
-// has been evicted. Returns the number of entries removed.
+// purgeOrphanedCookies removes sampleCookieMap entries whose target nodes have been
+// evicted. Returns the number of entries removed.
 func (m *ManagerV2) purgeOrphanedCookies() int {
 	var removed int
 	for _, key := range m.sampleCookieMap.Keys() {
@@ -1565,7 +1599,16 @@ func (m *ManagerV2) purgeOrphanedCookies() int {
 		if !ok {
 			continue
 		}
-		if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
+		if entry.profile == nil {
+			m.sampleCookieMap.Remove(key)
+			removed++
+			continue
+		}
+		// Entries can span profiles, so lock per entry.
+		entry.profile.Lock()
+		orphaned := entry.isOrphaned()
+		entry.profile.Unlock()
+		if orphaned {
 			m.sampleCookieMap.Remove(key)
 			removed++
 		}

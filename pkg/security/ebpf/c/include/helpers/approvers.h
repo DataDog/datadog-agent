@@ -116,6 +116,15 @@ static __always_inline u64 gen_sample_cookie(void) {
     return ((u64)bpf_get_prandom_u32() << 32) | (bpf_get_prandom_u32() | 1);
 }
 
+// sample_entry_is_stale reports whether userspace has aged out the node this entry points
+// at, in which case the tuple must be re-sampled rather than refreshed.
+static __always_inline int sample_entry_is_stale(struct sample_entry_t *entry, u64 now) {
+    u64 sample_entry_ttl_ns = 0;
+    LOAD_CONSTANT("sample_entry_ttl_ns", sample_entry_ttl_ns);
+
+    return sample_entry_ttl_ns > 0 && (now - entry->last_refresh_ns) >= sample_entry_ttl_ns;
+}
+
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u64 *out_cookie, u32 *out_refresh_needed) {
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
@@ -147,6 +156,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
 
     struct sample_entry_t *existing = bpf_map_lookup_elem(&bind_samples, key);
     if (existing != NULL) {
+        if (sample_entry_is_stale(existing, now)) {
+            if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
+                return DISCARDED;
+            }
+            existing->cookie = gen_sample_cookie();
+            existing->last_refresh_ns = now;
+            if (out_cookie != NULL) {
+                *out_cookie = existing->cookie;
+            }
+            monitor_event_sample_sampled(EVENT_BIND);
+            return SAMPLED;
+        }
         if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL &&
             (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
             existing->last_refresh_ns = now;
@@ -236,6 +257,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
 
     struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
     if (existing != NULL) {
+        if (sample_entry_is_stale(existing, now)) {
+            if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
+                return DISCARDED;
+            }
+            existing->cookie = gen_sample_cookie();
+            existing->last_refresh_ns = now;
+            if (out_cookie != NULL) {
+                *out_cookie = existing->cookie;
+            }
+            monitor_event_sample_sampled(EVENT_SYSCALLS);
+            return SAMPLED;
+        }
         if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL &&
             (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
             existing->last_refresh_ns = now;
@@ -296,6 +329,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
 
     struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
     if (existing != NULL) {
+        if (sample_entry_is_stale(existing, now)) {
+            if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
+                return DISCARDED;
+            }
+            existing->cookie = gen_sample_cookie();
+            existing->last_refresh_ns = now;
+            if (syscall != NULL) {
+                syscall->sample_cookie = existing->cookie;
+            }
+            monitor_event_sample_sampled(EVENT_CONNECT);
+            return SAMPLED;
+        }
         if (sample_refresh_period_ns > 0 && syscall != NULL &&
             (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
             existing->last_refresh_ns = now;
@@ -627,6 +672,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
 
     struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
     if (existing != NULL) {
+        if (sample_entry_is_stale(existing, now)) {
+            if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
+                return DISCARDED;
+            }
+            existing->cookie = gen_sample_cookie();
+            existing->last_refresh_ns = now;
+            if (syscall != NULL) {
+                syscall->sample_cookie = existing->cookie;
+            }
+            monitor_event_sample_sampled(EVENT_OPEN);
+            return SAMPLED;
+        }
         if (sample_refresh_period_ns > 0 && syscall != NULL &&
             (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
             existing->last_refresh_ns = now;
