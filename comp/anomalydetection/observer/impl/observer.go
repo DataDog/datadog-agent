@@ -1066,7 +1066,7 @@ type metricIngestDecision struct {
 	metric *metricObs
 }
 
-func prepareMetricIngestWithContextKey(source string, contextKey uint64, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+func prepareMetricIngest(source string, contextKey uint64, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
@@ -1106,7 +1106,7 @@ func prepareMetricIngestWithContextKey(source string, contextKey uint64, sample 
 // IngestMetricSync feeds a metric directly into the engine,
 // bypassing the dispatch channel. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView, contextKey uint64) {
-	decision := prepareMetricIngestWithContextKey(source, contextKey, sample, o.metricFilter)
+	decision := prepareMetricIngest(source, contextKey, sample, o.metricFilter)
 	if decision.metric == nil {
 		if o.telemetry != nil && decision.source != "" {
 			o.telemetry.recordFilteredMetric(decision.source)
@@ -1152,7 +1152,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64)
 }
 
 func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
-	decision := prepareMetricIngestWithContextKey(h.source, contextKey, sample, h.filter)
+	decision := prepareMetricIngest(h.source, contextKey, sample, h.filter)
 	if decision.metric == nil {
 		if h.telemetry != nil && decision.source != "" {
 			h.recordFilteredMetric(decision.source)

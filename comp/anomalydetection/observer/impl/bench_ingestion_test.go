@@ -113,7 +113,7 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				decision := prepareMetricIngestWithContextKey("check", contextKey, sample, filter)
+				decision := prepareMetricIngest("check", contextKey, sample, filter)
 				if gotRejected := decision.metric == nil; gotRejected != tc.wantRejected {
 					b.Fatalf("rejected=%t, want %t", gotRejected, tc.wantRejected)
 				}

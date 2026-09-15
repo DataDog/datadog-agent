@@ -47,8 +47,8 @@ func testStorageKeyForMetric(namespace string, sample observerdef.MetricView) ui
 	return storageKeyForContextKey(namespace, testContextKeyFor(sample))
 }
 
-func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
-	return prepareMetricIngestWithContextKey(source, testContextKeyFor(sample), sample, filter)
+func prepareTestMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+	return prepareMetricIngest(source, testContextKeyFor(sample), sample, filter)
 }
 
 func (o *observerImpl) ingestTestMetricSync(source string, sample observerdef.MetricView) {

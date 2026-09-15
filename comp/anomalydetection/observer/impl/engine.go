@@ -472,7 +472,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observeWithKey(extractor.Name(), m, host, timestamp, tags, seriesKey) {
+				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)

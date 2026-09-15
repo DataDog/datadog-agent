@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"unsafe"
@@ -22,6 +24,70 @@ import (
 // based on the metrics-pipeline context key.
 func testStorageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
 	return storageKeyForIdentity(namespace, name, host, tags)
+}
+
+// AddWithHost is a test-only raw-identity insertion helper.
+func (s *timeSeriesStorage) AddWithHost(namespace, name, host string, value float64, timestamp int64, tags []string) AddResult {
+	return s.AddWithKeyAndHost(namespace, name, host, value, timestamp, tags, testStorageKeyForIdentity(namespace, name, host, tags))
+}
+
+// GetSeries is a test-only convenience query. A nil tag slice matches the
+// first series with the namespace and name regardless of tags.
+func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if tags != nil {
+		stats := s.series[testStorageKeyForIdentity(namespace, name, "", tags)]
+		if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
+			return nil
+		}
+		series := stats.toSeries(agg)
+		return &series
+	}
+
+	for _, stats := range s.seriesIDStats {
+		if stats != nil && stats.Namespace == namespace && stats.Name == name {
+			series := stats.toSeries(agg)
+			return &series
+		}
+	}
+	return nil
+}
+
+// parseSeriesKey is test-only support for compact-series-ID fixtures.
+func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
+	parts := strings.SplitN(key, "|", 4)
+	if len(parts) != 4 {
+		return "", "", "", nil, false
+	}
+	if parts[3] == "" {
+		return parts[0], parts[1], parts[2], nil, true
+	}
+	return parts[0], parts[1], parts[2], strings.Split(parts[3], ","), true
+}
+
+// CompactSeriesID is a test-only helper for legacy compact-ID fixtures.
+func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
+	if !ok {
+		return fullKey
+	}
+	baseName, aggStr := nameWithAgg, ""
+	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
+		baseName, aggStr = nameWithAgg[:idx], nameWithAgg[idx+1:]
+	}
+	stats := s.series[testStorageKeyForIdentity(namespace, baseName, host, tags)]
+	if stats == nil || stats.Namespace != namespace || stats.Name != baseName || stats.Host != host {
+		return fullKey
+	}
+	if aggStr != "" {
+		return strconv.Itoa(int(stats.ref)) + ":" + aggStr
+	}
+	return strconv.Itoa(int(stats.ref))
 }
 
 func TestTimeSeriesStorage_Add(t *testing.T) {

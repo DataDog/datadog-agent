@@ -106,7 +106,7 @@ func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 
-	decision := prepareMetricIngest("dogstatsd", &metricObs{
+	decision := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name: "system.cpu.user",
 		host: "host-a",
 		tags: []string{"service:api", "env:prod"},
@@ -304,10 +304,10 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
 	assert.Nil(t, dropped.metric)
 
-	kept := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
+	kept := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, "dogstatsd", kept.source)
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
@@ -328,7 +328,7 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 		tags: []string{"service:web", "env:prod"},
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, "dogstatsd", decision.source)
 	assert.Zero(t, sample.tagsRead)
@@ -359,7 +359,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 		timestamp: 1000,
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, []string{"env:prod", "service:web"}, decision.metric.tags)
 	assert.Equal(t, 1, sample.tagsRead)
@@ -368,7 +368,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:dev"},
 	}
-	decision = prepareMetricIngest("dogstatsd", rejectedSample, filter)
+	decision = prepareTestMetricIngest("dogstatsd", rejectedSample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, 1, rejectedSample.tagsRead)
 }
@@ -390,7 +390,7 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 		tags: []string{"service:web", "env:prod"},
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, 1, sample.tagsRead)
 }
@@ -398,14 +398,14 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
-	allowed := prepareMetricIngest("dogstatsd", &metricObs{
+	allowed := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:  "datadog.agent.running",
 		value: 1,
 	}, filter)
 	require.NotNil(t, allowed.metric)
 	assert.Equal(t, observerdef.AgentNamespace, allowed.source)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:  observerTelemetryMetricPrefix + "metrics.filtered",
 		value: 1,
 	}, filter)
@@ -422,7 +422,7 @@ func TestPrepareMetricIngestAllowsNormalizedAgentMetricsWhenIncludedEarlier(t *t
 	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
-	decision := prepareMetricIngest("dogstatsd", &metricObs{
+	decision := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
@@ -447,7 +447,7 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
-	kept := prepareMetricIngest("dogstatsd", &metricObs{
+	kept := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
@@ -455,7 +455,7 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, observerdef.AgentNamespace, kept.source)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.uptime",
 		value:     1,
 		timestamp: 1000,

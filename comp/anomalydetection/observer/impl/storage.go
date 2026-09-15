@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -337,12 +336,7 @@ type AddResult struct {
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
-	return s.AddWithHost(namespace, name, "", value, timestamp, tags)
-}
-
-// AddWithHost inserts a point whose host is a separate series dimension.
-func (s *timeSeriesStorage) AddWithHost(namespace, name, host string, value float64, timestamp int64, tags []string) AddResult {
-	return s.AddWithKeyAndHost(namespace, name, host, value, timestamp, tags, storageKeyForIdentity(namespace, name, host, tags))
+	return s.AddWithKeyAndHost(namespace, name, "", value, timestamp, tags, storageKeyForIdentity(namespace, name, "", tags))
 }
 
 // AddWithKeyAndHost inserts a point using a series key already computed by the
@@ -445,70 +439,6 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 	copy(s[idx+1:], s[idx:])
 	s[idx] = v
 	return s
-}
-
-// GetSeries returns the series using the specified aggregation.
-// If tags is nil, finds the first series matching namespace and name (ignoring tags).
-func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if tags != nil {
-		// Exact match with tags.
-		stats := s.series[storageKeyForIdentity(namespace, name, "", tags)]
-		if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
-			return nil
-		}
-		series := stats.toSeries(agg)
-		return &series
-	}
-
-	// tags is nil: find first series matching namespace and name (ignoring tags).
-	for _, stats := range s.seriesIDStats {
-		if stats != nil && stats.Namespace == namespace && stats.Name == name {
-			series := stats.toSeries(agg)
-			return &series
-		}
-	}
-	return nil
-}
-
-// GetSeriesSince returns points with timestamp > since (for delta updates).
-// If since is 0, returns all points.
-func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string, agg Aggregate, since int64) *observer.Series {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	stats := s.series[storageKeyForIdentity(namespace, name, "", tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
-		return nil
-	}
-
-	// If since is 0, return all points
-	if since == 0 {
-		series := stats.toSeries(agg)
-		return &series
-	}
-
-	// Binary search for the first timestamp > since.
-	startIdx := searchAfter(stats.buckets, since)
-
-	n := stats.pointCount()
-	points := make([]observer.Point, 0, n-startIdx)
-	for i := startIdx; i < n; i++ {
-		points = append(points, observer.Point{
-			Timestamp: stats.buckets[i].timestamp,
-			Value:     stats.aggregateAt(i, agg),
-		})
-	}
-
-	return &observer.Series{
-		Namespace: stats.Namespace,
-		Name:      stats.Name,
-		Host:      stats.Host,
-		Tags:      stats.Tags,
-		Points:    points,
-	}
 }
 
 // Namespaces returns the set of namespaces that have data.
@@ -638,21 +568,6 @@ func seriesKey(namespace, name, host string, tags []string) string {
 		b.WriteString(t)
 	}
 	return b.String()
-}
-
-// parseSeriesKey parses a series key back into its parts.
-func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
-	parts := strings.SplitN(key, "|", 4)
-	if len(parts) != 4 {
-		return "", "", "", nil, false
-	}
-	namespace = parts[0]
-	name = parts[1]
-	host = parts[2]
-	if parts[3] == "" {
-		return namespace, name, host, nil, true
-	}
-	return namespace, name, host, strings.Split(parts[3], ","), true
 }
 
 // copyTags creates a copy of tags slice.
@@ -1301,40 +1216,6 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 	}
 	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
 	return s.EvictToCapacity(s.cfg.MaxSeries, target)
-}
-
-// CompactSeriesID translates a full series key to its compact numeric ID string.
-// The full key format is "namespace|name:agg|host|tags" where the storage key is
-// "namespace|name|host|tags" (without the agg suffix). This method strips the agg
-// suffix, looks up the numeric ID, and returns "numericID:agg".
-// Returns the original key unchanged if no mapping exists.
-func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
-	if !ok {
-		return fullKey
-	}
-
-	// Split off the aggregation suffix from the name.
-	baseName := nameWithAgg
-	aggStr := ""
-	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
-		baseName = nameWithAgg[:idx]
-		aggStr = nameWithAgg[idx+1:]
-	}
-
-	// Look up by hash; verify identity to guard against hash collisions.
-	stats := s.series[storageKeyForIdentity(namespace, baseName, host, tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != baseName || stats.Host != host {
-		return fullKey
-	}
-
-	if aggStr != "" {
-		return strconv.Itoa(int(stats.ref)) + ":" + aggStr
-	}
-	return strconv.Itoa(int(stats.ref))
 }
 
 // StorageReader interface implementation
