@@ -65,21 +65,22 @@ func CreateFargateLivenessSerie(taskARN string, timestamp time.Time, tags []stri
 // Container Apps replica, app name, subscription ID and resource group instead of a hostname,
 // since Azure Container Apps replicas have no host identity. Tag keys match the ones used by
 // the community DD exporter's otel.datadog_exporter.metrics.running.azurecontainerapps metric.
+// It returns nil unless name, subscriptionID and resourceGroup are all present, matching the DD
+// exporter's behavior of never emitting this billing metric for a partially-identified resource.
 func CreateAzureContainerAppsLivenessSerie(replica, name, subscriptionID, resourceGroup string, timestamp time.Time, tags []string) *metrics.Serie {
+	if name == "" || subscriptionID == "" || resourceGroup == "" {
+		return nil
+	}
+
 	timestampSeconds := time.Duration(timestamp.UnixNano()).Seconds()
 
-	allTags := append([]string{}, tags...)
+	allTags := append([]string{
+		"name:" + name,
+		"subscription_id:" + subscriptionID,
+		"resource_group:" + resourceGroup,
+	}, tags...)
 	if replica != "" {
 		allTags = append(allTags, "replica:"+replica)
-	}
-	if name != "" {
-		allTags = append(allTags, "name:"+name)
-	}
-	if subscriptionID != "" {
-		allTags = append(allTags, "subscription_id:"+subscriptionID)
-	}
-	if resourceGroup != "" {
-		allTags = append(allTags, "resource_group:"+resourceGroup)
 	}
 
 	return &metrics.Serie{

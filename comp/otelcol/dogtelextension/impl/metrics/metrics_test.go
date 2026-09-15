@@ -175,20 +175,29 @@ func TestCreateAzureContainerAppsLivenessSerie_TimestampConversion(t *testing.T)
 }
 
 func TestCreateAzureContainerAppsLivenessSerie_PartialFields(t *testing.T) {
-	// Only replica and name are known; subscription_id/resource_group are omitted
-	// since Azure does not natively provide them (customers set them manually).
+	// subscription_id/resource_group are not natively provided by Azure and require
+	// customers to set them manually; until they do, the resource is not fully
+	// identified and the metric must not be emitted, matching the DD exporter.
 	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "", "", time.Unix(1000, 0), nil)
 
-	require.NotNil(t, serie)
-	assert.ElementsMatch(t, []string{
-		"replica:replica-1",
-		"name:my-app",
-	}, serie.Tags.UnsafeToReadOnlySliceString())
+	assert.Nil(t, serie)
 }
 
 func TestCreateAzureContainerAppsLivenessSerie_EmptyFields(t *testing.T) {
 	serie := CreateAzureContainerAppsLivenessSerie("", "", "", "", time.Unix(1000, 0), nil)
 
+	assert.Nil(t, serie)
+}
+
+func TestCreateAzureContainerAppsLivenessSerie_ReplicaOptional(t *testing.T) {
+	// replica is not one of the gating identity attributes: the metric still
+	// emits without it as long as name/subscription_id/resource_group are set.
+	serie := CreateAzureContainerAppsLivenessSerie("", "my-app", "sub-123", "my-rg", time.Unix(1000, 0), nil)
+
 	require.NotNil(t, serie)
-	assert.Empty(t, serie.Tags.UnsafeToReadOnlySliceString())
+	assert.ElementsMatch(t, []string{
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}, serie.Tags.UnsafeToReadOnlySliceString())
 }

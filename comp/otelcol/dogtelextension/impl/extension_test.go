@@ -246,6 +246,64 @@ func TestSendLivenessMetric_ECSFargate_MetadataError(t *testing.T) {
 	serializer.AssertNotCalled(t, "SendIterableSeries", mock.Anything)
 }
 
+// TestSendLivenessMetric_AzureContainerApps_Success verifies that on Azure Container Apps,
+// with all identifying attributes present, the liveness metric is tagged with the container
+// app identity instead of the host-based metric.
+func TestSendLivenessMetric_AzureContainerApps_Success(t *testing.T) {
+	t.Setenv(containerAppNameEnvVar, "my-app")
+	t.Setenv(containerAppReplicaNameEnvVar, "replica-1")
+	t.Setenv(azureSubscriptionIDEnvVar, "sub-123")
+	t.Setenv(azureResourceGroupEnvVar, "my-rg")
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+
+	var captured []*agentmetrics.Serie
+	serializer := serializermock.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		src := args.Get(0).(agentmetrics.SerieSource)
+		for src.MoveNext() {
+			if s := src.Current(); s != nil {
+				sc := *s
+				captured = append(captured, &sc)
+			}
+		}
+	}).Return(nil)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.NoError(t, err)
+	require.Len(t, captured, 1)
+	assert.Equal(t, "otel.dogtel_extension.running.azurecontainerapps", captured[0].Name)
+	assert.Empty(t, captured[0].Host, "the container apps metric must not carry a host")
+}
+
+// TestSendLivenessMetric_AzureContainerApps_IncompleteIdentity verifies that when Azure
+// Container Apps is detected but subscription_id/resource_group are not set (customers must
+// set them manually), the metric is skipped entirely rather than sent partially tagged.
+func TestSendLivenessMetric_AzureContainerApps_IncompleteIdentity(t *testing.T) {
+	t.Setenv(containerAppNameEnvVar, "my-app")
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+	serializer := serializermock.NewMetricSerializer(t)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.NoError(t, err)
+	serializer.AssertNotCalled(t, "SendIterableSeries", mock.Anything)
+}
+
 // TestIsSecretsNoop_WithNoopImpl verifies that the noop impl is detected.
 func TestIsSecretsNoop_WithNoopImpl(t *testing.T) {
 	var s secrets.Component = &secretnooptypes.SecretNoop{}

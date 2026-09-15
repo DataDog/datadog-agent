@@ -168,6 +168,12 @@ func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
 		serie = dogtelmetrics.CreateLivenessSerie(hostname, now, buildTags)
 	}
 
+	if serie == nil {
+		// e.g. Azure Container Apps identifying attributes are incomplete; skip
+		// rather than emit a partially-tagged billing metric.
+		return nil
+	}
+
 	var serieErr error
 	agentmetrics.Serialize(
 		agentmetrics.NewIterableSeries(func(_ *agentmetrics.Serie) {}, 200, 4000),
