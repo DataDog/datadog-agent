@@ -173,5 +173,6 @@ dd_agent_go_test(
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//assert/yaml",
+        "@com_github_stretchr_testify//require",
     ],
 )
