@@ -6,7 +6,7 @@
 # and assembled into a wheel at build time.
 #
 # This replaces the old 8.2 MiB PyInstaller-frozen gstatus binary with a
-# ~140 KiB from-source wheel + thin entry-point script that runs on the
+# ~140 KiB lightweight wheel + thin entry-point script that runs on the
 # agent's embedded Python. See gstatus.py for details.
 
 load("@rules_license//rules:license.bzl", "license")

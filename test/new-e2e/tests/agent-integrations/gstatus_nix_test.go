@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agentruntimes contains e2e tests for agent runtime components.
-package agentruntimes
+// Package agentintegrations contains e2e tests for agent integration components.
+package agentintegrations
 
 import (
 	"encoding/json"
