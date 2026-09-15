@@ -117,7 +117,7 @@ fn privileged_process_spec(
     install_root: &Path,
     etc_root: &Path,
 ) -> Result<PrivilegedProcessSpec> {
-    use crate::spawn::profile::DATADOG_AGENT_PROCESS;
+    use crate::spawn::DATADOG_AGENT_PROCESS;
 
     match process_name {
         DATADOG_AGENT_PROCESS => Ok(PrivilegedProcessSpec {
@@ -150,7 +150,7 @@ fn normalize_win_path(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use crate::spawn::profile::DATADOG_AGENT_PROCESS;
+    use crate::spawn::DATADOG_AGENT_PROCESS;
 
     #[test]
     fn normalize_win_path_strips_verbatim_prefix() {
