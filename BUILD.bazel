@@ -198,6 +198,22 @@ config_setting(
     ],
 )
 
+# Opt-in for Bazel tests that require an elevated Windows token. This flag only
+# selects targets into the configured build graph; tests should still verify any
+# required privileges at runtime and report a clear skip or failure.
+bool_flag(
+    name = "windows_elevated_tests",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "windows_elevated_tests_disabled",
+    constraint_values = ["@platforms//os:windows"],
+    flag_values = {
+        "//:windows_elevated_tests": "False",
+    },
+)
+
 # The location that the bulk of the agent gets installed to. Like most *nix tools, this
 # is in /opt. That will hold shared libraries, and python packages.  It is not the
 # complete installation, becuase some things go to /etc or /usr.
