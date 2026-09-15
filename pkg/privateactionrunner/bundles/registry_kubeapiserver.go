@@ -48,6 +48,7 @@ import (
 	com_datadoghq_kubernetes_kubeactions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/kubeactions"
 	com_datadoghq_kubernetes_networking "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/networking"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
+	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
 	com_datadoghq_remoteaction_networkconfigmanagement "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement"
@@ -102,6 +103,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.kubeactions":               com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
 			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.postgresql":                           com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
