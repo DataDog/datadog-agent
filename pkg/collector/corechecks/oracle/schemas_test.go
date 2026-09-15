@@ -689,6 +689,48 @@ func TestTableDetailsIndexesGroupByName(t *testing.T) {
 	assert.Equal(t, columnParts("STATUS"), single.Columns)
 }
 
+func TestIndexInfoJSONContract(t *testing.T) {
+	index := indexInfo{
+		Name:   "ORDERS_COMPOSITE_IDX",
+		Unique: true,
+		Type:   "NORMAL",
+		Columns: []indexKeyPart{
+			{Column: "STATUS"},
+			{Expression: `UPPER("STATUS")`},
+			{Column: "CREATED_AT"},
+		},
+	}
+
+	payload, err := json.Marshal(index)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"name": "ORDERS_COMPOSITE_IDX",
+		"is_unique": true,
+		"index_type": "NORMAL",
+		"columns": [
+			{"name": "STATUS"},
+			{"expression": "UPPER(\"STATUS\")"},
+			{"name": "CREATED_AT"}
+		]
+	}`, string(payload))
+
+	var serialized map[string]any
+	require.NoError(t, json.Unmarshal(payload, &serialized))
+	assert.NotContains(t, serialized, "unique")
+
+	columns, ok := serialized["columns"].([]any)
+	require.True(t, ok)
+	require.Len(t, columns, 3)
+	plainPart, ok := columns[0].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, plainPart, "column")
+	assert.NotContains(t, plainPart, "expression")
+	expressionPart, ok := columns[1].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, expressionPart, "name")
+	assert.NotContains(t, expressionPart, "column")
+}
+
 func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
