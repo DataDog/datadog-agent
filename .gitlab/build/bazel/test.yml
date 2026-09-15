@@ -16,7 +16,7 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
     RESULT_JSON: test_output.json
-    GIT_DEPTH: 1000  # Needed by datadog-ci to collect git metadata
+    GIT_DEPTH: 0  # Needed by datadog-ci to collect git metadata
   after_script:
     - dda inv -- -e bazel.process-test-results --bep-file=$BEP_FILE --junit-tar=junit-${CI_JOB_NAME}.tgz --result-json=$RESULT_JSON
     - !reference [.upload_junit_source]
@@ -39,7 +39,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.bazel:test:reporting, after_script]
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
@@ -61,7 +61,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
@@ -74,7 +74,7 @@ bazel:test:linux-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -95,7 +95,7 @@ bazel:test:linux-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -117,7 +117,6 @@ bazel:test:windows-amd64:
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going //... --
-      -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 
@@ -125,8 +124,6 @@ bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going
-      //... --
-      -//test/new-e2e/...
+      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...

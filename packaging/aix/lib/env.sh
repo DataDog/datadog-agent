@@ -31,15 +31,16 @@ BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
 # ── Agent source tree ─────────────────────────────────────────────────────────
-# AGENT_SRC is resolved by walking up from the calling script's directory to
-# the nearest .git ancestor. $0 in a sourced file still refers to the calling
-# script's path, so no caller-provided variable is needed.
-_dir=$(cd "$(dirname "$0")" && pwd)
+# AGENT_SRC is resolved by walking up from the current directory to the nearest
+# .git ancestor. Scripts sourcing env.sh must be run from within the agent
+# repo (relying on the cwd makes the resolution independent of how the caller
+# is itself invoked).
+_dir=$PWD
 while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
     _dir=$(dirname "$_dir")
 done
 if [ ! -e "$_dir/.git" ]; then
-    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$(dirname "$0")" >&2
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$PWD" >&2
     printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
     exit 1
 fi
@@ -133,7 +134,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-GOPATH=/home/gopath
+GOPATH="$BUILD_DIR/gopath"
 GOROOT=/opt/go
 CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"
@@ -143,14 +144,12 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
-# at a time and cap the heap to prevent swap thrash. Each compile process can
-# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
-# On larger hosts, the default parallelism is fine.
+# On hosts with at least 4 GiB of RAM, allow one Go package compilation per
+# 4 GiB of memory and cap each compiler's heap at 3 GiB, leaving 1GiB of margin for each.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
-if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
-    GOFLAGS="-p=1"
-    GOMEMLIMIT=2GiB
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -ge 4194304 ]; then
+    GOFLAGS="-p=$((_mem_kb / 4194304))"
+    GOMEMLIMIT=3GiB
     export GOFLAGS GOMEMLIMIT
 fi
 unset _mem_kb
