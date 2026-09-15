@@ -217,7 +217,7 @@ func (w *noAggregationStreamWorker) run() {
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							if w.observerHandle != nil {
-								contextKey := w.contextKeyGenerator.Generate(sample.Name, sample.Host, tags.UnsafeToReadOnlySliceString())
+								contextKey := w.contextKeyGenerator.Generate(sample.Name, sample.Host, w.metricBuffer.Get())
 								w.observerHandle.ObserveMetric(resolvedMetricView{
 									sample: &sample,
 									host:   sample.Host,
