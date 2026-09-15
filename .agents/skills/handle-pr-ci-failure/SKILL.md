@@ -6,6 +6,7 @@ description: >-
   - "handle this PR-caused CI failure"
   - "fix the CI regression"
   - "continue investigating this PR failure"
+argument-hint: "[--mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
 model: sonnet
 ---
 
@@ -115,7 +116,22 @@ User decision needed: <specific question, or none>
 End PR CI handling result
 ```
 
-`/follow-pr` reads `Outcome`, `Pushed SHA`, and `Cycles consumed` to decide whether to keep monitoring; a direct caller reads the whole block as the final answer.
+`/follow-pr` reads `Outcome`, `Pushed SHA`, and `Cycles consumed` to decide whether to keep monitoring; a direct caller reads the whole block as the final answer. For example, handling the `lint_go_linux-x64` failure from `/triage-ci-failure`'s example above:
+
+```text
+PR CI handling result
+Outcome: pushed
+Failure signatures: pkg/foo/bar.go:42: ineffectual assignment to err (ineffassign)
+Root cause: unused reassignment left over from a refactor earlier in this PR
+Changed files: pkg/foo/bar.go
+Validation: dda inv linter.go --targets=./pkg/foo passed locally
+Commit: a1b2c3d
+Pushed SHA: 9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d
+Cycles consumed: 1
+Remaining uncertainty: none
+User decision needed: none
+End PR CI handling result
+```
 
 ## Safety floor (never overridden by policy)
 

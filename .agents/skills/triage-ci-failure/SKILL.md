@@ -9,7 +9,7 @@ description: >-
   - "why did this job fail"
   - "is there an incident affecting CI"
   - "should I retry this"
-  This should also be invoked whenever the user asks you to investigate _or fix_ a failing CI, to ensure we don't spend hours trying to fix something broken upstream.
+  This should also be invoked whenever the user asks you to investigate _or fix_ a failing CI, to ensure we don't spend hours trying to fix something broken upstream. Diagnosis only — pair with handle-pr-ci-failure to act on a pr-code verdict.
 model: sonnet
 ---
 
@@ -144,6 +144,20 @@ Failure signature: <stable failing command/test/error, e.g. "TestFoo/bar: assert
 Evidence: <one-line summary of the hard evidence from Steps 1-4>
 Proposed fix: <smallest concrete fix, or none>
 Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848 | none
+End CI triage result
+```
+
+`Proposed fix` is `none` for every `Blame` except `pr-code` — only a PR-caused failure gets a concrete fix proposed. For example:
+
+```
+CI triage result
+Job: lint_go_linux-x64
+Pipeline SHA: 8f2c1e9a4b1d7e3f0a9c6b5d4e3f2a1b0c9d8e7f
+Blame: pr-code
+Failure signature: pkg/foo/bar.go:42: ineffectual assignment to err (ineffassign)
+Evidence: introduced in this PR's commit a1b2c3d; the same job passes on main at the same base commit
+Proposed fix: remove the unused `err :=` reassignment on line 42
+Incident: none
 End CI triage result
 ```
 
