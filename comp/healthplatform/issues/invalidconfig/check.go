@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qri-io/jsonpointer"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,6 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+)
+
+const (
+	// pkg/util/scrubber/default.go defaultReplacement.
+	scrubbedValue      = "********"
+	secretHandlePrefix = "ENC["
 )
 
 type violationPayload struct {
@@ -68,6 +75,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
+	violations = filterUploadArtifacts(normalized, violations)
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -124,6 +132,55 @@ func buildViolationPayloads(cfg config.Component, violations []schema.Violation)
 		})
 	}
 	return payloads, true
+}
+
+func filterUploadArtifacts(config map[string]any, violations []schema.Violation) []schema.Violation {
+	retained := make([]schema.Violation, 0, len(violations))
+	for _, violation := range violations {
+		if isUploadArtifact(config, violation) {
+			continue
+		}
+		retained = append(retained, violation)
+	}
+	return retained
+}
+
+func isUploadArtifact(config map[string]any, violation schema.Violation) bool {
+	if violation.Rule != "type" {
+		return false
+	}
+	pointer, err := jsonpointer.Parse(violation.Path)
+	if err != nil {
+		return false
+	}
+	value, err := pointer.Eval(config)
+	if err != nil {
+		return false
+	}
+	text, ok := value.(string)
+	if !ok {
+		return false
+	}
+	if strings.TrimSpace(text) == scrubbedValue {
+		return true
+	}
+	return strings.HasPrefix(text, secretHandlePrefix) && allExpectedTypesScalar(violation.ExpectedTypes)
+}
+
+// Secret backends return scalar values. All-scalar unions are safe to suppress,
+// while a union containing an array or object remains a real configuration error.
+func allExpectedTypesScalar(values []string) bool {
+	if len(values) == 0 {
+		return false
+	}
+	for _, value := range values {
+		switch value {
+		case "string", "number", "integer", "boolean":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func supportedActualType(value string) bool {

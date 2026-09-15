@@ -215,6 +215,72 @@ func TestCheck_KnownSectionReplacedByScalarHasUnknownDefault(t *testing.T) {
 	assert.Empty(t, violations[0].DefaultValue)
 }
 
+func TestCheck_UploadArtifactsDoNotProduceReport(t *testing.T) {
+	requireSchema(t)
+	for name, yaml := range map[string]string{
+		"scrubbed scalar": "forwarder_apikey_validation_interval: 61\n",
+		"secret handle":   "agent_ipc:\n  port: ENC[ipc_port]\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, yaml)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			assert.Empty(t, reports)
+		})
+	}
+}
+
+func TestCheck_UploadArtifactsAreRemovedBeforeIssueContext(t *testing.T) {
+	requireSchema(t)
+	cfg := config.NewMockFromYAML(t, "forwarder_apikey_validation_interval: 61\nagent_ipc:\n  port: wrong\n")
+
+	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+	assert.Equal(t, "1", ctx[contextKeyErrorCount])
+	assert.Contains(t, ctx[contextErrorKey(0)], "agent_ipc/port")
+	assert.NotContains(t, ctx[contextErrorKey(0)], "forwarder_apikey_validation_interval")
+	assert.NotContains(t, ctx, contextErrorKey(1))
+	assert.Equal(t, "1", ctx[contextKeyViolationsVersion])
+
+	var violations []violationPayload
+	require.NoError(t, json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations))
+	require.Len(t, violations, 1)
+	assert.Equal(t, "/agent_ipc/port", violations[0].Path)
+}
+
+func TestCheck_ArtifactLikeRealViolationsAreRetained(t *testing.T) {
+	requireSchema(t)
+	for name, testCase := range map[string]struct {
+		yaml string
+		path string
+	}{
+		"near scrubber replacement": {
+			yaml: "forwarder_timeout: '*********'\n",
+			path: "/forwarder_timeout",
+		},
+		"secret handle for object": {
+			yaml: "apm_config:\n  additional_endpoints: ENC[endpoints]\n",
+			path: "/apm_config/additional_endpoints",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, testCase.yaml)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+
+			var violations []violationPayload
+			require.NoError(t, json.Unmarshal([]byte(reports[0].Context[contextKeyViolations]), &violations))
+			require.Len(t, violations, 1)
+			assert.Equal(t, testCase.path, violations[0].Path)
+		})
+	}
+}
+
 func TestResolveDefault_EncodesDurationAsJSONDurationString(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.Set("agent_ipc.port", 10*time.Second, model.SourceDefault)
