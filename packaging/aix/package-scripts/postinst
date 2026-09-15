@@ -27,6 +27,16 @@ chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
 chown dd-agent:dd-agent /etc/datadog-agent 2>/dev/null || true
 chmod 750 /etc/datadog-agent               2>/dev/null || true
 
+# Pre-create the SRC stderr capture files (see the -e flags on mkssys below).
+# srcmstr runs as root and opens the -e target itself; without this the files
+# would be created root-owned with srcmstr's umask.
+for _svc in agent trace-agent agent-data-plane; do
+    _stderr_log="/var/log/datadog/${_svc}-stderr.log"
+    touch "$_stderr_log" 2>/dev/null || true
+    chown dd-agent:dd-agent "$_stderr_log" 2>/dev/null || true
+    chmod 640 "$_stderr_log" 2>/dev/null || true
+done
+
 # Remove ALL stale SRC entries then register fresh.
 #
 # On AIX, the SRC has two levels of state:
@@ -44,22 +54,30 @@ while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
+# -e captures each subsystem's stderr in a file. Panics, Go fatal errors and
+# pre-logger output (e.g. AIX loader errors, rtloader failures) bypass the
+# internal logger; without -e they only reach /dev/console. stdout is left on
+# the default /dev/console (it mirrors the internal log stream while
+# log_to_console is on, so it must not go to a growing file).
 mkssys -s datadog-agent \
        -p /opt/datadog-agent/bin/agent/agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
        -u dd-agent \
+       -e /var/log/datadog/agent-stderr.log \
        -R -S -n 15 -f 9
 
 mkssys -s datadog-trace-agent \
        -p /opt/datadog-agent/embedded/bin/trace-agent \
        -a "run --config /etc/datadog-agent/datadog.yaml" \
        -u dd-agent \
+       -e /var/log/datadog/trace-agent-stderr.log \
        -R -S -n 15 -f 9
 
 mkssys -s datadog-agent-data-plane \
        -p /opt/datadog-agent/embedded/bin/agent-data-plane \
        -a "--config /etc/datadog-agent/datadog.yaml run --pidfile /opt/datadog-agent/run/agent-data-plane.pid" \
        -u dd-agent \
+       -e /var/log/datadog/agent-data-plane-stderr.log \
        -R -S -n 15 -f 9
 
 # Start (or restart) the agent if datadog.yaml exists.
