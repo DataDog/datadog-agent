@@ -366,18 +366,28 @@ func (p *Provider) HistogramFromSecondsToMicroseconds(metricName string) Transfo
 
 func (p *Provider) ignoreMetricByLabel(metric *prometheus.Sample, metricName string) bool {
 	for lKey, lVal := range p.Config.IgnoreMetricsByLabels {
-		switch val := lVal.(type) {
+		var val []string
+		switch v := lVal.(type) {
 		case []string:
-			if len(val) == 0 {
-				log.Debugf("Skipping filter label `%s` with an empty values list, did you mean to use '*' wildcard?", lKey)
+			val = v
+		case []interface{}: // as of go.yaml.in/yaml/v2 and go.yaml.in/yaml/v3
+			for _, e := range v {
+				if s, ok := e.(string); ok {
+					val = append(val, s)
+				}
 			}
-			for l, v := range metric.Metric {
-				for i := range val {
-					if l == lKey {
-						if val[i] == "*" || val[i] == v {
-							log.Debugf("Skipping metric `%s` due to label key matching: %s", metricName, lKey)
-							return true
-						}
+		default:
+			continue
+		}
+		if len(val) == 0 {
+			log.Debugf("Skipping filter label `%s` with an empty values list, did you mean to use '*' wildcard?", lKey)
+		}
+		for l, v := range metric.Metric {
+			for i := range val {
+				if l == lKey {
+					if val[i] == "*" || val[i] == v {
+						log.Debugf("Skipping metric `%s` due to label key matching: %s", metricName, lKey)
+						return true
 					}
 				}
 			}
