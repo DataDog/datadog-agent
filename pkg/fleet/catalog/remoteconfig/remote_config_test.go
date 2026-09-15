@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog"
+	"github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 

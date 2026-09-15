@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	installercatalog "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog"
-	installercatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/installer/catalog/remoteconfig"
+	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
+	fleetcatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/catalog/remoteconfig"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -161,15 +161,15 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 }
 
 // Package represents a downloadable package.
-type Package = installercatalog.Package
+type Package = fleetcatalog.Package
 
-type catalog = installercatalog.Catalog
+type catalog = fleetcatalog.Catalog
 
 type handleCatalogUpdate func(catalog catalog) error
 
 func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var catalogOnce sync.Once
-	apply := func(catalog installercatalog.Catalog) error {
+	apply := func(catalog fleetcatalog.Catalog) error {
 		err := h(catalog)
 		if err != nil {
 			return err
@@ -177,7 +177,7 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied fun
 		catalogOnce.Do(firstCatalogApplied)
 		return nil
 	}
-	return installercatalogrc.NewUpdateHandler(apply)
+	return fleetcatalogrc.NewUpdateHandler(apply)
 }
 
 const (
