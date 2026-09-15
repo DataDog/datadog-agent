@@ -1725,11 +1725,11 @@ properties:
           basic_tests_enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             description: Enables basic Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
-              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
-              when both options are enabled.
+              system-probe traceroute. Set to false to opt out. Standard connection-monitoring
+              Dynamic Tests take precedence when both options are enabled.
       collector:
         node_type: section
         type: object

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -88,10 +89,11 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 
 	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
+		Lifecycle:      lc,
+		AgentConfig:    config,
+		SysprobeConfig: sysprobeconfigmock.NewMock(t),
+		Logger:         logComp,
+		Telemetry:      telemetryComp,
 	}
 
 	provides, err := NewComponent(requires)
