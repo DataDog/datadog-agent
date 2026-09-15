@@ -65,13 +65,8 @@ mkssys -s datadog-agent-data-plane -G datadog-agent \
        -u dd-agent \
        -R -S -n 15 -f 9
 
-# Start the datadog-agent SRC group automatically at boot: SRC subsystems are NOT
-# auto-started by srcmstr on their own, they need an /etc/inittab entry.
-# mkitab adds "datadog-agent:2:once:startsrc -g datadog-agent", which init runs
-# once when entering multi-user run level 2. Done unconditionally (even with
-# DD_INSTALL_ONLY) — matching the Linux packages' "enabled" semantics: don't
-# start now, but always start on reboot. Remove any stale entry first so
-# upgrades never leave duplicates.
+# Start the datadog-agent SRC group automatically at boot with an /etc/inittab entry.
+# Remove any stale entry first so upgrades never leave duplicates.
 rmitab datadog-agent 2>/dev/null || true
 mkitab "datadog-agent:2:once:startsrc -g datadog-agent >/dev/console 2>&1"
 
