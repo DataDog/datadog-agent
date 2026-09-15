@@ -46,7 +46,7 @@ BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
 BPF_ARRAY_MAP(otel_attrs_gen_id, u32, 1)
 BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
@@ -152,6 +152,8 @@ BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
 // Shared per-CPU staging slot for the deferred span-context fill + send
 BPF_PERCPU_ARRAY_MAP(span_fill_event, struct span_fill_slot_t, 1)
 BPF_PERCPU_ARRAY_MAP(go_labels_scratch_gen, struct go_labels_scratch_t, 1)
+// Per-event span context fill failure counters
+BPF_PERCPU_ARRAY_MAP(span_ctx_stats, struct span_ctx_event_stats_t, SPAN_CTX_EVENT_READER_LAST * SPAN_CTX_EVENT_STATUS_LAST)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
