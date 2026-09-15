@@ -44,7 +44,7 @@ agent_deb-x64-a7:
 agent_deb-arm64-a7:
   extends: [.package_deb_common, .package_deb_arm64]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["datadog-agent-7-arm64"]
   variables:
@@ -63,7 +63,7 @@ agent_deb-x64-a7-fips:
 agent_deb-arm64-a7-fips:
   extends: [.package_deb_common, .package_deb_arm64]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
@@ -73,7 +73,7 @@ agent_deb-arm64-a7-fips:
 .ddot_deb_common:
   extends: .package_deb_common
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     DD_PROJECT: "ddot"
@@ -104,7 +104,7 @@ ddot_deb-arm64-fips:
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["installer-amd64"]
   variables:
@@ -116,7 +116,7 @@ installer_deb-amd64:
 installer_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["installer-arm64"]
   variables:

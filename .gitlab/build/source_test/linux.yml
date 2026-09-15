@@ -74,7 +74,7 @@ tests_serverless-init:
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
@@ -88,7 +88,7 @@ tests_serverless-init-logs:
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]

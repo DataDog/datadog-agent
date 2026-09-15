@@ -31,7 +31,7 @@ new-e2e-privateactionrunner:
     - qa_dca
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:

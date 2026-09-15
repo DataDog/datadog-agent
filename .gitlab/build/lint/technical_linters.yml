@@ -97,7 +97,7 @@ lint_releasenotes_rst:
 lint_releasenotes_unique_ids:
   extends: .lint
   rules:
-    - !reference [.on_mergequeue]
+    - !reference [.on_light_pipeline]
     - !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.releasenote-unique-ids

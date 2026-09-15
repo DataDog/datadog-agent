@@ -18,6 +18,9 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_light_pipeline: &if_light_pipeline
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
@@ -150,7 +153,7 @@ include:
       - <<: *if_main_branch
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
-      - <<: *if_mergequeue
+      - <<: *if_light_pipeline
       - <<: *if_deploy
       - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
@@ -555,7 +558,7 @@ workflow:
     - <<: *if_deploy
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
-    - <<: *if_mergequeue
+    - <<: *if_light_pipeline
     # ADP is shipped in every Agent package and exercised across several test suites.
     # Treat an ADP version bump like a full pipeline so platform-specific regressions
     # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
@@ -603,16 +606,20 @@ workflow:
 # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
 #
 
+.except_light_pipeline:
+  - <<: *if_light_pipeline
+    when: never
+
+.on_light_pipeline:
+  - <<: *if_light_pipeline
+    when: on_success
+
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
 
-.on_mergequeue:
-  - <<: *if_mergequeue
-    when: on_success
-
 .manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - when: manual
     allow_failure: true
 
@@ -647,7 +654,7 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set, or if there are changes to the internal image
 # deployment config file or manually if not
 .on_deploy_internal_or_internal_image_change_or_manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
@@ -669,7 +676,7 @@ workflow:
   - <<: *if_deploy
 
 .on_deploy_stable_or_beta_repo_branch:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
@@ -785,12 +792,12 @@ workflow:
     allow_failure: true
 
 .on_all_builds:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_builds
   - <<: *on_build_changes
 
 .on_all_install_script_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -804,7 +811,7 @@ workflow:
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -815,7 +822,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -826,7 +833,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -837,7 +844,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -848,7 +855,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -859,7 +866,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -870,7 +877,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -900,7 +907,7 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
@@ -953,7 +960,7 @@ workflow:
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
@@ -966,7 +973,7 @@ workflow:
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
     when: never
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   # A fakeintake server change rebuilds the image: run e2e against the built
   # v<sha> image via the override. Must precede the run-all/main/release/rc cases
   # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
@@ -1126,7 +1133,7 @@ workflow:
     when: on_success
 
 .on_otel_components_changes:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - !reference [.on_main]
   - changes:
       paths:
@@ -1184,7 +1191,7 @@ workflow:
     when: on_success
 
 .on_trace_agent_changes_or_manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - pkg/trace/**/*
@@ -1249,7 +1256,7 @@ workflow:
     when: never
 
 .on_macos_files_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - comp/core/gui/impl/systray/**/*
@@ -1257,7 +1264,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_macos_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - omnibus/**/*
@@ -1270,7 +1277,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
@@ -1319,11 +1326,11 @@ workflow:
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 # macOS runners are scarce and queue for tens of minutes under load. These jobs stay
-# mandatory wherever they gate a merge (main/release/mergequeue/forced runs), but on
+# mandatory wherever they gate a merge (main/release/light pipeline/forced runs), but on
 # regular dev branches they become manual so they don't contend for runners on every push.
-.fast_tests_mergequeue_mandatory_manual_on_dev_branch:
+.fast_tests_light_pipeline_mandatory_manual_on_dev_branch:
   - !reference [.fast_tests_variables_named_branches]
-  - <<: *if_mergequeue
+  - <<: *if_light_pipeline
     variables:
       FAST_TESTS: "true"
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
@@ -1341,9 +1348,9 @@ workflow:
       - .gitlab/**/.*
     compare_to: $COMPARE_TO_BRANCH
 
-.on_gitlab_changes_or_mergequeue_or_main:
+.on_gitlab_changes_or_light_pipeline_or_main:
   - !reference [.on_gitlab_changes]
-  - !reference [.on_mergequeue]
+  - !reference [.on_light_pipeline]
   - !reference [.on_main]
 
 .on_invoke_tasks_changes:
@@ -1370,7 +1377,7 @@ workflow:
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
@@ -1380,7 +1387,7 @@ workflow:
 
 .on_rtloader_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - rtloader/**
@@ -1391,7 +1398,7 @@ workflow:
 
 .on_releasenotes_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - releasenotes/notes/**/*.yaml

@@ -47,7 +47,7 @@ new-e2e-privateactionrunner-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:

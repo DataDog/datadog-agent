@@ -12,7 +12,7 @@
 # needs:optional would silently degrade to needs:[] and fire before any build exists, see
 # https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). No optional:
 # true on the need — deploy_deb_testing-a7_x64 is absent from the pipeline only on
-# mergequeue, which .on_dev_branches already excludes, so this job never runs while that
+# the light pipeline, which .on_dev_branches already excludes, so this job never runs while that
 # need would be missing.
 
 .agenttelemetry_metric_vm_notify_rules:
