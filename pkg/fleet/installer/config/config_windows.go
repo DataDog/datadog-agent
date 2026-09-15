@@ -54,7 +54,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return errors.New("there is already an experiment in progress")
 	}
 	// Clear and recreate the experiment/backup directory
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -79,7 +79,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 }
 
 // PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
+func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error checking for experiment directory: %w", err)
@@ -92,7 +92,7 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error renaming deployment ID file: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -118,7 +118,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
 		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
