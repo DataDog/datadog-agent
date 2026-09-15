@@ -41,8 +41,8 @@ const (
 	// This prevents all agents from hitting the intake-key API at the same time
 	backoffRandomizationFactor = 0.10
 
-	// maxAdditionalEndpointsWriteAttempts bounds the read-write-verify retry loop against
-	// concurrent secrets-resolver writes to the same additional_endpoints config value.
+	// These bounds handle local config contention, not provider or network retries.
+	// Keep the immediate read-write-verify loop short, then retry asynchronously.
 	maxAdditionalEndpointsWriteAttempts = 3
 	writebackRetryInitialInterval       = time.Second
 	writebackRetryMaxInterval           = time.Minute

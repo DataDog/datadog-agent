@@ -17,6 +17,7 @@ import (
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // recordingComponent captures the InstanceParams discovery builds, which is what the assertions
@@ -160,12 +161,74 @@ func TestMalformedDirectiveRegistersNothing(t *testing.T) {
 }
 
 func TestParseDelaDirective(t *testing.T) {
-	directive, ok := parseDelaDirective("  DELA( org-uuid-1 , AWS , Region = us-east-1 )  ")
-	require.True(t, ok)
+	tests := []struct {
+		name  string
+		value string
+		want  delaDirective
+	}{
+		{
+			name:  "without parameters",
+			value: "DELA(org-uuid-1, aws)",
+			want:  delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{}},
+		},
+		{
+			name:  "whitespace and case",
+			value: "  DELA( org-uuid-1 , AWS , Region = us-east-1 )  ",
+			want:  delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{"region": "us-east-1"}},
+		},
+		{
+			name:  "fallback before region",
+			value: "DELA(org-uuid-1, aws, fallback=static_key, region=us-gov-east-1)",
+			want: delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{
+				"fallback": "static_key",
+				"region":   "us-gov-east-1",
+			}},
+		},
+		{
+			name:  "region before padded fallback",
+			value: "DELA(org-uuid-1, aws, region=us-east-1, fallback=static_key==)",
+			want: delaDirective{orgUUID: "org-uuid-1", provider: "aws", params: map[string]string{
+				"fallback": "static_key==",
+				"region":   "us-east-1",
+			}},
+		},
+	}
 
-	assert.Equal(t, "org-uuid-1", directive.orgUUID)
-	assert.Equal(t, "aws", directive.provider, "provider must be matched case-insensitively")
-	assert.Equal(t, "us-east-1", directive.params["region"], "param names must be matched case-insensitively")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := parseDelaDirective(test.value)
+			require.True(t, ok)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestParseDelaDirectiveRejectsInvalidInput(t *testing.T) {
+	tests := map[string]string{
+		"missing closing parenthesis": "DELA(org-uuid-1, aws",
+		"missing org":                 "DELA(, aws)",
+		"missing provider":            "DELA(org-uuid-1, )",
+		"invalid org character":       "DELA(org.uuid.1, aws)",
+		"invalid provider character":  "DELA(org-uuid-1, aw$s)",
+		"empty parameter":             "DELA(org-uuid-1, aws,)",
+		"missing parameter separator": "DELA(org-uuid-1, aws, region)",
+		"missing parameter name":      "DELA(org-uuid-1, aws, =us-east-1)",
+		"missing parameter value":     "DELA(org-uuid-1, aws, region=)",
+		"invalid parameter value":     "DELA(org-uuid-1, aws, region=us/east/1)",
+		"invalid region separator":    "DELA(org-uuid-1, aws, region=us-east-1=extra)",
+		"unknown parameter":           "DELA(org-uuid-1, aws, role=example)",
+		"duplicate parameter":         "DELA(org-uuid-1, aws, region=us-east-1, REGION=us-west-1)",
+		"embedded parenthesis":        "DELA(org-uuid-1, aw)s)",
+		"embedded newline":            "DELA(org-uuid-1,\naws)",
+		"trailing input":              "DELA(org-uuid-1, aws) trailing",
+	}
+
+	for name, value := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, ok := parseDelaDirective(value)
+			assert.False(t, ok)
+		})
+	}
 }
 
 // The directive's region must win over the agent-wide default, otherwise a per-endpoint override
@@ -215,7 +278,7 @@ func TestFallbackIsRedactedForEverySpellingThatParses(t *testing.T) {
 			require.Equal(t, "supersecret", parsed.params["fallback"],
 				"this spelling parses as a fallback, so redaction must cover it too")
 
-			assert.NotContains(t, redactDelaDirectiveForLogging(directive), "supersecret")
+			assert.NotContains(t, scrubber.ScrubLine(directive), "supersecret")
 		})
 	}
 }

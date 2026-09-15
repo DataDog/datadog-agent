@@ -18,59 +18,71 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// delaDirectiveRe matches a delegated-auth directive embedded as a value in `additional_endpoints`,
-// e.g. "DELA(<org_uuid>, aws)" or "DELA(<org_uuid>, aws, region=us-east-1)".
-var delaDirectiveRe = regexp.MustCompile(`^DELA\(\s*([^,]+?)\s*,\s*([^,)]+?)\s*(?:,\s*(.*))?\)$`)
+var (
+	delaOrgUUIDRe       = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	delaNameRe          = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	delaRegionRe        = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	delaFallbackValueRe = regexp.MustCompile(`^[A-Za-z0-9_=-]+$`)
+)
 
 // delaDirective is a parsed DELA(...) directive found in an `additional_endpoints` value.
 type delaDirective struct {
 	orgUUID  string
 	provider string
-	// params keys are lower-cased, so lookups here and the redaction regex below agree on which
-	// spellings of a parameter name they cover.
+	// Parameter names are case-insensitive.
 	params map[string]string
 }
 
-// parseDelaDirective parses a DELA(<org_uuid>, <provider>[, key=value, ...]) directive.
-// Returns ok=false for anything that isn't a well-formed directive.
+// parseDelaDirective parses DELA(<org_uuid>, <provider>[, <name>=<value>]...).
+// Whitespace is allowed around separators. Supported parameters are region and fallback.
 func parseDelaDirective(value string) (delaDirective, bool) {
-	matches := delaDirectiveRe.FindStringSubmatch(strings.TrimSpace(value))
-	if matches == nil {
+	if strings.ContainsAny(value, "\r\n") {
+		return delaDirective{}, false
+	}
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, pkgconfigmodel.DelaDirectivePrefix) || !strings.HasSuffix(value, ")") {
 		return delaDirective{}, false
 	}
 
-	orgUUID := strings.TrimSpace(matches[1])
-	provider := strings.TrimSpace(matches[2])
-	if orgUUID == "" || provider == "" {
+	body := value[len(pkgconfigmodel.DelaDirectivePrefix) : len(value)-1]
+	parts := strings.Split(body, ",")
+	if len(parts) < 2 {
+		return delaDirective{}, false
+	}
+
+	orgUUID := strings.TrimSpace(parts[0])
+	provider := strings.TrimSpace(parts[1])
+	if !delaOrgUUIDRe.MatchString(orgUUID) || !delaNameRe.MatchString(provider) {
 		return delaDirective{}, false
 	}
 
 	params := map[string]string{}
-	if matches[3] != "" {
-		for _, pair := range strings.Split(matches[3], ",") {
-			kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
-			if len(kv) != 2 {
-				return delaDirective{}, false
-			}
-			key, val := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
-			if key == "" || val == "" {
-				return delaDirective{}, false
-			}
-			params[strings.ToLower(key)] = val
+	for _, pair := range parts[2:] {
+		key, val, found := strings.Cut(strings.TrimSpace(pair), "=")
+		key = strings.ToLower(strings.TrimSpace(key))
+		val = strings.TrimSpace(val)
+		if !found || !delaNameRe.MatchString(key) {
+			return delaDirective{}, false
 		}
+		switch key {
+		case "region":
+			if !delaRegionRe.MatchString(val) {
+				return delaDirective{}, false
+			}
+		case "fallback":
+			if !delaFallbackValueRe.MatchString(val) {
+				return delaDirective{}, false
+			}
+		default:
+			return delaDirective{}, false
+		}
+		if _, duplicate := params[key]; duplicate {
+			return delaDirective{}, false
+		}
+		params[key] = val
 	}
 
 	return delaDirective{orgUUID: orgUUID, provider: strings.ToLower(provider), params: params}, true
-}
-
-// fallbackParamRe matches a fallback=<value> parameter within a raw DELA(...) string for redaction.
-// The (?i) matches parseDelaDirective's lower-casing of parameter names, so every spelling that
-// parses as a fallback also redacts as one.
-var fallbackParamRe = regexp.MustCompile(`(?i)(fallback\s*=\s*)[^,)]*`)
-
-// redactDelaDirectiveForLogging masks any fallback=<key> parameter's value in value, for logging.
-func redactDelaDirectiveForLogging(value string) string {
-	return fallbackParamRe.ReplaceAllString(value, "${1}***")
 }
 
 // providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
@@ -202,7 +214,7 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, directiveText, describe string, params delegatedauth.InstanceParams) {
 	directive, ok := parseDelaDirective(directiveText)
 	if !ok {
-		log.Warnf("Could not parse the delegated auth directive %q for %s; it will be ignored and no data will be sent to that endpoint", redactDelaDirectiveForLogging(directiveText), describe)
+		log.Warnf("Could not parse the delegated auth directive for %s; it will be ignored and no data will be sent to that endpoint", describe)
 		return
 	}
 	instanceProviderConfig, err := providerConfigForDirective(directive, defaultProviderConfig)
