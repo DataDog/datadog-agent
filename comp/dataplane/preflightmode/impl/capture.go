@@ -28,14 +28,20 @@ const (
 // logger, so such lines are still groupable.
 const targetUnstructured = "<unstructured>"
 
+// sourceUnknown is the source location reported for a record that does not carry a usable one.
+// Output that bypassed ADP's logger has no location at all, and a location that fails
+// validation is treated the same way rather than reported as though it were real.
+const sourceUnknown = "<unknown>"
+
 // Bounds on what one record may contribute and on how much is retained overall.
 //
 // ADP is not chatty, but a process failing to start can loop on the same error, and an
 // unbounded buffer in the Agent is not an acceptable outcome of a pre-flight. Deduplication
 // does most of the work here — a loop on one error costs a single record — and these caps bound
 // the pathological case. Every retained field is bounded, so worst-case retention is
-// arithmetic rather than a running total: maxRecords * (maxSignatureLen + maxTargetLen), plus
-// at most maxLineBytes of unparsed input.
+// arithmetic rather than a running total: maxRecords * (maxSignatureLen + maxTargetLen +
+// maxSourceFileLen + maxSourceLineLen), plus at most maxLineBytes of unparsed input. A field
+// that is rejected rather than bounded holds a sentinel instead, which is a constant.
 const (
 	// maxLineBytes bounds one physical line. ADP renders whole anyhow chains into a message,
 	// so records run long.
@@ -45,6 +51,14 @@ const (
 	// output, so neither can be trusted to be short.
 	maxSignatureLen = 400
 	maxTargetLen    = 128
+
+	// maxSourceFileLen bounds a source file path and maxSourceLineLen a line number. Both come
+	// from ADP's output too, and both are rejected rather than truncated when they overrun: a
+	// truncated path or line number still looks like a real location, and these are reported as
+	// telemetry tags where a plausible-looking wrong value is worse than no value. ADP's own
+	// paths are relative to its repository root, so the longest real one is well under this.
+	maxSourceFileLen = 256
+	maxSourceLineLen = 8
 
 	// maxRecords bounds the retained set.
 	maxRecords = 500
@@ -63,7 +77,8 @@ const (
 //
 //	{"timestamp":"2026-07-27T17:57:51.708503Z","level":"INFO",
 //	 "message":"DogStatsD listener started.","listen_addr":"unixgram:///run/dsd.socket",
-//	 "target":"saluki_components::sources::dogstatsd","line_number":1290}
+//	 "target":"saluki_components::sources::dogstatsd",
+//	 "filename":"lib/saluki-components/src/sources/dogstatsd/mod.rs","line_number":1290}
 //
 // message may be multi-line — ADP renders an anyhow error chain into it — but the newlines
 // are escaped inside the JSON string, so a record is always exactly one physical line. That
@@ -81,6 +96,41 @@ type logRecord struct {
 	// Signature is the message collapsed into a stable, bounded form. It carries the wire
 	// field's json tag because it is unmarshalled from it before being rewritten.
 	Signature string `json:"message"`
+	// SourceFile and SourceLine are where in ADP's own source the record was logged from.
+	// Like Target they are code-determined — ADP's logger fills them in from file!() and
+	// line!() — which is what makes them safe to report, and they are what points a finding at
+	// the log site that produced it. Both are sourceUnknown when the record carries no usable
+	// value, so a location is never half-known.
+	SourceFile string     `json:"filename"`
+	SourceLine sourceLine `json:"line_number"`
+}
+
+// sourceLine is a record's line number, retained as text because it is only ever reported as a
+// tag value and never counted with.
+//
+// It has an unmarshaller of its own purely so that the field arriving as anything other than a
+// JSON number cannot fail the unmarshal and take the whole record down with it. The location is
+// a tag; losing an error record because ADP started quoting its line numbers would be a poor
+// trade. Whatever arrives is validated by normalizeSourceLine before it is retained.
+type sourceLine string
+
+// UnmarshalJSON accepts any JSON value, quoted or not, and never fails.
+func (l *sourceLine) UnmarshalJSON(data []byte) error {
+	*l = sourceLine(bytes.Trim(data, `"`))
+	return nil
+}
+
+// sourceLocation is one log site in ADP's source. Both fields are already normalized and
+// bounded by the time a location is built from a record, because this is what reaches Datadog
+// as a tag.
+type sourceLocation struct {
+	file string
+	line string
+}
+
+// location returns the log site the record came from.
+func (r logRecord) location() sourceLocation {
+	return sourceLocation{file: r.SourceFile, line: string(r.SourceLine)}
 }
 
 // notable reports whether the record is one preflight mode reports on, as opposed to context
@@ -232,7 +282,13 @@ func parseRecord(line string) (logRecord, bool) {
 		if strings.HasPrefix(trimmed, "{") {
 			return logRecord{}, false
 		}
-		return logRecord{Level: levelError, Target: targetUnstructured, Signature: signature(trimmed)}, true
+		return logRecord{
+			Level:      levelError,
+			Target:     targetUnstructured,
+			Signature:  signature(trimmed),
+			SourceFile: sourceUnknown,
+			SourceLine: sourceUnknown,
+		}, true
 	}
 
 	level, ok := normalizeLevel(rec.Level)
@@ -249,6 +305,8 @@ func parseRecord(line string) (logRecord, bool) {
 	if rec.Target == "" {
 		rec.Target = "<unknown>"
 	}
+	rec.SourceFile = normalizeSourceFile(rec.SourceFile)
+	rec.SourceLine = sourceLine(normalizeSourceLine(string(rec.SourceLine)))
 	return rec, true
 }
 
@@ -269,6 +327,41 @@ func normalizeLevel(level string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// sourceFilePattern is what a filename has to match to be reported.
+//
+// ADP fills the field in from file!(), so it is a compile-time constant of ADP's own build and
+// carries nothing operator-controlled. The character set is enforced regardless, because this is
+// the only label value on the finding metric that is read out of ADP's output rather than chosen
+// from a constant here: a value carrying a comma, a colon or whitespace would not survive being
+// turned into a tag intact, and anything that does not look like a source path is not one.
+var sourceFilePattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+
+// normalizeSourceFile returns the file a record was logged from, or sourceUnknown if it did not
+// carry one that can be reported.
+func normalizeSourceFile(file string) string {
+	file = strings.TrimSpace(file)
+	if file == "" || len(file) > maxSourceFileLen || !sourceFilePattern.MatchString(file) {
+		return sourceUnknown
+	}
+	return file
+}
+
+// normalizeSourceLine returns the line a record was logged from, or sourceUnknown if it did not
+// carry one that can be reported. Only digits are accepted: sourceLine takes whatever the field
+// held, so this is where a value that is not a line number is rejected.
+func normalizeSourceLine(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" || len(line) > maxSourceLineLen {
+		return sourceUnknown
+	}
+	for _, c := range []byte(line) {
+		if c < '0' || c > '9' {
+			return sourceUnknown
+		}
+	}
+	return line
 }
 
 // scrubbers collapse a message into a stable signature so the same failure groups across
@@ -307,14 +400,19 @@ var expectedWarnings = []struct{ target, contains string }{
 	{target: "agent_data_plane::internal::env", contains: "standalone mode"},
 }
 
+// isError reports whether the record is an error.
+func isError(r logRecord) bool {
+	return r.Level == levelError
+}
+
+// isUnexpectedWarning reports whether the record is a warning preflight mode did not provoke.
+func isUnexpectedWarning(r logRecord) bool {
+	return r.Level == levelWarn && !isExpectedWarning(r)
+}
+
 // hasErrors reports whether any record was an error.
 func hasErrors(records []logRecord) bool {
-	for _, r := range records {
-		if r.Level == levelError {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(records, isError)
 }
 
 // hasUnexpectedWarnings reports whether any record was a warning preflight mode did not provoke.
@@ -322,12 +420,7 @@ func hasErrors(records []logRecord) bool {
 // Warnings matter because ADP reports some hard blockers at WARN — a rejected API key among
 // them — so treating them as noise would miss what the pre-flight exists to catch.
 func hasUnexpectedWarnings(records []logRecord) bool {
-	for _, r := range records {
-		if r.Level == levelWarn && !isExpectedWarning(r) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(records, isUnexpectedWarning)
 }
 
 func isExpectedWarning(r logRecord) bool {
@@ -337,4 +430,28 @@ func isExpectedWarning(r logRecord) bool {
 		}
 	}
 	return false
+}
+
+// locationsOf returns the distinct log sites of the records matching keep, in first-seen order.
+//
+// Distinct rather than one per record because the same site logging twice says nothing more than
+// it logging once — the capture already deduplicates identical records, and two records from one
+// site differ only in the detail their message carries, which is not shipped. First-seen order so
+// that a caller keeping a prefix of the result keeps the earliest sites, which are the most
+// explanatory ones.
+func locationsOf(records []logRecord, keep func(logRecord) bool) []sourceLocation {
+	var locations []sourceLocation
+	seen := make(map[sourceLocation]struct{})
+	for _, r := range records {
+		if !keep(r) {
+			continue
+		}
+		loc := r.location()
+		if _, dup := seen[loc]; dup {
+			continue
+		}
+		seen[loc] = struct{}{}
+		locations = append(locations, loc)
+	}
+	return locations
 }
