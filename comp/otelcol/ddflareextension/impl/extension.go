@@ -178,7 +178,9 @@ func NewComponent(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 
 		providedConfig := conf.ToStringMap()
-		providedConfig = envConfMap.useEnvVarNames(providedConfig)
+		if envConfMap != nil {
+			providedConfig = envConfMap.useEnvVarNames(providedConfig)
+		}
 		if envbytes, err := yaml.Marshal(providedConfig); err == nil {
 			ext.configStore.setProvided(string(envbytes))
 		}
