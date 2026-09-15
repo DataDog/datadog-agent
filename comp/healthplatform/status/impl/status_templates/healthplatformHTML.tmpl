@@ -10,7 +10,6 @@
         <br>
         Reporting to Datadog<br>
         Last successful send: {{ if .lastSuccessAt }}{{ .lastSuccessAt }}{{ else }}never{{ end }}<br>
-        Issues sent: {{ humanize .issuesSentTotal }}<br>
         Bytes sent: {{ humanize .bytesSentTotal }}<br>
         {{ if .egressHealthy }}
           Send errors: {{ .sendErrorsTotal }}<br>

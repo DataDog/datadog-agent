@@ -56,7 +56,6 @@ type egress struct {
 	lastAttemptAt   time.Time
 	lastSuccessAt   time.Time
 	lastErr         error
-	issuesSentTotal int64
 	bytesSentTotal  int64
 	sendErrorsTotal int64
 }
@@ -188,7 +187,6 @@ func (e *egress) tick() {
 	e.statusMu.Lock()
 	e.lastErr = nil
 	e.lastSuccessAt = now
-	e.issuesSentTotal += int64(len(merged))
 	e.bytesSentTotal += int64(bytesSent)
 	e.statusMu.Unlock()
 
@@ -212,7 +210,6 @@ func (e *egress) Status() egressdef.SendStatus {
 		LastAttemptAt:   e.lastAttemptAt,
 		LastSuccessAt:   e.lastSuccessAt,
 		LastError:       e.lastErr,
-		IssuesSentTotal: e.issuesSentTotal,
 		BytesSentTotal:  e.bytesSentTotal,
 		SendErrorsTotal: e.sendErrorsTotal,
 	}

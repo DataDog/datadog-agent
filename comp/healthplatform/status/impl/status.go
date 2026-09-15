@@ -122,7 +122,6 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 
 	egressStatus := s.egress.Status()
 	hp["egressHealthy"] = egressStatus.Healthy
-	hp["issuesSentTotal"] = egressStatus.IssuesSentTotal
 	hp["bytesSentTotal"] = egressStatus.BytesSentTotal
 	hp["sendErrorsTotal"] = egressStatus.SendErrorsTotal
 	if !egressStatus.LastSuccessAt.IsZero() {

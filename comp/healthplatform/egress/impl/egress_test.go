@@ -288,13 +288,12 @@ func TestStatusInitial(t *testing.T) {
 	assert.True(t, s.LastAttemptAt.IsZero())
 	assert.True(t, s.LastSuccessAt.IsZero())
 	assert.NoError(t, s.LastError)
-	assert.Zero(t, s.IssuesSentTotal)
 	assert.Zero(t, s.BytesSentTotal)
 	assert.Zero(t, s.SendErrorsTotal)
 }
 
 // TestStatusAfterSuccessfulSend verifies Status reflects a successful tick:
-// healthy, LastSuccessAt set, and issues/bytes counters incremented.
+// healthy, LastSuccessAt set, and the bytes counter incremented.
 func TestStatusAfterSuccessfulSend(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
 	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
@@ -309,7 +308,6 @@ func TestStatusAfterSuccessfulSend(t *testing.T) {
 	assert.False(t, s.LastAttemptAt.IsZero())
 	assert.False(t, s.LastSuccessAt.IsZero())
 	assert.NoError(t, s.LastError)
-	assert.EqualValues(t, 1, s.IssuesSentTotal)
 	assert.EqualValues(t, 123, s.BytesSentTotal)
 	assert.Zero(t, s.SendErrorsTotal)
 }
@@ -331,7 +329,6 @@ func TestStatusAfterFailedSend(t *testing.T) {
 	assert.False(t, s.LastAttemptAt.IsZero())
 	assert.True(t, s.LastSuccessAt.IsZero())
 	assert.Equal(t, assert.AnError, s.LastError)
-	assert.Zero(t, s.IssuesSentTotal)
 	assert.Zero(t, s.BytesSentTotal)
 	assert.EqualValues(t, 1, s.SendErrorsTotal)
 }
@@ -480,6 +477,5 @@ func TestStatusRecoversAfterErrorThenSuccess(t *testing.T) {
 	assert.True(t, s.Healthy)
 	assert.NoError(t, s.LastError)
 	assert.EqualValues(t, 1, s.SendErrorsTotal, "cumulative error count must be preserved across recovery")
-	assert.EqualValues(t, 1, s.IssuesSentTotal)
 	assert.EqualValues(t, 10, s.BytesSentTotal)
 }

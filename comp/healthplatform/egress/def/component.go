@@ -28,8 +28,6 @@ type SendStatus struct {
 	// nothing to report leaves this untouched, so a persistent failure stays
 	// reflected here until an actual retry succeeds.
 	LastError error
-	// IssuesSentTotal is the cumulative number of issues sent to the Datadog intake.
-	IssuesSentTotal int64
 	// BytesSentTotal is the cumulative number of payload bytes sent to the Datadog intake.
 	BytesSentTotal int64
 	// SendErrorsTotal is the cumulative number of failed send attempts.
