@@ -12,10 +12,9 @@ use tokio::process::Command;
 
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
-
+use super::stdio::{StdioSetting, parse_stdio_setting};
 #[cfg(unix)]
 use super::stdio_unix::to_command_stdio;
-use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
     command: String,

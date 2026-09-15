@@ -9,7 +9,7 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Security::TOKEN_QUERY;
 
 use crate::spawn::SpawnRequest;
-use crate::spawn::stdio::StdioSetting;
+use crate::spawn::StdioSetting;
 
 use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::super::{install_root, program_data_root};

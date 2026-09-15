@@ -42,8 +42,8 @@ fn file_to_stdio(path: &Path) -> Stdio {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::stdio::parse_stdio_setting;
+    use super::*;
     use crate::test_helpers;
 
     fn command_stdio(yaml: &str) -> Stdio {
