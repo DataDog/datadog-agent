@@ -421,8 +421,9 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
-    bazel("build", f"--platforms={NOSYS_SECCOMP_BAZEL_PLATFORMS[arch]}", NOSYS_SECCOMP_TARGET)
-    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    nosys_seccomp_platform_flag = f"--platforms={NOSYS_SECCOMP_BAZEL_PLATFORMS[arch]}"
+    bazel("build", nosys_seccomp_platform_flag, NOSYS_SECCOMP_TARGET)
+    bazel_bin = bazel("info", "bazel-bin", nosys_seccomp_platform_flag, capture_output=True).strip()
     nosys_so_dest = f"{build_context}/nosys.so"
     shutil.copy2(os.path.join(bazel_bin, "Dockerfiles", "nosys-seccomp", "nosys.so"), nosys_so_dest)
 

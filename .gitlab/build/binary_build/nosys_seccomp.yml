@@ -5,13 +5,15 @@
 .nosys_seccomp-build_common:
   stage: binary_build
   timeout: 15m
+  # Runs in the merge queue (no .except_mergequeue) on purpose: docker_build_base_image
+  # and its downstream consumers (host-profiler, ot-agent standalone images) run
+  # unconditionally, so this producer must be available whenever they are.
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   needs: []
   script:
     - bazel build --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM} //Dockerfiles/nosys-seccomp:nosys.so
-    - cp -v "$(bazelisk info bazel-bin)/Dockerfiles/nosys-seccomp/nosys.so" Dockerfiles/nosys-seccomp/nosys.so
+    - cp -v "$(bazelisk info bazel-bin --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM})/Dockerfiles/nosys-seccomp/nosys.so" Dockerfiles/nosys-seccomp/nosys.so
   artifacts:
     paths:
       - Dockerfiles/nosys-seccomp/nosys.so
