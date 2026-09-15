@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fdb"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -116,6 +117,19 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
 		ms.sender.Gauge(interfaceStatusMetric, 1, ms.hostname, interfaceTags)
+	}
+}
+
+// ReportFDB reports a bounded FDB snapshot (or status-only on failure).
+func (ms *MetricSender) ReportFDB(config *checkconfig.CheckConfig, collectTime time.Time, result fdb.Result) {
+	payloads := devicemetadata.BatchFDBPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, &result.Status, result.Entries)
+	for _, payload := range payloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("Error marshalling FDB metadata: %s", err)
+			return
+		}
+		ms.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 }
 

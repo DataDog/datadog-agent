@@ -150,6 +150,16 @@ properties:
         visibility: public
         description: Enable collection of VPN tunnels and route table data
         example: 'true'
+      collect_fdb:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Enable bounded collection of switch forwarding-database (FDB) entries
+          used for host-to-device correlation. Collection is opt-in and uses
+          standard Q-BRIDGE-MIB and BRIDGE-MIB data.
+        example: 'true'
       device_tags_source:
         node_type: setting
         type: string

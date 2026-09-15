@@ -150,3 +150,41 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Len(t, payloads[8].Diagnoses, 51)
 	assert.Equal(t, diagnoses[49:100], payloads[8].Diagnoses)
 }
+
+func Test_batchFDBPayloads(t *testing.T) {
+	collectTime := mockTimeNow()
+	status := &FDBStatusMetadata{
+		DeviceID: "default:1.2.3.4",
+		Status:   FDBCollectStatusSuccess,
+		Source:   FDBSourceQBridge,
+		RowCount: 150,
+	}
+	var entries []FDBEntryMetadata
+	for i := 0; i < 150; i++ {
+		entries = append(entries, FDBEntryMetadata{
+			DeviceID:   "default:1.2.3.4",
+			MacAddress: "aa:bb:cc:dd:ee:ff",
+			BridgePort: 1,
+			Source:     FDBSourceQBridge,
+		})
+	}
+
+	payloads := BatchFDBPayloads("my-ns", "127.0.0.0/30", collectTime, 100, status, entries)
+	require.Len(t, payloads, 2)
+	assert.Equal(t, integrations.SNMP, payloads[0].Integration)
+	assert.Equal(t, "my-ns", payloads[0].Namespace)
+	require.NotNil(t, payloads[0].FDBStatus)
+	assert.Equal(t, FDBCollectStatusSuccess, payloads[0].FDBStatus.Status)
+	assert.Len(t, payloads[0].FDBEntries, 99)
+	assert.Nil(t, payloads[1].FDBStatus)
+	assert.Len(t, payloads[1].FDBEntries, 51)
+
+	statusOnly := BatchFDBPayloads("my-ns", "", collectTime, 100, &FDBStatusMetadata{
+		DeviceID: "default:1.2.3.4",
+		Status:   FDBCollectStatusTruncated,
+		Reason:   "max_entries",
+	}, nil)
+	require.Len(t, statusOnly, 1)
+	assert.Equal(t, FDBCollectStatusTruncated, statusOnly[0].FDBStatus.Status)
+	assert.Empty(t, statusOnly[0].FDBEntries)
+}

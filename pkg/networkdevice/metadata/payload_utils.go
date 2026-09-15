@@ -74,6 +74,27 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 	return payloads
 }
 
+// BatchFDBPayloads batches FDB entries across NetworkDevicesMetadata payloads.
+// Status is included on the first payload and counts as one resource. Failed or
+// truncated attempts should pass a nil/empty entries slice.
+func BatchFDBPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, status *FDBStatusMetadata, entries []FDBEntryMetadata) []NetworkDevicesMetadata {
+	var payloads []NetworkDevicesMetadata
+	var resourceCount int
+
+	curPayload := newNetworkDevicesMetadata(integrations.SNMP, namespace, subnet, collectTime)
+	if status != nil {
+		payloads, curPayload, resourceCount = appendToPayloads(integrations.SNMP, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		statusCopy := *status
+		curPayload.FDBStatus = &statusCopy
+	}
+	for _, entry := range entries {
+		payloads, curPayload, resourceCount = appendToPayloads(integrations.SNMP, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.FDBEntries = append(curPayload.FDBEntries, entry)
+	}
+	payloads = append(payloads, curPayload)
+	return payloads
+}
+
 func newNetworkDevicesMetadata(integration integrations.Integration, namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
 	return NetworkDevicesMetadata{
 		Subnet:           subnet,

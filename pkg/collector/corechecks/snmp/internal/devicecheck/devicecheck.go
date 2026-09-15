@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fdb"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -152,6 +153,7 @@ type DeviceCheck struct {
 	cacheKey                string
 	agentConfig             config.Component
 	profileCache            profileCache
+	lastFDBCollect          time.Time
 }
 
 const cacheKeyPrefix = "snmp-tags"
@@ -365,6 +367,10 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
+	if sess != nil && deviceReachable {
+		d.maybeCollectFDB(sess, collectionTime)
+	}
+
 	d.submitTelemetryMetrics(sess, startTime, metricTags)
 	d.setDeviceHostExternalTags()
 
@@ -377,6 +383,24 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.Add(-bandwidthStateTTL).UnixNano())
 
 	return checkErr
+}
+
+func (d *DeviceCheck) maybeCollectFDB(sess session.Session, collectionTime time.Time) {
+	if !d.config.CollectFDB {
+		return
+	}
+	if !d.lastFDBCollect.IsZero() && collectionTime.Sub(d.lastFDBCollect) < d.config.FDBCollectionInterval {
+		return
+	}
+	d.lastFDBCollect = collectionTime
+
+	result := fdb.Collect(sess, fdb.Config{
+		DeviceID:           d.config.DeviceID,
+		MaxEntries:         d.config.FDBMaxEntries,
+		MaxDuration:        d.config.FDBMaxDuration,
+		BulkMaxRepetitions: d.config.BulkMaxRepetitions,
+	})
+	d.sender.ReportFDB(d.config, collectionTime, result)
 }
 
 func (d *DeviceCheck) setDeviceHostExternalTags() {

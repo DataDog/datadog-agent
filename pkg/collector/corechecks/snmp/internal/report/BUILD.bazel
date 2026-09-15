@@ -21,6 +21,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/fdb",
         "//pkg/collector/corechecks/snmp/internal/lldp",
         "//pkg/collector/corechecks/snmp/internal/metadata",
         "//pkg/collector/corechecks/snmp/internal/valuestore",
@@ -40,6 +41,7 @@ dd_agent_go_test(
     srcs = [
         "interface_bandwidth_usage_rate_test.go",
         "report_device_metadata_test.go",
+        "report_fdb_test.go",
         "report_format_test.go",
         "report_interface_volume_metrics_test.go",
         "report_memory_usage_test.go",
@@ -53,6 +55,7 @@ dd_agent_go_test(
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/fdb",
         "//pkg/collector/corechecks/snmp/internal/profile",
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "//pkg/networkdevice/metadata",

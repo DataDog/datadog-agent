@@ -3810,6 +3810,14 @@ api_key:
 #
 #     collect_vpn: true
 
+#     # @param collect_fdb - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_COLLECT_FDB - boolean - optional - default: false
+#     # Enable bounded collection of switch forwarding-database (FDB) entries
+#     # used for host-to-device correlation. Collection is opt-in and uses
+#     # standard Q-BRIDGE-MIB and BRIDGE-MIB data.
+#
+#     collect_fdb: true
+
 #     # @param device_tags_source - string - optional - default: "resource"
 #     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_DEVICE_TAGS_SOURCE - string - optional - default: "resource"
 #     # Where the device tags on metrics come from.

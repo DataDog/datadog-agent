@@ -48,6 +48,8 @@ type NetworkDevicesMetadata struct {
 	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
 	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
+	FDBEntries       []FDBEntryMetadata       `json:"fdb_entries,omitempty"`
+	FDBStatus        *FDBStatusMetadata       `json:"fdb_status,omitempty"`
 	CollectTimestamp int64                    `json:"collect_timestamp"`
 }
 
@@ -226,4 +228,39 @@ type DiagnosisMetadata struct {
 	ResourceType string      `json:"resource_type"`
 	ResourceID   string      `json:"resource_id"`
 	Diagnoses    []Diagnosis `json:"diagnoses"`
+}
+
+const (
+	// FDBSourceQBridge is the Q-BRIDGE-MIB FDB table.
+	FDBSourceQBridge = "q-bridge"
+	// FDBSourceBridge is the BRIDGE-MIB FDB table.
+	FDBSourceBridge = "bridge"
+
+	// FDBCollectStatusSuccess means a complete FDB snapshot was collected.
+	FDBCollectStatusSuccess = "success"
+	// FDBCollectStatusTruncated means a safety limit was hit and rows were discarded.
+	FDBCollectStatusTruncated = "truncated"
+	// FDBCollectStatusError means the FDB walk failed.
+	FDBCollectStatusError = "error"
+)
+
+// FDBEntryMetadata is one resolved FDB observation.
+type FDBEntryMetadata struct {
+	DeviceID       string `json:"device_id"`
+	FDBID          string `json:"fdb_id,omitempty"`
+	MacAddress     string `json:"mac_address"`
+	BridgePort     int32  `json:"bridge_port"`
+	InterfaceIndex int32  `json:"interface_index,omitempty"`
+	InterfaceID    string `json:"interface_id,omitempty"`
+	Source         string `json:"source"`
+}
+
+// FDBStatusMetadata is the outcome of one FDB collection attempt.
+type FDBStatusMetadata struct {
+	DeviceID   string `json:"device_id"`
+	Status     string `json:"status"`
+	Source     string `json:"source,omitempty"`
+	RowCount   int    `json:"row_count"`
+	DurationMs int64  `json:"duration_ms"`
+	Reason     string `json:"reason,omitempty"`
 }

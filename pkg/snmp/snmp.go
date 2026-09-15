@@ -36,6 +36,7 @@ type ListenerConfig struct {
 	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
 	CollectTopology         bool                       `mapstructure:"collect_topology"`
 	CollectVPN              bool                       `mapstructure:"collect_vpn"`
+	CollectFDB              bool                       `mapstructure:"collect_fdb"`
 	DeviceTagsSource        string                     `mapstructure:"device_tags_source"`
 	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
 	Namespace               string                     `mapstructure:"namespace"`
@@ -65,6 +66,7 @@ type UnmarshalledConfig struct {
 	CollectDeviceMetadata *bool                                        `mapstructure:"collect_device_metadata"`
 	CollectTopology       *bool                                        `mapstructure:"collect_topology"`
 	CollectVPN            *bool                                        `mapstructure:"collect_vpn"`
+	CollectFDB            *bool                                        `mapstructure:"collect_fdb"`
 	DeviceTagsSource      string                                       `mapstructure:"device_tags_source"`
 	Community             string                                       `mapstructure:"community_string"`
 	ContextEngineID       string                                       `mapstructure:"context_engine_id"`
@@ -122,6 +124,7 @@ type Config struct {
 	CollectDeviceMetadata   bool
 	CollectTopology         bool
 	CollectVPN              bool
+	CollectFDB              bool
 	DeviceTagsSource        string
 	IgnoredIPAddresses      map[string]bool
 	UseDeviceIDAsHostname   bool
@@ -249,6 +252,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectVPN = *unmarshalledConfig.CollectVPN
 		} else {
 			config.CollectVPN = snmpConfig.CollectVPN
+		}
+
+		if unmarshalledConfig.CollectFDB != nil {
+			config.CollectFDB = *unmarshalledConfig.CollectFDB
+		} else {
+			config.CollectFDB = snmpConfig.CollectFDB
 		}
 
 		if unmarshalledConfig.DeviceTagsSource != "" {
