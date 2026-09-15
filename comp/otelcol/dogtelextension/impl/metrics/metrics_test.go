@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,11 +61,10 @@ func TestTagsFromBuildInfo(t *testing.T) {
 
 func TestCreateLivenessSerie(t *testing.T) {
 	hostname := "test-host"
-	// 1000 seconds in nanoseconds
-	timestampNs := uint64(1000 * 1e9)
+	timestamp := time.Unix(1000, 0)
 	tags := []string{"version:1.0.0", "command:otel-agent"}
 
-	serie := CreateLivenessSerie(hostname, timestampNs, tags)
+	serie := CreateLivenessSerie(hostname, timestamp, tags)
 
 	require.NotNil(t, serie)
 	assert.Equal(t, "otel.dogtel_extension.running", serie.Name)
@@ -81,9 +81,9 @@ func TestCreateLivenessSerie(t *testing.T) {
 }
 
 func TestCreateLivenessSerie_TimestampConversion(t *testing.T) {
-	// Verify nanoseconds are correctly converted to seconds
-	timestampNs := uint64(1704067200 * 1e9) // 2024-01-01 00:00:00 UTC in nanoseconds
-	serie := CreateLivenessSerie("host", timestampNs, nil)
+	// Verify the timestamp is correctly converted to a Unix seconds float
+	timestamp := time.Unix(1704067200, 0) // 2024-01-01 00:00:00 UTC
+	serie := CreateLivenessSerie("host", timestamp, nil)
 
 	require.NotNil(t, serie)
 	require.Len(t, serie.Points, 1)
@@ -91,18 +91,17 @@ func TestCreateLivenessSerie_TimestampConversion(t *testing.T) {
 }
 
 func TestCreateLivenessSerie_EmptyTags(t *testing.T) {
-	serie := CreateLivenessSerie("host", uint64(1000*1e9), nil)
+	serie := CreateLivenessSerie("host", time.Unix(1000, 0), nil)
 	require.NotNil(t, serie)
 	assert.Empty(t, serie.Tags.UnsafeToReadOnlySliceString())
 }
 
 func TestCreateFargateLivenessSerie(t *testing.T) {
 	taskARN := "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
-	// 1000 seconds in nanoseconds
-	timestampNs := uint64(1000 * 1e9)
+	timestamp := time.Unix(1000, 0)
 	tags := []string{"version:1.0.0", "command:otel-agent"}
 
-	serie := CreateFargateLivenessSerie(taskARN, timestampNs, tags)
+	serie := CreateFargateLivenessSerie(taskARN, timestamp, tags)
 
 	require.NotNil(t, serie)
 	assert.Equal(t, "otel.dogtel_extension.running.fargate", serie.Name)
@@ -123,8 +122,8 @@ func TestCreateFargateLivenessSerie(t *testing.T) {
 }
 
 func TestCreateFargateLivenessSerie_TimestampConversion(t *testing.T) {
-	timestampNs := uint64(1704067200 * 1e9) // 2024-01-01 00:00:00 UTC in nanoseconds
-	serie := CreateFargateLivenessSerie("arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123", timestampNs, nil)
+	timestamp := time.Unix(1704067200, 0) // 2024-01-01 00:00:00 UTC
+	serie := CreateFargateLivenessSerie("arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123", timestamp, nil)
 
 	require.NotNil(t, serie)
 	require.Len(t, serie.Points, 1)
@@ -133,18 +132,17 @@ func TestCreateFargateLivenessSerie_TimestampConversion(t *testing.T) {
 
 func TestCreateFargateLivenessSerie_NoBuildTags(t *testing.T) {
 	taskARN := "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
-	serie := CreateFargateLivenessSerie(taskARN, uint64(1000*1e9), nil)
+	serie := CreateFargateLivenessSerie(taskARN, time.Unix(1000, 0), nil)
 
 	require.NotNil(t, serie)
 	assert.Equal(t, []string{"task_arn:" + taskARN}, serie.Tags.UnsafeToReadOnlySliceString())
 }
 
 func TestCreateAzureContainerAppsLivenessSerie(t *testing.T) {
-	// 1000 seconds in nanoseconds
-	timestampNs := uint64(1000 * 1e9)
+	timestamp := time.Unix(1000, 0)
 	tags := []string{"version:1.0.0", "command:otel-agent"}
 
-	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "sub-123", "my-rg", timestampNs, tags)
+	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "sub-123", "my-rg", timestamp, tags)
 
 	require.NotNil(t, serie)
 	assert.Equal(t, "otel.dogtel_extension.running.azurecontainerapps", serie.Name)
@@ -168,8 +166,8 @@ func TestCreateAzureContainerAppsLivenessSerie(t *testing.T) {
 }
 
 func TestCreateAzureContainerAppsLivenessSerie_TimestampConversion(t *testing.T) {
-	timestampNs := uint64(1704067200 * 1e9) // 2024-01-01 00:00:00 UTC in nanoseconds
-	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "sub-123", "my-rg", timestampNs, nil)
+	timestamp := time.Unix(1704067200, 0) // 2024-01-01 00:00:00 UTC
+	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "sub-123", "my-rg", timestamp, nil)
 
 	require.NotNil(t, serie)
 	require.Len(t, serie.Points, 1)
@@ -179,7 +177,7 @@ func TestCreateAzureContainerAppsLivenessSerie_TimestampConversion(t *testing.T)
 func TestCreateAzureContainerAppsLivenessSerie_PartialFields(t *testing.T) {
 	// Only replica and name are known; subscription_id/resource_group are omitted
 	// since Azure does not natively provide them (customers set them manually).
-	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "", "", uint64(1000*1e9), nil)
+	serie := CreateAzureContainerAppsLivenessSerie("replica-1", "my-app", "", "", time.Unix(1000, 0), nil)
 
 	require.NotNil(t, serie)
 	assert.ElementsMatch(t, []string{
@@ -189,7 +187,7 @@ func TestCreateAzureContainerAppsLivenessSerie_PartialFields(t *testing.T) {
 }
 
 func TestCreateAzureContainerAppsLivenessSerie_EmptyFields(t *testing.T) {
-	serie := CreateAzureContainerAppsLivenessSerie("", "", "", "", uint64(1000*1e9), nil)
+	serie := CreateAzureContainerAppsLivenessSerie("", "", "", "", time.Unix(1000, 0), nil)
 
 	require.NotNil(t, serie)
 	assert.Empty(t, serie.Tags.UnsafeToReadOnlySliceString())

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -145,7 +144,7 @@ func (e *dogtelExtension) livenessMetricLoop() {
 // On ECS Fargate or Azure Container Apps, the metric is tagged with the task ARN or
 // container app identity instead of a hostname, since those workloads have no host identity.
 func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
-	now := pcommon.NewTimestampFromTime(time.Now())
+	now := time.Now()
 	buildTags := dogtelmetrics.TagsFromBuildInfo(e.buildInfo)
 
 	var serie *agentmetrics.Serie
@@ -155,18 +154,18 @@ func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get ECS task ARN: %w", err)
 		}
-		serie = dogtelmetrics.CreateFargateLivenessSerie(taskARN, uint64(now), buildTags)
+		serie = dogtelmetrics.CreateFargateLivenessSerie(taskARN, now, buildTags)
 	case isAzureContainerApps():
 		serie = dogtelmetrics.CreateAzureContainerAppsLivenessSerie(
 			os.Getenv(containerAppReplicaNameEnvVar),
 			os.Getenv(containerAppNameEnvVar),
 			os.Getenv(azureSubscriptionIDEnvVar),
 			os.Getenv(azureResourceGroupEnvVar),
-			uint64(now), buildTags,
+			now, buildTags,
 		)
 	default:
 		hostname := e.hostname.GetSafe(ctx)
-		serie = dogtelmetrics.CreateLivenessSerie(hostname, uint64(now), buildTags)
+		serie = dogtelmetrics.CreateLivenessSerie(hostname, now, buildTags)
 	}
 
 	var serieErr error

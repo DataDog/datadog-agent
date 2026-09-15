@@ -7,6 +7,8 @@
 package metrics
 
 import (
+	"time"
+
 	"go.opentelemetry.io/collector/component"
 
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -27,14 +29,12 @@ func TagsFromBuildInfo(buildInfo component.BuildInfo) []string {
 }
 
 // CreateLivenessSerie creates a liveness metric serie to report that the dogtel extension is running.
-// The timestamp should be in Unix nanoseconds.
-func CreateLivenessSerie(hostname string, timestampNs uint64, tags []string) *metrics.Serie {
-	// Transform UnixNano timestamp into Unix timestamp (seconds)
-	timestamp := float64(timestampNs / 1e9)
+func CreateLivenessSerie(hostname string, timestamp time.Time, tags []string) *metrics.Serie {
+	timestampSeconds := time.Duration(timestamp.UnixNano()).Seconds()
 
 	return &metrics.Serie{
 		Name:           "otel.dogtel_extension.running",
-		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Points:         []metrics.Point{{Ts: timestampSeconds, Value: 1.0}},
 		Tags:           tagset.NewCompositeTags(tags, nil),
 		Host:           hostname,
 		MType:          metrics.APIGaugeType,
@@ -46,16 +46,14 @@ func CreateLivenessSerie(hostname string, timestampNs uint64, tags []string) *me
 // CreateFargateLivenessSerie creates a liveness metric serie to report that the dogtel extension
 // is running in an ECS Fargate task. The task is identified by its ARN rather than a hostname,
 // since Fargate tasks have no host identity.
-// The timestamp should be in Unix nanoseconds.
-func CreateFargateLivenessSerie(taskARN string, timestampNs uint64, tags []string) *metrics.Serie {
-	// Transform UnixNano timestamp into Unix timestamp (seconds)
-	timestamp := float64(timestampNs / 1e9)
+func CreateFargateLivenessSerie(taskARN string, timestamp time.Time, tags []string) *metrics.Serie {
+	timestampSeconds := time.Duration(timestamp.UnixNano()).Seconds()
 
 	allTags := append([]string{taggertags.TaskARN + ":" + taskARN}, tags...)
 
 	return &metrics.Serie{
 		Name:           "otel.dogtel_extension.running.fargate",
-		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Points:         []metrics.Point{{Ts: timestampSeconds, Value: 1.0}},
 		Tags:           tagset.NewCompositeTags(allTags, nil),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "otel.dogtel_extension",
@@ -67,10 +65,8 @@ func CreateFargateLivenessSerie(taskARN string, timestampNs uint64, tags []strin
 // Container Apps replica, app name, subscription ID and resource group instead of a hostname,
 // since Azure Container Apps replicas have no host identity. Tag keys match the ones used by
 // the community DD exporter's otel.datadog_exporter.metrics.running.azurecontainerapps metric.
-// The timestamp should be in Unix nanoseconds.
-func CreateAzureContainerAppsLivenessSerie(replica, name, subscriptionID, resourceGroup string, timestampNs uint64, tags []string) *metrics.Serie {
-	// Transform UnixNano timestamp into Unix timestamp (seconds)
-	timestamp := float64(timestampNs / 1e9)
+func CreateAzureContainerAppsLivenessSerie(replica, name, subscriptionID, resourceGroup string, timestamp time.Time, tags []string) *metrics.Serie {
+	timestampSeconds := time.Duration(timestamp.UnixNano()).Seconds()
 
 	allTags := append([]string{}, tags...)
 	if replica != "" {
@@ -88,7 +84,7 @@ func CreateAzureContainerAppsLivenessSerie(replica, name, subscriptionID, resour
 
 	return &metrics.Serie{
 		Name:           "otel.dogtel_extension.running.azurecontainerapps",
-		Points:         []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Points:         []metrics.Point{{Ts: timestampSeconds, Value: 1.0}},
 		Tags:           tagset.NewCompositeTags(allTags, nil),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "otel.dogtel_extension",

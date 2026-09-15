@@ -19,7 +19,6 @@ go_library(
         "//comp/core/secrets/def",
         "//comp/core/tagger/def",
         "//comp/core/telemetry/def",
-        "//comp/core/workloadmeta/def",
         "//comp/def",
         "//comp/otelcol/collector-contrib/def",
         "//comp/otelcol/collector/def",
