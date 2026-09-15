@@ -354,6 +354,31 @@ additional_endpoints:
 	})
 }
 
+func TestPrivateActionRunnerCredentialValuesScrub(t *testing.T) {
+	input := `private_action_runner:
+  enabled: true
+  credentials:
+    values:
+      production: sensitive-value
+unrelated:
+  values:
+    production: visible-value
+`
+	expected := `private_action_runner:
+  enabled: true
+  credentials:
+    values:
+      production: "********"
+unrelated:
+  values:
+    production: visible-value
+`
+
+	scrubbed, err := ScrubYamlString(input)
+	require.NoError(t, err)
+	require.YAMLEq(t, expected, scrubbed)
+}
+
 func TestEmptyYaml(t *testing.T) {
 	cleaned, err := ScrubYaml(nil)
 	require.NoError(t, err)
