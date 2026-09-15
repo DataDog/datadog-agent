@@ -15,20 +15,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
-
-// ============================================================================
-// Environment definition
-// ============================================================================
-
-type dockerPermissionEnv struct {
-	RemoteHost *components.RemoteHost
-	Agent      *components.RemoteHostAgent
-	Fakeintake *components.FakeIntake
-	Docker     *components.RemoteHostDocker
-}
 
 // ============================================================================
 // Test suite
