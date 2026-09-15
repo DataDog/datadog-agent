@@ -42,7 +42,6 @@ new-e2e-agent-telemetry:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
     - qa_agent_linux
-    - qa_agent_full
     - qa_dca
   rules:
     - !reference [.on_agenttelemetry_or_e2e_changes]
