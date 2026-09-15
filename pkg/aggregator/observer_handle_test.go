@@ -47,15 +47,15 @@ type recordedCall struct {
 	contextKey uint64
 }
 
-func (h *recordingHandle) ObserveMetric(v observer.MetricView, contextKeys ...uint64) {
+func (h *recordingHandle) ObserveMetric(v observer.MetricView, contextKey uint64) {
+	h.observeMetric(v, contextKey)
+}
+
+func (h *recordingHandle) observeMetric(v observer.MetricView, contextKey uint64) {
 	// copy values — the MetricView contract forbids retaining the view itself
 	tags := v.GetTags().UnsafeToReadOnlySliceString()
 	tagsCopy := make([]string, len(tags))
 	copy(tagsCopy, tags)
-	var contextKey uint64
-	if len(contextKeys) > 0 {
-		contextKey = contextKeys[0]
-	}
 	h.calls = append(h.calls, recordedCall{
 		name:       v.GetName(),
 		value:      v.GetValue(),

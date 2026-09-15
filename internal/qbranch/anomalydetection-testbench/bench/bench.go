@@ -548,7 +548,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
-			tb.debug.IngestMetricSyncWithContextKey("parquet", &view, tb.parquetMetricContextKey(&view))
+			tb.debug.IngestMetricSync("parquet", &view, tb.parquetMetricContextKey(&view))
 			return nil
 		}
 
@@ -588,7 +588,7 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSyncWithContextKey("parquet", m, tb.parquetMetricContextKey(m))
+		tb.debug.IngestMetricSync("parquet", m, tb.parquetMetricContextKey(m))
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace

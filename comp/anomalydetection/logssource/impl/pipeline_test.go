@@ -24,10 +24,7 @@ type captureObserverHandle struct {
 	logs []observer.LogView
 }
 
-func (h *captureObserverHandle) ObserveMetric(_ observer.MetricView, _ ...uint64) {}
-func (h *captureObserverHandle) ObserveMetricAndReportDrop(_ observer.MetricView, _ ...uint64) bool {
-	return false
-}
+func (h *captureObserverHandle) ObserveMetric(_ observer.MetricView, _ uint64) {}
 func (h *captureObserverHandle) ObserveLog(v observer.LogView) {
 	h.logs = append(h.logs, v)
 }

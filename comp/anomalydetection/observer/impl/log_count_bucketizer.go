@@ -89,18 +89,8 @@ func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
 	return strings.HasSuffix(name, ".count")
 }
 
-// observe adds one extractor output to its pending bucket. False means the late
-// observation cannot be incorporated without rewriting or re-anchoring history.
-func (b *materializedLogCountBucketizer) observe(
-	namespace string,
-	metric observerdef.MetricOutput,
-	host string,
-	timestamp int64,
-	tags []string,
-) bool {
-	return b.observeWithKey(namespace, metric, host, timestamp, tags, storageKeyForIdentity(namespace, metric.Name, host, tags))
-}
-
+// observeWithKey adds one extractor output to its pending bucket. False means
+// the late observation cannot be incorporated without rewriting or re-anchoring history.
 func (b *materializedLogCountBucketizer) observeWithKey(
 	namespace string,
 	metric observerdef.MetricOutput,

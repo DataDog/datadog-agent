@@ -779,12 +779,8 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 	return len(s.tagIntern)
 }
 
-// seriesKeyHash combines the metric identity hash with its namespace. Keeping
-// this composition separate lets the metric identity hash be replaced by a
-// metrics-pipeline context key without changing storage consumers.
-// contextKeyForIdentity is the fallback for metrics that do not arrive with a
-// metrics-pipeline context key. Production aggregation paths provide their key
-// directly; this is used by direct/replay and storage-query callers instead.
+// contextKeyForIdentity derives a key for raw storage/query callers that start
+// from a metric identity rather than a precomputed metrics-pipeline key.
 func contextKeyForIdentity(name, host string, tags []string) uint64 {
 	contextKey := ckey.NewSliceKeyGenerator().Generate(name, host, tags)
 	return uint64(contextKey)

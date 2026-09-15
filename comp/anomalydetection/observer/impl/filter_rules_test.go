@@ -497,13 +497,13 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		tags:      []string{"env:prod"},
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -532,12 +532,12 @@ func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -569,7 +569,7 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 	}
 	obs.handleFunc = obs.innerHandle
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
@@ -608,7 +608,7 @@ func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *te
 				filter:    filter,
 			}
 			for _, metricName := range tc.metricNames {
-				h.ObserveMetric(&metricObs{name: metricName})
+				testObserveMetric(h, &metricObs{name: metricName})
 			}
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
@@ -633,7 +633,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -673,22 +673,22 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.mem.used",
 		value:     1024,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      observerTelemetryMetricPrefix + "metrics.filtered",
 		value:     1,
 		timestamp: 1000,
@@ -729,19 +729,19 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
 		tags:      []string{"env:dev", "service:web"},
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		tags:      []string{"env:dev"},
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		tags:      []string{"service:web"},
@@ -771,12 +771,12 @@ func TestNamePrefixFilterCountsFilteredMetrics(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "kubernetes.cpu.usage",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		timestamp: 1000,
@@ -833,12 +833,12 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 	t.Cleanup(stopFn)
 
 	h := obs.GetHandle("dogstatsd")
-	h.ObserveMetric(&metricObs{
+	testObserveMetric(h, &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
 	})
-	h.ObserveMetric(&metricObs{
+	testObserveMetric(h, &metricObs{
 		name:      "datadog.agent.uptime",
 		value:     1,
 		timestamp: 1000,
@@ -888,12 +888,12 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.mem.used",
 		value:     2,
 		timestamp: 1000,

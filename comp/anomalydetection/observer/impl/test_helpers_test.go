@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -22,14 +23,54 @@ func (s *sampleNoSource) GetHost() string               { return "" }
 func (s *sampleNoSource) GetTimestampUnix() int64       { return 0 }
 func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
 
+// testContextKeyFor derives a key from test fixture fields without calling
+// GetTags. This preserves lazy-tag-read assertions in filter tests while every
+// production metric path must supply its pipeline-generated key.
+func testContextKeyFor(sample observerdef.MetricView) uint64 {
+	switch sample := sample.(type) {
+	case *metricObs:
+		return testContextKeyForIdentity(sample.name, sample.host, sample.tags)
+	case *tagsTrackingMetric:
+		return testContextKeyForIdentity(sample.name, "", sample.tags)
+	case *sampleNoSource:
+		return testContextKeyForIdentity(sample.name, "", nil)
+	default:
+		panic(fmt.Sprintf("testContextKeyFor: unsupported metric fixture %T", sample))
+	}
+}
+
+func testContextKeyForIdentity(name, host string, tags []string) uint64 {
+	return uint64(ckey.NewSliceKeyGenerator().Generate(name, host, tags))
+}
+
+func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+	return prepareMetricIngestWithContextKey(source, testContextKeyFor(sample), sample, filter)
+}
+
+func (o *observerImpl) ingestTestMetricSync(source string, sample observerdef.MetricView) {
+	o.IngestMetricSync(source, sample, testContextKeyFor(sample))
+}
+
+func testObserveMetric(h observerdef.Handle, sample observerdef.MetricView) {
+	h.ObserveMetric(sample, testContextKeyFor(sample))
+}
+
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
+	return h.observeMetricAndReportDrop(sample, testContextKeyFor(sample))
+}
+
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool { return true }
+
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool { return false }
+
 // countingHandle records how many MetricView and LogView observations it receives.
 type countingHandle struct {
 	received    int
 	logReceived int
 }
 
-func (h *countingHandle) ObserveMetric(_ observerdef.MetricView, _ ...uint64) { h.received++ }
-func (h *countingHandle) ObserveLog(_ observerdef.LogView)                    { h.logReceived++ }
+func (h *countingHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) { h.received++ }
+func (h *countingHandle) ObserveLog(_ observerdef.LogView)                 { h.logReceived++ }
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
