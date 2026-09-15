@@ -26,7 +26,7 @@ DdBuildTimeVariables = provider(
     fields = ["values"],
 )
 
-def url_safe_to_standard(url_safe):
+def _url_safe_to_standard(url_safe):
     """Convert a URL-safe agent version string to the standard SemVer form.
 
     PACKAGE_VERSION is produced by `dda inv agent.version --url-safe`, which
@@ -37,6 +37,12 @@ def url_safe_to_standard(url_safe):
       "7.81.0-devel.git.635.e3326d4.pipeline.1" -> "7.81.0-devel+git.635.e3326d4.pipeline.1"
       "7.81.0-rc.1.git.635.e3326d4"             -> "7.81.0-rc.1+git.635.e3326d4"
       "7.81.0"                                   -> "7.81.0"  (clean release, no change)
+
+    Args:
+      standard: url safe version agent version strings
+
+    Returns:
+      Standard version string
     """
     idx = url_safe.find(".git.")
     if idx < 0:
@@ -54,6 +60,12 @@ def standard_to_url_safe(standard):
       "7.81.0-devel+git.635.e3326d4.pipeline.1" -> "7.81.0-devel.git.635.e3326d4.pipeline.1"
       "7.81.0-rc.1+git.635.e3326d4"             -> "7.81.0-rc.1.git.635.e3326d4"
       "7.81.0"                                   -> "7.81.0"  (clean release, no change)
+
+    Args:
+      standard: standard agent version strings
+
+    Returns:
+      URL sanitized version.
     """
     idx = standard.find("+git.")
     if idx < 0:
@@ -85,7 +97,7 @@ def compute_version_variables():
         agent_version_url_safe = env_vars.PACKAGE_VERSION
     else:
         agent_version_url_safe = release_json.get("current_milestone") + "-localbuild"
-    agent_version = url_safe_to_standard(agent_version_url_safe)
+    agent_version = _url_safe_to_standard(agent_version_url_safe)
 
     return {
         "build_version": build_version,
