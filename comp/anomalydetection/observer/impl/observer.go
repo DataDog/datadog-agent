@@ -1074,7 +1074,6 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
-
 	// Canonicalize once for tag-aware filtering and downstream storage's sorted
 	// tag interning fast path.
 	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())

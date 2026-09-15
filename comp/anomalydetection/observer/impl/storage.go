@@ -706,7 +706,7 @@ func storageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
 }
 
 func storageKeyForContextKey(namespace string, contextKey uint64) uint64 {
-	return nonZeroKey(avalanche64(contextKey ^ fnv64aString(namespace)))
+	return avalanche64(contextKey ^ fnv64aString(namespace))
 }
 
 // avalanche64 is the MurmurHash3 64-bit finalizer. It thoroughly diffuses the
@@ -718,14 +718,6 @@ func avalanche64(v uint64) uint64 {
 	v *= 0xc4ceb9fe1a85ec53
 	v ^= v >> 33
 	return v
-}
-
-// nonZeroKey reserves zero as the no-precomputed-key sentinel on metricObs.
-func nonZeroKey(key uint64) uint64 {
-	if key == 0 {
-		return 1
-	}
-	return key
 }
 
 // resolveByID returns the seriesStats for a numeric series ID.
