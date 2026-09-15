@@ -15,6 +15,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  collect_fdb:
+    node_type: setting
+    type: boolean
+    default: false
   configs:
     node_type: setting
     type: array

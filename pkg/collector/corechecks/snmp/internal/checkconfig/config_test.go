@@ -1031,6 +1031,48 @@ collect_vpn: true
 	assert.False(t, config.CollectVPN)
 }
 
+func Test_buildConfig_collectFDB(t *testing.T) {
+	config, err := NewCheckConfig([]byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`), []byte(`
+oid_batch_size: 10
+`), nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectFDB)
+
+	config, err = NewCheckConfig([]byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_fdb: true
+`), []byte(`
+oid_batch_size: 10
+`), nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectFDB)
+
+	config, err = NewCheckConfig([]byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`), []byte(`
+oid_batch_size: 10
+collect_fdb: true
+`), nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectFDB)
+
+	config, err = NewCheckConfig([]byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_fdb: false
+`), []byte(`
+oid_batch_size: 10
+collect_fdb: true
+`), nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectFDB)
+}
+
 func Test_buildConfig_deviceTagsSource(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1860,6 +1902,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		CollectDeviceMetadata: true,
 		CollectTopology:       true,
 		CollectVPN:            true,
+		CollectFDB:            true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},

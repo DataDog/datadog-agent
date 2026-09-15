@@ -773,6 +773,74 @@ network_devices:
 	}
 }
 
+func Test_CollectFDB(t *testing.T) {
+	tests := []struct {
+		name                string
+		config              string
+		expectedCollectFDBs []bool
+	}{
+		{
+			name: "root collect_fdb false",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_fdb: false
+    configs:
+     - network: 127.1.0.0/30
+       collect_fdb: true
+     - network: 127.2.0.0/30
+       collect_fdb: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectFDBs: []bool{true, false, false},
+		},
+		{
+			name: "root collect_fdb true",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_fdb: true
+    configs:
+     - network: 127.1.0.0/30
+       collect_fdb: true
+     - network: 127.2.0.0/30
+       collect_fdb: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectFDBs: []bool{true, false, true},
+		},
+		{
+			name: "root collect_fdb unset",
+			config: `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+       collect_fdb: true
+     - network: 127.2.0.0/30
+       collect_fdb: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectFDBs: []bool{true, false, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.NewFromYAML(t, tt.config)
+
+			conf, err := snmp.NewListenerConfig()
+			assert.NoError(t, err)
+
+			collectFDBs := make([]bool, len(conf.Configs))
+			for i, config := range conf.Configs {
+				collectFDBs[i] = config.CollectFDB
+			}
+			assert.Equal(t, tt.expectedCollectFDBs, collectFDBs)
+		})
+	}
+}
+
 func TestConfig_LegacyDigest(t *testing.T) {
 	tests := []struct {
 		name         string

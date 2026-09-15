@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    SNMP: Add optional forwarding-database (FDB) collection for host-to-device
+    correlation. Enable it per instance or autodiscovery config with
+    ``collect_fdb``. The Agent walks Q-BRIDGE-MIB then BRIDGE-MIB, maps bridge
+    ports to interfaces, and submits timestamped MAC-to-interface observations
+    on the network-devices metadata pipeline. Collection uses fixed safety
+    limits and does not fail the SNMP check. Host Inventory now serializes
+    per-interface MAC addresses correctly, including interfaces without IPs.

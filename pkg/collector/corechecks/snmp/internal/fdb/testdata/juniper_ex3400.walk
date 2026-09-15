@@ -1,0 +1,8 @@
+# Extracted from SNMP Walks/! Walks by Customer/PathAI/juniper_ex3400.txt
+# Juniper encodes a large dot1qFdbId (196608). Port 0 is present with learned(3) status
+# and must be dropped; bridge port 539 maps to ifIndex 610.
+.1.3.6.1.2.1.17.1.4.1.2.539 = INTEGER: 610
+.1.3.6.1.2.1.17.7.1.2.2.1.2.196608.0.16.219.255.16.1 = INTEGER: 539
+.1.3.6.1.2.1.17.7.1.2.2.1.3.196608.0.16.219.255.16.1 = INTEGER: 3
+.1.3.6.1.2.1.17.7.1.2.2.1.2.196608.4.92.108.100.211.84 = INTEGER: 0
+.1.3.6.1.2.1.17.7.1.2.2.1.3.196608.4.92.108.100.211.84 = INTEGER: 3

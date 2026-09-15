@@ -438,7 +438,9 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			expectedCode: 200,
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
-					Host interface{} `json:"host_metadata"`
+					Host struct {
+						Interfaces string `json:"interfaces"`
+					} `json:"host_metadata"`
 				}
 				var have Metadata
 
@@ -448,6 +450,18 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
 				assert.NotEmpty(ct, have.Host, "%s %s returned: %s, expected \"host_metadata\" fields to be present", e.method, e.endpoint, body)
+
+				var ifaces []map[string]any
+				assert.NoError(ct, json.Unmarshal([]byte(have.Host.Interfaces), &ifaces))
+				hasMAC := false
+				for _, iface := range ifaces {
+					mac, _ := iface["macaddress"].(string)
+					if mac != "" {
+						hasMAC = true
+						break
+					}
+				}
+				assert.True(ct, hasMAC, "expected at least one interface MAC in host inventory: %s", have.Host.Interfaces)
 			},
 		},
 		// TODO: figure out how to make this work

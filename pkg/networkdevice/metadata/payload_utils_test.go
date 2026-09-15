@@ -150,3 +150,25 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Len(t, payloads[8].Diagnoses, 51)
 	assert.Equal(t, diagnoses[49:100], payloads[8].Diagnoses)
 }
+
+func Test_batchFDBPayloads(t *testing.T) {
+	collectTime := mockTimeNow()
+	var entries []FDBEntryMetadata
+	for i := 0; i < 150; i++ {
+		entries = append(entries, FDBEntryMetadata{
+			DeviceID:       "default:1.2.3.4",
+			MacAddress:     "aa:bb:cc:dd:ee:ff",
+			InterfaceIndex: 1,
+		})
+	}
+
+	payloads := BatchFDBPayloads("my-ns", "127.0.0.0/30", collectTime, 100, entries)
+	require.Len(t, payloads, 2)
+	assert.Equal(t, integrations.SNMP, payloads[0].Integration)
+	assert.Equal(t, "my-ns", payloads[0].Namespace)
+	assert.Equal(t, collectTime.Unix(), payloads[0].CollectTimestamp)
+	assert.Len(t, payloads[0].FDBEntries, 100)
+	assert.Len(t, payloads[1].FDBEntries, 50)
+
+	assert.Empty(t, BatchFDBPayloads("my-ns", "", collectTime, 100, nil))
+}

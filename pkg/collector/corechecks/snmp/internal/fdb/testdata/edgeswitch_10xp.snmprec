@@ -1,0 +1,4 @@
+# Extracted from SNMP Walks/! snmprec_files/edgeswitch_10xp.snmprec
+# Q-BRIDGE MacAddress INDEX includes an explicit length sub-id (6).
+1.3.6.1.2.1.17.1.4.1.2.5|2|5
+1.3.6.1.2.1.17.7.1.2.2.1.2.1.6.0.12.41.21.230.31|2|5

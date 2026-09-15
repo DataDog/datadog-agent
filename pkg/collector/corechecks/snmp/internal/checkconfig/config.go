@@ -93,6 +93,7 @@ type InitConfig struct {
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	CollectVPN            Boolean                           `yaml:"collect_vpn"`
+	CollectFDB            Boolean                           `yaml:"collect_fdb"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
 	// DeviceTagsSource controls where the device tags on metrics come from: the backend
 	// enrichment (`resource`, default), the Agent (`agent`), or both.
@@ -125,6 +126,7 @@ type InstanceConfig struct {
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
+	CollectFDB            *Boolean                            `yaml:"collect_fdb"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
 	// DeviceTagsSource overrides the init config value for this instance.
 	DeviceTagsSource string                           `yaml:"device_tags_source"`
@@ -194,6 +196,7 @@ type CheckConfig struct {
 	CollectDeviceMetadata bool
 	CollectTopology       bool
 	CollectVPN            bool
+	CollectFDB            bool
 	UseDeviceIDAsHostname bool
 	// DeviceTagsSource reports where the device tags on metrics come from. Forced to
 	// `both` when CollectDeviceMetadata is false, since there is no metadata payload to
@@ -343,6 +346,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectVPN = bool(*instance.CollectVPN)
 	} else {
 		c.CollectVPN = bool(initConfig.CollectVPN)
+	}
+
+	if instance.CollectFDB != nil {
+		c.CollectFDB = bool(*instance.CollectFDB)
+	} else {
+		c.CollectFDB = bool(initConfig.CollectFDB)
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -668,6 +677,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
 	newConfig.CollectTopology = c.CollectTopology
 	newConfig.CollectVPN = c.CollectVPN
+	newConfig.CollectFDB = c.CollectFDB
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceTagsSource = c.DeviceTagsSource
 	newConfig.DeviceID = c.DeviceID
