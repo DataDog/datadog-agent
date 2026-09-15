@@ -729,7 +729,18 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			// A handle that fails to resolve is left as its literal "ENC[handle]" placeholder
+			// rather than corrupting the setting it was in -- every other secret in the same
+			// config still resolved and was applied. Failing the whole config load here would
+			// turn one bad handle into the agent refusing to start at all (and, on platforms
+			// whose config-experiment mechanism restarts the whole process to apply a new
+			// config, into a permanent crash loop, since the same bad handle keeps failing
+			// resolution on every restart). Any other kind of error from Resolve (malformed
+			// YAML, backend/decode failures unrelated to a specific handle) is still fatal.
+			if !errors.Is(err, secrets.ErrUnresolvedHandles) {
+				return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			}
+			log.Errorf("unable to decrypt secret from %s: %v", origin, err)
 		}
 	}
 	log.Info("Finished resolving secrets")

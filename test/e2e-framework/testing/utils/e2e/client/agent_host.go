@@ -33,7 +33,11 @@ func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientpar
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
 	case os.MacOSFamily:
-		baseCommand = "datadog-agent"
+		// Commands run over SSH use a non-interactive, non-login shell, which never sources
+		// /etc/zprofile -- so PATH stays at sshd's minimal default and never picks up
+		// /usr/local/bin, where the DMG installer symlinks the real binary. sudo is required
+		// for the same reason as Linux: auth_token is only readable by root.
+		baseCommand = "sudo /usr/local/bin/datadog-agent"
 	default:
 		panic(fmt.Sprintf("unsupported OS family: %v", osFamily))
 	}

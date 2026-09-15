@@ -6,7 +6,15 @@
 // Package secrets decodes secret values by invoking the configured executable command
 package secrets
 
+import "errors"
+
 // team: fleet-automation
+
+// ErrUnresolvedHandles is returned by Resolve, wrapped or as-is, when one or more secret
+// handles in the data could not be fetched. The handles that did resolve are still applied and
+// notified; the caller decides whether leaving the unresolved ones as their literal "ENC[handle]"
+// placeholder is acceptable for its use case.
+var ErrUnresolvedHandles = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
 
 // SecretBackendConfig holds the configuration for a single named backend in multi_secret_backends.
 type SecretBackendConfig struct {

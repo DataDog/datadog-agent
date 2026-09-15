@@ -190,6 +190,18 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
 
+    # The installer daemon and the experiment variants of the jobs above. The -exp jobs only
+    # exist while a configuration experiment is running; booting them out here is what keeps an
+    # upgrade from leaving an Agent behind that reads etc-exp after the collapse below.
+    launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
+
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
         logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
@@ -215,6 +227,26 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
+
+# Collapse any configuration experiment back onto the stable configuration.
+#
+# etc-exp is a sibling of etc, and a symlink to etc is how "no configuration is deployed" is
+# represented -- a real directory there means an experiment is live. An upgrade is not the place to
+# preserve one: the daemon that would promote or revert it has just been stopped, so the experiment
+# would outlive the only thing able to decide its fate.
+CONF_EXP_DIR="$INSTALL_DIR/etc-exp"
+if [ -e "$CONF_EXP_DIR" ] || [ -L "$CONF_EXP_DIR" ]; then
+    if [ -d "$CONF_EXP_DIR" ] && [ ! -L "$CONF_EXP_DIR" ]; then
+        echo "# Collapsing config experiment at $CONF_EXP_DIR back onto $CONF_DIR"
+    fi
+    rm -rf "$CONF_EXP_DIR"
+fi
+if [ -d "$CONF_DIR" ]; then
+    ln -s "$CONF_DIR" "$CONF_EXP_DIR"
+fi
+
+echo '# Deleting old datadog-installer link'
+rm -vf /usr/local/bin/datadog-installer
 
 echo '# Deleting old datadog-agent link'
 rm -vf /usr/local/bin/datadog-agent
