@@ -41,7 +41,7 @@ const (
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
 // configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
 // signing identity dequeued tasks need to pass verification.
-// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, coreSplitEnabled, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -56,6 +56,11 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        # The released chart does not propagate PAR settings to the Core Agent yet.
+        DD_PRIVATE_ACTION_RUNNER_ENABLED: "true"
+        DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED: "%t"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
@@ -147,6 +152,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 					splitEnabled,
 					runnerURN,
 					privateKeyB64,
+					splitEnabled,
 					systemServiceOperatorPolicy,
 				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
