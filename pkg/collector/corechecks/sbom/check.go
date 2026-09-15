@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,11 +135,29 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 	})
 }
 
+// hasImageCapableRuntime reports whether a runtime that builds image SBOMs was
+// detected. IsAnyContainerFeaturePresent is too broad: Kubernetes alone says yes.
+func hasImageCapableRuntime() bool {
+	return env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Crio)
+}
+
+// warnMissingContainerRuntime warns that image scanning was asked for on a host
+// with no runtime to discover images, so it will never produce one.
+func warnMissingContainerRuntime(cfg config.Component) {
+	if cfg.GetBool("sbom.container_image.enabled") && !hasImageCapableRuntime() {
+		log.Warn("sbom.container_image.enabled is set but no container runtime was detected, no container image SBOM will be collected")
+	}
+}
+
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if !c.cfg.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}
+
+	warnMissingContainerRuntime(c.cfg)
 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err

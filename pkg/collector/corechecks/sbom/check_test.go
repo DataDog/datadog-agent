@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -24,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	scanner2 "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -107,6 +110,79 @@ host_heartbeat_validity_seconds: 1000000
 			err := got.Parse([]byte(tt.raw))
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestWarnMissingContainerRuntime(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		enabled     bool
+		features    []env.Feature
+		wantWarning bool
+	}{
+		{
+			name:        "enabled without a runtime",
+			enabled:     true,
+			wantWarning: true,
+		},
+		{
+			name:     "enabled with docker",
+			enabled:  true,
+			features: []env.Feature{env.Docker},
+		},
+		{
+			name:     "enabled with containerd",
+			enabled:  true,
+			features: []env.Feature{env.Containerd},
+		},
+		{
+			name:     "enabled with crio",
+			enabled:  true,
+			features: []env.Feature{env.Crio},
+		},
+		{
+			// Kubernetes alone means the runtime socket was never reached, so
+			// no collector builds image SBOMs and the warning must still fire.
+			name:        "enabled with kubernetes but no runtime",
+			enabled:     true,
+			features:    []env.Feature{env.Kubernetes},
+			wantWarning: true,
+		},
+		{
+			name:     "enabled with kubernetes and containerd",
+			enabled:  true,
+			features: []env.Feature{env.Kubernetes, env.Containerd},
+		},
+		{
+			name:    "disabled without a runtime",
+			enabled: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			env.SetFeatures(t, tt.features...)
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"sbom.container_image.enabled": tt.enabled,
+			})
+
+			// The observer is process-wide, so ignore the warnings other tests
+			// in this package emit from their background goroutines.
+			var got []string
+			pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
+				if level == pkglog.WarnLvl && strings.Contains(message, "sbom.container_image.enabled") {
+					got = append(got, message)
+				}
+			})
+			t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+
+			warnMissingContainerRuntime(cfg)
+
+			if !tt.wantWarning {
+				assert.Empty(t, got)
+				return
+			}
+			assert.Len(t, got, 1)
+			assert.Contains(t, got[0], "no container runtime was detected")
 		})
 	}
 }
