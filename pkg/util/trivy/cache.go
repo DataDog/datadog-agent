@@ -28,15 +28,15 @@ func newMemoryCache() *memoryCache {
 // memoryCache is safe for concurrent use: with a fast scan trivy analyzes image
 // layers in parallel and stores each result from its own goroutine.
 type memoryCache struct {
-	mu         sync.Mutex
-	blobs      map[string]types.BlobInfo
-	artifacts  map[string]types.ArtifactInfo
-	lastBlobID string
+	mu        sync.Mutex
+	blobs     map[string]types.BlobInfo
+	artifacts map[string]types.ArtifactInfo
 }
 
-func (c *memoryCache) MissingBlobs(_ context.Context, artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
+func (c *memoryCache) MissingBlobs(_ context.Context, artifactID string, blobIDs []string) (bool, []string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
 		if _, ok := c.blobs[blobID]; !ok {
 			missingBlobIDs = append(missingBlobIDs, blobID)
@@ -57,7 +57,6 @@ func (c *memoryCache) PutBlob(_ context.Context, blobID string, blobInfo types.B
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.blobs[blobID] = blobInfo
-	c.lastBlobID = blobID
 	return nil
 }
 
@@ -90,14 +89,16 @@ func (c *memoryCache) GetBlob(_ context.Context, blobID string) (types.BlobInfo,
 	return b, nil
 }
 
-func (c *memoryCache) Close() (err error) {
+// Close empties the cache and leaves it ready for reuse, so a scan keeps
+// storing results after a Clear.
+func (c *memoryCache) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.artifacts = nil
-	c.blobs = nil
+	c.blobs = make(map[string]types.BlobInfo)
+	c.artifacts = make(map[string]types.ArtifactInfo)
 	return nil
 }
 
-func (c *memoryCache) Clear(_ context.Context) (err error) {
+func (c *memoryCache) Clear(_ context.Context) error {
 	return c.Close()
 }

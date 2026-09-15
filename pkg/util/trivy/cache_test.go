@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,10 +58,15 @@ func TestMemoryCache(t *testing.T) {
 	_, err = cache.GetBlob(ctx, "blob1")
 	require.Error(t, err)
 
-	// Clear empties the cache.
+	// Clear empties the cache and leaves it usable.
 	require.NoError(t, cache.Clear(ctx))
 	_, err = cache.GetArtifact(ctx, "artifact")
 	require.Error(t, err)
+
+	require.NoError(t, cache.PutBlob(ctx, "blob3", blobInfo))
+	gotBlob, err = cache.GetBlob(ctx, "blob3")
+	require.NoError(t, err)
+	require.Equal(t, blobInfo, gotBlob)
 }
 
 // TestMemoryCacheConcurrent exercises the cache from many goroutines, as a fast
@@ -77,8 +83,8 @@ func TestMemoryCacheConcurrent(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 200; i++ {
 				id := fmt.Sprintf("blob-%d-%d", g, i)
-				require.NoError(t, cache.PutBlob(ctx, id, newTestBlobInfo()))
-				require.NoError(t, cache.PutArtifact(ctx, fmt.Sprintf("art-%d", g), newTestArtifactInfo()))
+				assert.NoError(t, cache.PutBlob(ctx, id, newTestBlobInfo()))
+				assert.NoError(t, cache.PutArtifact(ctx, fmt.Sprintf("art-%d", g), newTestArtifactInfo()))
 				_, _, _ = cache.MissingBlobs(ctx, fmt.Sprintf("art-%d", g), []string{id, "missing"})
 				_, _ = cache.GetBlob(ctx, id)
 			}

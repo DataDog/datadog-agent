@@ -2,8 +2,7 @@
 enhancements:
   - |
     SBOM scanning keeps its cache in memory for the duration of a scan and frees
-    it when the scan completes. Every scan path uses that in-memory cache, so a
-    scan touches only memory.
+    it when the scan completes. Every scan path uses that in-memory cache.
 upgrade:
   - |
     The following SBOM configuration options are removed and are ignored if set,
