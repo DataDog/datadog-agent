@@ -118,6 +118,7 @@ dd_agent_go_test(
         "//comp/core/telemetry/impl",
         "//comp/core/telemetry/impl/noops",
         "//comp/def",
+        "//pkg/aggregator/ckey",
         "//pkg/config/mock",
         "//pkg/tagset",
         "//pkg/util/log",
