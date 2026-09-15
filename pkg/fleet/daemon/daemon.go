@@ -96,6 +96,7 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	gate            methodGate
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
@@ -187,6 +188,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		configs:         make(map[string]installerConfig),
 		configsOverride: make(map[string]installerConfig),
 		taskDB:          taskDB,
+		gate:            newMethodGate(),
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
 		secretsPubKey:   secretsPubKey,
@@ -592,6 +594,15 @@ func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 }
 
 func (d *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+	// The gate is consulted here rather than in handleRemoteAPIRequest because this is the last
+	// point whose error still reaches the backend as the request's apply status. Dispatch is
+	// asynchronous: once a request is on the queue it has been acknowledged, whatever happens
+	// to it afterwards.
+	if !d.gate.Supported(request.Method) {
+		err := d.gate.Decline(request.Method)
+		log.Infof("Installer: declining remote request %s: %v", request.ID, err)
+		return err
+	}
 	d.requestsWG.Add(1)
 	d.requests <- request
 	return nil

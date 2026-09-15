@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
@@ -52,13 +53,17 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	if rc.client == nil {
 		return
 	}
-	subscribeToTask := func() {
-		// only subscribe to tasks once the first catalog has been applied
-		// subscribe in a goroutine to avoid deadlocking the client
-		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
-	}
+	// catalogApplied tracks whether a catalog has ever been applied, so that task execution
+	// (which resolves packages against the catalog) can wait for one without delaying the
+	// UPDATER_TASK subscription itself. Reporting that subscription to the backend is what
+	// Fleet Automation checks to know the installer is remote-config-active, and it must not
+	// depend on the backend ever actually having assigned a catalog to this client.
+	var catalogApplied atomic.Bool
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, func() {
+		catalogApplied.Store(true)
+	}))
+	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest, catalogApplied.Load))
 	rc.client.Start()
 }
 
@@ -302,9 +307,15 @@ type installPackageTaskParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
-func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+		if catalogReady != nil && !catalogReady() {
+			// No catalog has been applied yet, so a task couldn't resolve its package
+			// against it. Leave these configs unacknowledged: remote-config redelivers
+			// them on a later update once a catalog exists.
+			return
+		}
 		requests := map[string]remoteAPIRequest{}
 		for id, requestConfig := range requestConfigs {
 			var request remoteAPIRequest
@@ -326,6 +337,12 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				// TODO: returning here stops processing the rest of the set, so the other
+				// requests never get an applyStateCallback this pass (they're only retried on
+				// the next RC update, with no guarantee of promptness). Check whether that's the
+				// expected behaviour, e.g. for a method the platform declines. Until that is
+				// settled the behaviour is pinned by TestDeclinedRequestAbortsTheRestOfTheSet
+				// and TestFailedRequestAbortsTheRestOfTheSet in method_gate_test.go.
 				return
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})

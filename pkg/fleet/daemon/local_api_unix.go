@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const (
@@ -33,8 +34,15 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
+	if err := os.Chmod(socketPath, 0720); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	}
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+	if err := perms.RestrictAccessToUser(socketPath); err != nil {
+		return nil, fmt.Errorf("error restricting socket access: %v", err)
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},

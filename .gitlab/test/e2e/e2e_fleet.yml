@@ -45,6 +45,26 @@ new-e2e-fleet-config:
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
+# macOS runs on dedicated EC2 hosts (mac1.metal/mac2.metal) with a 24-hour AWS billing minimum
+# (test/e2e-framework/AGENTS.md), so this job stays manual and gated on the DMG testing build
+# actually existing, mirroring new-e2e-agent-platform-install-script-macos-x64
+# (.gitlab/test/e2e_install_packages/macos.yml).
+new-e2e-fleet-config-macos:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_dmg_testing-a7_x64
+  variables:
+    TEAM: fleet
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
+    TARGETS: ./tests/fleet
+    EXTRA_PARAMS: --run "TestFleetConfigMacOS$"
+
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   timeout: 1h 25m
