@@ -29,20 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-const (
-	// pkg/util/scrubber/default.go defaultReplacement.
-	scrubbedValue      = "********"
-	secretHandlePrefix = "ENC["
-)
-
 type violationPayload struct {
 	Path          string   `json:"path"`
-	Rule          string   `json:"rule"`
 	ActualType    string   `json:"actual_type"`
 	ExpectedTypes []string `json:"expected_types"`
-	Required      bool     `json:"required"`
 	DefaultStatus string   `json:"default_status"`
-	DefaultValue  string   `json:"default_value,omitempty"`
+	DefaultValue  any      `json:"default_value,omitempty"`
 }
 
 // checker validates the merged in-memory config against the schema.
@@ -66,16 +58,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	normalized, err := normalizeForSchema(raw)
+	normalized, scrubbed, err := normalizeForSchema(raw)
 	if err != nil {
 		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
-	violations, schemaErr := schema.ValidateCoreConfigDetailed(normalized)
+	violations, schemaErr := schema.ValidateCoreConfigDetailed(scrubbed)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	violations = filterUploadArtifacts(normalized, violations)
+	violations = filterUploadArtifacts(normalized, scrubbed, violations)
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -117,16 +109,14 @@ func buildViolationPayloads(cfg config.Component, violations []schema.Violation)
 
 	payloads := make([]violationPayload, 0, len(violations))
 	for _, violation := range violations {
-		if violation.Rule != "type" || !supportedActualType(violation.ActualType) || !supportedExpectedTypes(violation.ExpectedTypes) {
+		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
 			return nil, false
 		}
 		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
 		payloads = append(payloads, violationPayload{
 			Path:          violation.Path,
-			Rule:          violation.Rule,
 			ActualType:    violation.ActualType,
 			ExpectedTypes: violation.ExpectedTypes,
-			Required:      violation.Required,
 			DefaultStatus: defaultStatus,
 			DefaultValue:  defaultValue,
 		})
@@ -134,10 +124,10 @@ func buildViolationPayloads(cfg config.Component, violations []schema.Violation)
 	return payloads, true
 }
 
-func filterUploadArtifacts(config map[string]any, violations []schema.Violation) []schema.Violation {
+func filterUploadArtifacts(normalized, scrubbed map[string]any, violations []schema.Violation) []schema.Violation {
 	retained := make([]schema.Violation, 0, len(violations))
 	for _, violation := range violations {
-		if isUploadArtifact(config, violation) {
+		if isUploadArtifact(normalized, scrubbed, violation) {
 			continue
 		}
 		retained = append(retained, violation)
@@ -145,26 +135,25 @@ func filterUploadArtifacts(config map[string]any, violations []schema.Violation)
 	return retained
 }
 
-func isUploadArtifact(config map[string]any, violation schema.Violation) bool {
-	if violation.Rule != "type" {
-		return false
-	}
+func isUploadArtifact(normalized, scrubbed map[string]any, violation schema.Violation) bool {
 	pointer, err := jsonpointer.Parse(violation.Path)
 	if err != nil {
 		return false
 	}
-	value, err := pointer.Eval(config)
-	if err != nil {
+	before, beforeErr := pointer.Eval(normalized)
+	after, afterErr := pointer.Eval(scrubbed)
+	if beforeErr != nil || afterErr != nil {
 		return false
 	}
-	text, ok := value.(string)
-	if !ok {
-		return false
-	}
-	if strings.TrimSpace(text) == scrubbedValue {
+	_, beforeString := before.(string)
+	_, afterString := after.(string)
+	if !beforeString && afterString {
 		return true
 	}
-	return strings.HasPrefix(text, secretHandlePrefix) && allExpectedTypesScalar(violation.ExpectedTypes)
+	if !beforeString {
+		return false
+	}
+	return scrubber.IsEnc(before.(string)) && allExpectedTypesScalar(violation.ExpectedTypes)
 }
 
 // Secret backends return scalar values. All-scalar unions are safe to suppress,
@@ -175,39 +164,26 @@ func allExpectedTypesScalar(values []string) bool {
 	}
 	for _, value := range values {
 		switch value {
-		case "string", "number", "integer", "boolean":
-		default:
+		case "array", "object", "null":
 			return false
 		}
 	}
 	return true
 }
 
-func supportedActualType(value string) bool {
-	switch value {
-	case "null", "boolean", "integer", "number", "string", "array", "object", "unknown":
-		return true
-	default:
-		return false
+func resolveDefault(cfg config.Component, pointerPath string) (string, any) {
+	pointer, err := jsonpointer.Parse(pointerPath)
+	if err != nil || pointer.IsEmpty() {
+		return "unknown", nil
 	}
-}
-
-func supportedExpectedTypes(values []string) bool {
-	if len(values) == 0 {
-		return false
-	}
-	for _, value := range values {
-		if value == "unknown" || !supportedActualType(value) {
-			return false
+	for _, token := range pointer {
+		if token == "" || strings.Contains(token, ".") {
+			return "unknown", nil
 		}
 	}
-	return true
-}
-
-func resolveDefault(cfg config.Component, pointer string) (string, string) {
-	key, ok := configKeyFromJSONPointer(pointer)
-	if !ok || !isKnownSetting(cfg, key) {
-		return "unknown", ""
+	key := strings.Join(pointer, ".")
+	if !cfg.IsSetting(key) {
+		return "unknown", nil
 	}
 
 	for _, valueWithSource := range cfg.GetAllSources(key) {
@@ -215,88 +191,14 @@ func resolveDefault(cfg config.Component, pointer string) (string, string) {
 			continue
 		}
 		if valueWithSource.Value == nil {
-			return "none", ""
+			return "none", nil
 		}
 		if duration, ok := valueWithSource.Value.(time.Duration); ok {
-			encoded, err := json.Marshal(duration.String())
-			if err != nil {
-				return "unknown", ""
-			}
-			return "known", string(encoded)
+			return "known", duration.String()
 		}
-		encoded, err := json.Marshal(valueWithSource.Value)
-		if err != nil {
-			return "unknown", ""
-		}
-		return "known", string(encoded)
+		return "known", valueWithSource.Value
 	}
-	return "none", ""
-}
-
-func isKnownSetting(cfg config.Component, key string) bool {
-	if !cfg.IsKnown(key) {
-		return false
-	}
-	for _, candidate := range cfg.AllKeysLowercased() {
-		if candidate == strings.ToLower(key) {
-			return true
-		}
-	}
-	return false
-}
-
-func configKeyFromJSONPointer(pointer string) (string, bool) {
-	if pointer == "" || !strings.HasPrefix(pointer, "/") {
-		return "", false
-	}
-
-	tokens := strings.Split(strings.TrimPrefix(pointer, "/"), "/")
-	for index, token := range tokens {
-		decoded, ok := decodeJSONPointerToken(token)
-		if !ok || decoded == "" || strings.Contains(decoded, ".") || isArrayIndex(decoded) {
-			return "", false
-		}
-		tokens[index] = decoded
-	}
-	return strings.Join(tokens, "."), true
-}
-
-func decodeJSONPointerToken(token string) (string, bool) {
-	var decoded strings.Builder
-	for index := 0; index < len(token); index++ {
-		if token[index] != '~' {
-			decoded.WriteByte(token[index])
-			continue
-		}
-		if index+1 == len(token) {
-			return "", false
-		}
-		index++
-		switch token[index] {
-		case '0':
-			decoded.WriteByte('~')
-		case '1':
-			decoded.WriteByte('/')
-		default:
-			return "", false
-		}
-	}
-	return decoded.String(), true
-}
-
-func isArrayIndex(token string) bool {
-	if token == "-" || token == "0" {
-		return true
-	}
-	if len(token) == 0 || token[0] == '0' {
-		return false
-	}
-	for _, character := range token {
-		if character < '0' || character > '9' {
-			return false
-		}
-	}
-	return true
+	return "none", nil
 }
 
 // instanceIssueID scopes IssueID to this agent's discriminator and config
@@ -326,20 +228,24 @@ func (c *checker) instanceIssueID() string {
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types via
-// a YAML round-trip. ScrubYaml strips any accidental secret-like values
-func normalizeForSchema(in map[string]any) (map[string]any, error) {
+// normalizeForSchema coerces a Go-native config map into JSON-native types and
+// returns the values before and after the scrubber runs.
+func normalizeForSchema(in map[string]any) (map[string]any, map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	var normalized map[string]any
+	if err := yaml.Unmarshal(b, &normalized); err != nil {
+		return nil, nil, err
 	}
 	scrubbed, err := scrubber.ScrubYaml(b)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var out map[string]any
-	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
-		return nil, err
+	var scrubbedConfig map[string]any
+	if err := yaml.Unmarshal(scrubbed, &scrubbedConfig); err != nil {
+		return nil, nil, err
 	}
-	return out, nil
+	return normalized, scrubbedConfig, nil
 }

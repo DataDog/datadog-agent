@@ -144,7 +144,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	require.Len(t, violations, 1)
 	portViolation := violations[0].GetStructValue().GetFields()
 	assert.Equal(t, "/agent_ipc/port", portViolation["path"].GetStringValue())
-	assert.Equal(t, "0", portViolation["default_value"].GetStringValue())
+	assert.Equal(t, float64(0), portViolation["default_value"].GetNumberValue())
 
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
