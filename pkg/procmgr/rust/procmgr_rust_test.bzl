@@ -19,11 +19,12 @@ _LINUX_OR_WINDOWS = select({
 
 _DD_PROCMGRD_LIB_TEST_DEPS = ["@crates//:tempfile"]
 
-def dd_procmgrd_lib_test(name, args = [], env = {}, data = []):
+def dd_procmgrd_lib_test(name, args = [], compile_data = [], env = {}, data = []):
     """rust_test for :dd-procmgrd-lib with shared procmgr CI settings."""
     rust_test(
         name = name,
         args = args,
+        compile_data = compile_data,
         crate = ":dd-procmgrd-lib",
         data = data,
         edition = "2024",
