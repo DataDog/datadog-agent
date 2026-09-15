@@ -755,9 +755,14 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
 
+	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
+	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
+	// can still report the service as registered. Poll instead of asserting on the first try.
 	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
-		_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
-		assert.Error(m.T(), err, "service %s should no longer be registered with launchd", service)
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
+			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
+		}, 10*time.Second, 500*time.Millisecond)
 	}
 
 	removedPaths := []string{

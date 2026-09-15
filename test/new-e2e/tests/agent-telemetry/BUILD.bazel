@@ -26,6 +26,7 @@ dd_agent_go_test(
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//pkg/util/flavor",
         "//test/e2e-framework/components/datadog/agentparams",

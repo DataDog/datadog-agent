@@ -454,6 +454,7 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	source := observer.SeriesDescriptor{
 		Namespace: series.Namespace,
 		Name:      series.Name,
+		Host:      series.Host,
 		Tags:      series.Tags,
 		Aggregate: agg,
 	}
