@@ -34,6 +34,7 @@ var bpfMapNames = []string{
 	"connect_addr_fa",
 	"connect_samples",
 	"conntrack",
+	"credential_endp",
 	"dentry_resolver",
 	"discarders_revi",
 	"dns_event",
