@@ -88,36 +88,29 @@ func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
 // point (like `daemon start-experiment`): the switch is only exposed there, not as a top-level
 // datadog-installer command, since it must execute inside the running daemon.
 func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
-	previousPID := s.installerDaemonPID()
+	s.waitForInstallerDaemonReady()
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon process-manager " + subcommand)
 	require.NoError(s.T(), err, "Failed to run process-manager %s: datadog-agent-installer journalctl:\n%s",
 		subcommand,
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-agent-installer.service --no-pager"),
 	)
-	s.waitForInstallerDaemonRestart(previousPID)
 }
 
-// waitForInstallerDaemonRestart waits until the daemon that served the switch has been replaced
-// by one that answers on the socket again.
+// waitForInstallerDaemonReady waits until the installer daemon is answering on its local API
+// socket.
 //
-// The switch ends by restarting datadog-agent.service, which systemd propagates to
+// A process-manager switch ends by restarting datadog-agent.service, which systemd propagates to
 // datadog-agent-installer.service as a try-restart because that unit BindsTo the main one, so the
-// daemon tears itself down just after replying. assertManagerState only waits on the agent's own
-// units, so without this the next command reaches the socket mid-restart and gets ECONNREFUSED.
-// Same shape as Backend.runDaemonCommandWithRestart, which covers the experiment commands.
-func (s *packageProcmgrSwitchSuite) waitForInstallerDaemonRestart(previousPID string) {
+// daemon tears itself down just after replying to the switch that triggered it. The DDOT extension
+// install right before the first switch triggers the same cascade via RestartDatadogAgent.
+// assertManagerState only waits on the agent's own units, so without this a process-manager
+// command issued right after either step can reach the socket mid-restart and get ECONNREFUSED.
+// Same rationale as Backend.runDaemonCommandWithRestart, which covers the experiment commands.
+func (s *packageProcmgrSwitchSuite) waitForInstallerDaemonReady() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		pid := s.installerDaemonPID()
-		if !assert.NotEqual(c, previousPID, pid, "%s still runs the daemon that served the switch", installerUnit) {
-			return
-		}
 		_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon rc-status")
-		assert.NoError(c, err, "daemon %s is not serving the local API yet", pid)
+		assert.NoError(c, err, "%s is not serving the local API yet", installerUnit)
 	}, 2*time.Minute, 2*time.Second)
-}
-
-func (s *packageProcmgrSwitchSuite) installerDaemonPID() string {
-	return strings.TrimSpace(s.host.Run("systemctl show -p MainPID --value " + installerUnit))
 }
 
 // assertManagerState asserts that the agent units and the DDOT extension are active under
