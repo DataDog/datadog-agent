@@ -552,14 +552,15 @@ func setup(
 
 	// MicroVM submits from the lifecycle server instead of at setup: the
 	// lifecycle server hands over the per-instance id (from the /run body, or the
-	// stored id on /resume), which rides in the deployment_id field, then a fresh
-	// payload is injected and submitted. Wired into LifecycleContext below; only
-	// invoked for MicroVM. The id also re-identifies the payload uuid, which every
-	// instance restored from the same snapshot otherwise shares.
+	// stored id on /resume), which narrows resource_id from the image ARN that
+	// Inject derives to the instance, then a fresh payload is injected and
+	// submitted. Wired into LifecycleContext below; only invoked for MicroVM. The
+	// id also re-identifies the payload uuid, which every instance restored from
+	// the same snapshot otherwise shares.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
 		instanceUUID.SetInstance(microVMID)
 		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
-		serverlessInitInventory.SetDeploymentID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
+		serverlessInitInventory.SetResourceID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
 		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
 	})
 

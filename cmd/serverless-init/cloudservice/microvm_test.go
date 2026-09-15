@@ -143,6 +143,9 @@ func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
 	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
 }
 
+// TestMicroVMGetInventoryData pins the image ARN as both the parent and the
+// resource id: the instance id that narrows resource_id only arrives with the
+// /run lifecycle hook, and a payload built before it still needs a resource id.
 func TestMicroVMGetInventoryData(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
 	m := &MicroVM{}
@@ -150,11 +153,12 @@ func TestMicroVMGetInventoryData(t *testing.T) {
 	inv := m.GetInventoryData()
 
 	assert.Equal(t, InventoryData{
-		WorkloadType: workloadTypeAWSMicroVM,
-		ResourceID:   testImageARN,
-		ResourceName: "my-image",
-		Region:       "us-east-1",
-		AWSAccountID: "123456789012",
+		WorkloadType:     workloadTypeAWSMicroVM,
+		ResourceID:       testImageARN,
+		ParentResourceID: testImageARN,
+		ResourceName:     "my-image",
+		Region:           "us-east-1",
+		AWSAccountID:     "123456789012",
 	}, inv)
 }
 
@@ -168,6 +172,7 @@ func TestMicroVMGetInventoryDataMissingARN(t *testing.T) {
 
 	assert.Equal(t, workloadTypeAWSMicroVM, inv.WorkloadType)
 	assert.Empty(t, inv.ResourceID)
+	assert.Empty(t, inv.ParentResourceID)
 	assert.Empty(t, inv.ResourceName)
 	assert.Empty(t, inv.Region)
 }

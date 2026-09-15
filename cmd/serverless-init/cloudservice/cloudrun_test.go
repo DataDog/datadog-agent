@@ -310,7 +310,6 @@ func TestCloudRunServiceGetInventoryData(t *testing.T) {
 		ResourceName:     "test_service",
 		Region:           "test_region",
 		GCPProjectID:     "test_project",
-		DeploymentID:     "test_revision",
 	}, inv)
 }
 
@@ -334,14 +333,14 @@ func TestCloudRunFunctionGetInventoryData(t *testing.T) {
 
 	inv := service.GetInventoryData()
 
+	functionInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service/functions/test_target"
 	assert.Equal(t, InventoryData{
 		WorkloadType:     workloadTypeCloudRunFunction,
-		ResourceID:       "projects/test_project/locations/test_region/services/test_service/functions/test_target",
-		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
+		ResourceID:       functionInventoryID + "/revisions/test_revision",
+		ParentResourceID: functionInventoryID,
 		ResourceName:     "test_service",
 		Region:           "test_region",
 		GCPProjectID:     "test_project",
-		DeploymentID:     "test_revision",
 	}, inv)
 }
 
