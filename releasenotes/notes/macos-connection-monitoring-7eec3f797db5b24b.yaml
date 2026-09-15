@@ -5,3 +5,8 @@ features:
     event-driven NStat connection data with optional packet and process
     enrichment. The existing eBPF-less backend remains the default, and the
     new backend automatically falls back when NStat is unavailable.
+
+    Empty TCP retransmits and TCP errors are not a healthy signal unless
+    the connection was uniquely matched by packet enrichment. NStat-mode
+    connections may carry the ``tcp_errors_incomplete`` tag when those
+    TCP error fields are unknown.
