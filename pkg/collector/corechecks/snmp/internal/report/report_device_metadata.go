@@ -24,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fdb"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -120,9 +119,9 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	}
 }
 
-// ReportFDB reports a bounded FDB snapshot (or status-only on failure).
-func (ms *MetricSender) ReportFDB(config *checkconfig.CheckConfig, collectTime time.Time, result fdb.Result) {
-	payloads := devicemetadata.BatchFDBPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, &result.Status, result.Entries)
+// ReportFDB reports timestamped FDB observations.
+func (ms *MetricSender) ReportFDB(config *checkconfig.CheckConfig, collectTime time.Time, entries []devicemetadata.FDBEntryMetadata) {
+	payloads := devicemetadata.BatchFDBPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, entries)
 	for _, payload := range payloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {

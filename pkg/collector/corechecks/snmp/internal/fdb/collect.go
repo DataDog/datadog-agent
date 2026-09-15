@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fdb collects bounded SNMP forwarding-database snapshots.
+// Package fdb collects bounded SNMP forwarding-database observations.
 package fdb
 
 import (
@@ -16,18 +16,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Config is the collection limits for one FDB attempt.
-type Config struct {
+const (
+	// CollectionInterval is the fixed interval between FDB collection attempts.
+	CollectionInterval = 5 * time.Minute
+	maxEntries         = 2000
+	maxDuration        = 10 * time.Second
+
+	// SourceQBridge identifies observations from Q-BRIDGE-MIB.
+	SourceQBridge = "q-bridge"
+	// SourceBridge identifies observations from BRIDGE-MIB.
+	SourceBridge = "bridge"
+)
+
+// Outcome is the internal result of an FDB collection attempt.
+type Outcome string
+
+const (
+	// OutcomeSuccess means collection completed without hitting a safety limit.
+	OutcomeSuccess Outcome = "success"
+	// OutcomeTruncated means a safety limit was hit and all rows were discarded.
+	OutcomeTruncated Outcome = "truncated"
+	// OutcomeError means collection failed and no rows were emitted.
+	OutcomeError Outcome = "error"
+)
+
+type config struct {
 	DeviceID           string
 	MaxEntries         int
 	MaxDuration        time.Duration
 	BulkMaxRepetitions uint32
 }
 
-// Result is one FDB collection attempt. Entries are set only on a complete snapshot.
+// Result is one FDB collection attempt. Entries are set only when collection completes.
 type Result struct {
-	Status  metadata.FDBStatusMetadata
-	Entries []metadata.FDBEntryMetadata
+	Outcome  Outcome
+	Source   string
+	Reason   string
+	Duration time.Duration
+	Entries  []metadata.FDBEntryMetadata
 }
 
 type tableSpec struct {
@@ -37,60 +63,65 @@ type tableSpec struct {
 	qbridge   bool
 }
 
-// Collect walks Q-BRIDGE then BRIDGE, resolves bridge port to ifIndex, and
-// returns either a complete snapshot or status-only on truncation/error.
-func Collect(sess session.Session, cfg Config) Result {
+// Collect walks Q-BRIDGE then BRIDGE and resolves bridge ports to ifIndex.
+func Collect(sess session.Session, deviceID string, bulkMaxRepetitions uint32) Result {
+	return collect(sess, config{
+		DeviceID:           deviceID,
+		MaxEntries:         maxEntries,
+		MaxDuration:        maxDuration,
+		BulkMaxRepetitions: bulkMaxRepetitions,
+	})
+}
+
+func collect(sess session.Session, cfg config) Result {
 	start := time.Now()
 	if cfg.MaxEntries <= 0 {
-		cfg.MaxEntries = 10000
+		cfg.MaxEntries = maxEntries
 	}
 	if cfg.MaxDuration <= 0 {
-		cfg.MaxDuration = 10 * time.Second
+		cfg.MaxDuration = maxDuration
 	}
 	if cfg.BulkMaxRepetitions == 0 {
 		cfg.BulkMaxRepetitions = 10
 	}
 	deadline := start.Add(cfg.MaxDuration)
 
-	status := metadata.FDBStatusMetadata{
-		DeviceID: cfg.DeviceID,
-		Status:   metadata.FDBCollectStatusSuccess,
+	portMapResult := walkColumn(sess, oidDot1dBasePortIfIndex, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
+	if portMapResult.reason != "" {
+		return truncatedResult(start, portMapResult.reason)
 	}
+	if portMapResult.err != nil {
+		return errorResult(start, portMapResult.err)
+	}
+	portMap := buildPortIfIndexMap(portMapResult.values)
 
-	portMap := walkPortIfIndex(sess, cfg, deadline)
-
-	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, statusOID: oidDot1qTpFdbStatus, source: metadata.FDBSourceQBridge, qbridge: true}
+	qbridge := tableSpec{portOID: oidDot1qTpFdbPort, statusOID: oidDot1qTpFdbStatus, source: SourceQBridge, qbridge: true}
 	entries, reason, err := collectTable(sess, cfg, deadline, portMap, qbridge)
 	if reason != "" {
-		return truncatedResult(cfg.DeviceID, start, reason)
+		return truncatedResult(start, reason)
 	}
 	if err == nil && len(entries) > 0 {
-		return successResult(cfg.DeviceID, start, metadata.FDBSourceQBridge, entries)
+		return successResult(start, SourceQBridge, entries)
 	}
 
-	bridge := tableSpec{portOID: oidDot1dTpFdbPort, statusOID: oidDot1dTpFdbStatus, source: metadata.FDBSourceBridge, qbridge: false}
+	bridge := tableSpec{portOID: oidDot1dTpFdbPort, statusOID: oidDot1dTpFdbStatus, source: SourceBridge, qbridge: false}
 	entries, reason, err = collectTable(sess, cfg, deadline, portMap, bridge)
 	if reason != "" {
-		return truncatedResult(cfg.DeviceID, start, reason)
+		return truncatedResult(start, reason)
 	}
 	if err == nil && len(entries) > 0 {
-		return successResult(cfg.DeviceID, start, metadata.FDBSourceBridge, entries)
+		return successResult(start, SourceBridge, entries)
 	}
 	if err != nil {
-		status.Status = metadata.FDBCollectStatusError
-		status.Reason = err.Error()
-		status.DurationMs = time.Since(start).Milliseconds()
-		return Result{Status: status}
+		return errorResult(start, err)
 	}
 
-	status.DurationMs = time.Since(start).Milliseconds()
-	return Result{Status: status}
+	return successResult(start, "", nil)
 }
 
-func walkPortIfIndex(sess session.Session, cfg Config, deadline time.Time) map[int32]int32 {
-	res := walkColumn(sess, oidDot1dBasePortIfIndex, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
-	out := make(map[int32]int32, len(res.values))
-	for index, value := range res.values {
+func buildPortIfIndexMap(values map[string]valuestore.ResultValue) map[int32]int32 {
+	out := make(map[int32]int32, len(values))
+	for index, value := range values {
 		port, ok := int32Value(index)
 		if !ok || port <= 0 {
 			continue
@@ -104,7 +135,7 @@ func walkPortIfIndex(sess session.Session, cfg Config, deadline time.Time) map[i
 	return out
 }
 
-func collectTable(sess session.Session, cfg Config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error) {
+func collectTable(sess session.Session, cfg config, deadline time.Time, portMap map[int32]int32, spec tableSpec) ([]metadata.FDBEntryMetadata, string, error) {
 	ports := walkColumn(sess, spec.portOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
 	if ports.reason != "" {
 		return nil, ports.reason, ports.err
@@ -117,9 +148,12 @@ func collectTable(sess session.Session, cfg Config, deadline time.Time, portMap 
 	}
 
 	statuses := walkColumn(sess, spec.statusOID, cfg.BulkMaxRepetitions, cfg.MaxEntries, deadline)
-	if statuses.reason != "" || statuses.err != nil {
-		// Status is advisory; keep port rows when status is missing or incomplete.
-		log.Debugf("fdb status walk incomplete for %s: reason=%s err=%v", spec.source, statuses.reason, statuses.err)
+	if statuses.reason != "" {
+		return nil, statuses.reason, statuses.err
+	}
+	if statuses.err != nil {
+		// Status is advisory; keep port rows when the device does not provide it.
+		log.Debugf("fdb status walk failed for %s: %v", spec.source, statuses.err)
 		statuses.values = nil
 	}
 
@@ -135,7 +169,8 @@ func collectTable(sess session.Session, cfg Config, deadline time.Time, portMap 
 }
 
 func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestore.ResultValue, statusVal valuestore.ResultValue, portMap map[int32]int32) (metadata.FDBEntryMetadata, bool) {
-	var fdbID, mac string
+	var fdbID uint32
+	var mac string
 	var ok bool
 	if spec.qbridge {
 		fdbID, mac, ok = parseQBridgeIndex(index)
@@ -156,42 +191,40 @@ func buildEntry(deviceID string, spec tableSpec, index string, portVal valuestor
 		}
 	}
 
-	entry := metadata.FDBEntryMetadata{
-		DeviceID:   deviceID,
-		FDBID:      fdbID,
-		MacAddress: mac,
-		BridgePort: port,
-		Source:     spec.source,
+	ifIndex, mapped := portMap[port]
+	if !mapped {
+		return metadata.FDBEntryMetadata{}, false
 	}
-	if ifIndex, mapped := portMap[port]; mapped {
-		entry.InterfaceIndex = ifIndex
-		entry.InterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
-	}
-	return entry, true
+	return metadata.FDBEntryMetadata{
+		DeviceID:       deviceID,
+		FDBID:          fdbID,
+		MacAddress:     mac,
+		InterfaceIndex: ifIndex,
+	}, true
 }
 
-func successResult(deviceID string, start time.Time, source string, entries []metadata.FDBEntryMetadata) Result {
+func successResult(start time.Time, source string, entries []metadata.FDBEntryMetadata) Result {
 	return Result{
-		Status: metadata.FDBStatusMetadata{
-			DeviceID:   deviceID,
-			Status:     metadata.FDBCollectStatusSuccess,
-			Source:     source,
-			RowCount:   len(entries),
-			DurationMs: time.Since(start).Milliseconds(),
-		},
-		Entries: entries,
+		Outcome:  OutcomeSuccess,
+		Source:   source,
+		Duration: time.Since(start),
+		Entries:  entries,
 	}
 }
 
-func truncatedResult(deviceID string, start time.Time, reason string) Result {
+func truncatedResult(start time.Time, reason string) Result {
 	return Result{
-		Status: metadata.FDBStatusMetadata{
-			DeviceID:   deviceID,
-			Status:     metadata.FDBCollectStatusTruncated,
-			RowCount:   0,
-			DurationMs: time.Since(start).Milliseconds(),
-			Reason:     reason,
-		},
+		Outcome:  OutcomeTruncated,
+		Reason:   reason,
+		Duration: time.Since(start),
+	}
+}
+
+func errorResult(start time.Time, err error) Result {
+	return Result{
+		Outcome:  OutcomeError,
+		Reason:   err.Error(),
+		Duration: time.Since(start),
 	}
 }
 

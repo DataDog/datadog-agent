@@ -16,11 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fdb"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
-func TestReportFDBSuccessAndTruncated(t *testing.T) {
+func TestReportFDB(t *testing.T) {
 	collectTime := time.Unix(1415792726, 0)
 	config := &checkconfig.CheckConfig{
 		DeviceID:           "default:1.2.3.4",
@@ -28,56 +27,43 @@ func TestReportFDBSuccessAndTruncated(t *testing.T) {
 		ResolvedSubnetName: "10.0.0.0/24",
 	}
 
-	t.Run("success sends rows and status", func(t *testing.T) {
+	t.Run("entries are timestamped by the payload", func(t *testing.T) {
 		sender := mocksender.NewMockSender(t, "testID")
 		sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 		ms := &MetricSender{sender: sender}
 
-		ms.ReportFDB(config, collectTime, fdb.Result{
-			Status: metadata.FDBStatusMetadata{
-				DeviceID: config.DeviceID,
-				Status:   metadata.FDBCollectStatusSuccess,
-				Source:   metadata.FDBSourceQBridge,
-				RowCount: 1,
-			},
-			Entries: []metadata.FDBEntryMetadata{{
-				DeviceID:       config.DeviceID,
-				FDBID:          "1",
-				MacAddress:     "00:09:0f:09:0a:09",
-				BridgePort:     105,
-				InterfaceIndex: 1000014,
-				InterfaceID:    config.DeviceID + ":1000014",
-				Source:         metadata.FDBSourceQBridge,
-			}},
-		})
+		ms.ReportFDB(config, collectTime, []metadata.FDBEntryMetadata{{
+			DeviceID:       config.DeviceID,
+			FDBID:          1,
+			MacAddress:     "00:09:0f:09:0a:09",
+			InterfaceIndex: 1000014,
+		}})
 
 		var got metadata.NetworkDevicesMetadata
 		payload := sender.Calls[0].Arguments.Get(0).([]byte)
 		require.NoError(t, json.Unmarshal(payload, &got))
-		require.NotNil(t, got.FDBStatus)
-		assert.Equal(t, metadata.FDBCollectStatusSuccess, got.FDBStatus.Status)
 		require.Len(t, got.FDBEntries, 1)
 		assert.Equal(t, "00:09:0f:09:0a:09", got.FDBEntries[0].MacAddress)
+		assert.Equal(t, collectTime.Unix(), got.CollectTimestamp)
 		assert.Equal(t, "network-devices-metadata", sender.Calls[0].Arguments.Get(1))
+
+		var raw map[string]any
+		require.NoError(t, json.Unmarshal(payload, &raw))
+		assert.NotContains(t, raw, "fdb_status")
+		entry := raw["fdb_entries"].([]any)[0].(map[string]any)
+		assert.Len(t, entry, 4)
+		assert.Contains(t, entry, "device_id")
+		assert.Contains(t, entry, "fdb_id")
+		assert.Contains(t, entry, "mac_address")
+		assert.Contains(t, entry, "interface_index")
 	})
 
-	t.Run("truncated sends status only", func(t *testing.T) {
+	t.Run("empty observations send nothing", func(t *testing.T) {
 		sender := mocksender.NewMockSender(t, "testID")
-		sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 		ms := &MetricSender{sender: sender}
 
-		ms.ReportFDB(config, collectTime, fdb.Result{
-			Status: metadata.FDBStatusMetadata{
-				DeviceID: config.DeviceID,
-				Status:   metadata.FDBCollectStatusTruncated,
-				Reason:   "max_entries",
-			},
-		})
+		ms.ReportFDB(config, collectTime, nil)
 
-		var got metadata.NetworkDevicesMetadata
-		require.NoError(t, json.Unmarshal(sender.Calls[0].Arguments.Get(0).([]byte), &got))
-		require.NotNil(t, got.FDBStatus)
-		assert.Equal(t, metadata.FDBCollectStatusTruncated, got.FDBStatus.Status)
-		assert.Empty(t, got.FDBEntries)
+		sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 	})
 }

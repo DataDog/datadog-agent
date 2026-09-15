@@ -11,15 +11,15 @@ import (
 	"strings"
 )
 
-func parseQBridgeIndex(index string) (fdbID string, mac string, ok bool) {
+func parseQBridgeIndex(index string) (fdbID uint32, mac string, ok bool) {
 	parts := strings.Split(index, ".")
 	if len(parts) < 7 {
-		return "", "", false
+		return 0, "", false
 	}
 	macParts := parts[len(parts)-6:]
 	mac, ok = macFromOIDParts(macParts)
 	if !ok {
-		return "", "", false
+		return 0, "", false
 	}
 	idParts := parts[:len(parts)-6]
 	// Some agents encode MacAddress with an explicit length sub-id of 6
@@ -27,10 +27,14 @@ func parseQBridgeIndex(index string) (fdbID string, mac string, ok bool) {
 	if n := len(idParts); n >= 2 && idParts[n-1] == "6" {
 		idParts = idParts[:n-1]
 	}
-	if len(idParts) == 0 {
-		return "", "", false
+	if len(idParts) != 1 {
+		return 0, "", false
 	}
-	return strings.Join(idParts, "."), mac, true
+	id, err := strconv.ParseUint(idParts[0], 10, 32)
+	if err != nil {
+		return 0, "", false
+	}
+	return uint32(id), mac, true
 }
 
 func parseBridgeIndex(index string) (mac string, ok bool) {

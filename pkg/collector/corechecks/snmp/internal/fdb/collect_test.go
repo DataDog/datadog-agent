@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
 func TestCollectQBridge(t *testing.T) {
@@ -23,15 +22,13 @@ func TestCollectQBridge(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3)
 
-	result := Collect(sess, Config{DeviceID: "default:1.2.3.4", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	assert.Equal(t, metadata.FDBCollectStatusSuccess, result.Status.Status)
-	assert.Equal(t, metadata.FDBSourceQBridge, result.Status.Source)
+	result := collect(sess, config{DeviceID: "default:1.2.3.4", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceQBridge, result.Source)
 	require.Len(t, result.Entries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3c", result.Entries[0].MacAddress)
-	assert.Equal(t, int32(1), result.Entries[0].BridgePort)
 	assert.Equal(t, int32(10), result.Entries[0].InterfaceIndex)
-	assert.Equal(t, "default:1.2.3.4:10", result.Entries[0].InterfaceID)
-	assert.Equal(t, "1", result.Entries[0].FDBID)
+	assert.Equal(t, uint32(1), result.Entries[0].FDBID)
 }
 
 func TestCollectBridgeFallback(t *testing.T) {
@@ -40,14 +37,13 @@ func TestCollectBridgeFallback(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
 	sess.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
 
-	result := Collect(sess, Config{DeviceID: "ns:10.0.0.1", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	assert.Equal(t, metadata.FDBCollectStatusSuccess, result.Status.Status)
-	assert.Equal(t, metadata.FDBSourceBridge, result.Status.Source)
+	result := collect(sess, config{DeviceID: "ns:10.0.0.1", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
+	assert.Equal(t, SourceBridge, result.Source)
 	require.Len(t, result.Entries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3d", result.Entries[0].MacAddress)
-	assert.Equal(t, int32(2), result.Entries[0].BridgePort)
-	assert.Equal(t, "ns:10.0.0.1:20", result.Entries[0].InterfaceID)
-	assert.Empty(t, result.Entries[0].FDBID)
+	assert.Equal(t, int32(20), result.Entries[0].InterfaceIndex)
+	assert.Zero(t, result.Entries[0].FDBID)
 }
 
 func TestCollectFilters(t *testing.T) {
@@ -75,7 +71,7 @@ func TestCollectFilters(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.81", 1)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.81", 5)
 
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
 	require.Len(t, result.Entries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3c", result.Entries[0].MacAddress)
 }
@@ -85,9 +81,9 @@ func TestCollectMissingStatusKept(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
 
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
 	require.Len(t, result.Entries, 1)
-	assert.Equal(t, int32(1), result.Entries[0].BridgePort)
+	assert.Equal(t, int32(10), result.Entries[0].InterfaceIndex)
 }
 
 func TestCollectTruncatedDiscardsRows(t *testing.T) {
@@ -98,9 +94,9 @@ func TestCollectTruncatedDiscardsRows(t *testing.T) {
 		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50."+itoa(i), 3)
 	}
 
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 2, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	assert.Equal(t, metadata.FDBCollectStatusTruncated, result.Status.Status)
-	assert.Equal(t, reasonMaxEntries, result.Status.Reason)
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 2, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeTruncated, result.Outcome)
+	assert.Equal(t, reasonMaxEntries, result.Reason)
 	assert.Empty(t, result.Entries)
 }
 
@@ -114,13 +110,13 @@ func TestCollectTruncatedQBridgeDoesNotFallBackToBridge(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.4.3.1.2.10.20.30.40.50.61", 2)
 	sess.SetInt("1.3.6.1.2.1.17.4.3.1.3.10.20.30.40.50.61", 3)
 
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	assert.Equal(t, metadata.FDBCollectStatusTruncated, result.Status.Status)
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeTruncated, result.Outcome)
 	assert.Empty(t, result.Entries)
-	assert.NotEqual(t, metadata.FDBSourceBridge, result.Status.Source)
+	assert.NotEqual(t, SourceBridge, result.Source)
 }
 
-func TestCollectPortMapTruncationOmitsUnmappedInterfaceID(t *testing.T) {
+func TestCollectPortMapTruncationDiscardsRows(t *testing.T) {
 	sess := session.CreateFakeSession()
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 101)
 	sess.SetInt("1.3.6.1.2.1.17.1.4.1.2.2", 102)
@@ -128,20 +124,29 @@ func TestCollectPortMapTruncationOmitsUnmappedInterfaceID(t *testing.T) {
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 3)
 	sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3)
 
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	require.Equal(t, metadata.FDBCollectStatusSuccess, result.Status.Status)
-	require.Len(t, result.Entries, 1)
-	assert.Equal(t, int32(3), result.Entries[0].BridgePort)
-	assert.Zero(t, result.Entries[0].InterfaceIndex)
-	assert.Empty(t, result.Entries[0].InterfaceID)
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 1, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeTruncated, result.Outcome)
+	assert.Equal(t, reasonMaxEntries, result.Reason)
+	assert.Empty(t, result.Entries)
 }
 
 func TestCollectEmptySuccess(t *testing.T) {
 	sess := session.CreateFakeSession()
-	result := Collect(sess, Config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
-	assert.Equal(t, metadata.FDBCollectStatusSuccess, result.Status.Status)
+	result := collect(sess, config{DeviceID: "d", MaxEntries: 100, MaxDuration: time.Second, BulkMaxRepetitions: 10})
+	assert.Equal(t, OutcomeSuccess, result.Outcome)
 	assert.Empty(t, result.Entries)
-	assert.Equal(t, 0, result.Status.RowCount)
+}
+
+func TestCollectUsesFixedEntryLimit(t *testing.T) {
+	sess := session.CreateFakeSession()
+	for i := 0; i <= maxEntries; i++ {
+		sess.SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30."+itoa(i/256)+"."+itoa(i%256), 1)
+	}
+
+	result := Collect(sess, "d", 10)
+	assert.Equal(t, OutcomeTruncated, result.Outcome)
+	assert.Equal(t, reasonMaxEntries, result.Reason)
+	assert.Empty(t, result.Entries)
 }
 
 func TestWalkDeadline(t *testing.T) {

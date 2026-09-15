@@ -1405,7 +1405,6 @@ community_string: public
 collect_topology: false
 collect_device_metadata: false
 collect_fdb: true
-fdb_collection_interval: 300
 `)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
@@ -1437,25 +1436,25 @@ fdb_collection_interval: 300
 	t0 := time.Unix(1000, 0)
 	err = deviceCk.Run(t0)
 	assert.Nil(t, err)
+	sender.AssertMetricTaggedWith(t, "Gauge", fdbCollectionMetric, []string{"status:success", "source:q-bridge", "snmp_version:3"})
+	sender.AssertMetricTaggedWith(t, "Gauge", fdbRequestsMetric, []string{"request_type:getbulk"})
 
 	var fdbPayloads []metadata.NetworkDevicesMetadata
 	for _, p := range payloads {
-		if p.FDBStatus != nil || len(p.FDBEntries) > 0 {
+		if len(p.FDBEntries) > 0 {
 			fdbPayloads = append(fdbPayloads, p)
 		}
 	}
 	require.Len(t, fdbPayloads, 1)
-	require.NotNil(t, fdbPayloads[0].FDBStatus)
-	assert.Equal(t, metadata.FDBCollectStatusSuccess, fdbPayloads[0].FDBStatus.Status)
 	require.Len(t, fdbPayloads[0].FDBEntries, 1)
 	assert.Equal(t, "0a:14:1e:28:32:3c", fdbPayloads[0].FDBEntries[0].MacAddress)
-	assert.Equal(t, "default:1.2.3.4:10", fdbPayloads[0].FDBEntries[0].InterfaceID)
+	assert.Equal(t, int32(10), fdbPayloads[0].FDBEntries[0].InterfaceIndex)
+	assert.Equal(t, t0.Unix(), fdbPayloads[0].CollectTimestamp)
 
 	payloads = nil
 	err = deviceCk.Run(t0.Add(time.Minute))
 	assert.Nil(t, err)
 	for _, p := range payloads {
-		assert.Nil(t, p.FDBStatus)
 		assert.Empty(t, p.FDBEntries)
 	}
 
@@ -1464,14 +1463,14 @@ fdb_collection_interval: 300
 	assert.Nil(t, err)
 	found := false
 	for _, p := range payloads {
-		if p.FDBStatus != nil {
+		if len(p.FDBEntries) > 0 {
 			found = true
 		}
 	}
 	assert.True(t, found)
 }
 
-func TestDeviceCheckFDBFailureDoesNotFailCheck(t *testing.T) {
+func TestDeviceCheckEmptyFDBDoesNotFailCheck(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1484,7 +1483,6 @@ community_string: public
 collect_topology: false
 collect_device_metadata: false
 collect_fdb: true
-fdb_max_entries: 1
 `)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
@@ -1497,18 +1495,12 @@ fdb_max_entries: 1
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
-	sess.
-		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
-		SetTime("1.3.6.1.2.1.1.3.0", 20).
-		SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1).
-		SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.60", 3).
-		SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.61", 1).
-		SetInt("1.3.6.1.2.1.17.7.1.2.2.1.3.1.10.20.30.40.50.61", 3)
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").SetTime("1.3.6.1.2.1.1.3.0", 20)
 
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
+	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }

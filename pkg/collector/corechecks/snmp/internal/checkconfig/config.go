@@ -63,12 +63,6 @@ const deviceIDTagKey = "device_id"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
-const (
-	defaultFDBCollectionIntervalSec = 300
-	defaultFDBMaxEntries            = 10000
-	defaultFDBMaxDurationSec        = 10
-)
-
 // DefaultPingCount is the default number of pings to send per check run
 const DefaultPingCount int = 2
 
@@ -100,9 +94,6 @@ type InitConfig struct {
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	CollectVPN            Boolean                           `yaml:"collect_vpn"`
 	CollectFDB            Boolean                           `yaml:"collect_fdb"`
-	FDBCollectionInterval Number                            `yaml:"fdb_collection_interval"`
-	FDBMaxEntries         Number                            `yaml:"fdb_max_entries"`
-	FDBMaxDuration        Number                            `yaml:"fdb_max_duration"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
 	// DeviceTagsSource controls where the device tags on metrics come from: the backend
 	// enrichment (`resource`, default), the Agent (`agent`), or both.
@@ -136,9 +127,6 @@ type InstanceConfig struct {
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
 	CollectFDB            *Boolean                            `yaml:"collect_fdb"`
-	FDBCollectionInterval Number                              `yaml:"fdb_collection_interval"`
-	FDBMaxEntries         Number                              `yaml:"fdb_max_entries"`
-	FDBMaxDuration        Number                              `yaml:"fdb_max_duration"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
 	// DeviceTagsSource overrides the init config value for this instance.
 	DeviceTagsSource string                           `yaml:"device_tags_source"`
@@ -209,9 +197,6 @@ type CheckConfig struct {
 	CollectTopology       bool
 	CollectVPN            bool
 	CollectFDB            bool
-	FDBCollectionInterval time.Duration
-	FDBMaxEntries         int
-	FDBMaxDuration        time.Duration
 	UseDeviceIDAsHostname bool
 	// DeviceTagsSource reports where the device tags on metrics come from. Forced to
 	// `both` when CollectDeviceMetadata is false, since there is no metadata payload to
@@ -367,30 +352,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectFDB = bool(*instance.CollectFDB)
 	} else {
 		c.CollectFDB = bool(initConfig.CollectFDB)
-	}
-
-	c.FDBCollectionInterval = time.Duration(instance.FDBCollectionInterval) * time.Second
-	if c.FDBCollectionInterval == 0 {
-		c.FDBCollectionInterval = time.Duration(initConfig.FDBCollectionInterval) * time.Second
-	}
-	if c.FDBCollectionInterval == 0 {
-		c.FDBCollectionInterval = defaultFDBCollectionIntervalSec * time.Second
-	}
-
-	c.FDBMaxEntries = int(instance.FDBMaxEntries)
-	if c.FDBMaxEntries == 0 {
-		c.FDBMaxEntries = int(initConfig.FDBMaxEntries)
-	}
-	if c.FDBMaxEntries == 0 {
-		c.FDBMaxEntries = defaultFDBMaxEntries
-	}
-
-	c.FDBMaxDuration = time.Duration(instance.FDBMaxDuration) * time.Second
-	if c.FDBMaxDuration == 0 {
-		c.FDBMaxDuration = time.Duration(initConfig.FDBMaxDuration) * time.Second
-	}
-	if c.FDBMaxDuration == 0 {
-		c.FDBMaxDuration = defaultFDBMaxDurationSec * time.Second
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -717,9 +678,6 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.CollectTopology = c.CollectTopology
 	newConfig.CollectVPN = c.CollectVPN
 	newConfig.CollectFDB = c.CollectFDB
-	newConfig.FDBCollectionInterval = c.FDBCollectionInterval
-	newConfig.FDBMaxEntries = c.FDBMaxEntries
-	newConfig.FDBMaxDuration = c.FDBMaxDuration
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceTagsSource = c.DeviceTagsSource
 	newConfig.DeviceID = c.DeviceID

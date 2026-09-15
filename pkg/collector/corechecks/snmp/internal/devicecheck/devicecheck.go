@@ -48,6 +48,10 @@ const (
 	snmpGetRequestTag       = "request_type:get"
 	snmpGetBulkRequestTag   = "request_type:getbulk"
 	snmpGetNextReqestTag    = "request_type:getnext"
+	fdbCollectionMetric     = "datadog.snmp.fdb.collection"
+	fdbCollectionDuration   = "datadog.snmp.fdb.collection_duration"
+	fdbEntriesMetric        = "datadog.snmp.fdb.entries"
+	fdbRequestsMetric       = "datadog.snmp.fdb.requests"
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
@@ -368,7 +372,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	}
 
 	if sess != nil && deviceReachable {
-		d.maybeCollectFDB(sess, collectionTime)
+		d.maybeCollectFDB(sess, collectionTime, metricTags)
 	}
 
 	d.submitTelemetryMetrics(sess, startTime, metricTags)
@@ -385,22 +389,43 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	return checkErr
 }
 
-func (d *DeviceCheck) maybeCollectFDB(sess session.Session, collectionTime time.Time) {
+func (d *DeviceCheck) maybeCollectFDB(sess session.Session, collectionTime time.Time, tags []string) {
 	if !d.config.CollectFDB {
 		return
 	}
-	if !d.lastFDBCollect.IsZero() && collectionTime.Sub(d.lastFDBCollect) < d.config.FDBCollectionInterval {
+	if !d.lastFDBCollect.IsZero() && collectionTime.Sub(d.lastFDBCollect) < fdb.CollectionInterval {
 		return
 	}
 	d.lastFDBCollect = collectionTime
 
-	result := fdb.Collect(sess, fdb.Config{
-		DeviceID:           d.config.DeviceID,
-		MaxEntries:         d.config.FDBMaxEntries,
-		MaxDuration:        d.config.FDBMaxDuration,
-		BulkMaxRepetitions: d.config.BulkMaxRepetitions,
-	})
-	d.sender.ReportFDB(d.config, collectionTime, result)
+	getBefore := sess.GetSnmpGetCount()
+	getBulkBefore := sess.GetSnmpGetBulkCount()
+	getNextBefore := sess.GetSnmpGetNextCount()
+	result := fdb.Collect(sess, d.config.DeviceID, d.config.BulkMaxRepetitions)
+	if len(result.Entries) > 0 {
+		d.sender.ReportFDB(d.config, collectionTime, result.Entries)
+	}
+	d.submitFDBTelemetry(sess, result, tags, getBefore, getBulkBefore, getNextBefore)
+}
+
+func (d *DeviceCheck) submitFDBTelemetry(sess session.Session, result fdb.Result, tags []string, getBefore, getBulkBefore, getNextBefore uint32) {
+	telemetryTags := append(utils.CopyStrings(tags), snmpLoaderTag, utils.GetAgentVersionTag(), "status:"+string(result.Outcome), "snmp_version:"+sess.GetVersion().String())
+	if result.Source != "" {
+		telemetryTags = append(telemetryTags, "source:"+result.Source)
+	}
+	if result.Outcome == fdb.OutcomeTruncated {
+		telemetryTags = append(telemetryTags, "reason:"+result.Reason)
+	} else if result.Outcome == fdb.OutcomeError {
+		telemetryTags = append(telemetryTags, "reason:error")
+		log.Debugf("fdb collection failed for %s: %s", d.config.DeviceID, result.Reason)
+	}
+
+	d.sender.Gauge(fdbCollectionMetric, 1, telemetryTags)
+	d.sender.Gauge(fdbCollectionDuration, result.Duration.Seconds(), telemetryTags)
+	d.sender.Gauge(fdbEntriesMetric, float64(len(result.Entries)), telemetryTags)
+	d.sender.Gauge(fdbRequestsMetric, float64(sess.GetSnmpGetCount()-getBefore), append(utils.CopyStrings(telemetryTags), snmpGetRequestTag))
+	d.sender.Gauge(fdbRequestsMetric, float64(sess.GetSnmpGetBulkCount()-getBulkBefore), append(utils.CopyStrings(telemetryTags), snmpGetBulkRequestTag))
+	d.sender.Gauge(fdbRequestsMetric, float64(sess.GetSnmpGetNextCount()-getNextBefore), append(utils.CopyStrings(telemetryTags), snmpGetNextReqestTag))
 }
 
 func (d *DeviceCheck) setDeviceHostExternalTags() {
