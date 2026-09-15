@@ -29,6 +29,10 @@ type InstanceParams struct {
 	// RefreshInterval in minutes. Defaults to 60 if not specified.
 	RefreshInterval int
 
+	// AllowAsyncStartup allows a timed-out provider detection or failed initial
+	// key fetch to be retried after the caller returns.
+	AllowAsyncStartup bool
+
 	// APIKeyConfigKey is where to write the API key (e.g. "api_key",
 	// "logs_config.api_key"). Required. In additional-endpoints mode it serves
 	// as an internal bookkeeping/status key; the key itself is written elsewhere.
@@ -84,11 +88,14 @@ type InstanceParams struct {
 
 // Component manages cloud-based delegated authentication.
 // Call AddInstance for each API key to manage; the first call initializes the
-// component and each instance starts a background refresh goroutine. Thread-safe.
+// component. Successfully initialized instances refresh in the background;
+// callers can opt into background recovery from startup failures. Thread-safe.
 type Component interface {
 	// AddInstance configures a specific API key instance.
 	// The context is used for the initial fetch and provider detection;
 	// background refresh uses its own cancellable context.
-	// Returns an error if Config or OrgUUID is empty.
+	// Returns an error for invalid parameters, provider initialization failures,
+	// or key exchange failures when AllowAsyncStartup is false. An unavailable
+	// auto-detected provider leaves the static key in place and returns nil.
 	AddInstance(ctx context.Context, params InstanceParams) error
 }
