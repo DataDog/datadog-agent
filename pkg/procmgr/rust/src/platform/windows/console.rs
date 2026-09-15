@@ -122,49 +122,41 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
 
 #[cfg(all(test, windows))]
 mod tests {
-    use std::os::windows::process::CommandExt;
-    use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
     use super::send_graceful_stop;
+    use crate::process::{ManagedProcess, test_exit_channel};
     use crate::test_helpers;
-    use windows_sys::Win32::System::Threading::{CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
 
-    #[test]
-    fn test_send_graceful_stop_reaches_graceful_sleeper() {
-        let mut child = Command::new(test_helpers::graceful_sleeper_exe())
-            .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("spawn graceful-sleeper");
-        let pid = child.id();
-        std::thread::sleep(Duration::from_millis(100));
+    #[tokio::test]
+    async fn test_send_graceful_stop_reaches_graceful_sleeper() {
+        let (exit_tx, mut exit_rx) = test_exit_channel();
+        let mut proc = ManagedProcess::new_config(
+            "graceful".into(),
+            test_helpers::test_uuid(),
+            test_helpers::graceful_stop_test_config(),
+        );
+        proc.spawn(exit_tx).expect("spawn graceful-sleeper");
+        let pid = proc.pid().expect("spawned pid");
+        assert!(proc.is_running(), "graceful-sleeper should be running");
 
         let started = Instant::now();
         send_graceful_stop(pid).expect("send_graceful_stop");
 
-        let deadline = Instant::now() + Duration::from_secs(2);
-        loop {
-            match child.try_wait() {
-                Ok(Some(_)) => {
-                    assert!(
-                        started.elapsed() < Duration::from_secs(2),
-                        "graceful-sleeper took {:?} to exit after CTRL_BREAK",
-                        started.elapsed()
-                    );
-                    return;
-                }
-                Ok(None) => {}
-                Err(err) => panic!("try_wait failed: {err}"),
-            }
-            if Instant::now() >= deadline {
-                let _ = child.kill();
-                panic!(
-                    "graceful-sleeper did not exit within 2s after send_graceful_stop (pid={pid})"
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        let exit = tokio::time::timeout(Duration::from_secs(2), exit_rx.recv())
+            .await
+            .expect("graceful-sleeper did not exit within 2s after send_graceful_stop")
+            .expect("exit event");
+        assert_eq!(exit.pid, pid);
+        assert!(
+            exit.status.success(),
+            "graceful-sleeper should exit cleanly"
+        );
+
+        assert!(
+            started.elapsed().as_secs() < 2,
+            "graceful-sleeper took {:?} to exit after CTRL_BREAK",
+            started.elapsed()
+        );
     }
 }
