@@ -73,6 +73,7 @@ type metricObs struct {
 	host      string
 	tags      []string
 	timestamp int64
+	seriesKey uint64
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -1083,8 +1084,11 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
-	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
-		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
+	if precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate) {
+		return metricIngestDecision{source: normalizedSource}
+	}
+	seriesKey := seriesKeyHash(normalizedSource, name, host, tags)
+	if filter.isMutedWithKey(normalizedSource, seriesKey) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -1100,6 +1104,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 			host:      host,
 			tags:      tags,
 			timestamp: timestamp,
+			seriesKey: seriesKey,
 		},
 	}
 }

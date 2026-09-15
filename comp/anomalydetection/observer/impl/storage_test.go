@@ -34,6 +34,46 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_AddWithKeyAndHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	key := seriesKeyHash("dogstatsd", "metric.a", "host-a", tags)
+
+	first := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 1, 100, tags, key)
+	second := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 2, 100, tags, key)
+
+	assert.True(t, first.IsNew)
+	assert.False(t, second.IsNew)
+	assert.Equal(t, first.Ref, second.Ref)
+	storedKey, found := s.StorageKey(first.Ref)
+	assert.True(t, found)
+	assert.Equal(t, key, storedKey)
+}
+
+func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
+	tags := []string{"env:prod"}
+	assert.NotEqual(t,
+		seriesKeyHash("check", "metric.a", "host-a", tags),
+		seriesKeyHash("dogstatsd", "metric.a", "host-a", tags),
+	)
+}
+
+func TestEngineIngestMetricWithoutKeyFallsBackToComputedKey(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	engine := newEngine(engineConfig{storage: storage})
+	engine.IngestMetric("dogstatsd", &metricObs{
+		name:      "metric.a",
+		host:      "host-a",
+		value:     1,
+		timestamp: 100,
+		tags:      []string{"env:prod"},
+	})
+
+	series := storage.GetSeries("dogstatsd", "metric.a", nil, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{{Timestamp: 100, Value: 1}}, series.Points)
+}
+
 func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
 	s := newTimeSeriesStorage()
 	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})
@@ -1012,19 +1052,12 @@ func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
 	assert.Equal(t, "web-1", metas[0].Host)
 }
 
-func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
-	for _, tc := range []struct {
-		host string
-		tags []string
-	}{
-		{tags: []string{"env:prod", "service:api"}},
-		{host: "web-1", tags: []string{"env:prod", "service:api"}},
-	} {
-		assert.Equal(t,
-			fnv64aString(seriesKey("ns", "metric", tc.host, tc.tags)),
-			seriesKeyHash("ns", "metric", tc.host, tc.tags),
-		)
-	}
+func TestSeriesKeyHashCanonicalizesMetricIdentity(t *testing.T) {
+	sorted := seriesKeyHash("ns", "metric", "web-1", []string{"env:prod", "service:api"})
+	unsorted := seriesKeyHash("ns", "metric", "web-1", []string{"service:api", "env:prod"})
+
+	assert.NotZero(t, sorted)
+	assert.Equal(t, sorted, unsorted)
 }
 
 func TestParseSeriesKeyRequiresHostField(t *testing.T) {

@@ -102,6 +102,23 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", LogMetricsExtractorName, tags))
 }
 
+func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	decision := prepareMetricIngest("dogstatsd", &metricObs{
+		name: "system.cpu.user",
+		host: "host-a",
+		tags: []string{"service:api", "env:prod"},
+	}, filter)
+
+	require.NotNil(t, decision.metric)
+	assert.Equal(t,
+		seriesKeyHash("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
+		decision.metric.seriesKey,
+	)
+}
+
 func TestMetricsFilterRulesAllowWithoutRules(t *testing.T) {
 	filter, err := newMetricsFilterRules(nil)
 	require.NoError(t, err)

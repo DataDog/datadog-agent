@@ -53,6 +53,21 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	assert.False(t, storage.SupportsAggregate(meta[0].Ref, observerdef.AggregateCount))
 }
 
+func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{})
+	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
+	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+
+	require.True(t, b.observeWithKey("logs", metric, "host-a", 1, []string{"service:api"}, 42))
+	b.flush(storage, 5)
+
+	metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	key, found := storage.StorageKey(metas[0].Ref)
+	assert.True(t, found)
+	assert.Equal(t, uint64(42), key)
+}
+
 func TestMaterializedLogCountBucketizerStopsAtIdleTTLAndReactivates(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
