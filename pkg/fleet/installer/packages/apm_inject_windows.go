@@ -65,8 +65,14 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 	span, _ := ctx.StartSpan("setup_apm_inject")
 	defer func() { span.Finish(err) }()
 
-	if err := enableSystemProbeConfig(ctx); err != nil {
-		return fmt.Errorf("failed to enable system-probe config: %w", err)
+	// Enabling system-probe config (Windows crash detection) is a best-effort
+	// reliability/telemetry enhancement, not required for injection to work,
+	// so it must never fail the APM inject install. The error is still
+	// recorded via telemetry on the enable_system_probe_config span (and
+	// tagged here on the parent span); we only log a warning and continue.
+	if sysProbeErr := enableSystemProbeConfig(ctx); sysProbeErr != nil {
+		log.Warnf("failed to enable system-probe config for APM inject: %v", sysProbeErr)
+		span.SetTag("system_probe_config_error", sysProbeErr.Error())
 	}
 
 	// Get the installer path

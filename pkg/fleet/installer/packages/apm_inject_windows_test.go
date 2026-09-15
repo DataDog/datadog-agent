@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
 
@@ -147,4 +149,61 @@ some_future_key:
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0640))
+}
+
+// withTempInstallerPaths points paths.AgentConfigDir and paths.PackagesPath at
+// fresh temp dirs for the duration of the test, restoring the originals on
+// cleanup. Neither dir contains a "datadog-apm-inject/stable" package, so
+// postInstallAPMInject always fails at the EvalSymlinks step past
+// enableSystemProbeConfig -- there is no fake ddinjector-installer.exe to
+// install the driver, so the success path can only be verified up to (and
+// including) the system-probe config edit.
+func withTempInstallerPaths(t *testing.T) (agentConfigDir string) {
+	t.Helper()
+	origAgentConfigDir := paths.AgentConfigDir
+	origPackagesPath := paths.PackagesPath
+	t.Cleanup(func() {
+		paths.AgentConfigDir = origAgentConfigDir
+		paths.PackagesPath = origPackagesPath
+	})
+	agentConfigDir = t.TempDir()
+	paths.AgentConfigDir = agentConfigDir
+	paths.PackagesPath = t.TempDir()
+	return agentConfigDir
+}
+
+func TestPostInstallAPMInject_SystemProbeConfigSuccess_InstallContinues(t *testing.T) {
+	agentConfigDir := withTempInstallerPaths(t)
+	ctx := HookContext{Context: context.Background(), Package: packageAPMInject, PackageType: PackageTypeOCI}
+
+	err := postInstallAPMInject(ctx)
+
+	// No fake driver installer binary is set up, so the install still fails,
+	// but at the later EvalSymlinks step -- proving enableSystemProbeConfig
+	// succeeded and the flow proceeded past it unchanged.
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "system-probe")
+
+	data, readErr := os.ReadFile(filepath.Join(agentConfigDir, "system-probe.yaml"))
+	require.NoError(t, readErr)
+	var cfg config.SystemProbeConfig
+	require.NoError(t, yaml.Unmarshal(data, &cfg))
+	require.NotNil(t, cfg.WindowsCrashDetection.Enabled)
+	assert.True(t, *cfg.WindowsCrashDetection.Enabled)
+}
+
+func TestPostInstallAPMInject_SystemProbeConfigFailureIsNonFatal(t *testing.T) {
+	agentConfigDir := withTempInstallerPaths(t)
+	// Make system-probe.yaml a directory so os.ReadFile fails with an error
+	// other than "not exist", forcing enableSystemProbeConfig to fail.
+	require.NoError(t, os.Mkdir(filepath.Join(agentConfigDir, "system-probe.yaml"), 0755))
+	ctx := HookContext{Context: context.Background(), Package: packageAPMInject, PackageType: PackageTypeOCI}
+
+	err := postInstallAPMInject(ctx)
+
+	// The install must not abort because the system-probe config edit
+	// failed: any error returned here must come from a later step (no
+	// stable package present), never mention system-probe config.
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "system-probe")
 }
