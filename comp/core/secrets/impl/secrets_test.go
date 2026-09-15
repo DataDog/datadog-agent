@@ -372,6 +372,65 @@ func TestResolvePartialFailure(t *testing.T) {
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
 }
 
+func TestRefreshRetriesUnresolvedIntegrationSecret(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		if requests == 1 {
+			return []byte(`{}`), nil
+		}
+		return []byte(`{"retry_handle":{"value":"recovered"}}`), nil
+	}
+
+	type change struct {
+		oldValue string
+		newValue string
+	}
+	var changes []change
+	resolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, newValue any) {
+		if origin == "integration-config" {
+			changes = append(changes, change{oldValue: oldValue.(string), newValue: newValue.(string)})
+		}
+	})
+
+	config := []byte("password: ENC[retry_handle]\n")
+	resolved, err := resolver.Resolve(config, "integration-config", "", "", false)
+	require.Error(t, err)
+	assert.Contains(t, string(resolved), "ENC[retry_handle]")
+	require.Contains(t, resolver.origin, "retry_handle")
+
+	output, err := resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 2, requests)
+	assert.Contains(t, output, "'retry_handle'")
+	assert.Equal(t, []change{{oldValue: "", newValue: "recovered"}}, changes)
+}
+
+func TestRefreshSkipsUnresolvedSecretAfterOriginRemoval(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		return []byte(`{}`), nil
+	}
+
+	_, err := resolver.Resolve([]byte("password: ENC[removed_handle]\n"), "removed-config", "", "", false)
+	require.Error(t, err)
+	require.Contains(t, resolver.origin, "removed_handle")
+
+	resolver.RemoveOrigin("removed-config")
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 1, requests, "removed configs must not be retried")
+}
+
 // TestResolveMultiSecretBackendsNamed verifies that ENC[FILE;pass1] is routed to the
 // named "file" backend under multi_secret_backends, and that the lookup is case-insensitive
 // (the handle prefix "FILE" matches the lowercase-stored key "file").

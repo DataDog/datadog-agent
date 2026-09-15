@@ -39,6 +39,7 @@ import (
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	schedulerfx "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/fx"
+	statusfx "github.com/DataDog/datadog-agent/comp/healthplatform/status/fx"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,6 +56,7 @@ func Bundle() fxutil.BundleOptions {
 		forwarderfx.Module(),
 		egressfx.Module(),
 		corefx.Module(),
+		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
 }
