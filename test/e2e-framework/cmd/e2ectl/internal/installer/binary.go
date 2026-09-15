@@ -6,6 +6,7 @@
 package installer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/localinfra"
 	binaryconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/binary"
+	e2eostypes "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
@@ -99,7 +101,27 @@ func (b *Binary) Install(cfg *config.File, entry envstore.Entry) error {
 	if err := b.runAgentContainer(entry, section); err != nil {
 		return err
 	}
-	return b.waitForFlushedMetrics(entry)
+	if err := b.waitForFlushedMetrics(entry); err != nil {
+		return err
+	}
+	// remoteHost makes the agent container look like a Host to the test
+	// framework: Transport=docker tells RemoteHost.Init to use docker exec
+	// with Address as the container name. The existing
+	// StaticStackProvisioner rehydrates environments.Host from the snapshot
+	// — fakeIntake + remoteHost — with zero provisioner changes.
+	hostJSON, err := json.Marshal(map[string]any{
+		"transport":     "docker",
+		"address":       localinfra.AgentContainer(entry.Name),
+		"cloudProvider": "local",
+		"osFamily":      e2eostypes.LinuxFamily,
+		"osFlavor":      e2eostypes.Ubuntu,
+		"osVersion":     "24.04",
+		"architecture":  e2eostypes.ARM64Arch,
+	})
+	if err != nil {
+		return err
+	}
+	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON)
 }
 
 // Update implements Updatable: prepare (rebuild unless skipBuild), replace
@@ -126,7 +148,27 @@ func (b *Binary) Update(cfg *config.File, entry envstore.Entry, skipBuild bool) 
 	if err := b.runAgentContainer(entry, section); err != nil {
 		return err
 	}
-	return b.waitForFlushedMetrics(entry)
+	if err := b.waitForFlushedMetrics(entry); err != nil {
+		return err
+	}
+	// remoteHost makes the agent container look like a Host to the test
+	// framework: Transport=docker tells RemoteHost.Init to use docker exec
+	// with Address as the container name. The existing
+	// StaticStackProvisioner rehydrates environments.Host from the snapshot
+	// — fakeIntake + remoteHost — with zero provisioner changes.
+	hostJSON, err := json.Marshal(map[string]any{
+		"transport":     "docker",
+		"address":       localinfra.AgentContainer(entry.Name),
+		"cloudProvider": "local",
+		"osFamily":      e2eostypes.LinuxFamily,
+		"osFlavor":      e2eostypes.Ubuntu,
+		"osVersion":     "24.04",
+		"architecture":  e2eostypes.ARM64Arch,
+	})
+	if err != nil {
+		return err
+	}
+	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON)
 }
 
 func (b *Binary) runAgentContainer(entry envstore.Entry, section binaryconfig.Config) error {

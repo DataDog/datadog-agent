@@ -17,6 +17,7 @@ go_library(
         "//test/e2e-framework/cmd/internal/envconfig/binary",
         "//test/e2e-framework/cmd/internal/envconfig/helm",
         "//test/e2e-framework/cmd/internal/envconfig/script",
+        "//test/e2e-framework/components/os/types",
         "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/installers/agentconfig",
