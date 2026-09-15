@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"unsafe"
@@ -24,11 +22,6 @@ import (
 // based on the metrics-pipeline context key.
 func testStorageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
 	return storageKeyForIdentity(namespace, name, host, tags)
-}
-
-// AddWithHost is a test-only raw-identity insertion helper.
-func (s *timeSeriesStorage) AddWithHost(namespace, name, host string, value float64, timestamp int64, tags []string) AddResult {
-	return s.AddWithKeyAndHost(namespace, name, host, value, timestamp, tags, testStorageKeyForIdentity(namespace, name, host, tags))
 }
 
 // GetSeries is a test-only convenience query. A nil tag slice matches the
@@ -53,41 +46,6 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 		}
 	}
 	return nil
-}
-
-// parseSeriesKey is test-only support for compact-series-ID fixtures.
-func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
-	parts := strings.SplitN(key, "|", 4)
-	if len(parts) != 4 {
-		return "", "", "", nil, false
-	}
-	if parts[3] == "" {
-		return parts[0], parts[1], parts[2], nil, true
-	}
-	return parts[0], parts[1], parts[2], strings.Split(parts[3], ","), true
-}
-
-// CompactSeriesID is a test-only helper for legacy compact-ID fixtures.
-func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
-	if !ok {
-		return fullKey
-	}
-	baseName, aggStr := nameWithAgg, ""
-	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
-		baseName, aggStr = nameWithAgg[:idx], nameWithAgg[idx+1:]
-	}
-	stats := s.series[testStorageKeyForIdentity(namespace, baseName, host, tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != baseName || stats.Host != host {
-		return fullKey
-	}
-	if aggStr != "" {
-		return strconv.Itoa(int(stats.ref)) + ":" + aggStr
-	}
-	return strconv.Itoa(int(stats.ref))
 }
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
@@ -153,10 +111,11 @@ func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
 	assert.Equal(t, metric.storageKey, key)
 }
 
-func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
+func TestTimeSeriesStorage_AddWithKeyAndHostSeparatesIdenticalMetricAndTags(t *testing.T) {
 	s := newTimeSeriesStorage()
-	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})
-	second := s.AddWithHost("test", "my.metric", "host-b", 20, 1000, []string{"env:prod"})
+	tags := []string{"env:prod"}
+	first := s.AddWithKeyAndHost("test", "my.metric", "host-a", 10, 1000, tags, testStorageKeyForIdentity("test", "my.metric", "host-a", tags))
+	second := s.AddWithKeyAndHost("test", "my.metric", "host-b", 20, 1000, tags, testStorageKeyForIdentity("test", "my.metric", "host-b", tags))
 
 	require.NotEqual(t, first.Ref, second.Ref)
 	firstMeta := s.GetSeriesMeta(first.Ref)
@@ -1113,7 +1072,8 @@ func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
 
 func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
 	s := newTimeSeriesStorage()
-	s.AddWithHost("ns", "metric", "web-1", 1, 1000, []string{"env:prod"})
+	tags := []string{"env:prod"}
+	s.AddWithKeyAndHost("ns", "metric", "web-1", 1, 1000, tags, testStorageKeyForIdentity("ns", "metric", "web-1", tags))
 
 	path := t.TempDir() + "/series.json"
 	require.NoError(t, s.DumpToFile(path))
@@ -1124,7 +1084,7 @@ func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
 
 func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
 	s := newTimeSeriesStorage()
-	s.AddWithHost("ns", "metric", "web-1", 1, 1000, nil)
+	s.AddWithKeyAndHost("ns", "metric", "web-1", 1, 1000, nil, testStorageKeyForIdentity("ns", "metric", "web-1", nil))
 
 	metas := s.ListSeriesMetadata("ns")
 	require.Len(t, metas, 1)
@@ -1137,50 +1097,4 @@ func TestSeriesKeyHashCanonicalizesMetricIdentity(t *testing.T) {
 
 	assert.NotZero(t, sorted)
 	assert.Equal(t, sorted, unsorted)
-}
-
-func TestParseSeriesKeyRequiresHostField(t *testing.T) {
-	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
-	assert.True(t, ok)
-	assert.Equal(t, "ns", namespace)
-	assert.Equal(t, "metric:avg", name)
-	assert.Empty(t, host)
-	assert.Equal(t, []string{"env:prod"}, tags)
-
-	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
-	assert.False(t, ok)
-}
-
-func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
-	s := newTimeSeriesStorage()
-	tags := []string{"env:prod"}
-	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
-	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
-	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
-
-	for _, tc := range []struct {
-		host string
-		ref  observer.SeriesRef
-	}{
-		{host: "", ref: hostless.Ref},
-		{host: "web-a", ref: hostA.Ref},
-		{host: "web-b", ref: hostB.Ref},
-	} {
-		key := (observer.SeriesDescriptor{
-			Namespace: "ns",
-			Name:      "metric",
-			Host:      tc.host,
-			Tags:      tags,
-			Aggregate: AggregateAverage,
-		}).Key()
-		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
-	}
-}
-
-func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
-	s := newTimeSeriesStorage()
-	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
-	legacyKey := "ns|metric:avg|env:prod"
-
-	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
 }
