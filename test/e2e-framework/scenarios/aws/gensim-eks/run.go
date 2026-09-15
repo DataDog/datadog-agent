@@ -614,7 +614,11 @@ func provisionBuildVM(ctx *pulumi.Context, awsEnv resAws.Environment) (*remote.H
 
 	// Use the Amazon Linux ECS AMI — Docker 25 (including buildx) is pre-installed
 	// and the daemon is already running. Only AWS CLI needs to be added (~30s via yum).
-	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder", ec2.WithOS(osComp.AmazonLinuxECSDefault))
+	// The AMI is resolved live (WithLatestAMI) rather than pinned in platforms.json.
+	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder",
+		ec2.WithOS(osComp.NewDescriptor(osComp.AmazonLinuxECS, "")),
+		ec2.WithLatestAMI(),
+	)
 	if err != nil {
 		return nil, nil, err
 	}

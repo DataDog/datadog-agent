@@ -35,7 +35,7 @@ var netflowCompose string
 //go:embed config/netflowConfig.yaml
 var datadogYaml string
 
-// netflowDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
+// netflowDockerProvisioner defines a stack with a docker agent on a VM
 // with the netflow-generator running and sending netflow payloads to the agent
 func netflowDockerProvisioner() provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {

@@ -40,7 +40,7 @@ const (
 	composeDataPath = "compose/data"
 )
 
-// snmpDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
+// snmpDockerProvisioner defines a stack with a docker agent on a VM
 // with snmpsim installed and configured with snmp recordings
 func snmpDockerProvisioner() provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
