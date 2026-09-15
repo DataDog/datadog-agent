@@ -68,6 +68,7 @@ dd_agent_go_test(
         "testdata/no-dd-exporter-provided-config.yml",
         "testdata/sources.json",
     ],
+    tags = ["manual"],
     deps = [
         "//comp/core/tagger/types",
         "//test/e2e-framework/common/config",

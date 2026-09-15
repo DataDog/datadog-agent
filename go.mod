@@ -27,7 +27,7 @@ replace (
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `GOPROXY="" go mod tidy` then `dda inv tidy`
-	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260716114726-2881ad5a60c8
+	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260914075539-1573db524051
 )
 
 require (
@@ -203,7 +203,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423
+	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
 	github.com/DataDog/datadog-traceroute v1.0.20
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
@@ -582,7 +582,6 @@ require (
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
-	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
