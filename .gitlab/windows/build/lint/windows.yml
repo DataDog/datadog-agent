@@ -33,6 +33,7 @@ lint_windows-x64:
   extends: .lint_windows_base
   rules:
     - !reference [.on_native_os_linters]
+    - !reference [.on_main_or_release_branch]  # lint_cross_windows-x64 missed regressions, leading to #55162 and #55210
   variables:
     ARCH: "x64"
   timeout: 1h30m
