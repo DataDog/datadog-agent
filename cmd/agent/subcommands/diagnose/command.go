@@ -486,7 +486,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 		return err
 	}
 	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
-	apiConfigURL := fmt.Sprintf("https://%s/health-platform/issues", addr)
+	apiConfigURL := fmt.Sprintf("https://%s/agent/health-platform/issues", addr)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
