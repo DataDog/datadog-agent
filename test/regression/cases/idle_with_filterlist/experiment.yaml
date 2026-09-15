@@ -1,0 +1,50 @@
+# Diagnostic case, NOT a quality_gate_ case: a straight copy of
+# quality_gate_idle with one addition -- a single plain metric_filterlist
+# entry in datadog-agent/datadog.yaml -- and no `checks:` block, since this
+# isn't asserting a performance claim, it's isolating one variable in the
+# metric_filterlist_mixed_10k crash investigation (see that case's
+# experiment.yaml history).
+#
+# metric_filterlist_mixed_10k crashes with zero target log output and zero
+# memory samples -- never measured once -- regardless of traffic (60 -> 20
+# MiB/s), memory_allotment (8192 -> 4096 MiB), or config size/rule count
+# (3.1 MB/5,000 prefix rules -> 1.14 MB/1,250). None of that moved the needle,
+# which argues against anything content- or size-related in the config.
+#
+# This case isolates metric_filterlist itself, stripped of every other
+# variable in that case: no DogStatsD traffic (no `generator:` entries in
+# lading.yaml, same as quality_gate_idle), no prefix/exception object-form
+# entries, no scale -- just one plain string entry. If THIS crashes with the
+# same zero-log/zero-metric signature, the feature itself (or the
+# component/config-loading path it takes) is implicated, independent of the
+# traffic/scale variables already ruled out. If it passes, the mixed_10k
+# crash is specific to something about that case (scale, its generators, its
+# resource requests) rather than metric_filterlist itself.
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 233 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:idle_with_filterlist

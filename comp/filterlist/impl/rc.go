@@ -7,11 +7,11 @@ package filterlistimpl
 
 import (
 	"encoding/json"
-	"maps"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/twmb/murmur3"
 )
 
@@ -44,6 +44,9 @@ type byName struct {
 
 type metricEntry struct {
 	Name string `json:"metric_name"`
+	// Except is optional, and only meaningful when Name is a `*` prefix: the
+	// metrics it matches are kept even though Name matches them.
+	Except []string `json:"except"`
 }
 
 // onFilterListUpdateCallback receives both metric and tag filterlist configurations.
@@ -54,6 +57,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	// configuration for this agent, let's restore the local config and return
 	if len(updates) == 0 {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
@@ -70,6 +74,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	// the RC platform
 	for configPath, v := range updates {
 		fl.log.Debugf("received filterlist config: %q", string(v.Config))
+
 		var config statsdFilterListUpdate
 		if err := json.Unmarshal(v.Config, &config); err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{
@@ -97,25 +102,41 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
-	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 	// RC lists mark their prefixes per entry with `*`, and are applied with the
-	// global prefix mode off (see SetMetricFilterList below).
-	metricNames = normalizeMetricNames(metricNames, false, fl.log)
+	// global prefix mode off (see SetMetricFilterRules below).
+	metricRules = normalizeMetricRules("metric_filterlist", metricRules, false, fl.log)
 
-	if len(metricNames) > 0 {
-		// update the runtime config to be consistent
-		// in `agent config` calls.
-		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
+	if len(metricRules) > 0 {
+		// update the runtime config to be consistent in `agent config` calls,
+		// mirroring the split between metric_filterlist and
+		// metric_filterlist_prefix that the configuration file uses: an entry
+		// with no exception is a plain metric name, so it goes to
+		// metric_filterlist same as before this split, and only an entry
+		// carrying exceptions needs metric_filterlist_prefix's object form.
+		plainNames, prefixRules := partitionMetricFilterRules(metricRules)
+
+		if len(plainNames) > 0 {
+			fl.config.Set("metric_filterlist", plainNames, model.SourceRC)
+		} else {
+			fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		}
+		if len(prefixRules) > 0 {
+			fl.config.Set("metric_filterlist_prefix", metricFilterListEntries(prefixRules), model.SourceRC)
+		} else {
+			fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
+		}
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(fl.localFilterListConfig.metricNames) > 0 {
+		if len(fl.localFilterListConfig.metricRules) > 0 {
 			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
 			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
 		}
 
 		// apply this new blocklist to all the running workers
-		fl.SetMetricFilterList(metricNames, false)
+		fl.SetMetricFilterRules(metricRules, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
@@ -142,18 +163,48 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 }
 
-// buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
-// Metric names are deduped. They are passed through as-is, so a name ending with
-// `*` is a prefix pattern, exactly like one coming from the configuration file.
-func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
-	metrics := make(map[string]struct{})
+// buildMetricFilterListConfig builds the rules to be used for the metric
+// filterlist. Metric names are passed through as-is, so a name ending with `*`
+// is a prefix pattern, exactly like one coming from the configuration file.
+//
+// Entries with no exception are deduped by name. Entries with exceptions are
+// not: two entries on the same name but with different exceptions are not
+// interchangeable, and the matcher applies each entry's exceptions to its own
+// match, so keeping both is what makes a metric excepted by only one of them
+// still get dropped.
+func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []metricname.Rule {
+	var rules []metricname.Rule
+	seen := make(map[string]struct{})
+
 	for _, update := range metricFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			metrics[metric.Name] = struct{}{}
+			if len(metric.Except) > 0 {
+				rules = append(rules, metricname.Rule{Pattern: metric.Name, Except: metric.Except})
+				continue
+			}
+			if _, ok := seen[metric.Name]; ok {
+				continue
+			}
+			seen[metric.Name] = struct{}{}
+			rules = append(rules, metricname.Rule{Pattern: metric.Name})
 		}
 	}
-	metricNames := slices.Collect(maps.Keys(metrics))
-	return metricNames
+
+	return rules
+}
+
+// partitionMetricFilterRules splits rules into those with no exceptions,
+// which are representable as plain metric_filterlist entries, and those with
+// exceptions, which need metric_filterlist_prefix's object form.
+func partitionMetricFilterRules(rules []metricname.Rule) (plain []string, prefixed []metricname.Rule) {
+	for _, rule := range rules {
+		if len(rule.Except) == 0 {
+			plain = append(plain, rule.Pattern)
+			continue
+		}
+		prefixed = append(prefixed, rule)
+	}
+	return plain, prefixed
 }
 
 // buildConfig builds the configuration to use.

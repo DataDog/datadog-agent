@@ -1,0 +1,127 @@
+# Mixed metric_filterlist scaling experiment -- 6,250 entries
+# (1,250 prefix `<name>*` entries, each with 8 exceptions, + 5,000
+# exact entries).
+#
+# The prefix count was quartered by hand (5,000 -> 1,250; see
+# datadog-agent/datadog.yaml and README.md) as a diagnostic: this case has
+# never actually run through the real datadog-agent CI/SMP infrastructure with
+# exceptions -- it does not exist on main -- and every replicate crashed with
+# zero target log output AND zero captured telemetry (no total_pss_bytes at
+# all), before or during startup, unaffected by the traffic cut (60 -> 20
+# MiB/s), a first memory cut (8192 -> 4096 MiB), and the prefix-count
+# quartering. None of that moved the needle.
+#
+# This exact case (pre-exceptions, same 20 MiB/s traffic) already crashed and
+# was already fixed once before, in this branch's own history: see the
+# `target:` comment below. cpu_allotment: 6 was the other half of the
+# problem, not just memory_allotment.
+#
+# The actual explanation for the zero-telemetry crash turned out to be a
+# third thing, found once cpu_allotment/memory_allotment stopped being
+# suspects: Agent Data Plane's own config parser only understands a flat
+# list of metric name strings under metric_filterlist, and crash-loops
+# ("invalid type: map, expected a string", forever, not just during the
+# bounded preflight check) on the object-form prefix+exceptions entries this
+# branch added there. metric_name/except entries have since moved to a
+# separate metric_filterlist_prefix key that ADP does not read, so this
+# case's datadog-agent/datadog.yaml now puts its 5,000 exact entries under
+# metric_filterlist and its 1,250 prefix+exceptions entries under
+# metric_filterlist_prefix.
+#
+# GENERATED, then copied. Source of truth is the smp-playground harness at
+# experiments/regression/agent/metric_filterlist_scaling, via
+# `python3 scripts/generate_filterlist_cases.py --mixed`; the case was copied
+# here and renamed. Edit the harness templates and re-copy rather than
+# hand-editing these files -- the generator is what enforces the properties
+# this experiment depends on (see "Three properties" in its README).
+#
+# NOT a `quality_gate_` case. Those are the strongest performance claims made
+# about the Agent (see test/regression/README.md) and are additionally synced
+# into smp-playground every week. This is a measurement case whose bounds have
+# not been established, so it deliberately carries no `checks:` block.
+#
+# This was originally a three-tier sweep (10k/50k/100k). The 50k and 100k
+# tiers were dropped -- every tier crashed at the original 60 MiB/s offered
+# load -- leaving only this 10k case, with the traffic in lading/lading.yaml
+# reduced to 20 MiB/s (see that file for the breakdown and rationale).
+#
+# WHAT IT MEASURES: the cost of a metric_filterlist_prefix that is entirely
+# PREFIX RULES, every one of them carrying EXCEPTIONS. This branch gave
+# `pkg/util/metricname.Matcher` two arms beyond the sorted `exact` one:
+# `prefixes` (unconditional, testPrefixes + strings.HasPrefix) and `guarded`
+# (prefixes with exceptions, searched the same way then checked against that
+# entry's own exception matcher). Since every prefix entry here has exceptions,
+# `prefixes` is empty and the prefix half is entirely `guarded` -- the worst
+# layout for the feature.
+#
+# NOTE ON THE BASELINE SIDE: the Regression Detector compares this commit's
+# image against the merge base of the base branch, which has neither prefix
+# nor exception support, and does not have metric_filterlist_prefix at all --
+# metric_filterlist_prefix is silently ignored (an unknown key) rather than
+# parsed, so the baseline filters only the exact half and does strictly less
+# work. A comparison-vs-baseline delta on this case is "feature off vs on"
+# rather than a like-for-like regression.
+#
+# lading drives the two arms separately, 20 MiB/s total (see
+# lading/lading.yaml):
+#
+#   background   16 MiB/s  random names, evaluated then forwarded
+#   prefix_hit  1.5 MiB/s  ...bench.prefix.<idx><pad>.hit -> guarded arm, dropped
+#                          (pays a full exception-matcher miss on every hit)
+#   exact_hit   1.5 MiB/s  ...bench.exact.<idx><pad>      -> exact arm, dropped
+#   miss          1 MiB/s  ...bench.nomatch.<idx><pad>    -> both arms, forwarded
+#
+# Every name ON THE WIRE is exactly 88 characters in all four namespaces, so
+# hit-vs-miss differences cannot be an artefact of name length. Prefix ENTRIES
+# are 84 characters for exactly that reason: prefix_hit traffic appends `.hit`,
+# so a prefix-hit name is equal to no entry at all and its drop can only have
+# come from the prefix arm.
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  # NOTE: exceptions add config file that the Agent parses at startup and
+  # holds in the config layer, on top of the per-entry exception matchers.
+  # With optimization_goal: memory that lands in the signal, so the memory
+  # delta is matcher cost AND config cost, not matcher cost alone.
+  #
+  # cpu_allotment: 6 / memory_allotment: 8192 MiB were inherited unchanged
+  # from the smp-playground sweep (memory reached by three successive
+  # increases after replicates crashed there at 200 MiB/s of DogStatsD
+  # traffic). That request is a large outlier vs every other case in this
+  # directory (all sit at cpu_allotment: 4, memory_allotment <= 2 GiB) and
+  # every replicate of this exact case failed with ZERO captured telemetry
+  # (no total_pss_bytes, no logs, nothing) even after traffic was lowered to
+  # 20 MiB/s -- consistent with a scheduling/capacity failure on the SMP
+  # fleet (nodes are 8-vCPU c6i.2xlarge; a 6-vCPU ask leaves little room to
+  # bin-pack alongside other experiments' replicates competing for the same
+  # node pool), not an application crash.
+  #
+  # This branch already hit and fixed exactly this, on the pre-exceptions
+  # version of this same case, before removing it as a completed measurement
+  # (see `git show b1437902bf8fb3041f467da34a3c075666be8a72^:test/regression/cases/metric_filterlist_mixed_10k/experiment.yaml`).
+  # Right-sized here to match that proven-safe footprint, which is also the
+  # footprint of dsd_uds_10mb_3k_timestamped_contexts_* in this same suite.
+  cpu_allotment: 4
+  memory_allotment: 2048 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:metric_filterlist_mixed_10k

@@ -8439,10 +8439,72 @@ properties:
     default: []
     items:
       type: string
+    comment: |-
+      List of metric names that are dropped instead of being sent to Datadog.
+      An entry ending with `*` is a prefix: `foo.bar.*` drops every metric whose
+      name starts with `foo.bar.` (including `foo.bar.` itself), while `foo.bar`
+      only drops that exact name. A `*` anywhere else in an entry is matched
+      literally, and a metric name ending with a literal `*` cannot be expressed.
+
+      Entries here are always plain metric names: this is deliberate, so that a
+      component which only understands a flat list of strings (for instance
+      Agent Data Plane) can keep reading this setting unchanged. Use
+      metric_filterlist_prefix instead for a prefix that needs exceptions.
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      When true, every entry of metric_filterlist is treated as a prefix, whether
+      or not it ends with `*`. Prefer the per-entry `*` suffix, which lets exact
+      and prefix entries be mixed in the same list.
+  metric_filterlist_prefix:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json_list_or_space_separated
+    items:
+      oneOf:
+      - type: string
+      - type: object
+        required:
+        - metric_name
+        additionalProperties: false
+        properties:
+          metric_name:
+            type: string
+          except:
+            type: array
+            items:
+              type: string
+    comment: |-
+      List of metric name prefixes that are dropped instead of being sent to
+      Datadog, in addition to metric_filterlist. Every entry is a prefix,
+      whether or not it ends with `*`: `redis.` and `redis.*` are equivalent,
+      and both drop every metric whose name starts with `redis.` (including
+      `redis.` itself).
+
+      An entry can also be written as an object to attach exceptions to it:
+
+        metric_filterlist_prefix:
+          - redis.                      # drop everything under redis.
+          - metric_name: postgresql.    # drop everything under postgresql.
+            except:                     # except these, which are kept
+              - postgresql.connections
+              - postgresql.locks.*
+
+      Exceptions belong to the entry that declares them: a metric excepted by
+      one entry is still dropped if another entry of this list, or of
+      metric_filterlist, matches it.
+
+      This is a separate setting from metric_filterlist -- rather than an
+      object form mixed into it -- so that a component which only understands
+      a flat list of metric names (for instance Agent Data Plane) is unaffected
+      by it and can keep reading metric_filterlist unchanged.
+
+      The DD_METRIC_FILTERLIST_PREFIX environment variable only takes plain
+      metric names, as a space-separated or JSON list; exceptions need the
+      config file.
   metric_tag_filterlist:
     node_type: setting
     type: array
@@ -9255,10 +9317,17 @@ properties:
     default: []
     items:
       type: string
+    comment: |-
+      Deprecated: use metric_filterlist, which takes precedence when set.
+      Entries support the same per-entry `*` prefix suffix as metric_filterlist,
+      but not its per-entry exceptions: those need metric_filterlist_prefix.
   statsd_metric_blocklist_match_prefix:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      Deprecated: use metric_filterlist_match_prefix. When true, every entry of
+      statsd_metric_blocklist is treated as a prefix.
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array

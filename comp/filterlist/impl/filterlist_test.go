@@ -140,6 +140,172 @@ func TestMetricFilterListLegacyBlocklistPrefixEntries(t *testing.T) {
 	require.False(t, matcher.Test("other.metric"))
 }
 
+// newFilterListWithMetricPrefixList builds a filterlist over the raw
+// `metric_filterlist_prefix` value a config file would decode to.
+func newFilterListWithMetricPrefixList(t *testing.T, list interface{}) *FilterList {
+	cfg := map[string]interface{}{"metric_filterlist_prefix": list}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	return NewFilterList(logComponent, configComponent, telemetryComponent)
+}
+
+// TestMetricFilterListPrefixKeyIsAlwaysAPrefix pins that every
+// metric_filterlist_prefix entry is a prefix, whether or not it ends with
+// `*` -- unlike metric_filterlist, which needs metric_filterlist_match_prefix
+// or a trailing `*` for that.
+func TestMetricFilterListPrefixKeyIsAlwaysAPrefix(t *testing.T) {
+	filterList := newFilterListWithMetricPrefixList(t, []interface{}{"plain", "withstar.*"})
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(t, matcher.Test("plain"))
+	require.True(t, matcher.Test("plainX"), "no trailing `*` needed: metric_filterlist_prefix entries are always prefixes")
+	require.True(t, matcher.Test("withstar."))
+	require.True(t, matcher.Test("withstar.anything"))
+}
+
+func TestMetricFilterListPrefixKeyExceptions(t *testing.T) {
+	filterList := newFilterListWithMetricPrefixList(t, []interface{}{
+		"plain.*",
+		map[string]interface{}{
+			"metric_name": "redis.*",
+			"except": []interface{}{
+				"redis.net.commands",
+				"redis.keys.*",
+			},
+		},
+	})
+
+	matcher := filterList.GetMetricFilterList()
+
+	// Entries without exceptions are unaffected.
+	require.True(t, matcher.Test("plain.anything"))
+
+	// The prefix is dropped...
+	require.True(t, matcher.Test("redis."))
+	require.True(t, matcher.Test("redis.mem.used"))
+	require.True(t, matcher.Test("redis.net.commands.rate"))
+	// ...except for the metrics it excepts, exact or prefix.
+	require.False(t, matcher.Test("redis.net.commands"))
+	require.False(t, matcher.Test("redis.keys."))
+	require.False(t, matcher.Test("redis.keys.count"))
+	// An exception does not widen the entry.
+	require.False(t, matcher.Test("redis"))
+	require.False(t, matcher.Test("other.metric"))
+
+	// Exceptions also survive into the histogram subset applied at flush time.
+	histo := filterList.GetHistoFilterList()
+	require.True(t, histo.Test("redis.latency.avg"))
+	require.False(t, histo.Test("redis.keys.count.avg"))
+}
+
+// TestMetricFilterListPrefixKeyExceptionsAreScopedToTheirEntry pins that an
+// exception narrows only the entry declaring it: a name another entry
+// matches is still dropped.
+func TestMetricFilterListPrefixKeyExceptionsAreScopedToTheirEntry(t *testing.T) {
+	filterList := newFilterListWithMetricPrefixList(t, []interface{}{
+		map[string]interface{}{
+			"metric_name": "foo.*",
+			"except":      []interface{}{"foo.keep", "foo.bar.keep"},
+		},
+		"foo.bar.*",
+	})
+
+	matcher := filterList.GetMetricFilterList()
+	require.False(t, matcher.Test("foo.keep"))
+	// Excepted by `foo.*`, but `foo.bar.*` matches it unconditionally.
+	require.True(t, matcher.Test("foo.bar.keep"))
+}
+
+// TestMetricFilterListPrefixKeyExceptionsFromYAML exercises the real YAML
+// decoding path, which is the only way the object form of an entry reaches
+// the Agent.
+func TestMetricFilterListPrefixKeyExceptionsFromYAML(t *testing.T) {
+	configComponent := config.NewMockFromYAML(t, `
+metric_filterlist_prefix:
+  - plain.metric
+  - plain.prefix.*
+  - metric_name: redis.*
+    except:
+      - redis.net.commands
+      - redis.keys.*
+`)
+
+	logComponent := logmock.New(t)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+	require.Equal(t, 3, matcher.Len())
+	require.True(t, matcher.Test("plain.metric"))
+	// `plain.metric` has no trailing `*` in the config, but this key treats
+	// every entry as a prefix regardless.
+	require.True(t, matcher.Test("plain.metric.suffix"))
+	require.True(t, matcher.Test("plain.prefix.anything"))
+	require.True(t, matcher.Test("redis.mem.used"))
+	require.False(t, matcher.Test("redis.net.commands"))
+	require.False(t, matcher.Test("redis.keys.count"))
+}
+
+func TestMetricFilterListPrefixKeyMalformedEntries(t *testing.T) {
+	cases := []struct {
+		name  string
+		entry interface{}
+	}{
+		{"unknown field", map[string]interface{}{"metric_name": "foo.*", "excepts": []interface{}{"foo.keep"}}},
+		{"missing metric name", map[string]interface{}{"except": []interface{}{"foo.keep"}}},
+		{"empty metric name", map[string]interface{}{"metric_name": ""}},
+		{"not a name nor an object", []interface{}{"foo.*"}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// A malformed entry is skipped, and does not take the rest of the
+			// list -- or the Agent -- down with it.
+			filterList := newFilterListWithMetricPrefixList(t, []interface{}{c.entry, "valid.metric"})
+
+			matcher := filterList.GetMetricFilterList()
+			require.Equal(t, 1, matcher.Len())
+			require.True(t, matcher.Test("valid.metric"))
+		})
+	}
+}
+
+// TestMetricFilterListCombinesBothKeys pins that metric_filterlist and
+// metric_filterlist_prefix compile into a single matcher, each keeping its
+// own semantics: metric_filterlist stays exact unless matchPrefix or a
+// trailing `*` says otherwise, metric_filterlist_prefix is always a prefix.
+func TestMetricFilterListCombinesBothKeys(t *testing.T) {
+	cfg := map[string]interface{}{
+		"metric_filterlist": []string{"exact.only"},
+		"metric_filterlist_prefix": []interface{}{
+			map[string]interface{}{
+				"metric_name": "prefix.only",
+				"except":      []interface{}{"prefix.only.keep"},
+			},
+		},
+	}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+
+	// metric_filterlist's entry is exact: no trailing `*`, no match_prefix.
+	require.True(t, matcher.Test("exact.only"))
+	require.False(t, matcher.Test("exact.only.suffix"))
+
+	// metric_filterlist_prefix's entry is a prefix regardless, and keeps its
+	// exception.
+	require.True(t, matcher.Test("prefix.only.anything"))
+	require.False(t, matcher.Test("prefix.only.keep"))
+
+	require.False(t, matcher.Test("unrelated"))
+}
+
 func TestMetricFilterListGlobalMatchPrefixStripsStar(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["metric_filterlist"] = []string{"foo.*", "bar"}
@@ -227,11 +393,11 @@ func TestNormalizeMetricNames(t *testing.T) {
 
 	require.Equal(
 		[]string{"my_metric_name.*", "service", "exact"},
-		normalizeMetricNames(in, false, logComponent),
+		normalizeMetricNames("metric_filterlist", in, false, logComponent),
 	)
 	require.Equal(
 		[]string{"my_metric_name.*", "service_", "exact"},
-		normalizeMetricNames(in, true, logComponent),
+		normalizeMetricNames("metric_filterlist", in, true, logComponent),
 	)
 }
 

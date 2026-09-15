@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = [
         "filterlist.go",
+        "metricfilterlist.go",
         "noop_filterlist.go",
         "rc.go",
         "tagfilterlist.go",
@@ -22,6 +23,7 @@ go_library(
         "//pkg/metrics",
         "//pkg/remoteconfig/state",
         "//pkg/util/metricname",
+        "@com_github_spf13_cast//:cast",
         "@com_github_twmb_murmur3//:murmur3",
     ],
 )
