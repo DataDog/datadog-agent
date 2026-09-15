@@ -268,6 +268,21 @@ func TestWalkSNMPv1NoSuchNameCompletes(t *testing.T) {
 	assert.Empty(t, res.values)
 }
 
+func TestWalkUndecodableOnlyIsError(t *testing.T) {
+	prefix := oidDot1qTpFdbPort
+	res := walkColumn(&sequencedBulkSession{
+		version: gosnmp.Version2c,
+		packets: []*gosnmp.SnmpPacket{{
+			Variables: []gosnmp.SnmpPDU{
+				{Name: prefix + ".1.1", Type: gosnmp.Null, Value: nil},
+				{Name: prefix + ".end", Type: gosnmp.EndOfMibView, Value: nil},
+			},
+		}},
+	}, prefix, 10, 100, time.Time{})
+	assert.ErrorIs(t, res.err, errWalkUndecodable)
+	assert.Empty(t, res.values)
+}
+
 func TestWalkStopsWhenPageLeavesSubtree(t *testing.T) {
 	oid := oidDot1qTpFdbPort + ".1.10.20.30.40.50.60"
 	res := walkColumn(&sequencedBulkSession{

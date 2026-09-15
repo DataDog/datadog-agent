@@ -54,6 +54,13 @@ func TestSnmpVMSuite(t *testing.T) {
 	e2e.Run(t, &snmpVMSuite{}, e2e.WithProvisioner(snmpVMProvisioner()))
 }
 
+func (v *snmpVMSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+	if !v.BaseSuite.IsDevMode() {
+		v.Require().NoError(v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	}
+}
+
 func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
@@ -141,7 +148,6 @@ secret_backend_arguments:
 
 func (v *snmpVMSuite) TestFDBMetadata() {
 	setupDevice(v.Require(), v.Env().RemoteHost)
-	v.Require().NoError(v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkFDBMetadata(c, v.Env().FakeIntake)

@@ -26,6 +26,7 @@ var (
 	errWalkMaxDuration = errors.New("fdb walk exceeded max duration")
 	errWalkMaxEntries  = errors.New("fdb walk exceeded max entries")
 	errWalkNoAdvance   = errors.New("fdb walk did not advance")
+	errWalkUndecodable = errors.New("fdb walk produced no decodable values")
 )
 
 type walkResult struct {
@@ -52,7 +53,7 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 		}
 		if packet != nil && packet.Error != gosnmp.NoError {
 			if useGetNext && packet.Error == gosnmp.NoSuchName {
-				return walkResult{values: values}
+				return finishWalk(values, seen)
 			}
 			return walkResult{values: values, err: fmt.Errorf("snmp error-status: %s", packet.Error)}
 		}
@@ -95,10 +96,10 @@ func walkColumn(sess session.Session, columnOID string, bulkMaxRepetitions uint3
 			if packet != nil && len(packet.Variables) == 0 {
 				return walkResult{values: values, err: errWalkNoAdvance}
 			}
-			return walkResult{values: values}
+			return finishWalk(values, seen)
 		}
 		if leftSubtree {
-			return walkResult{values: values}
+			return finishWalk(values, seen)
 		}
 		if lastOID == curOID {
 			return walkResult{values: values, err: errWalkNoAdvance}
@@ -124,4 +125,11 @@ func nextPacket(sess session.Session, curOID string, bulkMaxRepetitions uint32, 
 		rep = 1
 	}
 	return sess.GetBulk([]string{curOID}, rep)
+}
+
+func finishWalk(values map[string]valuestore.ResultValue, seen map[string]struct{}) walkResult {
+	if len(seen) > 0 && len(values) == 0 {
+		return walkResult{values: values, err: errWalkUndecodable}
+	}
+	return walkResult{values: values}
 }
