@@ -111,30 +111,43 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
-// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. The job is
-// the stable top-level resource; executions are runtime instances tracked via
-// deployment_id rather than nested into the CCRID.
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. It is the
+// stable parent that execution-level CCRIDs nest under.
 func cloudRunJobCCRID(project, region, job string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
 }
 
+// cloudRunJobExecutionCCRID extends a job CCRID with the execution segment. It
+// returns the job CCRID unchanged when the execution is unknown so the
+// resource_id never dangles on a trailing empty segment.
+//
+// Tasks of one execution share this id: they run the same deployed code and
+// differ only in the task index and attempt the enhanced metric tags carry.
+func cloudRunJobExecutionCCRID(jobCCRID, execution string) string {
+	if jobCCRID == "" || execution == "" {
+		return jobCCRID
+	}
+	return fmt.Sprintf("%s/executions/%s", jobCCRID, execution)
+}
+
 // GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.
-// The job CCRID is the stable top-level resource, so it is the resource_id with
-// no distinct parent. The execution is the runtime instance and is reported as
-// the deployment_id.
+// The execution is the deployed instance, so it is the resource_id, and the job
+// it runs under is the parent_resource_id.
 func (c *CloudRunJobs) GetInventoryData() InventoryData {
 	metadata := c.resolveMetadata()
 	project := metadata[projectID]
 	region := metadata[location]
 	job := os.Getenv(cloudRunJobNameEnvVar)
 
+	jobCCRID := cloudRunJobCCRID(project, region, job)
+
 	return InventoryData{
-		WorkloadType: workloadTypeCloudRunJob,
-		ResourceID:   cloudRunJobCCRID(project, region, job),
-		ResourceName: job,
-		Region:       region,
-		GCPProjectID: project,
-		DeploymentID: os.Getenv(cloudRunExecutionEnvVar),
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       cloudRunInventoryID(cloudRunJobExecutionCCRID(jobCCRID, os.Getenv(cloudRunExecutionEnvVar))),
+		ParentResourceID: cloudRunInventoryID(jobCCRID),
+		ResourceName:     job,
+		Region:           region,
+		GCPProjectID:     project,
 	}
 }
 
