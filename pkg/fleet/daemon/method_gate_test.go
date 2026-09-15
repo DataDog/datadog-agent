@@ -74,7 +74,7 @@ func TestDeclinedMethodIsNotAcknowledged(t *testing.T) {
 	}
 
 	var statuses []state.ApplyStatus
-	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest, alwaysCatalogReady)
 	handler(map[string]state.RawConfig{
 		"test": {Config: testRemoteAPIRequestJSON},
 	}, func(_ string, status state.ApplyStatus) {
@@ -100,7 +100,7 @@ func TestSupportedMethodPassesTheGate(t *testing.T) {
 	}
 
 	var statuses []state.ApplyStatus
-	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest, alwaysCatalogReady)
 	handler(map[string]state.RawConfig{
 		"test": {Config: testRemoteAPIRequestJSON},
 	}, func(_ string, status state.ApplyStatus) {
@@ -128,7 +128,7 @@ func TestDeclinedRequestAbortsTheRestOfTheSet(t *testing.T) {
 	}
 
 	statuses := map[string]state.ApplyStatus{}
-	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest)
+	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest, alwaysCatalogReady)
 	handler(map[string]state.RawConfig{
 		"first":  {Config: first},
 		"second": {Config: second},
@@ -155,7 +155,7 @@ func TestFailedRequestAbortsTheRestOfTheSet(t *testing.T) {
 	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
 		executed++
 		return errors.New("boom")
-	})
+	}, alwaysCatalogReady)
 	handler(map[string]state.RawConfig{
 		"first":  {Config: first},
 		"second": {Config: second},
