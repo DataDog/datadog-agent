@@ -44,6 +44,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/workloadfilter/def",
+        "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
