@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -309,7 +310,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 	// Check for the init_container mode's per-language init containers.
-	for _, lang := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		lang := language(supportedLang)
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
@@ -683,7 +685,8 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	libs := []libInfo{}
 
 	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		l := language(supportedLang)
 		// Check for a custom library image.
 		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
 		if found {

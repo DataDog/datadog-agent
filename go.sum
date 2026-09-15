@@ -2542,8 +2542,8 @@ github.com/DataDog/datadog-go v4.8.3+incompatible h1:fNGaYSuObuQb5nzeTQqowRAd9bp
 github.com/DataDog/datadog-go v4.8.3+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6TgaHqqOU0=
 github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
-github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423 h1:9cRzhpaJztYJG2sKVY5BtRjU2q/DSTEhpK/kFALz3tI=
-github.com/DataDog/datadog-operator/api v0.0.0-20260807013103-1518bb55e423/go.mod h1:1NbnIkICgL12lNUXlvrKRjBn14W5TErvd0HnMEJcp4U=
+github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4 h1:dW+QcJJaqnR3PFQARGG9BJkSer1Vx5UpMRW6pIayXN0=
+github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4/go.mod h1:YYZe/rQUinB98I5Uc/1XNEc+pa1MzMivKZjd2OxHwJc=
 github.com/DataDog/datadog-traceroute v1.0.20 h1:GqDf+MmbFzCGhqIRCTrCZV1pOaVuG/3zFn/C8GXdLh0=
 github.com/DataDog/datadog-traceroute v1.0.20/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b2wcIaW6NXauhcA/ZoH012oRVEiqu8dBEd0gAMsgU=
@@ -2580,8 +2580,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260716114726-2881ad5a60c8 h1:qvg4+w5Y2kPn2/pTYrv74di2tOojk1WM8vM4S+tcaqY=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260716114726-2881ad5a60c8/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260914075539-1573db524051 h1:CkIjyPAL9Sdun6/7AtSZ6yi4DYo86c3Ht8t/EuMsNMc=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260914075539-1573db524051/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
 github.com/DataDog/rshell v0.0.28 h1:z0roo5q7TQUpQHggs+57jc+jS93wusoQNV7GXczOq3w=
 github.com/DataDog/rshell v0.0.28/go.mod h1:nUaT924NZ0EJu7tre4zxamG1yPUYa8hg1dNe0JCboak=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -2662,13 +2662,10 @@ github.com/alecthomas/assert/v2 v2.3.0/go.mod h1:pXcQ2Asjp247dahGEmsZ6ru0UVwnkhk
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
 github.com/alecthomas/assert/v2 v2.11.0/go.mod h1:Bze95FyfUr7x34QZrjL+XP+0qgp/zg8yS+TtBj1WA3k=
 github.com/alecthomas/jsonschema v0.0.0-20210918223802-a1d3f4b43d7b/go.mod h1:/n6+1/DWPltRLWL/VKyUxg6tzsl5kHUCcraimt4vr60=
-github.com/alecthomas/participle v0.7.1 h1:2bN7reTw//5f0cugJcTOnY/NYZcWQOaajW+BwZB5xWs=
-github.com/alecthomas/participle v0.7.1/go.mod h1:HfdmEuwvr12HXQN44HPWXR0lHmVolVYe4dyL6lQ3duY=
 github.com/alecthomas/participle/v2 v2.0.0/go.mod h1:rAKZdJldHu8084ojcWevWAL8KmEU+AT+Olodb+WoN2Y=
 github.com/alecthomas/participle/v2 v2.1.0/go.mod h1:Y1+hAs8DHPmc3YUFzqllV+eSQ9ljPTk0ZkPMtEdAx2c=
 github.com/alecthomas/participle/v2 v2.1.4 h1:W/H79S8Sat/krZ3el6sQMvMaahJ+XcM9WSI2naI7w2U=
 github.com/alecthomas/participle/v2 v2.1.4/go.mod h1:8tqVbpTX20Ru4NfYQgZf4mP18eXPTBViyMWiArNEgGI=
-github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1/go.mod h1:xTS7Pm1pD1mvyM075QCDSRqH6qRLXylzS24ZTpRiSzQ=
 github.com/alecthomas/repr v0.2.0/go.mod h1:Fr0507jx4eOXV7AlPV6AVZLYrLIuIeSOWtW57eE/O/4=
 github.com/alecthomas/repr v0.5.2 h1:SU73FTI9D1P5UNtvseffFSGmdNci/O6RsqzeXJtP0Qs=
 github.com/alecthomas/repr v0.5.2/go.mod h1:Fr0507jx4eOXV7AlPV6AVZLYrLIuIeSOWtW57eE/O/4=
@@ -4924,8 +4921,8 @@ github.com/twmb/franz-go/pkg/kadm v1.18.0 h1:WRf/LZmDdcDXwX7WMbtDU++v+b3NzYh2bCG
 github.com/twmb/franz-go/pkg/kadm v1.18.0/go.mod h1:XeLhGoLXLFzK8/ryv5FfpxPxGwj4oFEGpPJMB/x6KDE=
 github.com/twmb/franz-go/pkg/kmsg v1.13.1 h1:fG5kItwysTk5UXqVwb64EpQEy3TydF3vYYK21nUQ+bI=
 github.com/twmb/franz-go/pkg/kmsg v1.13.1/go.mod h1:+DPt4NC8RmI6hqb8G09+3giKObE6uD2Eya6CfqBpeJY=
-github.com/twmb/murmur3 v1.1.8 h1:8Yt9taO/WN3l08xErzjeschgZU2QSrwm1kclYq+0aRg=
-github.com/twmb/murmur3 v1.1.8/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
+github.com/twmb/murmur3 v1.2.0 h1:S6p/KHqoqsLveELUoKh6zSm/Kwwgl1pStVBgrrLa5UA=
+github.com/twmb/murmur3 v1.2.0/go.mod h1:LVqs/avIy0flspVtmBd4VSbogDepFl6Wkj0i0ToccHE=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 h1:yS0rzVnj7Z/ZeHzvv5erQbO2b8gyTL4CeMNodl9SJMQ=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8/go.mod h1:gwANdYmo9R8LLwGnyDFWK2PMsaXXX2HhAvCnb/UhZsM=
 github.com/uber/jaeger-client-go v2.30.0+incompatible h1:D6wyKGCecFaSRUpo8lCVbaOOb6ThwMmTEbhRwtKR97o=
