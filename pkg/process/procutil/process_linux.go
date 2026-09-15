@@ -213,9 +213,25 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		isZombie := statusInfo.isZombie()
 		statInfo := p.parseStat(pathForPID, pid, now)
 
-		memInfoEx := &MemoryInfoExStat{}
-		if !isZombie {
+		var memInfoEx *MemoryInfoExStat
+		var ioStat *IOCountersStat
+		var openFdCount int32
+		if isZombie {
+			memInfoEx = &MemoryInfoExStat{}
+			ioStat = &IOCountersStat{}
+		} else {
 			memInfoEx = p.parseStatm(pathForPID)
+			if p.elevatedPermissions {
+				openFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+				ioStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+			} else {
+				ioStat = &IOCountersStat{
+					ReadCount:  -1,
+					WriteCount: -1,
+					ReadBytes:  -1,
+					WriteBytes: -1,
+				} // use -1 values to represent "no permission"
+			}
 		}
 
 		stats := &Stats{
@@ -225,20 +241,10 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
 			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
 			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
-			IOStat:      &IOCountersStat{},
+			IOStat:      ioStat,
+			OpenFdCount: openFdCount,
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
-		}
-		if !isZombie && p.elevatedPermissions {
-			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
-		} else if !isZombie {
-			stats.IOStat = &IOCountersStat{
-				ReadCount:  -1,
-				WriteCount: -1,
-				ReadBytes:  -1,
-				WriteBytes: -1,
-			} // use -1 values to represent "no permission"
 		}
 		statsByPID[pid] = stats
 	}
@@ -284,15 +290,33 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 	// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 	// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
 	// createTime to make a bytekey.
-	memInfoEx := &MemoryInfoExStat{}
+	var memInfoEx *MemoryInfoExStat
 	if !isZombie && collectStats {
 		memInfoEx = p.parseStatm(pathForPID)
+	} else {
+		memInfoEx = &MemoryInfoExStat{}
 	}
 
 	var cwd, exe string
 	if !isZombie {
 		cwd = p.getLinkWithAuthCheck(pathForPID, "cwd") // /proc/[pid]/cwd, requires permission checks
 		exe = p.getLinkWithAuthCheck(pathForPID, "exe") // /proc/[pid]/exe, requires permission checks
+	}
+
+	var ioStat *IOCountersStat
+	var openFdCount int32
+	if isZombie {
+		ioStat = &IOCountersStat{}
+	} else if p.elevatedPermissions {
+		openFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+		ioStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+	} else {
+		ioStat = &IOCountersStat{
+			ReadCount:  -1,
+			WriteCount: -1,
+			ReadBytes:  -1,
+			WriteBytes: -1,
+		} // use -1 values to represent "no permission"
 	}
 
 	proc := &Process{
@@ -313,21 +337,11 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
 			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
 			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
-			IOStat:      &IOCountersStat{},
+			IOStat:      ioStat,
+			OpenFdCount: openFdCount,
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		},
-	}
-	if !isZombie && p.elevatedPermissions {
-		proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-		proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
-	} else if !isZombie {
-		proc.Stats.IOStat = &IOCountersStat{
-			ReadCount:  -1,
-			WriteCount: -1,
-			ReadBytes:  -1,
-			WriteBytes: -1,
-		} // use -1 values to represent "no permission"
 	}
 	return proc, nil
 }
