@@ -23,12 +23,14 @@ import (
 	coretaggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // recordingHandle records every ObserveMetric call for test assertions.
@@ -37,25 +39,37 @@ type recordingHandle struct {
 }
 
 type recordedCall struct {
-	name      string
-	value     float64
-	tags      []string
-	host      string
-	timestamp int64
+	name       string
+	value      float64
+	tags       []string
+	host       string
+	timestamp  int64
+	contextKey uint64
 }
 
-func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
+func (h *recordingHandle) ObserveMetric(v observer.MetricView, contextKeys ...uint64) {
 	// copy values — the MetricView contract forbids retaining the view itself
 	tags := v.GetTags().UnsafeToReadOnlySliceString()
 	tagsCopy := make([]string, len(tags))
 	copy(tagsCopy, tags)
+	var contextKey uint64
+	if len(contextKeys) > 0 {
+		contextKey = contextKeys[0]
+	}
 	h.calls = append(h.calls, recordedCall{
-		name:      v.GetName(),
-		value:     v.GetValue(),
-		tags:      tagsCopy,
-		host:      v.GetHost(),
-		timestamp: v.GetTimestampUnix(),
+		name:       v.GetName(),
+		value:      v.GetValue(),
+		tags:       tagsCopy,
+		host:       v.GetHost(),
+		timestamp:  v.GetTimestampUnix(),
+		contextKey: contextKey,
 	})
+}
+
+func assertObservedContextKey(t *testing.T, call recordedCall) {
+	t.Helper()
+	key := ckey.NewKeyGenerator().Generate(call.name, call.host, tagset.NewHashingTagsAccumulatorWithTags(call.tags))
+	assert.Equal(t, uint64(key), call.contextKey)
 }
 
 func (h *recordingHandle) ObserveLog(_ observer.LogView) {}
@@ -109,9 +123,11 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+	assertObservedContextKey(t, handle.calls[0])
 
 	assert.Equal(t, "metric.b", handle.calls[1].name)
 	assert.Equal(t, 2.5, handle.calls[1].value)
+	assertObservedContextKey(t, handle.calls[1])
 }
 
 func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
@@ -136,6 +152,7 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+	assertObservedContextKey(t, handle.calls[0])
 }
 
 func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
@@ -186,12 +203,14 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			resolved := tc.observe(t, setupTagger(t), sample, filterlist.NewNoopTagMatcher())
 			assert.Equal(t, "host-a", resolved.host)
 			assert.ElementsMatch(t, []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"}, resolved.tags)
+			assertObservedContextKey(t, resolved)
 
 			filtered := tc.observe(t, setupTagger(t), sample, filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 				"metric.origin": {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t)))
 			assert.Equal(t, "host-a", filtered.host)
 			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
+			assertObservedContextKey(t, filtered)
 		})
 	}
 }
@@ -244,6 +263,7 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 	assert.Equal(t, "host-gauge", handle.calls[0].host)
 	assert.ElementsMatch(t, []string{"tag:1", "tag:2", "env:prod"}, handle.calls[0].tags)
 	assert.ElementsMatch(t, mockSerializer.series[0].Tags.UnsafeToReadOnlySliceString(), handle.calls[0].tags)
+	assertObservedContextKey(t, handle.calls[0])
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
@@ -349,9 +369,11 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	assert.Equal(t, 42.0, handle.calls[0].value)
 	assert.Equal(t, []string{"host:myhost"}, handle.calls[0].tags)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+	assertObservedContextKey(t, handle.calls[0])
 
 	assert.Equal(t, "system.mem.used", handle.calls[1].name)
 	assert.Equal(t, 8192.0, handle.calls[1].value)
+	assertObservedContextKey(t, handle.calls[1])
 }
 
 func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
@@ -376,6 +398,7 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+	assertObservedContextKey(t, handle.calls[0])
 }
 
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.

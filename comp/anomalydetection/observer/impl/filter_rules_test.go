@@ -115,7 +115,7 @@ func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
 	require.NotNil(t, decision.metric)
 	assert.Equal(t,
 		seriesKeyHash("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
-		decision.metric.seriesKey,
+		decision.metric.storageKey,
 	)
 }
 

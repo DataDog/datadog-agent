@@ -55,6 +55,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/telemetry/def",
         "//comp/def",
+        "//pkg/aggregator/ckey",
         "//pkg/config/structure",
         "//pkg/tagset",
         "//pkg/util/log",

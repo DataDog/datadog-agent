@@ -18,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// seriesKeyHash preserves concise test fixtures while production identity is
+// based on the metrics-pipeline context key.
+func seriesKeyHash(namespace, name, host string, tags []string) uint64 {
+	return storageKeyForIdentity(namespace, name, host, tags)
+}
+
 func TestTimeSeriesStorage_Add(t *testing.T) {
 	s := newTimeSeriesStorage()
 

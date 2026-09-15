@@ -229,7 +229,7 @@ func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags [
 }
 
 func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
-	return f.isMutedWithKey(source, seriesKeyHash(source, name, host, tags))
+	return f.isMutedWithKey(source, storageKeyForIdentity(source, name, host, tags))
 }
 
 func (f *metricsFilterRules) isMutedWithKey(source string, key uint64) bool {

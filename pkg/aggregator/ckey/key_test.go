@@ -42,6 +42,19 @@ func TestGenerateReproductible(t *testing.T) {
 	assert.Equal(t, ContextKey(0xd298ae9740130f30), otherKey)
 }
 
+func TestSliceKeyGeneratorDoesNotMutateTags(t *testing.T) {
+	tags := []string{"service:web", "env:prod", "service:web"}
+	wantTags := append([]string(nil), tags...)
+	generator := NewSliceKeyGenerator()
+
+	first := generator.Generate("metric.name", "host-a", tags)
+	second := generator.Generate("metric.name", "host-a", tags)
+
+	assert.Equal(t, wantTags, tags)
+	assert.Equal(t, first, second)
+	assert.Equal(t, NewKeyGenerator().Generate("metric.name", "host-a", tagset.NewHashingTagsAccumulatorWithTags(tags)), first)
+}
+
 func TestGenerateReproductible2(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"

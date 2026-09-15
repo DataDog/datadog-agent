@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -166,11 +167,12 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
-	logCounts   *materializedLogCountBucketizer
+	storage         *timeSeriesStorage
+	extractors      []observerdef.LogMetricsExtractor
+	detectors       []observerdef.Detector
+	correlators     []observerdef.Correlator
+	logCounts       *materializedLogCountBucketizer
+	logKeyGenerator *ckey.SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -300,12 +302,13 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:     cfg.storage,
-		extractors:  cfg.extractors,
-		detectors:   cfg.detectors,
-		correlators: correlators,
-		scorer:      cfg.scorer,
-		scheduler:   sched,
+		storage:         cfg.storage,
+		extractors:      cfg.extractors,
+		detectors:       cfg.detectors,
+		correlators:     correlators,
+		logKeyGenerator: ckey.NewSliceKeyGenerator(),
+		scorer:          cfg.scorer,
+		scheduler:       sched,
 
 		anomalyDeduper:          newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
 		trackAnomalyHistory:     cfg.trackAnomalyHistory,
@@ -423,11 +426,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	if m.seriesKey != 0 {
-		e.storage.AddWithKeyAndHost(source, m.name, m.host, m.value, m.timestamp, m.tags, m.seriesKey)
-	} else {
-		e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
-	}
+	e.storage.AddWithKeyAndHost(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -461,13 +460,11 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			// Canonicalize before computing the shared series key and inserting into storage.
-			tags = canonicalizeTags(tags)
 			host := m.Host
 			if host == "" {
 				host = l.hostname
 			}
-			seriesKey := seriesKeyHash(extractor.Name(), m.Name, host, tags)
+			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLog(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
@@ -505,6 +502,12 @@ func sliceContains(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// contextKeyForLog uses engine-owned scratch state: IngestLog runs on the
+// single observer goroutine, so it avoids per-output key-generator allocation.
+func (e *engine) contextKeyForLog(name, host string, tags []string) uint64 {
+	return uint64(e.logKeyGenerator.Generate(name, host, tags))
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric
@@ -859,7 +862,7 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 			return key
 		}
 	}
-	return seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
+	return storageKeyForIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.

@@ -48,6 +48,31 @@ type KeyGenerator struct {
 	hg *tagset.HashGenerator
 }
 
+// SliceKeyGenerator generates context keys from tag slices without mutating
+// them. It owns reusable scratch state and is not safe for concurrent use.
+// Create one per single-owner ingestion path.
+type SliceKeyGenerator struct {
+	generator *KeyGenerator
+	tags      *tagset.HashingTagsAccumulator
+}
+
+// NewSliceKeyGenerator creates a reusable generator for tag slices.
+func NewSliceKeyGenerator() *SliceKeyGenerator {
+	return &SliceKeyGenerator{
+		generator: NewKeyGenerator(),
+		tags:      tagset.NewHashingTagsAccumulator(),
+	}
+}
+
+// Generate returns the context key for name, hostname, and tags. tags is never
+// mutated and scratch state is reset before returning.
+func (g *SliceKeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+	g.tags.Append(tags...)
+	key := g.generator.Generate(name, hostname, g.tags)
+	g.tags.Reset()
+	return key
+}
+
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {

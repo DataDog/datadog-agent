@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -342,7 +342,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 
 // AddWithHost inserts a point whose host is a separate series dimension.
 func (s *timeSeriesStorage) AddWithHost(namespace, name, host string, value float64, timestamp int64, tags []string) AddResult {
-	return s.AddWithKeyAndHost(namespace, name, host, value, timestamp, tags, seriesKeyHash(namespace, name, host, tags))
+	return s.AddWithKeyAndHost(namespace, name, host, value, timestamp, tags, storageKeyForIdentity(namespace, name, host, tags))
 }
 
 // AddWithKeyAndHost inserts a point using a series key already computed by the
@@ -359,31 +359,7 @@ func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, valu
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		return AddResult{Ref: -1}
 	}
-	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
-	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
-	// calling Add, so this fast path is hit on every normal call.
-	var canonTags []string
-	if tagsSorted(tags) {
-		canonTags = tags
-	} else {
-		canonTags = canonicalizeTags(tags)
-	}
-
 	stats, exists := s.series[key]
-	// Collision guard: verify full identity (namespace + name + sorted tags).
-	if exists && (stats.Namespace != namespace || stats.Name != name || stats.Host != host || !tagsEqual(stats.Tags, canonTags)) {
-		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
-		logging.Warnf("seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
-			key, stats.Namespace, stats.Name, namespace, name)
-		exists = false
-		for _, st := range s.seriesIDStats {
-			if st != nil && st.Namespace == namespace && st.Name == name && st.Host == host && tagsEqual(st.Tags, canonTags) {
-				stats = st
-				exists = true
-				break
-			}
-		}
-	}
 	if !exists {
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
@@ -399,11 +375,7 @@ func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, valu
 			tagsHash:   th,
 			ref:        id,
 		}
-		// Only claim the hash slot when empty to avoid displacing an existing
-		// collision-displaced series.
-		if _, occupied := s.series[key]; !occupied {
-			s.series[key] = stats
-		}
+		s.series[key] = stats
 		s.seriesIDStats[id] = stats
 		if namespace != observer.TelemetryNamespace {
 			s.liveSeriesCount++
@@ -483,7 +455,7 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 
 	if tags != nil {
 		// Exact match with tags.
-		stats := s.series[seriesKeyHash(namespace, name, "", tags)]
+		stats := s.series[storageKeyForIdentity(namespace, name, "", tags)]
 		if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
 			return nil
 		}
@@ -507,7 +479,7 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	stats := s.series[seriesKeyHash(namespace, name, "", tags)]
+	stats := s.series[storageKeyForIdentity(namespace, name, "", tags)]
 	if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
 		return nil
 	}
@@ -810,34 +782,20 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 // seriesKeyHash combines the metric identity hash with its namespace. Keeping
 // this composition separate lets the metric identity hash be replaced by a
 // metrics-pipeline context key without changing storage consumers.
-func seriesKeyHash(namespace, name, host string, tags []string) uint64 {
-	metricKey := metricIdentityHash(name, host, tags)
-	namespaceKey := fnv64aString(namespace)
-	return nonZeroKey(avalanche64(metricKey ^ namespaceKey))
+// contextKeyForIdentity is the fallback for metrics that do not arrive with a
+// metrics-pipeline context key. Production aggregation paths provide their key
+// directly; this is used by direct/replay and storage-query callers instead.
+func contextKeyForIdentity(name, host string, tags []string) uint64 {
+	contextKey := ckey.NewSliceKeyGenerator().Generate(name, host, tags)
+	return uint64(contextKey)
 }
 
-// metricIdentityHash computes FNV-1a over name|host|tag1,tag2,... without
-// allocating a string. It is intentionally namespace-free: namespace is
-// combined by seriesKeyHash after this metric identity is computed.
-func metricIdentityHash(name, host string, tags []string) uint64 {
-	if len(tags) > 1 && !tagsSorted(tags) {
-		tags = canonicalizeTags(tags)
-	}
-	h := fnv64aString(name)
-	h = fnv64aMix(h, host)
-	h ^= uint64('|')
-	h *= fnvPrime64
-	for i, t := range tags {
-		if i > 0 {
-			h ^= uint64(',')
-			h *= fnvPrime64
-		}
-		for j := 0; j < len(t); j++ {
-			h ^= uint64(t[j])
-			h *= fnvPrime64
-		}
-	}
-	return h
+func storageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
+	return storageKeyForContextKey(namespace, contextKeyForIdentity(name, host, tags))
+}
+
+func storageKeyForContextKey(namespace string, contextKey uint64) uint64 {
+	return nonZeroKey(avalanche64(contextKey ^ fnv64aString(namespace)))
 }
 
 // avalanche64 is the MurmurHash3 64-bit finalizer. It thoroughly diffuses the
@@ -1372,7 +1330,7 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 	}
 
 	// Look up by hash; verify identity to guard against hash collisions.
-	stats := s.series[seriesKeyHash(namespace, baseName, host, tags)]
+	stats := s.series[storageKeyForIdentity(namespace, baseName, host, tags)]
 	if stats == nil || stats.Namespace != namespace || stats.Name != baseName || stats.Host != host {
 		return fullKey
 	}

@@ -98,7 +98,7 @@ func (b *materializedLogCountBucketizer) observe(
 	timestamp int64,
 	tags []string,
 ) bool {
-	return b.observeWithKey(namespace, metric, host, timestamp, tags, seriesKeyHash(namespace, metric.Name, host, tags))
+	return b.observeWithKey(namespace, metric, host, timestamp, tags, storageKeyForIdentity(namespace, metric.Name, host, tags))
 }
 
 func (b *materializedLogCountBucketizer) observeWithKey(
