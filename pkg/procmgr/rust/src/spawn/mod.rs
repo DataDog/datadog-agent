@@ -10,5 +10,5 @@ mod stdio;
 pub(crate) use profile::SpawnProfile;
 pub(crate) use request::SpawnRequest;
 pub(crate) use stdio::StdioSetting;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) use stdio::parse_stdio_setting;
