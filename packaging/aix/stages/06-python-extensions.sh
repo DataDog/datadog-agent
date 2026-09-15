@@ -214,7 +214,6 @@ log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
 log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:..."
 # $EMBEDDED_DESTDIR/bin must come before the rest of PATH to ensure we use the maturin binary built below
 export PATH="/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:$PATH"
-export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
