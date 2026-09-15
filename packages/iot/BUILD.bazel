@@ -109,7 +109,6 @@ pkg_rpm(
     package_name = "datadog-iot-agent",
     srcs = [
         ":whole_distro",
-        "//packages/agent/iot/redhat:all_files",
     ] + select({
         "//packages/rules:suse": ["//packages/agent/iot/redhat:systemd_gen"],
         "//conditions:default": ["//packages/agent/iot/redhat:all_files"],
