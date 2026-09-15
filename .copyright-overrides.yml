@@ -208,6 +208,7 @@ github.com/xeipuuv/gojsonpointer: Copyright 2015 xeipuuv ( https://github.com/xe
 github.com/xeipuuv/gojsonreference: Copyright 2015 xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: Copyright 2015 xeipuuv
 github.com/open-policy-agent/opa: Copyright 2016 The OPA Authors.  All rights reserved.
+github.com/openconfig/gnmi/*: Copyright 2016 Google Inc. All Rights Reserved.
 github.com/containernetworking/*: Copyright 2019 CNI authors
 github.com/xanzy/ssh-agent: ["Copyright (c) 2014 David Mzareulyan", "Copyright 2015, Sander van Harmelen"]
 github.com/google/go-containerregistry:

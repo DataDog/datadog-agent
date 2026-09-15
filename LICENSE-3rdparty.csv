@@ -2175,6 +2175,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receiver
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/openconfig/gnmi/proto/gnmi,Apache-2.0,Copyright 2016 Google Inc. All Rights Reserved.
+core,github.com/openconfig/gnmi/proto/gnmi_ext,Apache-2.0,Copyright 2016 Google Inc. All Rights Reserved.
 core,github.com/opencontainers/go-digest,Apache-2.0,"Copyright 2016 Docker, Inc | Copyright 2019, 2020 OCI Contributors | Copyright © 2016 Docker, Inc | Copyright © 2019, 2020 OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The Linux Foundation
