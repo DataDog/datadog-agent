@@ -20,16 +20,27 @@ int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *sy
 }
 
 void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
-    if (syscall->state != ACCEPTED) {
-        // Discarders take priority over basename approvers: a parent basename may match an approver,
-        // but a discarder set on any ancestor inode must still discard the whole path.
-        if (syscall->resolver.ret == DENTRY_DISCARDED) {
+    // Discarders take priority over basename approvers: a parent basename may match an approver,
+    // but a discarder set on any ancestor inode must still discard the whole path.
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        if (syscall->state != ACCEPTED) {
             syscall->state = DISCARDED;
             monitor_discarded(event_type);
-        } else if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
-            syscall->state = APPROVED;
-            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         }
+        return;
+    }
+
+    if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
+        // A parent basename approver only matches during dentry resolution, after approve_syscall has
+        // already run. Under forced event sampling that earlier pass can mark the event as an
+        // activity-dump sample (state ACCEPTED + RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP), which makes the
+        // rule engine skip it. A matching approver means a rule depends on this path, so reclaim the
+        // event: drop the sample flag so it reaches the rule engine, and approve it if not already accepted.
+        syscall->resolver.flags &= ~RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
+        if (syscall->state != ACCEPTED) {
+            syscall->state = APPROVED;
+        }
+        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
     }
 }
 
