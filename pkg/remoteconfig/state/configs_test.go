@@ -12,6 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestManagedDeploymentsDebugProductIsRegistered(t *testing.T) {
+	_, ok := validProducts[ProductManagedDeploymentsDebug]
+	require.True(t, ok, "the MANAGED_DEPLOYMENTS_DEBUG product must be registered")
+
+	raw := []byte(`{"snmp":{}}`)
+	cfg, err := parseConfig(ProductManagedDeploymentsDebug, raw, Metadata{})
+	require.NoError(t, err)
+	require.Equal(t, RawConfig{Config: raw}, cfg)
+}
+
 func TestASMData(t *testing.T) {
 	for _, tc := range []struct {
 		name string
