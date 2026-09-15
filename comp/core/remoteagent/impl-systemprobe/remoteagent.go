@@ -71,7 +71,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		cfg:               reqs.Config,
 		sysProbeConfig:    reqs.SysProbeConfig,
 		telemetry:         reqs.Telemetry,
-		getModuleStats:    module.GetStats,
 		remoteAgentServer: remoteAgentServer,
 	}
 
@@ -94,7 +93,6 @@ type remoteagentImpl struct {
 	cfg            config.Component
 	sysProbeConfig sysprobeconfig.Component
 	telemetry      telemetry.Component
-	getModuleStats func() map[string]any
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
@@ -104,7 +102,7 @@ type remoteagentImpl struct {
 
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	var details bytes.Buffer
-	if err := statussystemprobe.RenderText(r.getModuleStats(), &details); err != nil {
+	if err := statussystemprobe.RenderText(module.GetStats(), &details); err != nil {
 		return nil, fmt.Errorf("render system probe status: %w", err)
 	}
 
