@@ -64,6 +64,7 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply_chain_tools-0.0.3/supply_chain_tools-0.0.3.tar.gz",
 )
 
+# The BCR is currently behind the releases.
 archive_override(
     module_name = "supply-chain-go",
     sha256 = "894732fdd78ef741da586152e196acf8a72d9542e35dac1810f96a9d640ae6cd",
@@ -422,9 +423,6 @@ register_toolchains(
     "@msvc_toolchains//:all",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
-
-#go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-#go_sdk.download(version = "1.25.2")
 
 # =========================================
 # Python dependencies
