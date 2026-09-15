@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Reduce Process Agent overhead on Linux hosts with zombie processes by avoiding procfs reads for data that is unavailable after process exit.
