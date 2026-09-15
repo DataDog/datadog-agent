@@ -6,6 +6,7 @@
 use std::ffi::OsStr;
 use std::io;
 use std::ptr;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -25,18 +26,29 @@ const EVERYONE_SID: &str = "S-1-1-0";
 const SID_LOOKUP_MAX_ATTEMPTS: u32 = 5;
 const SID_LOOKUP_RETRY_DELAY: Duration = Duration::from_millis(500);
 
+static CACHED_PIPE_SDDL: OnceLock<Result<String, String>> = OnceLock::new();
+
 pub(crate) fn create_pipe_server(
     options: &ServerOptions,
     pipe_name: &OsStr,
 ) -> io::Result<NamedPipeServer> {
-    let sddl = setup_security_descriptor()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:#}")))?;
-    with_security_attributes(&sddl, |attrs| unsafe {
+    let sddl =
+        cached_pipe_sddl().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    with_security_attributes(sddl, |attrs| unsafe {
         options.create_with_security_attributes_raw(pipe_name, attrs)
     })
 }
 
-fn setup_security_descriptor() -> Result<String> {
+fn cached_pipe_sddl() -> Result<&'static str> {
+    match CACHED_PIPE_SDDL
+        .get_or_init(|| setup_security_descriptor_with_retries().map_err(|err| format!("{err:#}")))
+    {
+        Ok(sddl) => Ok(sddl.as_str()),
+        Err(msg) => Err(anyhow::anyhow!("{msg}")),
+    }
+}
+
+fn setup_security_descriptor_with_retries() -> Result<String> {
     let mut last_err = None;
     for attempt in 1..=SID_LOOKUP_MAX_ATTEMPTS {
         match setup_security_descriptor_once() {
