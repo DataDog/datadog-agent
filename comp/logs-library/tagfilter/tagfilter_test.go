@@ -211,14 +211,20 @@ func TestCaseFoldedKeyLookupAllocatesNothing(t *testing.T) {
 	assert.Equal(t, float64(0), allocs)
 }
 
-// TestCaseFoldedLookupBeyondStackBuffer covers keys too long for lookupKey's
-// stack buffer, which take the allocating fallback.
-func TestCaseFoldedLookupBeyondStackBuffer(t *testing.T) {
-	key := strings.Repeat("a", maxFoldedKeyLen) + "B"
+// TestLookupBeyondBucketedKeyLen covers rule keys too long to be bucketed by
+// length, which land in the long overflow and are the only users of it.
+func TestLookupBeyondBucketedKeyLen(t *testing.T) {
+	key := strings.Repeat("a", maxBucketedKeyLen) + "B"
 	f, report := Compile(nil, []string{key + ":*"})
 	require.Empty(t, report.Rejected)
-	assert.False(t, f.Retains(strings.ToUpper(key)+":anything"))
+	require.Len(t, f.long, 1, "an over-length rule key must land in long")
+
 	assert.False(t, f.Retains(key+":anything"))
+	assert.False(t, f.Retains(strings.ToUpper(key)+":anything"))
+	// Same length, different content: must miss without matching the bucket.
+	assert.True(t, f.Retains(strings.Repeat("z", len(key))+":anything"))
+	// A key one byte longer than the longest rule is rejected outright.
+	assert.True(t, f.Retains(key+"a:anything"))
 }
 
 func TestIncludeOnlyRemovesNothing(t *testing.T) {
@@ -474,7 +480,7 @@ func TestProtectedKeysSurviveEveryExcludeForm(t *testing.T) {
 
 func TestKeyStarNeverInspectsValue(t *testing.T) {
 	f, _ := Compile(nil, []string{"container_id:*"})
-	kr := f.byKey["container_id"]
+	kr := f.lookupKey("container_id")
 	require.NotNil(t, kr)
 	assert.True(t, kr.excludeAny)
 	assert.Empty(t, kr.excludeVals)

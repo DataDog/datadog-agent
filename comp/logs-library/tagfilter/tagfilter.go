@@ -51,10 +51,28 @@ func (p Patterns) IsEmpty() bool {
 	return len(p.Include) == 0 && len(p.Exclude) == 0
 }
 
+// maxBucketedKeyLen bounds the bucket array so a pathological configured key
+// cannot size an allocation. Rule keys longer than this go in long.
+const maxBucketedKeyLen = 32
+
 // Filters is a compiled set of include and exclude patterns for one scope.
 type Filters struct {
-	byKey    map[string]*keyRules
-	patterns Patterns
+	// byLen indexes key rules by key length, so most lookups miss on an empty
+	// bucket. Length is min(maxKeyLen, maxBucketedKeyLen) + 1.
+	byLen [][]keyEntry
+	// long holds rule keys longer than maxBucketedKeyLen. Normally nil.
+	long []keyEntry
+	// maxKeyLen is the true longest rule key, including long ones.
+	maxKeyLen int
+	patterns  Patterns
+}
+
+// keyEntry is one literal rule key. key is ASCII-folded; first is key[0],
+// folded, so a candidate is rejected on one byte compare.
+type keyEntry struct {
+	key   string
+	first byte
+	rules *keyRules
 }
 
 // keyRules holds every rule that applies to one literal tag key.
@@ -77,22 +95,48 @@ type valueGlob struct {
 // Report, so a malformed configuration degrades to filtering less rather than
 // breaking log delivery.
 func Compile(include, exclude []string) (*Filters, Report) {
-	f := &Filters{byKey: make(map[string]*keyRules, len(protectedKeys))}
+	// Accumulate in a map, then discard it for length buckets once every
+	// pattern is in; compilation is not on any hot path.
+	byKey := make(map[string]*keyRules, len(protectedKeys))
 	for _, key := range protectedKeys {
-		f.byKey[key] = &keyRules{protected: true}
+		byKey[key] = &keyRules{protected: true}
 	}
 
 	var report Report
+	f := &Filters{}
 	f.patterns = Patterns{
-		Include: compileList(f, include, false, &report),
-		Exclude: compileList(f, exclude, true, &report),
+		Include: compileList(byKey, include, false, &report),
+		Exclude: compileList(byKey, exclude, true, &report),
 	}
+	f.buildBuckets(byKey)
 	return f, report
+}
+
+// buildBuckets materializes the length-indexed lookup structure from the
+// accumulated rules.
+func (f *Filters) buildBuckets(byKey map[string]*keyRules) {
+	for key := range byKey {
+		if len(key) > f.maxKeyLen {
+			f.maxKeyLen = len(key)
+		}
+	}
+	// Cap the array from maxBucketedKeyLen, never from maxKeyLen: pattern keys
+	// are user-configured and nothing bounds their length, and filters compile
+	// once per source.
+	f.byLen = make([][]keyEntry, min(f.maxKeyLen, maxBucketedKeyLen)+1)
+	for key, rules := range byKey {
+		e := keyEntry{key: key, first: key[0], rules: rules}
+		if len(key) <= maxBucketedKeyLen {
+			f.byLen[len(key)] = append(f.byLen[len(key)], e)
+		} else {
+			f.long = append(f.long, e)
+		}
+	}
 }
 
 // compileList validates and compiles one pattern list, returning the patterns
 // (trimmed, deduplicated) that survived.
-func compileList(f *Filters, patterns []string, isExclude bool, report *Report) []string {
+func compileList(byKey map[string]*keyRules, patterns []string, isExclude bool, report *Report) []string {
 	seen := make(map[string]struct{}, len(patterns))
 	kept := make([]string, 0, len(patterns))
 	for _, raw := range patterns {
@@ -115,10 +159,10 @@ func compileList(f *Filters, patterns []string, isExclude bool, report *Report) 
 				p, folded))
 		}
 
-		kr := f.byKey[folded]
+		kr := byKey[folded]
 		if kr == nil {
 			kr = &keyRules{}
-			f.byKey[folded] = kr
+			byKey[folded] = kr
 		}
 		if value == "*" {
 			if isExclude {
@@ -180,10 +224,6 @@ func isProtectedKey(key string) bool {
 	return false
 }
 
-// maxFoldedKeyLen bounds the stack buffer lookupKey folds into. Longer keys fall
-// back to an allocating fold.
-const maxFoldedKeyLen = 128
-
 func hasASCIIUpper(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if c := s[i]; c >= 'A' && c <= 'Z' {
@@ -209,28 +249,64 @@ func asciiLower(s string) string {
 	return string(b)
 }
 
-// lookupKey resolves a tag key against the rule map, case-insensitively. Pattern
-// keys are stored folded, so an already-lowercase key resolves on the first
-// lookup and a mixed-case key costs one extra scan.
+// lookupKey resolves a tag key against the compiled rules, case-insensitively.
+// A key with no rule -- the common case -- is rejected by a length compare or an
+// empty bucket, without its bytes being read at all.
 func (f *Filters) lookupKey(key string) *keyRules {
-	if kr := f.byKey[key]; kr != nil {
-		return kr
-	}
-	if !hasASCIIUpper(key) {
+	n := len(key)
+	if n == 0 || n > f.maxKeyLen {
 		return nil
 	}
-	if len(key) > maxFoldedKeyLen {
-		return f.byKey[asciiLower(key)]
+	if n >= len(f.byLen) {
+		return lookupLong(f.long, key)
 	}
-	var buf [maxFoldedKeyLen]byte
-	for i := 0; i < len(key); i++ {
-		c := key[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
+	bucket := f.byLen[n]
+	if len(bucket) == 0 {
+		return nil
+	}
+	c := foldByte(key[0])
+	for i := range bucket {
+		if bucket[i].first != c {
+			continue
 		}
-		buf[i] = c
+		if equalFolded(bucket[i].key, key) {
+			return bucket[i].rules
+		}
 	}
-	return f.byKey[string(buf[:len(key)])]
+	return nil
+}
+
+// lookupLong scans the overflow bucket, which unlike a length bucket holds keys
+// of mixed length and so must compare lengths before folding.
+func lookupLong(bucket []keyEntry, key string) *keyRules {
+	c := foldByte(key[0])
+	for i := range bucket {
+		if bucket[i].first != c || len(bucket[i].key) != len(key) {
+			continue
+		}
+		if equalFolded(bucket[i].key, key) {
+			return bucket[i].rules
+		}
+	}
+	return nil
+}
+
+func foldByte(c byte) byte {
+	if c >= 'A' && c <= 'Z' {
+		c += 'a' - 'A'
+	}
+	return c
+}
+
+// equalFolded reports whether s case-folds to folded. Callers guarantee equal
+// lengths and a matching first byte.
+func equalFolded(folded, s string) bool {
+	for i := 1; i < len(s); i++ {
+		if foldByte(s[i]) != folded[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // splitTag splits a tag on its first colon. ok is false when tag carries no
