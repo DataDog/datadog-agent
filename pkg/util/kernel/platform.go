@@ -60,7 +60,8 @@ var platformCorrections = []struct {
 	{pattern: regexp.MustCompile(`-lp(15\d)\.`), info: platformInfo{platform: "opensuse-leap", family: "suse"}, versionTransform: func(v string) string {
 		return strings.Replace(v, "15", "15.", 1)
 	}},
-	{pattern: regexp.MustCompile(`-150300\.`), info: platformInfo{platform: "sles", family: "suse", version: "15.3"}},
+	// could be SLES or OpenSUSE-Leap
+	{pattern: regexp.MustCompile(`-150300\.`), info: platformInfo{platform: "sles", family: "suse", version: "15.3"}, ubuntuOnly: true},
 }
 
 var platformInformation = funcs.Memoize(getPlatformInformation)
