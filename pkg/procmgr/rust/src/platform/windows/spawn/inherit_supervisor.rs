@@ -11,7 +11,7 @@ use crate::spawn::SpawnRequest;
 
 use super::super::JobObject;
 use super::super::token_identity::open_current_process_token;
-use super::create_process::{CreateProcessInvoker, spawn_managed_child};
+use super::create_process::spawn_managed_child;
 use super::credential::SpawnCredential;
 use super::inputs::SpawnInputs;
 
@@ -41,10 +41,5 @@ pub(super) fn spawn_inherit_supervisor(
         supervisor_token.as_handle(),
     )?;
 
-    spawn_managed_child(
-        process_name,
-        &mut inputs,
-        job,
-        CreateProcessInvoker::InheritSupervisor,
-    )
+    spawn_managed_child(process_name, &mut inputs, job)
 }

@@ -9,7 +9,7 @@ use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
 
 use super::super::JobObject;
-use super::create_process::{CreateProcessInvoker, spawn_managed_child};
+use super::create_process::spawn_managed_child_as_user;
 use super::credential::SpawnCredential;
 use super::inputs::SpawnInputs;
 use super::logon::TokenHandle;
@@ -43,12 +43,8 @@ pub(super) fn spawn_as_primary_token(
     let mut inputs =
         SpawnInputs::prepare(process_name, request, credential, primary_token_guard.raw())?;
 
-    let handle = spawn_managed_child(
-        process_name,
-        &mut inputs,
-        job,
-        CreateProcessInvoker::AsUser(primary_token_guard.raw()),
-    )?;
+    let handle =
+        spawn_managed_child_as_user(process_name, &mut inputs, job, primary_token_guard.raw())?;
 
     Ok((handle, profile_guard))
 }

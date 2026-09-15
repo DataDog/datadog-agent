@@ -8,9 +8,10 @@
 use std::mem;
 
 use anyhow::{Result, bail};
-use windows_sys::Win32::Foundation::CloseHandle;
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::Threading::{
-    CreateProcessAsUserW, CreateProcessW, PROCESS_INFORMATION,
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW,
+    CreateProcessW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
 };
 
 use crate::handle::ProcessHandle;
@@ -19,62 +20,31 @@ use super::super::JobObject;
 use super::super::process::terminate_process;
 use super::inputs::SpawnInputs;
 use super::startup_info_ex::StartupInfoEx;
-use super::win32::ManagedProcessCreationFlags;
 
-/// Which Win32 create API to invoke for a managed child spawn.
-pub(super) enum CreateProcessInvoker {
-    /// `CreateProcessW` with the supervisor's token inherited by the child.
-    InheritSupervisor,
-    /// `CreateProcessAsUserW` with a primary token from `LogonUser`.
-    AsUser(windows_sys::Win32::Foundation::HANDLE),
-}
-
-impl CreateProcessInvoker {
-    unsafe fn invoke(
-        &self,
-        inputs: &mut SpawnInputs,
-        startup_info: &mut windows_sys::Win32::System::Threading::STARTUPINFOW,
-        creation_flags: u32,
-        process_info: &mut PROCESS_INFORMATION,
-    ) -> i32 {
-        unsafe {
-            match self {
-                Self::InheritSupervisor => CreateProcessW(
-                    std::ptr::null(),
-                    inputs.command_line_mut_ptr(),
-                    std::ptr::null(),
-                    std::ptr::null(),
-                    1,
-                    creation_flags,
-                    inputs.env_ptr(),
-                    inputs.cwd_ptr(),
-                    startup_info,
-                    process_info,
-                ),
-                Self::AsUser(token) => CreateProcessAsUserW(
-                    *token,
-                    std::ptr::null(),
-                    inputs.command_line_mut_ptr(),
-                    std::ptr::null(),
-                    std::ptr::null(),
-                    1,
-                    creation_flags,
-                    inputs.env_ptr(),
-                    inputs.cwd_ptr(),
-                    startup_info,
-                    process_info,
-                ),
-            }
-        }
-    }
-}
-
-/// Spawn a managed child with create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
+/// Spawn a managed child in the supervisor's security context (`CreateProcessW`).
 pub(super) fn spawn_managed_child(
     process_name: &str,
     inputs: &mut SpawnInputs,
     job: &JobObject,
-    invoker: CreateProcessInvoker,
+) -> Result<ProcessHandle> {
+    create_managed_child(process_name, inputs, job, None)
+}
+
+/// Spawn a managed child with a primary token (`CreateProcessAsUserW`).
+pub(super) fn spawn_managed_child_as_user(
+    process_name: &str,
+    inputs: &mut SpawnInputs,
+    job: &JobObject,
+    primary_token: HANDLE,
+) -> Result<ProcessHandle> {
+    create_managed_child(process_name, inputs, job, Some(primary_token))
+}
+
+fn create_managed_child(
+    process_name: &str,
+    inputs: &mut SpawnInputs,
+    job: &JobObject,
+    primary_token: Option<HANDLE>,
 ) -> Result<ProcessHandle> {
     let mut startup_info = StartupInfoEx::with_stdio_and_job(
         inputs.stdio.stdin(),
@@ -83,49 +53,65 @@ pub(super) fn spawn_managed_child(
         job.raw_handle(),
     )?;
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
+    // `CREATE_NO_WINDOW` without `CREATE_NEW_CONSOLE`: both set and Windows
+    // ignores `CREATE_NO_WINDOW`, giving the child a visible console.
+    let creation_flags = CREATE_NEW_PROCESS_GROUP
+        | CREATE_NO_WINDOW
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT;
     let ok = unsafe {
-        invoker.invoke(
-            inputs,
-            startup_info.startup_info(),
-            ManagedProcessCreationFlags::JobListAtCreate.bits(),
-            &mut process_info,
-        )
+        match primary_token {
+            None => CreateProcessW(
+                std::ptr::null(),
+                inputs.command_line_mut_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                creation_flags,
+                inputs.env_ptr(),
+                inputs.cwd_ptr(),
+                startup_info.startup_info(),
+                &mut process_info,
+            ),
+            Some(token) => CreateProcessAsUserW(
+                token,
+                std::ptr::null(),
+                inputs.command_line_mut_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                creation_flags,
+                inputs.env_ptr(),
+                inputs.cwd_ptr(),
+                startup_info.startup_info(),
+                &mut process_info,
+            ),
+        }
     };
     if ok == 0 {
-        let err = std::io::Error::last_os_error();
-        match invoker {
-            CreateProcessInvoker::InheritSupervisor => {
-                bail!("[{process_name}] CreateProcessW failed: {err}");
-            }
-            CreateProcessInvoker::AsUser(_) => {
-                bail!("[{process_name}] CreateProcessAsUserW failed: {err}");
-            }
-        }
+        let api_name = if primary_token.is_some() {
+            "CreateProcessAsUserW"
+        } else {
+            "CreateProcessW"
+        };
+        bail!(
+            "[{process_name}] {api_name} failed: {}",
+            std::io::Error::last_os_error()
+        );
     }
-    finish_managed_spawn(process_name, process_info)
-}
 
-fn finish_managed_spawn(
-    _process_name: &str,
-    process_info: PROCESS_INFORMATION,
-) -> Result<ProcessHandle> {
     let pid = process_info.dwProcessId;
-    let handle = match ProcessHandle::from_borrowed(pid, process_info.hProcess) {
-        Ok(handle) => handle,
-        Err(e) => {
-            let _ = terminate_process(process_info.hProcess);
-            unsafe {
-                CloseHandle(process_info.hProcess);
-                CloseHandle(process_info.hThread);
-            }
-            return Err(e);
+    let handle = ProcessHandle::from_borrowed(pid, process_info.hProcess).map_err(|e| {
+        let _ = terminate_process(process_info.hProcess);
+        unsafe {
+            CloseHandle(process_info.hProcess);
+            CloseHandle(process_info.hThread);
         }
-    };
-
+        e
+    })?;
     unsafe {
         CloseHandle(process_info.hProcess);
         CloseHandle(process_info.hThread);
     }
-
     Ok(handle)
 }

@@ -7,18 +7,13 @@ use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
+use super::super::child_env::merge_legacy_scm_env;
+use super::super::merge_env_overrides;
+use super::super::wide::WideEnvBlock;
 use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
-use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    EXTENDED_STARTUPINFO_PRESENT,
-};
-
-use super::super::child_env::merge_legacy_scm_env;
-use super::super::merge_env_overrides;
-use super::super::wide::WideEnvBlock;
 
 fn build_child_env_vars(
     process_name: &str,
@@ -118,28 +113,6 @@ fn windows_command_line_arg(s: &str) -> String {
     out.push_str(&"\\".repeat(backslashes * 2));
     out.push('"');
     out
-}
-
-/// `CreateProcess*` flags for managed child spawn (`create_process.rs`).
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ManagedProcessCreationFlags {
-    /// Create-time `PROC_THREAD_ATTRIBUTE_JOB_LIST`.
-    JobListAtCreate,
-}
-
-impl ManagedProcessCreationFlags {
-    pub(crate) fn bits(self) -> u32 {
-        match self {
-            Self::JobListAtCreate => {
-                // `CREATE_NO_WINDOW` without `CREATE_NEW_CONSOLE`: both set and Windows
-                // ignores `CREATE_NO_WINDOW`, giving the child a visible console.
-                CREATE_NEW_PROCESS_GROUP
-                    | CREATE_NO_WINDOW
-                    | CREATE_UNICODE_ENVIRONMENT
-                    | EXTENDED_STARTUPINFO_PRESENT
-            }
-        }
-    }
 }
 
 #[cfg(test)]
