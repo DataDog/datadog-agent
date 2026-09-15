@@ -62,6 +62,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"windows_crash_detection.enabled": sysprobeConf,
 				"runtime_security_config.enabled": sysprobeConf,
 				"software_inventory.enabled":      coreConf,
+				"vdi.enabled":                     coreConf,
 			},
 			serviceName:    "datadog-system-probe",
 			serviceInit:    sysprobeInit,
