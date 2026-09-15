@@ -21,7 +21,6 @@ pkg_filegroup(
     ] + select({
         "@platforms//os:linux": [
             # dependency curl
-            "@systemd//:all_files",
             "//deps/gstatus:all_files",
             ":collected_libs",
         ],

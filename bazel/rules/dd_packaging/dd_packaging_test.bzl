@@ -4,7 +4,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "matching")
@@ -636,6 +636,39 @@ def _test_data_reaches_packaged(name):
 def _test_data_reaches_packaged_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 14: a plain cc_library's data attr pointed at a bare pkg_filegroup
+# (no dd_cc_packaged wrapper), mirroring the systemd headers wiring: a
+# headers-only cc_library cannot go through dd_cc_packaged since it has no
+# compiled artifact, so its data-listed pkg_filegroup must be picked up
+# directly via PackageFilegroupInfo.
+def _test_data_reaches_bare_pkg_filegroup(name):
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    pkg_filegroup(
+        name = name + "_all_files",
+        srcs = [":" + name + "_hdrs"],
+    )
+    cc_library(
+        name = name + "_headers",
+        data = [":" + name + "_all_files"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_headers"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_data_reaches_bare_pkg_filegroup_impl,
+        target = name + "_subject",
+    )
+
+def _test_data_reaches_bare_pkg_filegroup_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -655,5 +688,6 @@ def dd_packaging_test_suite(name):
             _test_cc_import_reaches_packaged,
             _test_go_chain_reaches_packaged,
             _test_data_reaches_packaged,
+            _test_data_reaches_bare_pkg_filegroup,
         ],
     )
