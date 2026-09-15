@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, TRUE};
 use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
@@ -86,10 +86,18 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         // signal is delivered to our process group.
         let _ignore_ctrl = IgnoreCtrlGuard::install()?;
         detach_console();
-        if AttachConsole(pid) == 0 {
+        // The child may still be calling AllocConsole right after CreateProcess returns.
+        let attach_deadline = Instant::now() + Duration::from_millis(500);
+        loop {
+            if AttachConsole(pid) != 0 {
+                break;
+            }
             let err = std::io::Error::last_os_error();
-            eprintln!("send_graceful_stop: AttachConsole({pid}) failed: {err}");
-            anyhow::bail!("AttachConsole({pid}) failed: {err}");
+            if Instant::now() >= attach_deadline {
+                eprintln!("send_graceful_stop: AttachConsole({pid}) failed: {err}");
+                anyhow::bail!("AttachConsole({pid}) failed: {err}");
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
         struct DetachOnDrop;
         impl Drop for DetachOnDrop {
@@ -128,8 +136,9 @@ mod tests {
     use crate::process::{ManagedProcess, test_exit_channel};
     use crate::test_helpers;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_send_graceful_stop_reaches_graceful_sleeper() {
+        eprintln!("console test: start");
         let (exit_tx, mut exit_rx) = test_exit_channel();
         let mut proc = ManagedProcess::new_config(
             "graceful".into(),
@@ -138,19 +147,36 @@ mod tests {
         );
         proc.spawn(exit_tx).expect("spawn graceful-sleeper");
         let pid = proc.pid().expect("spawned pid");
+        eprintln!("console test: spawned pid={pid}");
         assert!(proc.is_running(), "graceful-sleeper should be running");
 
-        let started = Instant::now();
-        send_graceful_stop(pid).expect("send_graceful_stop");
+        // Let graceful-sleeper finish AllocConsole and register its handler.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        eprintln!(
+            "console test: post-spawn delay complete, is_running={}",
+            proc.is_running()
+        );
 
+        let started = Instant::now();
+        eprintln!("console test: calling send_graceful_stop");
+        send_graceful_stop(pid).expect("send_graceful_stop");
+        eprintln!("console test: send_graceful_stop returned ok");
+
+        eprintln!("console test: waiting for exit watcher");
         let exit = tokio::time::timeout(Duration::from_secs(2), exit_rx.recv())
             .await
             .expect("graceful-sleeper did not exit within 2s after send_graceful_stop")
-            .expect("exit event");
+            .expect("exit watcher closed without reporting child exit");
+        eprintln!(
+            "console test: exit pid={} code={:?}",
+            exit.pid,
+            exit.status.code()
+        );
         assert_eq!(exit.pid, pid);
         assert!(
             exit.status.success(),
-            "graceful-sleeper should exit cleanly"
+            "graceful-sleeper should exit cleanly, got {:?}",
+            exit.status.code()
         );
 
         assert!(
@@ -158,5 +184,6 @@ mod tests {
             "graceful-sleeper took {:?} to exit after CTRL_BREAK",
             started.elapsed()
         );
+        eprintln!("console test: passed");
     }
 }
