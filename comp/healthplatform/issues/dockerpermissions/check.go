@@ -16,6 +16,7 @@ import (
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -75,6 +76,7 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 func classifySockets(socketPaths []string) (permissionSockets, unavailableSockets []string) {
 	for _, socketPath := range socketPaths {
 		exists, err := socket.IsAvailable(socketPath, socketTimeout)
+		log.Debugf("dockerpermissions: classifying socket %s: exists=%v err=%v", socketPath, exists, err)
 		switch {
 		case !exists || err == nil:
 			// absent or reachable -> not an issue

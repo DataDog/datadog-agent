@@ -228,8 +228,12 @@ func (suite *dockerPermissionSuite) TestDockerSocketUnavailableLifecycle() {
 	// unix socket file in its place: nothing is listening at that path anymore, so
 	// a dial attempt returns "connection refused" — a non-permission reachability
 	// failure, as opposed to the permission-denied case covered above.
+	//
+	// docker.socket (systemd socket activation) is stopped explicitly alongside
+	// docker.service: "systemctl stop docker" alone only stops the service, and a
+	// live docker.socket unit would otherwise still be sitting on the path.
 	breakSocket := func() {
-		host.MustExecute("sudo systemctl stop docker")
+		host.MustExecute("sudo systemctl stop docker.socket docker.service || true")
 		host.MustExecute("sudo rm -f /var/run/docker.sock")
 		host.MustExecute(`sudo python3 -c "import socket; s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.bind('/var/run/docker.sock'); s.listen(1)"`)
 		host.MustExecute("sudo chmod 666 /var/run/docker.sock")
