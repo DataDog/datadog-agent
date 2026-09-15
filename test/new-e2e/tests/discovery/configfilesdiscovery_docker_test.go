@@ -75,6 +75,11 @@ const (
 )
 
 const (
+	pgbouncerContainerName   = "pgbouncer-env-configfilesdiscovery"
+	pgbouncerIntegrationName = "pgbouncer"
+)
+
+const (
 	sparkMasterContainerName  = "spark-driver-configfilesdiscovery-master"
 	sparkWorkerContainerName  = "spark-driver-configfilesdiscovery-worker"
 	sparkSubmitContainerName  = "spark-driver-configfilesdiscovery-submit"
@@ -92,6 +97,9 @@ var kafkaCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
+
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-pgbouncer.yaml
+var pgbouncerCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
 var sparkCompose string
@@ -190,6 +198,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-pgbouncer", pulumi.String(pgbouncerCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-spark", pulumi.String(sparkCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
@@ -459,6 +468,46 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutConfigFile() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: pgbouncerIntegrationName,
+		containerNames:  []string{pgbouncerContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), pgbouncerIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		pgbouncerPayloads := findEnvPayloads(payloads, pgbouncerIntegrationName)
+		if !assert.NotEmpty(c, pgbouncerPayloads, "no pgbouncer env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range pgbouncerPayloads {
+			assertAgentDiscoveryPayload(c, payload, pgbouncerIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "md5", envVars["AUTH_TYPE"])
+			assert.Equal(c, "postgres-configfilesdiscovery", envVars["DB_HOST"])
+			assert.Equal(c, postgresDBName, envVars["DB_NAME"])
+			assert.Equal(c, postgresUser, envVars["DB_USER"])
+			assert.Equal(c, "100", envVars["MAX_CLIENT_CONN"])
+			assert.Equal(c, "transaction", envVars["POOL_MODE"])
+			assert.NotContains(c, envVars, "DATABASE_URL")
+			assert.NotContains(c, envVars, "DB_PASSWORD")
+			assert.NotContains(c, envVars, "SERVER_RESET_QUERY")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for pgbouncer env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
