@@ -7,8 +7,8 @@ Active issues: {{ .activeIssues }} ({{ .highSeverityIssues }} high, {{ .mediumSe
 
 Reporting to Datadog
   Last successful send: {{ if .lastSuccessAt }}{{ .lastSuccessAt }}{{ else }}never{{ end }}
-  Issues sent: {{ .issuesSentTotal }}
-  Bytes sent: {{ .bytesSentTotal }}
+  Issues sent: {{ humanize .issuesSentTotal }}
+  Bytes sent: {{ humanize .bytesSentTotal }}
 {{- if .egressHealthy }}
   Send errors: {{ .sendErrorsTotal }}
 {{- else }}

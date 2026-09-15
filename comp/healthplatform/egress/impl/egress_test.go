@@ -369,6 +369,38 @@ func TestStatusStaysHealthyDuringIdlePeriodAfterSuccess(t *testing.T) {
 	assert.NoError(t, s.LastError)
 }
 
+// TestStatusRecoversFromStaleErrorDuringIdlePeriod verifies the mirror image
+// of TestStatusStaysHealthyDuringIdlePeriodAfterSuccess: once a failing send
+// is followed by the store going empty, repeated skipped ticks must clear the
+// stale error rather than leaving Status unhealthy forever with no further
+// send ever occurring to clear it.
+func TestStatusRecoversFromStaleErrorDuringIdlePeriod(t *testing.T) {
+	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
+		return 0, assert.AnError
+	}))
+	e := newTestEgress(t, store, fwd)
+	e.interval = time.Minute
+
+	e.tick()
+	require.False(t, e.Status().Healthy, "failed send must report unhealthy")
+
+	// The issue resolves in the store, but its tombstone is never drained
+	// into e.resolved (e.g. run()'s select loop hasn't processed the
+	// resolvedCh case yet) -- from tick()'s perspective there is nothing
+	// left to send, exactly like the steady-state idle case.
+	store.ResolveIssue("issue-1")
+
+	for i := 0; i < 5; i++ {
+		e.tick()
+	}
+
+	s := e.Status()
+	assert.True(t, s.Healthy, "idle egress must recover from a stale error once there is nothing left to send")
+	assert.NoError(t, s.LastError)
+	assert.EqualValues(t, 1, s.SendErrorsTotal, "cumulative error count must be preserved across the idle recovery")
+}
+
 // TestStatusGoesUnhealthyWhenTicksStop verifies the staleness check in
 // Status still catches a genuinely stalled tick loop: if lastAttemptAt
 // hasn't been refreshed for over 2*interval, Status must report unhealthy

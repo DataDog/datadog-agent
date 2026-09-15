@@ -151,6 +151,11 @@ func (e *egress) tick() {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
 		e.statusMu.Lock()
 		e.lastAttemptAt = time.Now()
+		// Nothing to send means there is no outstanding failure: clear any
+		// stale error from an earlier tick so a resolved-then-idle pipeline
+		// doesn't report unhealthy forever with no further attempt ever
+		// occurring to clear it.
+		e.lastErr = nil
 		e.statusMu.Unlock()
 		return
 	}
