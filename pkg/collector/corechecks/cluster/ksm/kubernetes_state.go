@@ -84,6 +84,23 @@ var extendedCollectors = map[string]string{
 	"pods":         "core/v1, Resource=pods_extended",
 }
 
+// draCollectors returns the GVR strings under which the DRA resourceclaim/
+// resourceslice factories register their stores
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())). These must match
+// the availableStores keys the vendored KSM builder uses, or WithEnabledResources
+// fails with "resource <name> does not exist".
+//
+// The version is whichever one the cluster serves, not a constant: the DRA
+// group reached v1 only in Kubernetes 1.34 and clusters in the field still
+// serve a beta version.
+func draCollectors(apiVersion string) []string {
+	gv := customresources.DRAGroup + "/" + apiVersion
+	return []string{
+		gv + ", Resource=resourceclaims",
+		gv + ", Resource=resourceslices",
+	}
+}
+
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
 // their new collector name would be. For backwards compatibility.
 var collectorNameReplacement = map[string]string{
@@ -214,6 +231,24 @@ type KSMConfig struct {
 	// labels_mapper:
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
+
+	// CollectDRAResources enables the Dynamic Resource Allocation collectors
+	// (ResourceClaim, ResourceSlice), which report accelerator demand and
+	// supply. Off by default: the resource.k8s.io API group is absent on most
+	// clusters, and the Cluster Agent's shipped RBAC has to grant
+	// get/list/watch on it before the informers can start.
+	// Example:
+	// collect_dra_resources: true
+	CollectDRAResources bool `yaml:"collect_dra_resources"`
+
+	// DRADeviceClasses restricts DRA collection to claims requesting one of
+	// these DeviceClasses. Empty means every claim is counted, including those
+	// of non-accelerator drivers. Filtering is by DeviceClass, not driver: the
+	// names coincide for NVIDIA but diverge in general.
+	// Example:
+	// dra_device_classes:
+	//   - gpu.nvidia.com
+	DRADeviceClasses []string `yaml:"dra_device_classes"`
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
@@ -619,6 +654,19 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		}
 	}
 
+	// The DRA factories below are registered unconditionally once the cluster
+	// serves the API group, so their stores must be enabled even when the
+	// config carries an explicit collectors list. Without this,
+	// WithEnabledResources(cr.collectors) never enables them and the informers
+	// never start. Use the GVR strings, not the plain names — resourceExists()
+	// matches against availableStores keys.
+	//
+	// Note the DRA collectors are appended further down, after the two
+	// early returns: those modes register only their own pod factory, so
+	// enabling a DRA store there would ask WithEnabledResources for a resource
+	// with no factory behind it — the exact "resource does not exist" failure.
+	draAPIVersion := customresources.DRAAPIVersion(resources)
+
 	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
 		return customResources{
 			collectors: collectors,
@@ -638,7 +686,12 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		// WithCustomResourceStoreFactories registers NewExtendedPodFactory
 		// under (util.GVRFromType("pods_extended", *v1.Pod)), so BuildStores
 		// finds and builds it. Returning nil collectors instead would build
-		// neither store and make .total disappear.
+		// neither store and make .total disappear. DRA stores are excluded for
+		// the same reason: this mode exists to emit the four owner-tagged pod
+		// aggregates and nothing else.
+		if k.instance.CollectDRAResources {
+			log.Infof("DRA collection is enabled but pod_collection_mode is %q, which collects only the pod aggregates; resourceclaim/resourceslice metrics will not be produced", clusterAggregatesOnlyPodCollection)
+		}
 		return customResources{
 			collectors: []string{extendedCollectors["pods"]},
 			factories: []customresource.RegistryFactory{
@@ -660,6 +713,20 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewStatefulSetRolloutFactory(c, k.rolloutTracker),
 		customresources.NewDaemonSetRolloutFactory(c, k.rolloutTracker),
 		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
+	}
+
+	// DRA is opt-in and only registered on a cluster that actually serves the
+	// group. Enabling it elsewhere starts informers against a missing API
+	// group, which on the overwhelming majority of clusters is nothing but
+	// error noise.
+	if k.instance.CollectDRAResources && draAPIVersion != "" {
+		factories = append(factories,
+			customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses),
+			customresources.NewResourceSliceFactory(c, draAPIVersion),
+		)
+		collectors = lo.Uniq(append(collectors, draCollectors(draAPIVersion)...))
+	} else if k.instance.CollectDRAResources {
+		log.Infof("DRA collection is enabled but this cluster serves no known %s API version (supported: %s); skipping resourceclaim/resourceslice collection", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -1448,6 +1515,8 @@ func defaultCollectors() []string {
 	if _, found := options.DefaultResources["endpoints"]; !found {
 		collectors = append(collectors, "endpoints")
 	}
+	// DRA collectors are added by discoverCustomResources instead: they depend
+	// on the API version the cluster serves, which is not known here.
 	return collectors
 }
 
