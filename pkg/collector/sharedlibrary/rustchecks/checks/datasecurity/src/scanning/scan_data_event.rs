@@ -1,11 +1,10 @@
 //! SDS [`Event`] for [`ScanData`]: one table of columns and rows.
 
-use anyhow::{Context, Result};
 use dd_sds::{Event, EventVisitor, Path, PathSegment, ScannerError, Utf8Encoding};
 
 use crate::backend::ScanData;
 
-/// Path is `[Index(row), Index(column)]`, matching `visit_event`.
+/// Path is `[Index(row), Index(column), Field(column name)]`, matching `visit_event`.
 impl Event for ScanData {
     type Encoding = Utf8Encoding;
 
@@ -19,8 +18,15 @@ impl Event for ScanData {
                 let Some(value) = cell.as_deref() else {
                     continue;
                 };
+                let Some(column) = self.scanned_columns.get(col_idx) else {
+                    continue;
+                };
+                // Index(col) lets visit_string_mut address the cell without looking up
+                // the column name on every match.
                 visitor.push_segment(col_idx.into());
+                visitor.push_segment(column.name.as_str().into());
                 visitor.visit_string(value)?;
+                visitor.pop_segment();
                 visitor.pop_segment();
             }
             visitor.pop_segment();
@@ -38,20 +44,14 @@ impl Event for ScanData {
     }
 }
 
-impl ScanData {
-    pub(super) fn column_name(&self, path: &Path<'_>) -> Result<&str> {
-        let (_, col) =
-            path_row_col(path).with_context(|| format!("unexpected sds path {path:?}"))?;
-        self.scanned_columns
-            .get(col)
-            .map(|c| c.name.as_str())
-            .with_context(|| format!("sds path column index {col} is out of range"))
-    }
-}
-
 fn path_row_col(path: &Path<'_>) -> Option<(usize, usize)> {
     match path.segments.as_slice() {
-        [PathSegment::Index(row), PathSegment::Index(col), ..] => Some((*row, *col)),
+        [
+            PathSegment::Index(row),
+            PathSegment::Index(col),
+            PathSegment::Field(_),
+            ..,
+        ] => Some((*row, *col)),
         _ => None,
     }
 }

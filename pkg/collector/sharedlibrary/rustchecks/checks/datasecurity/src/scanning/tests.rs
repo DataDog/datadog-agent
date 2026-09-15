@@ -1,6 +1,6 @@
 use dd_sds::{
-    Labels, ProximityKeywordsConfig, RegexRuleConfig, RootRuleConfig, SecondaryValidator,
-    Suppressions,
+    Labels, Path, ProximityKeywordsConfig, RegexRuleConfig, RootRuleConfig, Scope,
+    SecondaryValidator, Suppressions,
 };
 use shlib_core::Config;
 
@@ -211,6 +211,95 @@ scan_data: []
         vec![Match {
             rule_id: "token".to_string(),
             column_name: "note".to_string(),
+            count_matched_rows: 1,
+            count_matches: 1,
+            ..Default::default()
+        }]
+    );
+}
+
+#[test]
+fn scan_included_keyword_matches_column_name() {
+    let scanner = scanner_from_instance(
+        r#"
+task_id: task-1
+scanning_rules:
+  - id: email
+    pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+    proximity_keywords:
+      look_ahead_character_count: 30
+      included_keywords: ['email']
+scan_data: []
+"#,
+    );
+
+    // Neither cell contains the word `email`; SDS matches the keyword against
+    // the named path. Only the `email` column should hit.
+    let mut data = ScanData {
+        scanned_columns: vec![
+            ScannedColumn {
+                name: "email".to_string(),
+                data_type: "text".to_string(),
+            },
+            ScannedColumn {
+                name: "note".to_string(),
+                data_type: "text".to_string(),
+            },
+        ],
+        rows: vec![vec![
+            Some("alice@corp.io".to_string()),
+            Some("bob@corp.io".to_string()),
+        ]],
+    };
+    let matches = scanner.scan(&mut data).expect("failed to scan data");
+
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "email".to_string(),
+            count_matched_rows: 1,
+            count_matches: 1,
+            ..Default::default()
+        }]
+    );
+}
+
+#[test]
+fn scan_respects_included_column_scope() {
+    let rule = ScanningRule {
+        id: "email".to_string(),
+        license: String::new(),
+        config: RootRuleConfig::new(RegexRuleConfig::new(
+            r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+",
+        ))
+        .scope(Scope::include(vec![Path::from(vec!["email".into()])])),
+    };
+    let scanner = Scanner::new(&[rule]).expect("failed to build scanner");
+
+    let mut data = ScanData {
+        scanned_columns: vec![
+            ScannedColumn {
+                name: "email".to_string(),
+                data_type: "text".to_string(),
+            },
+            ScannedColumn {
+                name: "note".to_string(),
+                data_type: "text".to_string(),
+            },
+        ],
+        rows: vec![vec![
+            Some("alice@corp.io".to_string()),
+            Some("bob@corp.io".to_string()),
+        ]],
+    };
+    let matches = scanner.scan(&mut data).expect("failed to scan data");
+
+    assert_eq!(
+        matches,
+        vec![Match {
+            rule_id: "email".to_string(),
+            column_name: "email".to_string(),
             count_matched_rows: 1,
             count_matches: 1,
             ..Default::default()
