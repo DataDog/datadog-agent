@@ -58,6 +58,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_shutdown_graceful_stop_signal() {
+        use std::time::Instant;
+
+        let mut proc = ManagedProcess::new_config(
+            "graceful".into(),
+            test_helpers::test_uuid(),
+            test_helpers::graceful_stop_test_config(),
+        );
+        proc.spawn(test_exit_channel().0).unwrap();
+        assert!(proc.is_running());
+
+        let started = Instant::now();
+        proc.request_stop();
+        proc.wait_for_stop().await;
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed().as_secs() < 2,
+            "graceful stop should not wait for stop_timeout force-kill (took {:?})",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
         // Use ping (via sleep_config) instead of powershell: ping ignores graceful
         // stop on Windows, and powershell.exe is not always on PATH in CI containers.

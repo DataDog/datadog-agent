@@ -300,6 +300,30 @@ pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
 
 /// `ProcessConfig` for a long-running child used in stop/reload/shutdown tests.
 ///
+/// Long-running child that exits promptly on graceful stop (SIGTERM / CTRL_BREAK).
+pub fn graceful_stop_cmd() -> (String, Vec<String>) {
+    (
+        python_exe(),
+        vec![
+            "-c".into(),
+            "import os,signal,time;def _exit(*a): os._exit(0);[signal.signal(getattr(signal,n),_exit) for n in ('SIGTERM','SIGINT','SIGBREAK') if hasattr(signal,n)];time.sleep(3600)".into(),
+        ],
+    )
+}
+
+/// `ProcessConfig` for a child that exits on graceful stop without force-kill.
+pub fn graceful_stop_test_config() -> crate::config::ProcessConfig {
+    let (cmd, args) = graceful_stop_cmd();
+    crate::config::ProcessConfig {
+        command: cmd,
+        args,
+        stop_timeout: Some(5),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
+}
+
 /// Uses a short `stop_timeout` on all platforms: Windows `ping` ignores graceful
 /// stop, so `wait_for_stop` must escalate to force-kill quickly.
 pub fn sleep_test_config(secs: u32) -> crate::config::ProcessConfig {

@@ -201,6 +201,7 @@ _DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS = [
     ("process_normal_exit_stop_flag", "test_normal_exit_not_affected_by_stop_flag"),
     # shutdown::tests
     ("shutdown_all_graceful", "test_shutdown_all_graceful"),
+    ("shutdown_graceful_stop_signal", "test_shutdown_graceful_stop_signal"),
     ("shutdown_sigkill_timeout", "test_shutdown_all_sigkill_on_timeout"),
     ("shutdown_after_spawn", "test_shutdown_all_after_spawn_watcher_owns_handle"),
     ("shutdown_ordered_reverse", "test_shutdown_ordered_reverse"),
