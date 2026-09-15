@@ -1,3 +1,4 @@
+log_level: debug
 health_platform:
   enabled: true
   forwarder:

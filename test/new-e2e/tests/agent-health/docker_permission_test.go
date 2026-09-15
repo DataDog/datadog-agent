@@ -260,6 +260,10 @@ func (suite *dockerPermissionSuite) TestDockerSocketUnavailableLifecycle() {
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		breakSocket()
 		restartAgent(t)
+		t.Cleanup(func() {
+			logs := host.MustExecute(`sudo grep -i "dockerpermissions:" /var/log/datadog/agent.log || true`)
+			t.Logf("dockerpermissions debug log after breakSocket+restart:\n%s", logs)
+		})
 
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -302,6 +306,10 @@ func (suite *dockerPermissionSuite) TestDockerSocketUnavailableLifecycle() {
 
 		restoreSocket()
 		restartAgent(t)
+		t.Cleanup(func() {
+			logs := host.MustExecute(`sudo grep -i "dockerpermissions:" /var/log/datadog/agent.log || true`)
+			t.Logf("dockerpermissions debug log after restoreSocket+restart:\n%s", logs)
+		})
 
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
