@@ -31,7 +31,9 @@ func TestIncludePgbouncerEnvVar(t *testing.T) {
 		{"PGBOUNCER_DATABASE", false},
 		{"PGBOUNCER_PASSWORD", false},
 		{"DATABASE_URL", false},
+		{"DATABASE_URLS", false},
 		{"DB_PASSWORD", false},
+		{"PGBOUNCER_AUTH_QUERY", false},
 		{"SERVER_RESET_QUERY", false},
 		{"PGBOUNCER_EXTRA_FLAGS", false},
 	} {

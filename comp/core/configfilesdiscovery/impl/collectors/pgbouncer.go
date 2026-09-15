@@ -62,6 +62,18 @@ var pgbouncerEnvAllow = map[string]struct{}{
 	"STATS_USERS":          {},
 }
 
+// pgbouncerEnvDeny is defense in depth and documents values that must never
+// be forwarded even if the allow-list is broadened later. The shared
+// secret-name filter also rejects password-shaped names.
+var pgbouncerEnvDeny = map[string]struct{}{
+	"DATABASE_URL":          {},
+	"DATABASE_URLS":         {},
+	"DB_PASSWORD":           {},
+	"PGBOUNCER_AUTH_QUERY":  {},
+	"PGBOUNCER_EXTRA_FLAGS": {},
+	"SERVER_RESET_QUERY":    {},
+}
+
 func NewPgbouncer() configfilesdiscoveryimpl.ConfigCollector {
 	return pgbouncerConfigCollector{}
 }
@@ -87,6 +99,9 @@ func (pgbouncerConfigCollector) Collect(ctx context.Context, reader configfilesd
 
 func includePgbouncerEnvVar(name string) bool {
 	if configfilesdiscoveryimpl.IsSecretEnvVarName(name) {
+		return false
+	}
+	if _, denied := pgbouncerEnvDeny[name]; denied {
 		return false
 	}
 	_, allowed := pgbouncerEnvAllow[name]
