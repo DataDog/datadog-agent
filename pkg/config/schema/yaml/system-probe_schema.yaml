@@ -558,19 +558,28 @@ properties:
         node_type: setting
         type: string
         default: ebpfless
+        enum:
+        - ebpfless
+        - nstat
+        - nstat-pcap
+        - auto
         env_vars:
         - DD_NETWORK_CONFIG_DARWIN_CONNECTION_TRACER_BACKEND
         description: |-
           Selects the macOS connection tracer backend. "ebpfless" retains the
-          existing packet-owned tracer, "nstat" enables the NStat primary
-          without packet enrichment, "nstat-pcap" enables the full composite
-          backend, and "auto" tries the full composite backend before falling
-          back to ebpfless.
+          existing packet-owned tracer. "nstat" enables the NStat primary
+          without packet enrichment. "nstat-pcap" enables the full composite
+          backend and honors darwin_connection_tracer_packet_enabled. "auto"
+          is nstat-pcap with packet enrichment always on. All NStat modes
+          fall back to ebpfless if NStat is unavailable.
       darwin_connection_tracer_packet_enabled:
         node_type: setting
         type: boolean
         default: true
-        description: Enables non-owning libpcap enrichment for the macOS NStat backend.
+        description: |-
+          Enables non-owning libpcap enrichment for the macOS NStat backend.
+          Honored only for nstat-pcap. Forced off for nstat and forced on
+          for auto.
       darwin_connection_tracer_libproc_enabled:
         node_type: setting
         type: boolean
