@@ -67,7 +67,13 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	violations = filterUploadArtifacts(normalized, scrubbed, violations)
+	retained := violations[:0]
+	for _, violation := range violations {
+		if !isUploadArtifact(normalized, scrubbed, violation) {
+			retained = append(retained, violation)
+		}
+	}
+	violations = retained
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -89,28 +95,10 @@ func buildIssueReportContext(cfg config.Component, configPath string, violations
 	for i, violation := range violations {
 		ctx[contextErrorKey(i)] = violation.Message
 	}
-	payloads, complete := buildViolationPayloads(cfg, violations)
-	if !complete {
-		return ctx
-	}
-	encoded, err := json.Marshal(payloads)
-	if err != nil {
-		return ctx
-	}
-	ctx[contextKeyViolationsVersion] = "1"
-	ctx[contextKeyViolations] = string(encoded)
-	return ctx
-}
-
-func buildViolationPayloads(cfg config.Component, violations []schema.Violation) ([]violationPayload, bool) {
-	if len(violations) == 0 {
-		return nil, false
-	}
-
 	payloads := make([]violationPayload, 0, len(violations))
 	for _, violation := range violations {
 		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
-			return nil, false
+			return ctx
 		}
 		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
 		payloads = append(payloads, violationPayload{
@@ -121,18 +109,13 @@ func buildViolationPayloads(cfg config.Component, violations []schema.Violation)
 			DefaultValue:  defaultValue,
 		})
 	}
-	return payloads, true
-}
-
-func filterUploadArtifacts(normalized, scrubbed map[string]any, violations []schema.Violation) []schema.Violation {
-	retained := make([]schema.Violation, 0, len(violations))
-	for _, violation := range violations {
-		if isUploadArtifact(normalized, scrubbed, violation) {
-			continue
-		}
-		retained = append(retained, violation)
+	encoded, err := json.Marshal(payloads)
+	if err != nil {
+		return ctx
 	}
-	return retained
+	ctx[contextKeyViolationsVersion] = "1"
+	ctx[contextKeyViolations] = string(encoded)
+	return ctx
 }
 
 func isUploadArtifact(normalized, scrubbed map[string]any, violation schema.Violation) bool {
@@ -145,15 +128,12 @@ func isUploadArtifact(normalized, scrubbed map[string]any, violation schema.Viol
 	if beforeErr != nil || afterErr != nil {
 		return false
 	}
-	_, beforeString := before.(string)
+	beforeText, beforeString := before.(string)
 	_, afterString := after.(string)
-	if !beforeString && afterString {
-		return true
-	}
 	if !beforeString {
-		return false
+		return afterString
 	}
-	return scrubber.IsEnc(before.(string)) && allExpectedTypesScalar(violation.ExpectedTypes)
+	return scrubber.IsEnc(beforeText) && allExpectedTypesScalar(violation.ExpectedTypes)
 }
 
 // Secret backends return scalar values. All-scalar unions are safe to suppress,
@@ -163,8 +143,7 @@ func allExpectedTypesScalar(values []string) bool {
 		return false
 	}
 	for _, value := range values {
-		switch value {
-		case "array", "object", "null":
+		if value == "array" || value == "object" || value == "null" {
 			return false
 		}
 	}

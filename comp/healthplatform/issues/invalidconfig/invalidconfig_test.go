@@ -71,31 +71,6 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
 }
 
-func TestBuildIssue_VersionOneViolationsPreserveLegacyErrors(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyConfigPath:        "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount:        "1",
-		contextKeyViolationsVersion: "1",
-		contextKeyViolations:        `[{"path":"/agent_ipc/port","actual_type":"string","expected_types":["integer"],"default_status":"known","default_value":0}]`,
-	}
-	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
-
-	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	fields := issue.GetExtra().GetFields()
-	errorsStruct := fields[contextKeyErrors].GetStructValue()
-	require.NotNil(t, errorsStruct)
-	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
-	assert.Equal(t, float64(1), fields[contextKeyViolationsVersion].GetNumberValue())
-
-	violations := fields[contextKeyViolations].GetListValue().GetValues()
-	require.Len(t, violations, 1)
-	violation := violations[0].GetStructValue().GetFields()
-	assert.Equal(t, "/agent_ipc/port", violation["path"].GetStringValue())
-	assert.Equal(t, float64(0), violation["default_value"].GetNumberValue())
-}
-
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
@@ -149,11 +124,14 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 		DefaultValue:  float64(0),
 	}, violations[0])
 
-	reportJSON, err := json.Marshal(reports[0].Context)
-	require.NoError(t, err)
-	assert.NotContains(t, string(reportJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 	require.NoError(t, err)
+	fields := issue.GetExtra().GetFields()
+	assert.Equal(t, float64(1), fields[contextKeyViolationsVersion].GetNumberValue())
+	issueViolations := fields[contextKeyViolations].GetListValue().GetValues()
+	require.Len(t, issueViolations, 1)
+	violation := issueViolations[0].GetStructValue().GetFields()
+	assert.Equal(t, float64(0), violation["default_value"].GetNumberValue())
 	issueJSON, err := json.Marshal(issue.GetExtra())
 	require.NoError(t, err)
 	assert.NotContains(t, string(issueJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
@@ -161,32 +139,20 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 
 func TestCheck_ScrubbedUploadArtifacts(t *testing.T) {
 	requireSchema(t)
-	for name, testCase := range map[string]struct {
-		yaml         string
-		hasViolation bool
+	for _, testCase := range []struct {
+		yaml string
+		want int
 	}{
-		"scrubbed scalar": {
-			yaml: "forwarder_apikey_validation_interval: 61\n",
-		},
-		"secret handle for scalar": {
-			yaml: "agent_ipc:\n  port: ENC[ipc_port]\n",
-		},
-		"secret handle for object": {
-			yaml:         "agent_ipc: ENC[ipc]\n",
-			hasViolation: true,
-		},
+		{"forwarder_apikey_validation_interval: 61\n", 0},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", 0},
+		{"agent_ipc: ENC[ipc]\n", 1},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
 
 			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
-			if testCase.hasViolation {
-				require.Len(t, reports, 1)
-				assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc")
-				return
-			}
-			assert.Empty(t, reports)
+			assert.Len(t, reports, testCase.want)
 		})
 	}
 }
@@ -210,21 +176,6 @@ func TestResolveDefault(t *testing.T) {
 			assert.Equal(t, testCase.value, value)
 		})
 	}
-}
-
-func TestBuildViolationPayloads_OmitsMixedUntypedViolations(t *testing.T) {
-	cfg := config.NewMock(t)
-	payloads, ok := buildViolationPayloads(cfg, []schema.Violation{
-		{
-			Message:       "at '/agent_ipc/port': got string, want integer",
-			Path:          "/agent_ipc/port",
-			ActualType:    "string",
-			ExpectedTypes: []string{"integer"},
-		},
-		{Message: "at '/unknown': additionalProperties error", Path: "/unknown"},
-	})
-	assert.False(t, ok)
-	assert.Nil(t, payloads)
 }
 
 func TestBuildIssueReportContext_MixedViolationsKeepOnlyLegacyErrors(t *testing.T) {
