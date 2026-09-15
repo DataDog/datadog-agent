@@ -312,37 +312,147 @@ pub fn graceful_stop_cmd() -> (String, Vec<String>) {
 }
 
 #[cfg(windows)]
-fn resolve_test_runfile(path: String) -> String {
-    let candidate = std::path::Path::new(&path);
-    if candidate.is_absolute() && candidate.exists() {
-        return path;
+fn normalize_runfile_key(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
+#[cfg(windows)]
+fn runfile_lookup_keys(path: &str) -> Vec<String> {
+    let normalized = normalize_runfile_key(path);
+    let mut keys = vec![normalized.clone()];
+    if std::path::Path::new(&normalized)
+        .extension()
+        .is_none()
+    {
+        keys.push(format!("{normalized}.exe"));
     }
-    if candidate.exists() {
-        return path;
+    if let Some(base) = std::path::Path::new(&normalized).file_name() {
+        let base = base.to_string_lossy();
+        keys.push(base.to_string());
+        if std::path::Path::new(base.as_ref())
+            .extension()
+            .is_none()
+        {
+            keys.push(format!("{base}.exe"));
+        }
     }
+    keys.sort_unstable();
+    keys.dedup();
+    keys
+}
+
+#[cfg(windows)]
+fn runfile_keys_match(candidate: &str, manifest_entry: &str) -> bool {
+    if candidate == manifest_entry {
+        return true;
+    }
+    candidate.ends_with(&format!("/{manifest_entry}"))
+        || manifest_entry.ends_with(&format!("/{candidate}"))
+}
+
+#[cfg(windows)]
+fn lookup_runfile_in_manifest(manifest_key: &str) -> Option<std::path::PathBuf> {
+    let lookup_keys = runfile_lookup_keys(manifest_key);
+    let manifest_path = std::env::var("RUNFILES_MANIFEST_FILE").ok()?;
+    let content = std::fs::read_to_string(&manifest_path).ok()?;
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let (runfile, real_path) = line.split_once(' ')?;
+        let runfile = normalize_runfile_key(runfile);
+        if lookup_keys
+            .iter()
+            .any(|key| runfile_keys_match(key, &runfile))
+        {
+            return Some(std::path::PathBuf::from(real_path));
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+fn resolve_bazel_runfile(path: &str) -> std::path::PathBuf {
+    if let Some(resolved) = lookup_runfile_in_manifest(path) {
+        return resolved;
+    }
+
+    let relative = std::path::Path::new(&normalize_runfile_key(path));
+    if relative.is_absolute() && relative.is_file() {
+        return relative.to_path_buf();
+    }
+
     for var in ["RUNFILES_DIR", "TEST_SRCDIR"] {
         if let Ok(root) = std::env::var(var) {
-            for resolved in [
-                std::path::Path::new(&root).join(candidate),
-                std::path::Path::new(&root).join(candidate.with_extension("exe")),
+            for candidate in [
+                std::path::Path::new(&root).join(relative),
+                std::path::Path::new(&root).join(relative.with_extension("exe")),
             ] {
-                if resolved.exists() {
-                    return resolved.to_string_lossy().into_owned();
+                if candidate.is_file() {
+                    return candidate;
                 }
             }
         }
     }
-    path
+
+    std::path::PathBuf::from(path)
+}
+
+/// Windows Bazel runfiles expose file runfiles as directory junctions that
+/// `CreateProcessW` cannot execute. Copy the resolved binary into `TEST_TMPDIR`
+/// before spawning, matching the pattern in `comp/trace/config/impl/config_test.go`.
+#[cfg(windows)]
+fn materialize_windows_test_executable(src: &std::path::Path) -> std::path::PathBuf {
+    if std::env::var("BAZEL_TEST").as_deref() != Ok("1") {
+        return src.to_path_buf();
+    }
+
+    let dst_dir = std::env::var("TEST_TMPDIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let dst = dst_dir.join("graceful-sleeper.exe");
+    if dst.is_file() {
+        return dst;
+    }
+
+    if !src.is_file() {
+        panic!(
+            "graceful-sleeper runfile resolved to a non-file path: {}",
+            src.display()
+        );
+    }
+
+    std::fs::copy(src, &dst).unwrap_or_else(|err| {
+        panic!(
+            "failed to copy graceful-sleeper from {} to {}: {}",
+            src.display(),
+            dst.display(),
+            err
+        );
+    });
+    dst
 }
 
 #[cfg(windows)]
 fn graceful_sleeper_exe() -> String {
-    if let Ok(path) = std::env::var("GRACEFUL_SLEEPER_BIN")
-        && !path.is_empty()
-    {
-        return resolve_test_runfile(path);
-    }
-    "graceful-sleeper.exe".to_string()
+    static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CACHED
+        .get_or_init(|| {
+            let manifest_key = std::env::var("GRACEFUL_SLEEPER_BIN")
+                .filter(|path| !path.is_empty())
+                .unwrap_or_else(|_| "graceful-sleeper.exe".to_string());
+            let resolved = resolve_bazel_runfile(&manifest_key);
+            if !resolved.is_file() {
+                panic!(
+                    "could not resolve graceful-sleeper runfile from {manifest_key:?} (got {})",
+                    resolved.display()
+                );
+            }
+            let spawnable = materialize_windows_test_executable(&resolved);
+            spawnable.to_string_lossy().into_owned()
+        })
+        .clone()
 }
 
 #[cfg(windows)]
