@@ -52,12 +52,12 @@ python3 .agents/skills/follow-pr/scripts/config.py resolve \
   [--mode <from --fix-mode arg>] [--max-fix-cycles <from arg>] [--policy <from arg>]
 ```
 
-Pass through any `--fix-mode`, `--max-fix-cycles`, or policy text given in this invocation; otherwise the script falls back to environment variables, then worktree-local config, then global config, then its own default (`autofix`). Anyone who wants to be asked instead can set `mode = "ask"` in either config file, or `mode = "no-autofix"` to disable pushing entirely.
+Pass through any `--fix-mode`, `--max-fix-cycles`, or policy text given in this invocation; otherwise the script falls back to environment variables, then worktree-local config, then global config, then its own default (`autofix`).
 
 - **Resolved mode is `autofix` or `no-autofix`:** report the resolved mode, cycle budget, and whether a custom policy is active, then continue to [Step 3](#step-3-start-monitoring).
 - **Resolved mode is `ask`, or the script errors:** ask the user directly, before monitoring starts, whether PR-caused failures this run should be fixed and pushed (`autofix`) or only investigated locally (`no-autofix`). Offer to persist the answer (worktree-local or global config) if they don't want to be asked again; otherwise use it for this run only.
 
-Keep the resolved mode, cycle budget (default `2`), and policy text in context — you'll pass them straight through as `--mode`/`--max-fix-cycles`/`--policy` whenever you invoke `/handle-pr-ci-failure` in [Step 6](#step-6-follow-up-on-failures), so it resolves the exact same values instead of re-deriving them; [Step 8](#step-8-decide-whether-to-keep-going) also needs them on every loop.
+Keep the resolved mode, cycle budget (default `2`), and policy text in context — you'll pass them straight through as `--mode`/`--max-fix-cycles`/`--policy` to subskills that might need it.
 
 ## Step 3: Start monitoring
 

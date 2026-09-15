@@ -6,8 +6,6 @@ description: >-
   - "handle this PR-caused CI failure"
   - "fix the CI regression"
   - "continue investigating this PR failure"
-  Works whether the failure was described by triage-ci-failure's structured verdict or
-  reported directly by a user in plain language.
 model: sonnet
 ---
 
@@ -15,28 +13,25 @@ model: sonnet
 
 ## Goal
 
-Turn one or more CI failures already attributed to the current PR's own code into either a pushed fix or a clear, evidence-backed report the user can act on. This skill trusts the `pr-code` blame it's given rather than re-diagnosing it, and it never mutates anything for a failure it can't classify as safe with hard evidence.
-
+Turn one or more CI failures already attributed to the current PR's own code into either a pushed fix or a clear, evidence-backed report the user can act on.
 **Owning team:** `@DataDog/agent-devx`
 
 ## Step 0 — Collect the failures to handle
 
 The ideal input is one or more `CI triage result` blocks (see `/triage-ci-failure`'s output contract: `Job`, `Pipeline SHA`, `Blame`, `Failure signature`, `Evidence`, `Proposed fix`, `Incident`). When you have these, discard every block whose `Blame` isn't exactly `pr-code` — `upstream`, `infra`, `flake`, and `inconclusive` remain `/follow-pr`'s existing incident/retry path, not this skill's problem. Never treat `Incident: none` as evidence of `pr-code`; branch on `Blame` alone.
 
-You may also be invoked directly by a user describing a failure in plain language (e.g. "this lint error is from my change, fix it"). In that case there's no structured block to require — work with whatever description, log excerpt, or diff you're given. Say plainly that you're missing the structured evidence a full triage would give you, then proceed treating the described failure as `pr-code`: a user manually invoking this skill on a specific failure is asserting that blame themselves.
+In case the input does not follow that format, work with whatever description, log excerpt, or diff you're given. Say plainly that you're missing the structured evidence a full triage would give you, then proceed. Suggest the user runs `/triage-ci-failure` first.
 
 Either way, group the failures by root cause: several failed jobs (or several sentences of description) sharing one underlying defect are one root cause, not several.
 
 ## Step 1 — Resolve the autonomy policy
 
-Always resolve it yourself, regardless of caller:
+Run the helper script:
 
 ```bash
 python3 .agents/skills/follow-pr/scripts/config.py resolve \
   [--mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]
 ```
-
-If `/follow-pr` already resolved this for the current run, it passes its resolved values through as `--mode`/`--max-fix-cycles`/`--policy` — the script's explicit-flag layer takes precedence over every config file, so you land on the identical result without needing to trust restated conversational state. On a direct invocation those flags are simply absent and the script falls through to its own config/env/default layers.
 
 If the resolved mode is `ask`, or the script errors, ask the user directly whether this run is `autofix` or `no-autofix` before doing anything else.
 
@@ -79,8 +74,8 @@ For each `safe` root cause, in this order:
 1. Check branch, `HEAD`, the PR's remote SHA, `git status`, staged diff, unstaged diff, and untracked files. If the checkout isn't clean or the remote SHA has moved since Step 0, stop — treat this root cause as blocked, not safe, and say why in the report.
 2. Reproduce the failure locally with whatever check actually failed — for example `dda inv linter.go --targets=<package>` for a lint job, `dda inv test --targets=<package>` for a unit test, or the job's own e2e/KMT/installer command for those. Don't guess at the command; read it from the failing job's log.
 3. Apply one coherent fix for this root cause. Use the repository's own tools (`dda inv ...`, `bazel ...`) — never raw `go build`/`go test` (see the root `AGENTS.md`).
-4. Run the nearest build/lint/unit checks, then attempt the exact same check that originally failed. A lint fix only needs the linter; a unit test fix only needs that test; only a failure that was itself e2e/KMT/installer needs that specialized runner — don't invent an e2e/KMT reproduction step for a failure that never involved one.
-5. If that exact check runs and still fails, this root cause was misclassified: move it to `complex` (Step 5) and undo any speculative edit for it. If the check can't even start locally (common for e2e/KMT setup), record that limitation — you may still push once for CI validation, but only if every other `pr-code` root cause in this batch is also `safe`.
+4. Run the nearest build/lint/unit checks, then attempt the exact same check that originally failed.
+5. If that exact check runs and still fails, this root cause was misclassified: move it to `complex` (Step 5) and undo any speculative edit for it. If the check can't even start locally, record that limitation — you may still push once for CI validation, but only if every other `pr-code` root cause in this batch is also `safe`.
 6. Review the complete diff for this fix. Every changed hunk must map to this root cause; unexplained churn disqualifies it — move it to `complex`.
 7. Stage only the explicit paths for this fix, inspect the cached diff, let hooks run normally, and commit with a message describing the actual fix (never "fix CI").
 8. Decide whether to push now: push only if *every* `pr-code` root cause in this batch is `safe` and has a passing local (or CI-validated per step 5) result. If any root cause in this batch is `complex`, keep this commit local — don't push it and burn a CI cycle while the complex one still needs a human decision. Continue to Step 5 for the complex root causes.
