@@ -45,6 +45,7 @@ oracle:
       variables:
         ORACLE_PWD: "datad0g"
   variables:
+    FF_KUBERNETES_HONOR_ENTRYPOINT: "false"
     CI_DEBUG_SERVICES: "true"
     ORACLE_TEST_READY_TIMEOUT: "3m"
     DD_HOSTNAME: "oracle-test"
@@ -58,6 +59,7 @@ oracle:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
+    - source /root/.bashrc
     - mkdir -p oracle-ci-logs
     - |
       deadline=$((SECONDS + 200))
