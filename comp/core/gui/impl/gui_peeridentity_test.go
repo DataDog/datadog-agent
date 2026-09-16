@@ -25,7 +25,7 @@ import (
 // synthetic, non-loopback RemoteAddr), so that mint and redeem go through
 // the real, platform-specific lookupLoopbackPeerIdentity implementation.
 // Restricted to platforms that actually implement peer identity resolution:
-// on the peeridentity_other.go fallback (e.g. AIX), lookupLoopbackPeerIdentity
+// on the peeridentity_noop.go fallback (e.g. AIX), lookupLoopbackPeerIdentity
 // always returns an empty identity by design, which would make every
 // assertion below fail even though that fallback behavior is correct.
 func Test_intentToken_peerIdentity(t *testing.T) {

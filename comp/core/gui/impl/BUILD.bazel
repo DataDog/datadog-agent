@@ -13,7 +13,7 @@ go_library(
         "peeridentity.go",
         "peeridentity_darwin.go",
         "peeridentity_linux.go",
-        "peeridentity_other.go",
+        "peeridentity_noop.go",
         "peeridentity_windows.go",
         "platform_darwin.go",
         "platform_nix.go",
