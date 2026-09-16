@@ -233,7 +233,7 @@ instances:
     ## Configure collection of table and column metadata for Oracle 12c or later. Requires
     ## `dbm: true` or `data_observability.enabled: true`.
     #
-    # schemas:
+    # collect_schemas:
 
       ## @param enabled - boolean - optional - default: false
       ## Enable collection of table and column metadata.

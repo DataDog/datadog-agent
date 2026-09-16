@@ -227,7 +227,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig                `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
-	Schemas                            SchemasConfig            `yaml:"schemas"`
+	Schemas                            SchemasConfig            `yaml:"collect_schemas"`
 	DataObservability                  DataObservabilityConfig  `yaml:"data_observability"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
