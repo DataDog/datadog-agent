@@ -111,6 +111,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Urn:                            urn,
 		DatadogSite:                    ddSite,
 		CredentialValues:               config.GetStringMapString(setup.PARCredentialsValues),
+		AllowIntegrationCredentials:    config.GetBool(setup.PARCredentialsAllowIntegration),
 	}, nil
 }
 

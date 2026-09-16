@@ -51,11 +51,15 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) *WorkflowTaskExecutor {
+	var integrationConfigProvider resolver.IntegrationConfigProvider
+	if configuration.AllowIntegrationCredentials {
+		integrationConfigProvider = resolver.NewAgentIntegrationConfigProvider(ipcClient)
+	}
 	return &WorkflowTaskExecutor{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(resolver.NewCredentialCatalog(configuration.CredentialValues)),
+		resolver:     resolver.NewPrivateCredentialResolver(resolver.NewCredentialCatalog(configuration.CredentialValues), integrationConfigProvider),
 	}
 }
 
