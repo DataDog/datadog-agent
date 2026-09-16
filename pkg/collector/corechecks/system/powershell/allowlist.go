@@ -8,6 +8,7 @@
 package powershell
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"maps"
@@ -15,7 +16,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // allowlistVersion is the only supported allowlist schema version.
@@ -53,7 +54,9 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 	}
 
 	var a allowlist
-	if err := yaml.UnmarshalStrict(data, &a); err != nil {
+	strictDecoder := yaml.NewDecoder(bytes.NewReader(data))
+	strictDecoder.KnownFields(true)
+	if err := strictDecoder.Decode(&a); err != nil {
 		return nil, fmt.Errorf("could not parse allowlist: %w", err)
 	}
 	if a.Version != allowlistVersion {

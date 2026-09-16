@@ -60,8 +60,8 @@ func tagGroupByKeyHash(c TagGroupByKey) uint64 {
 	return h.Sum64()
 }
 
-// TagGroupByKeyRegistry is a bidirectional, append-only store between a uint64 hash
-// and a TagGroupByKey. It is NOT thread-safe; access must be confined to a single goroutine.
+// TagGroupByKeyRegistry stores active tag groups by their stable uint64 hash.
+// It is NOT thread-safe; access must be confined to a single goroutine.
 type TagGroupByKeyRegistry struct {
 	byHash map[uint64]TagGroupByKey
 }
@@ -75,16 +75,28 @@ func NewTagGroupByKeyRegistry() *TagGroupByKeyRegistry {
 // Calling Register twice with the same group returns the same hash.
 func (r *TagGroupByKeyRegistry) Register(group TagGroupByKey) uint64 {
 	hash := tagGroupByKeyHash(group)
+	r.register(hash, group)
+	return hash
+}
+
+func (r *TagGroupByKeyRegistry) register(hash uint64, group TagGroupByKey) {
 	if _, exists := r.byHash[hash]; !exists {
 		r.byHash[hash] = group
 	}
-	return hash
 }
 
 // Lookup returns the TagGroupByKey for the given hash, and whether it was found.
 func (r *TagGroupByKeyRegistry) Lookup(hash uint64) (TagGroupByKey, bool) {
 	group, ok := r.byHash[hash]
 	return group, ok
+}
+
+func (r *TagGroupByKeyRegistry) delete(hash uint64) {
+	delete(r.byHash, hash)
+}
+
+func (r *TagGroupByKeyRegistry) reset() {
+	r.byHash = make(map[uint64]TagGroupByKey)
 }
 
 // extractTagGroupByKey scans a flat "key:value" tag slice and extracts the
@@ -207,7 +219,7 @@ func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC
 // the next Process call to avoid silently dropping eviction context.
 func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
 	group := extractTagGroupByKey(tags)
-	groupHash := tc.registry.Register(group)
+	groupHash := tagGroupByKeyHash(group)
 
 	sub, exists := tc.subClusterers[groupHash]
 	if !exists {
@@ -231,6 +243,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 		// eviction or LRU bookkeeping is needed.
 		return 0, nil, false
 	}
+	tc.registry.register(groupHash, group)
 
 	// Process accepted the message; only now do we commit the new
 	// sub-clusterer (and evict the LRU group if we've hit the cap).
@@ -266,8 +279,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 // adding a new group would exceed MaxTagGroups. The about-to-be-added groupHash
 // is excluded from eviction. All clusters belonging to the evicted group are
 // surfaced via DrainLRUEvictions and the group is removed from
-// lastTouchByGroup. The group's hash remains in the registry (registry is
-// append-only by design).
+// lastTouchByGroup and the tag-group registry.
 //
 // Implementation: pops stale entries off touchHeap (entries whose touch no
 // longer matches lastTouchByGroup, or whose hash has already been deleted)
@@ -302,8 +314,7 @@ func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 					tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: top.hash, ClusterID: c.ID})
 				}
 			}
-			delete(tc.subClusterers, top.hash)
-			delete(tc.lastTouchByGroup, top.hash)
+			tc.removeTagGroup(top.hash)
 			return
 		}
 	}
@@ -333,8 +344,13 @@ func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 			tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: victim, ClusterID: c.ID})
 		}
 	}
-	delete(tc.subClusterers, victim)
-	delete(tc.lastTouchByGroup, victim)
+	tc.removeTagGroup(victim)
+}
+
+func (tc *TaggedPatternClusterer) removeTagGroup(groupHash uint64) {
+	delete(tc.subClusterers, groupHash)
+	delete(tc.lastTouchByGroup, groupHash)
+	tc.registry.delete(groupHash)
 }
 
 // heapCompactionThreshold sets when maybeCompactTouchHeap rebuilds touchHeap
@@ -407,11 +423,10 @@ func (tc *TaggedPatternClusterer) GetCluster(groupHash uint64, clusterID int64) 
 	return sub.GetCluster(clusterID)
 }
 
-// Reset drops all sub-clusterers. The registry is intentionally kept so that
-// previously registered hashes remain resolvable after a reset. LRU bookkeeping
-// (lastTouchByGroup, pending evictions) is also cleared.
+// Reset drops all sub-clusterers, registered groups, and LRU bookkeeping.
 func (tc *TaggedPatternClusterer) Reset() {
 	tc.subClusterers = make(map[uint64]*patterns.PatternClusterer)
+	tc.registry.reset()
 	tc.lastTouchByGroup = nil
 	tc.touchHeap = nil
 	tc.lruEvicted = nil
@@ -441,6 +456,11 @@ func (tc *TaggedPatternClusterer) GarbageCollectBefore(cutoff int64) []EvictedCl
 		}
 		if len(stale) > 0 {
 			_ = sub.RemoveClusters(stale)
+		}
+		if sub.NumClusters() == 0 {
+			// Keep the empty clusterer so a reappearing pattern receives a new
+			// cluster ID, but release the tag strings retained by the registry.
+			tc.registry.delete(groupHash)
 		}
 	}
 	return evicted

@@ -7,48 +7,51 @@
 package ast
 
 import (
-	"bytes"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/alecthomas/participle"
-	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/ebnf"
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
 )
 
 // ParsingContext holds the parsers and optional rule cache; it has no parent (root factory for Rule, Macro, Expression).
 type ParsingContext struct {
-	ruleParser       *participle.Parser
-	macroParser      *participle.Parser
-	expressionParser *participle.Parser
+	ruleParser       *participle.Parser[Rule]
+	macroParser      *participle.Parser[Macro]
+	expressionParser *participle.Parser[Expression]
 
 	ruleCache map[string]*Rule
 }
 
+const (
+	hex     = `a-fA-F0-9`
+	alpha   = `a-zA-Z`
+	digit   = `0-9`
+	anyChar = `(?s:.)`
+
+	ipv4 = `[` + digit + `]+\.[` + digit + `]+\.[` + digit + `]+\.[` + digit + `]+`
+	ipv6 = `[` + hex + `]*:[` + hex + `]*:[` + hex + `]*(?:[:.])?[` + hex + `]*(?:[:.])?[` + hex + `]*(?:[:.])?[` + hex + `]*(?:[:.])?[` + hex + `]*(?:[:.])?[` + hex + `]*`
+	ip   = `(?:` + ipv4 + `|` + ipv6 + `)`
+)
+
 // NewParsingContext returns a new parsing context
 func NewParsingContext(withRuleCache bool) *ParsingContext {
-	seclLexer := lexer.Must(ebnf.New(`
-Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-CIDR = IP "/" digit { digit } .
-IP = (ipv4 | ipv6) .
-Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
-FieldReference = "%{" (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } "}" .
-Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
-Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
-String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Int = [ "-" | "+" ] digit { digit } .
-Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" | "%" ).
-Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
-ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
-ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
-hex = "a"…"f" | "A"…"F" | "0"…"9" .
-alpha = "a"…"z" | "A"…"Z" .
-digit = "0"…"9" .
-any = "\u0000"…"\uffff" .
-`))
+	seclLexer := lexer.MustSimple([]lexer.SimpleRule{
+		{Name: "Comment", Pattern: `(?:#|//)[^\n]*`},
+		{Name: "CIDR", Pattern: ip + `/[` + digit + `]+`},
+		{Name: "IP", Pattern: ip},
+		{Name: "Variable", Pattern: `\$\{[` + alpha + `_][` + alpha + digit + `_.]*\}`},
+		{Name: "FieldReference", Pattern: `%\{[` + alpha + `_][` + alpha + digit + `_.\[\]]*\}`},
+		{Name: "Duration", Pattern: `[` + digit + `]+[msh]s*`},
+		{Name: "Regexp", Pattern: `r"(?:[^"\\]|\\` + anyChar + `)*"`},
+		{Name: "Ident", Pattern: `[` + alpha + `_][` + alpha + digit + `_.\[\]]*`},
+		{Name: "String", Pattern: `"(?:[^"\\]|\\` + anyChar + `)*"`},
+		{Name: "Pattern", Pattern: `~"(?:[^"\\]|\\` + anyChar + `)*"`},
+		{Name: "Int", Pattern: `[-+]?[` + digit + `]+`},
+		{Name: "Punct", Pattern: `[!=<>+\-\[\](),&|~^%]`},
+		{Name: "Whitespace", Pattern: `[ \t\n]+`},
+	})
 
 	var ruleCache map[string]*Rule
 	if withRuleCache {
@@ -56,15 +59,15 @@ any = "\u0000"…"\uffff" .
 	}
 
 	return &ParsingContext{
-		ruleParser:       buildParser(&Rule{}, seclLexer),
-		macroParser:      buildParser(&Macro{}, seclLexer),
-		expressionParser: buildParser(&Expression{}, seclLexer),
+		ruleParser:       buildParser[Rule](seclLexer),
+		macroParser:      buildParser[Macro](seclLexer),
+		expressionParser: buildParser[Expression](seclLexer),
 		ruleCache:        ruleCache,
 	}
 }
 
-func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
-	parser, err := participle.Build(obj,
+func buildParser[G any](lexer lexer.Definition) *participle.Parser[G] {
+	parser, err := participle.Build[G](
 		participle.Lexer(lexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Map(unquoteLiteral, "String"),
@@ -110,8 +113,7 @@ func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
 		}
 	}
 
-	rule := &Rule{}
-	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
+	rule, err := pc.ruleParser.ParseString("", expr)
 	if err != nil {
 		return nil, err
 	}
@@ -138,24 +140,12 @@ type Rule struct {
 
 // ParseMacro parses a SECL macro
 func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
-	macro := &Macro{}
-	err := pc.macroParser.Parse(bytes.NewBufferString(expr), macro)
-	if err != nil {
-		return nil, err
-	}
-
-	return macro, nil
+	return pc.macroParser.ParseString("", expr)
 }
 
 // ParseExpression parses a SECL expression
 func (pc *ParsingContext) ParseExpression(expr string) (*Expression, error) {
-	expression := &Expression{}
-	err := pc.expressionParser.Parse(bytes.NewBufferString(expr), expression)
-	if err != nil {
-		return nil, err
-	}
-
-	return expression, nil
+	return pc.expressionParser.ParseString("", expr)
 }
 
 // Macro is the root of a SECL macro body; it has no parent and contains an Expression, an Array, or a Primary.

@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-retryablehttp"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )

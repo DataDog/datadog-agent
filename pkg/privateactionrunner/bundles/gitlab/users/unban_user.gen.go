@@ -39,7 +39,7 @@ func (h *UnbanUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.UnbanUser(inputs.UserId)
+	_, err = git.Users.UnbanUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

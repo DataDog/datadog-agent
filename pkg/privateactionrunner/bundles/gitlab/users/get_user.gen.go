@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 type GetUserHandler struct{}
@@ -23,7 +23,7 @@ func NewGetUserHandler() *GetUserHandler {
 
 type GetUserInputs struct {
 	UserId int64 `json:"user_id,omitempty"`
-	gitlab.GetUsersOptions
+	gitlab.GetUserOptions
 }
 
 type GetUserOutputs struct {
@@ -44,7 +44,7 @@ func (h *GetUserHandler) Run(
 		return nil, err
 	}
 
-	user, _, err := git.Users.GetUser(inputs.UserId, inputs.GetUsersOptions)
+	user, _, err := git.Users.GetUser(inputs.UserId, &inputs.GetUserOptions)
 	if err != nil {
 		return nil, err
 	}

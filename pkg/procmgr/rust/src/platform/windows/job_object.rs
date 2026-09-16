@@ -6,11 +6,9 @@
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
 pub struct JobObject {
     handle: HANDLE,
@@ -40,25 +38,8 @@ impl JobObject {
         }
     }
 
-    pub fn assign_process(&self, pid: u32) -> Result<()> {
-        unsafe {
-            let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
-            if proc_handle.is_null() {
-                anyhow::bail!(
-                    "OpenProcess({pid}) for job assignment failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-            let ok = AssignProcessToJobObject(self.handle, proc_handle);
-            CloseHandle(proc_handle);
-            if ok == 0 {
-                anyhow::bail!(
-                    "AssignProcessToJobObject({pid}) failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-        }
-        Ok(())
+    pub(crate) fn raw_handle(&self) -> HANDLE {
+        self.handle
     }
 
     pub fn terminate(&self) -> Result<()> {

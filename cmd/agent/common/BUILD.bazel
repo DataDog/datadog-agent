@@ -45,7 +45,7 @@ go_library(
         "//pkg/util/jsonquery",
         "//pkg/util/log",
         "@com_github_fatih_color//:color",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_apimachinery//pkg/util/errors",
         "@org_uber_go_atomic//:atomic",
     ] + select({
@@ -75,6 +75,6 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

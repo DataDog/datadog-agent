@@ -166,11 +166,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task()
-def gen_mocks(ctx):
+def gen_mocks(_):
     """
     Generate mocks.
     """
-    ctx.run("mockery")
+    bazel("run", "//internal/tools:mockery")
 
 
 @task

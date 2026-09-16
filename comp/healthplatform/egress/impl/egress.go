@@ -9,6 +9,7 @@ package egressimpl
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -50,6 +51,13 @@ type egress struct {
 
 	stopCh chan struct{}
 	doneCh chan struct{}
+
+	statusMu        sync.Mutex
+	lastAttemptAt   time.Time
+	lastSuccessAt   time.Time
+	lastErr         error
+	bytesSentTotal  int64
+	sendErrorsTotal int64
 }
 
 // Requires defines the dependencies for the egress component.
@@ -140,6 +148,9 @@ func (e *egress) tick() {
 	count, active := e.store.GetAllIssues()
 	if count == 0 && len(e.resolved) == 0 {
 		e.log.Debug("Health platform egress: no issues to report, skipping tick")
+		e.statusMu.Lock()
+		e.lastAttemptAt = time.Now()
+		e.statusMu.Unlock()
 		return
 	}
 
@@ -156,16 +167,52 @@ func (e *egress) tick() {
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
-	if err := e.forwarder.Send(ctx, e.buildReport(merged)); err != nil {
+	now := time.Now()
+	e.statusMu.Lock()
+	e.lastAttemptAt = now
+	e.statusMu.Unlock()
+
+	bytesSent, err := e.forwarder.Send(ctx, e.buildReport(merged))
+	if err != nil {
 		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
+		e.statusMu.Lock()
+		e.lastErr = err
+		e.sendErrorsTotal++
+		e.statusMu.Unlock()
 		return
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
 
+	e.statusMu.Lock()
+	e.lastErr = nil
+	e.lastSuccessAt = now
+	e.bytesSentTotal += int64(bytesSent)
+	e.statusMu.Unlock()
+
 	// Resolved tombstones are consumed after a successful send; active issues
 	// are always re-fetched fresh from the store on the next tick.
 	e.resolved = make(map[string]*healthplatform.Issue)
+}
+
+// Status returns the current health of the egress send pipeline.
+func (e *egress) Status() egressdef.SendStatus {
+	e.statusMu.Lock()
+	defer e.statusMu.Unlock()
+
+	healthy := e.lastErr == nil
+	if healthy && !e.lastAttemptAt.IsZero() && e.interval > 0 {
+		healthy = time.Since(e.lastAttemptAt) < 2*e.interval
+	}
+
+	return egressdef.SendStatus{
+		Healthy:         healthy,
+		LastAttemptAt:   e.lastAttemptAt,
+		LastSuccessAt:   e.lastSuccessAt,
+		LastError:       e.lastErr,
+		BytesSentTotal:  e.bytesSentTotal,
+		SendErrorsTotal: e.sendErrorsTotal,
+	}
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {

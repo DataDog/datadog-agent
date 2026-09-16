@@ -1,8 +1,9 @@
 """Tests for dd_collect_dependencies and dd_cc_packaged."""
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
@@ -233,13 +234,13 @@ def _test_transitive_collected_impl(env, target):
     # inner's header, reached transitively via dynamic_deps → input → dynamic_deps
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
 
-# Test 5: dd_cc_packaged itself has no default outputs.
+# Test 5: dd_cc_packaged's default outputs are the plain, unpatched input.
 #
 # The {name}_patched and {name}_packaged side-targets must NOT be built when
 # another target simply depends on the dd_cc_packaged rule.  They are only
 # materialised at package time, when dd_collect_dependencies explicitly
 # collects them.
-def _test_packaged_has_no_build_outputs(name):
+def _test_packaged_default_outputs_are_unpatched(name):
     cc_library(
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
@@ -254,12 +255,14 @@ def _test_packaged_has_no_build_outputs(name):
     )
     analysis_test(
         name = name,
-        impl = _test_packaged_has_no_build_outputs_impl,
+        impl = _test_packaged_default_outputs_are_unpatched_impl,
         target = name + "_packaged",
     )
 
-def _test_packaged_has_no_build_outputs_impl(env, target):
-    _outputs_of(env, target).contains_exactly([])
+def _test_packaged_default_outputs_are_unpatched_impl(env, target):
+    outputs = _outputs_of(env, target)
+    outputs.contains_predicate(matching.file_extension_in(["so", "dll", "dylib"]))
+    outputs.not_contains_predicate(matching.file_path_matches("*patched/*"))
 
 # Test 6: dd_cc_packaged forwards the unpatched CcSharedLibraryInfo.
 #
@@ -489,6 +492,150 @@ def _test_installed_executables_use_prefix_impl(env, target):
         "share/tree_dir",
     ])
 
+# Test 11: a cc_import pointed at a dd_cc_packaged target, mirroring
+# rtloader_dynamic's real _rtloader_shared bridge, surfaces DdPackagingInfo
+# through the aspect's shared_library edge.
+def _test_cc_import_reaches_packaged(name):
+    cc_library(
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    cc_import(
+        name = name + "_import",
+        shared_library = ":" + name + "_packaged",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_import"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_cc_import_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_cc_import_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 12: transitive collection through Go rule edges, ending at a real
+# cc_import bridge (mirroring rtloader_dynamic's real shape) rather than a
+# fake stand-in.
+#
+# go_bin --[embed]--> go_lib_a --[deps]--> go_lib_b --[cdeps]--> bridge (cc_library)
+#   --[deps]--> import (cc_import) --[shared_library]--> packaged (dd_cc_packaged)
+def _test_go_chain_reaches_packaged(name):
+    cc_library(
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    cc_import(
+        name = name + "_import",
+        shared_library = ":" + name + "_packaged",
+    )
+    cc_library(
+        name = name + "_bridge",
+        deps = [":" + name + "_import"],
+    )
+    go_library(
+        name = name + "_go_lib_b",
+        srcs = ["testdata/empty.go"],
+        cgo = True,
+        importpath = "example.com/dd_packaging_test_go_chain_b",
+        cdeps = [":" + name + "_bridge"],
+    )
+    go_library(
+        name = name + "_go_lib_a",
+        srcs = ["testdata/main.go"],
+        importpath = "example.com/" + name + "/a",
+        deps = [":" + name + "_go_lib_b"],
+    )
+    go_binary(
+        name = name + "_go_bin",
+        embed = [":" + name + "_go_lib_a"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_go_bin"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_go_chain_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_go_chain_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 13: a plain cc_library's data attr pointed at a dd_cc_packaged target,
+# mirroring rtloader_dynamic's data = [":three_pkg"] wiring, surfaces
+# DdPackagingInfo through the aspect's data edge.
+def _test_data_reaches_packaged(name):
+    cc_library(
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    cc_shared_library(
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    pkg_files(
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    cc_library(
+        name = name + "_consumer",
+        data = [":" + name + "_packaged"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_consumer"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_data_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_data_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -499,11 +646,14 @@ def dd_packaging_test_suite(name):
             _test_so_collected,
             _test_installed_files_collected,
             _test_transitive_collected,
-            _test_packaged_has_no_build_outputs,
+            _test_packaged_default_outputs_are_unpatched,
             _test_packaged_forwards_unpatched_so,
             _test_cc_binary_collected,
             _test_cc_binary_no_cc_shared_library_info,
             _test_diamond_no_duplicates,
             _test_installed_executables_use_prefix,
+            _test_cc_import_reaches_packaged,
+            _test_go_chain_reaches_packaged,
+            _test_data_reaches_packaged,
         ],
     )

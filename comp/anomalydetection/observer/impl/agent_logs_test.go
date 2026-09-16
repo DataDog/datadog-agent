@@ -8,7 +8,10 @@ package observerimpl
 import (
 	"encoding/json"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -35,16 +38,42 @@ func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	})
 }
 
-func TestInstallAgentLogTap(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+type blockingHandle struct {
+	started     chan struct{}
+	release     chan struct{}
+	startOnce   sync.Once
+	releaseOnce sync.Once
+	observed    atomic.Int64
+}
 
+func newBlockingHandle() *blockingHandle {
+	return &blockingHandle{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (h *blockingHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *blockingHandle) ObserveLog(_ observerdef.LogView) {
+	h.startOnce.Do(func() { close(h.started) })
+	<-h.release
+	h.observed.Add(1)
+}
+
+func (h *blockingHandle) unblock() {
+	h.releaseOnce.Do(func() { close(h.release) })
+}
+
+func TestInstallAgentLogTap(t *testing.T) {
 	h := &captureHandle{}
 	// -1 = unlimited for all priorities, no min_severity → forward everything including trace
-	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
+	tap := installAgentLogTap(h, "", -1, -1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.InfoLvl, "test info message")
 	simulateLogEmit(pkglog.WarnLvl, "test warn message")
 	simulateLogEmit(pkglog.DebugLvl, "test debug message")
+	tap.stop()
 
 	require.Len(t, h.logs, 3)
 
@@ -65,15 +94,15 @@ func TestInstallAgentLogTap(t *testing.T) {
 }
 
 func TestInstallAgentLogTapTraceTreatedLikeDebug(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
 	// min_severity="" → no filtering; trace falls into the low-priority bucket (same as debug).
-	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
+	tap := installAgentLogTap(h, "", -1, -1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
 	simulateLogEmit(pkglog.InfoLvl, "info message")
+	tap.stop()
 
 	require.Len(t, h.logs, 3, "trace, debug, and info must all be forwarded when min_severity is empty")
 	assert.Equal(t, "trace", h.logs[0].GetStatus())
@@ -82,18 +111,18 @@ func TestInstallAgentLogTapTraceTreatedLikeDebug(t *testing.T) {
 }
 
 func TestInstallAgentLogTapTraceFilteredByMinSeverity(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
 	var droppedPriorities []string
 	// min_severity="warn" (default) → trace and debug are filtered before rate-limiting.
-	installAgentLogTap(h, "warn", -1, -1, -1, func(priority string) {
+	tap := installAgentLogTap(h, "warn", -1, -1, -1, func(priority string) {
 		droppedPriorities = append(droppedPriorities, priority)
-	}, nil)
+	}, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
 	simulateLogEmit(pkglog.WarnLvl, "warn message")
+	tap.stop()
 
 	assert.Len(t, h.logs, 1, "only warn should be forwarded with min_severity=warn")
 	assert.Equal(t, "warn", h.logs[0].GetStatus())
@@ -101,15 +130,15 @@ func TestInstallAgentLogTapTraceFilteredByMinSeverity(t *testing.T) {
 }
 
 func TestInstallAgentLogTapDebugMinSeverity(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
 	// min_severity="debug" → trace is filtered out, debug and above pass.
-	installAgentLogTap(h, "debug", -1, -1, -1, nil, nil)
+	tap := installAgentLogTap(h, "debug", -1, -1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
 	simulateLogEmit(pkglog.InfoLvl, "info message")
+	tap.stop()
 
 	require.Len(t, h.logs, 2, "debug and info should pass; trace should be filtered")
 	assert.Equal(t, "debug", h.logs[0].GetStatus())
@@ -117,33 +146,33 @@ func TestInstallAgentLogTapDebugMinSeverity(t *testing.T) {
 }
 
 func TestInstallAgentLogTapSeverityFilterDoesNotTriggerOnDropped(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	var dropped []string
 	h := &captureHandle{}
-	installAgentLogTap(h, "error", -1, -1, -1, func(priority string) {
+	tap := installAgentLogTap(h, "error", -1, -1, -1, func(priority string) {
 		dropped = append(dropped, priority)
-	}, nil)
+	}, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace")
 	simulateLogEmit(pkglog.DebugLvl, "debug")
 	simulateLogEmit(pkglog.InfoLvl, "info")
 	simulateLogEmit(pkglog.WarnLvl, "warn")
+	tap.stop()
 
 	assert.Empty(t, h.logs, "no logs should be forwarded below min_severity=error")
 	assert.Empty(t, dropped, "severity-filtered drops must not fire onDropped")
 }
 
 func TestInstallAgentLogTapErrorMinSeverity(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
 	// min_severity="error" → only error/critical pass; warn is filtered out.
-	installAgentLogTap(h, "error", -1, -1, -1, nil, nil)
+	tap := installAgentLogTap(h, "error", -1, -1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.WarnLvl, "warn message")
 	simulateLogEmit(pkglog.ErrorLvl, "error message")
 	simulateLogEmit(pkglog.CriticalLvl, "critical message")
+	tap.stop()
 
 	require.Len(t, h.logs, 2, "only error and critical should pass min_severity=error")
 	assert.Equal(t, "error", h.logs[0].GetStatus())
@@ -151,14 +180,21 @@ func TestInstallAgentLogTapErrorMinSeverity(t *testing.T) {
 }
 
 func TestInstallAgentLogTapRateLimit(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	var droppedPriorities []string
 	h := &captureHandle{}
 	// maxRateHigh=-1 (unlimited), maxRateMedium=10 (→100 per 10s window), maxRateLow=0.1 (→1 per 10s window)
-	installAgentLogTap(h, "", -1, 10, 0.1, func(priority string) {
-		droppedPriorities = append(droppedPriorities, priority)
-	}, nil)
+	tap := installAgentLogTapWithQueueSize(
+		h,
+		"",
+		-1,
+		10,
+		0.1,
+		func(priority string) { droppedPriorities = append(droppedPriorities, priority) },
+		nil,
+		nil,
+		300,
+	)
+	t.Cleanup(tap.stop)
 
 	// Emit 200 INFO — should be capped at 100 (10 logs/s × 10s window)
 	for i := 0; i < 200; i++ {
@@ -172,6 +208,7 @@ func TestInstallAgentLogTapRateLimit(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		simulateLogEmit(pkglog.WarnLvl, "warn")
 	}
+	tap.stop()
 
 	var infoCount, debugCount, warnCount int
 	for _, l := range h.logs {
@@ -205,19 +242,19 @@ func TestInstallAgentLogTapRateLimit(t *testing.T) {
 }
 
 func TestInstallAgentLogTapProcessingRulesExcludeByTag(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	rules, err := logsfilter.NewRules([]logsfilter.ProcessingRule{
 		{Name: "drop_debug", Type: "exclude_at_match", Tags: []string{"level:debug"}},
 	})
 	require.NoError(t, err)
 
 	h := &captureHandle{}
-	installAgentLogTap(h, "", -1, -1, -1, nil, rules)
+	tap := installAgentLogTap(h, "", -1, -1, -1, nil, nil, rules)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
 	simulateLogEmit(pkglog.InfoLvl, "info message")
 	simulateLogEmit(pkglog.WarnLvl, "warn message")
+	tap.stop()
 
 	require.Len(t, h.logs, 2, "debug should be excluded by processing rule; info and warn should pass")
 	assert.Equal(t, "info", h.logs[0].GetStatus())
@@ -225,46 +262,177 @@ func TestInstallAgentLogTapProcessingRulesExcludeByTag(t *testing.T) {
 }
 
 func TestInstallAgentLogTapProcessingRulesExcludeBySource(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	rules, err := logsfilter.NewRules([]logsfilter.ProcessingRule{
 		{Name: "drop_agent", Type: "exclude_at_match", Source: agentLogSource},
 	})
 	require.NoError(t, err)
 
 	h := &captureHandle{}
-	installAgentLogTap(h, "", -1, -1, -1, nil, rules)
+	tap := installAgentLogTap(h, "", -1, -1, -1, nil, nil, rules)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.InfoLvl, "should be dropped")
 	simulateLogEmit(pkglog.WarnLvl, "should also be dropped")
+	tap.stop()
 
 	assert.Empty(t, h.logs, "all agent logs should be excluded by source rule")
 }
 
 func TestInstallAgentLogTapDropsAnomalyDetectionLogsWithoutRateCharge(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
 	// 0.1/s allows exactly one info log in the 10-second rate window.
-	installAgentLogTap(h, "", -1, 0.1, -1, nil, nil)
+	tap := installAgentLogTap(h, "", -1, 0.1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.InfoLvl, "[anomalydetection] observer configured")
 	simulateLogEmit(pkglog.InfoLvl, "ordinary agent log")
+	tap.stop()
 
 	require.Len(t, h.logs, 1)
 	assert.Contains(t, h.logs[0].GetContent(), "ordinary agent log")
 }
 
 func TestInstallAgentLogTapNilRulesAllowsAll(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
-
 	h := &captureHandle{}
-	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
+	tap := installAgentLogTap(h, "", -1, -1, -1, nil, nil, nil)
+	t.Cleanup(tap.stop)
 
 	simulateLogEmit(pkglog.InfoLvl, "info")
 	simulateLogEmit(pkglog.WarnLvl, "warn")
+	tap.stop()
 
 	require.Len(t, h.logs, 2, "nil rules should allow all logs")
+}
+
+func TestAgentLogTapDoesNotBlockWhenWorkerAndQueueAreFull(t *testing.T) {
+	h := newBlockingHandle()
+	var queueDropped atomic.Uint64
+	tap := installAgentLogTapWithQueueSize(
+		h,
+		"",
+		-1,
+		-1,
+		-1,
+		nil,
+		func(count uint64) { queueDropped.Add(count) },
+		nil,
+		1,
+	)
+	t.Cleanup(func() {
+		h.unblock()
+		tap.stop()
+	})
+
+	// The worker takes the first log and blocks in ObserveLog. The second log
+	// fills the one-entry tap queue, so the third must be dropped immediately.
+	simulateLogEmit(pkglog.InfoLvl, "worker blocked")
+	select {
+	case <-h.started:
+	case <-time.After(time.Second):
+		t.Fatal("agent-log worker did not begin processing")
+	}
+	simulateLogEmit(pkglog.InfoLvl, "queue full")
+
+	callbackReturned := make(chan struct{})
+	go func() {
+		simulateLogEmit(pkglog.InfoLvl, "must not block")
+		close(callbackReturned)
+	}()
+	select {
+	case <-callbackReturned:
+	case <-time.After(time.Second):
+		t.Fatal("agent-log callback blocked on a full queue")
+	}
+
+	h.unblock()
+	tap.stop()
+	assert.Equal(t, int64(2), h.observed.Load(), "accepted logs should drain during shutdown")
+	assert.Equal(t, uint64(1), queueDropped.Load(), "the full queue should drop exactly one log")
+}
+
+func TestAgentLogTapLogLevelsMatchPriorityBuckets(t *testing.T) {
+	tests := []struct {
+		name     string
+		level    pkglog.LogLevel
+		priority logsfilter.PriorityBucket
+	}{
+		{"trace", pkglog.TraceLvl, logsfilter.TracePriority},
+		{"debug", pkglog.DebugLvl, logsfilter.DebugPriority},
+		{"info", pkglog.InfoLvl, logsfilter.InfoPriority},
+		{"warn", pkglog.WarnLvl, logsfilter.WarnPriority},
+		{"error", pkglog.ErrorLvl, logsfilter.ErrorPriority},
+		{"critical", pkglog.CriticalLvl, logsfilter.CriticalPriority},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.priority, logsfilter.PriorityBucket(test.level))
+		})
+	}
+}
+
+func TestAgentLogTapConcurrentEnqueueAndStop(t *testing.T) {
+	const (
+		iterations = 25
+		producers  = 8
+		emits      = 100
+	)
+
+	for range iterations {
+		tap := installAgentLogTapWithQueueSize(
+			&captureHandle{},
+			"",
+			-1,
+			-1,
+			-1,
+			nil,
+			nil,
+			nil,
+			1,
+		)
+
+		start := make(chan struct{})
+		var producersDone sync.WaitGroup
+		producersDone.Add(producers)
+		for range producers {
+			go func() {
+				defer producersDone.Done()
+				<-start
+				for range emits {
+					tap.enqueue(pkglog.InfoLvl, "concurrent shutdown")
+				}
+			}()
+		}
+
+		stopDone := make(chan struct{})
+		go func() {
+			<-start
+			tap.stop()
+			close(stopDone)
+		}()
+
+		close(start)
+		producersDone.Wait()
+		select {
+		case <-stopDone:
+		case <-time.After(time.Second):
+			t.Fatal("agent-log tap shutdown deadlocked with concurrent producers")
+		}
+	}
+}
+
+func BenchmarkAgentLogTapEnqueueFullQueue(b *testing.B) {
+	tap := &agentLogTap{
+		minBucket: logsfilter.TracePriority - 1,
+		queue:     make(chan queuedAgentLog, 1),
+	}
+	tap.queue <- queuedAgentLog{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		tap.enqueue(pkglog.InfoLvl, "benchmark")
+	}
 }
 
 // RateWindow unit tests live in comp/anomalydetection/internal/logsfilter/logsfilter_test.go.

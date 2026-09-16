@@ -416,7 +416,7 @@ func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))
 	for _, meta := range metas {
 		anomalies = append(anomalies, observerdef.Anomaly{
-			Source:       observerdef.SeriesDescriptor{Namespace: meta.Namespace, Name: meta.Name, Tags: meta.Tags, Aggregate: AggregateAverage},
+			Source:       observerdef.SeriesDescriptor{Namespace: meta.Namespace, Name: meta.Name, Host: meta.Host, Tags: meta.Tags, Aggregate: AggregateAverage},
 			DetectorName: "storage_aware",
 			Timestamp:    dataTime,
 			Title:        "anomaly",
@@ -448,18 +448,18 @@ func TestBaseline_VirtualMetricDroppedAfterFreeze(t *testing.T) {
 	})
 
 	// First IngestLog creates the series; Advance marks it as noisy.
-	e.IngestLog("src", &logObs{timestampMs: 100_000})
+	e.IngestLog("src", &logObs{hostname: "web-1", timestampMs: 100_000})
 	e.Advance(100)
 
 	// During the window: subsequent ingests must still reach storage.
 	countBefore := storage.TotalSeriesCount()
-	e.IngestLog("src", &logObs{timestampMs: 200_000})
+	e.IngestLog("src", &logObs{hostname: "web-1", timestampMs: 200_000})
 	assert.Equal(t, countBefore, storage.TotalSeriesCount())
 
 	e.Advance(700) // freeze: series removed from storage
 	assert.Equal(t, 0, storage.TotalSeriesCount())
 
 	// After freeze: virtual metric is dropped at ingest and not re-created.
-	e.IngestLog("src", &logObs{timestampMs: 800_000})
+	e.IngestLog("src", &logObs{hostname: "web-1", timestampMs: 800_000})
 	assert.Equal(t, 0, storage.TotalSeriesCount())
 }

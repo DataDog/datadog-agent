@@ -3,16 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package providers
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -23,8 +27,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func scheduleToMap(configs []integration.Config) map[string]integration.Config {
@@ -37,12 +39,6 @@ func scheduleToMap(configs []integration.Config) map[string]integration.Config {
 
 func isRootUser() bool {
 	return os.Geteuid() == 0
-}
-
-func skipOnWindows(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows due to Unix-specific file operations and permissions")
-	}
 }
 
 func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
@@ -791,8 +787,6 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 // TestProcessLogProviderFileReadabilityVerification tests that only readable log files are configured
 // when using processEvents (with verification) vs processEventsNoVerifyReadable
 func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
-	skipOnWindows(t)
-
 	filter := workloadfilterfxmock.SetupMockFilter(t)
 	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil, nil)
 	require.NoError(t, err)
@@ -882,8 +876,6 @@ func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 
 // TestProcessLogProviderFileReadabilityWithPermissionDenied tests the case where a file exists but is not readable
 func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
-	skipOnWindows(t)
-
 	// Skip this test if running as root since root can read any file
 	if isRootUser() {
 		t.Skip("Skipping permission test when running as root")
@@ -956,8 +948,6 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 }
 
 func TestProcessLogProviderIsFileReadable(t *testing.T) {
-	skipOnWindows(t)
-
 	// Test 1: Readable text file
 	readableFile, err := os.CreateTemp("", "readable_test_*.log")
 	require.NoError(t, err)

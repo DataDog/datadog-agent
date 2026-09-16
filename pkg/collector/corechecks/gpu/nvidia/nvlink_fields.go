@@ -120,7 +120,15 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 
 	_, err := getSupportedNvlinkPorts(device, c.discoverPortMetrics)
 	if err != nil {
+		// errors from getSupportedNvlinkPorts need to be propagated. It's
+		// either "no supported collection" or a critical runtime error.
 		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
+	}
+
+	// Defensive: if no field metrics were enrolled, the device is unsupported.
+	// getSupportedNvlinkPorts should already return errUnsupportedDevice in that case.
+	if len(c.requests) == 0 {
+		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
 	}
 
 	return c, nil
@@ -230,34 +238,30 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 	}
 
 	var errs []error
-	addedRequests := 0
+	var addedRequests int
 	for _, val := range fields {
 		fieldValueMetric, ok := c.metrics[val.FieldId]
 		if !ok {
-			errs = append(errs, fmt.Errorf("unexpected field value ID %d", val.FieldId))
+			errs = append(errs, fmt.Errorf("unexpected field value ID %d for port %d", val.FieldId, port))
 			continue
 		}
 
-		// Check first if the field returned unsupported. If it's not supported, we remove
-		// this metric from the collector, even if it's after a later run. The assumption here
-		// is that unsupported fields are returned from the start, and their status does not change.
-		// This way, we avoid having different functions to collect metrics and to check for support.
-		// We also assume that if a field is not supported for a port, it's not supported for any other port.
+		// We assume that a metric that returns "unsupported" is a permanent failure, so we
+		// skip it for this port. Other ports might still be supported (e.g., inactive ports).
+		// Other failures can be transient, so we keep collecting them later.
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
-			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
-			delete(c.metrics, val.FieldId)
+			log.Warnf("nvlink: fields collector skipping metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			continue
 		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			errs = append(errs, fmt.Errorf("failed to get field value %s for port %d: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
-			continue
+			log.Warnf("nvlink: fields collector saw error %s for metric %s, port %d. Will keep collecting it later", nvml.ErrorString(nvml.Return(val.NvmlReturn)), fieldValueMetric.name, port)
 		}
 
 		c.addRequest(fieldValueMetric, port)
 		addedRequests++
 	}
 
+	// No fields were supported on this port, so we return an error to indicate that the port is unsupported.
 	if addedRequests == 0 {
-		// All metrics were removed, so we return an error to indicate that the device is unsupported.
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
 

@@ -6,7 +6,9 @@
 package transform
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 func TestGetOTelEnv(t *testing.T) {
@@ -612,6 +615,79 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 
 		assert.NotContains(t, minSpan.Meta, "team")
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalNormalization verifies that spans produced by
+// OtelSpanToDDSpanMinimal are sanitized the same way the full trace-agent
+// pipeline (Agent.normalize) would sanitize them, since minimal spans are fed
+// directly into the APM stats Concentrator and never reach that pipeline.
+func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+
+	t.Run("name is normalized under operation name v2", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.Attributes().PutStr("operation.name", "invalid-op-name")
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		// Hyphens aren't valid in span names; NormalizeName replaces them with underscores.
+		assert.Equal(t, "invalid_op_name", minSpan.Name)
+	})
+
+	t.Run("negative duration is reset to zero", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetStartTimestamp(pcommon.Timestamp(time.Now().UnixNano()))
+		span.SetEndTimestamp(pcommon.Timestamp(int64(span.StartTimestamp()) - 1))
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		assert.EqualValues(t, 0, minSpan.Duration)
+	})
+
+	t.Run("garbage start time is reset to now", func(t *testing.T) {
+		minStart := time.Now().UnixNano()
+		span := ptrace.NewSpan()
+		span.SetStartTimestamp(42)
+		span.SetEndTimestamp(pcommon.Timestamp(200000000))
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		assert.GreaterOrEqual(t, minSpan.Start, minStart-200000000)
+		assert.LessOrEqual(t, minSpan.Start, time.Now().UnixNano())
+	})
+
+	t.Run("peer.service is truncated to the max service length", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		longPeerSvc := strings.Repeat("a", 150)
+		span.Attributes().PutStr("peer.service", longPeerSvc)
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"peer.service"}, nil)
+
+		assert.Len(t, minSpan.Meta["peer.service"], normalizeutil.MaxServiceLen)
+		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["peer.service"])
+	})
+
+	t.Run("_dd.base_service is truncated to the max service length", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		longBaseSvc := strings.Repeat("a", 150)
+		span.Attributes().PutStr("_dd.base_service", longBaseSvc)
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"_dd.base_service"}, nil)
+
+		assert.Len(t, minSpan.Meta["_dd.base_service"], normalizeutil.MaxServiceLen)
+		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["_dd.base_service"])
 	})
 }
 

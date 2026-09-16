@@ -625,6 +625,7 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 func deepCopyCapabilitiesEvent(fieldToCopy CapabilitiesEvent) CapabilitiesEvent {
 	copied := CapabilitiesEvent{}
 	copied.Attempted = fieldToCopy.Attempted
+	copied.Cookie = fieldToCopy.Cookie
 	copied.Used = fieldToCopy.Used
 	return copied
 }
@@ -806,6 +807,7 @@ func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
 	copied := IMDSEvent{}
 	copied.AWS = deepCopyAWSIMDSEvent(fieldToCopy.AWS)
 	copied.CloudProvider = fieldToCopy.CloudProvider
+	copied.CredentialSource = fieldToCopy.CredentialSource
 	copied.Host = fieldToCopy.Host
 	copied.Server = fieldToCopy.Server
 	copied.Type = fieldToCopy.Type

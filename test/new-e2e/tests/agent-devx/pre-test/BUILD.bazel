@@ -9,6 +9,7 @@ dd_agent_go_test(
         "loadbalancer_test.go",
         "vm_test.go",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/apps/nginx",

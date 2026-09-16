@@ -130,14 +130,14 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
 /// Command that ignores graceful-stop and sleeps forever.
 /// Used to test forced-kill (TerminateProcess) on timeout.
 ///
-/// PowerShell ignores CTRL_BREAK_EVENT by default, so the process
-/// outlives any stop_timeout and forces escalation to TerminateProcess.
+/// Long-running child that ignores graceful stop on Windows.
+///
+/// Uses `ping` (same as other sleep helpers): it ignores CTRL_BREAK_EVENT, so
+/// `wait_for_stop` must escalate to TerminateProcess. Avoids `powershell.exe`,
+/// which is not always on PATH in minimal CI containers.
 #[cfg(windows)]
 pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
-    (
-        "powershell.exe",
-        vec!["-Command".into(), "while($true){Start-Sleep 60}".into()],
-    )
+    sleep_cmd(60)
 }
 
 /// Shell command that exits with the value of the given environment variable.
@@ -242,6 +242,242 @@ pub fn cleanup_process(pid: u32) {
     let _ = crate::platform::send_force_kill(pid);
 }
 
+/// Check if a PID is still alive.
+#[cfg(unix)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid as i32), None).is_ok()
+}
+
+/// Uses `WaitForSingleObject` with a zero timeout instead of `GetExitCodeProcess`
+/// to avoid false positives when a process exits with code 259 (`STILL_ACTIVE`).
+#[cfg(windows)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+    };
+    const WAIT_TIMEOUT: u32 = 258;
+    unsafe {
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let ret = WaitForSingleObject(handle, 0);
+        CloseHandle(handle);
+        ret == WAIT_TIMEOUT
+    }
+}
+
+/// Wait until a PID is no longer alive, or timeout.
+pub fn wait_for_pid_gone(pid: u32, timeout: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    while pid_is_alive(pid) {
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    true
+}
+
+/// Sleep duration for long-running test children.
+///
+/// On Windows, tests use `ping -n` as a sleep substitute. This must stay well
+/// above typical CI scheduling jitter: if ping exits naturally before
+/// `request_stop`, `wait_for_stop` returns early and the process stays `Exited`
+/// instead of `Stopped`. Stop tests still finish in ~`stop_timeout` (1s) via
+/// force-kill, so a larger value here does not slow them down.
+#[cfg(windows)]
+pub const TEST_SLEEP_SECS: u32 = 30;
+
+#[cfg(unix)]
+pub const TEST_SLEEP_SECS: u32 = 60;
+
+/// Alternate sleep duration for reload tests that need a different command line.
+pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
+
+/// Command for a long-running child that exits promptly on graceful stop
+/// (SIGTERM on Unix, CTRL_BREAK on Windows).
+#[cfg(unix)]
+pub fn graceful_stop_cmd() -> (String, Vec<String>) {
+    let (cmd, args) = sleep_cmd(TEST_SLEEP_SECS);
+    (cmd.to_string(), args)
+}
+
+#[cfg(windows)]
+fn normalize_runfile_key(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
+#[cfg(windows)]
+fn runfile_lookup_keys(path: &str) -> Vec<String> {
+    let normalized = normalize_runfile_key(path);
+    let mut keys = vec![normalized.clone()];
+    if std::path::Path::new(&normalized).extension().is_none() {
+        keys.push(format!("{normalized}.exe"));
+    }
+    if let Some(base) = std::path::Path::new(&normalized).file_name() {
+        let base = base.to_string_lossy();
+        keys.push(base.to_string());
+        if std::path::Path::new(base.as_ref()).extension().is_none() {
+            keys.push(format!("{base}.exe"));
+        }
+    }
+    keys.sort_unstable();
+    keys.dedup();
+    keys
+}
+
+#[cfg(windows)]
+fn runfile_keys_match(candidate: &str, manifest_entry: &str) -> bool {
+    if candidate == manifest_entry {
+        return true;
+    }
+    candidate.ends_with(&format!("/{manifest_entry}"))
+        || manifest_entry.ends_with(&format!("/{candidate}"))
+}
+
+#[cfg(windows)]
+fn lookup_runfile_in_manifest(manifest_key: &str) -> Option<std::path::PathBuf> {
+    let lookup_keys = runfile_lookup_keys(manifest_key);
+    let manifest_path = std::env::var("RUNFILES_MANIFEST_FILE").ok()?;
+    let content = std::fs::read_to_string(&manifest_path).ok()?;
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let (runfile, real_path) = line.split_once(' ')?;
+        let runfile = normalize_runfile_key(runfile);
+        if lookup_keys
+            .iter()
+            .any(|key| runfile_keys_match(key, &runfile))
+        {
+            return Some(std::path::PathBuf::from(real_path));
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+fn resolve_bazel_runfile(path: &str) -> std::path::PathBuf {
+    if let Some(resolved) = lookup_runfile_in_manifest(path) {
+        return resolved;
+    }
+
+    let normalized = normalize_runfile_key(path);
+    let relative = std::path::Path::new(&normalized);
+    if relative.is_absolute() && relative.is_file() {
+        return relative.to_path_buf();
+    }
+
+    for var in ["RUNFILES_DIR", "TEST_SRCDIR"] {
+        if let Ok(root) = std::env::var(var) {
+            for candidate in [
+                std::path::Path::new(&root).join(relative),
+                std::path::Path::new(&root).join(relative.with_extension("exe")),
+            ] {
+                if candidate.is_file() {
+                    return candidate;
+                }
+            }
+        }
+    }
+
+    std::path::PathBuf::from(path)
+}
+
+/// Windows Bazel runfiles expose file runfiles as directory junctions that
+/// `CreateProcessW` cannot execute. Copy the resolved binary into `TEST_TMPDIR`
+/// before spawning, matching the pattern in `comp/trace/config/impl/config_test.go`.
+#[cfg(windows)]
+fn materialize_windows_test_executable(src: &std::path::Path) -> std::path::PathBuf {
+    if std::env::var("BAZEL_TEST").as_deref() != Ok("1") {
+        return src.to_path_buf();
+    }
+
+    let dst_dir = std::env::var("TEST_TMPDIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let dst = dst_dir.join("graceful-sleeper.exe");
+    if dst.is_file() {
+        return dst;
+    }
+
+    if !src.is_file() {
+        panic!(
+            "graceful-sleeper runfile resolved to a non-file path: {}",
+            src.display()
+        );
+    }
+
+    std::fs::copy(src, &dst).unwrap_or_else(|err| {
+        panic!(
+            "failed to copy graceful-sleeper from {} to {}: {}",
+            src.display(),
+            dst.display(),
+            err
+        );
+    });
+    dst
+}
+
+#[cfg(windows)]
+pub(crate) fn graceful_sleeper_exe() -> String {
+    static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CACHED
+        .get_or_init(|| {
+            let manifest_key = match std::env::var("GRACEFUL_SLEEPER_BIN") {
+                Ok(path) if !path.is_empty() => path,
+                _ => "graceful-sleeper.exe".to_string(),
+            };
+            let resolved = resolve_bazel_runfile(&manifest_key);
+            if !resolved.is_file() {
+                panic!(
+                    "could not resolve graceful-sleeper runfile from {manifest_key:?} (got {})",
+                    resolved.display()
+                );
+            }
+            let spawnable = materialize_windows_test_executable(&resolved);
+            spawnable.to_string_lossy().into_owned()
+        })
+        .clone()
+}
+
+#[cfg(windows)]
+pub fn graceful_stop_cmd() -> (String, Vec<String>) {
+    (graceful_sleeper_exe(), vec![])
+}
+
+/// `ProcessConfig` for a child that exits on graceful stop without force-kill.
+pub fn graceful_stop_test_config() -> crate::config::ProcessConfig {
+    let (cmd, args) = graceful_stop_cmd();
+    crate::config::ProcessConfig {
+        command: cmd,
+        args,
+        stop_timeout: Some(5),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
+}
+
+/// Uses a short `stop_timeout` on all platforms: Windows `ping` ignores graceful
+/// stop, so `wait_for_stop` must escalate to force-kill quickly.
+pub fn sleep_test_config(secs: u32) -> crate::config::ProcessConfig {
+    let (cmd, args) = sleep_cmd(secs);
+    crate::config::ProcessConfig {
+        command: cmd.to_string(),
+        args,
+        stop_timeout: Some(1),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
+}
+
 /// Build a `ProcessConfig` with null stdio, suitable for tests.
 pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessConfig {
     crate::config::ProcessConfig {
@@ -250,5 +486,47 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         stdout: "null".to_string(),
         stderr: "null".to_string(),
         ..Default::default()
+    }
+}
+
+/// Sets variables in the supervisor's own environment for as long as the guard lives.
+///
+/// Only inheritance tests need this: the environment is process-global, so a
+/// test that sets a variable and then panics would leak it into every test
+/// running afterwards in the same binary. The lock keeps two such tests from
+/// overlapping.
+pub struct EnvGuard {
+    restore: Vec<(String, Option<String>)>,
+    _lock: tokio::sync::MutexGuard<'static, ()>,
+}
+
+impl EnvGuard {
+    pub async fn set(vars: &[(&str, &str)]) -> Self {
+        static LOCK: std::sync::LazyLock<tokio::sync::Mutex<()>> =
+            std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+        let lock = LOCK.lock().await;
+        let restore = vars
+            .iter()
+            .map(|(name, _)| ((*name).to_string(), std::env::var(name).ok()))
+            .collect();
+        for (name, value) in vars {
+            unsafe { std::env::set_var(name, value) };
+        }
+        Self {
+            restore,
+            _lock: lock,
+        }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for (name, previous) in &self.restore {
+            match previous {
+                Some(value) => unsafe { std::env::set_var(name, value) },
+                None => unsafe { std::env::remove_var(name) },
+            }
+        }
     }
 }

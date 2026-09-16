@@ -5,8 +5,6 @@
 
 mod spawn;
 
-pub(crate) use spawn::spawn_child_handle;
-
 use anyhow::{Context, Result};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;

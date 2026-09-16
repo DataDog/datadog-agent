@@ -10,9 +10,11 @@ package ebpf
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -108,7 +110,12 @@ func (m *EBPFCheck) Run() error {
 		}
 
 		maxEntries := float64(mapStats.MaxEntries)
-		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
+		maxEntriesTags := tags
+		switch mapStats.Type {
+		case "Hash", "PerCPUHash":
+			maxEntriesTags = append(slices.Clone(tags), "no_prealloc:"+strconv.FormatBool(mapStats.NoPrealloc))
+		}
+		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", maxEntriesTags)
 		if mapStats.Entries >= 0 {
 			entries := float64(mapStats.Entries)
 			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)

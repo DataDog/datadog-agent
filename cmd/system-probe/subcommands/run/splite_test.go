@@ -8,29 +8,34 @@
 package run
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// createFakeSPLiteBinary creates a fake system-probe-lite binary next to the
-// test binary and returns cleanup func.
-func createFakeSPLiteBinary(t *testing.T) string {
+// createFakeSPLiteBinary creates a fake system-probe-lite and returns a lookup
+// that locates system-probe in the same temporary directory.
+func createFakeSPLiteBinary(t *testing.T) (string, spliteExecutableFunc) {
 	t.Helper()
-	execPath, err := os.Executable()
-	require.NoError(t, err)
-	fakeBinary := filepath.Join(filepath.Dir(execPath), "system-probe-lite")
+	execDir := t.TempDir()
+	fakeBinary := filepath.Join(execDir, "system-probe-lite")
 	require.NoError(t, os.WriteFile(fakeBinary, []byte("#!/bin/sh\n"), 0755))
-	t.Cleanup(func() { os.Remove(fakeBinary) })
-	return fakeBinary
+	return fakeBinary, func() (string, error) {
+		return filepath.Join(execDir, "system-probe"), nil
+	}
 }
 
 // newMockSysprobeConfig creates a sysprobeconfig mock with overrides applied
@@ -107,13 +112,19 @@ func TestMaybeSPLite(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var fakeBinaryPath string
+			var executableFn spliteExecutableFunc
 			if tc.fakeBinary {
-				fakeBinaryPath = createFakeSPLiteBinary(t)
+				fakeBinaryPath, executableFn = createFakeSPLiteBinary(t)
+			} else {
+				execDir := t.TempDir()
+				executableFn = func() (string, error) {
+					return filepath.Join(execDir, "system-probe"), nil
+				}
 			}
 
 			sysprobeConfig := newMockSysprobeConfig(t, tc.overrides)
 			log := logmock.New(t)
-			cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", log)
+			cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", log, executableFn)
 
 			if tc.expectNil {
 				assert.Nil(t, cmd)
@@ -135,4 +146,40 @@ func TestMaybeSPLite(t *testing.T) {
 			assert.NotEmpty(t, cmd.Env)
 		})
 	}
+}
+
+func TestRunCommandExecsSPLiteBeforeLifecycleStart(t *testing.T) {
+	configPath := prepareRunCommandTest(t)
+	fakeBinaryPath, executableFn := createFakeSPLiteBinary(t)
+	pidFilePath := filepath.Join(t.TempDir(), "system-probe.pid")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
+
+	var events []string
+	execFn := spliteExecFunc(func(path string, args []string, env []string) error {
+		events = append(events, "exec")
+		require.FileExists(t, pidFilePath)
+		assert.Equal(t, fakeBinaryPath, path)
+		assert.Equal(t, fakeBinaryPath, args[0])
+		assert.NotEmpty(t, env)
+		return errors.New("test exec failure")
+	})
+
+	fxutil.TestOneShotSubcommand(t,
+		commands(
+			&command.GlobalParams{ConfFilePath: configPath},
+			execFn,
+			executableFn,
+		),
+		[]string{"run", "--pid", pidFilePath},
+		run,
+		func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{OnStart: func(context.Context) error {
+				events = append(events, "start")
+				return nil
+			}})
+		},
+	)
+
+	require.Equal(t, []string{"exec", "start"}, events)
 }

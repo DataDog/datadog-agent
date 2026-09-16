@@ -30,7 +30,7 @@ go_test(
     name = "infra_test",
     srcs = ["stack_manager_test.go"],
     embed = [":infra"],
-    gotags = ["test"],
+    gotags = ["e2eunit"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/testing/utils/common",

@@ -816,6 +816,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
 		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
+		"EnableSecurityProfileV2":                    !opts.disableSecurityProfileV2,
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,

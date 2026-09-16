@@ -108,6 +108,7 @@ dd_agent_go_test(
         "config-vm/cisco-nexus.yaml",
         "config/cisco-nexus.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",

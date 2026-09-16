@@ -22,7 +22,7 @@ import (
 const DefaultHeartbeatInterval = 10 * time.Second
 
 const (
-	activeInstancesMetricName = "aws.lambda.enhanced.microvm.active_instances"
+	activeInstancesMetricName = "aws.lambda.microvm.enhanced.active_instances"
 
 	// UnknownTagValue is the placeholder used when a tag value has not yet
 	// been observed (e.g. MicroVM ID before /run, or ARN fields that

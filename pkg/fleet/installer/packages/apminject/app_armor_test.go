@@ -134,6 +134,31 @@ ddd`,
 	}
 }
 
+func TestBaseProfileIncludesBaseD(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected bool
+	}{
+		{name: "modern syntax", content: "  include if exists <abstractions/base.d>\n", expected: true},
+		{name: "old syntax", content: "#include <abstractions/base.d>\n", expected: true},
+		{name: "comment", content: "# include if exists <abstractions/base.d>\n"},
+		{name: "Datadog include", content: "include if exists <abstractions/datadog.d>\n"},
+		{name: "missing", content: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			filename := filepath.Join(t.TempDir(), "base")
+			require.NoError(t, os.WriteFile(filename, []byte(test.content), 0640))
+
+			found, err := baseProfileIncludesBaseD(filename)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, found)
+		})
+	}
+}
+
 // we will test to make sure it appends successfully but also not appends if it exists (in both forms)
 func TestAppArmorBaseProfileUpdates(t *testing.T) {
 	tests := []struct {

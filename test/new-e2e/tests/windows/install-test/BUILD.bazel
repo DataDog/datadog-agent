@@ -49,6 +49,7 @@ dd_agent_go_test(
         "upgrade_test.go",
     ],
     embed = [":install-test"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/runner",

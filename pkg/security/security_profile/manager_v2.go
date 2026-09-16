@@ -57,7 +57,7 @@ type sampleCookieEntry struct {
 	imageTag      string
 }
 
-// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
+// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + connect_samples)
 // so the cookie LRU can hold mappings for every possible dedup entry.
 const sampleCookieMapSize = 4096
 

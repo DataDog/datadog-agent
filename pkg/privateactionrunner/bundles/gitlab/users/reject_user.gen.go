@@ -39,7 +39,7 @@ func (h *RejectUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.RejectUser(inputs.UserId)
+	_, err = git.Users.RejectUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

@@ -109,7 +109,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		testIssueID = "test-bundle-lifecycle-issue"
 		// Reuse a real issue name registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueName = "Docker File Tailing Disabled"
+		testIssueName = "Docker Socket Permission"
 	)
 	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
@@ -193,8 +193,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	const (
 		issueAID      = "test-lifecycle-A"
 		issueBID      = "test-lifecycle-B"
-		testIssueName = "Docker File Tailing Disabled"
-		testIssueType = "docker_file_tailing_disabled"
+		testIssueName = "Docker Socket Permission"
+		testIssueType = "docker_socket_permission"
 		testSource    = "test-lifecycle"
 	)
 

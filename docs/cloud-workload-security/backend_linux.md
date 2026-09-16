@@ -902,6 +902,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "server is the server header of a response"
                 },
+                "credential_source": {
+                    "type": "string",
+                    "description": "credential_source is the credential endpoint that served the IMDS event"
+                },
                 "aws": {
                     "$ref": "#/$defs/AWSIMDSEvent",
                     "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -3947,6 +3951,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "server is the server header of a response"
         },
+        "credential_source": {
+            "type": "string",
+            "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
             "$ref": "#/$defs/AWSIMDSEvent",
             "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -3971,6 +3979,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `host` | host is the host of the HTTP protocol |
 | `user_agent` | user_agent is the user agent of the HTTP client |
 | `server` | server is the server header of a response |
+| `credential_source` | credential_source is the credential endpoint that served the IMDS event |
 | `aws` | AWS holds the AWS specific data parsed from the IMDS event |
 
 | References |

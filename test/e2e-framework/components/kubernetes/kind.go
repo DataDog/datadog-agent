@@ -60,7 +60,8 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		runner := vm.OS.Runner()
 		commonEnvironment := env
 		packageManager := vm.OS.PackageManager()
-		curlCommand, err := packageManager.Ensure("curl", nil, "", os.WithPulumiResourceOptions(opts...))
+		// curl is pre-baked in AWS e2e AMIs; assert it's present instead of falling back to a package-manager install.
+		curlCommand, err := packageManager.AssertInstalled("curl", os.WithPulumiResourceOptions(opts...))
 		if err != nil {
 			return err
 		}

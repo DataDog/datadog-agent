@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Collect KubeAI ``Model`` custom resources by default.

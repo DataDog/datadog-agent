@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
@@ -702,6 +703,55 @@ func TestClient(t *testing.T) {
 		require.Len(t, payloads[0].ConfigFiles, 1)
 		assert.Equal(t, "/usr/local/etc/redis/redis.conf", payloads[0].ConfigFiles[0].Path)
 		assert.Equal(t, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, payloads[0].ConfigFiles[0].PayloadFormat)
+	})
+
+	t.Run("GetSDSResults", func(t *testing.T) {
+		collectedTime := time.Unix(1_700_000_000, 0).UTC()
+		msg := &sds.SdsResultPayload{
+			Timestamp: 1_700_000_000_000,
+			Resource: &sds.SdsResultPayload_Resource{
+				Type: "postgres_table",
+				Name: "inst.app.public.users",
+			},
+			RuleIds: []string{"email"},
+			ScanResults: []*sds.SdsResultPayload_ScanResult{{
+				ScanMetadata: &sds.SdsResultPayload_ScanMetadata{
+					ScanTaskMetadata: &sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata{
+						TaskId:    "task-1",
+						SubTaskId: "sub-1",
+						Status:    sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata_SUCCESS,
+					},
+				},
+			}},
+		}
+		data, err := proto.Marshal(msg)
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data:        []byte("{}"),
+					Encoding:    "application/json",
+					ContentType: "application/json",
+				},
+				{Data: data, Timestamp: collectedTime},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		payloads, err := client.GetSDSResults()
+		require.NoError(t, err)
+		require.Len(t, payloads, 1)
+		assert.True(t, client.sdsResultAggregator.ContainsPayloadName("task-1:sub-1"))
+		assert.Empty(t, payloads[0].GetTags())
+		assert.Equal(t, collectedTime, payloads[0].GetCollectedTime())
+		require.True(t, proto.Equal(msg, &payloads[0].SdsResultPayload))
 	})
 
 	t.Run("getNDMFlows", func(t *testing.T) {

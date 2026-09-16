@@ -55,28 +55,28 @@ instances:
 `
 
 	dockerNewConf string = `instances:
-- collect_container_size: true
-  collect_container_size_frequency: 5
-  collect_exit_codes: true
-  ok_exit_codes: []
-  collect_images_stats: false
-  collect_image_size: true
-  collect_disk_stats: true
-  collect_volume_count: true
-  tags:
-  - tag:value
-  - value
-  capped_metrics:
-    docker.cpu.system: 1000
-    docker.cpu.user: 1000
-  collect_events: false
-  unbundle_events: false
-  bundle_unspecified_events: false
-  filtered_event_types:
-  - top
-  - exec_start
-  - exec_create
-  collected_event_types: []
+    - collect_container_size: true
+      collect_container_size_frequency: 5
+      collect_exit_codes: true
+      ok_exit_codes: []
+      collect_images_stats: false
+      collect_image_size: true
+      collect_disk_stats: true
+      collect_volume_count: true
+      tags:
+        - tag:value
+        - value
+      capped_metrics:
+        docker.cpu.system: 1000
+        docker.cpu.user: 1000
+      collect_events: false
+      unbundle_events: false
+      bundle_unspecified_events: false
+      filtered_event_types:
+        - top
+        - exec_start
+        - exec_create
+      collected_event_types: []
 `
 )
 

@@ -1,0 +1,11 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load(":dd_strip_test.bzl", "dd_strip_test_suite")
+
+# This is used by the analysis tests and nothingelse.
+cc_binary(
+    name = "test_binary",
+    srcs = ["testdata/main.c"],
+    tags = ["manual"],
+)
+
+dd_strip_test_suite(name = "_dd_strip_tests")

@@ -30,6 +30,7 @@ go_library(
         "//comp/healthplatform/runner/fx",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/scheduler/fx",
+        "//comp/healthplatform/status/fx",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/fx",
         "//pkg/util/fxutil",

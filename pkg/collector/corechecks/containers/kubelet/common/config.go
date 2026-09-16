@@ -11,7 +11,7 @@ package common
 import (
 	"runtime"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"

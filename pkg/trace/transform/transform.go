@@ -75,6 +75,8 @@ func otelSpanToDDSpanMinimal(
 		ddspan.Name = GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
 		ddspan.Resource = GetOTelResourceV1(otelspan, otelres)
 	}
+	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
+	ddspan.Name, _ = normalizeutil.NormalizeName(ddspan.Name)
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
@@ -111,6 +113,15 @@ func otelSpanToDDSpanMinimal(
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
+	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
+	if pSvc, ok := ddspan.Meta[string(semantics.ConceptPeerService)]; ok {
+		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
+	}
+	if bSvc, ok := ddspan.Meta[string(semantics.ConceptDDBaseService)]; ok {
+		ddspan.Meta[string(semantics.ConceptDDBaseService)], _ = normalizeutil.NormalizePeerService(bSvc)
+	}
+	ddspan.Duration, _ = normalizeutil.FixDuration(ddspan.Start, ddspan.Duration)
+	ddspan.Start, _ = normalizeutil.FixStartTime(ddspan.Start, ddspan.Duration)
 	// Copy span-derived primary tag values into Meta so the APM stats
 	// Concentrator's matchingAdditionalMetricTags (which reads span.Meta[key])
 	// can aggregate on them. The minimal conversion does not copy all

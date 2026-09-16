@@ -7,7 +7,7 @@
 package metriclookback
 
 import (
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -33,14 +33,12 @@ func WithShadowExecutionMode(instance integration.Data) (integration.Data, error
 		rawConfig = integration.RawMap{}
 	}
 
-	var metadata map[interface{}]interface{}
+	var metadata map[string]interface{}
 	switch typedMetadata := rawConfig[ExecutionMetadataKey].(type) {
-	case integration.RawMap:
-		metadata = typedMetadata
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		metadata = typedMetadata
 	default:
-		metadata = map[interface{}]interface{}{}
+		metadata = map[string]interface{}{}
 	}
 	metadata[ExecutionModeKey] = ShadowExecutionMode
 	rawConfig[ExecutionMetadataKey] = metadata

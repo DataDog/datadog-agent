@@ -60,6 +60,26 @@ func hasSymtab(t *testing.T, path string) bool {
 	return err == nil
 }
 
+// TestStripGoVersion checks that the " X:<experiments>" suffix the toolchain
+// appends to the buildinfo version string.
+func TestStripGoVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain", in: "go1.25.11", want: "go1.25.11"},
+		{name: "single experiment", in: "go1.25.11 X:loopvar", want: "go1.25.11"},
+		{name: "multiple experiments", in: "go1.21.0 X:boringcrypto,arenas", want: "go1.21.0"},
+		{name: "no patch", in: "go1.13 X:loopvar", want: "go1.13"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, stripGoVersion(tt.in))
+		})
+	}
+}
+
 // TestExtractTLSGOffset checks that the g TLS offset is recovered identically
 // from stripped and unstripped binaries. Stripping removes .symtab but not
 // .gopclntab, so an implementation that looks up runtime.tlsg in the symbol

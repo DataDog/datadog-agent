@@ -4024,6 +4024,11 @@
           "property_doc_link": "imds-cloud_provider-doc"
         },
         {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
+        },
+        {
           "name": "imds.host",
           "definition": "the host of the HTTP protocol",
           "property_doc_link": "imds-host-doc"
@@ -16204,6 +16209,18 @@
       "examples": []
     },
     {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
+      "examples": []
+    },
+    {
       "name": "imds.host",
       "link": "imds-host-doc",
       "type": "string",
@@ -18759,6 +18776,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

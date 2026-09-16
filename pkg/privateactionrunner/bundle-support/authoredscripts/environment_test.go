@@ -56,7 +56,7 @@ func TestBuildEnvironment_ManagedVariables(t *testing.T) {
 
 func TestBuildEnvironment_RejectsManagedAllowedEnvVar(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{AllowedEnvVars: []string{"PATH"}}}}
+	pkg := &Package{Manifest: &Manifest{AllowedEnvVars: []string{"PATH"}}}
 
 	_, err := pkg.BuildEnvironment(session, nil)
 
@@ -67,7 +67,7 @@ func TestBuildEnvironment_RejectsManagedAllowedEnvVar(t *testing.T) {
 func TestBuildEnvironment_PassesThroughAllowedEnvVar(t *testing.T) {
 	t.Setenv("MY_TOKEN", "secret-value")
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{AllowedEnvVars: []string{"MY_TOKEN"}}}}
+	pkg := &Package{Manifest: &Manifest{AllowedEnvVars: []string{"MY_TOKEN"}}}
 
 	environment, err := pkg.BuildEnvironment(session, nil)
 
@@ -79,9 +79,9 @@ func TestBuildEnvironment_PassesThroughAllowedEnvVar(t *testing.T) {
 
 func TestBuildEnvironment_SessionEnvVarRejectsPathOverride(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "PATH", Value: "/extra/bin", Kind: environmentKindValue}},
-	}}}
+	}}
 
 	_, err := pkg.BuildEnvironment(session, nil)
 
@@ -91,9 +91,9 @@ func TestBuildEnvironment_SessionEnvVarRejectsPathOverride(t *testing.T) {
 
 func TestBuildEnvironment_SessionEnvVarRejectsHomeOverride(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "HOME", Value: "/custom/home", Kind: environmentKindValue}},
-	}}}
+	}}
 
 	_, err := pkg.BuildEnvironment(session, nil)
 
@@ -103,9 +103,9 @@ func TestBuildEnvironment_SessionEnvVarRejectsHomeOverride(t *testing.T) {
 
 func TestBuildEnvironment_SessionEnvVarRejectsTmpdirOverride(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "TMPDIR", Value: "/custom/tmp", Kind: environmentKindValue}},
-	}}}
+	}}
 
 	_, err := pkg.BuildEnvironment(session, nil)
 
@@ -115,9 +115,9 @@ func TestBuildEnvironment_SessionEnvVarRejectsTmpdirOverride(t *testing.T) {
 
 func TestBuildEnvironment_SessionEnvVarFileIsCreatedUnderSessionRoot(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "OUTPUT_FILE", Value: "output/result.json", Kind: environmentKindFile}},
-	}}}
+	}}
 
 	environment, err := pkg.BuildEnvironment(session, nil)
 
@@ -133,9 +133,9 @@ func TestBuildEnvironment_SessionEnvVarFileIsCreatedUnderSessionRoot(t *testing.
 
 func TestBuildEnvironment_SessionEnvVarDirectoryIsCreatedUnderSessionRoot(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "WORKDIR", Value: "workdir", Kind: environmentKindDirectory}},
-	}}}
+	}}
 
 	environment, err := pkg.BuildEnvironment(session, nil)
 
@@ -151,9 +151,9 @@ func TestBuildEnvironment_SessionEnvVarDirectoryIsCreatedUnderSessionRoot(t *tes
 
 func TestBuildEnvironment_SessionEnvVarRejectsPathTraversal(t *testing.T) {
 	session := newTestSession(t)
-	pkg := &Package{Manifest: &Manifest{Config: ScriptConfig{
+	pkg := &Package{Manifest: &Manifest{
 		SetSessionEnvVars: []EnvironmentVariable{{Name: "OUTPUT_FILE", Value: "../escape.json", Kind: environmentKindFile}},
-	}}}
+	}}
 
 	_, err := pkg.BuildEnvironment(session, nil)
 
@@ -225,16 +225,26 @@ func TestMaterializeEnvironmentVariable_RejectsUnsupportedKind(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported kind")
 }
 
-func TestParameterEnvName(t *testing.T) {
-	assert.Equal(t, "PAR_ENV_TARGET_URL", parameterEnvName("targetURL"))
-}
-
 func TestAddParameterEnvironment_RejectsNameCollision(t *testing.T) {
-	err := addParameterEnvironment(map[string]string{}, map[string]interface{}{
+	mapping := map[string]string{
+		"targetURL": "DD_AUTHORED_SCRIPT_TARGET_URL",
+		"TargetURL": "DD_AUTHORED_SCRIPT_TARGET_URL",
+	}
+
+	err := addParameterEnvironment(map[string]string{}, mapping, map[string]interface{}{
 		"targetURL": "a",
 		"TargetURL": "b",
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "PAR_ENV_TARGET_URL")
+	assert.Contains(t, err.Error(), "DD_AUTHORED_SCRIPT_TARGET_URL")
+}
+
+func TestAddParameterEnvironment_RejectsMissingMapping(t *testing.T) {
+	err := addParameterEnvironment(map[string]string{}, map[string]string{}, map[string]interface{}{
+		"targetURL": "a",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no configured environment variable mapping")
 }

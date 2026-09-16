@@ -11,7 +11,7 @@ package inventorychecksimpl
 import (
 	"fmt"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"

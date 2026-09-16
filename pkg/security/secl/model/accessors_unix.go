@@ -5221,6 +5221,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "imds.credential_source":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.IMDS.CredentialSource)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "imds.host":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -38079,6 +38090,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"imds.aws.security_credentials.access_key_id",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
+		"imds.credential_source",
 		"imds.host",
 		"imds.server",
 		"imds.type",
@@ -40858,6 +40870,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "imds", reflect.String, "string", false, nil
 	case "imds.cloud_provider":
 		return "imds", reflect.String, "string", false, nil
+	case "imds.credential_source":
+		return "imds", reflect.Int, "int", false, nil
 	case "imds.host":
 		return "imds", reflect.String, "string", false, nil
 	case "imds.server":
@@ -45829,6 +45843,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("imds.aws.security_credentials.type", &ev.IMDS.AWS.SecurityCredentials.Type, value)
 	case "imds.cloud_provider":
 		return ev.setStringFieldValue("imds.cloud_provider", &ev.IMDS.CloudProvider, value)
+	case "imds.credential_source":
+		return ev.setUint32FieldValue("imds.credential_source", &ev.IMDS.CredentialSource, value)
 	case "imds.host":
 		return ev.setStringFieldValue("imds.host", &ev.IMDS.Host, value)
 	case "imds.server":
