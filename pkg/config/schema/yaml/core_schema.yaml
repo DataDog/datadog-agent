@@ -5777,6 +5777,61 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
+  adaptive_downsampling:
+    node_type: section
+    type: object
+    properties:
+      all:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          When true, every check gets SDC-downsampled metrics, regardless of
+          adaptive_downsampling.checks.
+      checks:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: comma_separated
+        items:
+          type: string
+        comment: |-
+          Check names whose metrics should be downsampled with
+          Swinging Door Trending/Compression (SDC). Experimental; see
+          pkg/aggregator/check_sampler_sdc.go. Ignored when
+          adaptive_downsampling.all is true. The corresponding environment
+          variable, DD_ADAPTIVE_DOWNSAMPLING_CHECKS, is comma-separated.
+
+          SDC's bounded-error guarantee requires timestamps to increase across
+          and within check commits. Non-increasing points are forwarded as-is
+          without changing downsampler state, but streams that submit arbitrary
+          past points are outside that guarantee.
+      dry_run:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          When true, SDC-downsampled checks still run every sample through the
+          downsampler for measurement (see the checksampler_downsampling_samples_total
+          and checksampler_downsampling_breakpoints_total telemetry metrics), but
+          ship their original data. Nothing the downsampler produces is sent.
+      relative_error:
+        node_type: setting
+        type: number
+        default: 0.02
+        tags:
+        - golang_type:float64
+        comment: |-
+          Relative reconstruction error used by the SDC downsampler. The
+          tolerance is relative_error multiplied by an EWMA of the signal's
+          magnitude.
+      scale_smoothing_factor:
+        node_type: setting
+        type: number
+        default: 0.3
+        tags:
+        - golang_type:float64
+        comment: EWMA smoothing factor used to track the signal's magnitude.
   clc_runner_enabled:
     node_type: setting
     type: boolean
