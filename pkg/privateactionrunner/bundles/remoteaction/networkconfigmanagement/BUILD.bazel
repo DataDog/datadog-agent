@@ -1,20 +1,36 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "networkconfigmanagement",
     srcs = [
         "entrypoint.go",
         "rollback_config.go",
+        "run_command.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/networkconfigmanagement/types",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "networkconfigmanagement_test",
+    srcs = ["run_command_test.go"],
+    embed = [":networkconfigmanagement"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/networkconfigmanagement/types",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
