@@ -59,11 +59,6 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
                 n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeServiceLogonRight),
                 Times.Once);
 
-            // SeDebugPrivilege must always be granted too: the GUI's peer-identity check depends on it.
-            Test.NativeMethods.Verify(
-                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDebugPrivilege),
-                Times.Once);
-
             // The SeDeny* rights must NOT be re-applied when the operator opts out.
             Test.NativeMethods.Verify(
                 n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDenyInteractiveLogonRight),
@@ -92,9 +87,6 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
                 Times.Once);
             Test.NativeMethods.Verify(
                 n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeServiceLogonRight),
-                Times.Once);
-            Test.NativeMethods.Verify(
-                n => n.AddPrivilege(It.IsAny<SecurityIdentifier>(), AccountRightsConstants.SeDebugPrivilege),
                 Times.Once);
         }
     }

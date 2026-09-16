@@ -104,7 +104,6 @@ func AssertUserRights(t *testing.T, host *components.RemoteHost, username string
 		"SeDenyInteractiveLogonRight",
 		"SeDenyNetworkLogonRight",
 		"SeDenyRemoteInteractiveLogonRight",
-		"SeDebugPrivilege",
 	}
 	actualRights, err := windows.GetUserRightsForUser(host, username)
 	if !assert.NoError(t, err, "should get user rights") {
