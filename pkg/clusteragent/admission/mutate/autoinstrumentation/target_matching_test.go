@@ -176,18 +176,18 @@ apm_config:
 	}
 
 	type want struct {
-		name       string
-		fromPolicy bool
+		name            string
+		policyTriggered bool
 	}
 	nothing := want{}
 	helm := func(name string) want { return want{name: name} }
-	rc := func(name string) want { return want{name: name, fromPolicy: true} }
+	rc := func(name string) want { return want{name: name, policyTriggered: true} }
 
 	assertMatch := func(t *testing.T, m *TargetMutator, ns string, labels map[string]string, w want) {
 		t.Helper()
-		name, fromPolicy := matchedTarget(t, m, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Labels: labels}})
+		name, policyTriggered := matchedTarget(t, m, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Labels: labels}})
 		require.Equal(t, w.name, name)
-		require.Equal(t, w.fromPolicy, fromPolicy)
+		require.Equal(t, w.policyTriggered, policyTriggered)
 	}
 
 	t.Run("ssi off / no RC / nothing", func(t *testing.T) {

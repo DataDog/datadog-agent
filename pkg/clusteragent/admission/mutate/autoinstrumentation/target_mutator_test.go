@@ -874,7 +874,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 			require.NotNil(t, actual.target)
 			require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			require.ElementsMatch(t, test.expected.envVars, actual.target.envVars)
-			require.False(t, actual.target.fromPolicy)
+			require.Equal(t, annotation.InjectionTriggerDDI, actual.target.trigger)
 		})
 	}
 }

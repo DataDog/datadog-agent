@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -53,15 +54,15 @@ func podLabelPolicy(name, key, val string, inject bool, versions map[string]stri
 	}
 }
 
-// matchedTarget returns the matched target name and whether it came from a
-// remote-config policy.
+// matchedTarget returns the matched target name and whether it was triggered
+// by a remote-config policy.
 func matchedTarget(t *testing.T, m *TargetMutator, pod *corev1.Pod) (string, bool) {
 	t.Helper()
 	target := m.getMatchingTarget(pod)
 	if target == nil {
 		return "", false
 	}
-	return target.name, target.fromPolicy
+	return target.name, target.trigger == annotation.InjectionTriggerPolicy
 }
 
 // TestRemotePolicies_AppliedOnEmptyBaseline verifies that remote policies match
@@ -77,9 +78,9 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 		podLabelPolicy("remote-java", "app", "db", true, map[string]string{"java": "default"}),
 	}))
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "remote-java", name)
-	require.True(t, fromPolicy)
+	require.True(t, policyTriggered)
 
 	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "other"})))
 }
@@ -96,17 +97,17 @@ func TestRemotePolicies_OverrideStaticMatch(t *testing.T) {
 		podLabelPolicy("remote-deny", "app", "legacy", false, nil),
 	}))
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "remote", name)
-	require.True(t, fromPolicy)
+	require.True(t, policyTriggered)
 
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "legacy"}))
+	name, policyTriggered = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "legacy"}))
 	require.Equal(t, "", name)
-	require.False(t, fromPolicy)
+	require.False(t, policyTriggered)
 
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "other"}))
+	name, policyTriggered = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "other"}))
 	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
+	require.False(t, policyTriggered)
 }
 
 // TestRemotePolicies_ClearRevertsToBaseline verifies that clearing remote
@@ -115,21 +116,21 @@ func TestRemotePolicies_ClearRevertsToBaseline(t *testing.T) {
 	wmeta := newMatchTestWmeta(t)
 	m := newMatchMutator(t, rcSSIOnNoTargets, wmeta)
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "default", name)
-	require.False(t, fromPolicy)
+	require.False(t, policyTriggered)
 
 	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
 		podLabelPolicy("remote", "app", "db", true, map[string]string{"python": "default"}),
 	}))
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "remote", name)
-	require.True(t, fromPolicy)
+	require.True(t, policyTriggered)
 
 	m.ClearRemotePolicies()
-	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "default", name)
-	require.False(t, fromPolicy)
+	require.False(t, policyTriggered)
 }
 
 // TestRemotePolicies_LastMatchWins verifies last-TRUE-wins among remote policies.
@@ -180,9 +181,9 @@ func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 	require.Len(t, applied, 1)
 	require.Equal(t, state.ApplyStateAcknowledged, applied[0].State)
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db-user"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db-user"}))
 	require.Equal(t, "java for db-user", name)
-	require.True(t, fromPolicy)
+	require.True(t, policyTriggered)
 
 	// An empty update clears remote policies (SSI off → nothing).
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, apply)
@@ -293,9 +294,9 @@ func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
 		require.Equal(t, state.ApplyStateAcknowledged, applied[path].State)
 	}
 
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "k8s-allow", name)
-	require.True(t, fromPolicy)
+	require.True(t, policyTriggered)
 
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_POLICIES/1.linux/config": {Config: []byte(linux)},
@@ -343,7 +344,7 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 	require.Equal(t, state.ApplyStateAcknowledged, applied["datadog/2/APM_POLICIES/1.linux/config"].State)
 
 	// Baseline is untouched.
-	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	name, policyTriggered := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
+	require.False(t, policyTriggered)
 }

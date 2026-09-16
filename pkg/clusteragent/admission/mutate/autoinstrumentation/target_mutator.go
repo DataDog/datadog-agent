@@ -276,7 +276,6 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 			envVars:         envVars,
 			json:            createPolicyJSON(p),
 			usesDefaultLibs: usesDefaultLibs,
-			fromPolicy:      true,
 			trigger:         annotation.InjectionTriggerPolicy,
 		}
 	}
@@ -383,7 +382,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	// A remote-config policy match carries its information on a dedicated env
 	// var, distinct from configuration targets.
 	envVarName := AppliedTargetEnvVar
-	if target.fromPolicy {
+	if target.trigger == annotation.InjectionTriggerPolicy {
 		envVarName = AppliedPolicyEnvVar
 	}
 
@@ -427,10 +426,6 @@ type targetInternal struct {
 	usesDefaultLibs bool
 	// trigger identifies the configuration source that selected this target.
 	trigger string
-	// fromPolicy is true when this internal target was derived from a
-	// remote-config policy rather than a configuration target. It selects which
-	// env var carries the applied information.
-	fromPolicy bool
 }
 
 // getTarget determines which target to use for a given pod, including the tracing libraries to inject.
