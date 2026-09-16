@@ -58,11 +58,15 @@ func NewWorkflowTaskExecutor(
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}
 
+	var integrationConfigProvider resolver.IntegrationConfigProvider
+	if configuration.AllowIntegrationCredentials {
+		integrationConfigProvider = resolver.NewAgentIntegrationConfigProvider(ipcClient)
+	}
 	return &WorkflowTaskExecutor{
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(resolver.NewCredentialCatalog(configuration.CredentialValues)),
+		resolver:     resolver.NewPrivateCredentialResolver(resolver.NewCredentialCatalog(configuration.CredentialValues), integrationConfigProvider),
 	}, nil
 }
 
