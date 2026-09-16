@@ -1,0 +1,9 @@
+fixes:
+  - |
+    Fix Fleet Automation remote configuration deployments failing on macOS hosts.
+    The Agent registered itself in the package repository under a different
+    version string than the one the installer daemon reports as running, so the
+    pre-deployment host health check never matched and every deployment failed
+    before any configuration was pushed. The registered version now also moves
+    forward when a new ``.dmg`` replaces the Agent, instead of staying pinned to
+    the version the host was first installed with.
