@@ -34,7 +34,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:android": [
@@ -47,7 +47,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:darwin": [
@@ -60,7 +60,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -73,7 +73,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:freebsd": [
@@ -86,7 +86,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:illumos": [
@@ -99,7 +99,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:ios": [
@@ -112,7 +112,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:js": [
@@ -125,7 +125,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:linux": [
@@ -138,7 +138,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -151,7 +151,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:openbsd": [
@@ -164,7 +164,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:osx": [
@@ -177,7 +177,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:plan9": [
@@ -190,7 +190,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:qnx": [
@@ -203,7 +203,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "@rules_go//go/platform:solaris": [
@@ -216,7 +216,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@com_github_shirou_gopsutil_v4//process",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_multierr//:multierr",
         ],
         "//conditions:default": [],

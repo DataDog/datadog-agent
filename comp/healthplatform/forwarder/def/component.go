@@ -18,7 +18,8 @@ import (
 // HealthReport to the Datadog intake. The periodic tick is owned by the
 // egress component; the forwarder only handles the HTTP mechanics.
 type Component interface {
-	// Send POSTs the given report to the Datadog intake.
+	// Send POSTs the given report to the Datadog intake. It returns the
+	// number of payload bytes sent, which is only meaningful when err is nil.
 	// The caller is responsible for building the report and choosing when to send.
-	Send(ctx context.Context, report *healthplatformpayload.HealthReport) error
+	Send(ctx context.Context, report *healthplatformpayload.HealthReport) (int, error)
 }

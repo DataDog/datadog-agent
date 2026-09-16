@@ -1,0 +1,20 @@
+{{- with .healthPlatform }}
+{{- if not .enabled }}
+Health Platform is disabled. Set `health_platform.enabled: true` to enable it.
+{{- else }}
+Active issues: {{ .activeIssues }} ({{ .highSeverityIssues }} high, {{ .mediumSeverityIssues }} medium, {{ .lowSeverityIssues }} low{{ if .unknownSeverityIssues }}, {{ .unknownSeverityIssues }} unknown{{ end }})
+  Run `agent diagnose` for the full list of detected issues.
+
+Reporting to Datadog
+  Last successful send: {{ if .lastSuccessAt }}{{ .lastSuccessAt }}{{ else }}never{{ end }}
+  Bytes sent: {{ humanize .bytesSentTotal }}
+{{- if .egressHealthy }}
+  Send errors: {{ .sendErrorsTotal }}
+{{- else }}
+  {{ redText (printf "Send errors: %v" .sendErrorsTotal) }}
+{{- if .lastError }}
+  {{ redText (printf "Last error: %v" .lastError) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

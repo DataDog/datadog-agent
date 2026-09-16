@@ -21,7 +21,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_beevik_ntp//:ntp",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows",

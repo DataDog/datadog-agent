@@ -24,7 +24,7 @@ go_library(
         "@com_github_shirou_gopsutil_v4//common",
         "@com_github_shirou_gopsutil_v4//disk",
         "@com_github_spf13_afero//:afero",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@org_golang_x_sys//unix",

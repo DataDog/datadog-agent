@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"

@@ -9,7 +9,7 @@ rtloader_test_go_library(
     deps = [
         "//rtloader/test/common",
         "//rtloader/test/helpers",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
