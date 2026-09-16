@@ -50,7 +50,7 @@ go_library(
         "//pkg/util/system",
         "//pkg/version",
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/api/client",

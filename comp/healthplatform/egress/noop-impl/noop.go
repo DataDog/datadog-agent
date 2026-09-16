@@ -17,3 +17,8 @@ type noopEgress struct{}
 func NewNoopComponent() egressdef.Component {
 	return &noopEgress{}
 }
+
+// Status returns a healthy zero-value status; the health platform is disabled.
+func (n *noopEgress) Status() egressdef.SendStatus {
+	return egressdef.SendStatus{Healthy: true}
+}
