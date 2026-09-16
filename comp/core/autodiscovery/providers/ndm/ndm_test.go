@@ -165,14 +165,13 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 	require.Contains(t, errs, path)
 }
 
-// credentialsConfig returns a config whose confd_path holds the credential
+// credentialsConfig returns a config whose conf_path holds the credential
 // file the delivered instances reference, at the path Fleet Automation writes.
 func credentialsConfig(t *testing.T) model.BuildableConfig {
 	t.Helper()
 
-	confd := t.TempDir()
-	path := filepath.Join(confd, "snmp.d", "snmp_credentials.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	confPath := t.TempDir()
+	path := filepath.Join(confPath, "snmp_credentials.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 credentials:
   - id: cred-abc
@@ -181,6 +180,6 @@ credentials:
 `), 0o600))
 
 	cfg := configmock.New(t)
-	cfg.Set("confd_path", confd, model.SourceAgentRuntime)
+	cfg.Set("conf_path", confPath, model.SourceAgentRuntime)
 	return cfg
 }
