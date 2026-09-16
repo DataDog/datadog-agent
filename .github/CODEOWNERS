@@ -196,7 +196,7 @@
 /.gitlab/test/e2e/e2e_otel.yml                                            @DataDog/opentelemetry-agent @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_security.yml                                        @DataDog/agent-security @DataDog/agent-cspm @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_configuration.yml                             @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/remote-config @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/fleet-remediation @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_health.yml                                    @DataDog/fleet-remediation @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_apm.yml                                             @DataDog/agent-apm @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_pipelines.yml                                       @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-anomaly-detection @DataDog/agent-devx
@@ -261,24 +261,63 @@
 /cmd/agent/subcommands/coverage                     @DataDog/agent-devx
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
-/cmd/agent/dist/conf.d/                             @DataDog/agent-integrations
-/cmd/agent/dist/conf.d/container.d/                 @DataDog/container-integrations
-/cmd/agent/dist/conf.d/containerd.d/                @DataDog/container-integrations
-/cmd/agent/dist/conf.d/container_image.d/           @DataDog/container-integrations
-/cmd/agent/dist/conf.d/container_lifecycle.d/       @DataDog/container-integrations
-/cmd/agent/dist/conf.d/discovery.d/                 @DataDog/agent-discovery
-/cmd/agent/dist/conf.d/jetson.d/                    @DataDog/agent-runtimes
-/cmd/agent/dist/conf.d/oracle.d/                    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle-dbm.d/                @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/network_path.d/              @DataDog/network-path
-/cmd/agent/dist/conf.d/network_config_management.d/ @DataDog/ndm-integrations
-/cmd/agent/dist/conf.d/orchestrator_ecs.d/          @DataDog/ecs-experiences
-/cmd/agent/dist/conf.d/powershell.d/                @DataDog/windows-products
-/cmd/agent/dist/conf.d/sbom.d/                      @DataDog/agent-security @DataDog/container-integrations
-/cmd/agent/dist/conf.d/snmp.d/                      @DataDog/network-device-monitoring-core
-/cmd/agent/dist/conf.d/win32_event_log.d/           @DataDog/windows-products
-/cmd/agent/dist/conf.d/windows_certificate.d/       @DataDog/windows-products
-/cmd/agent/dist/protected/                          @DataDog/windows-products
+/cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
+/cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
+/cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/cloud_hostinfo.d/               @DataDog/agent-runtimes @DataDog/container-autoscaling
+/cmd/agent/dist/conf.d/container.d/                    @DataDog/container-integrations
+/cmd/agent/dist/conf.d/containerd.d/                   @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_image.d/              @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_lifecycle.d/          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/cpu.d/                          @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/cri.d/                          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/datadog_csi_driver.d/           @DataDog/container-platform
+/cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-discovery
+/cmd/agent/dist/conf.d/disk.d/                         @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/docker.d/                       @DataDog/container-integrations
+/cmd/agent/dist/conf.d/file_handle.d/                  @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/go_expvar.d/                    @DataDog/agent-configuration
+/cmd/agent/dist/conf.d/gpu.d/                          @DataDog/gpu-monitoring-agent
+/cmd/agent/dist/conf.d/io.d/                           @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/jetson.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/jmx.d/                          @DataDog/agent-metric-pipelines
+/cmd/agent/dist/conf.d/kubernetes_apiserver.d/         @DataDog/container-integrations
+/cmd/agent/dist/conf.d/load.d/                         @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/memory.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/myapp.d/                        @DataDog/agent-log-pipelines
+/cmd/agent/dist/conf.d/mysql.d/                        @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/nccl.d/                         @DataDog/gpu-monitoring-agent
+/cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/network_path.d/                 @DataDog/network-path
+/cmd/agent/dist/conf.d/noisy_neighbor.d/               @DataDog/container-experiences
+/cmd/agent/dist/conf.d/ntp.d/                          @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/oom_kill.d/                     @DataDog/container-integrations
+/cmd/agent/dist/conf.d/openmetrics.d/                  @DataDog/agent-configuration
+/cmd/agent/dist/conf.d/oracle-dbm.d/                   @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/oracle.d/                       @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/orchestrator_ecs.d/             @DataDog/ecs-experiences
+/cmd/agent/dist/conf.d/orchestrator_kubelet_config.d/  @DataDog/kubernetes-experiences
+/cmd/agent/dist/conf.d/orchestrator_pod.d/             @DataDog/kubernetes-experiences
+/cmd/agent/dist/conf.d/postgres.d/                     @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/powershell.d/                   @DataDog/windows-products
+/cmd/agent/dist/conf.d/sbom.d/                         @DataDog/agent-security @DataDog/container-integrations
+/cmd/agent/dist/conf.d/snmp.d/                         @DataDog/network-device-monitoring-core
+/cmd/agent/dist/conf.d/systemd.d/                      @DataDog/agent-integrations
+/cmd/agent/dist/conf.d/tcp_queue_length.d/             @DataDog/container-integrations
+/cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
+/cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
+/cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
+/cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
+/cmd/agent/dist/conf.d/windows_certificate.d/          @DataDog/windows-products
+/cmd/agent/dist/conf.d/windows_registry.d/             @DataDog/windows-products
+/cmd/agent/dist/conf.d/winkmem.d/                      @DataDog/windows-products
+/cmd/agent/dist/conf.d/winproc.d/                      @DataDog/windows-products
+/cmd/agent/dist/conf.d/wlan.d/                         @DataDog/windows-products
+/cmd/agent/dist/protected/                             @DataDog/windows-products
 /cmd/agent/install*.sh                              @DataDog/agent-build
 /cmd/agent/macos/                                   @DataDog/windows-products
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
@@ -1012,6 +1051,7 @@
 /test/new-e2e/tests/security-agent-functional                   @DataDog/windows-products @DataDog/agent-security
 /test/new-e2e/tests/cws                                         @DataDog/agent-security
 /test/new-e2e/tests/cws/fargate_test.go                         @DataDog/agent-security @DataDog/ecs-experiences
+/test/new-e2e/tests/data-security                               @DataDog/sensitive-data-scanner
 /test/new-e2e/tests/agent-log-pipelines                         @DataDog/agent-log-pipelines
 /test/new-e2e/tests/windows                                     @DataDog/windows-products @DataDog/windows-products
 /test/new-e2e/tests/apm                                         @DataDog/agent-apm
