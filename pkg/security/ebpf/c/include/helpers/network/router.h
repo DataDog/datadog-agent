@@ -1,6 +1,7 @@
 #ifndef _HELPERS_NETWORK_ROUTER_H_
 #define _HELPERS_NETWORK_ROUTER_H_
 
+#include "credentials.h"
 #include "stats.h"
 #include "maps.h"
 
@@ -22,9 +23,9 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     }
 
 
-    // route IMDS requests
+    // route credential endpoint traffic (IMDS, EKS Pod Identity, ...)
     if (is_event_enabled(EVENT_IMDS)) {
-        if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == get_imds_ip() || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == get_imds_ip())) {
+        if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_TCP && get_credential_source(pkt) != CREDENTIAL_SOURCE_UNKNOWN) {
             bpf_tail_call_compat(skb, &classifier_router, IMDS_REQUEST);
         }
     }

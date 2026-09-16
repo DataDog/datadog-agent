@@ -68,6 +68,7 @@ def _dd_cc_packaged_rule_impl(ctx):
             ))
     providers = [
         DdPackagingInfo(installed_files = installed),
+        DefaultInfo(files = ctx.attr.input[DefaultInfo].files),
     ]
     if CcSharedLibraryInfo in ctx.attr.input:
         providers.append(ctx.attr.input[CcSharedLibraryInfo])

@@ -73,6 +73,15 @@ Labels must be string literals and must never be split across lines. Automated t
 handle split or computed label values. Flag any `deps`, `srcs`, or other label lists that construct label strings via
 `+`, `%`, or line continuation.
 
+**Exception: `analysis_test` subject helpers.** A common idiom wraps `analysis_test` in a helper
+function that builds a test subject (e.g. a `filegroup` or intermediate target) whose name is
+derived from the test's own `name` parameter, so that multiple invocations of the helper don't
+clash on target names. Computing a subject label from `name + "_subject"` inside such a helper is
+expected and should not be flagged — the label is still a literal at the point the underlying rule
+is instantiated, it's simply parameterized per call site. Do flag computed labels used to reference
+targets that already exist elsewhere in the tree (i.e. `deps`/`srcs` pointing at something outside
+the helper's own generated targets).
+
 ## Shell portability
 
 `genrule`, `sh_binary`, `sh_test`, and `ctx.actions.run_shell` require Bash and are non-portable:
