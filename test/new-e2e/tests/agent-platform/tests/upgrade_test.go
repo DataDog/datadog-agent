@@ -101,7 +101,6 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 		installparams.WithArch(string(is.osDesc.Architecture)),
 		installparams.WithFlavor(*flavorName),
 		installparams.WithMajorVersion(is.srcVersion),
-		installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")),
 		installparams.WithPipelineID(""),
 	}
 	if is.testingKeysURL != "" {
