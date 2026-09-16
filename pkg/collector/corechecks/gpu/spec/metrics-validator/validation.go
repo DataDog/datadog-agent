@@ -51,7 +51,11 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metri
 
 	var allErrors error
 	for _, config := range configs {
-		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
+		nvLinkCapability := "n/a"
+		if config.NVLinkCapable != nil {
+			nvLinkCapability = fmt.Sprintf("%t", *config.NVLinkCapable)
+		}
+		log.Printf("validating gpu config %s/%s (NVLink capable: %s)", config.Architecture, config.DeviceMode, nvLinkCapability)
 		result, err := validateGPUConfig(client, specs, config, metricFilter, fromTS, now)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
@@ -84,6 +88,8 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, queryFilter, fromTS, toTS)
 	if err != nil {
+		result.RetrievalErrors = append(result.RetrievalErrors, fmt.Sprintf("query device count: %v", err))
+		result.State = determineResultState(result)
 		return result, fmt.Errorf("validate gpu config %+v: %w", config, err)
 	}
 
@@ -96,6 +102,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	var group errgroup.Group
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 	tagObservations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
+	unavailableMetrics := make(map[string]bool)
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName, metricSpec := range expectedMetricsMap {
@@ -110,7 +117,12 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		group.Go(func() error {
 			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTags, queryFilter, fromTS, toTS, validatesValues)
 			if err != nil {
-				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+				retrievalError := fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+				mu.Lock()
+				unavailableMetrics[metricName] = true
+				result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+				mu.Unlock()
+				return retrievalError
 			}
 
 			if len(metricObservations) == 0 {
@@ -134,7 +146,11 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 			group.Go(func() error {
 				metricTags, err := client.fetchMetricAllTags(prefixedMetricName, tagInventoryPrefixes, tagLookbackSeconds, tagInventoryFilter)
 				if err != nil {
-					return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+					retrievalError := fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+					mu.Lock()
+					result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+					mu.Unlock()
+					return retrievalError
 				}
 				if len(metricTags) == 0 {
 					return nil
@@ -171,7 +187,9 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics
 	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, queryFilter, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
 	if err != nil {
-		allErrors = errors.Join(allErrors, fmt.Errorf("error listing observed gpu metrics: %w", err))
+		retrievalError := fmt.Errorf("list observed gpu metrics: %w", err)
+		result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
+		allErrors = errors.Join(allErrors, retrievalError)
 	}
 
 	for metricName := range liveMetrics {

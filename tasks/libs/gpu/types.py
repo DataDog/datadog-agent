@@ -5,13 +5,15 @@ from enum import Enum
 
 
 class GPUConfigValidationState(Enum):
-    FAIL = 0
-    OK = 1
-    UNKNOWN = 2
-    MISSING = 3
+    ERROR = 0
+    FAIL = 1
+    OK = 2
+    UNKNOWN = 3
+    MISSING = 4
 
 
 STATE_BY_NAME = {
+    "error": GPUConfigValidationState.ERROR,
     "fail": GPUConfigValidationState.FAIL,
     "ok": GPUConfigValidationState.OK,
     "unknown": GPUConfigValidationState.UNKNOWN,
@@ -106,6 +108,7 @@ class GPUConfigValidationResult:
     config: GPUConfig
     device_count: int
     detailed_result: DetailedValidationResult
+    retrieval_errors: list[str] = field(default_factory=list)
     state: GPUConfigValidationState = GPUConfigValidationState.UNKNOWN
 
     def update(self, other: GPUConfigValidationResult) -> None:
@@ -114,6 +117,9 @@ class GPUConfigValidationResult:
 
         self.device_count += other.device_count
         self.detailed_result.update(other.detailed_result)
+        for error in other.retrieval_errors:
+            if error not in self.retrieval_errors:
+                self.retrieval_errors.append(error)
 
     @property
     def index_key(self) -> tuple[str, str]:
@@ -210,6 +216,7 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                     for metric_name, metric_status in ((item.get("detailed_result") or {}).get("metrics") or {}).items()
                 }
             ),
+            retrieval_errors=list(item.get("retrieval_errors", [])),
             state=STATE_BY_NAME[item["state"]],
         )
         for item in payload.get("results", [])
