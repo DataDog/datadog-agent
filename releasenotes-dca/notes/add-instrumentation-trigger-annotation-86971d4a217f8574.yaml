@@ -3,4 +3,6 @@ enhancements:
   - |
     The Single Step Instrumentation admission webhook now adds the
     ``internal.apm.datadoghq.com/injection-trigger`` annotation to instrumented
-    pods, identifying which configuration source triggered injection.
+    pods, identifying which configuration source triggered injection. The
+    applied target or policy JSON is recorded in the
+    ``internal.apm.datadoghq.com/injection-config`` annotation.

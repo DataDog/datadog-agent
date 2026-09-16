@@ -381,12 +381,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
 	// A remote-config policy match carries its information on a dedicated env
-	// var / annotation, distinct from configuration targets.
+	// var, distinct from configuration targets.
 	envVarName := AppliedTargetEnvVar
-	annotationKey := annotation.AppliedTarget
 	if target.fromPolicy {
 		envVarName = AppliedPolicyEnvVar
-		annotationKey = annotation.AppliedPolicy
 	}
 
 	// Inject the target json. The is added so that the injector can make use of the target information.
@@ -396,7 +394,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	}), true)
 
 	// Add the annotations to the pod.
-	annotation.Set(pod, annotationKey, target.json)
+	annotation.Set(pod, annotation.InjectionConfig, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -431,7 +429,7 @@ type targetInternal struct {
 	trigger string
 	// fromPolicy is true when this internal target was derived from a
 	// remote-config policy rather than a configuration target. It selects which
-	// annotation/env var carries the applied information.
+	// env var carries the applied information.
 	fromPolicy bool
 }
 
