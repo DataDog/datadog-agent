@@ -6,6 +6,8 @@
 package snmp
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -17,23 +19,52 @@ import (
 )
 
 const credentialsYAML = `
-network_devices:
-  snmp_credentials:
-    - id: v2c-public
-      snmp_version: "2c"
-      community_string: public
-    - id: v3-full
-      snmp_version: "3"
-      user: test-user
-      authProtocol: SHA
-      authKey: test-auth-key
-      privProtocol: AES
-      privKey: test-priv-key
-      context_name: test-context
+init_config:
+instances:
+  - name: v2c-public
+    network_address: 1.2.3.4/32
+    ignored_ip_addresses:
+      - 1.2.3.4
+    snmp_version: "2c"
+    community_string: public
+  - name: v3-full
+    network_address: 1.2.3.4/32
+    ignored_ip_addresses:
+      - 1.2.3.4
+    snmp_version: "3"
+    user: test-user
+    authProtocol: SHA
+    authKey: test-auth-key
+    privProtocol: AES
+    privKey: test-priv-key
+    context_name: test-context
 `
 
-func TestLoadIndexesTheConfiguredCredentialsByID(t *testing.T) {
-	store := newCredentialStore(configmock.NewFromYAML(t, credentialsYAML))
+// newTestConfig returns a config whose confd_path holds the given credential
+// file, or no credential file at all when body is empty.
+func newTestConfig(t *testing.T, body string) model.BuildableConfig {
+	t.Helper()
+
+	confd := t.TempDir()
+	if body != "" {
+		writeCredentials(t, confd, body)
+	}
+
+	cfg := configmock.New(t)
+	cfg.Set("confd_path", confd, model.SourceAgentRuntime)
+	return cfg
+}
+
+func writeCredentials(t *testing.T, confd, body string) {
+	t.Helper()
+
+	path := filepath.Join(confd, credentialsFile)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+}
+
+func TestLoadIndexesTheCredentialFileByID(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, credentialsYAML))
 
 	creds, err := store.load()
 	require.NoError(t, err)
@@ -57,23 +88,52 @@ func TestLoadIndexesTheConfiguredCredentialsByID(t *testing.T) {
 	}, creds["v3-full"])
 }
 
-func TestLoadOfAnAbsentSectionIsEmptyAndNotAnError(t *testing.T) {
-	store := newCredentialStore(configmock.New(t))
+func TestLoadReadsTheFileUnderConfdPath(t *testing.T) {
+	cfg := newTestConfig(t, credentialsYAML)
+
+	assert.Equal(t,
+		filepath.Join(cfg.GetString("confd_path"), "snmp.d", "snmp_credentials.yaml"),
+		newCredentialStore(cfg).path(),
+	)
+}
+
+func TestLoadOfAnAbsentFileIsEmptyAndNotAnError(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, ""))
 
 	creds, err := store.load()
 	require.NoError(t, err)
 	assert.Empty(t, creds)
 }
 
+func TestLoadOfAnEmptyFileIsEmptyAndNotAnError(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, "\n"))
+
+	creds, err := store.load()
+	require.NoError(t, err)
+	assert.Empty(t, creds)
+}
+
+func TestLoadOfAMalformedFileErrorsWithoutQuotingItsContent(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, `
+instances:
+  - name: v2c
+    community_string: s3cret-community
+    snmp_version: [not, a, string]
+`))
+
+	_, err := store.load()
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "s3cret-community")
+}
+
 func TestLoadSkipsAnEntryWithNoID(t *testing.T) {
-	store := newCredentialStore(configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - snmp_version: "2c"
-      community_string: public
-    - id: kept
-      snmp_version: "2c"
-      community_string: public
+	store := newCredentialStore(newTestConfig(t, `
+instances:
+  - snmp_version: "2c"
+    community_string: public
+  - name: kept
+    snmp_version: "2c"
+    community_string: public
 `))
 
 	creds, err := store.load()
@@ -82,15 +142,14 @@ network_devices:
 }
 
 func TestLoadKeepsTheFirstOfTwoEntriesSharingAnID(t *testing.T) {
-	store := newCredentialStore(configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: dup
-      snmp_version: "2c"
-      community_string: first
-    - id: dup
-      snmp_version: "2c"
-      community_string: second
+	store := newCredentialStore(newTestConfig(t, `
+instances:
+  - name: dup
+    snmp_version: "2c"
+    community_string: first
+  - name: dup
+    snmp_version: "2c"
+    community_string: second
 `))
 
 	creds, err := store.load()
@@ -98,17 +157,20 @@ network_devices:
 	assert.Equal(t, "first", creds["dup"].CommunityString)
 }
 
-func TestLoadRereadsTheConfigurationEveryTime(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, credentialsYAML)
+func TestLoadRereadsTheFileEveryTime(t *testing.T) {
+	cfg := newTestConfig(t, credentialsYAML)
 	store := newCredentialStore(cfg)
 
 	first, err := store.load()
 	require.NoError(t, err)
 	assert.Equal(t, "public", first["v2c-public"].CommunityString)
 
-	cfg.Set("network_devices.snmp_credentials", []map[string]string{
-		{"id": "v2c-public", "snmp_version": "2c", "community_string": "rotated"},
-	}, model.SourceAgentRuntime)
+	writeCredentials(t, cfg.GetString("confd_path"), `
+instances:
+  - name: v2c-public
+    snmp_version: "2c"
+    community_string: rotated
+`)
 
 	second, err := store.load()
 	require.NoError(t, err)
