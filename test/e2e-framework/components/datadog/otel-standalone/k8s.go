@@ -303,7 +303,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 
 		// DaemonSet
-		imagePath := dockerOTelAgentFullImagePath(e)
+		imagePath := agent.DockerOTelAgentFullImagePath(e)
 
 		// Build the env var list. AppOption env vars come first so that they take
 		// precedence over defaults when the caller overrides a variable such as
@@ -477,30 +477,4 @@ func buildConfigMapData(otelConfig string, fakeIntake *fakeintake.Fakeintake) (p
 	}).(pulumi.StringMapOutput)
 
 	return merged, nil
-}
-
-// dockerOTelAgentFullImagePath returns the agent image to use for the standalone
-// otel-agent DaemonSet.  It reuses the same image-selection logic as the Helm
-// path: CI uses the pipeline QA image, local runs fall back to the nightly OTel
-// image.
-func dockerOTelAgentFullImagePath(e config.Env) string {
-	if e.AgentFullImagePath() != "" {
-		return e.AgentFullImagePath()
-	}
-
-	if e.PipelineID() != "" && e.CommitSHA() != "" {
-		var tag string
-		if e.AgentFIPS() {
-			tag = fmt.Sprintf("%s-%s-7-fips-full", e.PipelineID(), e.CommitSHA())
-		} else {
-			tag = fmt.Sprintf("%s-%s-7-full", e.PipelineID(), e.CommitSHA())
-		}
-		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)
-		if err != nil || !exists {
-			panic(fmt.Sprintf("image %s/agent-qa:%s not found in the internal registry", e.InternalRegistry(), tag))
-		}
-		return utils.BuildDockerImagePath(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)
-	}
-
-	return utils.BuildDockerImagePath("datadog/agent-dev", "nightly-full-main-jmx")
 }
