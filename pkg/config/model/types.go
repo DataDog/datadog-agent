@@ -224,6 +224,15 @@ type Reader interface {
 	Stringify(source Source, opts ...StringifyOption) string
 }
 
+// EnvVarControl is implemented by configs whose env layer can be inspected and dropped, so a
+// process taking its configuration from elsewhere can stop env vars from overriding it.
+type EnvVarControl interface {
+	// EnvVarSettings maps each setting the env layer is providing to the env var it was read from.
+	EnvVarSettings() map[string]string
+	// ClearEnvVars empties the env layer.
+	ClearEnvVars()
+}
+
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)

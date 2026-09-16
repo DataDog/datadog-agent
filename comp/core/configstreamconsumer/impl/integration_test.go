@@ -791,7 +791,7 @@ func TestLogLevelOverrideIsPerClient(t *testing.T) {
 	}
 }
 
-func TestRemappedKeyIsNotReportedAsADroppedEnvVar(t *testing.T) {
+func TestLocalEnvVarsAreReportedOnceStreamingStarts(t *testing.T) {
 	t.Setenv("DD_LOG_LEVEL", "debug")
 	t.Setenv("DD_SITE", "datadoghq.eu")
 	configstreambootstrap.ResetGlobalConfig(t)
@@ -813,10 +813,10 @@ func TestRemappedKeyIsNotReportedAsADroppedEnvVar(t *testing.T) {
 	testRun := func(_ configstreamconsumer.Component) error {
 		// The report trails readiness, so it may land just after OneShot hands control back.
 		require.Eventually(t, func() bool {
-			return slices.Contains(configstreambootstrap.LastEnvOverrideReport(), "site (DD_SITE)")
-		}, 10*time.Second, 20*time.Millisecond, "a setting the core Agent never streamed must be reported")
-		require.NotContains(t, configstreambootstrap.LastEnvOverrideReport(), "log_level (DD_LOG_LEVEL)",
-			"the per-agent remap reproduced the local value, so nothing was lost")
+			return slices.Contains(configstreambootstrap.LastIgnoredEnvVarReport(), "site (DD_SITE)")
+		}, 10*time.Second, 20*time.Millisecond, "a setting set by a local env var must be reported")
+		require.Contains(t, configstreambootstrap.LastIgnoredEnvVarReport(), "log_level (DD_LOG_LEVEL)",
+			"setting a consumer's config from its own env is reported even where the stream happens to agree")
 		return nil
 	}
 

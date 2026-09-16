@@ -88,6 +88,8 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
+	// envSettings maps each setting in the env layer to the env var it was read from
+	envSettings map[string]string
 	// configPostInit contains values computed during initial config setup.
 	configPostInit *nodeImpl
 	// secrets contains values resolved from secrets (ENC[...] placeholders).
@@ -736,11 +738,13 @@ func (c *ntmConfig) isReady() bool {
 func (c *ntmConfig) buildEnvVars() {
 	if c.envVarsCleared.Load() {
 		c.envs = newInnerNode(nil)
+		c.envSettings = nil
 		return
 	}
 
 	root := newInnerNode(nil)
 	envWarnings := []string{}
+	envSettings := map[string]string{}
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
@@ -748,6 +752,7 @@ func (c *ntmConfig) buildEnvVars() {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err.Error())
 				} else {
+					envSettings[configKey] = envVar
 					// Stop looping since we set the config key with the value of the highest precedence env var
 					if slices.Contains(c.deprecations[configKey].oldEnvVars, envVar) {
 						c.warnings = append(c.warnings,
@@ -760,6 +765,7 @@ func (c *ntmConfig) buildEnvVars() {
 		}
 	}
 	c.envs = root
+	c.envSettings = envSettings
 	c.warnings = append(c.warnings, envWarnings...)
 }
 
@@ -770,6 +776,7 @@ func (c *ntmConfig) ClearEnvVars() {
 	defer c.Unlock()
 	c.envVarsCleared.Store(true)
 	c.envs = newInnerNode(nil)
+	c.envSettings = nil
 	if c.isReady() {
 		if err := c.mergeAllLayers(); err != nil {
 			c.warnings = append(c.warnings, err.Error())

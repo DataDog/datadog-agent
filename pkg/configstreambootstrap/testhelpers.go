@@ -27,9 +27,9 @@ func UseDynamicSchema(t testing.TB) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetTestOnlyDynamicSchema(false) })
 }
 
-// LastEnvOverrideReport returns the settings named by the most recent ReportDroppedEnvOverrides call.
-func LastEnvOverrideReport() []string {
-	envOverridesMu.Lock()
-	defer envOverridesMu.Unlock()
-	return lastEnvOverrideReport
+// LastIgnoredEnvVarReport returns the settings named by the most recent ReportIgnoredEnvVars call.
+func LastIgnoredEnvVarReport() []string {
+	ignoredEnvVarsMu.Lock()
+	defer ignoredEnvVarsMu.Unlock()
+	return lastIgnoredEnvVarReport
 }
