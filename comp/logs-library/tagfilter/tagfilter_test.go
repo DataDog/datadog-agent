@@ -83,9 +83,9 @@ func TestCompileReportsAllRejectionsAndKeepsValidPatterns(t *testing.T) {
 }
 
 func TestCompileDeduplicatesPatterns(t *testing.T) {
-	f, report := Compile([]string{"foo:*", " foo:* ", "foo:*"}, nil)
+	f, report := Compile([]string{"Team:Infra", " team:infra ", "TEAM:INFRA", "Team:Infra"}, nil)
 	assert.Empty(t, report.Rejected)
-	assert.Equal(t, []string{"foo:*"}, f.Patterns().Include)
+	assert.Equal(t, []string{"Team:Infra"}, f.Patterns().Include)
 }
 
 func TestCompileWarnsOnProtectedExclude(t *testing.T) {
@@ -97,7 +97,7 @@ func TestCompileWarnsOnProtectedExclude(t *testing.T) {
 	assert.Nil(t, NewScoped(f, nil))
 }
 
-func TestMatchingIsCaseInsensitive(t *testing.T) {
+func TestMatchingUsesASCIICaseFolding(t *testing.T) {
 	tests := []struct {
 		name    string
 		exclude string
@@ -116,6 +116,11 @@ func TestMatchingIsCaseInsensitive(t *testing.T) {
 			assert.False(t, f.Retains(test.tag))
 		})
 	}
+
+	f, report := Compile(nil, []string{"city:MÜNCHEN"})
+	require.Empty(t, report.Rejected)
+	assert.False(t, f.Retains("city:MÜNCHEN"))
+	assert.True(t, f.Retains("city:münchen"), "non-ASCII casing must be compared exactly")
 }
 
 func TestProtectedKeysSurviveMixedCaseTags(t *testing.T) {

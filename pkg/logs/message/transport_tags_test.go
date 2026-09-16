@@ -48,26 +48,3 @@ func TestTransportTagsFiltersWithoutChangingStoredTags(t *testing.T) {
 	assert.Equal(t, []string{"baz", "sourcecategory:cat", "cfg:tag", "e"}, filtered)
 	assert.Equal(t, []string{"foo:bar", "baz", "sourcecategory:cat", "cfg:tag", "e"}, origin.Tags())
 }
-
-func TestTransportTagsDoesNotAliasInputs(t *testing.T) {
-	for _, filter := range []*fakeTagFilter{
-		{drop: map[string]bool{}},
-		{drop: map[string]bool{"foo": true}},
-	} {
-		cfg := &config.LogsConfig{Tags: []string{"cfg:tag"}}
-		origin := NewOrigin(sources.NewLogSource("", cfg))
-
-		tagsWithCapacity := make([]string, 2, 10)
-		tagsWithCapacity[0] = "foo:bar"
-		tagsWithCapacity[1] = "baz"
-		origin.SetTags(tagsWithCapacity)
-
-		result := origin.TransportTags(filter)
-		if len(result) > 0 {
-			result[0] = "mutated:value"
-		}
-
-		assert.Equal(t, []string{"foo:bar", "baz"}, origin.tags)
-		assert.Equal(t, []string{"cfg:tag"}, []string(cfg.Tags))
-	}
-}

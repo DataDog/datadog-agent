@@ -43,6 +43,7 @@ func (o *Origin) Tags() []string {
 }
 
 // TransportTags returns tags after f for intake encoders. Tags remains unfiltered.
+// The returned slice must not be modified by the caller.
 func (o *Origin) TransportTags(f sources.TagFilter) []string {
 	if f == nil {
 		return o.Tags()

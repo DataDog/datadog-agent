@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package tagfilter removes user-configured log tags before intake encoding.
-// Matching uses case-insensitive key:value patterns with value-only wildcards.
+// Matching uses ASCII-case-insensitive key:value patterns with value-only wildcards.
 package tagfilter
 
 import (
@@ -130,12 +130,16 @@ func compileList(byKey map[string]*keyRules, patterns []string, isExclude bool, 
 	kept := make([]string, 0, len(patterns))
 	for _, raw := range patterns {
 		p := strings.TrimSpace(raw)
-		if _, dup := seen[p]; dup {
+		key, value, reason := parsePattern(p)
+		dedupKey := p
+		if reason == "" {
+			dedupKey = asciiLower(p)
+		}
+		if _, dup := seen[dedupKey]; dup {
 			continue
 		}
-		seen[p] = struct{}{}
+		seen[dedupKey] = struct{}{}
 
-		key, value, reason := parsePattern(p)
 		if reason != "" {
 			report.Rejected = append(report.Rejected, RejectedPattern{Pattern: p, Reason: reason})
 			continue
@@ -284,12 +288,12 @@ func foldByte(c byte) byte {
 	return c
 }
 
-// equalFolded reports whether s case-folds to folded.
+// equalFolded reports whether s ASCII-case-folds to folded.
 func equalFolded(folded, s string) bool {
 	if len(folded) != len(s) {
 		return false
 	}
-	for i := range s {
+	for i := 0; i < len(s); i++ {
 		if foldByte(s[i]) != folded[i] {
 			return false
 		}
