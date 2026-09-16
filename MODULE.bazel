@@ -112,17 +112,30 @@ archive_override(
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
-archive_override(
+# TEMP: testing the installed-size-auto-compute branch (not yet a PR) before
+# opening it upstream. Revert to the archive_override below once confirmed.
+git_override(
     module_name = "rules_pkg",
+    commit = "0fca0879027e3bc72f2b91750e6f719e10784046",
     patch_strip = 1,
     patches = [
         # Windows runfiles junctions cannot point at files; follow them on copy.
         "//bazel/patches:rules_pkg-windows-junction-copy.patch",
     ],
-    sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
-    strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
-    urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
+    remote = "https://github.com/chouquette/rules_pkg.git",
 )
+
+# archive_override(
+#     module_name = "rules_pkg",
+#     patch_strip = 1,
+#     patches = [
+#         # Windows runfiles junctions cannot point at files; follow them on copy.
+#         "//bazel/patches:rules_pkg-windows-junction-copy.patch",
+#     ],
+#     sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
+#     strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
+#     urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
+# )
 
 # Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
 archive_override(
