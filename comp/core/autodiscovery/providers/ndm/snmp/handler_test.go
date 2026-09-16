@@ -167,7 +167,7 @@ credentials:
 	require.NoError(t, err)
 	assert.Contains(t, string(first[0].Instances[0]), "community_string: public")
 
-	writeCredentials(t, cfg.GetString("confd_path"), `
+	writeCredentials(t, cfg.GetString("conf_path"), `
 credentials:
   - id: cred-abc
     snmp_version: "2c"
