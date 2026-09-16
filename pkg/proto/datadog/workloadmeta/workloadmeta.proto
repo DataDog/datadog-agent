@@ -79,6 +79,7 @@ message ContainerImageMetadata {
   string variant = 10;
   repeated ContainerImageLayer layers = 11;
   CompressedSBOM sbom = 12;
+  int64 created = 13;
 }
 
 message ContainerPort {

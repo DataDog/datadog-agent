@@ -658,6 +658,16 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		return nil, err
 	}
 
+	var created time.Time
+	if imgInspect.Created != "" {
+		t, err := time.Parse(time.RFC3339Nano, imgInspect.Created)
+		if err != nil {
+			log.Warnf("error parsing creation time %q of image %s: %s", imgInspect.Created, imgInspect.ID, err)
+		} else {
+			created = t
+		}
+	}
+
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
@@ -674,6 +684,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		OSVersion:    imgInspect.OsVersion,
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
+		Created:      created,
 		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
 		SBOM:         csbom,
 	}, nil
