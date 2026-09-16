@@ -211,6 +211,7 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			envVars:         envVars,
 			json:            createJSON(t),
 			usesDefaultLibs: usesDefaultLibs,
+			trigger:         annotation.InjectionTriggerTarget,
 		}
 	}
 
@@ -276,6 +277,7 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 			json:            createPolicyJSON(p),
 			usesDefaultLibs: usesDefaultLibs,
 			fromPolicy:      true,
+			trigger:         annotation.InjectionTriggerPolicy,
 		}
 	}
 
@@ -372,6 +374,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if target.json != "" {
 		m.addTargetJSONInfo(pod, target)
 	}
+	annotation.Set(pod, annotation.InjectionTrigger, target.trigger)
 
 	return true, nil
 }
@@ -424,6 +427,8 @@ type targetInternal struct {
 	envVars         []corev1.EnvVar
 	json            string
 	usesDefaultLibs bool
+	// trigger identifies the configuration source that selected this target.
+	trigger string
 	// fromPolicy is true when this internal target was derived from a
 	// remote-config policy rather than a configuration target. It selects which
 	// annotation/env var carries the applied information.
@@ -506,6 +511,7 @@ func (m *TargetMutator) fromDDIAPMConfig(workload ssi.DDICRTarget, config ssi.DD
 		envVars:         config.TracerConfigs,
 		json:            string(data),
 		usesDefaultLibs: usesDefaultLibs,
+		trigger:         annotation.InjectionTriggerDDI,
 	}
 }
 
@@ -535,6 +541,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 			target: &targetInternal{
 				libVersions: extractedLibraries,
 				envVars:     extractTracerConfigsFromAnnotations(pod),
+				trigger:     annotation.InjectionTriggerAnnotation,
 			},
 		}
 	}
@@ -546,6 +553,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
 				envVars:     extractTracerConfigsFromAnnotations(pod),
+				trigger:     annotation.InjectionTriggerAnnotation,
 			},
 		}
 	}

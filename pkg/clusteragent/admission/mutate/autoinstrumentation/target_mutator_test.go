@@ -167,6 +167,7 @@ func TestMutatePod(t *testing.T) {
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
 		ddiTargetEntries            mockDDIProvider
+		remotePolicies              []policies.Policy
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -194,7 +195,44 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.AppliedTarget: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedTarget:    "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.InjectionTrigger: annotation.InjectionTriggerTarget,
+			},
+		},
+		"library annotation records annotation trigger": {
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				Labels: map[string]string{
+					common.EnabledLabelKey: "true",
+				},
+				Annotations: map[string]string{
+					annotation.LibraryVersion.Format("python"): "v3",
+				},
+			}.Create(),
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v3",
+			},
+			expectedAnnotations: map[string]string{
+				annotation.InjectionTrigger: annotation.InjectionTriggerAnnotation,
+			},
+		},
+		"remote config policy records policy trigger": {
+			in: mutatecommon.FakePodWithNamespace("foo-service", "application"),
+			remotePolicies: []policies.Policy{{
+				Name:  "remote-policy",
+				Rules: policies.AlwaysTrue(),
+				Outcome: policies.Outcome{
+					Inject:         true,
+					TracerVersions: map[string]string{"python": "v3"},
+				},
+			}},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v3",
+			},
+			expectedAnnotations: map[string]string{
+				annotation.InjectionTrigger: annotation.InjectionTriggerPolicy,
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -328,7 +366,8 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.AppliedTarget: "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+				annotation.AppliedTarget:    "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+				annotation.InjectionTrigger: annotation.InjectionTriggerDDI,
 			},
 		},
 		"CRD target in disabled namespace does not mutate pod": {
@@ -387,6 +426,9 @@ func TestMutatePod(t *testing.T) {
 			// Create the mutator.
 			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, test.ddiTargetEntries)
 			require.NoError(t, err)
+			if test.remotePolicies != nil {
+				require.NoError(t, f.SetRemotePolicies(test.remotePolicies))
+			}
 
 			input := test.in.DeepCopy()
 
