@@ -239,7 +239,6 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			// Send empty keepalive
 			keepaliveSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_keepalive",
 				tracer.ResourceName("sendKeepalive"),
-				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 				tracer.Tag("node_name", nodeName),
 			)
 			if err := grpc.DoWithTimeout(func() error {
