@@ -227,8 +227,8 @@ func TestMaterializeEnvironmentVariable_RejectsUnsupportedKind(t *testing.T) {
 
 func TestAddParameterEnvironment_RejectsNameCollision(t *testing.T) {
 	mapping := map[string]string{
-		"targetURL": "PAR_ENV_TARGET_URL",
-		"TargetURL": "PAR_ENV_TARGET_URL",
+		"targetURL": "DD_AUTHORED_SCRIPT_TARGET_URL",
+		"TargetURL": "DD_AUTHORED_SCRIPT_TARGET_URL",
 	}
 
 	err := addParameterEnvironment(map[string]string{}, mapping, map[string]interface{}{
@@ -237,7 +237,7 @@ func TestAddParameterEnvironment_RejectsNameCollision(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "PAR_ENV_TARGET_URL")
+	assert.Contains(t, err.Error(), "DD_AUTHORED_SCRIPT_TARGET_URL")
 }
 
 func TestAddParameterEnvironment_RejectsMissingMapping(t *testing.T) {

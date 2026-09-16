@@ -34,8 +34,8 @@ func TestNewCommand_InjectsParameters(t *testing.T) {
 		Command: []string{"/bin/echo"},
 		Manifest: &Manifest{
 			ParameterEnvMapping: map[string]string{
-				"targetURL": "PAR_ENV_TARGET_URL",
-				"count":     "PAR_ENV_COUNT",
+				"targetURL": "DD_AUTHORED_SCRIPT_TARGET_URL",
+				"count":     "DD_AUTHORED_SCRIPT_COUNT",
 			},
 		},
 	}
@@ -47,10 +47,10 @@ func TestNewCommand_InjectsParameters(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/bin/echo"}, cmd.Args)
-	value, ok := lookupEnv(t, cmd.Env, "PAR_ENV_TARGET_URL")
+	value, ok := lookupEnv(t, cmd.Env, "DD_AUTHORED_SCRIPT_TARGET_URL")
 	require.True(t, ok)
 	assert.Equal(t, "https://example.com", value)
-	value, ok = lookupEnv(t, cmd.Env, "PAR_ENV_COUNT")
+	value, ok = lookupEnv(t, cmd.Env, "DD_AUTHORED_SCRIPT_COUNT")
 	require.True(t, ok)
 	assert.Equal(t, "3", value)
 }
@@ -70,12 +70,12 @@ func TestNewCommand_RejectsNonObjectParameters(t *testing.T) {
 
 func TestNewCommand_RejectsCollisionWithAllowedEnvVar(t *testing.T) {
 	session := newTestSession(t)
-	t.Setenv("PAR_ENV_NAME", "preset")
+	t.Setenv("DD_AUTHORED_SCRIPT_NAME", "preset")
 	pkg := &Package{
 		Command: []string{"/bin/echo"},
 		Manifest: &Manifest{
-			AllowedEnvVars:      []string{"PAR_ENV_NAME"},
-			ParameterEnvMapping: map[string]string{"name": "PAR_ENV_NAME"},
+			AllowedEnvVars:      []string{"DD_AUTHORED_SCRIPT_NAME"},
+			ParameterEnvMapping: map[string]string{"name": "DD_AUTHORED_SCRIPT_NAME"},
 		},
 	}
 
