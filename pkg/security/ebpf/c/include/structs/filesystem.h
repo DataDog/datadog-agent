@@ -23,6 +23,7 @@ struct mount_fields_t {
     u16   visible;   // Is mount visible in the VFS?
     u16   detached;  // A detached mount is always not visible, but an invisible mount isn't always detached
     u32   ns_inum;
+    u32   mnt_flags; // raw vfsmount mnt_flags; normalized in userspace
 };
 
 #endif
