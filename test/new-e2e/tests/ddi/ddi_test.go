@@ -10,6 +10,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -41,16 +42,19 @@ import (
 
 const (
 	testNamespace       = "ddi-e2e"
+	updateTestNamespace = "ddi-e2e-update"
 	workloadName        = "nginx"
 	containerName       = "nginx"
 	ddiName             = "nginx-monitoring"
+	updateDDIName       = "nginx-monitoring-update"
 	metricName          = "network.http.response_time"
 	logService          = "ddi-e2e-nginx"
+	updateLogService    = "ddi-e2e-nginx-update"
 	logSource           = "nginx"
 	logMessage          = "GET / HTTP/1.1"
 	testTag             = "ddi_e2e:true"
-	payloadTimeout      = 5 * time.Minute
-	payloadPollInterval = 10 * time.Second
+	timeout             = 1 * time.Minute
+	interval            = 1 * time.Second
 )
 
 var ddiGVR = schema.GroupVersionResource{
@@ -99,7 +103,7 @@ func (s *ddiSuite) TestCheckMetricCollection() {
 			assert.NoError(c, namesErr)
 			assert.Fail(c, "DDI-configured check metric not found", "available metrics: %v", metricNames)
 		}
-	}, payloadTimeout, payloadPollInterval)
+	}, timeout, interval)
 }
 
 func (s *ddiSuite) TestLogCollection() {
@@ -117,7 +121,7 @@ func (s *ddiSuite) TestLogCollection() {
 			return
 		}
 		assert.Equal(c, logSource, logs[0].Source)
-	}, payloadTimeout, payloadPollInterval)
+	}, timeout, interval)
 }
 
 func (s *ddiSuite) TestReadyConditions() {
@@ -139,12 +143,82 @@ func (s *ddiSuite) TestReadyConditions() {
 		}
 		assert.True(c, hasTrueCondition(conditions, "ChecksReady"), "ChecksReady is not True: %v", conditions)
 		assert.True(c, hasTrueCondition(conditions, "LogsReady"), "LogsReady is not True: %v", conditions)
-	}, 2*time.Minute, 5*time.Second)
+	}, timeout, interval)
 }
 
-func hasTrueCondition(conditions []interface{}, conditionType string) bool {
+func (s *ddiSuite) TestConfigurationUpdate() {
+	dynamicClient, err := dynamic.NewForConfig(s.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+	require.NoError(s.T(), err)
+
+	ctx := context.Background()
+	resourceClient := dynamicClient.Resource(ddiGVR).Namespace(updateTestNamespace)
+	resource, err := resourceClient.Get(ctx, updateDDIName, metav1.GetOptions{})
+	require.NoError(s.T(), err)
+	previousGeneration := resource.GetGeneration()
+	updatedTestTag := fmt.Sprintf("ddi_e2e_update:%d", time.Now().UnixNano())
+
+	ddi := &datadoghq.DatadogInstrumentation{}
+	require.NoError(s.T(), runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, ddi))
+	require.Len(s.T(), ddi.Spec.Config.Checks, 1)
+	require.Len(s.T(), ddi.Spec.Config.Checks[0].Instances, 1)
+	require.Len(s.T(), ddi.Spec.Config.Logs, 1)
+
+	updatedInstance, err := newHTTPCheckInstance([]string{testTag, updatedTestTag})
+	require.NoError(s.T(), err)
+	ddi.Spec.Config.Checks[0].Instances[0] = updatedInstance
+	ddi.Spec.Config.Logs[0].Tags = []string{testTag, updatedTestTag}
+
+	updatedObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ddi)
+	require.NoError(s.T(), err)
+	updatedResource, err := resourceClient.Update(ctx, &unstructured.Unstructured{Object: updatedObject}, metav1.UpdateOptions{})
+	require.NoError(s.T(), err)
+	updatedGeneration := updatedResource.GetGeneration()
+	require.Greater(s.T(), updatedGeneration, previousGeneration)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		resource, err := resourceClient.Get(ctx, updateDDIName, metav1.GetOptions{})
+		require.NoError(c, err)
+
+		conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
+		require.NoError(c, err)
+		if !assert.True(c, found, "updated DatadogInstrumentation has no status conditions") {
+			return
+		}
+		assert.True(c, hasTrueConditionForGeneration(conditions, "ChecksReady", updatedGeneration), "ChecksReady is not True for generation %d: %v", updatedGeneration, conditions)
+		assert.True(c, hasTrueConditionForGeneration(conditions, "LogsReady", updatedGeneration), "LogsReady is not True for generation %d: %v", updatedGeneration, conditions)
+	}, timeout, interval)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			metricName,
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{testTag, updatedTestTag, "kube_namespace:" + updateTestNamespace}),
+		)
+		require.NoError(c, err)
+		if len(metrics) == 0 {
+			metricNames, namesErr := s.Env().FakeIntake.Client().GetMetricNames()
+			assert.NoError(c, namesErr)
+			assert.Fail(c, "updated DDI-configured check metric not found", "available metrics: %v", metricNames)
+		}
+
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(
+			updateLogService,
+			fakeintake.WithMessageContaining(logMessage),
+			fakeintake.WithTags[*aggregator.Log]([]string{testTag, updatedTestTag, "kube_namespace:" + updateTestNamespace}),
+		)
+		require.NoError(c, err)
+		if len(logs) == 0 {
+			services, servicesErr := s.Env().FakeIntake.Client().GetLogServiceNames()
+			assert.NoError(c, servicesErr)
+			assert.Fail(c, "updated DDI-configured log not found", "available log services: %v", services)
+			return
+		}
+		assert.Equal(c, logSource, logs[0].Source)
+	}, timeout, interval)
+}
+
+func hasTrueCondition(conditions []any, conditionType string) bool {
 	for _, rawCondition := range conditions {
-		condition, ok := rawCondition.(map[string]interface{})
+		condition, ok := rawCondition.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -155,11 +229,36 @@ func hasTrueCondition(conditions []interface{}, conditionType string) bool {
 	return false
 }
 
+func hasTrueConditionForGeneration(conditions []any, conditionType string, generation int64) bool {
+	for _, rawCondition := range conditions {
+		condition, ok := rawCondition.(map[string]any)
+		if !ok || condition["type"] != conditionType || condition["status"] != "True" {
+			continue
+		}
+		observedGeneration, found, err := unstructured.NestedInt64(condition, "observedGeneration")
+		if err == nil && found && observedGeneration == generation {
+			return true
+		}
+	}
+	return false
+}
+
 func ddiWorkload(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*kubecomp.Workload, error) {
+	workload, err := newDDIWorkload(e, kubeProvider, testNamespace, ddiName, logService, dependsOnAgent)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := newDDIWorkload(e, kubeProvider, updateTestNamespace, updateDDIName, updateLogService, dependsOnAgent); err != nil {
+		return nil, err
+	}
+	return workload, nil
+}
+
+func newDDIWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespace, instrumentationName, service string, dependsOnAgent pulumi.ResourceOption) (*kubecomp.Workload, error) {
 	workload, err := nginx.K8sAppDefinitionWithOptions(
 		e,
 		kubeProvider,
-		testNamespace,
+		namespace,
 		80,
 		"",
 		false,
@@ -177,7 +276,7 @@ func ddiWorkload(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent
 		dependsOnAgent,
 		utils.PulumiDependsOn(workload),
 	}
-	ddi, err := newDatadogInstrumentation()
+	ddi, err := newDatadogInstrumentation(namespace, instrumentationName, service)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +284,7 @@ func ddiWorkload(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent
 	if err != nil {
 		return nil, err
 	}
-	_, err = k8syaml.NewConfigGroup(e.Ctx(), testNamespace+"/"+ddiName, &k8syaml.ConfigGroupArgs{
+	_, err = k8syaml.NewConfigGroup(e.Ctx(), namespace+"/"+instrumentationName, &k8syaml.ConfigGroupArgs{
 		YAML: []string{string(ddiManifest)},
 	}, ddiOptions...)
 	if err != nil {
@@ -195,17 +294,12 @@ func ddiWorkload(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent
 	return workload, nil
 }
 
-func newDatadogInstrumentation() (*datadoghq.DatadogInstrumentation, error) {
-	initConfig, err := rawExtension(map[string]interface{}{})
+func newDatadogInstrumentation(namespace, instrumentationName, service string) (*datadoghq.DatadogInstrumentation, error) {
+	initConfig, err := rawExtension(map[string]any{})
 	if err != nil {
 		return nil, err
 	}
-	instance, err := rawExtension(map[string]interface{}{
-		"name":    "DDI E2E Nginx",
-		"url":     "http://%%host%%:80/",
-		"timeout": 5,
-		"tags":    []string{testTag},
-	})
+	instance, err := newHTTPCheckInstance([]string{testTag})
 	if err != nil {
 		return nil, err
 	}
@@ -216,8 +310,8 @@ func newDatadogInstrumentation() (*datadoghq.DatadogInstrumentation, error) {
 			Kind:       "DatadogInstrumentation",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ddiName,
-			Namespace: testNamespace,
+			Name:      instrumentationName,
+			Namespace: namespace,
 		},
 		Spec: datadoghq.DatadogInstrumentationSpec{
 			TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -238,7 +332,7 @@ func newDatadogInstrumentation() (*datadoghq.DatadogInstrumentation, error) {
 					{
 						ContainerName: containerName,
 						DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
-							Service: logService,
+							Service: service,
 							Source:  logSource,
 							Tags:    []string{testTag},
 						},
@@ -249,7 +343,16 @@ func newDatadogInstrumentation() (*datadoghq.DatadogInstrumentation, error) {
 	}, nil
 }
 
-func rawExtension(value interface{}) (runtime.RawExtension, error) {
+func newHTTPCheckInstance(tags []string) (runtime.RawExtension, error) {
+	return rawExtension(map[string]any{
+		"name":    "DDI E2E Nginx",
+		"url":     "http://%%host%%:80/",
+		"timeout": 5,
+		"tags":    tags,
+	})
+}
+
+func rawExtension(value any) (runtime.RawExtension, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return runtime.RawExtension{}, err
