@@ -32,8 +32,7 @@ pub(crate) fn create_pipe_server(
     options: &ServerOptions,
     pipe_name: &OsStr,
 ) -> io::Result<NamedPipeServer> {
-    let sddl =
-        cached_pipe_sddl().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let sddl = cached_pipe_sddl().map_err(|e| io::Error::other(e.to_string()))?;
     with_security_attributes(sddl, |attrs| unsafe {
         options.create_with_security_attributes_raw(pipe_name, attrs)
     })

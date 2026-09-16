@@ -82,7 +82,7 @@ impl ManagedProcess {
             format!("[{}] create job object for child supervision", self.name())
         })?;
 
-        let handle = spawn_inherit_supervisor(self.name(), &request, credential, &job)
+        let handle = spawn_inherit_supervisor(self.name(), request, credential, &job)
             .with_context(|| format!("[{}] supervisor-token inherit spawn failed", self.name()))?;
 
         self.set_job_object(job);

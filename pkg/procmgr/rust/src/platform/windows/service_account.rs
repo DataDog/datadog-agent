@@ -70,9 +70,11 @@ fn load_net_is_service_account() -> Result<NetIsServiceAccountFn> {
         return Err(std::io::Error::last_os_error()).context("GetProcAddress(NetIsServiceAccount)");
     };
 
-    // Keep Logoncli.dll mapped for the process lifetime; only the function pointer is cached.
-    std::mem::forget(module);
-    let net_is_service_account = unsafe { std::mem::transmute::<_, NetIsServiceAccountFn>(proc) };
+    // Logoncli.dll is deliberately never freed: the cached function pointer must stay valid
+    // for the process lifetime, so there is no matching FreeLibrary.
+    let net_is_service_account = unsafe {
+        std::mem::transmute::<unsafe extern "system" fn() -> isize, NetIsServiceAccountFn>(proc)
+    };
     Ok(net_is_service_account)
 }
 
@@ -93,5 +95,12 @@ mod tests {
             format!("{err:#}").contains("NetIsServiceAccount"),
             "expected NetIsServiceAccount failure, got {err:#}"
         );
+    }
+
+    #[test]
+    fn is_managed_service_account_degrades_to_false_on_query_failure() {
+        // NT AUTHORITY\SYSTEM makes NetIsServiceAccount fail (see the test above); the
+        // caller must treat that as "not a gMSA" rather than propagating the error.
+        assert!(!is_managed_service_account("NT AUTHORITY", "SYSTEM"));
     }
 }
