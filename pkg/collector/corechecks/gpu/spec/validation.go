@@ -17,6 +17,7 @@ type GPUConfig struct {
 	DeviceMode      DeviceMode               `json:"device_mode"`
 	Capabilities    ArchitectureCapabilities `json:"capabilities,omitempty"`
 	NVLinkLinkCount int                      `json:"nvlink_link_count,omitempty"`
+	NVLinkCapable   *bool                    `json:"nvlink_capable,omitempty"`
 }
 
 // ValidationOptions controls which spec failures should be enforced.
@@ -46,7 +47,15 @@ func (c *GPUConfig) Equals(other GPUConfig) bool {
 		c.Capabilities.GPM == other.Capabilities.GPM &&
 		c.Capabilities.NVLink == other.Capabilities.NVLink &&
 		c.Capabilities.C2C == other.Capabilities.C2C &&
-		c.NVLinkLinkCount == other.NVLinkLinkCount
+		c.NVLinkLinkCount == other.NVLinkLinkCount &&
+		nvLinkCapabilityEqual(c.NVLinkCapable, other.NVLinkCapable)
+}
+
+func nvLinkCapabilityEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // TagFilter returns the Datadog tag filter expression for a GPU config.
@@ -60,6 +69,9 @@ func (c *GPUConfig) TagFilter() string {
 		parts = append(parts, "gpu_virtualization_mode:*vgpu")
 	default:
 		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig")
+	}
+	if c.NVLinkCapable != nil {
+		parts = append(parts, fmt.Sprintf("gpu_nvlink_capable:%t", *c.NVLinkCapable))
 	}
 
 	return strings.Join(parts, " AND ")
@@ -186,12 +198,26 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 			if capabilities.NVLink > 0 {
 				nvlinkLinkCount = 2
 			}
-			configs = append(configs, GPUConfig{
+			config := GPUConfig{
 				Architecture:    strings.ToLower(archName),
 				DeviceMode:      mode,
 				Capabilities:    capabilities,
 				NVLinkLinkCount: nvlinkLinkCount,
-			})
+			}
+			if capabilities.NVLink == 0 {
+				configs = append(configs, config)
+				continue
+			}
+
+			nvLinkCapable := true
+			config.NVLinkCapable = &nvLinkCapable
+			configs = append(configs, config)
+
+			nvLinkNotCapable := false
+			config.Capabilities.NVLink = 0
+			config.NVLinkLinkCount = 0
+			config.NVLinkCapable = &nvLinkNotCapable
+			configs = append(configs, config)
 		}
 	}
 

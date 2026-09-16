@@ -36,6 +36,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
         [
             row.config.architecture,
             row.config.device_mode,
+            row.config.nvlink_capable if row.config.nvlink_capable is not None else "n/a",
             color_status(row.state),
             row.device_count,
             color_metric_counts(row.missing_metrics, row.present_metrics, row.unknown_metrics),
@@ -53,6 +54,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
             headers=[
                 "architecture",
                 "device mode",
+                "NVLink capable",
                 "status",
                 "found devices",
                 "missing/known/unknown metrics",
@@ -71,7 +73,9 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         if result.state not in {GPUConfigValidationState.ERROR, GPUConfigValidationState.FAIL} or result.device_count == 0:
             continue
 
-        print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
+        nvlink_capable = result.config.nvlink_capable
+        nvlink_capability = "n/a" if nvlink_capable is None else str(nvlink_capable).lower()
+        print(f"\n-- {result.config.architecture} {result.config.device_mode} (NVLink capable: {nvlink_capability}) --")
         print(f"{SPACER}found devices: {result.device_count}")
         print(f"{SPACER}summary")
         print(f"{SPACER * 2}missing={result.missing_metrics}")

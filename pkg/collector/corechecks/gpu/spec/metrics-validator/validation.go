@@ -23,7 +23,7 @@ import (
 
 const metricQueryConcurrency = 4
 
-func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metricFilter string) (orgValidationResults, error) {
+func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agentVersion, metricFilter string) (orgValidationResults, error) {
 	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
 		return orgValidationResults{}, fmt.Errorf("load specs: %w", err)
@@ -199,6 +199,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		}
 	}
 
+	validationOptions.IgnoreMetrics = unavailableMetrics
 	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, validationOptions)
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
@@ -225,6 +226,9 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilter string) 
 	// The metric all-tags endpoint does not handle NOT filters like scalar metric queries do.
 	// Use equivalent positive scopes for physical GPUs so tag inventories stay complete.
 	baseParts := []string{"kube_cluster_name:*", "gpu_architecture:" + config.Architecture}
+	if config.NVLinkCapable != nil {
+		baseParts = append(baseParts, fmt.Sprintf("gpu_nvlink_capable:%t", *config.NVLinkCapable))
+	}
 	switch config.DeviceMode {
 	case gpuspec.DeviceModeMIG:
 		baseParts = append(baseParts, "gpu_slicing_mode:mig")
