@@ -241,21 +241,16 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	// call's return already implies it.
 	advanceMockClockUntil(t, clk, func() bool { return s.clusterID.Load() != nil })
 
-	// Cached from the settled resolution: later calls take the fast path
-	// and return without needing the mock clock to advance any further.
+	// Cached calls must return without the mock clock advancing at all; a fallback to retrying would block on it forever and hit the guard below.
 	for i := 0; i < 50; i++ {
 		doneCh := make(chan string, 1)
 		go func() { doneCh <- s.ClusterID() }()
-		var v string
-		advanceMockClockUntil(t, clk, func() bool {
-			select {
-			case v = <-doneCh:
-				return true
-			default:
-				return false
-			}
-		})
-		assert.Empty(t, v)
+		select {
+		case v := <-doneCh:
+			assert.Empty(t, v)
+		case <-time.After(time.Second):
+			t.Fatal("cached ClusterID() call blocked instead of returning immediately from cache")
+		}
 	}
 }
 
