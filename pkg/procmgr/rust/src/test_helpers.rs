@@ -488,3 +488,45 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         ..Default::default()
     }
 }
+
+/// Sets variables in the supervisor's own environment for as long as the guard lives.
+///
+/// Only inheritance tests need this: the environment is process-global, so a
+/// test that sets a variable and then panics would leak it into every test
+/// running afterwards in the same binary. The lock keeps two such tests from
+/// overlapping.
+pub struct EnvGuard {
+    restore: Vec<(String, Option<String>)>,
+    _lock: tokio::sync::MutexGuard<'static, ()>,
+}
+
+impl EnvGuard {
+    pub async fn set(vars: &[(&str, &str)]) -> Self {
+        static LOCK: std::sync::LazyLock<tokio::sync::Mutex<()>> =
+            std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+        let lock = LOCK.lock().await;
+        let restore = vars
+            .iter()
+            .map(|(name, _)| ((*name).to_string(), std::env::var(name).ok()))
+            .collect();
+        for (name, value) in vars {
+            unsafe { std::env::set_var(name, value) };
+        }
+        Self {
+            restore,
+            _lock: lock,
+        }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for (name, previous) in &self.restore {
+            match previous {
+                Some(value) => unsafe { std::env::set_var(name, value) },
+                None => unsafe { std::env::remove_var(name) },
+            }
+        }
+    }
+}

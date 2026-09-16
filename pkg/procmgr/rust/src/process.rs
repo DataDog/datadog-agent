@@ -728,7 +728,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_does_not_inherit_parent_env() {
-        unsafe { std::env::set_var("PROCMGRD_TEST_SECRET", "leaked") };
+        let _env = test_helpers::EnvGuard::set(&[("PROCMGRD_TEST_SECRET", "leaked")]).await;
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
         let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
@@ -744,19 +744,19 @@ pub mod tests {
             Some(0),
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
-        unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
     }
 
     #[tokio::test]
     async fn test_spawn_inherits_opted_in_parent_env() {
-        unsafe {
-            std::env::set_var("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_");
-            std::env::set_var("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, ");
-            std::env::set_var("INHERITED_PREFIX_VALUE", "prefix");
-            std::env::set_var("INHERITED_PREFIX_FILE", "parent");
-            std::env::set_var("INHERITED_EXACT", "parent");
-            std::env::set_var("NOT_INHERITED", "secret");
-        }
+        let _env = test_helpers::EnvGuard::set(&[
+            ("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_"),
+            ("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, "),
+            ("INHERITED_PREFIX_VALUE", "prefix"),
+            ("INHERITED_PREFIX_FILE", "parent"),
+            ("INHERITED_EXACT", "parent"),
+            ("NOT_INHERITED", "secret"),
+        ])
+        .await;
 
         let dir = tempfile::tempdir().unwrap();
         let env_file = dir.path().join("env");
@@ -776,17 +776,6 @@ pub mod tests {
             ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
         let status = exit_rx.recv().await.expect("exit event").status;
-
-        for name in [
-            "DD_PM_INHERIT_ENV_PREFIXES",
-            "DD_PM_INHERIT_ENV_NAMES",
-            "INHERITED_PREFIX_VALUE",
-            "INHERITED_PREFIX_FILE",
-            "INHERITED_EXACT",
-            "NOT_INHERITED",
-        ] {
-            unsafe { std::env::remove_var(name) };
-        }
         assert_eq!(status.code(), Some(0));
     }
 
