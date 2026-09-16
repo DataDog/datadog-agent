@@ -54,32 +54,43 @@ pkg_filegroup(
     }),
 )
 
-# This is an intermediate node to collect all dependencies so we can walk
-# the aspect to gather OSS licenses.
+# Everything here lands under /opt/datadog-agent.
 pkg_filegroup(
     name = "everything",
     srcs = [
         ":all_files",
     ],
+    prefix = "/opt/datadog-agent",
 )
 
 # Gather licenses for all pieces of the distribution.
 package_licenses(
     name = "license_files",
-    src = ":everything",
+    src = ":all_files",
 )
 
+# license_files has no prefix of its own; it belongs under /opt/datadog-agent
+# alongside everything.
+pkg_filegroup(
+    name = "prefixed_license_files",
+    srcs = [
+        ":license_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+# iot_files, example_config, and system_dirs already carry their own
+# absolute-style prefix (etc/datadog-agent, var/log/datadog), so they must
+# stay outside of the /opt/datadog-agent prefix applied above.
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
         ":everything",
         ":example_config",
-        ":license_files",
+        ":prefixed_license_files",
         ":system_dirs",
         "//cmd/agent/dist/conf.d:iot_files",
     ],
-    package_variables = ":variables",
-    prefix = "$(install_dir)",
 )
 
 # Only a source for the debian package, which requires a single tar as input.
