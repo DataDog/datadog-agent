@@ -196,11 +196,22 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 // pattern when no example is available. Other metrics retain their series name.
 func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
 	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
-		tags := scorerContributorTags(meta)
-		if len(tags) == 0 {
+		if meta.Tags.Len() == 0 && meta.Host == "" {
 			return name
 		}
-		return name + " — {" + strings.Join(tags, ",") + "}"
+		var b strings.Builder
+		b.WriteString(name)
+		b.WriteString(" — {")
+		if meta.Host != "" && !meta.Tags.Find(func(tag string) bool { return tag == "host:"+meta.Host }) {
+			b.WriteString("host:")
+			b.WriteString(meta.Host)
+			if meta.Tags.Len() > 0 {
+				b.WriteByte(',')
+			}
+		}
+		b.WriteString(meta.Tags.Join(","))
+		b.WriteByte('}')
+		return b.String()
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
@@ -209,20 +220,6 @@ func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observe
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
-}
-
-func scorerContributorTags(meta *observerdef.SeriesMeta) []string {
-	if meta.Host == "" {
-		return meta.Tags.UnsafeToReadOnlySliceString()
-	}
-	hostTag := "host:" + meta.Host
-	if meta.Tags.Find(func(tag string) bool { return tag == hostTag }) {
-		return meta.Tags.UnsafeToReadOnlySliceString()
-	}
-	tags := make([]string, 0, meta.Tags.Len()+1)
-	tags = append(tags, hostTag)
-	meta.Tags.ForEach(func(tag string) { tags = append(tags, tag) })
-	return tags
 }
 
 // logDerivedContributorName returns the human-readable name for a log-derived
