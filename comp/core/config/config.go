@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"

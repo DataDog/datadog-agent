@@ -34,7 +34,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/scrubber",
         "//pkg/util/uuid",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

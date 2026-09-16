@@ -44,6 +44,7 @@ dd_agent_go_test(
     srcs = [
         "cache_test.go",
         "device_impl_test.go",
+        "gate_test.go",
         "lib_test.go",
         "telemetry_test.go",
     ],

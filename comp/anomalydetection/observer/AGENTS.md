@@ -120,7 +120,11 @@ writing. Detectors can pick any aggregation without re-ingesting data.
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
-observations are silently dropped. Analysis never back-pressures data ingestion.
+observations are dropped and counted in Observer telemetry. Analysis never
+back-pressures data ingestion.
+The agent-internal log tap likewise uses a bounded non-blocking handoff before
+performing processing rules, rate limiting, allocation, and `ObserveLog` work,
+so it does not run those operations under the global Agent logger lock.
 
 ### Metric ingestion gate
 

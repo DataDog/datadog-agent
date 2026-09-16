@@ -73,38 +73,36 @@ func (c *Check) CustomQueries() error {
 	if len(c.customQueryLastRuns) != len(customQueries) {
 		c.customQueryLastRuns = make([]time.Time, len(customQueries))
 	}
-	queriesToRun := make([]config.CustomQuery, 0, len(customQueries))
-	now := c.clock.Now()
-	for i, query := range customQueries {
-		if shouldExecuteCustomQuery(&c.customQueryLastRuns[i], query.CollectionInterval, now) {
-			queriesToRun = append(queriesToRun, query)
-		}
-	}
-	if len(queriesToRun) == 0 {
-		return nil
-	}
-
-	/*
-	 * We are creating a dedicated DB connection for custom queries. Custom queries is
-	 * the only feature that switches to PDBs (all other queries are running against the
-	 * root container). Switching to PDB and subsequent query execution isn't atomic, so
-	 * there's no guarantee the both operations would get the same connection from the pool.
-	 */
-	if c.dbCustomQueries == nil {
-		db, err := c.Connect()
-		if err != nil {
-			closeDatabase(c, db)
-			return err
-		}
-		if db == nil {
-			return errors.New("empty connection")
-		}
-		c.dbCustomQueries = db
-	}
 
 	var metricRows []metricRow
 	var allErrors error
-	for _, q := range queriesToRun {
+	for i, q := range customQueries {
+		// Evaluate each query immediately before starting it. Using one timestamp for the
+		// entire batch would let an earlier slow query shorten the effective interval of
+		// every query that follows it.
+		if !shouldExecuteCustomQuery(&c.customQueryLastRuns[i], q.CollectionInterval, c.clock.Now()) {
+			continue
+		}
+
+		/*
+		 * We are creating a dedicated DB connection for custom queries. Custom queries is
+		 * the only feature that switches to PDBs (all other queries are running against the
+		 * root container). Switching to PDB and subsequent query execution isn't atomic, so
+		 * there's no guarantee the both operations would get the same connection from the pool.
+		 * The connection is created lazily so skipped queries do not open one unnecessarily.
+		 */
+		if c.dbCustomQueries == nil {
+			db, err := c.Connect()
+			if err != nil {
+				closeDatabase(c, db)
+				return err
+			}
+			if db == nil {
+				return errors.New("empty connection")
+			}
+			c.dbCustomQueries = db
+		}
+
 		metricRows = metricRows[:0]
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix

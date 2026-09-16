@@ -32,7 +32,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "go.yaml.in/yaml/v2"
+	yamlv2 "go.yaml.in/yaml/v2" // due to its usage as a fallback from v3
 	yamlv3 "go.yaml.in/yaml/v3"
 )
 

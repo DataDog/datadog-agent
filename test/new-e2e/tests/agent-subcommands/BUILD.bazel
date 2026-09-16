@@ -86,6 +86,6 @@ dd_agent_go_test(
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

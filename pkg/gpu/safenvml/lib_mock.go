@@ -41,6 +41,7 @@ func WithMockNVML(tb testing.TB, lib nvml.Interface) {
 }
 
 func resetSingleton() {
+	nvmlReleased.Store(false)
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 

@@ -1651,11 +1651,28 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
-	res, err := target.resolveTLS(procCtx)
-	if err == nil {
-		err = p.updateOTelTLS(pid, res)
+	attributeKeys, err := otelAttributeKeys(procCtx)
+	if err != nil {
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
+		return
 	}
-	p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
+	p.attachOTelAttributeKeys(pid, attributeKeys)
+
+	value, lookupErr := p.otelTLSMap.LookupBytes(pid)
+	if lookupErr != nil {
+		seclog.Errorf("kernel map lookup error: %v", lookupErr)
+	}
+	if value == nil {
+		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
+		res, resolveErr := target.resolveTLSOffsets()
+		if resolveErr == nil {
+			resolveErr = p.updateOTelTLS(pid, res)
+		}
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
+		return
+	}
+
+	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
 }
 
 func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
@@ -1664,13 +1681,16 @@ func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
 
+	return nil
+}
+
+// attachOTelAttributeKeys records the OTel attribute key names on pid.
+func (p *EBPFResolver) attachOTelAttributeKeys(pid uint32, attributeKeys []string) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
-		entry.Tracer.ThreadlocalAttributeKeys = res.attributeKeys
+		entry.Tracer.ThreadlocalAttributeKeys = attributeKeys
 	}
 	p.Unlock()
-
-	return nil
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials

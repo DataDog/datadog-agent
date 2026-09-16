@@ -43,7 +43,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/retry",
         "@com_github_samber_lo//:lo",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//discovery",
         "@io_k8s_client_go//tools/cache",

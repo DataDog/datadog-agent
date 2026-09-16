@@ -109,13 +109,13 @@ func detectDocker(features FeatureMap) {
 		features[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
-			if exists && !reachable {
+			exists, err := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
+			if exists && err != nil {
 				log.Warnf("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
 			}
 
-			if exists && reachable {
+			if exists && err == nil {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
@@ -168,11 +168,11 @@ func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 
 func checkCriSocket(socketPath string) string {
 	// Check if the socket exists and is reachable
-	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && reachable {
+	exists, err := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && err == nil {
 		log.Infof("Agent found cri socket at: %s", socketPath)
 		return socketPath
-	} else if exists && !reachable {
+	} else if exists && err != nil {
 		log.Warnf("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
 	}
 	return ""
@@ -283,11 +283,11 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	// without the unix:/// prefix, as socket.IsAvailable receives a filesystem path.
 	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
-	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && reachable {
+	exists, err := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && err == nil {
 		log.Infof("Agent found PodResources socket at %s", socketPath)
 		features[PodResources] = struct{}{}
-	} else if exists && !reachable {
+	} else if exists && err != nil {
 		log.Warnf("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
