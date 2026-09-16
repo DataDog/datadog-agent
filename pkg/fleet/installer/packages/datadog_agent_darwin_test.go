@@ -211,9 +211,27 @@ func TestRegisterPackageRepositoryLetsAConfigExperimentStart(t *testing.T) {
 	assert.NoError(t, repositories.Get(agentPackage).DeleteExperiment(ctx))
 }
 
+// withVersions stamps the two version symbols a real build sets through ldflags, so a test can
+// tell them apart: nothing stamps them under `go test`, where AgentPackageVersion is empty and
+// AgentVersion carries pkg/version's "6.0.0" default. Without this, an assertion against either
+// one passes whichever of the two the code under test actually reads.
+func withVersions(t *testing.T, packageVersion string, agentVersion string) {
+	t.Helper()
+
+	originalPackageVersion, originalAgentVersion := version.AgentPackageVersion, version.AgentVersion
+	version.AgentPackageVersion, version.AgentVersion = packageVersion, agentVersion
+	t.Cleanup(func() {
+		version.AgentPackageVersion, version.AgentVersion = originalPackageVersion, originalAgentVersion
+	})
+}
+
 // TestRegisterPackageRepositoryReportsTheInstalledVersion covers what the entry tells the backend:
-// the state the installer reports for the package must name the Agent that is actually installed.
+// the state the installer reports for the package must name the Agent that is actually installed,
+// under the same version the installer daemon reports as running. Fleet Automation compares the
+// two, so registering the other version symbol fails every deployment to the host -- hence the
+// two forms of the same version here, differing only where AgentVersion uses '+'.
 func TestRegisterPackageRepositoryReportsTheInstalledVersion(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
 	layout := testLayout(t)
 	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
 
@@ -221,13 +239,30 @@ func TestRegisterPackageRepositoryReportsTheInstalledVersion(t *testing.T) {
 
 	state, err := repositories.GetState(agentPackage)
 	require.NoError(t, err)
-	assert.Equal(t, version.AgentVersion, state.Stable)
+	assert.Equal(t, version.AgentPackageVersion, state.Stable)
+	assert.NotEqual(t, version.AgentVersion, state.Stable,
+		"the entry must name the version the daemon reports, not the human-facing one")
 	assert.Empty(t, state.Experiment, "a fresh install must not look like it has a version experiment")
+}
+
+// TestRegisterPackageRepositoryFallsBackToAgentVersion covers a build that did not go through
+// omnibus, which is the only thing that stamps AgentPackageVersion: the entry still has to be
+// registered under something, because Repository.Create rejects an empty version outright.
+func TestRegisterPackageRepositoryFallsBackToAgentVersion(t *testing.T) {
+	withVersions(t, "", "7.99.0-devel+git.1.deadbee")
+	layout := testLayout(t)
+
+	require.NoError(t, registerPackageRepository(testHookContext(t), layout))
+
+	state, err := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentVersion, state.Stable)
 }
 
 // TestRegisterPackageRepositoryIsIdempotent is the property every hook here needs: the .dmg runs
 // postInstall on a first install, on every upgrade, and again on a host already in this state.
 func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
 	layout := testLayout(t)
 	ctx := testHookContext(t)
 
@@ -236,7 +271,7 @@ func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
 
 	state, err := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks).GetState(agentPackage)
 	require.NoError(t, err)
-	assert.Equal(t, version.AgentVersion, state.Stable)
+	assert.Equal(t, version.AgentPackageVersion, state.Stable)
 
 	// The placeholder directory Create moves in must not accumulate one temporary directory per
 	// run: the packages root holds the package and nothing else.
@@ -253,7 +288,12 @@ func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
 // safe to call from postinst unconditionally. Repository.Create removes whatever it finds before
 // writing, so without the guard a .pkg wrapped in an OCI package -- whose postinstall script is the
 // same one the .dmg runs -- would discard the package doInstall had just registered.
+//
+// The version registered here deliberately differs from the one this build would register, which
+// is the case a version comparison alone would get wrong: what makes an entry replaceable is that
+// it is an empty placeholder, not that its version has fallen behind.
 func TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
 	layout := testLayout(t)
 	ctx := testHookContext(t)
 
@@ -273,6 +313,38 @@ func TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone(t *testi
 	payload, err := os.ReadFile(filepath.Join(layout.packagesRoot, agentPackage, "stable", "payload"))
 	require.NoError(t, err, "the registered package's content must survive")
 	assert.Equal(t, "real package", string(payload))
+}
+
+// TestRegisterPackageRepositoryMovesThePlaceholderForwardOnUpgrade covers the .dmg upgrade: the
+// installed Agent is replaced in the install root, but the placeholder entry is not versioned
+// alongside it. Left behind, it keeps naming the version the host was first installed with, and
+// Fleet Automation reads it as the host's stable version and compares it against the newer Agent
+// the daemon reports -- so every deployment to an upgraded host fails until the entry catches up.
+func TestRegisterPackageRepositoryMovesThePlaceholderForwardOnUpgrade(t *testing.T) {
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+
+	withVersions(t, "7.98.0-devel.git.1.0ldc0de", "7.98.0-devel+git.1.0ldc0de")
+	require.NoError(t, registerPackageRepository(ctx, layout))
+
+	// The .dmg that replaces the Agent runs postinst, and so this hook, from the new build.
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	require.NoError(t, registerPackageRepository(ctx, layout))
+
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, "7.99.0-devel.git.1.deadbee", state.Stable,
+		"the entry must name the Agent the .dmg installed, not the one it replaced")
+
+	// Re-registering must not leave the superseded version directory behind next to the new one.
+	entries, err := os.ReadDir(filepath.Join(layout.packagesRoot, agentPackage))
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	assert.ElementsMatch(t, []string{"7.99.0-devel.git.1.deadbee", "stable", "experiment"}, names)
 }
 
 // TestInstallWrappedPackageRejectsAnUnusablePayload covers the payload selection installWrappedPackage
