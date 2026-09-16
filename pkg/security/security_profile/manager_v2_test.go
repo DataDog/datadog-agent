@@ -11,6 +11,7 @@ package securityprofile
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -66,6 +67,19 @@ func newTestProfileWithNodes(name string, nodeCount int) *profile.Profile {
 	}
 	p.ActivityTree.ComputeActivityTreeStats()
 	return p
+}
+
+func BenchmarkPendingProfileQueue(b *testing.B) {
+	event := &model.Event{}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		pending := pendingProfile{}
+		for range 1024 {
+			pending.events = append(pending.events, event)
+		}
+		runtime.KeepAlive(pending.events)
+	}
 }
 
 // TestManagerV2_persistProfile_persistsDisabledState verifies that a profile disabled by the

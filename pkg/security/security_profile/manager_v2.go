@@ -10,7 +10,6 @@ package securityprofile
 
 import (
 	"bytes"
-	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -46,7 +45,7 @@ import (
 
 type pendingProfile struct {
 	firstSeen time.Time
-	events    *list.List
+	events    []*model.Event
 }
 
 // sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
@@ -602,7 +601,7 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 	for cgroupID, pendingEvents := range m.profilePendingEvents {
 		if currentTimestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
 			// Decrement queue size by the number of events being dropped
-			eventsLen := pendingEvents.events.Len()
+			eventsLen := len(pendingEvents.events)
 			if eventsLen > 0 {
 				m.queueSize.Sub(uint64(eventsLen))
 				// Accumulate dropped events; flushed in SendStats (source unknown for queued events)
@@ -637,13 +636,12 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionLatency, err)
 		}
 
-		for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
-			queuedEvent := e.Value.(*model.Event)
+		for _, queuedEvent := range pendingEvents.events {
 			// Copy resolved tags to queued event since it was queued before tags were available
 			queuedEvent.ProcessContext.Process.ContainerContext.Tags = event.ProcessContext.Process.ContainerContext.Tags
 			m.onEventTagsResolved(queuedEvent)
 		}
-		m.queueSize.Sub(uint64(pendingEvents.events.Len()))
+		m.queueSize.Sub(uint64(len(pendingEvents.events)))
 		m.pendingProfiles.Dec()
 		delete(m.profilePendingEvents, cgroupID)
 	}
@@ -666,7 +664,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
 			firstSeen: event.Timestamp,
-			events:    list.New(),
 		}
 		m.profilePendingEvents[cgroupID] = pendingEvents
 		m.pendingProfiles.Inc()
@@ -676,10 +673,10 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	// If so, drop this event and clear the queue - stale events won't be processed
 	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
-		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
-			// Decrement queue size BEFORE clearing the list
+		if eventsLen := len(pendingEvents.events); eventsLen > 0 {
+			// Decrement queue size before releasing the queued events.
 			m.queueSize.Sub(uint64(eventsLen))
-			pendingEvents.events.Init()
+			pendingEvents.events = nil
 			if em != nil {
 				em.eventsDropped.Add(uint64(eventsLen))
 			}
@@ -690,7 +687,7 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	// Queue the event (deep copy to preserve state)
 	event.ResolveFieldsForAD()
 	cpy := event.DeepCopy()
-	pendingEvents.events.PushBack(cpy)
+	pendingEvents.events = append(pendingEvents.events, cpy)
 	m.queueSize.Inc()
 }
 
