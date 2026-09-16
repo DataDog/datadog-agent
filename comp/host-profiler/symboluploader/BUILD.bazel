@@ -4,6 +4,14 @@ load(":symbol_uploader_test.bzl", "objcopy_go_fixture")
 
 # gazelle:go_test file
 
+exports_files(
+    [
+        "testdata/go.mod",
+        "testdata/helloworld.go",
+    ],
+    visibility = ["//comp/host-profiler/symboluploader/pclntab:__pkg__"],
+)
+
 go_library(
     name = "symboluploader",
     srcs = [
