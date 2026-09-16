@@ -37,10 +37,10 @@ func defaultOTelAgentGatewayImageRepo(e config.Env) string {
 	return e.DatadogPublicRegistry() + "/ddot-collector"
 }
 
-// defaultDevAgentImageRepo holds the FIPS and OTel agent variants. Its tags float on
-// main rather than tracking a build, so this is only a fallback for runs that have no
-// pipeline image to use. These images are only published to Docker Hub, so they resolve
-// through the Docker Hub mirror rather than [config.Env.DatadogPublicRegistry].
+// This is the repo on dockerhub containing all public agent images built from main and release branches
+// (also proxied by an internal mirror)
+// It should only be used for local runs not specifying an agent image, NEVER IN CI:
+// CI should set `E2E_PIPELINE_ID` et al. so that an image built with the branch's code is used by the test.
 func defaultDevAgentImageRepo(e config.Env) string {
 	return e.InternalDockerhubMirror() + "/datadog/agent-dev"
 }
