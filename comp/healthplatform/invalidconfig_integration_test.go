@@ -8,6 +8,7 @@
 package healthplatform
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -58,10 +59,11 @@ func requireSchema(t *testing.T) {
 
 // TestInvalidConfigExtraErrorsSurviveFullPipeline exercises the complete
 // pipeline: schema violation in config → startup check → runner.BuildIssue →
-// store → forwarder → fakeintake. Asserts that extra.errors reaches the intake
-// as a path-keyed struct.
+// store → forwarder → fakeintake. Asserts that the legacy and structured
+// violations reach the intake without the raw invalid value.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
+	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -89,6 +91,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
 			cfg.SetInTest("agent_ipc.port", "not-a-number")
+			cfg.SetInTest("logs_enabled", rawInvalidLogsEnabled)
 			return cfg
 		}),
 		telemetrymock.Module(),
@@ -101,6 +104,8 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		waitInterval = 50 * time.Millisecond
 	)
 
+	var receivedIssue *healthplatformpayload.Issue
+	receivedViolationIndex := -1
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
@@ -108,23 +113,29 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}
 		for _, p := range payloads {
 			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-				errorsStruct := iss.GetExtra().GetFields()["errors"].GetStructValue()
-				return errorsStruct != nil && len(errorsStruct.GetFields()) > 0
+				fields := iss.GetExtra().GetFields()
+				errorsStruct := fields["errors"].GetStructValue()
+				if errorsStruct == nil || len(errorsStruct.GetFields()) == 0 || fields["violations_version"].GetNumberValue() != 1 {
+					continue
+				}
+				for i, value := range fields["violations"].GetListValue().GetValues() {
+					violation := value.GetStructValue().GetFields()
+					expectedTypes := violation["expected_types"].GetListValue().GetValues()
+					defaultValue, hasDefault := violation["default_value"]
+					if violation["path"].GetStringValue() == "/logs_enabled" &&
+						violation["actual_type"].GetStringValue() == "string" &&
+						len(expectedTypes) == 1 && expectedTypes[0].GetStringValue() == "boolean" &&
+						violation["default_status"].GetStringValue() == "known" && hasDefault &&
+						defaultValue.AsInterface() == false {
+						receivedIssue = iss
+						receivedViolationIndex = i
+						return true
+					}
+				}
 			}
 		}
 		return false
-	}, waitTimeout, waitInterval, "invalid-config issue with path-keyed extra.errors never reached fakeintake")
-
-	payloads, err := fiClient.GetAgentHealth()
-	require.NoError(t, err)
-
-	var receivedIssue *healthplatformpayload.Issue
-	for _, p := range payloads {
-		if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-			receivedIssue = iss
-			break
-		}
-	}
+	}, waitTimeout, waitInterval, "invalid-config issue with legacy and structured violations never reached fakeintake")
 	require.NotNil(t, receivedIssue)
 
 	errorsStruct := receivedIssue.GetExtra().GetFields()["errors"].GetStructValue()
@@ -135,4 +146,21 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	require.NotEmpty(t, vals)
 	assert.Contains(t, vals[0].GetStringValue(), "want integer")
 
+	fields := receivedIssue.GetExtra().GetFields()
+	assert.Equal(t, float64(1), fields["violations_version"].GetNumberValue())
+	violations := fields["violations"].GetListValue().GetValues()
+	require.NotEqual(t, -1, receivedViolationIndex, "/logs_enabled must be present in extra.violations")
+	logsViolation := violations[receivedViolationIndex].GetStructValue().GetFields()
+	assert.Equal(t, "/logs_enabled", logsViolation["path"].GetStringValue())
+	assert.Equal(t, "string", logsViolation["actual_type"].GetStringValue())
+	expectedTypes := logsViolation["expected_types"].GetListValue().GetValues()
+	require.Len(t, expectedTypes, 1)
+	assert.Equal(t, "boolean", expectedTypes[0].GetStringValue())
+	assert.Equal(t, "known", logsViolation["default_status"].GetStringValue())
+	require.Contains(t, logsViolation, "default_value")
+	assert.Equal(t, false, logsViolation["default_value"].AsInterface())
+
+	receivedJSON, err := json.Marshal(receivedIssue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
 }
