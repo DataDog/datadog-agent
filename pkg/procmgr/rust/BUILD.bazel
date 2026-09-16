@@ -21,6 +21,7 @@ _LIB_DEPS = [
     "//pkg/procmgr/rust/client:dd-procmgr-client",
     "@crates//:anyhow",
     "@crates//:log",
+    "@crates//:saphyr-parser",
     "@crates//:serde",
     "@crates//:serde_json",
     "@crates//:serde_yaml",

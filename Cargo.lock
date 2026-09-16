@@ -998,6 +998,7 @@ dependencies = [
  "libc",
  "log",
  "nix",
+ "saphyr-parser",
  "serde",
  "serde_json",
  "serde_yaml",
