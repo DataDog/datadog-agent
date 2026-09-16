@@ -10,7 +10,7 @@
 <!-- Add entries here for changes not yet in a release. -->
 
 - The agent, trace-agent, and agent-data-plane SRC subsystems are now registered in a shared `datadog-agent` SRC group, so all services can be started/stopped together with `startsrc -g datadog-agent` / `stopsrc -g datadog-agent` (and listed with `lssrc -g datadog-agent`) instead of one subsystem at a time. Individual subsystems can still be addressed with `-s` as before.
-- The services now start automatically on reboot. Install adds an `/etc/inittab` entry via `mkitab` (`datadog-agent:2:once:startsrc -g datadog-agent`) that starts the SRC group when init enters multi-user run level; the entry is removed on uninstall (`rmitab`). Previously the services were only started during install/upgrade and had to be started manually after every reboot. The entry is added even when `DD_INSTALL_ONLY` is set (matching the Linux packages' "enabled but not started" semantics).
+- The services now start automatically on reboot. Install adds an `/etc/inittab` entry via `mkitab` (`datadog-agent:2:once:startsrc -g datadog-agent`) that starts the SRC group when init enters multi-user run level; the entry is removed on uninstall (`rmitab`). Previously the services were only started during install/upgrade and had to be started manually after every reboot.
 
 
 --
