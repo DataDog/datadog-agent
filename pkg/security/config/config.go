@@ -1143,6 +1143,21 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
+	if rsConfig.SecurityProfileV2Enabled {
+		rsConfig.EventSamplingOpenEnabled = true
+		rsConfig.EventSamplingConnectEnabled = true
+	}
+
+	// The mount table is fed by mount, move_mount and pivot_root events, so tracing
+	// "mount" pulls in the other two rather than exposing them as separate settings.
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
+	}
+
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
 	}
