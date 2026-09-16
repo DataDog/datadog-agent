@@ -223,14 +223,6 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
 	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 
-	// The first ClusterID() call above has its own bounded wait that's
-	// independent of the background resolver goroutine, so it can return
-	// before that goroutine has actually stored the settled result. Wait
-	// for the real settle point directly instead of assuming the first
-	// call's return implies it — otherwise the timing assertion below
-	// races the resolver goroutine and is flaky under scheduler/GC jitter
-	// (see incident: the two durations it compared could land within
-	// fractions of a millisecond of each other).
 	assert.Eventually(t, func() bool {
 		return s.clusterID.Load() != nil
 	}, time.Second, time.Millisecond, "resolution must settle (cache populated) within a reasonable time")
