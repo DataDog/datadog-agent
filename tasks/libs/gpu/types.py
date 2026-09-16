@@ -25,6 +25,7 @@ STATE_BY_NAME = {
 class GPUConfig:
     architecture: str
     device_mode: str
+    nvlink_capable: bool | None = None
 
 
 @dataclass(slots=True)
@@ -122,8 +123,8 @@ class GPUConfigValidationResult:
                 self.retrieval_errors.append(error)
 
     @property
-    def index_key(self) -> tuple[str, str]:
-        return (self.config.architecture, self.config.device_mode)
+    def index_key(self) -> tuple[str, str, bool | None]:
+        return (self.config.architecture, self.config.device_mode, self.config.nvlink_capable)
 
     @property
     def missing_metrics(self) -> int:
@@ -191,6 +192,7 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
             config=GPUConfig(
                 architecture=item["config"]["architecture"],
                 device_mode=item["config"]["device_mode"],
+                nvlink_capable=item["config"].get("nvlink_capable"),
             ),
             device_count=item["device_count"],
             detailed_result=DetailedValidationResult(
