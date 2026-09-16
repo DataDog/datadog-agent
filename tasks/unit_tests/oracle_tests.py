@@ -9,7 +9,7 @@ from tasks import oracle
 
 
 @patch.dict(os.environ, {}, clear=True)
-class OracleTestTaskTests(unittest.TestCase):
+class TestOracleTask(unittest.TestCase):
     def setUp(self):
         self.ctx = MagicMock(spec=Context)
         self.start = self.enterContext(patch("tasks.oracle.start_docker"))
@@ -55,7 +55,7 @@ class OracleTestTaskTests(unittest.TestCase):
         )
 
 
-class OracleStartDockerTests(unittest.TestCase):
+class TestOracleStartDocker(unittest.TestCase):
     def setUp(self):
         self.ctx = MagicMock(spec=Context)
         self.enterContext(patch("tasks.oracle.sleep"))
