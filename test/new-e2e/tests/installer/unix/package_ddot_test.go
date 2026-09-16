@@ -325,3 +325,27 @@ func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 
 	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
 }
+
+// TestInstallDDOTRefusesSymlinkedConfig asserts that the root-run DDOT post-install hooks
+// refuse a symlink planted in the configuration directory. /etc/datadog-agent is owned by the
+// unprivileged dd-agent user, so following such a link would let dd-agent redirect a root-run
+// write or chown onto any file on the host.
+func (s *packageDDOTSuite) TestInstallDDOTRefusesSymlinkedConfig() {
+	const victim = "/etc/datadog-agent-symlink-victim"
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+
+	// A root-owned file outside the configuration directory that the hooks must never reach.
+	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + victim)
+	s.host.Run("sudo -u dd-agent ln -sf " + victim + " /etc/datadog-agent/otel-config.yaml")
+
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
+	require.Error(s.T(), err, "the DDOT post-install hook must refuse a symlinked otel-config.yaml")
+
+	victimState := strings.TrimSpace(s.host.Run("stat -c '%U:%G:%a' " + victim))
+	require.Equal(s.T(), "root:root:600", victimState,
+		"the root-owned file the symlink points at must be untouched")
+	s.host.Run("sudo test -L /etc/datadog-agent/otel-config.yaml")
+}

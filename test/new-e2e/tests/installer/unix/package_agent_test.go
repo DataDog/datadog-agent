@@ -593,3 +593,40 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
+
+// TestInstallDoesNotFollowPlantedSymlinks asserts that the recursive ownership pass of the
+// root-run install hooks never resolves a symlink found in the trees it walks. Both
+// /etc/datadog-agent and the package directory are owned by the unprivileged dd-agent user, so
+// following a link planted there would hand ownership of any root-owned file to dd-agent
+// during a routine install or upgrade.
+func (s *packageAgentSuite) TestInstallDoesNotFollowPlantedSymlinks() {
+	const victim = "/etc/datadog-agent-symlink-victim"
+	const agentDir = "/opt/datadog-agent"
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.waitForCoreUnitsActive()
+
+	// A root-owned file outside both walked trees that the hooks must never reach.
+	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + victim)
+
+	// dd-agent owns both trees, so it can plant entries in them. Alongside each symlink a
+	// root-owned regular file is planted: the ownership pass must pick those up, which is what
+	// proves the walk actually ran and keeps this test from passing vacuously.
+	for _, dir := range []string{"/etc/datadog-agent", agentDir} {
+		s.host.Run("sudo -u dd-agent ln -sf " + victim + " " + dir + "/planted-symlink")
+		s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + dir + "/planted-regular")
+	}
+
+	// Re-run the install so the post-install hooks walk both trees again.
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+
+	for _, dir := range []string{"/etc/datadog-agent", agentDir} {
+		owner := strings.TrimSpace(s.host.Run("stat -c '%U:%G' " + dir + "/planted-regular"))
+		assert.Equal(s.T(), "dd-agent:dd-agent", owner,
+			"the recursive ownership pass must have walked %s", dir)
+	}
+	victimState := strings.TrimSpace(s.host.Run("stat -c '%U:%G:%a' " + victim))
+	assert.Equal(s.T(), "root:root:600", victimState,
+		"the root-owned file the planted symlinks point at must be untouched")
+}
