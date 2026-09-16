@@ -58,18 +58,18 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	normalized, scrubbed, err := normalizeForSchema(raw)
+	normalized, err := normalizeForSchema(raw)
 	if err != nil {
 		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
-	violations, schemaErr := schema.ValidateCoreConfigDetailed(scrubbed)
+	violations, schemaErr := schema.ValidateCoreConfigDetailed(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
 	retained := violations[:0]
 	for _, violation := range violations {
-		if !isUploadArtifact(normalized, scrubbed, violation) {
+		if !isUnresolvedSecret(normalized, violation) {
 			retained = append(retained, violation)
 		}
 	}
@@ -92,22 +92,26 @@ func buildIssueReportContext(cfg config.Component, configPath string, violations
 		contextKeyConfigPath: configPath,
 		contextKeyErrorCount: strconv.Itoa(len(violations)),
 	}
-	for i, violation := range violations {
-		ctx[contextErrorKey(i)] = violation.Message
-	}
 	payloads := make([]violationPayload, 0, len(violations))
-	for _, violation := range violations {
+	for i, violation := range violations {
+		path := scrubViolationPath(violation.Path)
+		// Never forward raw schema messages: non-type errors can quote values.
+		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
 		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
-			return ctx
+			continue
 		}
+		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
 		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
 		payloads = append(payloads, violationPayload{
-			Path:          violation.Path,
+			Path:          path,
 			ActualType:    violation.ActualType,
 			ExpectedTypes: violation.ExpectedTypes,
 			DefaultStatus: defaultStatus,
 			DefaultValue:  defaultValue,
 		})
+	}
+	if len(payloads) != len(violations) {
+		return ctx
 	}
 	encoded, err := json.Marshal(payloads)
 	if err != nil {
@@ -118,26 +122,37 @@ func buildIssueReportContext(cfg config.Component, configPath string, violations
 	return ctx
 }
 
-func isUploadArtifact(normalized, scrubbed map[string]any, violation schema.Violation) bool {
+func scrubViolationPath(path string) string {
+	pointer, err := jsonpointer.Parse(path)
+	if err != nil {
+		return ""
+	}
+	// Map keys can be URLs with credentials. Scrub before JSON-pointer escaping
+	// turns "://" into ":~1~1", which the existing URL scrubber cannot recognize.
+	for i, token := range pointer {
+		pointer[i], err = scrubber.ScrubString(token)
+		if err != nil {
+			return ""
+		}
+	}
+	return pointer.String()
+}
+
+func isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
 	pointer, err := jsonpointer.Parse(violation.Path)
 	if err != nil {
 		return false
 	}
-	before, beforeErr := pointer.Eval(normalized)
-	after, afterErr := pointer.Eval(scrubbed)
-	if beforeErr != nil || afterErr != nil {
+	value, err := pointer.Eval(normalized)
+	if err != nil {
 		return false
 	}
-	beforeText, beforeString := before.(string)
-	_, afterString := after.(string)
-	if !beforeString {
-		return afterString
-	}
-	return scrubber.IsEnc(beforeText) && allExpectedTypesScalar(violation.ExpectedTypes)
+	text, ok := value.(string)
+	return ok && scrubber.IsEnc(text) && allExpectedTypesScalar(violation.ExpectedTypes)
 }
 
-// Secret backends return scalar values. All-scalar unions are safe to suppress,
-// while a union containing an array or object remains a real configuration error.
+// The secrets layer is excluded from this check, so we cannot validate resolved
+// scalar values. A placeholder cannot supply an array or object.
 func allExpectedTypesScalar(values []string) bool {
 	if len(values) == 0 {
 		return false
@@ -207,24 +222,16 @@ func (c *checker) instanceIssueID() string {
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types and
-// returns the values before and after the scrubber runs.
-func normalizeForSchema(in map[string]any) (map[string]any, map[string]any, error) {
+// normalizeForSchema coerces a Go-native config map into JSON-native types.
+// Values stay local; only value-free diagnostics are included in the issue.
+func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	var normalized map[string]any
 	if err := yaml.Unmarshal(b, &normalized); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	scrubbed, err := scrubber.ScrubYaml(b)
-	if err != nil {
-		return nil, nil, err
-	}
-	var scrubbedConfig map[string]any
-	if err := yaml.Unmarshal(scrubbed, &scrubbedConfig); err != nil {
-		return nil, nil, err
-	}
-	return normalized, scrubbedConfig, nil
+	return normalized, nil
 }

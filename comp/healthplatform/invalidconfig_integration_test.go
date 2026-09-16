@@ -92,6 +92,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("run_path", t.TempDir())
 			cfg.SetInTest("agent_ipc.port", "not-a-number")
 			cfg.SetInTest("logs_enabled", rawInvalidLogsEnabled)
+			cfg.SetInTest("forwarder_apikey_validation_interval", []int{61})
 			return cfg
 		}),
 		telemetrymock.Module(),
@@ -105,7 +106,6 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	)
 
 	var receivedIssue *healthplatformpayload.Issue
-	receivedViolationIndex := -1
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
@@ -113,25 +113,8 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}
 		for _, p := range payloads {
 			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-				fields := iss.GetExtra().GetFields()
-				errorsStruct := fields["errors"].GetStructValue()
-				if errorsStruct == nil || len(errorsStruct.GetFields()) == 0 || fields["violations_version"].GetNumberValue() != 1 {
-					continue
-				}
-				for i, value := range fields["violations"].GetListValue().GetValues() {
-					violation := value.GetStructValue().GetFields()
-					expectedTypes := violation["expected_types"].GetListValue().GetValues()
-					defaultValue, hasDefault := violation["default_value"]
-					if violation["path"].GetStringValue() == "/logs_enabled" &&
-						violation["actual_type"].GetStringValue() == "string" &&
-						len(expectedTypes) == 1 && expectedTypes[0].GetStringValue() == "boolean" &&
-						violation["default_status"].GetStringValue() == "known" && hasDefault &&
-						defaultValue.AsInterface() == false {
-						receivedIssue = iss
-						receivedViolationIndex = i
-						return true
-					}
-				}
+				receivedIssue = iss
+				return true
 			}
 		}
 		return false
@@ -149,18 +132,28 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	fields := receivedIssue.GetExtra().GetFields()
 	assert.Equal(t, float64(1), fields["violations_version"].GetNumberValue())
 	violations := fields["violations"].GetListValue().GetValues()
-	require.NotEqual(t, -1, receivedViolationIndex, "/logs_enabled must be present in extra.violations")
-	logsViolation := violations[receivedViolationIndex].GetStructValue().GetFields()
-	assert.Equal(t, "/logs_enabled", logsViolation["path"].GetStringValue())
-	assert.Equal(t, "string", logsViolation["actual_type"].GetStringValue())
-	expectedTypes := logsViolation["expected_types"].GetListValue().GetValues()
-	require.Len(t, expectedTypes, 1)
-	assert.Equal(t, "boolean", expectedTypes[0].GetStringValue())
-	assert.Equal(t, "known", logsViolation["default_status"].GetStringValue())
-	require.Contains(t, logsViolation, "default_value")
-	assert.Equal(t, false, logsViolation["default_value"].AsInterface())
+	byPath := make(map[string]map[string]any)
+	for _, value := range violations {
+		violation := value.GetStructValue()
+		byPath[violation.GetFields()["path"].GetStringValue()] = violation.AsMap()
+	}
+	for _, expected := range []struct {
+		path, actualType, expectedType string
+		defaultValue                   any
+	}{
+		{"/logs_enabled", "string", "boolean", false},
+		{"/forwarder_apikey_validation_interval", "array", "integer", float64(60)},
+	} {
+		require.Contains(t, byPath, expected.path)
+		violation := byPath[expected.path]
+		assert.Equal(t, expected.actualType, violation["actual_type"])
+		assert.Equal(t, []any{expected.expectedType}, violation["expected_types"])
+		assert.Equal(t, "known", violation["default_status"])
+		assert.Equal(t, expected.defaultValue, violation["default_value"])
+	}
 
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
+	t.Logf("received invalid-config issue: %s", receivedJSON)
 }

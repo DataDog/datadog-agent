@@ -137,22 +137,37 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	assert.NotContains(t, string(issueJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 }
 
-func TestCheck_ScrubbedUploadArtifacts(t *testing.T) {
+func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 	requireSchema(t)
 	for _, testCase := range []struct {
 		yaml string
-		want int
+		want string
 	}{
-		{"forwarder_apikey_validation_interval: 61\n", 0},
-		{"agent_ipc:\n  port: ENC[ipc_port]\n", 0},
-		{"agent_ipc: ENC[ipc]\n", 1},
+		{"forwarder_apikey_validation_interval: 61\n", ""},
+		{"forwarder_apikey_validation_interval: [61]\n", "got array, want integer"},
+		{"forwarder_apikey_validation_interval: {value: 61}\n", "got object, want integer"},
+		{"api_key: [secret]\n", "got array, want string"},
+		{"additional_endpoints: {'https://example.test': [false]}\n", "got boolean, want string"},
+		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
+		{"agent_ipc: ENC[ipc]\n", "got string, want object"},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
 
 			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
-			assert.Len(t, reports, testCase.want)
+			if testCase.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Contains(t, reports[0].Context[contextErrorKey(0)], testCase.want)
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
 		})
 	}
 }
@@ -186,14 +201,19 @@ func TestBuildIssueReportContext_MixedViolationsKeepOnlyLegacyErrors(t *testing.
 			ActualType:    "string",
 			ExpectedTypes: []string{"integer"},
 		},
-		{Message: "at '/unknown': additionalProperties error", Path: "/unknown"},
+		{Message: "at '/unknown': RAW_SECRET_MUST_NOT_APPEAR does not match pattern", Path: "/unknown"},
 	}
 
 	ctx := buildIssueReportContext(config.NewMock(t), "/etc/datadog-agent/datadog.yaml", violations)
 	assert.NotContains(t, ctx, contextKeyViolationsVersion)
 	assert.NotContains(t, ctx, contextKeyViolations)
 	assert.Equal(t, violations[0].Message, ctx[contextErrorKey(0)])
-	assert.Equal(t, violations[1].Message, ctx[contextErrorKey(1)])
+	assert.Equal(t, "at '/unknown': configuration does not match schema", ctx[contextErrorKey(1)])
+	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(issue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "RAW_SECRET_MUST_NOT_APPEAR")
 }
 
 // Two checkers with the same hostname but different config files must not
