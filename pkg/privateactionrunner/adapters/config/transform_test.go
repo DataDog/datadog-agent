@@ -653,6 +653,19 @@ func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
 	}, cfg.RShellAllowedSystemServices)
 }
 
+func TestFromDDConfigIntegrationCredentials(t *testing.T) {
+	yaml := `
+private_action_runner:
+  credentials:
+    allow_integration_credentials: true
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.AllowIntegrationCredentials)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
 	yaml := `
 private_action_runner:
