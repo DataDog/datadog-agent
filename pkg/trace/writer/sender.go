@@ -36,9 +36,15 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	maxConns := maxConns(climit, cfg.Endpoints)
-	senders := make([]*sender, len(cfg.Endpoints))
-	for i, endpoint := range cfg.Endpoints {
+	// endpoints excludes the main endpoint when apm_config.send_to_main_endpoint
+	// is false; config validation guarantees a destination remains.
+	endpoints := cfg.WriterEndpoints()
+	if !cfg.HasWriterDestination() {
+		panic(errors.New("config was not properly validated: no destination for traces and stats"))
+	}
+	maxConns := maxConns(climit, endpoints)
+	senders := make([]*sender, len(endpoints))
+	for i, endpoint := range endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.InvalidIntakeEndpoint, err)

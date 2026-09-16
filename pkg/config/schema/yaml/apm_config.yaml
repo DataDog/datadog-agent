@@ -1293,6 +1293,17 @@ properties:
     default: false
     env_vars:
     - DD_APM_SEND_ALL_INTERNAL_STATS
+  send_to_main_endpoint:
+    node_type: setting
+    type: boolean
+    default: true
+    env_vars:
+    - DD_APM_SEND_TO_MAIN_ENDPOINT
+    comment: "When false, the trace-agent trace and stats writers skip the main endpoint\n\
+      (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.\n\
+      The main endpoint's API key is still used by the other trace-agent proxies. The\n\
+      configuration is rejected if no additional endpoint would remain. Traces/stats\n\
+      sibling of apm_config.profiling_send_to_main_endpoint."
   socket_activation:
     node_type: section
     type: object
