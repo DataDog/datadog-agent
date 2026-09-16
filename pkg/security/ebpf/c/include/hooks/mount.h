@@ -195,6 +195,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     mfields->mount_id_unique = syscall->mount.mount_id_unique;
     mfields->parent_mount_id_unique = syscall->mount.parent_mount_id_unique;
     mfields->bind_src_mount_id_unique = syscall->mount.bind_src_mount_id_unique;
+    mfields->mnt_flags = syscall->mount.mnt_flags;
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
@@ -239,6 +240,9 @@ void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct sysc
 
     // populate the device of the new mount
     syscall->mount.device = get_mount_dev(syscall->mount.newmnt);
+
+    // populate the vfsmount flags of the new mount
+    syscall->mount.mnt_flags = get_vfsmount_mount_flags(get_mount_vfsmount(syscall->mount.newmnt));
 
     // populate the fs type of the new mount
     struct super_block *sb = get_dentry_sb(root_dentry);

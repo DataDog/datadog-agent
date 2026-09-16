@@ -191,6 +191,17 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
+	// Mounts holds the workload's deduplicated mount table: a flat union of every
+	// mount observed across all mount namespaces seen for the workload. It is
+	// append-only (entries are never removed on unmount). Each node records
+	// whether it was observed in the base (first-seen) mount namespace.
+	Mounts []*MountNode
+
+	// baseMountNamespaceID is the first mount namespace inode observed for the
+	// workload. It anchors the InBaseNamespace flag on mount nodes and is runtime
+	// state only (the inode is ephemeral, so it is not persisted).
+	baseMountNamespaceID uint32
+
 	imageTagIDs []imageTagEntry
 }
 
@@ -574,6 +585,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
 	case model.CapabilitiesEventType:
 		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), node, nil, nil
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), node, nil, nil
 	case model.ExitEventType:
 		node.Process.ExitTime = event.Timestamp
 	}
@@ -1035,6 +1048,9 @@ func (at *ActivityTree) recomputeSizeBytes() {
 		total += pn.size() + processNodeOwnActivitySize(pn)
 		openList = append(openList, pn.Children...)
 	}
+	for _, mn := range at.Mounts {
+		total += mn.size()
+	}
 	at.Stats.SizeBytes = total
 }
 
@@ -1113,6 +1129,14 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		removedBytes += nodeRemoved
 	}
 	at.ProcessNodes = newProcessNodes
+
+	// Mounts are append-only: drop the evicted tag from each mount's seen set so
+	// its freed image-tag ID can't be reattributed to a reused slot, but keep the
+	// mount node itself even once it has no remaining tags.
+	for _, mn := range at.Mounts {
+		mn.EvictImageTag(imageTagID)
+	}
+
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
 }
