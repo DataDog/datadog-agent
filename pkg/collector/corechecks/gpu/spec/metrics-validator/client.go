@@ -88,6 +88,28 @@ type scalarResult struct {
 	values map[string]*float64
 }
 
+type agentVersionFilter struct {
+	metricFilter string
+	tagFilters   []string
+}
+
+var agentFilterCandidateTags = []string{
+	"datacenter",
+	"region",
+	"cloud_provider",
+	"kube_cluster_name",
+}
+
+type clusterAgentMetadata struct {
+	versions map[string]struct{}
+	tags     map[string]map[string]struct{}
+}
+
+type tagFilterCandidate struct {
+	filter string
+	cover  map[string]struct{}
+}
+
 func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS, toTS int64) ([]scalarResult, error) {
 	attrs := datadogV2.NewScalarFormulaRequestAttributes(fromTS*1000, queries, toTS*1000)
 	req := datadogV2.NewScalarFormulaRequest(*attrs, datadogV2.SCALARFORMULAREQUESTTYPE_SCALAR_REQUEST)
@@ -175,7 +197,7 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, queryFilter s
 	return len(columns), nil
 }
 
-func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS int64) (string, error) {
+func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS int64) (agentVersionFilter, error) {
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
 			buildScalarQuery(
@@ -188,29 +210,64 @@ func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS 
 		toTS,
 	)
 	if err != nil {
-		return "", fmt.Errorf("query agent versions by Kubernetes cluster: %w", err)
+		return agentVersionFilter{}, fmt.Errorf("query agent versions by Kubernetes cluster: %w", err)
 	}
 
-	versionsByCluster := make(map[string]map[string]struct{})
+	metadataByCluster := make(map[string]*clusterAgentMetadata)
 	for _, column := range columns {
 		cluster := column.tags["kube_cluster_name"]
-		imageTag := column.tags["image_tag"]
-		if isNullishGroupValue(cluster) || isNullishGroupValue(imageTag) {
+		if isNullishGroupValue(cluster) {
 			continue
 		}
-		if versionsByCluster[cluster] == nil {
-			versionsByCluster[cluster] = make(map[string]struct{})
+		metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
+		if imageTag := column.tags["image_tag"]; !isNullishGroupValue(imageTag) {
+			metadata.versions[imageTag] = struct{}{}
 		}
-		versionsByCluster[cluster][imageTag] = struct{}{}
+		metadata.tags["kube_cluster_name"] = map[string]struct{}{cluster: {}}
 	}
 
-	clusters := make([]string, 0, len(versionsByCluster))
-	for cluster, versions := range versionsByCluster {
+	for _, tagName := range agentFilterCandidateTags {
+		if tagName == "kube_cluster_name" {
+			continue
+		}
+		tagColumns, err := c.runScalarQueries(
+			[]datadogV2.ScalarQuery{
+				buildScalarQuery(
+					"q0",
+					fmt.Sprintf("avg:datadog.agent.running{*} by {kube_cluster_name,%s}", tagName),
+					datadogV2.METRICSAGGREGATOR_AVG,
+				),
+			},
+			fromTS,
+			toTS,
+		)
+		if err != nil {
+			return agentVersionFilter{}, fmt.Errorf("query agent %s tags by Kubernetes cluster: %w", tagName, err)
+		}
+		for _, column := range tagColumns {
+			cluster := column.tags["kube_cluster_name"]
+			tagValue := column.tags[tagName]
+			if isNullishGroupValue(cluster) || isNullishGroupValue(tagValue) {
+				continue
+			}
+			metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
+			if metadata.tags[tagName] == nil {
+				metadata.tags[tagName] = make(map[string]struct{})
+			}
+			metadata.tags[tagName][tagValue] = struct{}{}
+		}
+	}
+
+	clusters := make([]string, 0, len(metadataByCluster))
+	for cluster, metadata := range metadataByCluster {
+		if len(metadata.versions) == 0 {
+			continue
+		}
 		matchesVersion := true
-		for version := range versions {
+		for version := range metadata.versions {
 			matches, err := path.Match(agentVersion, version)
 			if err != nil {
-				return "", fmt.Errorf("match agent version %q: %w", agentVersion, err)
+				return agentVersionFilter{}, fmt.Errorf("match agent version %q: %w", agentVersion, err)
 			}
 			if !matches {
 				matchesVersion = false
@@ -222,11 +279,143 @@ func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS 
 		}
 	}
 	if len(clusters) == 0 {
-		return "", fmt.Errorf("no Kubernetes clusters exclusively run agent version %q", agentVersion)
+		return agentVersionFilter{}, fmt.Errorf("no Kubernetes clusters exclusively run agent version %q", agentVersion)
 	}
 
 	sort.Strings(clusters)
-	return fmt.Sprintf("kube_cluster_name:(%s)", strings.Join(clusters, " OR ")), nil
+	return agentVersionFilter{
+		metricFilter: fmt.Sprintf("kube_cluster_name:(%s)", strings.Join(clusters, " OR ")),
+		tagFilters:   minimumTagFiltersForClusters(metadataByCluster, clusters),
+	}, nil
+}
+
+func ensureClusterAgentMetadata(metadataByCluster map[string]*clusterAgentMetadata, cluster string) *clusterAgentMetadata {
+	if metadataByCluster[cluster] == nil {
+		metadataByCluster[cluster] = &clusterAgentMetadata{
+			versions: make(map[string]struct{}),
+			tags:     make(map[string]map[string]struct{}),
+		}
+	}
+	return metadataByCluster[cluster]
+}
+
+func minimumTagFiltersForClusters(metadataByCluster map[string]*clusterAgentMetadata, targetClusters []string) []string {
+	targetClusterSet := make(map[string]struct{}, len(targetClusters))
+	for _, cluster := range targetClusters {
+		targetClusterSet[cluster] = struct{}{}
+	}
+
+	candidatesByFilter := make(map[string]map[string]struct{})
+	unsafeCandidates := make(map[string]struct{})
+	for cluster, metadata := range metadataByCluster {
+		_, isTarget := targetClusterSet[cluster]
+		for tagName, tagValues := range metadata.tags {
+			for tagValue := range tagValues {
+				filter := tagName + ":" + tagValue
+				if !isTarget {
+					// This candidate would include a cluster that does not run
+					// the requested Agent version.
+					unsafeCandidates[filter] = struct{}{}
+					continue
+				}
+				if candidatesByFilter[filter] == nil {
+					candidatesByFilter[filter] = make(map[string]struct{})
+				}
+				candidatesByFilter[filter][cluster] = struct{}{}
+			}
+		}
+	}
+
+	candidates := make([]tagFilterCandidate, 0, len(candidatesByFilter))
+	for filter, cover := range candidatesByFilter {
+		if _, unsafe := unsafeCandidates[filter]; !unsafe {
+			candidates = append(candidates, tagFilterCandidate{filter: filter, cover: cover})
+		}
+	}
+	selected := minimumTagFilterCover(candidates, targetClusterSet)
+	if len(selected) == 0 {
+		return clusterTagFilters(targetClusters)
+	}
+	return selected
+}
+
+func clusterTagFilters(clusters []string) []string {
+	filters := make([]string, 0, len(clusters))
+	for _, cluster := range clusters {
+		filters = append(filters, "kube_cluster_name:"+cluster)
+	}
+	return filters
+}
+
+func minimumTagFilterCover(candidates []tagFilterCandidate, targetClusters map[string]struct{}) []string {
+	// A candidate contained by another has no advantage when every filter has the
+	// same cost. Discarding it substantially reduces the selection space.
+	slices.SortFunc(candidates, func(a, b tagFilterCandidate) int {
+		if countDiff := len(b.cover) - len(a.cover); countDiff != 0 {
+			return countDiff
+		}
+		return strings.Compare(a.filter, b.filter)
+	})
+	filtered := make([]tagFilterCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if slices.ContainsFunc(filtered, func(other tagFilterCandidate) bool {
+			return candidateCoverIsSubset(candidate.cover, other.cover)
+		}) {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+
+	selected := greedyTagFilterCover(filtered, targetClusters)
+	if len(selected) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(selected))
+	for _, candidate := range selected {
+		result = append(result, candidate.filter)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func greedyTagFilterCover(candidates []tagFilterCandidate, targetClusters map[string]struct{}) []tagFilterCandidate {
+	var selected []tagFilterCandidate
+	covered := make(map[string]struct{})
+	for len(covered) < len(targetClusters) {
+		bestIndex := -1
+		for index, candidate := range candidates {
+			if bestIndex == -1 || uncoveredCoverageCount(candidate.cover, covered) > uncoveredCoverageCount(candidates[bestIndex].cover, covered) {
+				bestIndex = index
+			}
+		}
+		if bestIndex == -1 || uncoveredCoverageCount(candidates[bestIndex].cover, covered) == 0 {
+			return nil
+		}
+		selected = append(selected, candidates[bestIndex])
+		for cluster := range candidates[bestIndex].cover {
+			covered[cluster] = struct{}{}
+		}
+	}
+	return selected
+}
+
+func candidateCoverIsSubset(candidate, other map[string]struct{}) bool {
+	for cluster := range candidate {
+		if _, found := other[cluster]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func uncoveredCoverageCount(candidate, covered map[string]struct{}) int {
+	count := 0
+	for cluster := range candidate {
+		if _, isCovered := covered[cluster]; !isCovered {
+			count++
+		}
+	}
+	return count
 }
 
 func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]gpuspec.TagSpec, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {

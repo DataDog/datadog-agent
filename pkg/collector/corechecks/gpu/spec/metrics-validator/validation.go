@@ -36,14 +36,17 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agent
 	now := time.Now().Unix()
 	fromTS := now - lookbackSeconds
 
+	tagInventoryExtraFilters := []string{metricFilter}
 	if strings.TrimSpace(agentVersion) != "" {
 		versionFilter, err := client.filterForAgentVersion(agentVersion, fromTS, now)
 		if err != nil {
 			return orgValidationResults{}, fmt.Errorf("build filter for agent version %q: %w", agentVersion, err)
 		}
 		log.Printf("targeting agent version %q", agentVersion)
-		log.Printf("using version-derived cluster metric filter %q", versionFilter)
-		metricFilter = combineMetricFilters(versionFilter, metricFilter)
+		log.Printf("using version-derived cluster metric filter %q", versionFilter.metricFilter)
+		log.Printf("using %d version-derived tag inventory filter(s): %q", len(versionFilter.tagFilters), versionFilter.tagFilters)
+		metricFilter = combineMetricFilters(versionFilter.metricFilter, metricFilter)
+		tagInventoryExtraFilters = versionFilter.tagFilters
 	}
 
 	configs := gpuspec.KnownGPUConfigs(specs)
@@ -56,7 +59,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agent
 			nvLinkCapability = fmt.Sprintf("%t", *config.NVLinkCapable)
 		}
 		log.Printf("validating gpu config %s/%s (NVLink capable: %s)", config.Architecture, config.DeviceMode, nvLinkCapability)
-		result, err := validateGPUConfig(client, specs, config, metricFilter, fromTS, now)
+		result, err := validateGPUConfig(client, specs, config, metricFilter, tagInventoryExtraFilters, fromTS, now)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
 		}
@@ -70,7 +73,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agent
 	}, allErrors
 }
 
-func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, metricFilter string, fromTS, toTS int64) (gpuConfigValidationResult, error) {
+func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, metricFilter string, tagInventoryExtraFilters []string, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
 		State:  validationStateMissing,
@@ -83,7 +86,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	}
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, validationOptions)
 	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
-	tagInventoryFilters := tagInventoryFiltersForConfig(config, metricFilter)
+	tagInventoryFilters := tagInventoryFiltersForConfig(config, tagInventoryExtraFilters)
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, queryFilter, fromTS, toTS)
@@ -222,33 +225,47 @@ func combineMetricFilters(filters ...string) string {
 	return strings.Join(parts, " AND ")
 }
 
-func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilter string) []string {
-	// The metric all-tags endpoint does not handle NOT filters like scalar metric queries do.
-	// Use equivalent positive scopes for physical GPUs so tag inventories stay complete.
-	baseParts := []string{"kube_cluster_name:*", "gpu_architecture:" + config.Architecture}
+func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []string) []string {
+	// The metric all-tags endpoint accepts a comma-separated list of positive tag
+	// filters. Use equivalent positive scopes for physical GPUs, then query each
+	// selected cluster separately because repeated tag keys are ANDed, not ORed.
+	baseParts := []string{"gpu_architecture:" + config.Architecture}
+	hasClusterFilter := slices.ContainsFunc(extraFilters, func(filter string) bool {
+		return strings.HasPrefix(strings.TrimSpace(filter), "kube_cluster_name:")
+	})
+	if !hasClusterFilter {
+		baseParts = append(baseParts, "kube_cluster_name:*")
+	}
 	if config.NVLinkCapable != nil {
 		baseParts = append(baseParts, fmt.Sprintf("gpu_nvlink_capable:%t", *config.NVLinkCapable))
 	}
+	var configFilters []string
 	switch config.DeviceMode {
 	case gpuspec.DeviceModeMIG:
-		baseParts = append(baseParts, "gpu_slicing_mode:mig")
+		configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig"), ",")}
 	case gpuspec.DeviceModeVGPU:
-		baseParts = append(baseParts, "gpu_virtualization_mode:*vgpu")
+		configFilters = []string{strings.Join(append(baseParts, "gpu_virtualization_mode:*vgpu"), ",")}
 	default:
-		filters := []string{
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), " AND "),
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), " AND "),
-		}
-		if strings.TrimSpace(extraFilter) == "" {
-			return filters
-		}
-		return []string{
-			combineMetricFilters(filters[0], extraFilter),
-			combineMetricFilters(filters[1], extraFilter),
+		configFilters = []string{
+			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), ","),
+			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), ","),
 		}
 	}
 
-	return []string{combineMetricFilters(strings.Join(baseParts, " AND "), extraFilter)}
+	if len(extraFilters) == 0 {
+		return configFilters
+	}
+	filters := make([]string, 0, len(configFilters)*len(extraFilters))
+	for _, configFilter := range configFilters {
+		for _, extraFilter := range extraFilters {
+			if strings.TrimSpace(extraFilter) == "" {
+				filters = append(filters, configFilter)
+				continue
+			}
+			filters = append(filters, strings.Join([]string{configFilter, extraFilter}, ","))
+		}
+	}
+	return filters
 }
 
 func tagInventoryPrefixesForMetric(expectedTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
