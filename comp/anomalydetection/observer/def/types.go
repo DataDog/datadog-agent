@@ -91,10 +91,11 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name    string
-	Value   float64
-	Host    string
-	Tags    []string
+	Name  string
+	Value float64
+	Host  string
+	// Tags is an immutable view retained by the observer storage.
+	Tags    tagset.CompositeTags
 	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
 

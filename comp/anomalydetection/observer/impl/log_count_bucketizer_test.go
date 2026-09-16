@@ -10,14 +10,15 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fixedLogCountExtractor struct{}
 
-func testLogStorageKey(namespace string, metric observerdef.MetricOutput, host string, tags []string) uint64 {
-	return storageKeyForIdentity(namespace, metric.Name, host, tags)
+func testLogStorageKey(namespace string, metric observerdef.MetricOutput, host string, tags tagset.CompositeTags) uint64 {
+	return storageKeyForCompositeIdentity(namespace, metric.Name, host, tags)
 }
 
 func (*fixedLogCountExtractor) Name() string { return "fixed_log_count" }
@@ -25,7 +26,7 @@ func (*fixedLogCountExtractor) ProcessLog(log observerdef.LogView) observerdef.L
 	return observerdef.LogMetricsExtractorOutput{Metrics: []observerdef.MetricOutput{{
 		Name:    "log.fixed.count",
 		Value:   1,
-		Tags:    log.Tags(),
+		Tags:    tagset.CompositeTagsFromSlice(log.Tags()),
 		Context: &observerdef.MetricContext{Pattern: "fixed"},
 	}}}
 }
@@ -38,13 +39,13 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 		Value:   1,
 		Context: &observerdef.MetricContext{Pattern: "request <*>"},
 	}
-	tags := canonicalizeTags([]string{"service:api"})
+	tags := tagset.CompositeTagsFromSlice([]string{"service:api"})
 
 	require.True(t, b.observe("logs", metric, "", 1, tags, testLogStorageKey("logs", metric, "", tags)))
 	require.True(t, b.observe("logs", metric, "", 3, tags, testLogStorageKey("logs", metric, "", tags)))
 	b.flush(storage, 15)
 
-	series := storage.GetSeries("logs", "log.pattern.count", tags, observerdef.AggregateAverage)
+	series := storage.GetSeries("logs", "log.pattern.count", []string{"service:api"}, observerdef.AggregateAverage)
 	require.NotNil(t, series)
 	assert.Equal(t, []observerdef.Point{
 		{Timestamp: 5, Value: 2},
@@ -62,7 +63,7 @@ func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, "host-a", 1, []string{"service:api"}, 42))
+	require.True(t, b.observe("logs", metric, "host-a", 1, tagset.CompositeTagsFromSlice([]string{"service:api"}), 42))
 	b.flush(storage, 5)
 
 	metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
@@ -77,9 +78,9 @@ func TestMaterializedLogCountBucketizerStopsAtIdleTTLAndReactivates(t *testing.T
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, "", 1, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 20)
-	require.True(t, b.observe("logs", metric, "", 21, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 21, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 35)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)
@@ -97,9 +98,9 @@ func TestMaterializedLogCountBucketizerRejectsFlushedLateBucket(t *testing.T) {
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, "", 1, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 5)
-	assert.False(t, b.observe("logs", metric, "", 2, nil, testLogStorageKey("logs", metric, "", nil)))
+	assert.False(t, b.observe("logs", metric, "", 2, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 }
 
 func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *testing.T) {
@@ -107,9 +108,9 @@ func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *te
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, "", 1, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 4)
-	require.True(t, b.observe("logs", metric, "", 3, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 3, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 5)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)
@@ -130,9 +131,9 @@ func TestMaterializedLogCountBucketizerOverridesRetentionForLogSeries(t *testing
 	})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, "", 1, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 5)
-	require.True(t, b.observe("logs", metric, "", 21, nil, testLogStorageKey("logs", metric, "", nil)))
+	require.True(t, b.observe("logs", metric, "", 21, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 25)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)

@@ -149,8 +149,8 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	tags := log.Tags()
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{
-			{Name: "metric.a", Value: 1, Tags: tags},
-			{Name: "metric.b", Value: 1, Tags: tags},
+			{Name: "metric.a", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
+			{Name: "metric.b", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
 		},
 	}
 }
