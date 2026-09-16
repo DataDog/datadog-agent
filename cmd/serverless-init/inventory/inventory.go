@@ -14,6 +14,7 @@ package inventory
 
 import (
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
@@ -186,6 +187,8 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"dd_site":    conf.GetString("site"),
 		"dd_version": tags["version"],
 		"dd_service": tags["service"],
+
+		"serverless_tags": serverlessTagList(tags),
 	}
 
 	// wrapped_command is the customer workload command wrapped by serverless-init
@@ -197,6 +200,19 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 	}
 
 	return fields
+}
+
+// serverlessTagList flattens the log and trace tag map.
+//
+// Sorted because Set diffs with reflect.DeepEqual, so map iteration order would
+// otherwise make an unchanged tag set look changed on every Inject.
+func serverlessTagList(tags map[string]string) []string {
+	tagList := make([]string, 0, len(tags))
+	for key, value := range tags {
+		tagList = append(tagList, scrubber.ScrubLine(key+":"+value))
+	}
+	sort.Strings(tagList)
+	return tagList
 }
 
 // deploymentModel maps the run mode to the downstream deployment_model value.
