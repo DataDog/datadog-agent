@@ -83,6 +83,19 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 	assert.NotContains(t, message, "log.pattern.def.rate")
 }
 
+func TestScorerContributorDisplayNameUsesBothCompositeTagSegments(t *testing.T) {
+	meta := &observerdef.SeriesMeta{
+		Namespace: logMetricsExtractorNamespace,
+		Host:      "web-1",
+		Tags:      tagset.NewCompositeTags([]string{"service:api"}, []string{"env:prod"}),
+	}
+
+	assert.Equal(t,
+		"log: ERROR <*> — {host:web-1,service:api,env:prod}",
+		scorerContributorDisplayName(meta, &observerdef.MetricContext{Example: "ERROR <*>"}, observerdef.AggregateCount),
+	)
+}
+
 func TestFormatScorerEpisodeMessageFallsBackWithoutContributors(t *testing.T) {
 	event := observerdef.CorrelatorEvent{
 		CorrelatorName: "anomaly_scorer",
