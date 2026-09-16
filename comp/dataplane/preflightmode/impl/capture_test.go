@@ -540,6 +540,22 @@ func TestParseRecordSourceLocation(t *testing.T) {
 			wantLocation: sourceLocation{file: sourceUnknown, line: "1"},
 		},
 		{
+			// file!() reports the path form of the machine ADP was built on, so a Windows ADP
+			// build logs backslashes. The log site is the same one either way and has to report
+			// as a single tag value, or a mixed fleet counts it twice.
+			name:         "a Windows path is folded to forward slashes",
+			fields:       `"filename":"bin\\agent-data-plane\\src\\main.rs","line_number":195`,
+			wantLocation: sourceLocation{file: "bin/agent-data-plane/src/main.rs", line: "195"},
+		},
+		{
+			// Folding the separators still leaves the drive letter's colon, which the character
+			// set rejects on purpose. Only reachable from a dependency crate's log site, since
+			// ADP's own paths are workspace-relative.
+			name:         "a Windows absolute path is rejected on its drive letter",
+			fields:       `"filename":"C:\\cargo\\registry\\src\\hyper-1.0\\src\\lib.rs","line_number":1`,
+			wantLocation: sourceLocation{file: sourceUnknown, line: "1"},
+		},
+		{
 			// Rejected rather than truncated: half a path still looks like a real one.
 			name:         "an overlong filename is rejected",
 			fields:       `"filename":"` + strings.Repeat("x", maxSourceFileLen+1) + `","line_number":1`,

@@ -329,19 +329,33 @@ func normalizeLevel(level string) (string, bool) {
 	}
 }
 
-// sourceFilePattern is what a filename has to match to be reported.
+// sourceFilePattern is what a filename has to match to be reported, once its separators have
+// been folded to forward slashes.
 //
 // ADP fills the field in from file!(), so it is a compile-time constant of ADP's own build and
 // carries nothing operator-controlled. The character set is enforced regardless, because this is
 // the only label value on the finding metric that is read out of ADP's output rather than chosen
 // from a constant here: a value carrying a comma, a colon or whitespace would not survive being
-// turned into a tag intact, and anything that does not look like a source path is not one.
+// turned into a tag intact, and anything that does not look like a source path is not one. That
+// colon still rejects an absolute Windows path on its drive letter, which is deliberate and
+// costs nothing we have: ADP's own paths are workspace-relative, so a drive letter only shows up
+// on a log site inside a dependency crate, where the path describes the build machine's cargo
+// registry rather than anything a reader can navigate to.
 var sourceFilePattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 
 // normalizeSourceFile returns the file a record was logged from, or sourceUnknown if it did not
 // carry one that can be reported.
+//
+// Backslashes are folded to forward slashes first, because file!() bakes in the path form of the
+// machine ADP was built on: a Windows build logs `bin\agent-data-plane\src\main.rs` where a Linux
+// build of the same source logs `bin/agent-data-plane/src/main.rs`. Folded rather than admitted
+// into the character set above, so that one log site is one tag value across a mixed fleet
+// instead of two. The replacement is explicit rather than filepath.ToSlash because this is a
+// string out of ADP's output and not a path on this machine: ToSlash compiles to a no-op
+// everywhere but Windows, which would both leave the fold to the Agent's build platform and
+// leave this case unexercised on a Linux test runner.
 func normalizeSourceFile(file string) string {
-	file = strings.TrimSpace(file)
+	file = strings.ReplaceAll(strings.TrimSpace(file), `\`, "/")
 	if file == "" || len(file) > maxSourceFileLen || !sourceFilePattern.MatchString(file) {
 		return sourceUnknown
 	}

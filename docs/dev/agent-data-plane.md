@@ -202,7 +202,10 @@ Findings: `spawn_failed`, `probe_failed`, `exited_early`, `stop_timeout`, `error
 that logged the record — `source_file:lib/saluki-components/src/common/datadog/validation.rs`,
 `source_line:286` — so the same failure can be counted across the fleet by the log site that
 produced it. Those values come from ADP's own `file!()`/`line!()`, making them compile-time
-constants of its build rather than anything derived from a log message; they are validated
+constants of its build rather than anything derived from a log message. Separators are folded to
+`/` before anything else, because `file!()` reports the path form of the machine ADP was built
+on: a Windows build logs `bin\agent-data-plane\src\main.rs`, and without the fold it would tag a
+second log site rather than the one a Linux build reports. The folded value is then validated
 against a path-shaped character set, and a value that fails validation (or a record that has
 none, such as a panic that bypassed the logger) reports `<unknown>`. Every other finding carries
 both tags empty, since a finding the pre-flight observed about the *process* has no source
