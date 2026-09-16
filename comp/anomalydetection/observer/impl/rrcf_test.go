@@ -9,7 +9,35 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+func TestRRCFResolveAllKeysGroupsUnorderedCompositeTags(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	firstTags := tagset.CompositeTagsFromSlice([]string{"container:a", "env:prod"})
+	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"container:a"})
+	storage.AddWithKeyAndHostComposite("ns", "metric.one", "host-a", 1, 1, firstTags, storageKeyForCompositeIdentity("ns", "metric.one", "host-a", firstTags))
+	storage.AddWithKeyAndHostComposite("ns", "metric.two", "host-a", 1, 1, secondTags, storageKeyForCompositeIdentity("ns", "metric.two", "host-a", secondTags))
+
+	detector := NewRRCFDetector(RRCFConfig{
+		NumTrees:    1,
+		TreeSize:    2,
+		ShingleSize: 2,
+		Metrics: []RRCFMetricDef{
+			{Namespace: "ns", Name: "metric.one", Agg: observer.AggregateAverage},
+			{Namespace: "ns", Name: "metric.two", Agg: observer.AggregateAverage},
+		},
+	})
+
+	if !detector.resolveAllKeys(storage) {
+		t.Fatal("expected RRCF to resolve both metrics to the same unordered tag group")
+	}
+	if len(detector.resolvedKeys) != 2 {
+		t.Fatalf("expected two resolved metrics, got %d", len(detector.resolvedKeys))
+	}
+}
 
 func TestRCTree_EmptyTree(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))

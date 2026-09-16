@@ -12,6 +12,7 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -247,14 +248,17 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 		}
 	}
 
-	// Build an identity signature for each series. Host is separate from metric
-	// tags, so it must participate to avoid combining different hosts.
-	tagSig := func(host string, tags tagset.CompositeTags) string {
-		return host + "|" + tags.Join(",")
+	// Group by an allocation-free host/tag-set fingerprint. Metric names are
+	// deliberately excluded: RRCF aligns distinct configured metric names that
+	// describe the same entity. ckey treats tags as unordered and ignores
+	// duplicates, matching the metrics pipeline identity semantics.
+	groupKeyGenerator := ckey.NewSliceKeyGenerator()
+	tagSig := func(host string, tags tagset.CompositeTags) uint64 {
+		return uint64(groupKeyGenerator.GenerateComposite("", host, tags))
 	}
 
 	// Group series by tag signature and find a tag set that has ALL metrics
-	tagSetMetrics := make(map[string]map[string]observer.SeriesMeta) // tagSig -> cursorKey -> SeriesMeta
+	tagSetMetrics := make(map[uint64]map[string]observer.SeriesMeta) // tag fingerprint -> cursorKey -> SeriesMeta
 	for cursorKey, metas := range seriesByMetric {
 		for _, meta := range metas {
 			sig := tagSig(meta.Host, meta.Tags)
@@ -267,7 +271,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 
 	// Find tag set with most metrics, breaking ties by total data points.
 	numMetrics := len(r.metrics)
-	var bestSig string
+	var bestSig uint64
 	bestMetricCount := 0
 	bestPointCount := 0
 	for sig, metricsMap := range tagSetMetrics {
@@ -292,7 +296,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	}
 
 	if bestMetricCount < numMetrics {
-		log.Printf("  RRCF WARNING: only %d/%d configured metrics found (tags=%s); alignment requires all metrics so no vectors will be produced until the missing metrics appear\n", bestMetricCount, numMetrics, bestSig)
+		log.Printf("  RRCF WARNING: only %d/%d configured metrics found (tag_fingerprint=%x); alignment requires all metrics so no vectors will be produced until the missing metrics appear\n", bestMetricCount, numMetrics, bestSig)
 	}
 	log.Printf("  RRCF: resolved %d metrics to tag set with %d total points\n", bestMetricCount, bestPointCount)
 
