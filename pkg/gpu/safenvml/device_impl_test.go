@@ -124,6 +124,23 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
+func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+				return nvml.Memory{}, nvml.ERROR_UNKNOWN
+			}
+		})),
+	)
+	WithMockNVML(t, mockNvml)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+
+	require.NoError(t, err)
+	require.Zero(t, device.Memory)
+}
+
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
 	symbols := maps.Clone(allSymbols)

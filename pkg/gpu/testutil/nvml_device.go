@@ -212,7 +212,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
-			return nvml.Memory_v2{}, nvml.SUCCESS
+			return nvml.Memory_v2{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
 			return DefaultMemoryBusWidth, nvml.SUCCESS
