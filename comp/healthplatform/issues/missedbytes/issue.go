@@ -330,14 +330,7 @@ func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
 			totals[s.Bottleneck] += s.BottleneckRotations
 		}
 	}
-	var name string
-	var max int64
-	for component, count := range totals {
-		if count > max || (count == max && component < name) {
-			name, max = component, count
-		}
-	}
-	return name, max
+	return dominantBottleneck(totals)
 }
 
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
@@ -346,12 +339,12 @@ func firstRemediationStep(bp *backpressureWire, sources []sourceLoss) string {
 	switch component, _ := lossTimeBottleneck(sources); {
 	case component == logsmetrics.NoBottleneck:
 		// Naming the check-time component here would claim it was measured at loss time.
-		return "The logs pipeline was keeping up when this data was lost, so no component was saturating; step 2 is the one that applies. Run `sudo datadog-agent status` to confirm nothing is saturated now."
+		return "No pipeline component was saturated when this data was lost, so the `logs_config.close_timeout` step below is the one that applies."
 	case component != "":
-		return fmt.Sprintf("The Agent measured the `%s` component as the saturated one when the data was lost; skip to the step below that matches it. Run `sudo datadog-agent status` to check whether it is still saturated.",
+		return fmt.Sprintf("The `%s` component was saturated when this data was lost. Follow the step below that names it, then confirm with `sudo datadog-agent status`.",
 			component)
 	case bp != nil && bp.Bottleneck != nil:
-		return fmt.Sprintf("The Agent could not measure which component was saturated when the data was lost, but `%s` is saturated now; skip to the step below that matches it.",
+		return fmt.Sprintf("The saturated component at loss time was not measured, but `%s` is saturated now. Follow the step below that names it.",
 			bp.Bottleneck.Component)
 	}
 	return "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."

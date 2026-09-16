@@ -195,6 +195,23 @@ func TestCheck_NoPipelineMonitorOmitsBackpressure(t *testing.T) {
 	assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck)
 }
 
+// A monitor with no measurable component is registered but blind. Encoding it as HEALTHY
+// would make the issue claim the pipeline was keeping up and send the reader past step 3.
+func TestCheck_BlindPipelineMonitorOmitsBackpressure(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RegisterFakePipelineMonitorForTest(nil)
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024)
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	assert.NotContains(t, reports[0].Context, contextKeyBackpressure)
+	assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck,
+		"an unmeasured pipeline must not be attributed to NoBottleneck")
+}
+
 func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()

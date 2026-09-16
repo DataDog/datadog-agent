@@ -92,7 +92,8 @@ func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpres
 	return BackpressureHealthy, nil
 }
 
-// DeriveBackpressure summarises a pipeline monitor's snapshots.
+// DeriveBackpressure summarises a pipeline monitor's snapshots. A monitor with no measurable
+// component yields the zero value: measuring nothing is not measuring a healthy pipeline.
 func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 	comps := make([]ComponentBackpressure, 0, len(snaps))
 	for _, s := range snaps {
@@ -115,6 +116,10 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 		})
 	}
 
+	if len(comps) == 0 {
+		return BackpressureSummary{}
+	}
+
 	state, bottleneck := SelectBottleneck(comps)
 	summary := BackpressureSummary{State: state, Components: comps}
 	if bottleneck != nil {
@@ -123,8 +128,18 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 		summary.Bottleneck = &b
 	}
 
-	// Worst first, so a caller that truncates keeps the saturated rows.
+	// Bottleneck first: it is picked on recency and sorted on duration, so it does not
+	// otherwise survive a caller that truncates.
+	isBottleneck := func(c *ComponentBackpressure) bool {
+		return summary.Bottleneck != nil &&
+			c.Component == summary.Bottleneck.Component &&
+			c.Instance == summary.Bottleneck.Instance
+	}
+
 	sort.Slice(comps, func(i, j int) bool {
+		if bi, bj := isBottleneck(&comps[i]), isBottleneck(&comps[j]); bi != bj {
+			return bi
+		}
 		if comps[i].Saturated30mSeconds != comps[j].Saturated30mSeconds {
 			return comps[i].Saturated30mSeconds > comps[j].Saturated30mSeconds
 		}

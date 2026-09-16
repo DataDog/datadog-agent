@@ -29,8 +29,9 @@ const maxBreakdownSources = 10
 // maxBackpressureComponents caps the components listed individually.
 const maxBackpressureComponents = 10
 
-// ratioDecimals rounds the ratios so an unchanged pipeline encodes identically each tick.
-const ratioDecimals = 3
+// ratioScale rounds the ratios to 3 decimals so an unchanged pipeline encodes identically
+// each tick.
+const ratioScale = 1000
 
 type checker struct {
 	hostname hostnameinterface.Component
@@ -104,7 +105,7 @@ func encodeBackpressure(summary logsmetrics.BackpressureSummary) (string, bool) 
 		return "", false
 	}
 
-	// Already ranked worst-first, so truncating keeps the saturated rows.
+	// DeriveBackpressure puts the bottleneck first, so truncating keeps it.
 	components := summary.Components
 	omitted := 0
 	if len(components) > maxBackpressureComponents {
@@ -143,20 +144,19 @@ func roundComponent(c logsmetrics.ComponentBackpressure) logsmetrics.ComponentBa
 }
 
 func roundRatio(v float64) float64 {
-	scale := math.Pow(10, ratioDecimals)
-	return math.Round(v*scale) / scale
+	return math.Round(v*ratioScale) / ratioScale
 }
 
 // dominantBottleneck names the stage blamed for most of a tuple's rotations, and how many.
 func dominantBottleneck(counts map[string]int64) (string, int64) {
 	var name string
-	var max int64
+	var top int64
 	for component, count := range counts {
-		if count > max || (count == max && component < name) {
-			name, max = component, count
+		if count > top || (count == top && component < name) {
+			name, top = component, count
 		}
 	}
-	return name, max
+	return name, top
 }
 
 // rankSources keeps the maxBreakdownSources largest tuples and returns how many it

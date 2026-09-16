@@ -381,8 +381,10 @@ func TestBuildIssue_HealthyAtLossTimeSaysSo(t *testing.T) {
 
 	assert.Contains(t, issue.GetDescription(), "ran out of time rather than throughput")
 	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "keeping up when this data was lost")
-	assert.NotContains(t, step1, "skip to", "a healthy pipeline names no component to skip to")
+	assert.Contains(t, step1, "No pipeline component was saturated when this data was lost")
+	// Step 1 points by setting name, not step number, so reordering cannot make it lie.
+	assert.Contains(t, step1, "`logs_config.close_timeout`")
+	assert.Contains(t, issue.GetRemediation().GetSteps()[1].GetText(), "`logs_config.close_timeout`")
 }
 
 // The loss window is 24h and the check runs every 15m, so the pipeline can be healthy at loss
@@ -405,9 +407,8 @@ func TestBuildIssue_HealthyAtLossTimeIgnoresLaterSaturation(t *testing.T) {
 	require.NoError(t, err)
 
 	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "keeping up when this data was lost")
+	assert.Contains(t, step1, "No pipeline component was saturated when this data was lost")
 	assert.NotContains(t, step1, "`strategy`", "strategy saturated after the loss, so it did not cause it")
-	assert.NotContains(t, step1, "when the data was lost; skip")
 }
 
 // Attribution missing entirely is not the same as attribution saying the pipeline was healthy.
@@ -429,7 +430,7 @@ func TestBuildIssue_UnknownAttributionUsesCheckTimeWording(t *testing.T) {
 	require.NoError(t, err)
 
 	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "could not measure")
+	assert.Contains(t, step1, "was not measured")
 	assert.Contains(t, step1, "`strategy` is saturated now")
 }
 

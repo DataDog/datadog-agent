@@ -313,6 +313,7 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopHTTPRetry()
 
 	status.Clear()
+	metrics.RegisterPipelineMonitor(nil)
 
 	toStop := []startstop.Stoppable{
 		a.schedulers,

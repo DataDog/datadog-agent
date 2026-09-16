@@ -200,6 +200,51 @@ func TestDeriveBackpressureRanksWorstFirst(t *testing.T) {
 	assert.Equal(t, BackpressureSaturated, summary.State)
 }
 
+func TestDeriveBackpressureUnmeasuredIsUnknownNotHealthy(t *testing.T) {
+	for name, snaps := range map[string][]ComponentSnapshot{
+		"no snapshots":   nil,
+		"only sender":    {saturatedSnapshot(SenderTlmName, 0, 0, 0, false)},
+		"empty registry": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			summary := DeriveBackpressure(snaps)
+			assert.Empty(t, summary.State, "a monitor that measured nothing must not claim HEALTHY")
+			assert.Nil(t, summary.Bottleneck)
+			assert.Empty(t, summary.Components)
+		})
+	}
+}
+
+// A registered monitor that measures nothing must stay distinguishable from a healthy one:
+// the issue text turns NoBottleneck into "the pipeline was keeping up".
+func TestCurrentBottleneckComponentNoopMonitorIsUnknown(t *testing.T) {
+	RegisterPipelineMonitor(NewNoopPipelineMonitor(""))
+	t.Cleanup(ResetPipelineMonitorForTest)
+
+	assert.Empty(t, BackpressureSnapshot().State)
+	assert.Empty(t, currentBottleneckComponent(), "unmeasured must not be recorded as NoBottleneck")
+}
+
+// A component saturated right now with no 30m history sorts last on duration, so it only
+// survives a truncating caller if the bottleneck key outranks the duration key.
+func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
+	snaps := []ComponentSnapshot{saturatedSnapshot("zzz_now", 0.99, 0, 0, true)}
+	for i := 0; i < 12; i++ {
+		s := saturatedSnapshot("aaa_history", 0.5, 0, 10*time.Minute, false)
+		s.Instance = string(rune('a' + i))
+		snaps = append(snaps, s)
+	}
+
+	summary := DeriveBackpressure(snaps)
+
+	require.NotNil(t, summary.Bottleneck)
+	assert.Equal(t, "zzz_now", summary.Bottleneck.Component)
+	assert.Equal(t, BackpressureSaturated, summary.State)
+	require.Len(t, summary.Components, 13)
+	assert.Equal(t, "zzz_now", summary.Components[0].Component,
+		"the bottleneck must be row 0 or a truncating caller drops it")
+}
+
 func TestBackpressureSnapshotUnregisteredIsUnknownNotHealthy(t *testing.T) {
 	ResetPipelineMonitorForTest()
 
