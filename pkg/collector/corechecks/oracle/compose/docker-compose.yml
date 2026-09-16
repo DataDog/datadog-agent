@@ -13,7 +13,7 @@ services:
       interval: 5s
       start_period: 15s
       timeout: 5s
-      retries: 120
+      retries: 48
     # We could just mount init.db but we mimic Gitlab's limitations
     # and rely on TestMain to run the relevant sql
     environment:

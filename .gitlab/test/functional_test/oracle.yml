@@ -1,6 +1,5 @@
 oracle:
   allow_failure: true #incident-51958
-  retry: 0
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: functional_test
@@ -14,62 +13,25 @@ oracle:
       entrypoint: ["/bin/bash", "-c"]
       command:
         - |
-          mkdir -p /tmp/oracle-ci-logs
-          cd /tmp/oracle-ci-logs
-          {
-            date -u
-            id
-            uname -a
-            printf 'CI_PROJECT_DIR=%s\n' "$CI_PROJECT_DIR"
-            df -h /dev/shm
-            cat /proc/self/cgroup
-            for setting in memory.max cpuset.cpus.effective cpu.max; do
-              if [ -f "/sys/fs/cgroup/$setting" ]; then
-                printf '%s=' "$setting"
-                cat "/sys/fs/cgroup/$setting"
-              fi
-            done
-            ulimit -a
-          } > environment.log 2>&1
-          (
-            configure_oracle() {
-              timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL || return
+          set -e
+          timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
           whenever oserror exit failure
           whenever sqlerror exit failure
           create pfile='/tmp/oracle-ci-init.ora' from spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora';
           exit
           SQL
-              printf '\n*.cpu_count=2\n' >> /tmp/oracle-ci-init.ora || return
-              timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
+          printf '\n*.cpu_count=2\n' >> /tmp/oracle-ci-init.ora
+          timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
           whenever oserror exit failure
           whenever sqlerror exit failure
           create spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora' from pfile='/tmp/oracle-ci-init.ora';
           exit
           SQL
-            }
-            configure_oracle > configure.log 2>&1
-            startup_status=$?
-            if [ "$startup_status" -eq 0 ]; then
-              timeout --signal=TERM --kill-after=10s 180s "$ORACLE_BASE/$RUN_FILE" --nowait
-              startup_status=$?
-            fi
-            if [ "$startup_status" -ne 0 ]; then
-              printf 'whenever sqlerror exit failure\nconnect / as sysdba\nstartup\nexit\n' | timeout --signal=TERM --kill-after=5s 15s "$ORACLE_HOME/bin/sqlplus" -L /nolog > startup-sql.log 2>&1
-              printf 'SQL startup probe exit status: %s\n' "$?" >> startup-sql.log
-            fi
-            for logfile in "$ORACLE_BASE"/diag/rdbms/*/*/trace/alert*.log; do
-              if [ -f "$logfile" ]; then
-                cp "$logfile" .
-              fi
-            done
-            printf '%s\n' "$startup_status" > startup.exit
-          ) > startup.log 2>&1 &
-          exec python -u -c 'import SimpleHTTPServer, SocketServer; SocketServer.TCPServer(("127.0.0.1", 18080), SimpleHTTPServer.SimpleHTTPRequestHandler).serve_forever()'
+          exec "$ORACLE_BASE/$RUN_FILE"
       variables:
         ORACLE_PWD: "datad0g"
   variables:
     FF_KUBERNETES_HONOR_ENTRYPOINT: "false"
-    CI_DEBUG_SERVICES: "true"
     ORACLE_TEST_READY_TIMEOUT: "3m"
     DD_HOSTNAME: "oracle-test"
     # Configure static CPUs
@@ -83,31 +45,6 @@ oracle:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
     - source /root/.bashrc
-    - mkdir -p oracle-ci-logs
-    - |
-      deadline=$((SECONDS + 200))
-      until curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 5 http://127.0.0.1:18080/startup.exit -o oracle-ci-logs/startup.exit; do
-        if [ "$SECONDS" -ge "$deadline" ]; then
-          echo 'Oracle startup status was not available before the deadline'
-          exit 1
-        fi
-        sleep 2
-      done
-      printf 'Oracle startup exit status: '
-      cat oracle-ci-logs/startup.exit
-      test "$(cat oracle-ci-logs/startup.exit)" = 0
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda inv -- oracle.test --verbose
-  after_script:
-    - mkdir -p oracle-ci-logs
-    - |
-      for logfile in environment.log configure.log startup.log startup-sql.log alert_XE.log startup.exit; do
-        curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 10 "http://127.0.0.1:18080/$logfile" -o "oracle-ci-logs/$logfile" || true
-      done
-      tail -n 200 oracle-ci-logs/*.log
-  artifacts:
-    when: always
-    expire_in: 1 week
-    paths:
-      - oracle-ci-logs/
+    - dda inv -- oracle.test
