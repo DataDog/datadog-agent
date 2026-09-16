@@ -2,6 +2,58 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.2:
+
+7.83.2
+======
+
+.. _Release Notes_7.83.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-16
+
+- Please refer to the `7.83.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7832>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- gpu: Constant metrics (``gpu.device.total``, ``gpu.memory.limit``,
+  ``gpu.core.limit``, and ``gpu.memory.bar1.total``) are reported on the cadence
+  set by the new ``gpu.static_metrics_reporting_interval`` (15 seconds by default) to
+  ensure accuracy when using weighted sums.
+
+- Single Step Instrumentation's tracer config mechanisms (the ``ddTraceConfigs``
+  ``Targets`` field, remote-config policies, and the
+  ``admission.datadoghq.com/apm-inject.tracer-configs`` pod annotation) now also
+  accept ``OTEL_`` prefixed environment variable names, in addition to the
+  existing ``DD_`` prefix. This allows configuring a tracer's native OpenTelemetry
+  mode (e.g. ``OTEL_TRACES_EXPORTER``, ``OTEL_EXPORTER_OTLP_ENDPOINT``) through
+  SSI.
+
+
+.. _Release Notes_7.83.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed the Agent Data Plane pre-flight sending its metrics and API key to
+  ``datadoghq.com`` instead of the configured ``site``. The generated
+  pre-flight configuration was built from the fully resolved Agent
+  configuration, so ``dd_url``'s default value appeared in it as though it
+  had been set explicitly, and an explicit ``dd_url`` takes precedence over
+  ``site``. The pre-flight configuration is now built from the settings the
+  operator actually supplied, matching what a normally-supervised Agent Data
+  Plane reads from ``datadog.yaml``.
+
+- Fix ``DD_NETWORK_PATH_COLLECTOR_FILTERS`` so JSON-encoded Network Path
+  collector filters are parsed and applied correctly.
+
+
 .. _Release Notes_7.83.1:
 
 7.83.1
