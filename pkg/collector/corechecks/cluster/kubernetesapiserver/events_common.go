@@ -336,7 +336,7 @@ func nodeFromScheduledMessage(ev *v1.Event) string {
 		return ""
 	}
 	m := scheduledMessageRe.FindStringSubmatch(strings.TrimSpace(ev.Message))
-	if m == nil {
+	if len(m) < 2 {
 		return ""
 	}
 	return m[1]
