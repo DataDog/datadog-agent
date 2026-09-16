@@ -33,7 +33,8 @@ const (
 	// headerSize is the size of the OTEP 4719 mapping header.
 	headerSize = 32
 	// headerVersion is the only process context version this reader understands.
-	headerVersion = 2
+	headerVersion       = 2
+	legacyHeaderVersion = 1
 	// maxPayloadSize bounds what is copied out of the target process. The payload is a
 	// handful of resource attributes; anything larger is a misread header.
 	maxPayloadSize = 1 << 20
@@ -61,6 +62,7 @@ var (
 	// ErrUnsupportedVersion means the header is well-formed but names a version
 	// this reader does not speak.
 	ErrUnsupportedVersion = errors.New("unsupported process context version")
+	ErrLegacyVersion      = errors.New("obsolete process context version 1")
 )
 
 var signature = [8]byte{'O', 'T', 'E', 'L', '_', 'C', 'T', 'X'}
@@ -85,6 +87,9 @@ func parseHeader(buf []byte) (header, error) {
 		return h, fmt.Errorf("%w: bad signature %q", ErrMalformed, buf[0:8])
 	}
 	h.version = binary.NativeEndian.Uint32(buf[8:12])
+	if h.version == legacyHeaderVersion {
+		return h, fmt.Errorf("%w", ErrLegacyVersion)
+	}
 	if h.version != headerVersion {
 		return h, fmt.Errorf("%w: %d", ErrUnsupportedVersion, h.version)
 	}

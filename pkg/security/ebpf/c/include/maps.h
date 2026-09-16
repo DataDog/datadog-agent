@@ -46,7 +46,7 @@ BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
 BPF_ARRAY_MAP(otel_attrs_gen_id, u32, 1)
 BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
@@ -62,6 +62,7 @@ BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 1) // max entries updated at runtime; preallocated (written only from userspace)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
+BPF_HASH_MAP(credential_endpoints, struct credential_endpoint_t, u32, 8) // populated from the configuration at startup
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
 BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
 

@@ -28,6 +28,7 @@ go_library(
         "//pkg/clusteragent/admission/metrics",
         "//pkg/clusteragent/admission/mutate/autoinstrumentation/annotation",
         "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/ssi",
         "//pkg/util/log",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",

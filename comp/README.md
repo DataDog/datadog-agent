@@ -382,6 +382,10 @@ store, and returns the set of IssueIds that were reported.
 Package scheduler defines the interface for the health platform scheduler
 (the periodic runner of built-in health checks).
 
+### [comp/healthplatform/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/status)
+
+Package status defines the interface for the health platform status component.
+
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
