@@ -35,6 +35,9 @@ func TestNewFactoryForAgent(t *testing.T) {
 
 	cfg := factory.CreateDefaultConfig()
 	require.NotNil(t, cfg)
+	// Avoid bind conflicts when this test runs concurrently with itself or other
+	// processes already listening on the default port.
+	cfg.(*Config).HTTPConfig.NetAddr.Endpoint = "localhost:0"
 
 	settings := extension.Settings{TelemetrySettings: componenttest.NewNopTelemetrySettings()}
 	ext, err := factory.Create(t.Context(), settings, cfg)
