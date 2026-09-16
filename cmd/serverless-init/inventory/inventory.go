@@ -151,10 +151,14 @@ func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id stri
 // buildFields flattens the per-platform inventory data and process-level
 // serverless context into the (unprefixed) agent_metadata keys.
 //
-// DD_* passthrough: env and site are real config keys, but version and service
-// are not (DD_VERSION / DD_SERVICE are read by the agent outside the Config
-// struct), so they come from the already-computed tag map rather than
-// conf.GetString, which would return empty and log an unknown-key warning.
+// The three Unified Service Tagging fields come from the already-computed tag
+// map, so inventory reports the same env/service/version this container tags its
+// metrics, logs, and traces with: the map is lowercased and lets DD_TAGS /
+// DD_EXTRA_TAGS override the DD_ENV / DD_SERVICE / DD_VERSION values. Reading
+// them from the config instead would diverge on both counts, and service and
+// version are not even config keys (DD_SERVICE / DD_VERSION are read by the
+// agent outside the Config struct), so conf.GetString would return empty and log
+// an unknown-key warning. site is not a tag, so it comes from the config.
 func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) map[string]interface{} {
 	inv := cs.GetInventoryData()
 
@@ -178,7 +182,7 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"deployment_model": deploymentModel(modeConf),
 		"runtime":          inv.Runtime,
 
-		"dd_env":     conf.GetString("env"),
+		"dd_env":     tags["env"],
 		"dd_site":    conf.GetString("site"),
 		"dd_version": tags["version"],
 		"dd_service": tags["service"],
