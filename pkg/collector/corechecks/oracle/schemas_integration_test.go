@@ -182,7 +182,7 @@ func setupPDBFixture(t *testing.T, sysCheck Check) string {
 }
 
 func collectSchemaEvents(t *testing.T) []schemaEvent {
-	return collectSchemaEventsWithConfig(t, "schemas:\n  enabled: true\n  collection_interval: 1")
+	return collectSchemaEventsWithConfig(t, "collect_schemas:\n  enabled: true\n  collection_interval: 1")
 }
 
 func collectSchemaEventsWithConfig(t *testing.T, schemasConfig string) []schemaEvent {
@@ -571,7 +571,7 @@ func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
 	setupSchemaFixtures(t)
 
 	events := collectSchemaEventsWithConfig(t,
-		"schemas:\n  enabled: true\n  collection_interval: 1\n  exclude_tables:\n    - \"^DD_ORDERS_VIEW$\"\n")
+		"collect_schemas:\n  enabled: true\n  collection_interval: 1\n  exclude_tables:\n    - \"^DD_ORDERS_VIEW$\"\n")
 
 	views := viewEvents(events)
 	require.NotEmpty(t, views, "no oracle_views payload was emitted")
