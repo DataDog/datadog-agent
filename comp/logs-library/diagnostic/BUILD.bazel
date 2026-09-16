@@ -19,7 +19,10 @@ go_library(
 
 dd_agent_go_test(
     name = "diagnostic_test",
-    srcs = ["message_receiver_test.go"],
+    srcs = [
+        "format_test.go",
+        "message_receiver_test.go",
+    ],
     embed = [":diagnostic"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",

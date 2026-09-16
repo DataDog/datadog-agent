@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -28,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+func (*logAgent) configureTagFilters() {}
+
+func (*logAgent) startTagFiltering() {}
+
 // Note: Building the logs-agent for serverless separately removes the
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.
@@ -37,6 +42,7 @@ import (
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
+	_ *tagfilter.Filters,
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
 	fingerprintConfig types.FingerprintConfig,
@@ -49,7 +55,9 @@ func (a *logAgent) SetupPipeline(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
 		diagnosticMessageReceiver,
-		processingRules, a.endpoints,
+		processingRules,
+		nil, // serverless encoder bypasses Origin tags; filtering doesn't apply
+		a.endpoints,
 		destinationsCtx,
 		NewStatusProvider(),
 		a.hostname,
