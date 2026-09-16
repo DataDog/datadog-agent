@@ -25,9 +25,8 @@ log "=== Stage: $STAGE_NAME ==="
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 
 ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}
-CARGO_HOME=${CARGO_HOME:-$BUILD_DIR/cargo-home}
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}
-export CARGO_HOME CARGO_TARGET_DIR
+export CARGO_TARGET_DIR
 
 if [ "${ADP_AIX_BUILD_COMMAND+x}" != x ]; then
     ADP_AIX_BUILD_COMMAND="make build-adp-aix"
