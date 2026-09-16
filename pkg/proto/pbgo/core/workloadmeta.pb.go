@@ -834,6 +834,7 @@ type ContainerImageMetadata struct {
 	Variant       string                 `protobuf:"bytes,10,opt,name=variant,proto3" json:"variant,omitempty"`
 	Layers        []*ContainerImageLayer `protobuf:"bytes,11,rep,name=layers,proto3" json:"layers,omitempty"`
 	Sbom          *CompressedSBOM        `protobuf:"bytes,12,opt,name=sbom,proto3" json:"sbom,omitempty"`
+	Created       int64                  `protobuf:"varint,13,opt,name=created,proto3" json:"created,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -950,6 +951,13 @@ func (x *ContainerImageMetadata) GetSbom() *CompressedSBOM {
 		return x.Sbom
 	}
 	return nil
+}
+
+func (x *ContainerImageMetadata) GetCreated() int64 {
+	if x != nil {
+		return x.Created
+	}
+	return 0
 }
 
 type ContainerPort struct {
@@ -2578,7 +2586,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\tmediaType\x18\x01 \x01(\tR\tmediaType\x12\x16\n" +
 	"\x06diffID\x18\x02 \x01(\tR\x06diffID\x12\x1c\n" +
 	"\tsizeBytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x12\n" +
-	"\x04urls\x18\x04 \x03(\tR\x04urls\"\x85\x04\n" +
+	"\x04urls\x18\x04 \x03(\tR\x04urls\"\x9f\x04\n" +
 	"\x16ContainerImageMetadata\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2594,7 +2602,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\avariant\x18\n" +
 	" \x01(\tR\avariant\x12A\n" +
 	"\x06layers\x18\v \x03(\v2).datadog.workloadmeta.ContainerImageLayerR\x06layers\x128\n" +
-	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\"S\n" +
+	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\x12\x18\n" +
+	"\acreated\x18\r \x01(\x03R\acreated\"S\n" +
 	"\rContainerPort\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12\x1a\n" +

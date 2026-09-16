@@ -426,6 +426,13 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		})
 	}
 
+	// A peer that predates this field sends 0, so 0 must mean unknown: a zero
+	// time.Time sent as its own Unix() would decode as 1970.
+	var created int64
+	if !containerImageMetadata.Created.IsZero() {
+		created = containerImageMetadata.Created.Unix()
+	}
+
 	containerImageMetadataProto := &pb.ContainerImageMetadata{
 		EntityId:     protoEntityID,
 		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
@@ -437,6 +444,7 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		OsVersion:    containerImageMetadata.OSVersion,
 		Architecture: containerImageMetadata.Architecture,
 		Variant:      containerImageMetadata.Variant,
+		Created:      created,
 		Layers:       protoLayers,
 	}
 
@@ -1287,6 +1295,10 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		Architecture: protoContainerImageMetadata.Architecture,
 		Variant:      protoContainerImageMetadata.Variant,
 		Layers:       layers,
+	}
+
+	if protoContainerImageMetadata.Created != 0 {
+		containerImageMetadata.Created = time.Unix(protoContainerImageMetadata.Created, 0)
 	}
 
 	if protoContainerImageMetadata.Sbom != nil {

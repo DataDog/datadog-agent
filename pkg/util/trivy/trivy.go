@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -31,6 +32,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scan/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -252,9 +254,19 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
+	return c.scanFilesystem(ctx, path, scanOptions, removeLayers, time.Time{})
+}
+
+// scanFilesystem scans path and builds its report. The local artifact
+// describes the filesystem alone, so a caller scanning a mounted image
+// passes that image's build time and a host scan passes the zero time.
+func (c *Collector) scanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool, imageCreated time.Time) (*Report, error) {
 	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+	}
+	if !imageCreated.IsZero() {
+		trivyReport.Metadata.ImageConfig.Created = v1.Time{Time: imageCreated}
 	}
 
 	hasher := sha256.New()

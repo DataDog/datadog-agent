@@ -109,6 +109,7 @@ func TestConvertImageToEvent(t *testing.T) {
 						"os": "linux",
 						"architecture": "amd64",
 						"variant": "v1",
+						"created": "2023-01-03T00:00:00Z",
 						"rootfs": {
 							"diff_ids": ["sha256:layer1", "sha256:layer2"]
 						},
@@ -155,6 +156,7 @@ func TestConvertImageToEvent(t *testing.T) {
 					OS:           "linux",
 					Architecture: "amd64",
 					Variant:      "v1",
+					Created:      *parseTime("2023-01-03T00:00:00Z"),
 					Layers: []workloadmeta.ContainerImageLayer{
 						{
 							DiffID: "sha256:layer1",
@@ -256,6 +258,7 @@ func TestConvertImageToEvent(t *testing.T) {
 			assert.Equal(t, expectedImg.OS, actualImg.OS)
 			assert.Equal(t, expectedImg.Architecture, actualImg.Architecture)
 			assert.Equal(t, expectedImg.Variant, actualImg.Variant)
+			assert.Equal(t, expectedImg.Created, actualImg.Created)
 
 			// Check layers
 			require.Equal(t, len(expectedImg.Layers), len(actualImg.Layers))
@@ -573,6 +576,7 @@ func TestParseImageInfo(t *testing.T) {
 						"os": "linux",
 						"architecture": "amd64",
 						"variant": "v1",
+						"created": "2023-01-03T00:00:00Z",
 						"rootfs": {
 							"diff_ids": ["sha256:layer1", "sha256:layer2"]
 						},
@@ -603,6 +607,7 @@ func TestParseImageInfo(t *testing.T) {
 					"label1": "value1",
 					"label2": "value2",
 				},
+				created: *parseTime("2023-01-03T00:00:00Z"),
 				layers: []workloadmeta.ContainerImageLayer{
 					{
 						DiffID: "sha256:layer1",
@@ -653,6 +658,7 @@ func TestParseImageInfo(t *testing.T) {
 			assert.Equal(t, tt.expected.arch, result.arch)
 			assert.Equal(t, tt.expected.variant, result.variant)
 			assert.Equal(t, tt.expected.labels, result.labels)
+			assert.Equal(t, tt.expected.created, result.created)
 
 			require.Equal(t, len(tt.expected.layers), len(result.layers))
 			for i, expectedLayer := range tt.expected.layers {

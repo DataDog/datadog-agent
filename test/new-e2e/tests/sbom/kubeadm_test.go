@@ -42,6 +42,7 @@ const (
 	propImageID     = "aquasecurity:trivy:ImageID"
 	propRepoDigest  = "aquasecurity:trivy:RepoDigest"
 	propRepoTag     = "aquasecurity:trivy:RepoTag"
+	propCreated     = "datadog:image:Created"
 )
 
 // kubeadmSBOMHelmValues builds the Agent Helm values for the SBOM suite on the
@@ -205,9 +206,12 @@ type containerTarget struct {
 	repo  string
 	// tag documents the version the digest pins; it is surfaced only when a
 	// runtime records a RepoTag, so it is verified opportunistically.
-	tag          string
-	digest       string
-	imageID      string
+	tag     string
+	digest  string
+	imageID string
+	// created is the image config creation time as the SBOM renders it,
+	// RFC 3339 in UTC.
+	created      string
 	diffIDs      []string
 	layerDigests []string
 	// componentCount is the exact total component count (OS + language) for the
@@ -222,6 +226,7 @@ var containerTargets = []containerTarget{
 		short: "node", repo: "node", tag: "26.2.0",
 		digest:  "sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583",
 		imageID: "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+		created: "2026-05-20T20:12:16.038472911Z",
 		diffIDs: []string{
 			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
 			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
@@ -254,6 +259,7 @@ var containerTargets = []containerTarget{
 		short: "golang", repo: "golang", tag: "1.26.3-alpine",
 		digest:  "sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d",
 		imageID: "sha256:b8fbd9862b05789bb9e5462bf7d67300660e2ab5217aeb637b8db103ac45ea21",
+		created: "2026-05-07T17:37:46.445094564Z",
 		diffIDs: []string{
 			"sha256:29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1",
 			"sha256:a044995f677dc855dbd75a95d29117acba23684d7fac58182c25a8dbdd70d8f1",
@@ -284,6 +290,7 @@ var containerTargets = []containerTarget{
 		short: "ubi", repo: "registry.access.redhat.com/ubi9/ubi", tag: "9.8-1780376557",
 		digest:  "sha256:80b1f4c34a7eed1b03a05d12b55768f3e522eef6ec294c6fbd5fa47b6b2892ee",
 		imageID: "sha256:c04f6c0e54326101acce230068ad4783242335106d0ec2322660c0f8dd72089c",
+		created: "2026-06-02T05:04:37.326772648Z",
 		diffIDs: []string{
 			"sha256:470f7d5ad4c7fdffde1c80a31b1722932d09adbd9fec6c41454ac84337d15783",
 		},
@@ -302,6 +309,7 @@ var containerTargets = []containerTarget{
 		short: "python-312", repo: "registry.access.redhat.com/ubi9/python-312", tag: "9.8-1779945122",
 		digest:  "sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663",
 		imageID: "sha256:ad02b9631880f45ec370056476ceb23031d67069b598e50829df5983f95c641f",
+		created: "2026-05-28T05:13:24.95560707Z",
 		diffIDs: []string{
 			"sha256:71275925ca13ef2f569403246b30b57d44ee7fe1d932461993c525a61ecddecd",
 			"sha256:24f9bb9093bd82585055c570f497aceff7363569a71199655e196d8809e68c98",
@@ -327,6 +335,7 @@ var containerTargets = []containerTarget{
 		short: "python", repo: "python", tag: "3.14.5",
 		digest:  "sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08",
 		imageID: "sha256:f494e154bc1f458228780ebfb2cef8654f0b0e9c860e8bf3ce24fa49f509670a",
+		created: "2026-05-20T02:53:05.550102136Z",
 		diffIDs: []string{
 			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
 			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
@@ -358,6 +367,7 @@ var containerTargets = []containerTarget{
 		short: "ruby", repo: "ruby", tag: "3.3.4-bookworm",
 		digest:  "sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8",
 		imageID: "sha256:94de028496f47434dc707899bb5d38489554c3d1cc88c2501052302f8d7250ee",
+		created: "2024-07-09T05:04:38Z",
 		diffIDs: []string{
 			"sha256:8f4ceb8cc1a2056b98f0424fad4715dd334aecc9769186b3ea0394f131524e27",
 			"sha256:916d866d5b0dc17158c78e5a09717fcf619b04450125caafa9c1b8f7aa6a2c45",
@@ -480,6 +490,7 @@ func (s *sbomTargetsSuite[Env]) TestContainerSBOM() {
 					// Metadata must match the real image config exactly.
 					assert.Equalf(c, target.diffIDs, metaDiffIDs, "DiffID list does not match the real image config for %s", target.short)
 					assert.Containsf(c, propertyValues(metaProps, propImageID), target.imageID, "ImageID does not match the real image config for %s", target.short)
+					assert.Equalf(c, []string{target.created}, propertyValues(metaProps, propCreated), "Created does not match the real image config for %s", target.short)
 					if repoDigests := propertyValues(metaProps, propRepoDigest); assert.NotEmptyf(c, repoDigests, "no RepoDigest for %s", target.short) {
 						// A runtime may surface several RepoDigests (crio adds the platform
 						// manifest digest next to the pulled index digest); the pinned digest
