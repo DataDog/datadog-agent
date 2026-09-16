@@ -16,7 +16,7 @@ tasks/
 │   ├── releasing/      — version arithmetic and release JSON helpers
 │   ├── testing/        — test result parsing, flake detection
 │   └── types/          — shared dataclasses and enums
-├── unit_tests/         — pytest tests for task logic (run via dda inv invoke-unit-tests.run)
+├── unit_tests/         — unittest tests for task logic (run via dda inv invoke-unit-tests.run)
 ├── custom_task/        — InvokeLogger: wraps every @task call and logs it to Datadog
 └── BUILD.bazel         — Bazel targets for task code that has been migrated
 ```

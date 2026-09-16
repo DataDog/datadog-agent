@@ -62,6 +62,7 @@
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
   after_script:
+    - !reference [.macos_cleanup_python_dependencies]
     - sudo umount /Volumes/Agent || true
   script:
     - set -eo pipefail

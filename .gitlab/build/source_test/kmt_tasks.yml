@@ -49,6 +49,8 @@ test_kmt_local_setup_macos:
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+  after_script:
+    - !reference [.macos_cleanup_python_dependencies]
   tags: ["macos:sonoma-arm64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:
