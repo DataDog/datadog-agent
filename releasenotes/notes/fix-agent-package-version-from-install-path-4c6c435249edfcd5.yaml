@@ -1,0 +1,12 @@
+fixes:
+  - |
+    Fix the package version reported by the Agent on macOS, and by the
+    standalone ``datadog-installer`` and ``datadog-dogstatsd`` packages, where a
+    directory name was reported instead of the real version (for example ``bin``
+    on macOS). The version is now only read from the install path for
+    OCI/fleet-managed installs, which are the only ones that encode it there.
+    Because Fleet Automation health-checks a host against this value before a
+    deployment, an incorrect value made every remote configuration deployment to
+    the affected host fail. This value is also reported as ``package_version`` in
+    the ``inventory-agent`` metadata payload and as the ``package_version`` tag
+    on Agent telemetry metrics.

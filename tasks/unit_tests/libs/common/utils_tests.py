@@ -10,6 +10,7 @@ from tasks.libs.common.utils import (
     RTLOADER_LIB_NAME,
     get_build_flags,
     get_rtloader_paths,
+    get_version_ldflags,
     join_command,
     link_or_copy,
     running_in_ci,
@@ -175,6 +176,70 @@ class TestGetRtloaderPaths(unittest.TestCase):
 
         self.assertEqual(rtloader_lib, [str(lib_dir)])
         self.assertEqual(rtloader_headers, str(include_dir))
+
+
+@mock.patch("tasks.libs.common.utils.get_payload_version", return_value="5.0.0")
+@mock.patch("tasks.libs.common.utils.get_commit_sha", return_value="6ad5ce4")
+@mock.patch("tasks.libs.common.utils.get_version", return_value="7.85.0-devel+git.127.6ad5ce4")
+class TestGetVersionLdflags(unittest.TestCase):
+    """AgentPackageVersion is what Fleet Automation health-checks a host against, so a wrong
+    value makes every config deployment to that host fail before any config is pushed. Only the
+    OCI/fleet-managed layout carries the version in the install path; nothing else may be read
+    out of one."""
+
+    PACKAGE_VERSION = "7.85.0-devel.git.127.6ad5ce4-1"
+    OCI_VERSION = "7.86.0-devel.git.1.abcdef0-1"
+
+    def package_version(self, install_path):
+        ldflags = get_version_ldflags(mock.Mock(), install_path=install_path)
+        marker = "/pkg/version.AgentPackageVersion="
+        stamped = [tok.split(marker, 1)[1] for tok in ldflags.split() if marker in tok]
+        self.assertEqual(len(stamped), 1, f"expected one AgentPackageVersion in {ldflags!r}")
+        return stamped[0]
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    def test_reads_version_from_oci_install_path(self, *_):
+        # /<root>/datadog-packages/<product>/<version> is the one layout whose last component
+        # is the package version, and Linux upgrade detection depends on it being read.
+        self.assertEqual(
+            self.package_version(f"/opt/datadog-packages/datadog-agent/{self.OCI_VERSION}"), self.OCI_VERSION
+        )
+        self.assertEqual(
+            self.package_version(f"/opt/datadog-packages/datadog-installer/{self.OCI_VERSION}"), self.OCI_VERSION
+        )
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    def test_keeps_package_version_for_traditional_install_paths(self, *_):
+        # deb/rpm installs into /opt/<product>: the last component is the product name, not a
+        # version, for the installer and dogstatsd just as much as for the agent.
+        for install_path in ("/opt/datadog-agent", "/opt/datadog-installer", "/opt/datadog-dogstatsd"):
+            with self.subTest(install_path=install_path):
+                self.assertEqual(self.package_version(install_path), self.PACKAGE_VERSION)
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
+    def test_keeps_package_version_for_build_staging_paths(self, *_):
+        # The macOS DMG build hands omnibus a scratch directory ending in /bin
+        # (.gitlab/build/package_build/build_agent_dmg.sh). Stamping "bin" here is what broke
+        # Fleet config deployments to macOS hosts.
+        stamped = self.package_version("/var/folders/ab/T/datadog-agent-build/bin")
+
+        self.assertEqual(stamped, self.PACKAGE_VERSION)
+        self.assertNotEqual(stamped, "bin")
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    def test_keeps_package_version_without_install_path(self, *_):
+        self.assertEqual(self.package_version(None), self.PACKAGE_VERSION)
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "win32")
+    def test_windows_derives_version_independently_of_install_path(self, *_):
+        # Windows has no version in the install path and sets the tag explicitly instead; the
+        # install-path handling must not reach it.
+        self.assertEqual(self.package_version("C:/opt/datadog-agent"), "7.85.0-devel+git.127.6ad5ce4-1")
 
 
 class TestGetBuildFlags(unittest.TestCase):
