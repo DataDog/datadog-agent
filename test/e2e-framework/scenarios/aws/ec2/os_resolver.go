@@ -76,7 +76,11 @@ func resolveOS(e aws.Environment, vmArgs *vmArgs) (*amiInformation, error) {
 
 		// If no AMI set and latest AMI is requested, resolve the AMI
 		if vmArgs.osInfo.Version == "" && vmArgs.useLatestAMI {
-			vmArgs.ami, err = amiResolvers[vmArgs.osInfo.Flavor](e, vmArgs.osInfo)
+			resolver, ok := amiResolvers[vmArgs.osInfo.Flavor]
+			if !ok {
+				return nil, fmt.Errorf("no AMI resolver found for flavor %s", vmArgs.osInfo.Flavor)
+			}
+			vmArgs.ami, err = resolver(e, vmArgs.osInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -96,9 +100,14 @@ func resolveOS(e aws.Environment, vmArgs *vmArgs) (*amiInformation, error) {
 	}
 	fmt.Printf("Using AMI %s\n for stack %s\n", vmArgs.ami, e.Ctx().Stack())
 
+	defaultUser, ok := defaultUsers[vmArgs.osInfo.Flavor]
+	if !ok {
+		return nil, fmt.Errorf("no default user found for flavor %s", vmArgs.osInfo.Flavor)
+	}
+
 	amiInfo := &amiInformation{
 		id:          vmArgs.ami,
-		defaultUser: defaultUsers[vmArgs.osInfo.Flavor],
+		defaultUser: defaultUser,
 	}
 
 	switch vmArgs.osInfo.Family() { // nolint:exhaustive
