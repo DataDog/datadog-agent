@@ -14,11 +14,11 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.46.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.329.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.330.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.96.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.98.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.111.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.112.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.77.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.0
@@ -48,7 +48,6 @@ require (
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
-	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.55.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -297,6 +296,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

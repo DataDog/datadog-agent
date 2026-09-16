@@ -22,7 +22,7 @@ go_library(
         "//pkg/util/option",
         "@com_github_coreos_go_systemd_v22//dbus",
         "@com_github_godbus_dbus_v5//:dbus",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
