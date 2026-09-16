@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -42,6 +44,9 @@ type SelfIdent struct {
 
 	resolveRetries    int
 	resolveRetryDelay time.Duration
+	// clock backs ClusterID's retry/resolution waits so tests can advance
+	// time deterministically instead of sleeping on the wall clock.
+	clock clock.Clock
 
 	clusterIDResolveOnce sync.Once
 	clusterID            atomic.Pointer[string]
@@ -56,6 +61,7 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		wmeta:             wmeta,
 		resolveRetries:    defaultResolveRetries,
 		resolveRetryDelay: defaultResolveRetryDelay,
+		clock:             clock.New(),
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
@@ -127,7 +133,7 @@ func (s *SelfIdent) ClusterID() string {
 		if attempt >= s.resolveRetries {
 			return ""
 		}
-		time.Sleep(s.resolveRetryDelay)
+		s.clock.Sleep(s.resolveRetryDelay)
 	}
 }
 
@@ -148,7 +154,7 @@ func (s *SelfIdent) resolveClusterID() {
 			s.clusterID.Store(&empty)
 			return
 		}
-		time.Sleep(s.resolveRetryDelay)
+		s.clock.Sleep(s.resolveRetryDelay)
 	}
 }
 
