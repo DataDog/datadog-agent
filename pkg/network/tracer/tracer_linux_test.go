@@ -46,6 +46,7 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -735,7 +736,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		tr, err := newTracer(cfg, nil, nil)
+		tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
 		t.Cleanup(tr.Stop)
@@ -842,7 +843,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -912,7 +913,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
