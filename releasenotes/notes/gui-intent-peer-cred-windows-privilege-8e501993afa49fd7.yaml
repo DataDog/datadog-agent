@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    Fixed a vulnerability (CWE-214) where the one-time intent token used to
+    open the Agent GUI from the CLI (``datadog-agent launch-gui``) leaked
+    through process argv/listing to any local user, letting them open the
+    GUI as another user. The token is now bound to the OS identity of the
+    process that requested it, and redemption is rejected if the redeeming
+    process's identity doesn't match.
+
+    On Windows, resolving that identity across users requires the Agent's
+    service account (``ddagentuser``) to read another interactive user's
+    process token, which the account did not otherwise have permission to
+    do. The installer now grants ``ddagentuser`` the ``SeDebugPrivilege``
+    user right for this purpose.

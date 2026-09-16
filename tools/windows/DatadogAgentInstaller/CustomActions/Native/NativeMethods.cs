@@ -20,7 +20,8 @@ namespace Datadog.CustomActions.Native
         SeDenyInteractiveLogonRight,
         SeDenyNetworkLogonRight,
         SeDenyRemoteInteractiveLogonRight,
-        SeServiceLogonRight
+        SeServiceLogonRight,
+        SeDebugPrivilege
     }
 
     public enum COMPUTER_NAME_FORMAT

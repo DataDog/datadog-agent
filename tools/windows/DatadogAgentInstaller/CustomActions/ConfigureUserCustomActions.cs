@@ -156,6 +156,9 @@ namespace Datadog.CustomActions
             // without it, so opting out via DDAGENTUSER_KEEP_RIGHTS must not strip it.
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
 
+            // SeDebugPrivilege lets the GUI's intent-token peer-identity check open another interactive user's process token to read its SID (see comp/core/gui/impl/peeridentity_windows.go); always granted, like SeServiceLogonRight above.
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDebugPrivilege);
+
             if (ShouldKeepUserAccountRights())
             {
                 _session.Log($"{KeepRightsPropertyName} is set, skipping ddagentuser SeDeny*LogonRight " +

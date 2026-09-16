@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/bits"
 	"net"
+	"sync"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
@@ -168,8 +169,48 @@ func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }
 
+var (
+	enableDebugPrivilegeOnce sync.Once
+	enableDebugPrivilegeErr  error
+)
+
+// enableDebugPrivilege enables SeDebugPrivilege on this process's own token, letting sidForPID's OpenProcess bypass another user's process DACL; a no-op error if the installer hasn't granted ddagentuser the right (e.g. pre-upgrade), in which case OpenProcess below fails exactly as it did before this existed. Runs once per process, since a token's available privileges are fixed at logon and re-enabling is a wasted syscall.
+func enableDebugPrivilege() error {
+	enableDebugPrivilegeOnce.Do(func() {
+		var token windows.Token
+		if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token); err != nil {
+			enableDebugPrivilegeErr = fmt.Errorf("failed to open process token: %w", err)
+			return
+		}
+		defer token.Close()
+
+		privName, err := windows.UTF16PtrFromString("SeDebugPrivilege")
+		if err != nil {
+			enableDebugPrivilegeErr = fmt.Errorf("failed to encode SeDebugPrivilege name: %w", err)
+			return
+		}
+
+		var tp windows.Tokenprivileges
+		if err := windows.LookupPrivilegeValue(nil, privName, &tp.Privileges[0].Luid); err != nil {
+			enableDebugPrivilegeErr = fmt.Errorf("failed to look up SeDebugPrivilege LUID: %w", err)
+			return
+		}
+		tp.PrivilegeCount = 1
+		tp.Privileges[0].Attributes = windows.SE_PRIVILEGE_ENABLED
+
+		if err := windows.AdjustTokenPrivileges(token, false, &tp, 0, nil, nil); err != nil {
+			enableDebugPrivilegeErr = fmt.Errorf("failed to adjust token privileges: %w", err)
+		}
+	})
+	return enableDebugPrivilegeErr
+}
+
 // sidForPID returns pid's owning SID (skipping LookupAccount's friendly-name resolution, since only equality is needed); subject to a residual PID-reuse race (Windows exposes no atomic SID-with-connection-lookup API), accepted because winning it only grants the recycled process's own identity within a single 30s token's lifetime.
 func sidForPID(pid uint32) (peerIdentity, error) {
+	if err := enableDebugPrivilege(); err != nil {
+		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
+	}
+
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 	if err != nil {
 		return "", fmt.Errorf("failed to open process %d: %w", pid, err)
