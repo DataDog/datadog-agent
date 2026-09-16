@@ -33,27 +33,25 @@ credentials:
     context_name: test-context
 `
 
-// newTestConfig returns a config whose confd_path holds the given credential
+// newTestConfig returns a config whose conf_path holds the given credential
 // file, or no credential file at all when body is empty.
 func newTestConfig(t *testing.T, body string) model.BuildableConfig {
 	t.Helper()
 
-	confd := t.TempDir()
+	confPath := t.TempDir()
 	if body != "" {
-		writeCredentials(t, confd, body)
+		writeCredentials(t, confPath, body)
 	}
 
 	cfg := configmock.New(t)
-	cfg.Set("confd_path", confd, model.SourceAgentRuntime)
+	cfg.Set("conf_path", confPath, model.SourceAgentRuntime)
 	return cfg
 }
 
-func writeCredentials(t *testing.T, confd, body string) {
+func writeCredentials(t *testing.T, confPath, body string) {
 	t.Helper()
 
-	path := filepath.Join(confd, credentialsFile)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(confPath, credentialsFile), []byte(body), 0o600))
 }
 
 func TestLoadIndexesTheCredentialFileByID(t *testing.T) {
@@ -81,11 +79,11 @@ func TestLoadIndexesTheCredentialFileByID(t *testing.T) {
 	}, creds["v3-full"])
 }
 
-func TestLoadReadsTheFileUnderConfdPath(t *testing.T) {
+func TestLoadReadsTheFileNextToDatadogYAML(t *testing.T) {
 	cfg := newTestConfig(t, credentialsYAML)
 
 	assert.Equal(t,
-		filepath.Join(cfg.GetString("confd_path"), "snmp.d", "snmp_credentials.yaml"),
+		filepath.Join(cfg.GetString("conf_path"), "snmp_credentials.yaml"),
 		newCredentialStore(cfg).path(),
 	)
 }
@@ -158,7 +156,7 @@ func TestLoadRereadsTheFileEveryTime(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "public", first["v2c-public"].CommunityString)
 
-	writeCredentials(t, cfg.GetString("confd_path"), `
+	writeCredentials(t, cfg.GetString("conf_path"), `
 credentials:
   - id: v2c-public
     snmp_version: "2c"
