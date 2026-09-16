@@ -165,6 +165,8 @@ type CloudEnv interface {
 	InternalDockerhubMirror() string
 	// InternalRegistry returns the internal registry.
 	InternalRegistry() string
+	// DatadogPublicRegistry returns the registry prefix for publicly released Datadog images.
+	DatadogPublicRegistry() string
 	// InternalRegistryImageTagExists returns true if the image tag exists in the internal registry.
 	InternalRegistryImageTagExists(image, tag string) (bool, error)
 	// InternalRegistryFullImagePathExists returns true if the image and tag exists in the internal registry.

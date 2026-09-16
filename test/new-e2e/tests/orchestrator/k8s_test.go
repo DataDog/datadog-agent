@@ -44,6 +44,7 @@ func TestKindSuite(t *testing.T) {
 			awskindvm.WithRunOptions(
 				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithPreAgentWorkloadApp(deployKubeAITestResource),
+				scenariokindvm.WithPreAgentWorkloadApp(deployKServeTestResource),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
 					kubernetesagentparams.WithHelmValues(agentCustomValuesFmt),

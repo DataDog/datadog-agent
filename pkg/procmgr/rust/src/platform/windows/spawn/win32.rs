@@ -5,12 +5,15 @@
 
 use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
-
-use anyhow::Result;
-use windows_sys::Win32::Foundation::HANDLE;
+use std::ptr;
 
 use super::super::child_env::merge_legacy_scm_env;
 use super::super::merge_env_overrides;
+use super::super::wide::WideEnvBlock;
+use anyhow::{Result, bail};
+use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
+use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 
 fn build_child_env_vars(
     process_name: &str,
@@ -36,13 +39,34 @@ pub(crate) fn env_block_from_baseline_plus_overrides(
     process_name: &str,
     token: HANDLE,
     overrides: &[(String, String)],
-) -> Result<Vec<u16>> {
+) -> Result<WideEnvBlock> {
     let baseline = super::super::baseline_env_vars_for_spawn(process_name, token);
     let vars = build_child_env_vars(process_name, baseline, overrides);
     Ok(env_vars_to_wide_block(&vars))
 }
 
-pub(crate) fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {
+pub(crate) fn duplicate_primary_token(context: &str, token: HANDLE) -> Result<HANDLE> {
+    let mut primary_token: HANDLE = ptr::null_mut();
+    let ok = unsafe {
+        DuplicateTokenEx(
+            token,
+            MAXIMUM_ALLOWED,
+            ptr::null(),
+            SecurityDelegation,
+            TokenPrimary,
+            &mut primary_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{context}] DuplicateTokenEx failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(primary_token)
+}
+
+pub(crate) fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> WideEnvBlock {
     let mut keys: Vec<&String> = vars.keys().collect();
     keys.sort_by(|a, b| {
         a.to_ascii_lowercase()
@@ -57,7 +81,7 @@ pub(crate) fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16>
         block.push(0);
     }
     block.push(0);
-    block
+    WideEnvBlock::new(block)
 }
 
 fn windows_command_line_arg(s: &str) -> String {
@@ -96,6 +120,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn command_line_preserves_args_without_spaces() {
+        let line = build_windows_command_line(
+            "ping.exe",
+            &["-n".to_string(), "61".to_string(), "127.0.0.1".to_string()],
+        );
+        assert_eq!(line, "ping.exe -n 61 127.0.0.1");
+    }
+
+    #[test]
     fn command_line_quotes_only_when_needed_for_cmd_c() {
         let line = build_windows_command_line("cmd.exe", &["/C".to_string(), "exit 1".to_string()]);
         assert_eq!(line, r#"cmd.exe /C "exit 1""#);
@@ -115,7 +148,7 @@ mod tests {
         vars.insert("BBB".to_string(), "3".to_string());
 
         let block = env_vars_to_wide_block(&vars);
-        let entries = wide_block_entries(&block);
+        let entries = wide_block_entries(block.as_wide_slice());
         assert_eq!(entries, ["aaa=2", "BBB=3", "ZZZ=1"]);
     }
 

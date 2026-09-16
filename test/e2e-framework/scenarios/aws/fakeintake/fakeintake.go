@@ -66,6 +66,8 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 			map[string]awsxEcs.TaskDefinitionContainerDefinitionArgs{"fakeintake": *fargateLinuxContainerDefinition(apiKeyParam.Name, params)},
 			apiKeyParam.Name,
 			nil,
+			// Pulled by the ECS control plane along with the task definition, so the
+			// pull-through cache is unreachable here.
 			"public.ecr.aws/datadog/agent:latest",
 			opts...,
 		)

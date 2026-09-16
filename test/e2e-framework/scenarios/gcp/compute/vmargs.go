@@ -72,3 +72,11 @@ func WithLabels(labels map[string]string) VMOption {
 		return nil
 	}
 }
+
+// WithImageName sets the image name
+func WithImageName(imageName string) VMOption {
+	return func(p *vmArgs) error {
+		p.imageName = imageName
+		return nil
+	}
+}

@@ -14,9 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
+// fargateAgentImageRepo bypasses the pull-through cache the other environments use. On
+// Fargate the image is pulled by the ECS control plane as part of the service definition,
+// so there is no host to authenticate against the cache on.
+const fargateAgentImageRepo = "public.ecr.aws/datadog/agent"
+
 func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fi *fakeintake.Fakeintake, logConfig ecs.TaskDefinitionLogConfigurationPtrInput) (*ecs.TaskDefinitionContainerDefinitionArgs, *ecs.TaskDefinitionContainerDefinitionArgs, error) {
 	if image == "" {
-		image = dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, false)
+		image = dockerAgentFullImagePath(e, fargateAgentImageRepo, "", false, false, false, false)
 	}
 
 	fiEnv, err := ecsFakeintakeAdditionalEndpointsEnv(fi)
@@ -149,7 +154,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tutorial-deploy-fluentbit-on-windows.html
 func ECSFargateWindowsContainerDefinition(e config.Env, image string, apiKeySSMParamName pulumi.StringInput, fi *fakeintake.Fakeintake) (*ecs.TaskDefinitionContainerDefinitionArgs, error) {
 	if image == "" {
-		image = dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, true)
+		image = dockerAgentFullImagePath(e, fargateAgentImageRepo, "", false, false, false, true)
 	}
 	fiEnv, err := ecsFakeintakeAdditionalEndpointsEnv(fi)
 	if err != nil {

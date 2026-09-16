@@ -419,14 +419,24 @@ func (s *parK8sSuite) verifySplitPodSpec() {
 	s.Require().NotNil(pod.Spec.TerminationGracePeriodSeconds)
 	s.Require().GreaterOrEqual(*pod.Spec.TerminationGracePeriodSeconds, int64(190))
 
-	var parContainer *corev1.Container
+	var agentContainer, parContainer *corev1.Container
 	for i := range pod.Spec.Containers {
-		if pod.Spec.Containers[i].Name == parContainerName {
+		switch pod.Spec.Containers[i].Name {
+		case "agent":
+			agentContainer = &pod.Spec.Containers[i]
+		case parContainerName:
 			parContainer = &pod.Spec.Containers[i]
-			break
 		}
 	}
+	s.Require().NotNil(agentContainer)
 	s.Require().NotNil(parContainer)
+
+	agentEnv := make(map[string]string, len(agentContainer.Env))
+	for _, variable := range agentContainer.Env {
+		agentEnv[variable.Name] = variable.Value
+	}
+	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_ENABLED"])
+	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
 
 	env := make(map[string]string, len(parContainer.Env))
 	for _, variable := range parContainer.Env {

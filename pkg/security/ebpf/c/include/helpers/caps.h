@@ -23,6 +23,7 @@ static __attribute__((always_inline)) void send_capabilities_usage_event(void *c
 
     struct capabilities_event_t event = {
         .caps_usage = entry->usage,
+        .cookie = key->cookie,
     };
 
     u64 pid_tgid = ((u64)key->tgid << 32) | (u64)key->tgid; // Use tgid as tid

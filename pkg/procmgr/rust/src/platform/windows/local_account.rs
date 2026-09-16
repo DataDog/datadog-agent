@@ -28,6 +28,7 @@ pub(crate) fn is_local_account(sid: &[u8]) -> Result<bool> {
 fn account_domain_sid(sid: &[u8]) -> Result<Vec<u8>> {
     unsafe {
         let mut domain_sid_size = 0u32;
+        // Call with a null domain SID buffer to retrieve its size and allocate once.
         let ok = GetWindowsAccountDomainSid(
             sid.as_ptr() as *mut _,
             ptr::null_mut(),

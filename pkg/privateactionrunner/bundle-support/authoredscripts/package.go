@@ -31,7 +31,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 		return nil, err
 	}
 
-	manifestCommand := manifest.Config.Command[0]
+	manifestCommand := manifest.Command.Entrypoint
 	if !filepath.IsLocal(manifestCommand) {
 		return nil, fmt.Errorf("invalid authored-script command path %q: path must be local to the script directory", manifestCommand)
 	}
@@ -39,7 +39,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	if err != nil {
 		return nil, fmt.Errorf("invalid authored-script command: %w", err)
 	}
-	command := append([]string{commandPath}, manifest.Config.Command[1:]...)
+	command := append([]string{commandPath}, manifest.Command.Args...)
 
 	toolPaths := make([]string, 0, len(manifest.Dependencies))
 	for _, dependency := range manifest.Dependencies {

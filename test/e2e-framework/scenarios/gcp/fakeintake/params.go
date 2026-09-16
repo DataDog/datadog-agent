@@ -7,6 +7,7 @@ package fakeintake
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
@@ -21,9 +22,9 @@ type Params struct {
 type Option = func(*Params) error
 
 // NewParams returns a new instance of Fakeintake Params
-func NewParams(options ...Option) (*Params, error) {
+func NewParams(e config.Env, options ...Option) (*Params, error) {
 	params := &Params{
-		ImageURL:        fakeintake.ImageURL("registry.datadoghq.com/fakeintake"),
+		ImageURL:        fakeintake.ImageURL(e.DatadogPublicRegistry() + "/fakeintake"),
 		DDDevForwarding: true,
 		Memory:          1024,
 		LoadBalancer:    false,
