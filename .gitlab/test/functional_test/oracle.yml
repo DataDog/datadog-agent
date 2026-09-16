@@ -34,6 +34,10 @@ oracle:
           (
             timeout --signal=TERM --kill-after=10s 180s "$ORACLE_BASE/$RUN_FILE" --nowait
             startup_status=$?
+            if [ "$startup_status" -ne 0 ]; then
+              printf 'whenever sqlerror exit failure\nconnect / as sysdba\nstartup\nexit\n' | timeout --signal=TERM --kill-after=5s 15s "$ORACLE_HOME/bin/sqlplus" -L /nolog > startup-sql.log 2>&1
+              printf 'SQL startup probe exit status: %s\n' "$?" >> startup-sql.log
+            fi
             for logfile in "$ORACLE_BASE"/diag/rdbms/*/*/trace/alert*.log; do
               if [ -f "$logfile" ]; then
                 cp "$logfile" .
@@ -79,7 +83,7 @@ oracle:
   after_script:
     - mkdir -p oracle-ci-logs
     - |
-      for logfile in environment.log startup.log alert_XE.log startup.exit; do
+      for logfile in environment.log startup.log startup-sql.log alert_XE.log startup.exit; do
         curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 10 "http://127.0.0.1:18080/$logfile" -o "oracle-ci-logs/$logfile" || true
       done
       tail -n 200 oracle-ci-logs/*.log
