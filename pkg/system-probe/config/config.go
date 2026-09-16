@@ -47,6 +47,7 @@ const (
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 	LogonDurationModule          types.ModuleName = "logon_duration"
+	VDIModule                    types.ModuleName = "vdi"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -133,6 +134,7 @@ func load() (*types.Config, error) {
 	gpuEBPFProbesEnabled := gpuEnabled && cfg.GetBool(gpuNS("enable_ebpf_probes"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
+	vdiEnabled := coreCfg.GetBool("vdi.enabled")
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
@@ -214,6 +216,9 @@ func load() (*types.Config, error) {
 	}
 
 	if runtime.GOOS == "windows" {
+		if vdiEnabled {
+			c.EnabledModules[VDIModule] = struct{}{}
+		}
 		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
@@ -243,7 +248,6 @@ func load() (*types.Config, error) {
 			c.EnabledModules[InjectorModule] = struct{}{}
 		}
 	}
-
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
