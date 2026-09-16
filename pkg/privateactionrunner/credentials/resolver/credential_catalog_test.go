@@ -28,7 +28,7 @@ func TestCredentialCatalogConfiguredValues(t *testing.T) {
 
 func TestResolveConnectionTokensV2FromRunnerCatalog(t *testing.T) {
 	catalog := NewCredentialCatalog(map[string]string{"api_token": "secret-value"})
-	resolver := NewPrivateCredentialResolver(catalog)
+	resolver := NewPrivateCredentialResolver(catalog, nil)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
 		TokensV2: []*privateactionspb.ConnectionTokenV2{{

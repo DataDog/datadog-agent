@@ -81,12 +81,18 @@ message ConnectionInfo {
   repeated ConnectionTokenV2 tokens_v2 = 5;
 }
 
+message IntegrationCredential {
+  string integration = 1;
+  map<string, string> selectors = 2;
+}
+
 message ConnectionTokenV2 {
   repeated string name_segments = 1;
 
   oneof source {
     PlainText plain_text = 2;
     RunnerCredential runner_credential = 3;
+    IntegrationCredential integration_credential = 4;
   }
 
   message PlainText {
