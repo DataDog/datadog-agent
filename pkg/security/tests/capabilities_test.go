@@ -52,6 +52,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 			Expression: `capabilities.used == CAP_SYS_CHROOT && process.file.name == "syscall_tester"`,
 		},
 		{
+			ID:         "test_capabilities_used_exec_flush_other_binary",
+			Expression: `capabilities.used == CAP_SETGID && process.file.name == "syscall_tester"`,
+		},
+		{
 			ID:         "test_capabilities_attempted_exit_flush",
 			Expression: `capabilities.attempted == CAP_SYS_PACCT && process.file.name == "syscall_tester"`,
 		},
@@ -89,6 +93,21 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_CHROOT), "capabilities attempted should contain CAP_SYS_CHROOT")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_CHROOT), "capabilities used should contain CAP_SYS_CHROOT")
 		}, "test_capabilities_used_exec_flush")
+	})
+
+	// the exec flush runs once the new program image is in place: /proc, comm and the
+	// kernel maps already describe the new program, so a resolver cache miss must drop
+	// the event rather than report the usage against the program that took over the pid
+	t.Run("used-exec-flush-other-binary", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			return dockerInstance.Command(syscallTester, []string{"setregid", ";", "exec", "/bin/sleep", "2"}, []string{}).Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_used_exec_flush_other_binary", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
+			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Used, "wrong capabilities used")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "capabilities usage must be reported against the program that used them")
+		}, "test_capabilities_used_exec_flush_other_binary")
 	})
 
 	t.Run("attempted-exit-flush", func(t *testing.T) {
