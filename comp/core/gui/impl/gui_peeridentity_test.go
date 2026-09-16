@@ -20,14 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_intentToken_peerIdentity exercises the peer-identity binding through
-// real loopback TCP connections (as opposed to httptest.NewRequest's
-// synthetic, non-loopback RemoteAddr), so that mint and redeem go through
-// the real, platform-specific lookupLoopbackPeerIdentity implementation.
-// Restricted to platforms that actually implement peer identity resolution:
-// on the peeridentity_noop.go fallback (e.g. AIX), lookupLoopbackPeerIdentity
-// always returns an empty identity by design, which would make every
-// assertion below fail even though that fallback behavior is correct.
+// Test_intentToken_peerIdentity exercises peer-identity binding through real loopback TCP connections (unlike httptest.NewRequest's synthetic RemoteAddr), so mint/redeem go through the real, platform-specific lookupLoopbackPeerIdentity; restricted to platforms that implement it, since the peeridentity_noop.go fallback (e.g. AIX) always returns an empty identity by design.
 func Test_intentToken_peerIdentity(t *testing.T) {
 	g := &gui{
 		auth:         newAuthenticator("test-auth-token", time.Hour),
@@ -67,10 +60,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	t.Run("same OS identity: mint then redeem succeeds", func(t *testing.T) {
 		token, record := mintToken(t)
 		if os.Getuid() == 0 {
-			// mintTimeIdentity deliberately treats root as unconstrained
-			// (see its doc comment), so this test process being root
-			// itself (e.g. a containerized Linux CI runner) is expected
-			// to leave the token unbound rather than resolve a real UID.
+			// mintTimeIdentity deliberately treats root as unconstrained, so this test process being root (e.g. a containerized CI runner) leaves the token unbound rather than resolving a real UID.
 			assert.Empty(t, record.identity, "root's mint-time identity is intentionally treated as unconstrained")
 		} else {
 			require.NotEmpty(t, record.identity, "a real loopback connection from this same process should resolve to a real OS identity")
@@ -83,9 +73,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	})
 
 	t.Run("mismatched OS identity: redeem is rejected", func(t *testing.T) {
-		// The identity is forced directly, rather than relying on the real
-		// mint-time resolution being non-empty, so this test is independent
-		// of the test process's own OS identity (see mintTimeIdentity).
+		// The identity is forced directly so this test is independent of the test process's own OS identity (see mintTimeIdentity).
 		token, record := mintToken(t)
 		record.identity = "not-the-real-identity"
 		g.intentMu.Lock()
@@ -106,9 +94,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 		g.intentTokens[token] = record
 		g.intentMu.Unlock()
 
-		// Bypass the real listener: a synthetic, non-loopback request
-		// simulates an environment where redeem-time resolution can't
-		// succeed even though a real identity was bound at mint time.
+		// Bypass the real listener: a synthetic, non-loopback request simulates redeem-time resolution failing despite a real identity bound at mint time.
 		req := httptest.NewRequest(http.MethodGet, "/auth?intent="+token, nil)
 		rr := httptest.NewRecorder()
 		g.getAccessToken(rr, req)

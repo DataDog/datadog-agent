@@ -12,10 +12,7 @@ import (
 	"net"
 )
 
-// lookupLoopbackPeerIdentity is not implemented on this platform. Callers
-// treat the resulting error as "peer identity unavailable", which falls
-// back to the pre-existing TTL/single-use protections instead of breaking
-// the GUI launch feature outright.
+// lookupLoopbackPeerIdentity is not implemented on this platform; callers fall back to the pre-existing TTL/single-use protection instead.
 func lookupLoopbackPeerIdentity(_ net.IP, _, _ int, _ net.IP) (peerIdentity, error) {
 	return "", fmt.Errorf("peer identity resolution is not implemented on this platform")
 }

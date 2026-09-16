@@ -21,18 +21,14 @@ var (
 	loopbackV6 = net.ParseIP("::1")
 )
 
-// buildHeaderRecord fabricates the leading xinpgen header record that
-// "net.inet.tcp.pcblist64" always starts its output with. findUIDInPCBList
-// only cares about its self-declared length, not its content.
+// buildHeaderRecord fabricates the leading xinpgen header record; findUIDInPCBList only cares about its self-declared length, not its content.
 func buildHeaderRecord(size int) []byte {
 	rec := make([]byte, size)
 	binary.LittleEndian.PutUint32(rec, uint32(size))
 	return rec
 }
 
-// buildPCBRecord fabricates a well-formed xtcpcb64 record with the given
-// ports (network byte order), local/foreign addresses, and owning UID
-// (native byte order) at their real, SDK-derived offsets.
+// buildPCBRecord fabricates a well-formed xtcpcb64 record with the given ports, addresses, and owning UID at their real, SDK-derived offsets.
 func buildPCBRecord(localPort, remotePort uint16, localAddr, remoteAddr net.IP, uid uint32) []byte {
 	rec := make([]byte, xtcpcb64RecordSize)
 	binary.LittleEndian.PutUint32(rec, uint32(xtcpcb64RecordSize))
@@ -56,19 +52,13 @@ func buildPCBRecord(localPort, remotePort uint16, localAddr, remoteAddr net.IP, 
 	return rec
 }
 
-// buildDualStackPCBRecord fabricates a well-formed xtcpcb64 record with BOTH
-// INP_IPV4 and INP_IPV6 set in inp_vflag, as real xnu does for a dual-stack
-// (::) listener that accepted an IPv4 peer: the address is stored in the
-// IPv6 fields as an IPv4-mapped address (::ffff:a.b.c.d), but INP_IPV4 is
-// also set as a compatibility marker.
+// buildDualStackPCBRecord fabricates a record with both INP_IPV4 and INP_IPV6 set in inp_vflag, as real xnu does for a dual-stack (::) listener accepting an IPv4 peer (address stored IPv4-mapped in the IPv6 fields).
 func buildDualStackPCBRecord(localPort, remotePort uint16, localAddrV4, remoteAddrV4 net.IP, uid uint32) []byte {
 	rec := buildPCBRecord(localPort, remotePort, localAddrV4, remoteAddrV4, uid)
 	rec[xtcpcb64VflagOffset] = inpIPv4 | inpIPv6
 	mappedLocal := localAddrV4.To4()
 	mappedRemote := remoteAddrV4.To4()
-	// Overwrite the v4 slots (irrelevant when INP_IPV6 wins the switch below)
-	// and store the IPv4-mapped form in the v6 slots, mirroring xnu's actual
-	// on-the-wire representation for this case.
+	// Overwrite the (now-irrelevant) v4 slots with the IPv4-mapped form in the v6 slots, mirroring xnu's actual on-the-wire representation.
 	copy(rec[xtcpcb64Laddr6Offset:xtcpcb64Laddr6Offset+16], net.IPv4(mappedLocal[0], mappedLocal[1], mappedLocal[2], mappedLocal[3]).To16())
 	copy(rec[xtcpcb64Faddr6Offset:xtcpcb64Faddr6Offset+16], net.IPv4(mappedRemote[0], mappedRemote[1], mappedRemote[2], mappedRemote[3]).To16())
 	return rec
@@ -102,10 +92,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("a record with an unexpected size is skipped, not misread", func(t *testing.T) {
-		// An IPv4-only xtcpcb record (a different, shorter layout) can
-		// appear in real kernel output; its length just won't equal
-		// xtcpcb64RecordSize, so it must be skipped wholesale rather than
-		// having its bytes reinterpreted as a v6 record.
+		// An IPv4-only xtcpcb record (shorter layout) can appear in real kernel output; it must be skipped wholesale, not reinterpreted as a v6 record.
 		oddSizedRecord := make([]byte, 128)
 		binary.LittleEndian.PutUint32(oddSizedRecord, uint32(len(oddSizedRecord)))
 
@@ -142,9 +129,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across address families", func(t *testing.T) {
-		// Regression test: a naive port-only match would return whichever of
-		// these two records happens to be found first, regardless of which
-		// address family the caller actually connected from.
+		// Regression test: a naive port-only match would return whichever record is found first, regardless of address family.
 		buf := buildHeaderRecord(24)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV4, loopbackV4, 4000)...)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV6, loopbackV6, 6000)...)
@@ -159,10 +144,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across distinct server addresses", func(t *testing.T) {
-		// Regression test: matching on ports and the client's own address
-		// alone isn't enough. Two records here share the same client
-		// address:port but were made to different servers (127.0.0.1 vs
-		// 127.0.0.2); only the one actually made to serverAddr must match.
+		// Regression test: matching on ports and client address alone isn't enough; only the record actually made to serverAddr (127.0.0.1 vs .2) must match.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		buf := buildHeaderRecord(24)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV4, loopbackV4, 4000)...)
@@ -178,14 +160,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("matches a dual-stack record (both INP_IPV4 and INP_IPV6 set)", func(t *testing.T) {
-		// Regression test: a real xnu dual-stack (::) listener accepting an
-		// IPv4 peer sets both address-family flags, storing the address as
-		// IPv4-mapped-into-IPv6. addrFromPCBRecord must still resolve and
-		// compare it correctly against a plain IPv4 net.IP. Local and
-		// foreign use distinct addresses (unlike a same-address record)
-		// so that a local/foreign field mix-up in the dual-stack path
-		// would cause the lookup below to fail rather than passing
-		// vacuously.
+		// Regression test: a real xnu dual-stack listener sets both address-family flags and stores an IPv4-mapped address; local/foreign use distinct addresses so a field mix-up would fail, not pass vacuously.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		buf := append(buildHeaderRecord(24), buildDualStackPCBRecord(8080, 80, loopbackV4, loopbackV4Alt, 7000)...)
 

@@ -18,10 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// tcpTableOwnerPIDAll requests TCP_TABLE_OWNER_PID_ALL from
-// GetExtendedTcpTable: one row per connection, each tagged with its owning
-// PID.
-// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
+// tcpTableOwnerPIDAll requests TCP_TABLE_OWNER_PID_ALL from GetExtendedTcpTable: one row per connection, each tagged with its owning PID.
 const tcpTableOwnerPIDAll = 5
 
 var (
@@ -59,9 +56,7 @@ type mibTCP6TableOwnerPID struct {
 	table      [1]mibTCP6RowOwnerPID
 }
 
-// portFromField decodes a port number stored, like the rest of the fields
-// GetExtendedTcpTable returns, in network byte order within the low 16 bits
-// of a 32-bit field.
+// portFromField decodes a port number stored, like the other fields GetExtendedTcpTable returns, in network byte order within the low 16 bits of a 32-bit field.
 func portFromField(v uint32) uint16 {
 	if !cpu.IsBigEndian {
 		return uint16(bits.ReverseBytes32(v) >> 16)
@@ -69,11 +64,7 @@ func portFromField(v uint32) uint16 {
 	return uint16(v >> 16)
 }
 
-// addrFromV4Field decodes an IPv4 address from a MIB_TCPROW_OWNER_PID
-// address field. Unlike the port fields above, the address occupies the
-// field's full 32 bits: re-serializing the value with the same byte order
-// used to read it out of the raw table buffer reconstructs the original,
-// already-network-order byte sequence.
+// addrFromV4Field decodes an IPv4 address from a MIB_TCPROW_OWNER_PID field; unlike the port fields, it occupies the full 32 bits, so re-serializing with the same byte order it was read with reconstructs the original network-order bytes.
 func addrFromV4Field(v uint32) net.IP {
 	buf := make([]byte, 4)
 	if cpu.IsBigEndian {
@@ -84,8 +75,7 @@ func addrFromV4Field(v uint32) net.IP {
 	return net.IP(buf)
 }
 
-// getExtendedTCPTable calls GetExtendedTcpTable for the given address
-// family, growing the buffer until the kernel-reported size is satisfied.
+// getExtendedTCPTable calls GetExtendedTcpTable for the given address family, growing the buffer until the kernel-reported size is satisfied.
 func getExtendedTCPTable(family uint32) ([]byte, error) {
 	var size uint32
 	var buf []byte
@@ -150,15 +140,7 @@ func findPIDInV6Table(buf []byte, localPort, remotePort int, localAddr, remoteAd
 	return 0, false
 }
 
-// lookupLoopbackPeerIdentity finds the security identifier (SID) of the
-// process holding the local end of the loopback TCP connection whose local
-// address/port is peerAddr/peerPort and whose remote address/port is
-// serverAddr/serverPort. Matching on ports alone isn't enough: two loopback
-// connections can share a local/remote port pair across address families
-// (IPv4 vs IPv6) or distinct loopback addresses, which would let an
-// unrelated connection's SID be returned instead. peerAddr's own family,
-// rather than trying IPv4 then falling back to IPv6, decides which table to
-// query.
+// lookupLoopbackPeerIdentity finds the SID owning the loopback TCP connection; peerAddr's own family (not a IPv4-then-IPv6 fallback) decides which table to query, since two connections could otherwise share a port pair across families and misattribute the SID.
 func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, peerAddr net.IP) (peerIdentity, error) {
 	if v4 := peerAddr.To4(); v4 != nil {
 		table, err := getExtendedTCPTable(windows.AF_INET)
@@ -181,22 +163,7 @@ func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, pee
 	return "", fmt.Errorf("no matching IPv6 TCP connection for local port %d, remote port %d", peerPort, serverPort)
 }
 
-// sidForPID returns the string form of the SID of the user owning pid.
-// LookupAccount's friendly-name resolution is deliberately skipped: only
-// equality comparison is needed, not a human-readable name.
-//
-// This is subject to a residual PID-reuse race: GetExtendedTcpTable (called
-// by lookupLoopbackPeerIdentity, above) reports only a bare PID for each
-// connection, not a stable handle or the process's creation time, and by the
-// time OpenProcess resolves that PID here, the original process may have
-// exited and the PID been recycled by an unrelated process. Unlike Linux's
-// /proc/net/tcp and Darwin's pcblist64 sysctl, which both expose the owning
-// UID directly in the same connection-table snapshot, Windows offers no
-// public API to read the owning SID atomically with the connection lookup,
-// so this window can't be closed outright. It's accepted as residual risk:
-// the race requires winning it within the lifetime of a single, just-minted,
-// 30-second intent token, and still only grants the recycled process's own
-// identity, not arbitrary privilege escalation.
+// sidForPID returns pid's owning SID (skipping LookupAccount's friendly-name resolution, since only equality is needed); subject to a residual PID-reuse race (Windows exposes no atomic SID-with-connection-lookup API), accepted because winning it only grants the recycled process's own identity within a single 30s token's lifetime.
 func sidForPID(pid uint32) (peerIdentity, error) {
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 	if err != nil {

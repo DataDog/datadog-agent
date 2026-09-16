@@ -41,22 +41,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// intentTokenTTL bounds how long a single-use intent token stays valid. Intent
-// tokens are handed to the OS URL-opener as part of a query string and can end
-// up exposed in a child process's argv (e.g. /proc/<pid>/cmdline); a short TTL
-// limits how long that exposure is exploitable. Redemption is additionally
-// bound to the OS identity that minted the token (see intentTokenRecord),
-// which closes that exposure window entirely for a different local user.
+// intentTokenTTL bounds how long a single-use intent token stays valid, limiting exposure from leaking via a child process's argv; redemption is also bound to the minting OS identity (see intentTokenRecord).
 const intentTokenTTL = 30 * time.Second
 
-// intentTokenRecord tracks a single-use intent token's expiration and the OS
-// identity of the caller that minted it.
+// intentTokenRecord tracks a single-use intent token's expiration and the minting caller's OS identity.
 type intentTokenRecord struct {
 	expiresAt time.Time
-	// identity is the OS identity (UID/SID) of the caller that minted this
-	// token. The zero value means it couldn't be established at mint time
-	// (e.g. unsupported platform), in which case redemption falls back to
-	// the pre-existing TTL/single-use-only protection.
+	// identity is the minting caller's OS identity; empty falls back to TTL/single-use-only protection.
 	identity peerIdentity
 }
 
@@ -211,12 +202,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bind the token to the caller's OS identity so that, even if it leaks
-	// via argv while being handed to the OS URL-opener, only the same OS
-	// user can redeem it. A resolution failure here isn't attacker
-	// controlled (this endpoint requires the CMD API server's own bearer
-	// auth), so we fail open to an unconstrained token rather than break the
-	// GUI launch feature on platforms/configurations where it can't work.
+	// Bind the token to the caller's OS identity; fail open to an unconstrained token on resolution failure, since this endpoint already requires bearer auth.
 	localAddr, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
 	identity, err := resolvePeerIdentity(localAddr, r.RemoteAddr)
 	if err != nil {
@@ -325,11 +311,7 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the mint-time caller's OS identity could be established, only that
-	// same OS identity may redeem the token. Unlike at mint time, a
-	// resolution failure here is attacker-observable (the attacker is the
-	// one connecting), so it must fail closed: otherwise an attacker could
-	// simply engineer resolution failure to bypass the check.
+	// Only the minting OS identity may redeem; fail closed here, since a resolution failure at redeem time is attacker-observable and thus bypassable if we failed open instead.
 	if record.identity != "" {
 		localAddr, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
 		redeemIdentity, err := resolvePeerIdentity(localAddr, r.RemoteAddr)

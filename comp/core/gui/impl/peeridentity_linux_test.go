@@ -20,8 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// procNetTCPHeader is the header line every /proc/net/tcp{,6} file starts
-// with; searchProcNetTCP discards it unconditionally.
+// procNetTCPHeader is the header line every /proc/net/tcp{,6} file starts with; searchProcNetTCP discards it unconditionally.
 const procNetTCPHeader = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
 
 var (
@@ -36,10 +35,7 @@ func writeFixture(t *testing.T, contents string) string {
 	return path
 }
 
-// encodeProcNetAddr encodes ip the way /proc/net/tcp{,6} does: as one (IPv4)
-// or four (IPv6) 32-bit words, each individually byte-swapped. It's the
-// inverse of hexAddrPort's decoding, used here to build fixtures instead of
-// hand-computing hex strings.
+// encodeProcNetAddr encodes ip the way /proc/net/tcp{,6} does (byte-swapped 32-bit words); the inverse of hexAddrPort's decoding, used to build fixtures instead of hand-computing hex strings.
 func encodeProcNetAddr(ip net.IP) string {
 	raw := []byte(ip.To4())
 	if raw == nil {
@@ -52,9 +48,7 @@ func encodeProcNetAddr(ip net.IP) string {
 	return strings.ToUpper(hex.EncodeToString(buf))
 }
 
-// procNetTCPLine fabricates a well-formed /proc/net/tcp{,6} row for a
-// connection whose local end is localAddr:localPort and whose remote end is
-// remoteAddr:remotePort, owned by uid.
+// procNetTCPLine fabricates a well-formed /proc/net/tcp{,6} row for a connection between localAddr:localPort and remoteAddr:remotePort, owned by uid.
 func procNetTCPLine(localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int, uid int) string {
 	return fmt.Sprintf("   0: %s:%04X %s:%04X 01 00000000:00000000 00:00000000 00000000  %d        0 12345 1 0000000000000000 20 4 30 10 -1\n",
 		encodeProcNetAddr(localAddr), localPort, encodeProcNetAddr(remoteAddr), remotePort, uid)
@@ -76,11 +70,7 @@ func TestHexAddrPort(t *testing.T) {
 	})
 
 	t.Run("valid IPv6 address:port, against a literal computed independently of encodeProcNetAddr", func(t *testing.T) {
-		// Unlike the subtest above, this hex string wasn't produced by the
-		// same encoder being tested: it's an independent oracle, so a
-		// symmetric bug shared between hexAddrPort and encodeProcNetAddr
-		// (e.g. both byte-swapping the same way) can't hide a real decoding
-		// bug the way the subtest above would.
+		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug.
 		addr, port, err := hexAddrPort("00000000000000000000000001000000:1F90")
 		require.NoError(t, err)
 		assert.Equal(t, 8080, port)
@@ -161,9 +151,7 @@ func TestLookupLoopbackPeerIdentity(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across address families", func(t *testing.T) {
-		// Regression test: a naive port-only match would return whichever of
-		// these two rows happens to be found first, regardless of which
-		// address family the caller actually connected from.
+		// Regression test: a naive port-only match would return whichever row is found first, regardless of address family.
 		tcp4 := writeFixture(t, procNetTCPHeader+"\n"+procNetTCPLine(loopbackV4, 8080, loopbackV4, 80, 4000))
 		tcp6 := writeFixture(t, procNetTCPHeader+"\n"+procNetTCPLine(loopbackV6, 8080, loopbackV6, 80, 6000))
 		procNetTCPFiles = []string{tcp4, tcp6}
@@ -178,10 +166,7 @@ func TestLookupLoopbackPeerIdentity(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across distinct server addresses", func(t *testing.T) {
-		// Regression test: matching on ports and the client's own address
-		// alone isn't enough. Two rows here share the same client
-		// address:port but were made to different servers (127.0.0.1 vs
-		// 127.0.0.2); only the one actually made to serverAddr must match.
+		// Regression test: matching on ports and client address alone isn't enough; only the row actually made to serverAddr (127.0.0.1 vs .2) must match.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		path := writeFixture(t, procNetTCPHeader+"\n"+
 			procNetTCPLine(loopbackV4, 8080, loopbackV4, 80, 4000)+

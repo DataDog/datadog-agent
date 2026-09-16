@@ -12,31 +12,13 @@ import (
 	"strconv"
 )
 
-// peerIdentity identifies the OS user (UID on Unix, SID on Windows) that
-// owns one end of a loopback TCP connection. The zero value means
-// "unconstrained": either the platform doesn't implement peer identity
-// resolution, or the connection wasn't a resolvable loopback TCP connection.
-// Callers treat an unconstrained identity as matching anything, which
-// preserves the pre-existing TTL-only protection wherever peer identity
-// can't be established, instead of breaking the feature outright.
+// peerIdentity identifies the OS user (UID on Unix, SID on Windows) owning one end of a loopback TCP connection; empty means unconstrained (matches anything).
 type peerIdentity string
 
-// rootIdentity is the peerIdentity a Unix root (UID 0) connection resolves
-// to. Windows SIDs are never a plain "0" (they're dot-separated triplets
-// like "S-1-5-21-..."), so comparing against this constant is safe on every
-// platform we support, not just Unix ones.
+// rootIdentity is Unix root (UID 0); Windows SIDs are never a plain "0", so this constant is safe to compare against on every platform.
 const rootIdentity peerIdentity = "0"
 
-// mintTimeIdentity decides what identity, if any, an intent token should be
-// bound to, given what the minting connection resolved to. Root is
-// deliberately treated the same as an unresolvable identity
-// (unconstrained): a root-minting connection (e.g. `sudo datadog-agent
-// launch-gui`) commonly hands the resulting URL to the OS's own
-// URL-opener, which on some platforms (e.g. macOS's Launch Services)
-// dispatches it to the logged-in console user's browser, not root's.
-// Binding to UID 0 would then reject that legitimate redeem, so we fall
-// back to the pre-existing TTL/single-use protection instead of breaking
-// the launch flow outright.
+// mintTimeIdentity treats a root mint-time identity as unconstrained, since sudo-minted tokens are often redeemed by a different console user's browser (e.g. via macOS Launch Services).
 func mintTimeIdentity(resolved peerIdentity) peerIdentity {
 	if resolved == rootIdentity {
 		return ""
@@ -44,26 +26,12 @@ func mintTimeIdentity(resolved peerIdentity) peerIdentity {
 	return resolved
 }
 
-// resolvePeerIdentity returns the identity of the process holding the local
-// end of the loopback TCP connection whose remote address (as observed by
-// our own server) is remoteAddr, and whose local address is serverAddr: the
-// specific address of the connection our server actually accepted, not just
-// the port it's configured to listen on. Checking the full address, not just
-// the port, matters because both the GUI and CMD API servers can be
-// configured to bind to any local address, and other loopback addresses
-// (e.g. 127.0.0.2) can host unrelated servers on the same port number.
-//
-// remoteAddr must come from http.Request.RemoteAddr, and serverAddr from
-// http.Request.Context().Value(http.LocalAddrContextKey): net/http always
-// derives both from the accepted socket itself, never from a
-// client-controlled header, so neither can be spoofed by the request itself.
+// resolvePeerIdentity returns the OS identity of the peer on the other end of the loopback connection identified by serverAddr/remoteAddr, both derived by net/http from the accepted socket and so never client-spoofable.
 func resolvePeerIdentity(serverAddr net.Addr, remoteAddr string) (peerIdentity, error) {
 	if serverAddr == nil {
 		return "", errors.New("server address unavailable")
 	}
-	// serverAddr won't parse as host:port if our own server is instead
-	// listening on a Unix domain socket; that's also handled here, by simply
-	// falling back to the pre-existing TTL/single-use protection.
+	// A Unix domain socket serverAddr won't parse as host:port; that falls back to the pre-existing TTL/single-use protection too.
 	serverHost, serverPortStr, err := net.SplitHostPort(serverAddr.String())
 	if err != nil {
 		return "", fmt.Errorf("malformed server address %q: %w", serverAddr, err)
@@ -77,11 +45,7 @@ func resolvePeerIdentity(serverAddr net.Addr, remoteAddr string) (peerIdentity, 
 		return "", fmt.Errorf("malformed server port %q: %w", serverPortStr, err)
 	}
 
-	// remoteAddr won't parse as host:port if the CMD API server is instead
-	// listening on a Unix domain socket. A vsock address (e.g. "host(2):1234")
-	// does parse as host:port, but is rejected just below since its host
-	// portion isn't a valid IP; either way, resolution falls back to the
-	// pre-existing TTL/single-use protection.
+	// A Unix domain socket or vsock (e.g. "host(2):1234") remoteAddr is rejected the same way, falling back to the pre-existing TTL/single-use protection.
 	host, portStr, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
 		return "", fmt.Errorf("malformed remote address %q: %w", remoteAddr, err)

@@ -17,17 +17,10 @@ import (
 	"strings"
 )
 
-// procNetTCPFiles are the kernel-exposed tables consulted to resolve the OS
-// UID owning a loopback TCP connection. Declared as a var so tests can point
-// it at fixture files instead of the real /proc.
+// procNetTCPFiles are the kernel-exposed tables consulted to resolve the OS UID owning a loopback TCP connection; a var so tests can point it at fixture files instead of the real /proc.
 var procNetTCPFiles = []string{"/proc/net/tcp", "/proc/net/tcp6"}
 
-// lookupLoopbackPeerIdentity finds the UID of the process holding the local
-// end of the loopback TCP connection whose local address/port is
-// peerAddr/peerPort and whose remote address/port is serverAddr/serverPort,
-// by reading /proc/net/tcp{,6}. Those files expose the owning UID directly
-// (column 8), world-readable regardless of the reading process's own UID, so
-// no PID resolution step is needed.
+// lookupLoopbackPeerIdentity finds the UID owning the loopback TCP connection by reading /proc/net/tcp{,6}, which expose the owning UID directly (column 8) and are world-readable, so no PID resolution step is needed.
 func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, peerAddr net.IP) (peerIdentity, error) {
 	for _, path := range procNetTCPFiles {
 		id, found, err := searchProcNetTCP(path, serverAddr, serverPort, peerPort, peerAddr)
@@ -67,10 +60,7 @@ func searchProcNetTCP(path string, serverAddr net.IP, serverPort, peerPort int, 
 		if err != nil {
 			continue
 		}
-		// Matching on ports alone isn't enough: two loopback connections can
-		// share a local/remote port pair across address families (e.g.
-		// 127.0.0.1 vs ::1) or distinct loopback addresses, which would let
-		// an unrelated connection's UID be returned instead.
+		// Matching on ports alone isn't enough: two loopback connections can share a port pair across address families (e.g. 127.0.0.1 vs ::1), misattributing an unrelated connection's UID.
 		if localPort != peerPort || remotePort != serverPort || !localAddr.Equal(peerAddr) || !remoteAddr.Equal(serverAddr) {
 			continue
 		}
@@ -83,10 +73,7 @@ func searchProcNetTCP(path string, serverAddr net.IP, serverPort, peerPort int, 
 	return "", false, scanner.Err()
 }
 
-// hexAddrPort decodes a "<hex address>:<hex port>" field as used in
-// /proc/net/tcp{,6}. The address is stored as one (IPv4) or four (IPv6)
-// 32-bit words, each individually byte-swapped to the host's native order;
-// e.g. loopback 127.0.0.1 is encoded "0100007F".
+// hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}, whose address is one (IPv4) or four (IPv6) 32-bit words, each byte-swapped to native order (e.g. loopback 127.0.0.1 is "0100007F").
 func hexAddrPort(field string) (net.IP, int, error) {
 	idx := strings.LastIndexByte(field, ':')
 	if idx < 0 {
