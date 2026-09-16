@@ -165,7 +165,7 @@ apm_config:
 
 // TestSSIMode_AnnotationShortCircuitSkipsTargetConfigs pins that library
 // annotations still short-circuit matching for library selection: target
-// ddTraceConfigs and injection-config are not applied when annotations are present.
+// ddTraceConfigs and applied-config are not applied when annotations are present.
 func TestSSIMode_AnnotationShortCircuitSkipsTargetConfigs(t *testing.T) {
 	const cfg = `
 apm_config:
@@ -204,7 +204,7 @@ apm_config:
 	// Mode follows the match even under annotation short-circuit.
 	require.Equal(t, "k8s_single_step", env["DD_INSTRUMENTATION_INSTALL_TYPE"])
 	requireSSIDefaults(t, env, true)
-	// Selection still short-circuits: no target configs / injection-config.
+	// Selection still short-circuits: no target configs / applied-config.
 	require.Empty(t, env["DD_PROFILING_ENABLED"])
 	require.Empty(t, env[AppliedTargetEnvVar])
 }

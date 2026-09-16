@@ -43,8 +43,8 @@ const (
 	InjectionStatusAnnotation = "internal.apm.datadoghq.com/injection-status"
 	// InjectedLibrariesAnnotation records the JSON array of components the webhook attempted to inject.
 	InjectedLibrariesAnnotation = "internal.apm.datadoghq.com/injected-libraries"
-	// InjectionConfigAnnotation is the JSON of the target or remote-config policy that matched the pod.
-	InjectionConfigAnnotation = "internal.apm.datadoghq.com/injection-config"
+	// AppliedConfigAnnotation is the JSON of the config that was applied to the pod.
+	AppliedConfigAnnotation = "internal.apm.datadoghq.com/applied-config"
 )
 
 // CSIDriverStatus annotation values (kept in sync with the annotation package).
@@ -229,9 +229,9 @@ func (v *PodValidator) RequireCSIDriverStatus(t *testing.T, expected string) {
 	v.RequireAnnotations(t, map[string]string{CSIDriverStatusAnnotation: expected})
 }
 
-// RequireInjectionConfigName ensures injection-config is set and its JSON name matches expected.
-func (v *PodValidator) RequireInjectionConfigName(t *testing.T, expected string) {
-	requireAppliedJSONName(t, v.raw, InjectionConfigAnnotation, expected)
+// RequireAppliedConfigName ensures applied-config is set and its JSON name matches expected.
+func (v *PodValidator) RequireAppliedConfigName(t *testing.T, expected string) {
+	requireAppliedJSONName(t, v.raw, AppliedConfigAnnotation, expected)
 }
 
 func requireAppliedJSONName(t *testing.T, pod *corev1.Pod, key, expected string) {

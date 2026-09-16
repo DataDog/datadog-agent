@@ -394,7 +394,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	}), true)
 
 	// Add the annotations to the pod.
-	annotation.Set(pod, annotation.InjectionConfig, target.json)
+	annotation.Set(pod, annotation.AppliedConfig, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as

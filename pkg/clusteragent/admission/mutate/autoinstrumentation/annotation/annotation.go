@@ -62,9 +62,9 @@ const (
 
 // Annotations written by the webhook.
 const (
-	// InjectionConfig is the JSON of the target or remote-config policy that was applied to the pod.
+	// AppliedConfig is the JSON of the config that was applied to the pod.
 	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python":"3"}}
-	InjectionConfig = "internal.apm.datadoghq.com/injection-config"
+	AppliedConfig = "internal.apm.datadoghq.com/applied-config"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"

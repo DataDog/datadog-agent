@@ -5,4 +5,4 @@ enhancements:
     ``internal.apm.datadoghq.com/injection-trigger`` annotation to instrumented
     pods, identifying which configuration source triggered injection. The
     applied target or policy JSON is recorded in the
-    ``internal.apm.datadoghq.com/injection-config`` annotation.
+    ``internal.apm.datadoghq.com/applied-config`` annotation.

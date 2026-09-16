@@ -195,7 +195,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.InjectionConfig:  "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedConfig:    "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 				annotation.InjectionTrigger: annotation.InjectionTriggerTarget,
 			},
 		},
@@ -232,7 +232,7 @@ func TestMutatePod(t *testing.T) {
 				"registry/dd-lib-python-init:v3",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.InjectionConfig:  `{"name":"remote-policy","ddTraceVersions":{"python":"v3"}}`,
+				annotation.AppliedConfig:    `{"name":"remote-policy","ddTraceVersions":{"python":"v3"}}`,
 				annotation.InjectionTrigger: annotation.InjectionTriggerPolicy,
 			},
 		},
@@ -314,7 +314,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.InjectionConfig: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedConfig: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"service name is applied when set in tracer configs": {
@@ -367,7 +367,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.InjectionConfig:  "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+				annotation.AppliedConfig:    "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
 				annotation.InjectionTrigger: annotation.InjectionTriggerDDI,
 			},
 		},
