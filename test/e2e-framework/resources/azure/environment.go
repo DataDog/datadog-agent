@@ -87,6 +87,11 @@ func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
 }
 
+// DatadogPublicRegistry returns gcr.io/datadoghq: there is no Datadog-operated Azure registry, so use the GCP one as Azure customers do.
+func (e *Environment) DatadogPublicRegistry() string {
+	return "gcr.io/datadoghq"
+}
+
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {
 	return true, nil
 }
