@@ -5017,8 +5017,8 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
-gitlab.com/gitlab-org/api/client-go/v2 v2.64.0 h1:PrLDC9rS6je6scB0VgXAh6gmoB7fk50bgdweKT37Vdg=
-gitlab.com/gitlab-org/api/client-go/v2 v2.64.0/go.mod h1:jLHVjfgFX/BsZnWXp6OsoXv1hKzBp2tSnNoxQTl3A08=
+gitlab.com/gitlab-org/api/client-go/v3 v3.2.0 h1:DzbwSzJ5kDt5QXOdebqo0KWV8nfAKPfDVMPX0/Lgvic=
+gitlab.com/gitlab-org/api/client-go/v3 v3.2.0/go.mod h1:k7uYxRoIeuSqyWZSJfAPZlf0L32OH0lUBImAl4gWUFc=
 go.einride.tech/aip v0.66.0/go.mod h1:qAhMsfT7plxBX+Oy7Huol6YUvZ0ZzdUz26yZsQwfl1M=
 go.einride.tech/aip v0.67.1/go.mod h1:ZGX4/zKw8dcgzdLsrvpOOGxfxI2QSk12SlP7d6c0/XI=
 go.einride.tech/aip v0.68.0/go.mod h1:7y9FF8VtPWqpxuAxl0KQWqaULxW4zFIesD6zF5RIHHg=
