@@ -341,14 +341,16 @@ func (s *packageDDOTSuite) TestInstallDDOTRefusesSymlinkedConfig() {
 	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + victim)
 	s.host.Run("sudo -u dd-agent ln -sf " + victim + " /etc/datadog-agent/otel-config.yaml")
 
-	output, err := s.Env().RemoteHost.Execute("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
-	require.Error(s.T(), err, "the DDOT post-install hook must refuse a symlinked otel-config.yaml")
-	// The diagnostic, not just a nonzero exit: a failed image download would also leave the
-	// victim and the symlink untouched, so every assertion below would pass without the hook
-	// having run at all. This message comes from the hook refusing to write the config, and
-	// the installer carries a hook's stderr into its own output.
-	require.Contains(s.T(), output, "could not write otel-config.yaml file",
-		"the install must fail in the config write, not somewhere before the hook: %s", output)
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
+	// Matched on the error rather than on the returned output: Execute folds the command's
+	// combined output into the error and returns an empty string whenever the command fails,
+	// which is exactly the case being asserted here.
+	//
+	// The diagnostic matters, not just a nonzero exit: a failed image download would also leave
+	// the victim and the symlink untouched, so every assertion below would pass without the hook
+	// having run at all.
+	require.ErrorContains(s.T(), err, "could not write otel-config.yaml file",
+		"the DDOT post-install hook must refuse a symlinked otel-config.yaml while writing the config, not fail before the hook ran")
 
 	victimState := strings.TrimSpace(s.host.Run("stat -c '%U:%G:%a' " + victim))
 	require.Equal(s.T(), "root:root:600", victimState,
