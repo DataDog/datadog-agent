@@ -498,8 +498,8 @@ github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0o
 github.com/prometheus/procfs v0.22.0/go.mod h1:CvmFr/GVhIjIvWJZW3tgkODBQMRIf0EyWMQLHCHab58=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435cARxCW6q9gc0S/Yxz7Mkd38pOb0=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0 h1:mYayWNQGsbMiWPDv75yFEwI5Uf1Cw4sAEAy05lC9FfU=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0/go.mod h1:5p7rb57CpZOvFIpcE4fa99ASf1ZuCcKfc+4vt8nsj7k=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0 h1:61rF2opPaWzUGNTlV83FvH5JIzlA9WG/c6AjZffKL5Y=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0/go.mod h1:5p7rb57CpZOvFIpcE4fa99ASf1ZuCcKfc+4vt8nsj7k=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0 h1:KDrkwdt/wFQZ1AEFRzGQ0Mo4Qoa9AuTbt5AdyLpM/b4=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0/go.mod h1:6YCxvGh70KupvbhPIQX+Amzsxz8qBzhyoXO5AD3AxXE=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0 h1:HDQMsIeOjbFd2GCPhKh2ZMb7tcChHmagCfe2ZHDmtKs=
@@ -526,8 +526,8 @@ github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 h1:YFX8Pzx9qXyQVcrArwjE4E8b41ZUbLkPge
 github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0/go.mod h1:hgcC2HINtvhF+0Q4SbTQqXxQdUO/0cn/swtGfJvOMWQ=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1 h1:AGNAJQAmB8GPk0qp2eY35tEAv3Zkv1ANHTfh2M0AZnQ=
 github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1/go.mod h1:Pakk2FAgJvbFbZT0MfmRBp8q8SiansOZaoWN1E7tiXg=
-github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0 h1:r00p17ecoDVWqBg38/Is/9jU/JsWLPxnWzhfYqKitx0=
-github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0/go.mod h1:/klrd3ib4AMRlFMjrxkv5r76x3Bdr68wIMEKfRkRzHU=
+github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1 h1:FyUnzg4Czn84k84jMeM3aQBRbBL4wTWgMJd4qIF832k=
+github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1/go.mod h1:/klrd3ib4AMRlFMjrxkv5r76x3Bdr68wIMEKfRkRzHU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4/go.mod h1:HPx6S9mhaHpSHTKDVERTMaziKEpSqY8Trm+m2z1iJ3k=
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 h1:pqvBaBMwFPP3DV8BYh/f45V4A62kFqJRQv171pfgObk=
