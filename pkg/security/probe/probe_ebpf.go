@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -200,6 +201,10 @@ type EBPFProbe struct {
 
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
+
+	// capabilities usage events dropped because the exec or fork event that introduced the
+	// program they belong to was missed, leaving userspace unable to resolve it
+	capabilitiesExecutableMismatch *atomic.Uint64
 
 	// per-event scratch state — only safe because handleEvent is single-goroutine.
 	// onNewPCE / onCgroupUpdate are stored as function values rather than declared as
@@ -673,7 +678,53 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	if err := p.initCredentialEndpoints(); err != nil {
+		return fmt.Errorf("initCredentialEndpoints error: %w", err)
+	}
+
 	return nil
+}
+
+// initCredentialEndpoints fills the `credential_endpoints` map used by the TC classifier
+func (p *EBPFProbe) initCredentialEndpoints() error {
+	// map only exists when the TC classifiers are loaded
+	if !p.probe.IsNetworkEnabled() {
+		return nil
+	}
+
+	endpoints, err := p.config.RuntimeSecurity.CredentialEndpoints()
+	if err != nil {
+		return err
+	}
+
+	endpointsMap, err := managerhelper.Map(p.Manager.Get(), "credential_endpoints")
+	if err != nil {
+		return err
+	}
+
+	for _, endpoint := range endpoints {
+		key := credentialEndpointKey(endpoint.Addr)
+		if err := endpointsMap.Put(key, uint32(endpoint.Source)); err != nil {
+			return fmt.Errorf("couldn't push credential endpoint %s: %w", endpoint.Addr, err)
+		}
+	}
+	return nil
+}
+
+// credentialEndpointKey builds a `credential_endpoints` map key, matching flow_t's layout
+func credentialEndpointKey(addr netip.Addr) [2]uint64 {
+	var raw [16]byte
+	if addr.Is4() {
+		v4 := addr.As4()
+		copy(raw[0:4], v4[:])
+	} else {
+		raw = addr.As16()
+	}
+
+	return [2]uint64{
+		binary.NativeEndian.Uint64(raw[0:8]),
+		binary.NativeEndian.Uint64(raw[8:16]),
+	}
 }
 
 // IsRuntimeCompiled returns true if the eBPF programs where successfully runtime compiled
@@ -1202,6 +1253,10 @@ func (p *EBPFProbe) SendStats() error {
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
+	}
+
+	if executableMismatchCount := p.capabilitiesExecutableMismatch.Swap(0); executableMismatchCount > 0 {
+		_ = p.statsdClient.Count(metrics.MetricCapabilitiesExecutableMismatch, int64(executableMismatchCount), []string{}, 1.0)
 	}
 
 	if err := p.eventStream.SendStats(); err != nil {
@@ -1980,6 +2035,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
 			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
+			return false
+		}
+		// Usage is aggregated per exec and reported asynchronously, so the process may already be
+		// running another program by the time this lands. If we missed the exec or fork event that
+		// introduced the program the usage belongs to, nothing is cached for the pid and resolution
+		// falls back to the kernel maps or procfs, both of which describe a new executable instead
+		// of the executable entry for which this capabilities event is reported.
+		if event.ProcessCacheEntry.Cookie != event.CapabilitiesUsage.Cookie {
+			p.capabilitiesExecutableMismatch.Add(1)
+			seclog.Debugf("capabilities usage event for pid %d resolved to a different executable (cookie %d != %d), skipping", event.PIDContext.Pid, event.ProcessCacheEntry.Cookie, event.CapabilitiesUsage.Cookie)
 			return false
 		}
 		// is this thread-safe?
@@ -3114,10 +3179,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "imds_ip",
-			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
-		},
-		manager.ConstantEditor{
 			Name:  "dns_port",
 			Value: uint64(utils.HostToNetworkShort(p.probe.Opts.DNSPort)),
 		},
@@ -3467,6 +3528,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
 		dropActionRuleIDs:    make(map[uint32]string),
+
+		capabilitiesExecutableMismatch: atomic.NewUint64(0),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
