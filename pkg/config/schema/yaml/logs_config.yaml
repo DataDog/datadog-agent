@@ -796,6 +796,36 @@ properties:
     node_type: setting
     type: integer
     default: 30
+  tag_filters:
+    node_type: setting
+    type: object
+    default: {}
+    visibility: public
+    env_parser: json
+    unevaluatedProperties: false
+    properties:
+      include:
+        type: array
+        items:
+          type: string
+      exclude:
+        type: array
+        items:
+          type: string
+    description: |-
+      Filter tags from logs before sending them to Datadog. Each pattern must use "key:value"
+      syntax. Keys are matched exactly; values may contain "*" to match zero or more characters.
+      Matching ignores ASCII letter case. Exclude removes matching tags, while include preserves
+      exceptions to exclusions. Per-source filters override global filters. Excluding source,
+      service, or host logs a warning because those attributes are sent separately and remain.
+    example: |2-
+
+        exclude:
+          - "container_id:*"
+          - "kube_namespace:*"
+        include:
+          # Keep namespace tags for production workloads.
+          - "kube_namespace:production-*"
   tag_multi_line_logs:
     node_type: setting
     type: boolean

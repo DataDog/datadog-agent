@@ -265,6 +265,20 @@ func TestPublicJSON(t *testing.T) {
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
+// PublicJSON is sent to the backend as metadata; filtering rules are Agent-local
+// configuration and must stay out.
+func TestPublicJSONExcludesTagFilters(t *testing.T) {
+	config := LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Exclude: []string{"container_id:*"}},
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+	assert.NotContains(t, string(ret), "tag_filters")
+	assert.NotContains(t, string(ret), "container_id")
+}
+
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*types.FingerprintConfig{
 		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
