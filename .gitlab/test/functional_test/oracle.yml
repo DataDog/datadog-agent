@@ -10,6 +10,22 @@ oracle:
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      entrypoint: ["/bin/bash", "-c"]
+      command:
+        - |
+          (
+            while sleep 2; do
+              if [ -d "$CI_PROJECT_DIR/oracle-ci-logs" ]; then
+                for logfile in /tmp/oracle-startup.log "$ORACLE_BASE"/diag/rdbms/*/*/trace/alert*.log; do
+                  if [ -f "$logfile" ]; then
+                    target="$CI_PROJECT_DIR/oracle-ci-logs/$(basename "$logfile")"
+                    cp "$logfile" "$target.tmp" && mv "$target.tmp" "$target"
+                  fi
+                done
+              fi
+            done
+          ) &
+          exec "$ORACLE_BASE/$RUN_FILE" > >(tee /tmp/oracle-startup.log) 2>&1
       variables:
         ORACLE_PWD: "datad0g"
   variables:
@@ -25,6 +41,12 @@ oracle:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
+    - mkdir -p oracle-ci-logs && chmod 0777 oracle-ci-logs
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- oracle.test
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - oracle-ci-logs/*.log
