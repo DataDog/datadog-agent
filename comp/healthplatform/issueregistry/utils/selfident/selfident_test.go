@@ -237,12 +237,14 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 
 	// Cached from the settled resolution; must return immediately without
 	// re-running the resolution loop. Compared against a fixed budget
-	// instead of the first call's elapsed time: once truly cached, 50
-	// atomic loads take microseconds, orders of magnitude below even a
-	// single retry delay, while a broken cache would take multiples of it.
+	// instead of the first call's elapsed time, with generous headroom for
+	// scheduler/GC jitter across 50 assertions: once truly cached, the loop
+	// takes microseconds, while a broken cache would redo the full
+	// resolveRetries*resolveRetryDelay wait on every call (~1.5s here).
+	cachedCallsBudget := 10 * s.resolveRetryDelay
 	start = time.Now()
 	for i := 0; i < 50; i++ {
 		assert.Empty(t, s.ClusterID())
 	}
-	assert.Less(t, time.Since(start), s.resolveRetryDelay, "later calls must return immediately from cache, not re-run resolution")
+	assert.Less(t, time.Since(start), cachedCallsBudget, "later calls must return immediately from cache, not re-run resolution")
 }
