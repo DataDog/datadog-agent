@@ -24,6 +24,7 @@ e2ectl init --base kind --output my.yaml   # annotated starter config, generated
 e2ectl start   --config my.yaml --name dev    # provision (kind locally; EC2 via the executor)
 e2ectl install --env dev                       # install the Agent (Helm / script / dev binary) + deploy workloads
 e2ectl update  --env dev                       # rebuild your change and redeploy (kind dev loop)
+e2ectl test --env dev --suite ./test/new-e2e/tests/containers/   # run a suite against the live env
 e2ectl fakeintake metrics --env dev            # what the Agent actually sent
 e2ectl list / stop --env dev
 ```
@@ -82,7 +83,7 @@ per environment. Build with
 | Receiver selection | Choose fakeintake vs. the real backend explicitly; today routing is inferred from fakeintake presence | Designed, not implemented |
 | Custom/multi-Agent environments | Scenarios expose their own typed config (two Agents, two fakeintakes…) and their own installer; the CLI stays single-agent-generic | Designed, not implemented |
 | Agent-config typing remainder | Contract revision so installers receive typed sections end-to-end; scenario agent sections | Partially implemented |
-| Test execution | Existing suites attach to live environments via the proven `E2ECTL_ENV`/`E2ECTL_HOME` mechanism (Host metric tests and the containers suite run this way today); a `e2ectl test` wrapper, needs-probing and CI job generation are next | Attach mechanism **implemented, live-verified** (4/4 metric tests, 8/8 containers tests); wrapper command designed, not implemented |
+| Test execution | `e2ectl test --env dev --suite <packages>` runs existing suites against the live environment; tests attach via the `e2ectlenv` helper (`RequireEnv` + `Attach`); the CLI pre-selects attachable entry points so provisioning-based tests in the same suite never fire | **Implemented, live-verified** (9/9 containers tests through the command); needs-probing and CI job generation remain |
 
 Everything above has a concrete plan with status and boundaries in the
 [plan status index](qa-e2ectl-plans-index.md); the implemented ledger distinguishes what

@@ -6,7 +6,7 @@ dd_agent_go_test(
     deps = [
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
-        "//test/e2e-framework/testing/provisioners",
+        "//test/new-e2e/utils/e2ectlenv",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",

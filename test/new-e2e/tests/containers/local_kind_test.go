@@ -13,8 +13,6 @@ package containers
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,7 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	e2ectlenv "github.com/DataDog/datadog-agent/test/new-e2e/utils/e2ectlenv"
 )
 
 // localKindSuite is a standalone suite (not inheriting baseSuite, which
@@ -46,21 +44,11 @@ type localKindSuite struct {
 // the existing environment via the snapshot; no Pulumi, no provisioning,
 // no teardown.
 func TestContainersOnLocalKind(t *testing.T) {
-	envName := os.Getenv("E2ECTL_ENV")
-	if envName == "" {
-		t.Skip("set E2ECTL_ENV to a running e2ectl kind environment (e2ectl start --base kind, then e2ectl install)")
-	}
-	home := os.Getenv("E2ECTL_HOME")
-	if home == "" {
-		home = os.ExpandEnv("$HOME/.e2ectl")
-	}
-	snapshot := filepath.Join(home, "envs", envName, "snapshot.json")
-	if _, err := os.Stat(snapshot); err != nil {
-		t.Skipf("no snapshot for %s (e2ectl start first): %v", envName, err)
-	}
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
 	t.Parallel()
 	e2e.Run(t, &localKindSuite{}, e2e.WithProvisioner(
-		provisioners.NewStaticStackProvisioner[environments.Kubernetes]("e2ectl-attach", snapshot),
+		e2ectlenv.Attach[environments.Kubernetes](envName),
 	))
 }
 

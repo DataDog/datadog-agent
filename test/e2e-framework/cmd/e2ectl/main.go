@@ -16,6 +16,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/testcmd"
 )
 
 func main() {
@@ -37,6 +39,8 @@ func main() {
 		err = cmdInstall(os.Args[2:])
 	case "update":
 		err = cmdUpdate(os.Args[2:])
+	case "test":
+		err = testcmd.Run(os.Args[2:])
 	case "fakeintake":
 		err = cmdFakeintake(os.Args[2:])
 	case "stop":
@@ -71,6 +75,8 @@ Usage:
   e2ectl list                                      list my created environments
   e2ectl install --env <name> [--config <file>]     install the agent on it
   e2ectl update --env <name> [--skip-build]         rebuild agent code and redeploy (kind)
+  e2ectl test --env <name> --suite <packages>      run a new-e2e suite against the live environment
+                                                  [--run pattern] [-- extra go test args]
   e2ectl fakeintake <names|metrics|health> --env <name>
   e2ectl stop --env <name> [--force]               destroy the environment (--force removes the entry even if teardown fails)
 

@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testcmd",
+    srcs = ["testcmd.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/testcmd",
+    visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+    ],
+)

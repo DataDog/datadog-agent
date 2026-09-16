@@ -1,11 +1,34 @@
 # e2ectl: run tests against live environments
 
-> **Category C — pending feature; not implemented.** The vision's test-runner:
+> **Implemented (commit pending)** — the vision's test-runner:
 > `e2ectl test --suite <path> --env <name>` runs existing E2E suites against
 > a live, e2ectl-owned environment. See the
 > [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
 
-**Status:** design only; no application code changes.
+**Status:** implemented and live-verified on kind (`e2ectl test -env tst-dev
+-suite ./test/new-e2e/tests/containers/` → 9/9 pass in 1.5s, including the
+workload tests; `-run` pass-through, all error-UX gates, and single-test
+selection verified live). The local-base path (`TestMetricEmissionOnLocal`)
+is refactored to the shared helper and compile-verified; its live re-run
+waits on the next agent-binary build cycle.
+
+## As-built deviations from the design
+
+| Design | As built | Why |
+|---|---|---|
+| Dispatch to `go test` *or* `dda inv new-e2e-tests.run` | Plain `go test -tags test` only | `dda inv new-e2e-tests.run` hard-fails when the pulumi CLI is absent — the exact dependency e2ectl exists to remove. The `-tags test` mechanism is the same one the attach tests already use. |
+| `kind` "not supported yet" (§4 table) | Supported: base `kind` maps to the same `OnLocal` default pattern | `TestContainersOnLocalKind` proved kind attach after this plan was written |
+| Default `-run` always applied | Applied only when `--run` is absent; `--run ''` runs every test | Escape hatch for suites that are entirely attach-based |
+| `e2ectlenv` package in `test/new-e2e/utils/e2ectlenv` | Exactly there | — |
+| `E2ECTL_LOCAL_ENV` (the metric test's old variable) | Unified to `E2ECTL_ENV` via the helper | One variable for one concept; `e2ectl test` sets it |
+
+## Entry-point convention (now normative)
+
+Attachable entry points are named `<Test>On<Local|LocalKind|Host>` and call
+`e2ectlenv.RequireEnv(t)` first. The naming is what `e2ectl test`'s default
+`-run` pattern keys on — it is also what keeps provisioning-based entry
+points in the same suite (k8sSuite, eksSuite) from firing when the whole
+package is the target.
 **Built on:** the transport-transparent `RemoteHost` (SSH or docker exec) and the
 `StaticStackProvisioner` attachment we just verified live.
 
@@ -104,14 +127,13 @@ The needs-based selection (one test, any environment) is the vision's M3+.
 
 ## 6. Implementation
 
-| Step | What | Gate |
-|---|---|---|
-| 1. `e2ectlenv` helper package | `RequireEnv`, `SnapshotPath`, `Attach[Env]` | The metric-emission test uses it instead of raw env-var reading |
-| 2. `e2ectl test` command | Resolve env, verify ready, set env vars, shell out to `go test` | `e2ectl test --env val --suite ./tests/agent-metric-emission/...` passes |
-| 3. `--run` pass-through | Forward the `-run` flag to `go test` | `e2ectl test --env val --suite ... --run TestAgentHeartbeat` runs one test |
-| 4. Base-type mapping | `local` → `OnLocal`, `ec2-host` → `OnHost` | Both bases work with the right pattern |
-| 5. Error UX | "env not ready → run these commands", "agent not installed → run install" | A missing-agent failure points at the fix, not at a stack trace |
-
+| Step | What | Gate | Status |
+|---|---|---|---|
+| 1. `e2ectlenv` helper package | `RequireEnv`, `SnapshotPath`, `Attach[Env]` | The metric-emission test uses it instead of raw env-var reading | ✅ done (both attach tests use it) |
+| 2. `e2ectl test` command | Resolve env, verify ready, set env vars, shell out to `go test` | `e2ectl test --env val --suite ...` passes | ✅ done, live-verified on kind (9/9) |
+| 3. `--run` pass-through | Forward the `-run` flag to `go test` | `e2ectl test --env val --suite ... --run TestAgentHeartbeat` runs one test | ✅ done, live-verified |
+| 4. Base-type mapping | `local` → `OnLocal`, `ec2-host` → `OnHost` | Both bases work with the right pattern | ✅ done for kind+local; ec2-host follows the same code path (untested live — needs AWS credentials) |
+| 5. Error UX | "env not ready → run these commands", "agent not installed → run install" | A missing-agent failure points at the fix, not at a stack trace | ✅ done, all three gates live-verified |
 ## 7. What is deliberately deferred
 
 - **CI mode** (`e2ectl test` as a CI runner that provisions on demand) — that's

@@ -10,8 +10,6 @@
 package agentmetricemission
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,8 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	e2ectlenv "github.com/DataDog/datadog-agent/test/new-e2e/utils/e2ectlenv"
 )
 
 // metricSuite runs the same assertions regardless of where the Agent lives.
@@ -41,21 +39,11 @@ func TestMetricEmissionOnHost(t *testing.T) {
 // (e2ectl start) and the agent installed (e2ectl install) before the test
 // starts; the test attaches via the snapshot.
 func TestMetricEmissionOnLocal(t *testing.T) {
-	envName := os.Getenv("E2ECTL_LOCAL_ENV")
-	if envName == "" {
-		t.Skip("set E2ECTL_LOCAL_ENV to a running e2ectl local environment to run this test")
-	}
-	home := os.Getenv("E2ECTL_HOME")
-	if home == "" {
-		home = os.ExpandEnv("$HOME/.e2ectl")
-	}
-	snapshot := filepath.Join(home, "envs", envName, "snapshot.json")
-	if _, err := os.Stat(snapshot); err != nil {
-		t.Skipf("no snapshot for %s (e2ectl start first): %v", envName, err)
-	}
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
 	t.Parallel()
 	e2e.Run(t, &metricSuite{}, e2e.WithProvisioner(
-		provisioners.NewStaticStackProvisioner[environments.Host]("local-attach", snapshot),
+		e2ectlenv.Attach[environments.Host](envName),
 	))
 }
 
