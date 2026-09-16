@@ -2076,7 +2076,7 @@ func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgrou
 	if !cgroupContext.IsNull() {
 		pce.Process.CGroup = cgroupContext
 	}
-	if !containerContext.IsNull() {
+	if containerContext.ContainerID != "" || containerContext.PodUID != "" {
 		pce.Process.ContainerContext = containerContext
 	}
 }
