@@ -137,6 +137,11 @@ correlators) retain and iterate that view; they must not flatten, sort, or
 copy it. Materialize a `[]string` only at an external serialization boundary
 such as a JSON, event, Parquet, or testbench DTO.
 
+Storage uses a bounded, reference-counted composite-tag interner on new-series
+insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
+and collision-checks views without flattening them. Existing-series writes must
+not hash or inspect tags; eviction releases the interner reference.
+
 Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
 reused. Copy it once at raw-log ingestion; all derived metric paths should then
 use a composite view.
