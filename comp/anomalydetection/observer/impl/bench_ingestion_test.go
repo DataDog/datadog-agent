@@ -192,11 +192,11 @@ func highLoadMetric(name string) *metricObs {
 	return &metricObs{
 		name:      name,
 		timestamp: 1000,
-		tags: []string{
+		tags: testCompositeTags([]string{
 			"pod_name:api-123", "container_id:abc", "env:staging", "service:api",
 			"kube_namespace:default", "kube_deployment:api", "image_name:api", "image_tag:v1",
 			"cluster_name:stormeagle", "region:us-east-1", "team:agent", "version:7.84.0",
 			"orchestrator:ecs", "container_name:api", "kube_replica_set:api-123", "short_image:api",
-		},
+		}),
 	}
 }

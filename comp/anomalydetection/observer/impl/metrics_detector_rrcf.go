@@ -10,9 +10,9 @@ import (
 	"log"
 	"math"
 	"sort"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // RRCFScoredPoint records a CoDisp score at a specific timestamp.
@@ -249,11 +249,8 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 
 	// Build an identity signature for each series. Host is separate from metric
 	// tags, so it must participate to avoid combining different hosts.
-	tagSig := func(host string, tags []string) string {
-		sorted := make([]string, len(tags))
-		copy(sorted, tags)
-		sort.Strings(sorted)
-		return host + "|" + strings.Join(sorted, ",")
+	tagSig := func(host string, tags tagset.CompositeTags) string {
+		return host + "|" + tags.Join(",")
 	}
 
 	// Group series by tag signature and find a tag set that has ALL metrics

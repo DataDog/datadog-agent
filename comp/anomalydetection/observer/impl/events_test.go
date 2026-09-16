@@ -235,7 +235,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 		Source: observerdef.SeriesDescriptor{
 			Namespace: "log_metrics_extractor",
 			Name:      "log.pattern.abc.count",
-			Tags:      []string{"observer_source:source-a", "service:api"},
+			Tags:      testCompositeTags([]string{"observer_source:source-a", "service:api"}),
 			Aggregate: observerdef.AggregateCount,
 		},
 		SourceRef:    &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateCount},
@@ -273,7 +273,7 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	storage.SetContext(addRes.Ref, &observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
 
 	anomaly := observerdef.Anomaly{
-		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
+		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: testCompositeTags([]string{"service:api"})},
 		SourceRef: &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateAverage},
 		Timestamp: 1,
 	}
@@ -321,7 +321,7 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 	var anomaly observerdef.Anomaly
 	for _, meta := range e.storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
-		if len(meta.Tags) == 2 && containsTag(meta.Tags, "observer_source:source-a") && containsTag(meta.Tags, "service:api") {
+		if meta.Tags.Len() == 2 && meta.Tags.Find(func(tag string) bool { return tag == "observer_source:source-a" }) && meta.Tags.Find(func(tag string) bool { return tag == "service:api" }) {
 			anomaly = observerdef.Anomaly{
 				Source: observerdef.SeriesDescriptor{
 					Namespace: extractor.Name(),
@@ -366,8 +366,8 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	assert.Equal(t, "log_metrics_extractor", anomaly.Source.Namespace)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.Source.Aggregate)
 	assert.Contains(t, anomaly.Source.Name, "log.pattern.")
-	assert.Contains(t, anomaly.Source.Tags, "observer_source:source-a")
-	assert.Contains(t, anomaly.Source.Tags, "service:api")
+	assert.True(t, anomaly.Source.Tags.Find(func(tag string) bool { return tag == "observer_source:source-a" }))
+	assert.True(t, anomaly.Source.Tags.Find(func(tag string) bool { return tag == "service:api" }))
 	require.NotNil(t, anomaly.SourceRef)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
 

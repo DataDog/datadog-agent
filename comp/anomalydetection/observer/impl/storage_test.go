@@ -58,7 +58,7 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	require.NotNil(t, series)
 	assert.Equal(t, "test", series.Namespace)
 	assert.Equal(t, "my.metric", series.Name)
-	assert.Equal(t, []string{"env:prod"}, series.Tags)
+	assert.Equal(t, []string{"env:prod"}, series.Tags.UnsafeToReadOnlySliceString())
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
 	assert.Equal(t, 10.0, series.Points[0].Value)
@@ -96,7 +96,7 @@ func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
 		host:      "host-a",
 		value:     1,
 		timestamp: 100,
-		tags:      []string{"env:prod"},
+		tags:      testCompositeTags([]string{"env:prod"}),
 	}
 	metric.storageKey = testStorageKeyForMetric("dogstatsd", metric)
 	engine.IngestMetric("dogstatsd", metric)
@@ -127,8 +127,8 @@ func TestTimeSeriesStorage_AddWithKeyAndHostSeparatesIdenticalMetricAndTags(t *t
 	ranged := s.GetSeriesRange(first.Ref, 0, 1000, AggregateAverage)
 	require.NotNil(t, ranged)
 	assert.Equal(t, "host-a", ranged.Host)
-	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
-	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -970,6 +970,7 @@ func TestTimeSeriesStorage_AddDroppedReturnsNegativeRef(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_TagIntern_PoolGrows(t *testing.T) {
+	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 	assert.Equal(t, 0, s.TagInternedCount())
 
@@ -1001,13 +1002,15 @@ func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
 	require.NotNil(t, stats1)
 	require.NotNil(t, stats2)
 
-	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
-	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
-	assert.Equal(t, ptr1, ptr2, "series with identical tag sets must share the same []string backing array")
-	assert.Equal(t, 1, s.TagInternedCount())
+	tags1, _ := stats1.Tags.UnsafeGet()
+	tags2, _ := stats2.Tags.UnsafeGet()
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(tags1)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(tags2)))
+	assert.Equal(t, ptr1, ptr2, "storage must retain the immutable caller-owned tag view")
 }
 
 func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
+	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 
 	tags := []string{"env:prod", "host:a"}
@@ -1043,19 +1046,21 @@ func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
 
 	res1 := s.Add("ns", "m1", 1.0, 1000, tags1)
 	res2 := s.Add("ns", "m2", 1.0, 1000, tags2)
-	assert.Equal(t, 1, s.TagInternedCount(), "same tags in different order must share one pool entry")
 
 	s.mu.RLock()
 	stats1 := s.resolveByID(res1.Ref)
 	stats2 := s.resolveByID(res2.Ref)
 	s.mu.RUnlock()
 
-	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
-	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
-	assert.Equal(t, ptr1, ptr2, "unsorted and sorted variants must share the same backing array")
+	storedTags1, _ := stats1.Tags.UnsafeGet()
+	storedTags2, _ := stats2.Tags.UnsafeGet()
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags1)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags2)))
+	assert.NotEqual(t, ptr1, ptr2, "tag interning is deferred until the composite interner commit")
 }
 
 func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
+	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 
 	for i := 0; i < tagInternMaxSize; i++ {
