@@ -554,41 +554,6 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 	return max
 }
 
-// seriesKey creates a unique key for a series.
-//
-// The result has the form "namespace|name|host|tag1,tag2,...". This function is on
-// the hot path for log ingestion and detector loops, so we build the key with
-// a single growth via strings.Builder to avoid the chained `+` and intermediate
-// joinTags allocations that the naive form produces.
-func seriesKey(namespace, name, host string, tags []string) string {
-	if len(tags) > 1 && !tagsSorted(tags) {
-		tags = canonicalizeTags(tags)
-	}
-	// Pre-compute exact length: namespace + '|' + name + '|' + host + '|' + joined(tags).
-	n := len(namespace) + 1 + len(name) + 1 + len(host) + 1
-	for i, t := range tags {
-		if i > 0 {
-			n++ // ',' separator
-		}
-		n += len(t)
-	}
-	var b strings.Builder
-	b.Grow(n)
-	b.WriteString(namespace)
-	b.WriteByte('|')
-	b.WriteString(name)
-	b.WriteByte('|')
-	b.WriteString(host)
-	b.WriteByte('|')
-	for i, t := range tags {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(t)
-	}
-	return b.String()
-}
-
 func seriesKeyComposite(namespace, name, host string, tags tagset.CompositeTags) string {
 	n := len(namespace) + len(name) + len(host) + 3
 	tags.ForEach(func(tag string) { n += len(tag) })
@@ -620,24 +585,6 @@ func copyTags(tags []string) []string {
 	result := make([]string, len(tags))
 	copy(result, tags)
 	return result
-}
-
-func canonicalizeTags(tags []string) []string {
-	if len(tags) <= 1 {
-		return copyTags(tags)
-	}
-	result := copyTags(tags)
-	sort.Strings(result)
-	return result
-}
-
-func tagsSorted(tags []string) bool {
-	for i := 1; i < len(tags); i++ {
-		if tags[i-1] > tags[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // tagInternMaxSize caps the number of unique tag-set entries in the intern
@@ -828,13 +775,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Ref != result[j].Ref {
-			return result[i].Ref < result[j].Ref
-		}
-		if result[i].Name != result[j].Name {
-			return result[i].Name < result[j].Name
-		}
-		return result[i].Tags.Join(",") < result[j].Tags.Join(",")
+		return result[i].Ref < result[j].Ref
 	})
 	return result
 }

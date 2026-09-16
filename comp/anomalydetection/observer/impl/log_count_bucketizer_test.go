@@ -169,7 +169,7 @@ func TestEngineMaterializesLogCountBucketsBeforeDetection(t *testing.T) {
 
 	e.IngestLog("logs", &logObs{timestampMs: 1_000, tags: []string{"service:api"}})
 	e.IngestLog("logs", &logObs{timestampMs: 3_000, tags: []string{"service:api"}})
-	seriesTags := canonicalizeTags([]string{"observer_source:logs", "service:api"})
+	seriesTags := []string{"observer_source:logs", "service:api"}
 	assert.Nil(t, storage.GetSeries(
 		"fixed_log_count", "log.fixed.count", seriesTags, observerdef.AggregateAverage,
 	))
@@ -199,7 +199,7 @@ func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
 
 	e.IngestLog("logs", &logObs{timestampMs: 1_000})
 	e.Advance(5)
-	logTags := canonicalizeTags([]string{"observer_source:logs"})
+	logTags := []string{"observer_source:logs"}
 	require.NotNil(t, storage.GetSeries(
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
 	))
