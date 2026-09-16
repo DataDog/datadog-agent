@@ -10,6 +10,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // LogPatternExtractorName is the canonical name for the log pattern extractor.
@@ -236,7 +237,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:  metricName,
 		Value: 1,
-		Tags:  log.Tags(),
+		Tags:  tagset.CompositeTagsFromSlice(log.Tags()),
 		Context: &observerdef.MetricContext{
 			Pattern:   cluster.PatternString(),
 			Example:   truncate(message, 160),

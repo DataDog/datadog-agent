@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -253,13 +254,12 @@ type engine struct {
 	handles            []*handle        // registered handles for per-source drop collection
 	handlesMu          sync.Mutex       // protects handles slice
 
-	// sourceTagCache memoises the "observer_source:<source>" string used in
-	// IngestLog/IngestMetric. Without this we allocate a fresh string per
-	// log/metric ingest. Sources are a small bounded set (e.g. "logs",
-	// "profiles", "traces") so a single-goroutine map is plenty; access is
-	// confined to the engine run loop. Lock-free via atomic.Pointer to a
-	// copy-on-write map so we don't add a mutex to the hot path.
-	sourceTagCache atomic.Pointer[map[string]string]
+	// sourceTagCache memoises the source tag and its immutable tag view used in
+	// IngestLog. Sources are a small bounded set (e.g. "logs", "profiles",
+	// "traces"), so a single-goroutine map is plenty; access is confined to the
+	// engine run loop. Lock-free via atomic.Pointer to a copy-on-write map so we
+	// don't add a mutex to the hot path.
+	sourceTagCache atomic.Pointer[map[string]cachedSourceTag]
 
 	// baseline is accessed only from the engine run goroutine.
 	baseline *baselineController
@@ -399,16 +399,22 @@ func (e *engine) registerHandle(h *handle) {
 // string, the COW map becomes unbounded and this memoisation strategy is
 // the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
 // list above means revisiting this function.
-func (e *engine) sourceTagForIngest(source string) string {
+type cachedSourceTag struct {
+	value string
+	tags  tagset.CompositeTags
+}
+
+func (e *engine) sourceTagForIngest(source string) cachedSourceTag {
 	if m := e.sourceTagCache.Load(); m != nil {
 		if tag, ok := (*m)[source]; ok {
 			return tag
 		}
 	}
-	tag := "observer_source:" + source
+	tag := cachedSourceTag{value: "observer_source:" + source}
+	tag.tags = tagset.CompositeTagsFromSlice([]string{tag.value})
 	for {
 		old := e.sourceTagCache.Load()
-		newMap := make(map[string]string, 4)
+		newMap := make(map[string]cachedSourceTag, 4)
 		if old != nil {
 			for k, v := range *old {
 				newMap[k] = v
@@ -450,21 +456,16 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		out := extractor.ProcessLog(view)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
 		for _, m := range out.Metrics {
-			// Avoid copying m.Tags when sourceTag is already present: storage.Add
-			// performs its own deep copy on first-write of a series via
-			// canonicalizeTags — it doesn't mutate the input. The copy is only
-			// needed when we append sourceTag.
 			tags := m.Tags
-			if !sliceContains(tags, sourceTag) {
-				newTags := make([]string, len(tags), len(tags)+1)
-				copy(newTags, tags)
-				tags = append(newTags, sourceTag)
+			if !tags.Find(func(tag string) bool { return tag == sourceTag.value }) {
+				sourceTags, _ := sourceTag.tags.UnsafeGet()
+				tags = tagset.CombineCompositeTagsAndSlice(tags, sourceTags)
 			}
 			host := m.Host
 			if host == "" {
 				host = l.hostname
 			}
-			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLog(m.Name, host, tags))
+			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
@@ -481,7 +482,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.AddWithKeyAndHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
+			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -495,19 +496,8 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
 
-func sliceContains(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
-}
-
-// contextKeyForLog uses engine-owned scratch state: IngestLog runs on the
-// single observer goroutine, so it avoids per-output key-generator allocation.
-func (e *engine) contextKeyForLog(name, host string, tags []string) uint64 {
-	return uint64(e.logKeyGenerator.Generate(name, host, tags))
+func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(e.logKeyGenerator.GenerateComposite(name, host, tags))
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric
