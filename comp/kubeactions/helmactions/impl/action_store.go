@@ -13,7 +13,6 @@ import (
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
@@ -33,17 +32,6 @@ const (
 	// CleanupInterval is how often expired records are purged.
 	CleanupInterval = 30 * time.Second
 )
-
-// ActionRecord stores information about a processed action.
-type ActionRecord struct {
-	Key             ActionKey
-	Status          string
-	Message         string
-	ExecutedAt      int64
-	ReceivedAt      int64
-	ActionCreatedAt int64
-	ClaimedAt       int64
-}
 
 // JobPhase summarises a tracked Job's high-level state.
 type JobPhase string
@@ -84,25 +72,6 @@ type JobRecord struct {
 	ReleaseNamespace string
 }
 
-// PodRecord captures the latest observed state of a Pod owned by a tracked Job.
-// Phase reuses corev1.PodPhase directly ("Pending"/"Running"/"Succeeded"/
-// "Failed"/"Unknown") so consumers can compare with k8s constants without a
-// translation layer.
-type PodRecord struct {
-	UID         types.UID
-	Namespace   string
-	Name        string
-	JobName     string // value of batch.kubernetes.io/job-name
-	Phase       corev1.PodPhase
-	Reason      string // e.g. "Error", "OOMKilled", "CrashLoopBackOff"
-	Message     string
-	ExitCode    int32  // exit code of the helm container (0 if none seen)
-	Logs        string // populated lazily when the pod fails
-	CreatedAt   int64
-	UpdatedAt   int64
-	CompletedAt int64
-}
-
 func (r *JobRecord) phaseIsTerminal() bool {
 	return r.Phase == JobPhaseFailed || r.Phase == JobPhaseSucceeded
 }
@@ -114,7 +83,6 @@ func (r *JobRecord) reported() bool {
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
 	jobs     map[types.UID]*JobRecord
-	pods     map[types.UID]*PodRecord
 	stopCh   chan struct{}
 	stopOnce sync.Once
 }
@@ -123,11 +91,9 @@ type ActionStore struct {
 func NewActionStore() *ActionStore {
 	s := &ActionStore{
 		jobs: make(map[types.UID]*JobRecord),
-		pods: make(map[types.UID]*PodRecord),
 	}
 
-	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
-		ActionTTL, RecordRetentionTTL, CleanupInterval)
+	log.Debugf("[HelmActions] Action store initialized (retention=%v, cleanup=%v)", RecordRetentionTTL, CleanupInterval)
 	return s
 }
 
@@ -136,7 +102,7 @@ func NewActionStore() *ActionStore {
 // union rather than an interface because JobRecord and PodRecord otherwise
 // share no methods — the shared shape is purely structural.
 type trackedLifecycle interface {
-	JobRecord | PodRecord
+	JobRecord
 }
 
 // upsertTracked centralises the lock/lookup/write shell used by both
@@ -256,43 +222,6 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 	delete(s.jobs, uid)
 }
 
-// UpdatePod applies the latest observed state of a Pod. Returns the resulting
-// record and whether this update is the transition into the Failed phase — the
-// caller uses that signal to trigger log capture.
-func (s *ActionStore) UpdatePod(pod *corev1.Pod) *PodRecord {
-	return upsertTracked(s.pods, pod.UID, func(prev *PodRecord, now int64) *PodRecord {
-		phase, reason, message, exitCode := classifyPod(pod)
-		rec := &PodRecord{
-			UID:         pod.UID,
-			Namespace:   pod.Namespace,
-			Name:        pod.Name,
-			JobName:     pod.Labels[jobNameLabel],
-			Phase:       phase,
-			Reason:      reason,
-			Message:     message,
-			ExitCode:    exitCode,
-			Logs:        prev.Logs, // preserve any logs already attached
-			CreatedAt:   prev.CreatedAt,
-			UpdatedAt:   now,
-			CompletedAt: prev.CompletedAt,
-		}
-		if prev.CreatedAt == 0 {
-			rec.CreatedAt = now
-		}
-		if rec.CompletedAt == 0 && (phase == corev1.PodSucceeded || phase == corev1.PodFailed) {
-			rec.CompletedAt = now
-		}
-		// "Just failed" — the caller uses this edge to fetch logs exactly once.
-		// justFailed := phase == corev1.PodFailed && prev.Phase != corev1.PodFailed
-		return rec
-	})
-}
-
-// RemovePod drops a tracked Pod. Called on watcher DELETED events.
-func (s *ActionStore) RemovePod(uid types.UID) {
-	delete(s.pods, uid)
-}
-
 // GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
 // label matches the given Job name.
 // func (s *ActionStore) GetPodsForJob(jobName string) []*PodRecord {
@@ -304,51 +233,6 @@ func (s *ActionStore) RemovePod(uid types.UID) {
 // 	}
 // 	return out
 // }
-
-// AttachPodLogs stores the captured tail of a Pod's logs on its record. Safe to
-// call when the Pod has already been removed — the update is dropped.
-func (s *ActionStore) AttachPodLogs(uid types.UID, logs string) {
-	rec, ok := s.pods[uid]
-	if !ok {
-		return
-	}
-	rec.Logs = logs
-	rec.UpdatedAt = time.Now().Unix()
-	s.pods[uid] = rec
-}
-
-// classifyPod extracts reason/message/exit code from a Pod's status. The exit
-// code is taken from the "helm" container; if it has not terminated yet,
-// exitCode is 0. The phase is passed through unchanged from pod.Status.Phase.
-func classifyPod(pod *corev1.Pod) (corev1.PodPhase, string, string, int32) {
-	var (
-		reason   = pod.Status.Reason
-		message  = pod.Status.Message
-		exitCode int32
-	)
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.Name != helmContainerName {
-			continue
-		}
-		if t := cs.State.Terminated; t != nil {
-			exitCode = t.ExitCode
-			if reason == "" {
-				reason = t.Reason
-			}
-			if message == "" {
-				message = t.Message
-			}
-		} else if w := cs.State.Waiting; w != nil {
-			if reason == "" {
-				reason = w.Reason
-			}
-			if message == "" {
-				message = w.Message
-			}
-		}
-	}
-	return pod.Status.Phase, reason, message, exitCode
-}
 
 // classifyJob derives a high-level phase + summary message from a Job's Status
 // conditions. Helm's Job is expected to either Complete or fail (Failed
@@ -402,17 +286,6 @@ func (s *ActionStore) cleanup() {
 	}
 	if removedJobs > 0 {
 		log.Debugf("[HelmActions] Cleaned up %d completed Job records (remaining: %d)", removedJobs, len(s.jobs))
-	}
-
-	removedPods := 0
-	for uid, p := range s.pods {
-		if p.CompletedAt > 0 && p.CompletedAt < cutoff {
-			delete(s.pods, uid)
-			removedPods++
-		}
-	}
-	if removedPods > 0 {
-		log.Debugf("[HelmActions] Cleaned up %d completed Pod records (remaining: %d)", removedPods, len(s.pods))
 	}
 }
 

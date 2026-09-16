@@ -86,14 +86,6 @@ func (w *jobWatcher) watchOnce(ctx context.Context) error {
 	}
 	defer jobWatcher.Stop()
 
-	podWatcher, err := w.client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, metav1.ListOptions{
-		LabelSelector: jobWatchSelector,
-	})
-	if err != nil {
-		return err
-	}
-	defer podWatcher.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,12 +96,6 @@ func (w *jobWatcher) watchOnce(ctx context.Context) error {
 				return nil
 			}
 			w.handleJobEvent(ctx, ev)
-		case ev, ok := <-podWatcher.ResultChan():
-			if !ok {
-				// stream closed by server; caller will reconnect
-				return nil
-			}
-			w.handlePod(ctx, ev)
 		}
 	}
 }

@@ -9,7 +9,7 @@ package helmactionsimpl
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	jobStuckDurationLimit = 5 * time.Minute
-	// TODO: remove in prod before commit
-	jobStuckLimitDurationTODOTest = 60 * time.Second
+	// 5 minutes is the default Helm timeout for rollback
+	// plus small margin for image pulling, rollback hooks etc.
+	jobStuckDurationLimit = 6 * time.Minute
 )
 
 func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
@@ -43,7 +43,15 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 			if !rec.reported() {
 				log.Infof("[HelmActions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
 					rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
-				w.reportDone(rec)
+				var info *failureInfo
+				if rec.Phase == JobPhaseFailed {
+					i, err := w.diagnoseJobFailure(ctx, job)
+					if err != nil {
+						log.Errorf("[HelmActions] error diagnosing job %s/%s (continue w/o info): %v", job.Namespace, job.Name, err)
+					}
+					info = i
+				}
+				w.reportDone(rec, info)
 				// mark job as reported
 				w.store.MarkReported(rec)
 			}
@@ -55,17 +63,17 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		log.Infof("[HelmActions] Job %s/%s [%s] reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
 			rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
 
-		if !isStuck(job, jobStuckLimitDurationTODOTest) {
+		if !isStuck(job, jobStuckDurationLimit) {
 			return
 		}
 
-		hasFailedCreate, sampleMsg, err := w.hasFailedCreateEvent(ctx, job)
+		failInfo, err := w.maybeFailedCreateEvent(ctx, job)
 		if err != nil {
 			log.Errorf("[HelmActions] error checking events for job %s/%s: %v", job.Namespace, job.Name, err)
 			return
 		}
 
-		if !hasFailedCreate {
+		if failInfo == nil {
 			// Old and idle, but no evidence it's the pod-creation-failure
 			// case specifically. Skip it — could just be a slow scheduler,
 			// suspended job, etc.
@@ -73,15 +81,14 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		}
 
 		log.Infof("[HelmActions] stuck job detected: %s/%s [%s] (age=%s) — %s",
-			job.Namespace, job.Name, rec.ActionID, time.Since(job.Status.StartTime.Time).Round(time.Second), sampleMsg)
+			job.Namespace, job.Name, rec.ActionID, time.Since(job.Status.StartTime.Time).Round(time.Second), failInfo.Message)
 
 		if err := w.deleteJob(ctx, job); err != nil {
 			log.Errorf("[HelmActions] error deleting job %s/%s: %v", job.Namespace, job.Name, err)
 		} else {
 			log.Infof("[HelmActions] deleted job %s/%s", job.Namespace, job.Name)
-			// Update message to report why the job has stuck
-			rec.Message = sampleMsg
-			w.reportFailed(rec)
+			w.reportFailed(rec, failInfo)
+			w.store.MarkReported(rec)
 		}
 
 	case watch.Error:
@@ -110,7 +117,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 // from the task that started the rollback, see HelmRollbackHandler.Run) —
 // without them the backend has no way to correlate this event back to the
 // task/org that requested the rollback.
-func (w *jobWatcher) reportDone(rec *JobRecord) {
+func (w *jobWatcher) reportDone(rec *JobRecord, info *failureInfo) {
 	if rec.ActionID == "" {
 		log.Warnf("[HelmActions] Job %s/%s reached terminal phase=%s but has no ActionID — dropping EVP report",
 			rec.Namespace, rec.Name, rec.Phase)
@@ -126,13 +133,34 @@ func (w *jobWatcher) reportDone(rec *JobRecord) {
 		Status:  status,
 		Message: rec.Message,
 	}
+
+	// info has higher priority as it is more complete
+	if info != nil {
+		if info.Message != "" {
+			res.Message = info.Message
+		}
+		bytes, _ := json.Marshal(info)
+		log.Debugf("[HelmActions] done, fail info: %q", string(bytes))
+
+		res.Payloads = map[string][]byte{
+			"info": bytes,
+		}
+	}
+
 	w.ka.ReportResult(reportFromRecord(rec), res)
 }
 
-func (w *jobWatcher) reportFailed(rec *JobRecord) {
+func (w *jobWatcher) reportFailed(rec *JobRecord, info *failureInfo) {
+	bytes, _ := json.Marshal(info)
+
+	log.Debugf("[HelmActions] fail info: %q", string(bytes))
+
 	res := kubeactions.ExecutionResult{
 		Status:  kubeactions.StatusFailed,
-		Message: rec.Message,
+		Message: info.Message,
+		Payloads: map[string][]byte{
+			"info": bytes,
+		},
 	}
 	w.ka.ReportResult(reportFromRecord(rec), res)
 }
@@ -173,33 +201,6 @@ func isStuck(job *batchv1.Job, threshold time.Duration) bool {
 		}
 	}
 	return true
-}
-
-// hasFailedCreateEvent looks for a Warning/FailedCreate event on the given
-// Job, which is what the Job controller emits when it can't even create a
-// Pod (e.g. missing ServiceAccount).
-func (w *jobWatcher) hasFailedCreateEvent(ctx context.Context, job *batchv1.Job) (bool, string, error) {
-	fieldSelector := fmt.Sprintf(
-		"involvedObject.kind=Job,involvedObject.name=%s,involvedObject.namespace=%s,reason=FailedCreate",
-		job.Name, job.Namespace,
-	)
-	events, err := w.client.CoreV1().Events(job.Namespace).List(ctx, metav1.ListOptions{
-		FieldSelector: fieldSelector,
-	})
-	if err != nil {
-		return false, "", err
-	}
-	if len(events.Items) == 0 {
-		return false, "", nil
-	}
-	// Return the most recent message as context for the log line.
-	latest := events.Items[0]
-	for _, e := range events.Items {
-		if e.LastTimestamp.After(latest.LastTimestamp.Time) {
-			latest = e
-		}
-	}
-	return true, latest.Message, nil
 }
 
 func (w *jobWatcher) deleteJob(ctx context.Context, job *batchv1.Job) error {

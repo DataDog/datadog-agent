@@ -57,7 +57,7 @@ type RollbackInputs struct {
 	// Leave empty to inherit helm's default.
 	Driver string `json:"driver,omitempty"`
 	// BackoffLimit overrides the Job's spec.backoffLimit. When nil, defaults to
-	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
+	// k8s default. A failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
 	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
 	// ActiveDeadlineSeconds allows for control of how long the job will hang in a pending state

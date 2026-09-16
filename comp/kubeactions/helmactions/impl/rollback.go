@@ -79,9 +79,6 @@ func buildRollbackJob(opts helmactions.RollbackInputs, actionID string) *batchv1
 	}
 
 	backoffLimit := opts.BackoffLimit
-	if backoffLimit == nil {
-		backoffLimit = new(int32(0))
-	}
 
 	ttl := opts.TTLSecondsAfterFinished
 	if ttl == nil {
