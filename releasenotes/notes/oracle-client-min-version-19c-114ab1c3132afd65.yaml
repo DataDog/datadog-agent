@@ -5,5 +5,7 @@ upgrade:
     externally installed Oracle client is now Oracle 19c. This applies
     to instances configured with ``oracle_client: true`` (or its
     deprecated aliases ``instant_client: true`` and
-    ``use_instant_client: true``). Upgrade the Oracle client on hosts
-    running the Agent to at least version 19c before upgrading the Agent.
+    ``use_instant_client: true``), as well as instances that set
+    ``tns_admin`` or ``tns_alias``, which also require an external
+    Oracle client. Upgrade the Oracle client on hosts running the
+    Agent to at least version 19c before upgrading the Agent.
