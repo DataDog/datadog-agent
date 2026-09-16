@@ -31,7 +31,6 @@ var defaultUsers = map[os.Flavor]string{
 	os.Suse:           "ec2-user",
 	os.Fedora:         "fedora",
 	os.CentOS:         "centos",
-	os.RockyLinux:     "cloud-user",
 	os.AlmaLinux:      "ec2-user",
 	os.MacosOS:        "ec2-user",
 }
@@ -48,7 +47,6 @@ var amiResolvers = map[os.Flavor]amiResolverFunc{
 	os.Suse:           resolveSuseAMI,
 	os.Fedora:         resolveFedoraAMI,
 	os.CentOS:         resolveCentOSAMI,
-	os.RockyLinux:     resolveRockyLinuxAMI,
 	os.AlmaLinux:      resolveAlmaLinuxAMI,
 	os.MacosOS:        resolveMacosAMI,
 }
@@ -262,26 +260,6 @@ func resolveCentOSAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) 
 	}
 
 	return ec2.SearchAMI(e, "679593333241", fmt.Sprintf("CentOS-%s-*-*.x86_64*", osInfo.Version), string(osInfo.Architecture))
-}
-
-func resolveRockyLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
-	warnOSNotUsingLatestAMI(e, osInfo)
-
-	if osInfo.Version != "" {
-		return "", fmt.Errorf("cannot set version for Rocky Linux")
-	}
-
-	var amiID string
-	switch osInfo.Architecture {
-	case os.AMD64Arch:
-		amiID = "ami-071db23a8a6271e2c"
-	case os.ARM64Arch:
-		amiID = "ami-0a22577ee769ab5b0"
-	default:
-		return "", fmt.Errorf("architecture %s is not supported for Rocky Linux", osInfo.Architecture)
-	}
-
-	return amiID, nil
 }
 
 func resolveAlmaLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {

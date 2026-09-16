@@ -22,7 +22,6 @@ def get_os_families() -> list[str]:
         "suse",
         "fedora",
         "centos",
-        "rockylinux",
         "macos",
     ]
 
@@ -38,7 +37,6 @@ def get_package_for_os(os: str) -> str:
         "suse": "suse_rpm",
         "fedora": "rpm",
         "centos": "rpm",
-        "rockylinux": "rpm",
         "macos": "dmg",
     }
 
