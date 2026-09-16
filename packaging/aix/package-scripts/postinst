@@ -54,9 +54,6 @@ while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
-# -e captures each subsystem's stderr in a file. Panics, Go fatal errors and
-# pre-logger output (e.g. AIX loader errors, rtloader failures) bypass the
-# internal logger; without -e they only reach /dev/console.
 mkssys -s datadog-agent \
        -p /opt/datadog-agent/bin/agent/agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
