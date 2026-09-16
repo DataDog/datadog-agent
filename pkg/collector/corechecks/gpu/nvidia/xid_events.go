@@ -62,6 +62,11 @@ func (x xidEvent) toSample() Sample {
 		if x.DriverEvent.NvidiaXid.Message != "" {
 			text = x.DriverEvent.NvidiaXid.Message
 		}
+		// Emitted here rather than through an event_tag because driverXIDTags only walks
+		// NvidiaXid. It is the sole device identifier when the UUID could not be resolved.
+		if x.DriverEvent.PCIBusID != "" {
+			tags = append(tags, "pci_bus_id:"+x.DriverEvent.PCIBusID)
+		}
 		tags = append(tags, driverXIDTags(x.DriverEvent.NvidiaXid)...)
 	}
 
@@ -207,7 +212,9 @@ func convertDriverXIDEvents(events []model.DriverEvent) []xidEvent {
 			continue
 		}
 		xids = append(xids, xidEvent{
-			DeviceUUID:  event.DeviceUUID,
+			// A device that has left the PCIe bus has no resolvable UUID, so fall back to the
+			// PCI bus ID to keep the event title and aggregation key attributable.
+			DeviceUUID:  event.DeviceKey(),
 			XIDCode:     event.NvidiaXid.XidCode,
 			Timestamp:   event.Timestamp,
 			DriverEvent: &event,
