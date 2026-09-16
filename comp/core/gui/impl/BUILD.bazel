@@ -10,6 +10,11 @@ go_library(
         "checks_nopy.go",
         "checks_python.go",
         "gui.go",
+        "peeridentity.go",
+        "peeridentity_darwin.go",
+        "peeridentity_linux.go",
+        "peeridentity_other.go",
+        "peeridentity_windows.go",
         "platform_darwin.go",
         "platform_nix.go",
         "platform_windows.go",
@@ -54,12 +59,16 @@ go_library(
     ] + select({
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/api/client",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/system-probe/api/client",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/executable",
+            "@org_golang_x_sys//cpu",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -72,6 +81,10 @@ dd_agent_go_test(
         "auth_test.go",
         "checks_test.go",
         "gui_test.go",
+        "peeridentity_darwin_test.go",
+        "peeridentity_linux_test.go",
+        "peeridentity_test.go",
+        "peeridentity_windows_test.go",
         "platform_darwin_test.go",
         "platform_nix_test.go",
         "platform_windows_test.go",
@@ -80,6 +93,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/log/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
@@ -88,6 +102,9 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/sysprobeconfig/mock",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//cpu",
         ],
         "//conditions:default": [],
     }),
