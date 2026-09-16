@@ -36,6 +36,16 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, metri
 	now := time.Now().Unix()
 	fromTS := now - lookbackSeconds
 
+	if strings.TrimSpace(agentVersion) != "" {
+		versionFilter, err := client.filterForAgentVersion(agentVersion, fromTS, now)
+		if err != nil {
+			return orgValidationResults{}, fmt.Errorf("build filter for agent version %q: %w", agentVersion, err)
+		}
+		log.Printf("targeting agent version %q", agentVersion)
+		log.Printf("using version-derived cluster metric filter %q", versionFilter)
+		metricFilter = combineMetricFilters(versionFilter, metricFilter)
+	}
+
 	configs := gpuspec.KnownGPUConfigs(specs)
 	results := make([]gpuConfigValidationResult, 0, len(configs))
 
