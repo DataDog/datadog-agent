@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    The Linux install and upgrade hooks no longer resolve symbolic links when
+    they write configuration files or apply ownership and permissions inside
+    ``/etc/datadog-agent`` and the Agent package directory. Both are owned by
+    the unprivileged ``dd-agent`` user, so a symlink placed there previously
+    redirected these root-run operations onto the file it pointed at, which
+    could transfer ownership of an arbitrary root-owned file to ``dd-agent``.
+    A symlink in place of a package-managed DDOT configuration file is now
+    reported as an error instead of being followed, and the recursive ownership
+    pass changes the link itself rather than its target.
