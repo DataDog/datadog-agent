@@ -129,11 +129,18 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	return enrichedTags
+// seriesTags pairs the exporter's configured extra tags with the translator's
+// per-point tags without copying either.
+//
+// tagset.CompositeTags holds both slices by reference and every marshaller on
+// the serializer path iterates them in order (extraTags first), so the emitted
+// tags are the same as a concatenation would produce. Both slices must be
+// treated as read-only from here on: c.extraTags is shared by every point the
+// exporter emits, and otlpmetrics.Dimensions documents Tags() as read-only.
+// Nothing retains them past serializer.Send -- the marshallers copy the tag
+// bytes into their compression buffers -- so no lifetime management is needed.
+func seriesTags(extraTags []string, dimensions *otlpmetrics.Dimensions) tagset.CompositeTags {
+	return tagset.NewCompositeTags(extraTags, dimensions.Tags())
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
@@ -144,7 +151,7 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:     dimensions.Name(),
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Tags:     seriesTags(c.extraTags, dimensions),
 			Host:     dimensions.Host(),
 			Interval: interval,
 			Source:   msrc,
@@ -177,7 +184,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Tags:     seriesTags(c.extraTags, dimensions),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: interval,
