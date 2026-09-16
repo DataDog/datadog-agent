@@ -28,6 +28,7 @@ import (
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -335,7 +336,7 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 
 		return nil
 	}
-	return fmt.Errorf("container %s not found", containerID)
+	return pkgerrors.NewNotFound(containerID)
 }
 
 // refreshScan invalidates a workload's cached SBOM data and re-queues it for a
