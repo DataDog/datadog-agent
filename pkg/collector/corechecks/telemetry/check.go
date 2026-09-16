@@ -3,13 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package telemetry is a check to collect and send the small set of internal telemetry that the core
-// agent reports out of the box, that is, the metrics registered with telemetry.Options{DefaultMetric:
-// true}. The check implements a subset of openmetrics v2 check functionality.
-//
-// It is deliberately not a general purpose way to ship internal telemetry: to collect more than the
-// default set, scrape the agent's Prometheus-style `/telemetry` endpoint with the openmetrics check.
-// See conf.d/openmetrics.d/agent_stats.yaml.example.
+// Package telemetry is a check to collect and send limited subset of internal telemetry from the
+// core agent. The check implements a subset of openmetrics v2 check functionality.
 package telemetry
 
 import (
@@ -18,7 +13,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"

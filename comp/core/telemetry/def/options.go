@@ -15,13 +15,7 @@ type Options struct {
 	// This option is not compatible with the cross-org agent telemetry
 	NoDoubleUnderscoreSep bool
 
-	// DefaultMetric exports metric by default via built-in agent_telemetry core check, meaning
-	// every Agent submits it as a datadog.agent.* metric without any opt-in.
-	//
-	// Use this sparingly: the default set is deliberately minimal, and everything registered here
-	// is billed to every customer. Regular telemetry is exposed on the Agent's /telemetry endpoint
-	// and can be collected on demand with the openmetrics check -- see
-	// conf.d/openmetrics.d/agent_stats.yaml.example.
+	// DefaultMetric exports metric by default via built-in agent_telemetry core check.
 	DefaultMetric bool
 }
 
