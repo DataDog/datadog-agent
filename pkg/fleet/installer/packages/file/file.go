@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -22,6 +23,12 @@ import (
 
 var userCache = sync.Map{}
 var groupCache = sync.Map{}
+
+// afterListingDirectory, when set, runs once a directory has been listed and before any of its
+// entries is acted on. That is the only moment at which swapping a directory for a symlink
+// could redirect a permission pass, so it is where tests stop this one to prove it cannot be.
+// Nil outside tests.
+var afterListingDirectory func(dir string)
 
 // Path is a path to a file or directory.
 type Path string
@@ -134,72 +141,130 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	span.SetTag("recursive", p.Recursive)
 
 	rootFile := filepath.Join(rootPath, p.Path)
-	_, err = os.Stat(rootFile)
+	info, err := os.Stat(rootFile)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("error stating root path: %w", err)
 	}
-	// Resolve symlinks to ensure we're changing the permissions of the actual file and avoid issues with `filepath.Walk`.
+	// Resolve symlinks on the root path only: it is trusted, and the package directory is
+	// itself a symlink that a walk would refuse to recurse into. Everything below the root is
+	// addressed through os.Root handles instead, so no component can be swapped for a symlink
+	// to redirect these root-run operations outside the tree.
 	rootFile, err = filepath.EvalSymlinks(rootFile)
 	if err != nil {
 		return fmt.Errorf("error resolving symlink: %w", err)
 	}
-	files := []string{rootFile}
-	if p.Recursive {
-		files, err = filesInDir(rootFile)
-		if err != nil {
-			return fmt.Errorf("error getting files in directory: %w", err)
-		}
-	}
-	// The walked trees are writable by the unprivileged Agent user, so a symlink found here
-	// must never be resolved: it would redirect these root-run operations onto a file outside
-	// the tree. Targets that legitimately live inside the tree are walked on their own and
-	// stay covered.
-	for _, file := range files {
-		if p.Owner != "" && p.Group != "" {
-			if err := Lchown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("error changing file ownership: %w", err)
-			}
-		}
-		if p.Mode != 0 {
-			if err := chmodNoFollow(file, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("error changing file mode: %w", err)
-			}
-		}
-	}
-	return nil
-}
 
-// chmodNoFollow changes the mode of path, skipping it if it is a symlink.
-//
-// os.Chmod resolves symlinks and there is no lchmod, so stat-then-chmod over a path string
-// would leave a window for the unprivileged Agent user to swap the entry for a symlink and
-// have the mode applied to the file it points at. Going through an os.Root anchored at the
-// containing directory removes that: the mode is applied with fchmodat relative to a directory
-// handle, so losing the race can only affect a file inside that directory, never one outside
-// it. The Lstat below is the skip-symlinks policy, not the safety boundary: mode bits on a link
-// are meaningless, and a link a customer put in a configuration directory must not fail an
-// upgrade.
-func chmodNoFollow(path string, mode os.FileMode) error {
-	name := filepath.Base(path)
-	// os.OpenRoot reports the operation and the full directory path itself; the os.Root methods
-	// below report only the name they were given, so those restate the full path.
-	root, err := os.OpenRoot(filepath.Dir(path))
-	if err != nil {
+	// Resolved once, before anything is opened: a cache miss forks getent, and those
+	// milliseconds should not sit inside the walk.
+	uid, gid := -1, -1
+	if p.Owner != "" && p.Group != "" {
+		uid, gid, err = getUserAndGroup(ctx, p.Owner, p.Group)
+		if err != nil {
+			return fmt.Errorf("error getting user and group IDs: %w", err)
+		}
+	}
+
+	if !p.Recursive || !info.IsDir() {
+		dir, name := filepath.Dir(rootFile), filepath.Base(rootFile)
+		if name == "." || name == string(filepath.Separator) {
+			dir, name = rootFile, "."
+		}
+		root, err := openRoot(dir)
+		if root == nil {
+			return err
+		}
+		defer root.Close()
+		return p.apply(root, name, uid, gid)
+	}
+
+	root, err := openRoot(rootFile)
+	if root == nil {
 		return err
 	}
 	defer root.Close()
+	return p.ensureTree(root, uid, gid)
+}
+
+// openRoot opens dir as an os.Root. A missing directory is reported as a nil root and a nil
+// error, so callers skip it the way Ensure skips a missing path.
+func openRoot(dir string) (*os.Root, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error opening directory: %w", err)
+	}
+	return root, nil
+}
+
+// ensureTree applies the permission to every entry below root, descending through nested
+// os.Root handles so each operation names a single component relative to the directory that
+// holds it. One handle per level of the tree is held at a time.
+//
+// Entries are handled before the directory itself: a mode without the search bit would
+// otherwise stop the descent. Only real directories are descended into, so a symlink is an
+// entry like any other and the reach of a recursive permission is unchanged.
+func (p Permission) ensureTree(root *os.Root, uid, gid int) error {
+	entries, err := fs.ReadDir(root.FS(), ".")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("error reading directory: %w", err)
+	}
+	if afterListingDirectory != nil {
+		afterListingDirectory(root.Name())
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			if err := p.apply(root, entry.Name(), uid, gid); err != nil {
+				return err
+			}
+			continue
+		}
+		child, err := root.OpenRoot(entry.Name())
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("error opening directory %s: %w", entry.Name(), err)
+		}
+		err = p.ensureTree(child, uid, gid)
+		if cerr := child.Close(); err == nil && cerr != nil {
+			err = fmt.Errorf("error closing directory %s: %w", entry.Name(), cerr)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return p.apply(root, ".", uid, gid)
+}
+
+// apply sets the ownership and mode of one entry of root, named by a single path component.
+func (p Permission) apply(root *os.Root, name string, uid, gid int) error {
+	if uid >= 0 && gid >= 0 {
+		// Lchown, not Chown: os.Root.Chown resolves an in-root symlink and acts on its target.
+		if err := root.Lchown(name, uid, gid); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("error changing file ownership: %w", err)
+		}
+	}
+	if p.Mode == 0 {
+		return nil
+	}
 	info, err := root.Lstat(name)
 	if err != nil {
-		return fmt.Errorf("error stating %s: %w", path, err)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("error stating file: %w", err)
 	}
+	// Symlinks are skipped: there is no lchmod, and mode bits on a link are meaningless.
 	if info.Mode()&os.ModeSymlink != 0 {
 		return nil
 	}
-	if err := root.Chmod(name, mode); err != nil {
-		return fmt.Errorf("error setting mode of %s: %w", path, err)
+	if err := root.Chmod(name, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("error changing file mode: %w", err)
 	}
 	return nil
 }
@@ -284,18 +349,6 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
-// Lchown changes the ownership of a file to the specified owner and group. Unlike Chown it
-// does not resolve path's final component, so ownership of a symlink's target is never changed.
-func Lchown(ctx context.Context, path string, username string, group string) (err error) {
-	uid, gid, err := getUserAndGroup(ctx, username, group)
-	if err != nil {
-		return fmt.Errorf("error getting user and group IDs for %s: %w", path, err)
-	}
-	// Returned as is: os.Lchown reports a *PathError naming both the operation and the path,
-	// so restating that here only stutters with whatever the caller adds.
-	return os.Lchown(path, uid, gid)
-}
-
 // Chown changes the ownership of a file to the specified owner and group.
 func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
@@ -304,19 +357,4 @@ func Chown(ctx context.Context, path string, username string, group string) (err
 	}
 	// See Lchown: os.Chown already names the operation and the path.
 	return os.Chown(path, uid, gid)
-}
-
-func filesInDir(dir string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("error walking path: %w", err)
-		}
-		files = append(files, path)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
 }

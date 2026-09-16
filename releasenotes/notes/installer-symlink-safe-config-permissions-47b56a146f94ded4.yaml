@@ -16,4 +16,5 @@ security:
     could transfer ownership of an arbitrary root-owned file to ``dd-agent``.
     A symlink in place of a package-managed DDOT configuration file is now
     reported as an error instead of being followed, and the recursive ownership
-    pass changes the link itself rather than its target.
+    pass walks through directory handles so no component of a path it visits can
+    be replaced to redirect it.
