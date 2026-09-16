@@ -256,6 +256,9 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 
 	completeWindow(detector, clientByteStats{sent: 970, dropped: 30})
 	require.Equal(t, firstDescription, healthPlatform.GetIssue(issueID).Description)
+	advance(activeIssueRefreshInterval)
+	completeWindow(detector, clientByteStats{sent: 960, dropped: 40})
+	require.Equal(t, 0.04, healthPlatform.GetIssue(issueID).Extra.GetFields()["dropped_ratio"].GetNumberValue())
 
 	completeWindow(detector, clientByteStats{sent: 700, dropped: 300})
 	require.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, healthPlatform.GetIssue(issueID).Severity)

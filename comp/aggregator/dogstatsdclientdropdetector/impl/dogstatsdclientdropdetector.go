@@ -29,6 +29,8 @@ const (
 	droppedRatioThresholdConfig       = "dogstatsd_client_drop_detection.dropped_ratio_threshold"
 	unhealthyConfirmationWindowConfig = "dogstatsd_client_drop_detection.unhealthy_confirmation_window"
 	recoveryConfirmationWindowConfig  = "dogstatsd_client_drop_detection.recovery_confirmation_window"
+	// Refresh active details at the standard Health Platform check cadence instead of every serializer flush.
+	activeIssueRefreshInterval = 15 * time.Minute
 )
 
 // Requires defines the dependencies for the DogStatsD client drop detector.
@@ -67,6 +69,7 @@ type clientState struct {
 	issueID       string
 	issueActive   bool
 	issueSeverity healthplatformpayload.IssueSeverity
+	lastReport    time.Time
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
@@ -90,7 +93,7 @@ type component struct {
 	droppedRatioThreshold         float64
 	unhealthyConfirmationDuration time.Duration
 	recoveryConfirmationDuration  time.Duration
-	// now is replaceable so confirmation periods can be tested without sleeping.
+	// now is replaceable so time-based behavior can be tested without sleeping.
 	now func() time.Time
 }
 
@@ -216,7 +219,7 @@ func (d *component) completeWindow(state *clientState) {
 func (d *component) handleUnhealthyWindow(state *clientState, stats clientByteStats) {
 	if state.issueActive {
 		ratio, _ := droppedRatio(stats, d.droppedRatioThreshold)
-		if state.issueNeedsRefresh || dogstatsdclientdrops.SeverityForDroppedRatio(ratio) != state.issueSeverity {
+		if state.issueNeedsRefresh || dogstatsdclientdrops.SeverityForDroppedRatio(ratio) != state.issueSeverity || d.now().Sub(state.lastReport) >= activeIssueRefreshInterval {
 			d.reportIssue(state, stats, ratio)
 		}
 		d.resetPendingTransition(state)
@@ -323,6 +326,7 @@ func (d *component) reportRestoredIssue(state *clientState) bool {
 		return false
 	}
 	state.issueSeverity = issue.Severity
+	state.lastReport = d.now()
 	return true
 }
 
@@ -355,6 +359,7 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 	}
 	state.issueActive = true
 	state.issueSeverity = issue.Severity
+	state.lastReport = d.now()
 	state.issueNeedsRefresh = false
 	d.resolveStaleIssues(state)
 }
@@ -363,6 +368,7 @@ func (d *component) resolveIssue(state *clientState) {
 	d.healthPlatform.ResolveIssue(state.issueID)
 	d.resolveStaleIssues(state)
 	state.issueActive = false
+	state.lastReport = time.Time{}
 	state.issueNeedsRefresh = false
 }
 

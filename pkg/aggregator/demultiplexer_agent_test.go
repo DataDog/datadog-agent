@@ -114,14 +114,9 @@ func TestFinalDogStatsDSerieObserverCompletesAfterAllWorkers(t *testing.T) {
 			Timestamp: float64(start.Unix()),
 		}})
 	}
-	require.Eventually(t, func() bool {
-		for _, worker := range demux.statsd.workers {
-			if len(worker.samplesChan) != 0 {
-				return false
-			}
-		}
-		return true
-	}, time.Second, time.Millisecond)
+	for _, worker := range demux.statsd.workers {
+		worker.waitForPendingSamples()
+	}
 
 	demux.ForceFlushToSerializer(start.Add(30*time.Second), true, false)
 
