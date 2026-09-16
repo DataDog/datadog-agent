@@ -673,6 +673,12 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 			expectError:   false,
 		},
 		{
+			name:          "KV v2 legacy datadog-vault-secrets pointer",
+			secretString:  "vault://kv2/data/complex#/data/data/key1",
+			expectedValue: "value1",
+			expectError:   false,
+		},
+		{
 			name:          "KV v2 nested object access",
 			secretString:  "vault://kv2/data/complex#/data/nested/subkey1",
 			expectedValue: "subvalue1",
