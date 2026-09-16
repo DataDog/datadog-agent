@@ -56,7 +56,7 @@ func (GPUPodResourcesIssue) BuildIssue(context map[string]string) (*healthplatfo
 		Remediation: &healthplatform.Remediation{
 			Summary: "Make the kubelet PodResources socket accessible to the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: fmt.Sprintf("Check the following error returned by PodResources API: %s", errMsg)},
+				{Order: 1, Text: "Check the following error returned by PodResources API: " + errMsg},
 				{Order: 2, Text: fmt.Sprintf("Verify that the kubelet PodResources socket exists on the node at `%s`.", socketPath)},
 				{Order: 3, Text: "Verify that the Agent DaemonSet mounts the PodResources socket path and that the Agent container can read and connect to it."},
 				{Order: 4, Text: "Check the `kubernetes_kubelet_podresources_socket` setting if the kubelet uses a non-default socket path."},
