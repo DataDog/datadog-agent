@@ -17,9 +17,10 @@ def _is_os(ctx, constraint):
 def _healthcheck_gate_impl(ctx):
     is_linux = _is_os(ctx, ctx.attr._linux_constraint)
     is_macos = _is_os(ctx, ctx.attr._macos_constraint)
-    if not is_linux and not is_macos:
-        fail("{}: unsupported platform (Linux and macOS only)".format(ctx.label))
-    os = "linux" if is_linux else "macos"
+    is_windows = _is_os(ctx, ctx.attr._windows_constraint)
+    if not is_linux and not is_macos and not is_windows:
+        fail("{}: unsupported platform (Linux, macOS and Windows only)".format(ctx.label))
+    os = "linux" if is_linux else ("macos" if is_macos else "windows")
 
     result = write_manifest(ctx, ctx.attr.name, [ctx.attr.srcs])
 
@@ -88,6 +89,9 @@ healthcheck_gate = rule(
         ),
         "_macos_constraint": attr.label(
             default = "@platforms//os:macos",
+        ),
+        "_windows_constraint": attr.label(
+            default = "@platforms//os:windows",
         ),
     },
 )
