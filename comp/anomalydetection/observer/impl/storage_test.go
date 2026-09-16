@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -970,7 +971,6 @@ func TestTimeSeriesStorage_AddDroppedReturnsNegativeRef(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_TagIntern_PoolGrows(t *testing.T) {
-	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 	assert.Equal(t, 0, s.TagInternedCount())
 
@@ -1010,7 +1010,6 @@ func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
-	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 
 	tags := []string{"env:prod", "host:a"}
@@ -1056,11 +1055,31 @@ func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
 	storedTags2, _ := stats2.Tags.UnsafeGet()
 	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags1)))
 	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags2)))
-	assert.NotEqual(t, ptr1, ptr2, "tag interning is deferred until the composite interner commit")
+	assert.Equal(t, ptr1, ptr2, "unordered equivalent tag views must share the canonical composite")
+}
+
+func TestTimeSeriesStorage_TagIntern_IgnoresDuplicateCompositeTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	firstTags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, nil)
+	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api", "service:api"})
+
+	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags))
+	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags))
+
+	assert.Equal(t, 1, s.TagInternedCount())
+	s.mu.RLock()
+	firstStats := s.resolveByID(first.Ref)
+	secondStats := s.resolveByID(second.Ref)
+	s.mu.RUnlock()
+	firstStored, _ := firstStats.Tags.UnsafeGet()
+	secondStored, _ := secondStats.Tags.UnsafeGet()
+	assert.Equal(t,
+		uintptr(unsafe.Pointer(unsafe.SliceData(firstStored))),
+		uintptr(unsafe.Pointer(unsafe.SliceData(secondStored))),
+	)
 }
 
 func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
-	t.Skip("the []string tag interner is replaced by the later CompositeTags interner commit")
 	s := newTimeSeriesStorage()
 
 	for i := 0; i < tagInternMaxSize; i++ {
