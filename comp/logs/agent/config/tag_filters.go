@@ -16,6 +16,11 @@ type TagFilters struct {
 	Exclude []string `mapstructure:"exclude" json:"exclude" yaml:"exclude"`
 }
 
+// IsEmpty reports whether no tag-filter patterns are configured.
+func (f *TagFilters) IsEmpty() bool {
+	return f == nil || (len(f.Include) == 0 && len(f.Exclude) == 0)
+}
+
 // Compile builds the matcher for f. A nil f compiles like an empty filter, and, like
 // tagfilter.Compile, this never fails: a malformed pattern is reported, not returned as an error.
 func (f *TagFilters) Compile() (*tagfilter.Filters, tagfilter.Report) {

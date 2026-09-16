@@ -23,7 +23,7 @@ import (
 
 // fakeTagFilter drops any tag whose key is in Drop, and records every
 // argument it is called with. It intentionally does not depend on the real
-// matcher, which is being implemented concurrently.
+// matcher, so these tests isolate transport wiring from matcher behavior.
 type fakeTagFilter struct {
 	Drop         map[string]bool
 	KeepCalls    [][]string
@@ -79,10 +79,10 @@ func TestResolveTagFilter_ResolvesOnceAndReuses(t *testing.T) {
 	msg1 := newMessage([]byte("one"), source, message.StatusInfo)
 	p.resolveTagFilter(msg1)
 
-	// Stamp a sentinel for the same generation p already resolved against, so a
-	// second call can only see it by reusing the cache, never by recomputing.
+	// Stamp a sentinel so a second call can only see it by reusing the cache,
+	// never by recomputing.
 	sentinel := &fakeTagFilter{Drop: map[string]bool{"sentinel": true}}
-	source.CompareAndSwapTagFilterState(source.TagFilterState(), sources.NewTagFilterState(p.tagFilters, sentinel))
+	source.CompareAndSwapTagFilterState(source.TagFilterState(), sources.NewTagFilterState(sentinel))
 
 	msg2 := newMessage([]byte("two"), source, message.StatusInfo)
 	assert.Same(t, sentinel, p.resolveTagFilter(msg2))
@@ -181,26 +181,6 @@ func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, rejectedCount)
-}
-
-// TestResolveSourceTagFilter_NewGlobalForcesReResolution pins the generation
-// check that lets a source surviving an agent restart detect that the global
-// filter it was resolved against is stale: the same global pointer must reuse
-// the cached state, and a different one must replace it.
-func TestResolveSourceTagFilter_NewGlobalForcesReResolution(t *testing.T) {
-	gen1, _ := tagfilter.Compile(nil, []string{"team:*"})
-	gen2, _ := tagfilter.Compile(nil, []string{"pod_name:*"})
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	ResolveSourceTagFilter(gen1, source)
-	stateAfterGen1 := source.TagFilterState()
-
-	ResolveSourceTagFilter(gen1, source)
-	assert.Same(t, stateAfterGen1, source.TagFilterState(), "the same global must not force re-resolution")
-
-	ResolveSourceTagFilter(gen2, source)
-	assert.NotSame(t, stateAfterGen1, source.TagFilterState(), "a new global must force re-resolution")
-	assert.True(t, source.TagFilterState().ResolvedFor(gen2))
 }
 
 // TestResolveSourceTagFilter_SourceOnlyStillGetsInfo asserts that a source with

@@ -29,6 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+func (*logAgent) supportsTagFilters() bool {
+	return false
+}
+
+func (*logAgent) startTagFiltering() {}
+
 // Note: Building the logs-agent for serverless separately removes the
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.

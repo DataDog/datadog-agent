@@ -145,6 +145,8 @@ func (a *logAgent) setupAgentForRestart() error {
 func (a *logAgent) restartPipeline() {
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
+	// Tag filters are immutable and retain the same compiled instance across a
+	// transport restart, so existing source caches remain valid.
 	a.reportTagFilterWarnings()
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)

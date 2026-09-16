@@ -36,6 +36,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+func (*logAgent) supportsTagFilters() bool {
+	return true
+}
+
+func (a *logAgent) startTagFiltering() {
+	a.reportTagFilterWarnings()
+	a.tagFilterSubscriberDone = make(chan struct{})
+	startTagFilterSubscriber(a.sources, a.tagFilters, a.tagFilterSubscriberDone)
+}
+
 // NewAgent returns a new Logs Agent
 func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	destinationsCtx := client.NewDestinationsContext()

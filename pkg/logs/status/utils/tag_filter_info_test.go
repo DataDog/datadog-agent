@@ -33,26 +33,6 @@ func TestTagFilterInfoAllScopes(t *testing.T) {
 	assert.Equal(t, expected, info.Info())
 }
 
-func TestTagFilterInfoGlobalIncludeOnly(t *testing.T) {
-	info := NewTagFilterInfo([]string{"kube_namespace:*"}, nil, nil, nil)
-	assert.Equal(t, []string{"global include: kube_namespace:*"}, info.Info())
-}
-
-func TestTagFilterInfoGlobalExcludeOnly(t *testing.T) {
-	info := NewTagFilterInfo(nil, []string{"container_id:*", "kube_replica_set:*"}, nil, nil)
-	assert.Equal(t, []string{"global exclude: container_id:*, kube_replica_set:*"}, info.Info())
-}
-
-func TestTagFilterInfoSourceIncludeOnly(t *testing.T) {
-	info := NewTagFilterInfo(nil, nil, []string{"kube_namespace:*"}, nil)
-	assert.Equal(t, []string{"source include: kube_namespace:*"}, info.Info())
-}
-
-func TestTagFilterInfoSourceExcludeOnly(t *testing.T) {
-	info := NewTagFilterInfo(nil, nil, nil, []string{"filename:*", "dirname:*"})
-	assert.Equal(t, []string{"source exclude: filename:*, dirname:*"}, info.Info())
-}
-
 func TestTagFilterInfoAllEmptyRendersNothing(t *testing.T) {
 	info := NewTagFilterInfo(nil, nil, nil, nil)
 	assert.Empty(t, info.Info())

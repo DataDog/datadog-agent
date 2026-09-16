@@ -45,6 +45,10 @@ func TestServerlessLogsAgent(t *testing.T) {
 
 	err = logsAgent.setupAgent()
 	assert.NoError(t, err, "setupAgent should not return an error")
+	assert.True(t, logsAgent.tagFiltersConfigured)
+	assert.Nil(t, logsAgent.tagFilters, "serverless must not compile filters its encoder cannot apply")
+	logsAgent.startTagFiltering()
+	assert.Nil(t, logsAgent.tagFilterSubscriberDone, "serverless must not advertise or eagerly resolve unsupported filters")
 
 	// Assert that setupAgent() correctly initialized the pipeline components
 	assert.NotNil(t, logsAgent.diagnosticMessageReceiver, "diagnosticMessageReceiver should not be nil")

@@ -75,7 +75,7 @@ func TestFormatShowsTransportTags(t *testing.T) {
 	f := &logFormatter{hostname: getNewHostname("hostname")}
 	msg := formatTestMessage(t)
 	filter := &dropKeyFilter{drop: map[string]bool{"container_id": true}}
-	msg.Origin.LogSource.CompareAndSwapTagFilterState(nil, sources.NewTagFilterState(nil, filter))
+	msg.Origin.LogSource.CompareAndSwapTagFilterState(nil, sources.NewTagFilterState(filter))
 
 	got := tagsField(t, f.Format(msg, "", msg.GetContent()))
 

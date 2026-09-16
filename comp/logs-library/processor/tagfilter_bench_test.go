@@ -72,7 +72,7 @@ func BenchmarkTagFilterDisabled(b *testing.B) {
 }
 
 // BenchmarkTagFilterResolveCached is the cache-hit cost once a filter is
-// configured: the same atomic load and generation check, however many rules back it.
+// configured: the same atomic load and resolved-state check, however many rules back it.
 func BenchmarkTagFilterResolveCached(b *testing.B) {
 	global, _ := tagfilter.Compile(nil, []string{"container_id:*"})
 	runParallel(b, global, &config.TagFilters{
@@ -156,21 +156,4 @@ func BenchmarkJSONEncodeFilterNoMatch(b *testing.B) {
 
 func BenchmarkJSONEncodeFilterRemoval(b *testing.B) {
 	benchEncode(b, benchRemovalGlobal())
-}
-
-// msgSink defeats dead-code elimination; without it the allocation is optimized
-// away and the benchmark reports a sub-nanosecond, zero-allocation lie.
-var msgSink *message.Message
-
-// BenchmarkMessageAlloc measures the per-message allocation footprint, which is
-// what a tagFilter field on MessageMetadata changes.
-func BenchmarkMessageAlloc(b *testing.B) {
-	src := sources.NewLogSource("bench", &config.LogsConfig{Type: config.FileType})
-	origin := message.NewOrigin(src)
-	content := []byte("bench")
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		msgSink = message.NewMessage(content, origin, message.StatusInfo, 0)
-	}
 }

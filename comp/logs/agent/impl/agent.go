@@ -125,6 +125,9 @@ type logAgent struct {
 	tagFilterReport tagfilter.Report
 	// compiled global filter, read by the eager tag-filter subscriber
 	tagFilters *tagfilter.Filters
+	// tag filters are immutable configuration and compile once, including across
+	// transport-only pipeline restarts
+	tagFiltersConfigured bool
 	// closed in stop to release the eager tag-filter subscriber
 	tagFilterSubscriberDone chan struct{}
 
@@ -286,23 +289,28 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filter
 		return nil, nil, nil, errors.New(message)
 	}
 
-	// A malformed tag_filters block must never block startup: it degrades to
-	// filtering less, so problems are surfaced as warnings only.
-	tagFilters, report, err := config.GlobalTagFilters(a.config)
-	if err != nil {
-		report.Warnings = append(report.Warnings, fmt.Sprintf("Invalid tag_filters setting: %v", err))
+	if !a.tagFiltersConfigured {
+		a.tagFiltersConfigured = true
+		if a.supportsTagFilters() {
+			// A malformed tag_filters block must never block startup: it degrades to
+			// filtering less, so problems are surfaced as warnings only.
+			tagFilters, report, tagFilterErr := config.GlobalTagFilters(a.config)
+			if tagFilterErr != nil {
+				report.Warnings = append(report.Warnings, fmt.Sprintf("Invalid tag_filters setting: %v", tagFilterErr))
+			}
+			for _, warning := range report.Warnings {
+				a.log.Warn(warning)
+			}
+			for _, rejected := range report.Rejected {
+				a.log.Warnf("tag_filters: %s", rejected.Reason)
+			}
+			// status.AddGlobalWarning is a no-op until startPipeline calls status.Init.
+			a.tagFilterReport = report
+			a.tagFilters = tagFilters
+		}
 	}
-	for _, warning := range report.Warnings {
-		a.log.Warn(warning)
-	}
-	for _, rejected := range report.Rejected {
-		a.log.Warnf("tag_filters: %s", rejected.Reason)
-	}
-	// status.AddGlobalWarning is a no-op until startPipeline calls status.Init.
-	a.tagFilterReport = report
-	a.tagFilters = tagFilters
 
-	return processingRules, tagFilters, fingerprintConfig, nil
+	return processingRules, a.tagFilters, fingerprintConfig, nil
 }
 
 // Start starts all the elements of the data pipeline
@@ -312,10 +320,7 @@ func (a *logAgent) startPipeline() {
 	// setup the status
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
-	a.reportTagFilterWarnings()
-
-	a.tagFilterSubscriberDone = make(chan struct{})
-	startTagFilterSubscriber(a.sources, a.tagFilters, a.tagFilterSubscriberDone)
+	a.startTagFiltering()
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,

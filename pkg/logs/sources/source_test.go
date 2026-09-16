@@ -167,7 +167,7 @@ func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 	source := NewLogSource("test", nil)
 	want := fakeTagFilter{}
 
-	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil, want))
+	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(want))
 	assert.True(t, ok)
 
 	got, resolved := source.TagFilter()
@@ -181,7 +181,7 @@ func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 func TestLogSourceTagFilterResolvedInert(t *testing.T) {
 	source := NewLogSource("test", nil)
 
-	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil, nil))
+	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil))
 	assert.True(t, ok)
 
 	got, resolved := source.TagFilter()
@@ -189,43 +189,17 @@ func TestLogSourceTagFilterResolvedInert(t *testing.T) {
 	assert.True(t, got == nil)
 }
 
-// TestLogSourceSetTagFilterNil guards the typed-nil trap: passing the untyped nil literal
-// must still yield an interface value that compares equal to nil, even after a real
-// filter was cached for an earlier generation.
+// TestLogSourceSetTagFilterNil guards the typed-nil trap: passing the untyped
+// nil literal must yield an interface value that compares equal to nil.
 func TestLogSourceSetTagFilterNil(t *testing.T) {
 	source := NewLogSource("test", nil)
-	gen1, gen2 := new(int), new(int)
 
-	assert.True(t, source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, fakeTagFilter{})))
-	assert.True(t, source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(gen2, nil)))
+	assert.True(t, source.CompareAndSwapTagFilterState(nil, NewTagFilterState(fakeTagFilter{})))
+	assert.True(t, source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil)))
 
 	got, ok := source.TagFilter()
 	assert.True(t, ok)
 	assert.True(t, got == nil)
-}
-
-// TestLogSourceTagFilterStateResolvedForGeneration pins the generation check that
-// lets a resolver detect a stale cache after a source outlives a config reload.
-func TestLogSourceTagFilterStateResolvedForGeneration(t *testing.T) {
-	gen1, gen2 := new(int), new(int)
-	source := NewLogSource("test", nil)
-
-	assert.False(t, source.TagFilterState().ResolvedFor(gen1), "unresolved state must never match any generation")
-
-	source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, nil))
-	assert.True(t, source.TagFilterState().ResolvedFor(gen1))
-	assert.False(t, source.TagFilterState().ResolvedFor(gen2))
-}
-
-// TestTagFilterStateGenerationComparesDynamicType pins that a typed-nil
-// generation and an untyped nil are different generations, so a resolver must
-// pass the same typed value on every call or it will never hit its own cache.
-func TestTagFilterStateGenerationComparesDynamicType(t *testing.T) {
-	var typedNil *int
-	state := NewTagFilterState(typedNil, fakeTagFilter{})
-
-	assert.True(t, state.ResolvedFor(typedNil))
-	assert.False(t, state.ResolvedFor(nil))
 }
 
 // TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner races goroutines
@@ -242,7 +216,7 @@ func TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if source.CompareAndSwapTagFilterState(old, NewTagFilterState(nil, fakeTagFilter{})) {
+			if source.CompareAndSwapTagFilterState(old, NewTagFilterState(fakeTagFilter{})) {
 				wins.Add(1)
 			}
 		}()
@@ -263,7 +237,7 @@ func TestLogSourceTagFilterConcurrent(t *testing.T) {
 	wg.Go(func() {
 		defer close(stop)
 		for i := 0; i < 1000; i++ {
-			source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil, fakeTagFilter{}))
+			source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(fakeTagFilter{}))
 		}
 	})
 

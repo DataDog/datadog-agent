@@ -34,6 +34,14 @@ type LinuxFakeintakeSuite struct {
 //go:embed config/config.yaml
 var logConfig string
 
+const tagFilterAgentConfig = `
+logs_config:
+  tag_filters:
+    exclude:
+      - e2e_global_drop:*
+      - e2e_rescued:*
+`
+
 const (
 	logFileName = "hello-world.log"
 	logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
@@ -62,11 +70,33 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 				awshost.WithRunOptions(
 					scenec2.WithAgentOptions(
 						agentparams.WithLogs(),
+						agentparams.WithAgentConfig(tagFilterAgentConfig),
 						agentparams.WithIntegration("custom_logs.d", logConfig),
 					)))),
 	}
 	t.Parallel()
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
+}
+
+func (s *LinuxFakeintakeSuite) TestTagFiltersReachIntake() {
+	s.Env().RemoteHost.MustExecute("sudo touch " + logFilePath)
+	s.Env().RemoteHost.MustExecute("sudo chmod +r " + logFilePath)
+	utils.AssertAgentTailerOK(s, logFileName)
+	utils.AppendLog(s, logFileName, "tag-filter-e2e", 1)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := utils.FetchAndFilterLogs(s.Env().FakeIntake, "hello", "tag-filter-e2e")
+		require.NoError(c, err)
+		if !assert.NotEmpty(c, logs) {
+			return
+		}
+
+		tags := logs[0].Tags
+		assert.Contains(c, tags, "e2e_keep:yes")
+		assert.Contains(c, tags, "e2e_rescued:yes")
+		assert.NotContains(c, tags, "e2e_global_drop:yes")
+		assert.NotContains(c, tags, "e2e_source_drop:yes")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {

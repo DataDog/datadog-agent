@@ -229,13 +229,13 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 // ResolveSourceTagFilter compiles src's tag filters against the global set, records
 // any problems on src, registers its status block, and caches the result on src
-// tagged with global's identity, then returns the resolved filter.
+// and returns the resolved filter.
 //
 // Safe to call more than once for the same source, including concurrently: it
 // computes the candidate result purely and installs it with a compare-and-swap,
 // so only the caller that wins the race performs the one-time side effects
-// (RegisterInfo, Messages.AddMessage). A call for a global that no longer
-// matches the cached generation re-resolves rather than trusting it forever.
+// (RegisterInfo, Messages.AddMessage). Global filters are immutable and reused
+// across transport-only pipeline restarts, so a source only needs resolving once.
 func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) sources.TagFilter {
 	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
 	// appended before rejecting for a nil Config.
@@ -243,11 +243,15 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 		return nil
 	}
 	old := src.TagFilterState()
-	if old.ResolvedFor(global) {
+	if old != nil {
 		return old.Filter()
 	}
 
-	sourceFilters, report := src.Config.TagFilters.Compile()
+	var sourceFilters *tagfilter.Filters
+	var report tagfilter.Report
+	if !src.Config.TagFilters.IsEmpty() {
+		sourceFilters, report = src.Config.TagFilters.Compile()
+	}
 
 	// Typed-nil trap: NewScoped can return a nil *Scoped. Only assign resolved when
 	// it doesn't, so a fully-unfiltered source stamps a genuinely nil
@@ -257,7 +261,7 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 		resolved = scoped
 	}
 
-	if !src.CompareAndSwapTagFilterState(old, sources.NewTagFilterState(global, resolved)) {
+	if !src.CompareAndSwapTagFilterState(old, sources.NewTagFilterState(resolved)) {
 		return resolved
 	}
 
@@ -289,7 +293,7 @@ func (p *Processor) resolveTagFilter(msg *message.Message) sources.TagFilter {
 	}
 	src := msg.Origin.LogSource
 
-	if state := src.TagFilterState(); state.ResolvedFor(p.tagFilters) {
+	if state := src.TagFilterState(); state != nil {
 		return state.Filter()
 	}
 	return ResolveSourceTagFilter(p.tagFilters, src)

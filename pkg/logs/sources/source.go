@@ -184,20 +184,15 @@ func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 }
 
 // TagFilterState is the immutable, atomically-swapped record of a source's
-// resolved tag filter, tagged with the generation that produced it. A source
-// outlives pipeline rebuilds, so the generation lets a resolver detect a stale
-// cache instead of trusting resolution forever.
+// resolved tag filter.
 type TagFilterState struct {
-	// generation is compared by identity only, never dereferenced. It must hold a
-	// comparable value; comparing uncomparable dynamic types panics.
-	generation any
-	filter     TagFilter
+	filter TagFilter
 }
 
-// NewTagFilterState returns the state produced by resolving against generation;
-// f is nil when resolution found nothing for this source to filter.
-func NewTagFilterState(generation any, f TagFilter) *TagFilterState {
-	return &TagFilterState{generation: generation, filter: f}
+// NewTagFilterState returns a resolved state. f is nil when there is nothing
+// for this source to filter.
+func NewTagFilterState(f TagFilter) *TagFilterState {
+	return &TagFilterState{filter: f}
 }
 
 // Filter returns the resolved filter. A nil state (unresolved) returns nil.
@@ -208,14 +203,8 @@ func (t *TagFilterState) Filter() TagFilter {
 	return t.filter
 }
 
-// ResolvedFor reports whether state is already resolved for generation, i.e.
-// needs no re-resolution.
-func (t *TagFilterState) ResolvedFor(generation any) bool {
-	return t != nil && t.generation == generation
-}
-
 // TagFilter returns the tag filter currently cached for this source, without
-// resolving it, and whether resolution has happened for any generation.
+// resolving it, and whether resolution has happened.
 func (s *LogSource) TagFilter() (TagFilter, bool) {
 	st := s.TagFilterState()
 	return st.Filter(), st != nil
