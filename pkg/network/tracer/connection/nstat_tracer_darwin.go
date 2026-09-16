@@ -132,6 +132,13 @@ type nstatSource struct {
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
 	packetEnriched           bool
+
+	hostWalkStop      bool
+	hostWalkBits      uint8
+	hostWalkTruncated uint8
+	targetedBits      uint8
+	targetedPID       uint32
+	targetedTransient uint8
 }
 
 type nstatTracer struct {
@@ -166,6 +173,9 @@ type nstatTracer struct {
 	runtimeErr    error
 
 	runtimeFailureCallback func(error)
+
+	libprocTick      uint64
+	lastHostWalkTick uint64
 
 	exit        chan struct{}
 	stopOnce    sync.Once
@@ -576,7 +586,17 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 			direction, evidence := source.observeTCPState(event.Flow.TCPState)
 			t.setSourceDirection(source, direction, evidence)
 		}
+		oldPID := uint32(0)
+		oldBits := uint8(0)
+		if source.flow != nil {
+			oldPID = source.flow.PID
+			oldBits = nstatTupleFingerprint(source.flow)
+		}
 		source.flow = mergeNStatFlow(source.flow, event.Flow)
+		if source.flow != nil {
+			resetLibprocCountersOnMoreComplete(source, oldBits)
+			clearLibprocTargetedOnPIDChange(source, oldPID, source.flow.PID)
+		}
 		t.syncTCPListener(sourceRef, source)
 	}
 	if event.Counts != nil {

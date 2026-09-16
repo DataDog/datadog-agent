@@ -21,3 +21,8 @@ func NewNativeScanner(Limits) (*NativeScanner, error) {
 func (*NativeScanner) Scan() (Snapshot, error) {
 	return Snapshot{}, errors.New("Darwin libproc scanner requires cgo")
 }
+
+// ScanPID reports that Darwin libproc requires cgo.
+func (*NativeScanner) ScanPID(uint32) (Snapshot, error) {
+	return Snapshot{}, errors.New("Darwin libproc scanner requires cgo")
+}

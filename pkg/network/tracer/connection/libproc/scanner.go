@@ -43,11 +43,14 @@ type Observation struct {
 
 // Snapshot is one bounded point-in-time scan.
 type Snapshot struct {
-	Observations []Observation
-	Truncated    bool
+	Observations      []Observation
+	HostWideTruncated bool
+	FDTruncatedPIDs   []uint32
 }
 
 // Scanner produces point-in-time socket ownership snapshots.
+// Implementations are not safe for concurrent or reentrant use.
 type Scanner interface {
 	Scan() (Snapshot, error)
+	ScanPID(pid uint32) (Snapshot, error)
 }

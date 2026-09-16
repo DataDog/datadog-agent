@@ -8,7 +8,6 @@
 #include <arpa/inet.h>
 #include <libproc.h>
 #include <netinet/in.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/proc_info.h>
 #include <sys/socket.h>
@@ -46,99 +45,130 @@ static int dd_extract_socket(const struct socket_fdinfo *socket,
 	return 1;
 }
 
-// dd_scan_sockets walks host processes and socket FDs up to the given bounds
-// and writes observations. Returns 0 on success and -1 if allocation or
-// proc_listallpids fails. Sets *truncated when a bound stops the walk. Drops
-// a process's observations if its start time changes mid-scan (PID reuse).
+// dd_scan_process walks one PID's socket FDs. Returns 1 when the observation
+// cap is hit, 0 otherwise. Dead or unreadable PIDs leave the observation
+// count unchanged (empty success). Sets *fd_truncated when MaxFDsPerPID stops
+// the FD list. Drops the process's observations if its start time changes
+// mid-scan (PID reuse).
+static int dd_scan_process(pid_t pid, struct proc_fdinfo *fds, int max_fds_per_pid,
+			   struct dd_socket_observation *observations,
+			   int max_observations, int *observation_count,
+			   int *fd_truncated)
+{
+	*fd_truncated = 0;
+	if (pid <= 0) {
+		return 0;
+	}
+	struct proc_bsdinfo process;
+	memset(&process, 0, sizeof(process));
+	int process_bytes = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &process,
+					 (int)sizeof(process));
+	if (process_bytes != (int)sizeof(process)) {
+		return 0;
+	}
+	int fd_bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds,
+				    max_fds_per_pid * (int)sizeof(*fds));
+	if (fd_bytes <= 0) {
+		return 0;
+	}
+	int fd_count = fd_bytes / (int)sizeof(*fds);
+	if (fd_count >= max_fds_per_pid) {
+		fd_count = max_fds_per_pid;
+		*fd_truncated = 1;
+	}
+	int process_observation_start = *observation_count;
+	int full = 0;
+	for (int j = 0; j < fd_count; j++) {
+		if (fds[j].proc_fdtype != PROX_FDTYPE_SOCKET) {
+			continue;
+		}
+		struct socket_fdinfo socket;
+		memset(&socket, 0, sizeof(socket));
+		int socket_bytes = proc_pidfdinfo(pid, fds[j].proc_fd,
+						  PROC_PIDFDSOCKETINFO, &socket,
+						  (int)sizeof(socket));
+		if (socket_bytes != (int)sizeof(socket)) {
+			continue;
+		}
+		struct dd_socket_observation observation;
+		if (!dd_extract_socket(&socket, &observation)) {
+			continue;
+		}
+		if (*observation_count >= max_observations) {
+			full = 1;
+			break;
+		}
+		observation.pid = (uint32_t)pid;
+		observation.start_sec = process.pbi_start_tvsec;
+		observation.start_usec = (uint32_t)process.pbi_start_tvusec;
+		observations[*observation_count] = observation;
+		(*observation_count)++;
+	}
+	struct proc_bsdinfo verified_process;
+	memset(&verified_process, 0, sizeof(verified_process));
+	int verified_bytes = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &verified_process,
+					  (int)sizeof(verified_process));
+	if (verified_bytes != (int)sizeof(verified_process) ||
+	    verified_process.pbi_start_tvsec != process.pbi_start_tvsec ||
+	    verified_process.pbi_start_tvusec != process.pbi_start_tvusec) {
+		*observation_count = process_observation_start;
+	}
+	return full;
+}
+
 int dd_scan_sockets(int max_pids, int max_fds_per_pid, int max_observations,
 		    struct dd_socket_observation *observations,
-		    int *observation_count, int *truncated)
+		    int *observation_count, int *host_wide_truncated,
+		    uint32_t *fd_truncated_pids, int fd_truncated_cap,
+		    int *fd_truncated_count, int *observation_cap_hit,
+		    pid_t *pids, struct proc_fdinfo *fds)
 {
-	*observation_count = 0;
-	*truncated = 0;
-	pid_t *pids = calloc((size_t)max_pids, sizeof(*pids));
-	if (pids == NULL) {
+	if (pids == NULL || fds == NULL || observations == NULL ||
+	    observation_count == NULL || host_wide_truncated == NULL ||
+	    fd_truncated_pids == NULL || fd_truncated_count == NULL ||
+	    observation_cap_hit == NULL) {
 		return -1;
 	}
+	*observation_count = 0;
+	*host_wide_truncated = 0;
+	*fd_truncated_count = 0;
+	*observation_cap_hit = 0;
 	int pid_count = proc_listallpids(pids, max_pids * (int)sizeof(*pids));
 	if (pid_count < 0) {
-		free(pids);
 		return -1;
 	}
 	if (pid_count >= max_pids) {
 		pid_count = max_pids;
-		*truncated = 1;
+		*host_wide_truncated = 1;
 	}
 
-	struct proc_fdinfo *fds = calloc((size_t)max_fds_per_pid, sizeof(*fds));
-	if (fds == NULL) {
-		free(pids);
-		return -1;
-	}
-	int full = 0;
 	for (int i = 0; i < pid_count; i++) {
-		if (pids[i] <= 0) {
-			continue;
-		}
-		struct proc_bsdinfo process;
-		memset(&process, 0, sizeof(process));
-		int process_bytes = proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &process,
-						 (int)sizeof(process));
-		if (process_bytes != (int)sizeof(process)) {
-			continue;
-		}
-		int fd_bytes = proc_pidinfo(pids[i], PROC_PIDLISTFDS, 0, fds,
-					    max_fds_per_pid * (int)sizeof(*fds));
-		if (fd_bytes <= 0) {
-			continue;
-		}
-		int fd_count = fd_bytes / (int)sizeof(*fds);
-		if (fd_count >= max_fds_per_pid) {
-			fd_count = max_fds_per_pid;
-			*truncated = 1;
-		}
-		int process_observation_start = *observation_count;
-		for (int j = 0; j < fd_count; j++) {
-			if (fds[j].proc_fdtype != PROX_FDTYPE_SOCKET) {
-				continue;
-			}
-			struct socket_fdinfo socket;
-			memset(&socket, 0, sizeof(socket));
-			int socket_bytes = proc_pidfdinfo(pids[i], fds[j].proc_fd,
-							  PROC_PIDFDSOCKETINFO, &socket,
-							  (int)sizeof(socket));
-			if (socket_bytes != (int)sizeof(socket)) {
-				continue;
-			}
-			struct dd_socket_observation observation;
-			if (!dd_extract_socket(&socket, &observation)) {
-				continue;
-			}
-			if (*observation_count >= max_observations) {
-				*truncated = 1;
-				full = 1;
-				break;
-			}
-			observation.pid = (uint32_t)pids[i];
-			observation.start_sec = process.pbi_start_tvsec;
-			observation.start_usec = (uint32_t)process.pbi_start_tvusec;
-			observations[*observation_count] = observation;
-			(*observation_count)++;
-		}
-		struct proc_bsdinfo verified_process;
-		memset(&verified_process, 0, sizeof(verified_process));
-		int verified_bytes = proc_pidinfo(pids[i], PROC_PIDTBSDINFO, 0, &verified_process,
-						  (int)sizeof(verified_process));
-		if (verified_bytes != (int)sizeof(verified_process) ||
-		    verified_process.pbi_start_tvsec != process.pbi_start_tvsec ||
-		    verified_process.pbi_start_tvusec != process.pbi_start_tvusec) {
-			*observation_count = process_observation_start;
+		int fd_truncated = 0;
+		int full = dd_scan_process(pids[i], fds, max_fds_per_pid, observations,
+					   max_observations, observation_count, &fd_truncated);
+		if (fd_truncated && *fd_truncated_count < fd_truncated_cap) {
+			fd_truncated_pids[*fd_truncated_count] = (uint32_t)pids[i];
+			(*fd_truncated_count)++;
 		}
 		if (full) {
+			*host_wide_truncated = 1;
+			*observation_cap_hit = 1;
 			break;
 		}
 	}
-	free(fds);
-	free(pids);
+	return 0;
+}
+
+int dd_scan_pid(int pid, int max_fds_per_pid, int max_observations,
+		struct dd_socket_observation *observations,
+		int *observation_count, int *fd_truncated, struct proc_fdinfo *fds)
+{
+	*observation_count = 0;
+	*fd_truncated = 0;
+	if (fds == NULL || observations == NULL) {
+		return -1;
+	}
+	(void)dd_scan_process((pid_t)pid, fds, max_fds_per_pid, observations,
+			      max_observations, observation_count, fd_truncated);
 	return 0;
 }

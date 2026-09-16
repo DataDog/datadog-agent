@@ -7,6 +7,8 @@
 #define PKG_NETWORK_TRACER_CONNECTION_LIBPROC_SCANNER_DARWIN_H
 
 #include <stdint.h>
+#include <sys/proc_info.h>
+#include <unistd.h>
 
 struct dd_socket_observation {
 	uint8_t family;
@@ -22,6 +24,13 @@ struct dd_socket_observation {
 
 int dd_scan_sockets(int max_pids, int max_fds_per_pid, int max_observations,
 		    struct dd_socket_observation *observations,
-		    int *observation_count, int *truncated);
+		    int *observation_count, int *host_wide_truncated,
+		    uint32_t *fd_truncated_pids, int fd_truncated_cap,
+		    int *fd_truncated_count, int *observation_cap_hit,
+		    pid_t *pids, struct proc_fdinfo *fds);
+
+int dd_scan_pid(int pid, int max_fds_per_pid, int max_observations,
+		struct dd_socket_observation *observations,
+		int *observation_count, int *fd_truncated, struct proc_fdinfo *fds);
 
 #endif

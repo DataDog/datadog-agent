@@ -621,7 +621,7 @@ func TestNStatTracerAppliesLateAuthoritativePID(t *testing.T) {
 
 	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{
 		Observations: []libproc.Observation{testDarwinLibprocObservation(9876, 1)},
-	})
+	}, libprocScanScope{scanStart: tracer.now().Add(time.Second), hostWide: true})
 
 	require.Zero(t, resolved)
 	require.Zero(t, ambiguous)

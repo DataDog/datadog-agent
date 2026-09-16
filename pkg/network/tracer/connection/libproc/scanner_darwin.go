@@ -16,15 +16,27 @@ import "C"
 import (
 	"fmt"
 	"net/netip"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const initialHostObservations = 4096
+
 // NativeScanner reads socket ownership directly through Darwin libproc.
+// It is not safe for concurrent or reentrant use: Scan and ScanPID reuse
+// persistent observation, PID, and FD buffers.
 type NativeScanner struct {
-	limits Limits
+	limits      Limits
+	mu          sync.Mutex
+	hostRaw     []C.struct_dd_socket_observation
+	pidRaw      []C.struct_dd_socket_observation
+	fdTruncated []C.uint32_t
+	fdInfo      []C.struct_proc_fdinfo
+	pids        []C.pid_t
 }
 
 // NewNativeScanner creates a bounded host-wide libproc scanner.
@@ -32,37 +44,136 @@ func NewNativeScanner(limits Limits) (*NativeScanner, error) {
 	if err := limits.validate(); err != nil {
 		return nil, err
 	}
-	return &NativeScanner{limits: limits}, nil
+	return &NativeScanner{
+		limits:      limits,
+		hostRaw:     make([]C.struct_dd_socket_observation, hostObservationSeed(limits.MaxObservations)),
+		pidRaw:      make([]C.struct_dd_socket_observation, limits.MaxFDsPerPID),
+		fdTruncated: make([]C.uint32_t, limits.MaxPIDs),
+		fdInfo:      make([]C.struct_proc_fdinfo, limits.MaxFDsPerPID),
+		pids:        make([]C.pid_t, limits.MaxPIDs),
+	}, nil
 }
 
-// Scan returns a bounded point-in-time snapshot.
+func hostObservationSeed(maxObservations int) int {
+	if maxObservations < initialHostObservations {
+		return maxObservations
+	}
+	return initialHostObservations
+}
+
+func (s *NativeScanner) growHostRaw() {
+	next := len(s.hostRaw) * 2
+	if next > s.limits.MaxObservations {
+		next = s.limits.MaxObservations
+	}
+	if next <= len(s.hostRaw) {
+		return
+	}
+	log.Debugf("darwin libproc host buffer growing from %d to %d observations (max %d)",
+		len(s.hostRaw), next, s.limits.MaxObservations)
+	s.hostRaw = make([]C.struct_dd_socket_observation, next)
+}
+
+// Scan returns a bounded point-in-time snapshot of the host.
+//
+// If the current host-buffer cap (len(hostRaw), passed to C) is hit, Scan
+// grows and rescans immediately (at most four doubles: 4096 → 65536, the
+// MaxObservations ceiling). Deferring growth to the next tick would set
+// HostWideTruncated because the seed was small, which would spend the PID-0
+// cap-3 budget on a self-inflicted condition. host_walks / scans still count
+// one Scan() attempt, not these inner passes: growth is a one-time cost for
+// the process lifetime, not a standing leak.
 func (s *NativeScanner) Scan() (Snapshot, error) {
-	raw := make([]C.struct_dd_socket_observation, s.limits.MaxObservations)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for {
+		snapshot, observationCapHit, err := s.scanHostLocked()
+		if err != nil {
+			return Snapshot{}, err
+		}
+		if !observationCapHit || len(s.hostRaw) >= s.limits.MaxObservations {
+			return snapshot, nil
+		}
+		s.growHostRaw()
+	}
+}
+
+func (s *NativeScanner) scanHostLocked() (Snapshot, bool, error) {
 	var count C.int
-	var truncated C.int
+	var hostWide C.int
+	var fdCount C.int
+	var observationCapHit C.int
 	result := C.dd_scan_sockets(
 		C.int(s.limits.MaxPIDs),
 		C.int(s.limits.MaxFDsPerPID),
-		C.int(s.limits.MaxObservations),
-		(*C.struct_dd_socket_observation)(unsafe.Pointer(&raw[0])),
+		C.int(len(s.hostRaw)),
+		(*C.struct_dd_socket_observation)(unsafe.Pointer(&s.hostRaw[0])),
 		&count,
-		&truncated,
+		&hostWide,
+		(*C.uint32_t)(unsafe.Pointer(&s.fdTruncated[0])),
+		C.int(s.limits.MaxPIDs),
+		&fdCount,
+		&observationCapHit,
+		(*C.pid_t)(unsafe.Pointer(&s.pids[0])),
+		(*C.struct_proc_fdinfo)(unsafe.Pointer(&s.fdInfo[0])),
 	)
 	if result != 0 {
-		return Snapshot{}, fmt.Errorf("libproc socket scan failed with status %d", int(result))
+		return Snapshot{}, false, fmt.Errorf("libproc socket scan failed with status %d", int(result))
 	}
+	var fdPIDs []uint32
+	if fdCount > 0 {
+		fdPIDs = make([]uint32, int(fdCount))
+		for i := 0; i < int(fdCount); i++ {
+			fdPIDs[i] = uint32(s.fdTruncated[i])
+		}
+	}
+	// Grow only when C hit the observation cap (full). MaxPIDs truncation
+	// sets HostWideTruncated without this flag. A start-time rollback can
+	// leave count < len(hostRaw) after full; the flag still grows.
+	return convertSnapshot(s.hostRaw, int(count), hostWide != 0, fdPIDs), observationCapHit != 0, nil
+}
 
-	snapshot := Snapshot{
-		Observations: make([]Observation, 0, int(count)),
-		Truncated:    truncated != 0,
+// ScanPID returns a bounded snapshot of one process. A dead or unreadable PID
+// is an empty successful snapshot, not an error.
+func (s *NativeScanner) ScanPID(pid uint32) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var count C.int
+	var fdTruncated C.int
+	result := C.dd_scan_pid(
+		C.int(pid),
+		C.int(s.limits.MaxFDsPerPID),
+		C.int(s.limits.MaxFDsPerPID),
+		(*C.struct_dd_socket_observation)(unsafe.Pointer(&s.pidRaw[0])),
+		&count,
+		&fdTruncated,
+		(*C.struct_proc_fdinfo)(unsafe.Pointer(&s.fdInfo[0])),
+	)
+	if result != 0 {
+		return Snapshot{}, fmt.Errorf("libproc pid scan failed with status %d", int(result))
 	}
-	for index := 0; index < int(count); index++ {
+	var fdPIDs []uint32
+	if fdTruncated != 0 {
+		fdPIDs = []uint32{pid}
+	}
+	return convertSnapshot(s.pidRaw, int(count), false, fdPIDs), nil
+}
+
+func convertSnapshot(raw []C.struct_dd_socket_observation, count int, hostWide bool, fdTruncated []uint32) Snapshot {
+	snapshot := Snapshot{
+		Observations:      make([]Observation, 0, count),
+		HostWideTruncated: hostWide,
+		FDTruncatedPIDs:   fdTruncated,
+	}
+	for index := 0; index < count; index++ {
 		observation, ok := convertObservation(&raw[index])
 		if ok {
 			snapshot.Observations = append(snapshot.Observations, observation)
 		}
 	}
-	return snapshot, nil
+	return snapshot
 }
 
 func convertObservation(raw *C.struct_dd_socket_observation) (Observation, bool) {
