@@ -141,6 +141,24 @@ func (m *GenericPackageManager) ensureCommand(packageRef, checkBinary string) (s
 	return fmt.Sprintf("bash -c 'command -v %s || %s'", checkBinary, install), false
 }
 
+func (m *GenericPackageManager) AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	pulumiOpts := append(params.PulumiResourceOptions, m.opts...)
+
+	cmd, err := assertInstalledCommand(m.runner, m.namer, checkBinary, pulumiOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the package manager isn't running in parallel
+	m.opts = append(m.opts, utils.PulumiDependsOn(cmd))
+	return cmd, nil
+}
+
+
 func (m *GenericPackageManager) updateDB(opts []pulumi.ResourceOption) (command.Command, error) {
 	if m.updateDBCommand != nil {
 		return m.updateDBCommand, nil

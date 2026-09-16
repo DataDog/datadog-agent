@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -21,6 +23,18 @@ type PackageManager interface {
 	// if it succeeds we consider the package is already installed
 	Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 	EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+}
+
+// assertInstalledCommand runs `command -v checkBinary`, failing instead of installing when it is missing.
+// Shared by GenericPackageManager and ZypperPackageManager, the two PackageManager implementations.
+func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary string, pulumiOpts []pulumi.ResourceOption) (command.Command, error) {
+	cmdStr := fmt.Sprintf(
+		"bash -c 'command -v %s || { echo \"%s is missing on this host; it must be pre-baked into the machine image, see docs/public/how-to/test/e2e/dependencies.md\" >&2; exit 1; }'",
+		checkBinary, checkBinary,
+	)
+	cmdName := n.ResourceName("assert-"+checkBinary, utils.StrHash(cmdStr))
+	return runner.Command(cmdName, &command.Args{Create: pulumi.String(cmdStr)}, pulumiOpts...)
 }
 
 func AllowUnsignedPackages(allow bool) PackageManagerOption {
