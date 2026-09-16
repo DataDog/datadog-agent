@@ -26,6 +26,7 @@ _arch_names = {
     "deb": {
         "aarch64": "arm64",
         "arm64": "arm64",
+        "armv7": "armhf",
         "k8": "amd64",
         "x86_64": "amd64",
         "x86": "amd64",
@@ -35,6 +36,7 @@ _arch_names = {
     "rpm": {
         "aarch64": "aarch64",
         "arm64": "aarch64",
+        "armv7": "armv7hl",
         "amd64": "x86_64",
         "k8": "x86_64",
         "x86": "x86_64",
