@@ -170,6 +170,11 @@ func (suite *localKindSuite) TestWorkloadRunning() {
 // container: container metrics for the nginx pod reach the fakeintake,
 // tagged with the Kubernetes workload identity. This proves the whole
 // loop — workload deployed, agent sees it, metrics flow.
+
+// TestWorkloadADCheck verifies the AD annotation on the nginx workload
+// pod triggers the nginx integration check: nginx.* metrics reach the
+// fakeintake. This is the catalog's reason for existing — the annotation
+// is applied by the workload deployer, not hand-written by the test.
 func (suite *localKindSuite) TestWorkloadContainerMetrics() {
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := suite.fi.FilterMetrics("container.cpu.usage",
@@ -177,4 +182,12 @@ func (suite *localKindSuite) TestWorkloadContainerMetrics() {
 		require.NoErrorf(c, err, "Failed to filter container metrics")
 		require.NotEmptyf(c, metrics, "No container.cpu.usage for the nginx workload yet")
 	}, 3*time.Minute, 15*time.Second, "Agent is not monitoring the nginx workload")
+}
+
+func (suite *localKindSuite) TestWorkloadADCheck() {
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := suite.fi.FilterMetrics("nginx.net.connections")
+		require.NoErrorf(c, err, "Failed to filter nginx metrics")
+		require.NotEmptyf(c, metrics, "No nginx.net.connections yet — AD check from the workload annotation not running")
+	}, 3*time.Minute, 15*time.Second, "nginx integration check (AD annotation) is not emitting")
 }

@@ -143,12 +143,17 @@ spec:
       labels:
         app: %s
       annotations:
-        ad.datadoghq.com/%s.instances: |
-          [
-            {
-              "nginx_status_url": "http://%%{host}/nginx_status/"
+        ad.datadoghq.com/%s.checks: |
+          {
+            "nginx": {
+              "init_config": {},
+              "instances": [
+                {
+                  "nginx_status_url": "http://%%%%host%%%%/nginx_status/"
+                }
+              ]
             }
-          ]
+          }
     spec:
       containers:
         - name: %s
