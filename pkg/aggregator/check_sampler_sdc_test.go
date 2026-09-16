@@ -77,6 +77,24 @@ func findSDCSerie(series metrics.Series, name string) *metrics.Serie {
 	return nil
 }
 
+func findSDCSeries(series metrics.Series, name string) metrics.Series {
+	var found metrics.Series
+	for _, serie := range series {
+		if serie.Name == name {
+			found = append(found, serie)
+		}
+	}
+	return found
+}
+
+func findSDCPoints(series metrics.Series, name string) []metrics.Point {
+	var points []metrics.Point
+	for _, serie := range findSDCSeries(series, name) {
+		points = append(points, serie.Points...)
+	}
+	return points
+}
+
 func TestSDC_NotEligibleCheckPassesThrough(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
 		"adaptive_downsampling.all":    false,
@@ -104,7 +122,7 @@ func TestSDC_DownsamplesOneFlushWindowAndForcesLastPoint(t *testing.T) {
 	}
 	require.Len(t, cs.sdcDownsampler.series, 1)
 	for _, downsampled := range cs.sdcDownsampler.series {
-		require.Len(t, downsampled.serie.Points, 10, "raw points should be processed rather than retained until flush")
+		require.Len(t, downsampled.series, 13)
 	}
 
 	series, _ := cs.flush()
@@ -117,9 +135,9 @@ func TestSDC_DownsamplesOneFlushWindowAndForcesLastPoint(t *testing.T) {
 		{Ts: 3, Value: 42}, {Ts: 4, Value: 42}, {Ts: 5, Value: 42},
 		{Ts: 6, Value: 42}, {Ts: 7, Value: 42}, {Ts: 8, Value: 42},
 		{Ts: 9, Value: 42}, {Ts: 12, Value: 42},
-	}, serie.Points)
+	}, findSDCPoints(series, "my.gauge"))
 	require.Len(t, cs.sdcDownsampler.series, 1, "the downsampler context must survive the flush")
-	require.Nil(t, cs.sdcDownsampler.series[serie.ContextKey].serie, "only pending points are cleared")
+	require.Empty(t, cs.sdcDownsampler.series[serie.ContextKey].series, "only pending series are cleared")
 }
 
 func TestSDC_DownsamplerStateCrossesFlushes(t *testing.T) {
@@ -138,14 +156,14 @@ func TestSDC_DownsamplerStateCrossesFlushes(t *testing.T) {
 		{Ts: 3, Value: 7}, {Ts: 4, Value: 7}, {Ts: 5, Value: 7},
 		{Ts: 6, Value: 7}, {Ts: 7, Value: 7}, {Ts: 8, Value: 7},
 		{Ts: 9, Value: 7},
-	}, findSDCSerie(firstWindow, "my.gauge").Points)
+	}, findSDCPoints(firstWindow, "my.gauge"))
 
 	for ts := 10.0; ts < 13; ts++ {
 		addSDCGauge(cs, "my.gauge", 7, ts, nil)
 		sdcCommit(cs, ts)
 	}
 	secondWindow, _ := cs.flush()
-	require.Equal(t, []metrics.Point{{Ts: 12, Value: 7}}, findSDCSerie(secondWindow, "my.gauge").Points,
+	require.Equal(t, []metrics.Point{{Ts: 12, Value: 7}}, findSDCPoints(secondWindow, "my.gauge"),
 		"warmup and EWMA state must not restart at the second flush")
 }
 
@@ -172,7 +190,7 @@ func TestSDC_CheckListEligibility(t *testing.T) {
 		{Ts: 3, Value: 7}, {Ts: 4, Value: 7}, {Ts: 5, Value: 7},
 		{Ts: 6, Value: 7}, {Ts: 7, Value: 7}, {Ts: 8, Value: 7},
 		{Ts: 9, Value: 7}, {Ts: 11, Value: 7},
-	}, findSDCSerie(selectedSeries, "my.gauge").Points)
+	}, findSDCPoints(selectedSeries, "my.gauge"))
 	require.Len(t, unselectedSeries, 12, "the unselected check must retain one uncompressed serie per commit")
 	for i, serie := range unselectedSeries {
 		require.Equal(t, []metrics.Point{{Ts: float64(i), Value: 7}}, serie.Points)
@@ -197,6 +215,26 @@ func TestSDC_GaugeWithTimestampCompressesAllPointsInWindow(t *testing.T) {
 		{Ts: 109, Value: 10}, {Ts: 111, Value: 10},
 	}, serie.Points)
 	require.Equal(t, "env:test", serie.Tags.Join(","))
+}
+
+func TestSDC_WarnsOnNonIncreasingTimestampAcrossCommittedSeries(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all": true,
+	})
+	cs := newSDCTestSampler("non_increasing_timestamp")
+
+	addSDCGaugeWithTimestamp(cs, "my.gauge", 1, 100, nil)
+	sdcCommit(cs, 0)
+	addSDCGaugeWithTimestamp(cs, "my.gauge", 2, 99, nil)
+	sdcCommit(cs, 1)
+
+	require.Len(t, cs.sdcDownsampler.series, 1)
+	for _, downsampled := range cs.sdcDownsampler.series {
+		require.Equal(t, float64(100), downsampled.latestTimestamp)
+	}
+	series, _ := cs.flush()
+	require.Equal(t, []metrics.Point{{Ts: 100, Value: 1}, {Ts: 99, Value: 2}},
+		findSDCPoints(series, "my.gauge"))
 }
 
 func TestSDC_UsesResolvedContextMetricType(t *testing.T) {
@@ -235,16 +273,43 @@ func TestSDC_DryRunShipsOriginalAndMeasuresDownsampledResult(t *testing.T) {
 		sdcCommit(cs, ts)
 	}
 	series, _ := cs.flush()
-	serie := findSDCSerie(series, "my.gauge")
-	require.NotNil(t, serie)
+	dryRunSeries := findSDCSeries(series, "my.gauge")
+	require.Len(t, dryRunSeries, 12, "dry-run must preserve committed series boundaries")
+	for _, serie := range dryRunSeries {
+		require.Len(t, serie.Points, 1)
+	}
 	require.Equal(t, []metrics.Point{
 		{Ts: 0, Value: 1}, {Ts: 1, Value: 1}, {Ts: 2, Value: 1},
 		{Ts: 3, Value: 1}, {Ts: 4, Value: 1}, {Ts: 5, Value: 1},
 		{Ts: 6, Value: 1}, {Ts: 7, Value: 1}, {Ts: 8, Value: 1},
 		{Ts: 9, Value: 1}, {Ts: 10, Value: 1}, {Ts: 11, Value: 1},
-	}, serie.Points)
+	}, findSDCPoints(series, "my.gauge"))
 	require.EqualValues(t, 12, cs.sdcDownsampler.tlmSamples.Get())
 	require.EqualValues(t, 11, cs.sdcDownsampler.tlmBreakpoints.Get())
+}
+
+func TestSDC_DryRunPreservesCommittedSeries(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":                true,
+		"adaptive_downsampling.dry_run":            true,
+		"serializer_max_series_points_per_payload": 10,
+	})
+	cs := newSDCTestSampler("dry_run_boundaries")
+
+	for commit := 0; commit < 2; commit++ {
+		for i := 0; i < 6; i++ {
+			ts := float64(commit*6 + i)
+			addSDCGaugeWithTimestamp(cs, "my.gauge", 1, ts, nil)
+		}
+		sdcCommit(cs, float64(commit))
+	}
+
+	series, _ := cs.flush()
+	dryRunSeries := findSDCSeries(series, "my.gauge")
+	require.Len(t, dryRunSeries, 2)
+	for _, serie := range dryRunSeries {
+		require.Len(t, serie.Points, 6)
+	}
 }
 
 func TestSDC_SeparatesContexts(t *testing.T) {
@@ -261,9 +326,9 @@ func TestSDC_SeparatesContexts(t *testing.T) {
 	require.Len(t, cs.sdcDownsampler.series, 2)
 
 	series, _ := cs.flush()
-	require.Len(t, series, 2)
+	require.Len(t, series, 22)
 	for _, serie := range series {
-		require.Len(t, serie.Points, 11)
+		require.Len(t, serie.Points, 1)
 	}
 }
 

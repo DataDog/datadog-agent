@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"math"
+
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -13,6 +15,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // tlmSDCSamples and tlmSDCBreakpoints count, per check, how many committed
@@ -32,46 +35,50 @@ var (
 		telemetry.Options{DefaultMetric: true})
 )
 
-// downsampledSerie owns one context's persistent SDC state and the resolved
-// output serie for the current CheckSampler flush window. Incoming points are
-// processed immediately; a flush closes the current segment and clears serie,
-// but keeps the downsampler's EWMA, warmup progress, and new segment origin for
-// the next window.
+// downsampledSerie owns one context's persistent SDC state and the output
+// series pending for the current CheckSampler flush window.
 type downsampledSerie struct {
-	serie       *metrics.Serie
-	downsampler *downsampler.SDC
-	expired     bool
+	series          metrics.Series
+	downsampler     *downsampler.SDC
+	latestTimestamp float64
+	expired         bool
 }
 
 func newDownsampledSerie(cfg downsampler.SDCConfig) *downsampledSerie {
-	return &downsampledSerie{downsampler: downsampler.NewSDC(cfg)}
+	return &downsampledSerie{
+		downsampler:     downsampler.NewSDC(cfg),
+		latestTimestamp: math.Inf(-1),
+	}
 }
 
-// take processes serie's points immediately and retains its metadata for the
-// next output. Metadata is stable for a ContextKey; only points differ between
-// commits. Dry-run mode retains the original points while still measuring SDC's
-// decisions.
-func (ds *downsampledSerie) take(serie *metrics.Serie, dryRun bool, samples, breakpoints telemetry.SimpleCounter) {
+// process feeds one committed serie through the shared SDC state. Dry-run mode
+// preserves the original serie; active mode creates a corresponding output.
+func (ds *downsampledSerie) process(serie *metrics.Serie, dryRun bool, samples, breakpoints telemetry.SimpleCounter) {
 	points := serie.Points
-	if ds.serie == nil {
-		ds.serie = serie
-		if !dryRun {
-			ds.serie.Points = nil
-		}
-	} else if dryRun {
-		ds.serie.Points = append(ds.serie.Points, points...)
+	if !dryRun {
+		serie.Points = nil
 	}
+	ds.series = append(ds.series, serie)
 
 	samples.Add(float64(len(points)))
 	selectedCount := 0
 	for _, point := range points {
+		if point.Ts <= ds.latestTimestamp {
+			log.Warnf(
+				"Adaptive downsampling received non-increasing timestamp %v after %v for metric %q; passing the point through without updating SDC state",
+				point.Ts, ds.latestTimestamp, serie.Name,
+			)
+		} else {
+			ds.latestTimestamp = point.Ts
+		}
+
 		breakpoint, selected := ds.downsampler.Update(point.Ts, point.Value)
 		if !selected {
 			continue
 		}
 		selectedCount++
 		if !dryRun {
-			ds.serie.Points = append(ds.serie.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
+			serie.Points = append(serie.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
 		}
 	}
 	if selectedCount > 0 {
@@ -80,24 +87,33 @@ func (ds *downsampledSerie) take(serie *metrics.Serie, dryRun bool, samples, bre
 	ds.expired = false
 }
 
-// flush force-closes the trailing SDC segment so the final input point is
-// represented at every CheckSampler flush boundary.
-func (ds *downsampledSerie) flush(dryRun bool, breakpoints telemetry.SimpleCounter) *metrics.Serie {
+// flush closes the trailing SDC segment and returns non-empty pending series.
+func (ds *downsampledSerie) flush(dryRun bool, breakpoints telemetry.SimpleCounter) metrics.Series {
 	if breakpoint, selected := ds.downsampler.FlushWindow(); selected {
 		breakpoints.Inc()
 		if !dryRun {
-			ds.serie.Points = append(ds.serie.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
+			output := ds.series[len(ds.series)-1]
+			output.Points = append(output.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
 		}
 	}
 
-	output := ds.serie
-	ds.serie = nil
+	output := ds.series
+	if !dryRun {
+		nonEmpty := output[:0]
+		for _, serie := range output {
+			if len(serie.Points) > 0 {
+				nonEmpty = append(nonEmpty, serie)
+			}
+		}
+		output = nonEmpty
+	}
+	ds.series = nil
 	return output
 }
 
 // checkSDCDownsampler accumulates eligible gauge series for one CheckSampler.
 // Each context's downsampler state persists until the context expires or the
-// sampler is released; pending serie data lasts only until the next flush.
+// sampler is released; pending series data lasts only until the next flush.
 type checkSDCDownsampler struct {
 	dryRun bool
 	cfg    downsampler.SDCConfig
@@ -145,16 +161,15 @@ func (sc *checkSDCDownsampler) isMetricTypeEligible(metricType metrics.MetricTyp
 	return sc.series != nil && (metricType == metrics.GaugeType || metricType == metrics.GaugeWithTimestampType)
 }
 
-// take assumes ownership of serie and streams its points through the
-// context's SDC state. The resulting output serie remains pending until the
-// next CheckSampler flush.
+// take assumes ownership of serie and routes it through the context's SDC
+// state. Output remains pending until the next CheckSampler flush.
 func (sc *checkSDCDownsampler) take(contextKey ckey.ContextKey, serie *metrics.Serie) {
 	downsampled := sc.series[contextKey]
 	if downsampled == nil {
 		downsampled = newDownsampledSerie(sc.cfg)
 		sc.series[contextKey] = downsampled
 	}
-	downsampled.take(serie, sc.dryRun, sc.tlmSamples, sc.tlmBreakpoints)
+	downsampled.process(serie, sc.dryRun, sc.tlmSamples, sc.tlmBreakpoints)
 }
 
 // expire drops idle downsampler state immediately. If the context still has
@@ -165,7 +180,7 @@ func (sc *checkSDCDownsampler) expire(contextKey ckey.ContextKey) {
 	if downsampled == nil {
 		return
 	}
-	if downsampled.serie == nil {
+	if len(downsampled.series) == 0 {
 		delete(sc.series, contextKey)
 		return
 	}
@@ -174,17 +189,17 @@ func (sc *checkSDCDownsampler) expire(contextKey ckey.ContextKey) {
 
 // flush closes every segment with pending points. Downsampler state remains
 // available for the next window unless its context expired while points were
-// pending, in which case it is removed after producing this final serie.
+// pending, in which case it is removed after producing its final output.
 func (sc *checkSDCDownsampler) flush() metrics.Series {
 	if len(sc.series) == 0 {
 		return nil
 	}
 	series := make(metrics.Series, 0, len(sc.series))
 	for contextKey, downsampled := range sc.series {
-		if downsampled.serie == nil {
+		if len(downsampled.series) == 0 {
 			continue
 		}
-		series = append(series, downsampled.flush(sc.dryRun, sc.tlmBreakpoints))
+		series = append(series, downsampled.flush(sc.dryRun, sc.tlmBreakpoints)...)
 		if downsampled.expired {
 			delete(sc.series, contextKey)
 		}
