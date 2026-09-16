@@ -10,8 +10,8 @@ they need new recordings or want to evaluate an Agent image.
 
 ## Prerequisites
 
-- Complete the [E2E framework setup](../../README.md#quick-start-guide),
-  including access to the Agent sandbox AWS account.
+- Complete the E2E framework setup, including access to the Agent sandbox AWS
+  account.
 - Have a local checkout of the `gensim-episodes` repository. Set
   `GENSIM_REPO_PATH` to its root when it is not a sibling of this repository.
 - Build or otherwise make available the Agent image to evaluate.
