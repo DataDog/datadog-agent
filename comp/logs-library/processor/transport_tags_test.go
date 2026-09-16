@@ -110,7 +110,7 @@ func TestEncodersApplySourceFilter(t *testing.T) {
 	})
 }
 
-func TestResolveSourceTagFilterNilConfig(t *testing.T) {
+func TestResolveSourceTagFilterNilConfig(_ *testing.T) {
 	global, _ := tagfilter.Compile(nil, []string{"container_id:*"})
 
 	ResolveSourceTagFilter(global, sources.NewLogSource("nil-config", nil))
