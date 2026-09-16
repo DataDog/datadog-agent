@@ -15,7 +15,7 @@ import (
 )
 
 // Helpers
-func getKeyInMap(config map[interface{}]interface{}, key string) (interface{}, bool) {
+func getKeyInMap(config map[string]interface{}, key string) (interface{}, bool) {
 	keys := strings.Split(key, ".")
 	currentObj := config
 
@@ -25,7 +25,7 @@ func getKeyInMap(config map[interface{}]interface{}, key string) (interface{}, b
 			return nil, false
 		}
 
-		if nestedMap, isMap := value.(map[interface{}]interface{}); isMap {
+		if nestedMap, isMap := value.(map[string]interface{}); isMap {
 			currentObj = nestedMap
 		} else if idx == len(keys)-1 {
 			return value, true
@@ -37,7 +37,7 @@ func getKeyInMap(config map[interface{}]interface{}, key string) (interface{}, b
 	return currentObj, true
 }
 
-func getConfigValue(t *testing.T, config map[interface{}]interface{}, key string) interface{} {
+func getConfigValue(t *testing.T, config map[string]interface{}, key string) interface{} {
 	value, found := getKeyInMap(config, key)
 	require.True(t, found)
 
@@ -45,13 +45,13 @@ func getConfigValue(t *testing.T, config map[interface{}]interface{}, key string
 }
 
 // AssertConfigValueEqual asserts that the value in config for the given key equals expectedValue
-func AssertConfigValueEqual(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
+func AssertConfigValueEqual(t *testing.T, config map[string]interface{}, key string, expectedValue interface{}) {
 	value := getConfigValue(t, config, key)
 	assert.Equal(t, expectedValue, value)
 }
 
 // AssertConfigValueContains asserts that the value in config for the given key contains expectedValue
-func AssertConfigValueContains(t *testing.T, config map[interface{}]interface{}, key string, expectedValue interface{}) {
+func AssertConfigValueContains(t *testing.T, config map[string]interface{}, key string, expectedValue interface{}) {
 	value := getConfigValue(t, config, key)
 	assert.Contains(t, value, expectedValue)
 }

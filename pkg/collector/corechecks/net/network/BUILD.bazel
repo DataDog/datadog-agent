@@ -23,7 +23,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//net",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
@@ -35,7 +35,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//net",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
@@ -71,7 +71,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_shirou_gopsutil_v4//net",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",
