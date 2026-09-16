@@ -14,6 +14,7 @@ go_library(
         "peeridentity_darwin.go",
         "peeridentity_linux.go",
         "peeridentity_noop.go",
+        "peeridentity_other.go",
         "peeridentity_windows.go",
         "platform_darwin.go",
         "platform_nix.go",
@@ -66,6 +67,8 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/ipc/httphelpers",
+            "//pkg/config/helper",
             "//pkg/util/executable",
             "@org_golang_x_sys//cpu",
             "@org_golang_x_sys//windows",
@@ -105,6 +108,9 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/ipc/mock",
+            "//pkg/config/mock",
+            "//pkg/config/model",
             "@org_golang_x_sys//cpu",
         ],
         "//conditions:default": [],

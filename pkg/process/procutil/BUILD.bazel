@@ -19,6 +19,7 @@ go_library(
         "process_model.go",
         "process_windows.go",
         "process_windows_toolhelp.go",
+        "sid_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/procutil",
     visibility = ["//visibility:public"],
@@ -183,4 +184,19 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":procutil"],
     deps = ["@com_github_stretchr_testify//assert"],
+)
+
+dd_agent_go_test(
+    name = "sid_windows_test",
+    srcs = ["sid_windows_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

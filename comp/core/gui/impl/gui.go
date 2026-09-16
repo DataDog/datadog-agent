@@ -126,6 +126,8 @@ func NewComponent(deps Requires) Provides {
 		sysprobeConfig: deps.SysprobeConfig,
 	}
 
+	configurePeerIdentityResolution(deps.Ipc, deps.Config)
+
 	publicRouter := http.NewServeMux()
 
 	// Fetch the authentication token (persists across sessions)

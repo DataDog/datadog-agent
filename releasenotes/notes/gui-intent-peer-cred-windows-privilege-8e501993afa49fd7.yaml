@@ -15,8 +15,10 @@ security:
     process that requested it, and redemption is rejected if the redeeming
     process's identity doesn't match.
 
-    On Windows, resolving that identity across users requires the Agent's
-    service account (``ddagentuser``) to read another interactive user's
-    process token, which the account did not otherwise have permission to
-    do. The installer now grants ``ddagentuser`` the ``SeDebugPrivilege``
-    user right for this purpose.
+    On Windows, resolving that identity across users requires reading
+    another interactive user's process token, which the Agent's service
+    account (``ddagentuser``) does not otherwise have permission to do.
+    Rather than granting ``ddagentuser`` a broad user right for this,
+    the GUI now asks process-agent (which already runs with sufficient
+    privilege) to resolve the identity on its behalf over the existing
+    authenticated agent-to-agent IPC channel.

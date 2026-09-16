@@ -9,15 +9,37 @@ package guiimpl
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/bits"
 	"net"
-	"sync"
+	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
 	"golang.org/x/sys/windows"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+// sidForPIDTimeout bounds sidForPID's call to process-agent: it caps both the PID-reuse race window (the gap between the GUI reading a PID off the TCP table and process-agent resolving that PID's SID) and how long a stalled or overloaded process-agent can delay the caller. A var, not a const, so tests can shrink it instead of waiting out the real duration.
+var sidForPIDTimeout = 2 * time.Second
+
+var (
+	// processAgentIPC and processAgentConfig back sidForPID below, which asks process-agent for a PID's owning SID instead of opening the process's token directly. Set once by configurePeerIdentityResolution, called from NewComponent before the GUI's HTTP listener starts, so no synchronization is needed between that write and sidForPID's later reads.
+	processAgentIPC    ipc.Component
+	processAgentConfig pkgconfigmodel.Reader
+)
+
+// configurePeerIdentityResolution records the agent-wide IPC client and config that sidForPID needs to call process-agent.
+func configurePeerIdentityResolution(ipcComp ipc.Component, cfg pkgconfigmodel.Reader) {
+	processAgentIPC = ipcComp
+	processAgentConfig = cfg
+}
 
 // tcpTableOwnerPIDAll requests TCP_TABLE_OWNER_PID_ALL from GetExtendedTcpTable: one row per connection, each tagged with its owning PID.
 const tcpTableOwnerPIDAll = 5
@@ -169,64 +191,27 @@ func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }
 
-var (
-	enableDebugPrivilegeOnce sync.Once
-	enableDebugPrivilegeErr  error
-)
-
-// enableDebugPrivilege enables SeDebugPrivilege on this process's own token, letting sidForPID's OpenProcess bypass another user's process DACL; a no-op error if the installer hasn't granted ddagentuser the right (e.g. pre-upgrade), in which case OpenProcess below fails exactly as it did before this existed. Runs once per process, since a token's available privileges are fixed at logon and re-enabling is a wasted syscall.
-func enableDebugPrivilege() error {
-	enableDebugPrivilegeOnce.Do(func() {
-		var token windows.Token
-		if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token); err != nil {
-			enableDebugPrivilegeErr = fmt.Errorf("failed to open process token: %w", err)
-			return
-		}
-		defer token.Close()
-
-		privName, err := windows.UTF16PtrFromString("SeDebugPrivilege")
-		if err != nil {
-			enableDebugPrivilegeErr = fmt.Errorf("failed to encode SeDebugPrivilege name: %w", err)
-			return
-		}
-
-		var tp windows.Tokenprivileges
-		if err := windows.LookupPrivilegeValue(nil, privName, &tp.Privileges[0].Luid); err != nil {
-			enableDebugPrivilegeErr = fmt.Errorf("failed to look up SeDebugPrivilege LUID: %w", err)
-			return
-		}
-		tp.PrivilegeCount = 1
-		tp.Privileges[0].Attributes = windows.SE_PRIVILEGE_ENABLED
-
-		if err := windows.AdjustTokenPrivileges(token, false, &tp, 0, nil, nil); err != nil {
-			enableDebugPrivilegeErr = fmt.Errorf("failed to adjust token privileges: %w", err)
-		}
-	})
-	return enableDebugPrivilegeErr
-}
-
-// sidForPID returns pid's owning SID (skipping LookupAccount's friendly-name resolution, since only equality is needed); subject to a residual PID-reuse race (Windows exposes no atomic SID-with-connection-lookup API), accepted because winning it only grants the recycled process's own identity within a single 30s token's lifetime.
+// sidForPID asks process-agent for pid's owning SID over the agent-wide IPC mTLS client, rather than opening the process's token directly from this lower-privileged ddagentuser service. process-agent runs as LocalSystem (which already holds SeDebugPrivilege by default) and exposes GET /pid/{pid}/sid for exactly this lookup (see pkg/process/procutil.GetSIDForPID and cmd/process-agent/api/pid_windows.go), so ddagentuser no longer needs SeDebugPrivilege granted to it directly.
 func sidForPID(pid uint32) (peerIdentity, error) {
-	if err := enableDebugPrivilege(); err != nil {
-		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
+	if processAgentIPC == nil || processAgentConfig == nil {
+		return "", errors.New("peer identity resolution is not configured")
 	}
 
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	addrPort, err := pkgconfighelper.GetProcessAPIAddressPort(processAgentConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to open process %d: %w", pid, err)
+		return "", fmt.Errorf("failed to resolve process-agent address: %w", err)
 	}
-	defer windows.CloseHandle(h)
 
-	var token windows.Token
-	if err := windows.OpenProcessToken(h, windows.TOKEN_QUERY, &token); err != nil {
-		return "", fmt.Errorf("failed to open process token for pid %d: %w", pid, err)
-	}
-	defer token.Close()
-
-	tokenUser, err := token.GetTokenUser()
+	url := fmt.Sprintf("https://%s/pid/%d/sid", addrPort, pid)
+	body, err := processAgentIPC.GetClient().Get(url, ipchttp.WithLeaveConnectionOpen, ipchttp.WithTimeout(sidForPIDTimeout))
 	if err != nil {
-		return "", fmt.Errorf("failed to get token user for pid %d: %w", pid, err)
+		return "", fmt.Errorf("failed to query process-agent for pid %d's SID: %w", pid, err)
 	}
 
-	return peerIdentity(tokenUser.User.Sid.String()), nil
+	sid := strings.TrimSpace(string(body))
+	if sid == "" {
+		return "", fmt.Errorf("process-agent returned an empty SID for pid %d", pid)
+	}
+
+	return peerIdentity(sid), nil
 }

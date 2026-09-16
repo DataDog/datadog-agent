@@ -11,12 +11,21 @@ import (
 	"encoding/binary"
 	"math/bits"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/cpu"
+
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
@@ -190,4 +199,140 @@ func TestFindPID_DoesNotConfuseAddressFamilies(t *testing.T) {
 
 func TestElevatedMintIdentity_Windows(t *testing.T) {
 	assert.Equal(t, rootIdentity, mintTimeIdentity(rootIdentity))
+}
+
+// resetPeerIdentityResolution clears the package-level state configurePeerIdentityResolution writes, so
+// one test's IPC client/config never leaks into another's. These tests never run in parallel with each
+// other or with anything else that might call configurePeerIdentityResolution, since that state is
+// unsynchronized by design (see peeridentity.go).
+func resetPeerIdentityResolution(t *testing.T) {
+	t.Cleanup(func() { configurePeerIdentityResolution(nil, nil) })
+}
+
+// pointConfigAtMockServer sets the keys sidForPID actually reads (cmd_host, process_config.cmd_port) on
+// cfg from ts's real address. ipcMock.NewMockServer sets cmd_host/cmd_port on its own internal config
+// instead — a different instance and, for the port, a different key (process_config.cmd_port) than the
+// one GetProcessAPIAddressPort consults — so without this, sidForPID always dials the default port
+// (6162) rather than the mock server's actual ephemeral one.
+func pointConfigAtMockServer(t *testing.T, cfg model.BuildableConfig, ts *httptest.Server) {
+	addr, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(addr.Host)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+	cfg.SetInTest("cmd_host", host)
+	cfg.SetInTest("process_config.cmd_port", port)
+}
+
+func TestSidForPID_QueriesProcessAgent(t *testing.T) {
+	resetPeerIdentityResolution(t)
+
+	ipcMock := ipcmock.New(t)
+	cfg := configmock.New(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /pid/{pid}/sid", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "4242", r.PathValue("pid"))
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte("S-1-5-21-3623811015-3361044348-30300820-1013\n"))
+	})
+	ts := ipcMock.NewMockServer(mux)
+	pointConfigAtMockServer(t, cfg, ts)
+
+	configurePeerIdentityResolution(ipcMock, cfg)
+
+	id, err := sidForPID(4242)
+	require.NoError(t, err)
+	// The handler's trailing newline (defensive on the caller's part; the real handler never adds one)
+	// must be trimmed, not folded into the returned identity.
+	assert.Equal(t, peerIdentity("S-1-5-21-3623811015-3361044348-30300820-1013"), id)
+}
+
+func TestSidForPID_NotConfigured(t *testing.T) {
+	resetPeerIdentityResolution(t)
+	// No configurePeerIdentityResolution call: sidForPID must fail closed (empty identity, non-nil error)
+	// rather than panic on the nil processAgentIPC/processAgentConfig.
+	configurePeerIdentityResolution(nil, nil)
+
+	id, err := sidForPID(1234)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not configured")
+	assert.Equal(t, peerIdentity(""), id)
+}
+
+func TestSidForPID_ErrorFromProcessAgent(t *testing.T) {
+	resetPeerIdentityResolution(t)
+
+	ipcMock := ipcmock.New(t)
+	cfg := configmock.New(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /pid/{pid}/sid", func(w http.ResponseWriter, _ *http.Request) {
+		// Simulate process-agent classifying the pid as not found (see cmd/process-agent/api/pid_windows.go).
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := ipcMock.NewMockServer(mux)
+	pointConfigAtMockServer(t, cfg, ts)
+
+	configurePeerIdentityResolution(ipcMock, cfg)
+
+	id, err := sidForPID(4242)
+	require.Error(t, err)
+	// A non-2xx response must surface as a Go error, not panic, and must not leave id holding a partial
+	// or garbage value.
+	assert.Contains(t, err.Error(), "status code: 404")
+	assert.Equal(t, peerIdentity(""), id)
+}
+
+func TestSidForPID_ProcessAgentUnreachable(t *testing.T) {
+	resetPeerIdentityResolution(t)
+
+	ipcMock := ipcmock.New(t)
+	cfg := configmock.New(t)
+
+	// Start a mock server (so we get a real, briefly-bound loopback address), then close it immediately:
+	// this reliably reproduces "process-agent isn't running" (connection refused) against the exact port
+	// sidForPID will dial, without racing another process for that port for longer than necessary.
+	ts := ipcMock.NewMockServer(http.NewServeMux())
+	pointConfigAtMockServer(t, cfg, ts)
+	ts.Close()
+
+	configurePeerIdentityResolution(ipcMock, cfg)
+
+	id, err := sidForPID(4242)
+	require.Error(t, err)
+	// Caller (resolvePeerIdentity/lookupLoopbackPeerIdentity) must see a plain error and an empty
+	// identity here too, so it fails closed exactly as it would for any other resolution failure.
+	assert.Equal(t, peerIdentity(""), id)
+}
+
+func TestSidForPID_TimesOut(t *testing.T) {
+	resetPeerIdentityResolution(t)
+
+	originalTimeout := sidForPIDTimeout
+	sidForPIDTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { sidForPIDTimeout = originalTimeout })
+
+	ipcMock := ipcmock.New(t)
+	cfg := configmock.New(t)
+
+	blockUntilTestEnds := make(chan struct{})
+	t.Cleanup(func() { close(blockUntilTestEnds) })
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /pid/{pid}/sid", func(_ http.ResponseWriter, r *http.Request) {
+		// A handler that never responds must not be able to block sidForPID beyond sidForPIDTimeout.
+		select {
+		case <-blockUntilTestEnds:
+		case <-r.Context().Done():
+		}
+	})
+	ts := ipcMock.NewMockServer(mux)
+	pointConfigAtMockServer(t, cfg, ts)
+
+	configurePeerIdentityResolution(ipcMock, cfg)
+
+	id, err := sidForPID(4242)
+	require.Error(t, err)
+	assert.Equal(t, peerIdentity(""), id)
 }
