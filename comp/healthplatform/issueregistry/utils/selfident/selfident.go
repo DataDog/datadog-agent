@@ -49,6 +49,7 @@ type SelfIdent struct {
 	clock clock.Clock
 
 	clusterIDResolveOnce sync.Once
+	clusterIDReady       chan struct{}
 	clusterID            atomic.Pointer[string]
 }
 
@@ -62,12 +63,14 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		resolveRetries:    defaultResolveRetries,
 		resolveRetryDelay: defaultResolveRetryDelay,
 		clock:             clock.New(),
+		clusterIDReady:    make(chan struct{}),
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
 		s.deploymentID.Store(&empty)
 		s.clusterIDResolveOnce.Do(func() {})
 		s.clusterID.Store(&empty)
+		close(s.clusterIDReady)
 	}
 	return s
 }
@@ -126,22 +129,33 @@ func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
 	})
-	for attempt := 0; ; attempt++ {
-		if id := s.clusterID.Load(); id != nil {
-			return *id
-		}
-		if attempt >= s.resolveRetries {
-			return ""
-		}
-		s.clock.Sleep(s.resolveRetryDelay)
+	// Fast path: once settled, avoid select/After's per-call timer
+	// allocation and return straight from the atomic load, as documented.
+	if id := s.clusterID.Load(); id != nil {
+		return *id
 	}
+	select {
+	case <-s.clusterIDReady:
+	case <-s.clock.After(time.Duration(s.resolveRetries) * s.resolveRetryDelay):
+		// resolveClusterID is still retrying; give up on this call rather
+		// than block indefinitely. It keeps running and will close
+		// clusterIDReady once it settles, for later callers to benefit from.
+	}
+	if id := s.clusterID.Load(); id != nil {
+		return *id
+	}
+	return ""
 }
 
 // resolveClusterID retries clustername.GetClusterID() a bounded number of
 // times (clustername caches a successful result process-wide, so retries
 // here only matter while the Cluster Agent hasn't answered yet) before
-// giving up and caching empty for the process lifetime.
+// giving up and caching empty for the process lifetime. clusterIDReady is
+// closed exactly once resolution has settled (found or given up), which is
+// the single signal ClusterID() callers wait on — replacing what used to be
+// two independently-timed polling loops racing the same clock.
 func (s *SelfIdent) resolveClusterID() {
+	defer close(s.clusterIDReady)
 	for attempt := 0; ; attempt++ {
 		id, err := clustername.GetClusterID()
 		if err == nil {
