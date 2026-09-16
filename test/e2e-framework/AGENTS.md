@@ -190,6 +190,9 @@ When that's not enough, common advanced patterns:
 - **`s.UpdateEnv(provisioner)`** — re-provision the agent mid-suite (e.g., change
   config, toggle features) without destroying the underlying infra. Widely used
   but error-prone; may be removed in the future.
+- **`kindvm.WithPreAgentWorkloadApp(app)`** — deploy Kubernetes resources such
+  as CRDs before the Agent. Use it when Agent startup discovery must observe the
+  resource; it cannot be combined with a standalone OTel Agent deployment.
 
 ### Useful suite options
 
