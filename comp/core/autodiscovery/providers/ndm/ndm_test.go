@@ -7,8 +7,6 @@ package ndm
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +16,6 @@ import (
 	ndmsnmp "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/snmp"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -34,7 +31,13 @@ const backendDocument = `{
 }`
 
 func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
-	cfg := credentialsConfig(t)
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+`)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -69,7 +72,13 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 }
 
 func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *testing.T) {
-	cfg := credentialsConfig(t)
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+`)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -99,7 +108,13 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 }
 
 func TestRemovingTheDocumentUnschedulesEveryDevice(t *testing.T) {
-	cfg := credentialsConfig(t)
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+`)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -120,7 +135,13 @@ func TestRemovingTheDocumentUnschedulesEveryDevice(t *testing.T) {
 }
 
 func TestARepeatedIdenticalDocumentEmitsNothing(t *testing.T) {
-	cfg := credentialsConfig(t)
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+`)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -139,7 +160,13 @@ func TestARepeatedIdenticalDocumentEmitsNothing(t *testing.T) {
 }
 
 func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *testing.T) {
-	cfg := credentialsConfig(t)
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+`)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -163,23 +190,4 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 
 	errs := p.GetConfigErrors()
 	require.Contains(t, errs, path)
-}
-
-// credentialsConfig returns a config whose conf_path holds the credential
-// file the delivered instances reference, at the path Fleet Automation writes.
-func credentialsConfig(t *testing.T) model.BuildableConfig {
-	t.Helper()
-
-	confPath := t.TempDir()
-	path := filepath.Join(confPath, "snmp_credentials.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(`
-credentials:
-  - id: cred-abc
-    snmp_version: "2c"
-    community_string: public
-`), 0o600))
-
-	cfg := configmock.New(t)
-	cfg.Set("conf_path", confPath, model.SourceAgentRuntime)
-	return cfg
 }

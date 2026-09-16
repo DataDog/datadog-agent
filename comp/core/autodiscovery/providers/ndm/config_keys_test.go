@@ -22,5 +22,7 @@ func TestRemoteConfigKeysAreDeclaredAndDefaultOff(t *testing.T) {
 	cfg := configmock.New(t)
 
 	assert.False(t, cfg.GetBool("network_devices.remote_config.enabled"))
+	assert.Empty(t, cfg.GetStringSlice("network_devices.snmp_credentials"))
 	assert.True(t, cfg.IsKnown("network_devices.remote_config.enabled"))
+	assert.True(t, cfg.IsKnown("network_devices.snmp_credentials"))
 }
