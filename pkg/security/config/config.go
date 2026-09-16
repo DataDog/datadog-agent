@@ -450,21 +450,6 @@ type RuntimeSecurityConfig struct {
 	// default_value: 40
 	EventSamplingConnectThreshold int
 
-	// description: EventSamplingBindEnabled defines if the agent should sample bind events
-	// visibility: private
-	// default_value: false
-	EventSamplingBindEnabled bool
-
-	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
-	// visibility: private
-	// default_value: 500
-	EventSamplingBindRate int
-
-	// description: EventSamplingBindThreshold defines the ring buffer pressure percentage below which bind events are always admitted when dynamic sampling is enabled
-	// visibility: private
-	// default_value: 60
-	EventSamplingBindThreshold int
-
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
 	// default_value: false
@@ -1012,9 +997,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
 		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
 		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
-		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -1104,7 +1086,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	if rsConfig.SecurityProfileV2Enabled {
 		rsConfig.EventSamplingOpenEnabled = true
 		rsConfig.EventSamplingConnectEnabled = true
-		rsConfig.EventSamplingBindEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -1202,7 +1183,6 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
-		{"bind", c.EventSamplingBindThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
