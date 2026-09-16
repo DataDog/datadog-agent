@@ -15,7 +15,6 @@ TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/goware/modvendor',
-    'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',

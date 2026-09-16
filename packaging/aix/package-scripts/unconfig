@@ -13,6 +13,8 @@ while [ $i -lt 30 ]; do
 done
 # Drain all accumulated SRC definitions (upgrades can leave duplicates).
 # rmssys removes one entry at a time; loop until it finds nothing left.
+# Note: no separate group cleanup is needed — an SRC group is only a label
+# (grpname) on each subsystem's ODM record, so it disappears with its members.
 while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done

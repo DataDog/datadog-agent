@@ -1,7 +1,6 @@
 """Agent assets - typically configuration files that ship with the product."""
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
@@ -28,13 +27,6 @@ pkg_filegroup(
     visibility = ["//packages/agent:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)
-
 pkg_files(
     name = "python_files",
     srcs = [
@@ -54,13 +46,6 @@ pkg_filegroup(
     visibility = [
         "//cmd/agent:__subpackages__",
         "//packages/agent:__subpackages__",
-    ],
-)
-
-pkg_install(
-    name = "python_install",
-    srcs = [
-        ":all_python_files",
     ],
 )
 

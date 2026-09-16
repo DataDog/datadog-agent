@@ -4,6 +4,8 @@ datadog:
   orchestratorExplorer:
     customResources:
       - datadoghq.com/v1alpha1/datadogmetrics
+      # Grant RBAC without adding KubeAI to the custom orchestrator config below.
+      - kubeai.org/v1/models
 agents:
   useHostNetwork: true
 

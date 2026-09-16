@@ -40,7 +40,6 @@ rust_shared_library(
         "@crates//:postgres",
         "@crates//:prost",
         "@crates//:serde",
-        "@crates//:serde_json",
     ],
 )
 
