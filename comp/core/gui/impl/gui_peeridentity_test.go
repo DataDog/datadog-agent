@@ -20,8 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setupPeerIdentityResolutionForTest wires up whatever this platform's lookupLoopbackPeerIdentity needs
+// to resolve a real loopback connection to a real, non-empty identity. No-op by default, since most
+// platforms resolve directly via syscalls with nothing to configure; overridden by init() in
+// peeridentity_windows_test.go, where sidForPID requires a configured process-agent IPC client.
+var setupPeerIdentityResolutionForTest = func(_ *testing.T) {}
+
 // Test_intentToken_peerIdentity exercises peer-identity binding through real loopback TCP connections (unlike httptest.NewRequest's synthetic RemoteAddr), so mint/redeem go through the real, platform-specific lookupLoopbackPeerIdentity; restricted to platforms that implement it, since the peeridentity_noop.go fallback (e.g. AIX) always returns an empty identity by design.
 func Test_intentToken_peerIdentity(t *testing.T) {
+	setupPeerIdentityResolutionForTest(t)
+
 	g := &gui{
 		auth:         newAuthenticator("test-auth-token", time.Hour),
 		intentTokens: make(map[string]intentTokenRecord),

@@ -33,6 +33,34 @@ var (
 	loopbackV6 = net.ParseIP("::1")
 )
 
+// testProcessAgentSID is an arbitrary well-formed SID a mock process-agent hands back for any pid
+// asked about by setupPeerIdentityResolutionForTest below; the real pid queried is always this test
+// binary's own (both ends of the loopback connection run in the same process), but the test only needs
+// to know that a real HTTP round trip through sidForPID resolved to a non-empty identity.
+const testProcessAgentSID = "S-1-5-21-3623811015-3361044348-30300820-1013"
+
+func init() {
+	// On Windows, sidForPID requires a configured process-agent IPC client (see peeridentity_windows.go);
+	// without this, Test_intentToken_peerIdentity's "same OS identity" subtest would always resolve to an
+	// empty identity, since minting always goes through a real loopback connection.
+	setupPeerIdentityResolutionForTest = func(t *testing.T) {
+		resetPeerIdentityResolution(t)
+
+		ipcMock := ipcmock.New(t)
+		cfg := configmock.New(t)
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /pid/{pid}/sid", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Write([]byte(testProcessAgentSID))
+		})
+		ts := ipcMock.NewMockServer(mux)
+		pointConfigAtMockServer(t, cfg, ts)
+
+		configurePeerIdentityResolution(ipcMock, cfg)
+	}
+}
+
 // portToField is the inverse of portFromField, used to build fixtures.
 func portToField(port uint16) uint32 {
 	if cpu.IsBigEndian {
@@ -210,10 +238,11 @@ func resetPeerIdentityResolution(t *testing.T) {
 }
 
 // pointConfigAtMockServer sets the keys sidForPID actually reads (cmd_host, process_config.cmd_port) on
-// cfg from ts's real address. ipcMock.NewMockServer sets cmd_host/cmd_port on its own internal config
-// instead — a different instance and, for the port, a different key (process_config.cmd_port) than the
-// one GetProcessAPIAddressPort consults — so without this, sidForPID always dials the default port
-// (6162) rather than the mock server's actual ephemeral one.
+// cfg from ts's real address. cfg and ipcMock's internal config are the same underlying instance
+// (pkg/config/mock.New is a singleton within a test), so ipcMock.NewMockServer's cmd_host write already
+// lands on cfg; the one gap this closes is the port key: NewMockServer sets plain cmd_port, but
+// GetProcessAPIAddressPort reads process_config.cmd_port, so without this, sidForPID always dials the
+// default port (6162) rather than the mock server's actual ephemeral one.
 func pointConfigAtMockServer(t *testing.T, cfg model.BuildableConfig, ts *httptest.Server) {
 	addr, err := url.Parse(ts.URL)
 	require.NoError(t, err)
