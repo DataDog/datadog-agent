@@ -121,14 +121,11 @@ type logAgent struct {
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
 
-	// held until status.Init has allocated the warning map
 	tagFilterReport tagfilter.Report
-	// compiled global filter, read by the eager tag-filter subscriber
-	tagFilters *tagfilter.Filters
+	tagFilters      *tagfilter.Filters
 	// tag filters are immutable configuration and compile once, including across
 	// transport-only pipeline restarts
-	tagFiltersConfigured bool
-	// closed in stop to release the eager tag-filter subscriber
+	tagFiltersConfigured    bool
 	tagFilterSubscriberDone chan struct{}
 
 	// make sure this is done only once, when we're ready
@@ -243,7 +240,6 @@ func (a *logAgent) setupAgent() error {
 	return nil
 }
 
-// reportTagFilterWarnings restores tag-filter warnings after status initialization.
 func (a *logAgent) reportTagFilterWarnings() {
 	for i, warning := range a.tagFilterReport.Warnings {
 		status.AddGlobalWarning(fmt.Sprintf("%s_warning_%d", invalidTagFilters, i), warning)

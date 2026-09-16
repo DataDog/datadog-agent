@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 
-	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -41,7 +40,7 @@ func TestRawEncoder(t *testing.T) {
 	msg.Origin.SetTags([]string{"a", "b:c"})
 	msg.SetContent([]byte("redacted"))
 
-	err := RawEncoder.Encode(msg, "unknown", nil)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -69,7 +68,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered
-	err := RawEncoder.Encode(msg, "unknown", nil)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -97,7 +96,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered // we can only encode rendered message
-	err := RawEncoder.Encode(msg, "unknown", nil)
+	err := RawEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 	assert.Equal(t, rawMessage, string(msg.GetContent()))
 
@@ -127,7 +126,7 @@ func TestProtoEncoder(t *testing.T) {
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a", "b:c"})
 
-	err := ProtoEncoder.Encode(msg, "unknown", nil)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -158,7 +157,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	msg := newMessage([]byte(rawMessage), source, "")
 	msg.State = message.StateRendered // we can only encode rendered message
 
-	err := ProtoEncoder.Encode(msg, "unknown", nil)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -182,7 +181,7 @@ func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	src := sources.NewLogSource("", cfg)
 	msg := newMessage([]byte("a\xfez"), src, "")
 	msg.State = message.StateRendered
-	err := ProtoEncoder.Encode(msg, "unknown", nil)
+	err := ProtoEncoder.Encode(msg, "unknown")
 	assert.NotNil(t, msg.GetContent())
 	assert.Nil(t, err)
 }
@@ -216,7 +215,7 @@ func TestJsonEncoder(t *testing.T) {
 		msg.Origin.SetTags([]string{"a", "b:c"})
 		assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
 
-		err := JSONEncoder.Encode(msg, "unknown", nil)
+		err := JSONEncoder.Encode(msg, "unknown")
 		assert.Nil(t, err)
 
 		log := &payload{}
@@ -247,7 +246,7 @@ func TestJsonEncoder(t *testing.T) {
 		msg.Origin.SetTags([]string{"a", "b:c"})
 		assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
 
-		err := JSONEncoder.Encode(msg, "unknown", nil)
+		err := JSONEncoder.Encode(msg, "unknown")
 		assert.Nil(t, err)
 
 		log := &payload{}
@@ -287,7 +286,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			var payload struct {
@@ -307,7 +306,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			var payload struct {
@@ -329,7 +328,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			log := &pb.Log{}
@@ -346,7 +345,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			log := &pb.Log{}
@@ -365,7 +364,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			parts := strings.Fields(string(msg.GetContent()))
@@ -381,7 +380,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = containerTS
 
-			err := encoder.Encode(msg, "unknown", nil)
+			err := encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			parts := strings.Fields(string(msg.GetContent()))
@@ -401,7 +400,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			msg.Origin.LogSource = source
 			msg.ParsingExtra.Timestamp = offsetTS
 
-			err = encoder.Encode(msg, "unknown", nil)
+			err = encoder.Encode(msg, "unknown")
 			assert.NoError(t, err)
 
 			parts := strings.Fields(string(msg.GetContent()))
@@ -435,26 +434,9 @@ func TestPassthroughEncoder(t *testing.T) {
 	msg := newMessage(content, source, message.StatusInfo)
 	msg.State = message.StateRendered
 
-	err := PassthroughEncoder.Encode(msg, "any-host", nil)
+	err := PassthroughEncoder.Encode(msg, "any-host")
 	assert.Nil(t, err)
 	assert.Equal(t, "hello world", string(msg.GetContent()))
-}
-
-// Anomaly detection shares the origin's tags with the logs pipeline, so a
-// filter reaching this encoder must still not narrow what it observes.
-func TestPassthroughEncoderIgnoresFilter(t *testing.T) {
-	logsConfig := &config.LogsConfig{Source: "a", Tags: []string{"drop:me", "keep:me"}}
-	source := sources.NewLogSource("", logsConfig)
-
-	msg := newMessage([]byte("hello world"), source, message.StatusInfo)
-	msg.State = message.StateRendered
-
-	filter, _ := tagfilter.Compile(nil, []string{"drop:*"})
-	err := PassthroughEncoder.Encode(msg, "any-host", filter)
-
-	assert.Nil(t, err)
-	assert.Equal(t, "hello world", string(msg.GetContent()))
-	assert.Equal(t, []string{"drop:me", "keep:me"}, msg.Origin.Tags())
 }
 
 func TestJSONServerlessInitEncoder(t *testing.T) {
@@ -481,7 +463,7 @@ func TestJSONServerlessInitEncoder(t *testing.T) {
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"env:prod", "region:us-east-1"})
 
-	err := JSONServerlessInitEncoder.Encode(msg, "myhost", nil)
+	err := JSONServerlessInitEncoder.Encode(msg, "myhost")
 	assert.NoError(t, err)
 
 	var log payload
@@ -508,7 +490,7 @@ func TestJSONServerlessInitEncoder_CachesTagsOnFirstUse(t *testing.T) {
 	msg1.State = message.StateRendered
 	msg1.Origin.LogSource = source
 	msg1.Origin.SetTags([]string{"env:prod"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg1, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg1, "host"))
 
 	// Second message has different origin tags — without invalidation the
 	// encoder reuses the cached string from the first message.
@@ -516,7 +498,7 @@ func TestJSONServerlessInitEncoder_CachesTagsOnFirstUse(t *testing.T) {
 	msg2.State = message.StateRendered
 	msg2.Origin.LogSource = source
 	msg2.Origin.SetTags([]string{"env:prod", "microvm_id:vm-abc"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host"))
 
 	type payload struct {
 		Tags string `json:"ddtags"`
@@ -550,7 +532,7 @@ func TestSetServerlessInitTagCache_UpdatesTagsImmediately(t *testing.T) {
 	preLaunch.State = message.StateRendered
 	preLaunch.Origin.LogSource = source
 	preLaunch.Origin.SetTags([]string{"env:prod", "account_id:123"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(preLaunch, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(preLaunch, "host"))
 
 	// /launch fires: SetLogsTags updates ChannelTags, then sets the cache to
 	// the new tag string (the fix: set instead of clear).
@@ -562,7 +544,7 @@ func TestSetServerlessInitTagCache_UpdatesTagsImmediately(t *testing.T) {
 	postLaunch.State = message.StateRendered
 	postLaunch.Origin.LogSource = source
 	postLaunch.Origin.SetTags(newTags)
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(postLaunch, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(postLaunch, "host"))
 
 	type payload struct {
 		Tags string `json:"ddtags"`
@@ -598,7 +580,7 @@ func TestSetServerlessInitTagCache_StalePreLaunchMessageCannotReprime(t *testing
 	preLaunch.State = message.StateRendered
 	preLaunch.Origin.LogSource = source
 	preLaunch.Origin.SetTags([]string{"env:prod", "account_id:123"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(preLaunch, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(preLaunch, "host"))
 
 	// /launch fires: cache is set to the new tag string.
 	newTags := []string{"env:prod", "account_id:123", "lambda_microvm_id:vm-xyz"}
@@ -610,14 +592,14 @@ func TestSetServerlessInitTagCache_StalePreLaunchMessageCannotReprime(t *testing
 	stale.State = message.StateRendered
 	stale.Origin.LogSource = source
 	stale.Origin.SetTags([]string{"env:prod", "account_id:123"}) // old tags, no microvm_id
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(stale, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(stale, "host"))
 
 	// A fresh post-launch message follows.
 	fresh := newMessage([]byte("user app log"), source, message.StatusInfo)
 	fresh.State = message.StateRendered
 	fresh.Origin.LogSource = source
 	fresh.Origin.SetTags(newTags)
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(fresh, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(fresh, "host"))
 
 	type payload struct {
 		Tags string `json:"ddtags"`
@@ -652,7 +634,7 @@ func TestSetServerlessInitTagCache_IdempotentOnRepeat(t *testing.T) {
 	msg.State = message.StateRendered
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"k:v"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
 
 	// Multiple successive calls with new tags — last call wins.
 	SetServerlessInitTagCache([]string{"k:v", "new:tag"})
@@ -662,7 +644,7 @@ func TestSetServerlessInitTagCache_IdempotentOnRepeat(t *testing.T) {
 	msg2.State = message.StateRendered
 	msg2.Origin.LogSource = source
 	msg2.Origin.SetTags([]string{"k:v", "new:tag"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host"))
 
 	type payload struct {
 		Tags string `json:"ddtags"`
@@ -683,7 +665,7 @@ func TestJSONServerlessInitEncoder_ReturnsErrorForUnrenderedMessage(t *testing.T
 	msg := newMessage([]byte("raw"), source, message.StatusInfo)
 	// msg.State is StateUnstructured by default — not rendered.
 
-	err := JSONServerlessInitEncoder.Encode(msg, "host", nil)
+	err := JSONServerlessInitEncoder.Encode(msg, "host")
 	assert.Error(t, err, "encoding an unrendered message must return an error")
 }
 
@@ -703,7 +685,7 @@ func TestJSONServerlessInitEncoder_UsesServerlessTimestampWhenSet(t *testing.T) 
 	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 	msg.ServerlessExtra.Timestamp = fixedTime
 
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
 
 	type payload struct {
 		Timestamp int64 `json:"timestamp"`
@@ -730,7 +712,7 @@ func TestSetServerlessInitTagCache_ResetCausesRederive(t *testing.T) {
 	msg1.State = message.StateRendered
 	msg1.Origin.LogSource = source
 	msg1.Origin.SetTags([]string{"origin:tag"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg1, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg1, "host"))
 
 	// Reset: cache returns to nil; next Encode re-derives from the message.
 	SetServerlessInitTagCache(nil)
@@ -739,7 +721,7 @@ func TestSetServerlessInitTagCache_ResetCausesRederive(t *testing.T) {
 	msg2.State = message.StateRendered
 	msg2.Origin.LogSource = source
 	msg2.Origin.SetTags([]string{"new:tag"})
-	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host", nil))
+	assert.NoError(t, JSONServerlessInitEncoder.Encode(msg2, "host"))
 
 	type payload struct {
 		Tags string `json:"ddtags"`
@@ -823,7 +805,7 @@ func TestJSONServerlessInitEncoder_ConcurrentSafety(t *testing.T) {
 				msg.Origin.LogSource = source
 				msg.Origin.SetTags([]string{"env:prod"})
 
-				assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host", nil))
+				assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
 				assert.True(t, json.Valid(msg.GetContent()), "encoded payload must be valid JSON")
 			}
 		}()
@@ -853,7 +835,7 @@ func BenchmarkJSONEncoder_Encode(b *testing.B) {
 			msg.Origin.LogSource = source
 			msg.Origin.SetTags([]string{"a", "b:c"})
 
-			assert.Nil(b, JSONEncoder.Encode(msg, "unknown", nil))
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
 		}
 	})
 
@@ -869,7 +851,7 @@ func BenchmarkJSONEncoder_Encode(b *testing.B) {
 			msg.Origin.LogSource = source
 			msg.Origin.SetTags([]string{"a", "b:c"})
 
-			assert.Nil(b, JSONEncoder.Encode(msg, "unknown", nil))
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
 		}
 	})
 }

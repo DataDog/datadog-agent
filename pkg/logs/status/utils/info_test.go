@@ -34,7 +34,6 @@ func TestInfoRegistryReplace(t *testing.T) {
 	assert.Equal(t, "10", all[0].Info()[0])
 }
 
-// fakeVerboseInfo is a minimal VerboseInfoProvider for exercising RenderedVerbose.
 type fakeVerboseInfo struct {
 	key  string
 	info []string

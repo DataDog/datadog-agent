@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // JSONServerlessInitEncoder is a custom encoder used by serverless-init
@@ -78,9 +77,8 @@ type jsonServerlessInitPayload struct {
 	Tags      string         `json:"ddtags"`
 }
 
-// Encode encodes a message into a JSON byte array. The tag filter is ignored:
-// serverless-init tags are never filtered.
-func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string, _ sources.TagFilter) error {
+// Encode encodes a message into a JSON byte array.
+func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
 		return errors.New("message passed to encoder isn't rendered")
 	}

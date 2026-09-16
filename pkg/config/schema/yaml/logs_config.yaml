@@ -813,20 +813,19 @@ properties:
         items:
           type: string
     description: |-
-      Remove matching tags from logs before they are sent to the intake. Each pattern uses
-      "key:value" syntax. Keys do not support wildcards, and "*" in a value matches zero or
-      more characters. Matching is case-insensitive for ASCII letters; non-ASCII characters
-      are compared exactly. Exclude patterns remove matching tags, while include patterns
-      preserve them. The source, service, host, hostname, env, and version tags cannot be
-      removed. Rules are evaluated in this order: protected tags, per-source include,
-      per-source exclude, global include, global exclude, then retain by default. Add
-      "tag_filters" to an integration's log configuration to apply per-source filters.
+      Filter tags from logs before sending them to Datadog. Each pattern must use "key:value"
+      syntax. Keys are matched exactly; values may contain "*" to match zero or more characters.
+      Matching ignores ASCII letter case. Exclude removes matching tags, while include preserves
+      exceptions to exclusions. Per-source filters override global filters. Excluding source,
+      service, or host logs a warning because those attributes are sent separately and remain.
     example: |2-
 
-        include:
-          - "kube_namespace:kube-system"
         exclude:
           - "container_id:*"
+          - "kube_namespace:*"
+        include:
+          # Keep namespace tags for production workloads.
+          - "kube_namespace:production-*"
   tag_multi_line_logs:
     node_type: setting
     type: boolean

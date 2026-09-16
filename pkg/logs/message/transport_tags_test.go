@@ -42,8 +42,9 @@ func TestTransportTagsFiltersWithoutChangingStoredTags(t *testing.T) {
 	source := sources.NewLogSource("", cfg)
 	origin := NewOrigin(source)
 	origin.SetTags([]string{"foo:bar", "baz"})
+	source.SetTagFilterIfUnset(&fakeTagFilter{drop: map[string]bool{"foo": true}})
 
-	filtered := origin.TransportTags(&fakeTagFilter{drop: map[string]bool{"foo": true}})
+	filtered := origin.TransportTags()
 
 	assert.Equal(t, []string{"baz", "sourcecategory:cat", "cfg:tag", "e"}, filtered)
 	assert.Equal(t, []string{"foo:bar", "baz", "sourcecategory:cat", "cfg:tag", "e"}, origin.Tags())

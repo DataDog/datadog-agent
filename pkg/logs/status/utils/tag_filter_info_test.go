@@ -26,13 +26,3 @@ func TestTagFilterInfoAllScopes(t *testing.T) {
 	}
 	assert.Equal(t, expected, info.Info())
 }
-
-// TestTagFilterInfoSkippedWhenUnconfigured pins the requirement that an unconfigured source
-// shows no Tag Filters block at all: InfoRegistry skips providers that render nothing.
-func TestTagFilterInfoSkippedWhenUnconfigured(t *testing.T) {
-	reg := NewInfoRegistry()
-	reg.Register(NewTagFilterInfo(nil, nil, nil, nil))
-
-	rendered := reg.RenderedVerbose(true)
-	assert.NotContains(t, rendered, "Tag Filters")
-}

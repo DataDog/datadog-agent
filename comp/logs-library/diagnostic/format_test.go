@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// dropKeyFilter drops any tag whose key is in drop.
 type dropKeyFilter struct {
 	drop map[string]bool
 }
@@ -35,33 +34,18 @@ func (f *dropKeyFilter) RetainsTag(key, _ string) bool {
 	return !f.drop[key]
 }
 
-func formatTestMessage(t *testing.T) *message.Message {
-	t.Helper()
-	src := sources.NewLogSource("test", &config.LogsConfig{
-		Type: config.FileType,
-		Tags: []string{"env:prod"},
-	})
-	origin := message.NewOrigin(src)
-	origin.SetTags([]string{"container_id:deadbeef", "team:infra"})
-	return message.NewMessage([]byte("hello"), origin, message.StatusInfo, 0)
-}
-
-func tagsField(t *testing.T, formatted string) string {
-	t.Helper()
-	_, after, found := strings.Cut(formatted, "| Tags: ")
-	assert.True(t, found, "formatted output has no Tags field: %s", formatted)
-	before, _, _ := strings.Cut(after, " | Message:")
-	return before
-}
-
-// TestFormatShowsTransportTags verifies stream-logs displays the outgoing tags.
 func TestFormatShowsTransportTags(t *testing.T) {
 	f := &logFormatter{hostname: getNewHostname("hostname")}
-	msg := formatTestMessage(t)
+	src := sources.NewLogSource("test", &config.LogsConfig{Type: config.FileType, Tags: []string{"env:prod"}})
+	origin := message.NewOrigin(src)
+	origin.SetTags([]string{"container_id:deadbeef", "team:infra"})
+	msg := message.NewMessage([]byte("hello"), origin, message.StatusInfo, 0)
 	filter := &dropKeyFilter{drop: map[string]bool{"container_id": true}}
 	msg.Origin.LogSource.SetTagFilterIfUnset(filter)
 
-	got := tagsField(t, f.Format(msg, "", msg.GetContent()))
+	_, after, found := strings.Cut(f.Format(msg, "", msg.GetContent()), "| Tags: ")
+	assert.True(t, found)
+	got, _, _ := strings.Cut(after, " | Message:")
 
 	assert.NotContains(t, got, "container_id")
 	assert.Contains(t, got, "team:infra")

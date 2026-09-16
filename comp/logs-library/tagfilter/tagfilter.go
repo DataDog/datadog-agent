@@ -12,9 +12,6 @@ import (
 	"strings"
 )
 
-// Keys that can never be removed, whatever the configuration says.
-var protectedKeys = []string{"source", "service", "host", "hostname", "env", "version"}
-
 // RejectedPattern is a pattern that failed to compile, with an actionable reason.
 type RejectedPattern struct {
 	Pattern string
@@ -38,34 +35,14 @@ func (p Patterns) IsEmpty() bool {
 	return len(p.Include) == 0 && len(p.Exclude) == 0
 }
 
-// maxBucketedKeyLen bounds the bucket array so a pathological configured key
-// cannot size an allocation. Rule keys longer than this go in long.
-const maxBucketedKeyLen = 32
-
 // Filters is a compiled set of include and exclude patterns for one scope.
 type Filters struct {
-	// byLen indexes key rules by key length, so most lookups miss on an empty
-	// bucket. Length is min(maxKeyLen, maxBucketedKeyLen) + 1.
-	byLen [][]keyEntry
-	// long holds rule keys longer than maxBucketedKeyLen. Normally nil.
-	long []keyEntry
-	// maxKeyLen is the true longest rule key, including long ones.
-	maxKeyLen           int
-	hasEffectiveExclude bool
-	patterns            Patterns
-}
-
-// keyEntry is one literal rule key. key is ASCII-folded; first is key[0],
-// folded, so a candidate is rejected on one byte compare.
-type keyEntry struct {
-	key   string
-	first byte
-	rules *keyRules
+	byKey    map[string]*keyRules
+	patterns Patterns
 }
 
 // keyRules holds every rule that applies to one literal tag key.
 type keyRules struct {
-	protected   bool
 	includeAny  bool
 	includeVals []valueGlob
 	excludeAny  bool
@@ -80,47 +57,15 @@ type valueGlob struct {
 // Compile builds a filter, dropping and reporting invalid patterns instead of
 // failing the full configuration.
 func Compile(include, exclude []string) (*Filters, Report) {
-	// Accumulate in a map, then discard it for length buckets once every
-	// pattern is in; compilation is not on any hot path.
-	byKey := make(map[string]*keyRules, len(protectedKeys))
-	for _, key := range protectedKeys {
-		byKey[key] = &keyRules{protected: true}
-	}
+	byKey := make(map[string]*keyRules)
 
 	var report Report
-	f := &Filters{}
+	f := &Filters{byKey: byKey}
 	f.patterns = Patterns{
 		Include: compileList(byKey, include, false, &report),
 		Exclude: compileList(byKey, exclude, true, &report),
 	}
-	for _, rules := range byKey {
-		if !rules.protected && (rules.excludeAny || len(rules.excludeVals) > 0) {
-			f.hasEffectiveExclude = true
-			break
-		}
-	}
-	f.buildBuckets(byKey)
 	return f, report
-}
-
-// buildBuckets materializes the length-indexed lookup structure from the
-// accumulated rules.
-func (f *Filters) buildBuckets(byKey map[string]*keyRules) {
-	for key := range byKey {
-		if len(key) > f.maxKeyLen {
-			f.maxKeyLen = len(key)
-		}
-	}
-	// Cap the array because user-configured keys have no length limit.
-	f.byLen = make([][]keyEntry, min(f.maxKeyLen, maxBucketedKeyLen)+1)
-	for key, rules := range byKey {
-		e := keyEntry{key: key, first: key[0], rules: rules}
-		if len(key) <= maxBucketedKeyLen {
-			f.byLen[len(key)] = append(f.byLen[len(key)], e)
-		} else {
-			f.long = append(f.long, e)
-		}
-	}
 }
 
 // compileList validates and compiles one pattern list, returning the patterns
@@ -146,9 +91,9 @@ func compileList(byKey map[string]*keyRules, patterns []string, isExclude bool, 
 		}
 
 		folded := asciiLower(key)
-		if isExclude && isProtectedKey(folded) {
+		if isExclude && isPayloadAttributeKey(folded) {
 			report.Warnings = append(report.Warnings, fmt.Sprintf(
-				"exclude pattern %q targets protected key %q, which can never be removed, so it has no effect",
+				"exclude pattern %q targets %q, which remains present as a log attribute",
 				p, folded))
 		}
 
@@ -187,15 +132,7 @@ func parsePattern(p string) (key, value, reason string) {
 	}
 	idx := strings.IndexByte(p, ':')
 	if idx < 0 {
-		// Suggesting p+":*" would be invalid advice when p already holds a "*",
-		// because that "*" would then sit in the key.
-		if strings.ContainsRune(p, '*') {
-			return "", "", fmt.Sprintf(
-				"pattern %q has no key:value separator, and \"*\" is not allowed in the key; "+
-					"name the key exactly and wildcard the value instead", p)
-		}
-		return "", "", fmt.Sprintf(
-			"pattern %q has no key:value separator; use %q to match all values for this key", p, p+":*")
+		return "", "", fmt.Sprintf("pattern %q must use key:value syntax", p)
 	}
 	key, value = p[:idx], p[idx+1:]
 	if key == "" {
@@ -208,77 +145,24 @@ func parsePattern(p string) (key, value, reason string) {
 	return key, value, ""
 }
 
-func isProtectedKey(key string) bool {
-	for _, k := range protectedKeys {
-		if k == key {
-			return true
-		}
-	}
-	return false
-}
-
-func hasASCIIUpper(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if c := s[i]; c >= 'A' && c <= 'Z' {
-			return true
-		}
-	}
-	return false
+func isPayloadAttributeKey(key string) bool {
+	return key == "source" || key == "service" || key == "host"
 }
 
 // asciiLower lowercases ASCII letters in s and returns s unchanged when possible.
 func asciiLower(s string) string {
-	if !hasASCIIUpper(s) {
-		return s
-	}
-	b := []byte(s)
-	for i, c := range b {
-		if c >= 'A' && c <= 'Z' {
-			b[i] = c + 'a' - 'A'
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			b := []byte(s)
+			for j := i; j < len(b); j++ {
+				if c := b[j]; c >= 'A' && c <= 'Z' {
+					b[j] = c + 'a' - 'A'
+				}
+			}
+			return string(b)
 		}
 	}
-	return string(b)
-}
-
-// lookupKey resolves a tag key case-insensitively, rejecting most misses by
-// length before reading the key bytes.
-func (f *Filters) lookupKey(key string) *keyRules {
-	n := len(key)
-	if n == 0 || n > f.maxKeyLen {
-		return nil
-	}
-	if n >= len(f.byLen) {
-		return lookupLong(f.long, key)
-	}
-	bucket := f.byLen[n]
-	if len(bucket) == 0 {
-		return nil
-	}
-	c := foldByte(key[0])
-	for i := range bucket {
-		if bucket[i].first != c {
-			continue
-		}
-		if equalFolded(bucket[i].key, key) {
-			return bucket[i].rules
-		}
-	}
-	return nil
-}
-
-// lookupLong scans the overflow bucket, which unlike a length bucket holds keys
-// of mixed length and so must compare lengths before folding.
-func lookupLong(bucket []keyEntry, key string) *keyRules {
-	c := foldByte(key[0])
-	for i := range bucket {
-		if bucket[i].first != c || len(bucket[i].key) != len(key) {
-			continue
-		}
-		if equalFolded(bucket[i].key, key) {
-			return bucket[i].rules
-		}
-	}
-	return nil
+	return s
 }
 
 func foldByte(c byte) byte {
@@ -325,12 +209,9 @@ func (f *Filters) decide(key, value string) decision {
 	if f == nil {
 		return noDecision
 	}
-	kr := f.lookupKey(key)
+	kr := f.byKey[asciiLower(key)]
 	if kr == nil {
 		return noDecision
-	}
-	if kr.protected {
-		return keepDecision
 	}
 	if kr.includeAny || matchesGlob(kr.includeVals, value) {
 		return keepDecision
@@ -440,10 +321,7 @@ func (f *Filters) RetainsTag(key, value string) bool {
 
 // IsEmpty reports whether f would remove nothing.
 func (f *Filters) IsEmpty() bool {
-	if f == nil {
-		return true
-	}
-	return !f.hasEffectiveExclude
+	return f == nil || len(f.patterns.Exclude) == 0
 }
 
 // Patterns returns the compiled pattern set for the status page.
@@ -458,31 +336,20 @@ func (f *Filters) Patterns() Patterns {
 type Scoped struct {
 	source *Filters
 	global *Filters
-	mode   scopedMode
 }
-
-type scopedMode uint8
-
-const (
-	scopedBoth scopedMode = iota
-	scopedSourceOnly
-	scopedGlobalOnly
-)
 
 // NewScoped pairs source and global filters, returning nil when both are inert.
 func NewScoped(global, source *Filters) *Scoped {
 	if global.IsEmpty() && source.IsEmpty() {
 		return nil
 	}
-	// Source includes must remain ahead of global excludes; otherwise specialize
-	// single-scope filters to avoid a second lookup per tag.
 	if global.IsEmpty() {
-		return &Scoped{source: source, global: global, mode: scopedSourceOnly}
+		return &Scoped{source: source}
 	}
 	if source.Patterns().IsEmpty() {
-		return &Scoped{source: source, global: global, mode: scopedGlobalOnly}
+		return &Scoped{global: global}
 	}
-	return &Scoped{source: source, global: global, mode: scopedBoth}
+	return &Scoped{source: source, global: global}
 }
 
 // Keep returns the tags that survive s, preserving order.
@@ -490,22 +357,14 @@ func (s *Scoped) Keep(tags []string) []string {
 	if s == nil {
 		return tags
 	}
-	// In the common single-scope cases, delegate once for the whole slice rather
-	// than branching on the scope mode again for every tag in Retains.
-	if s.mode == scopedGlobalOnly {
-		return s.global.Keep(tags)
-	}
-	if s.mode == scopedSourceOnly {
-		return s.source.Keep(tags)
-	}
 	for i, tag := range tags {
-		if s.retainsBoth(tag) {
+		if s.Retains(tag) {
 			continue
 		}
 		kept := make([]string, i, len(tags)-1)
 		copy(kept, tags[:i])
 		for _, t := range tags[i+1:] {
-			if s.retainsBoth(t) {
+			if s.Retains(t) {
 				kept = append(kept, t)
 			}
 		}
@@ -514,8 +373,8 @@ func (s *Scoped) Keep(tags []string) []string {
 	return tags
 }
 
-// Retains reports whether a tag survives. Precedence is protected key, source
-// include/exclude, global include/exclude, then retained by default.
+// Retains reports whether a tag survives. Precedence is source include/exclude,
+// global include/exclude, then retained by default.
 func (s *Scoped) Retains(tag string) bool {
 	if s == nil {
 		return true
@@ -532,31 +391,13 @@ func (s *Scoped) RetainsTag(key, value string) bool {
 	if s == nil {
 		return true
 	}
-	if s.mode == scopedGlobalOnly {
-		return s.global.decide(key, value) != dropDecision
+	if s.source != nil {
+		switch s.source.decide(key, value) {
+		case keepDecision:
+			return true
+		case dropDecision:
+			return false
+		}
 	}
-	if s.mode == scopedSourceOnly {
-		return s.source.decide(key, value) != dropDecision
-	}
-	return s.retainsBothParts(key, value)
-}
-
-// retainsBoth applies the full source-before-global precedence after NewScoped
-// has determined that both scopes can affect the outcome.
-func (s *Scoped) retainsBoth(tag string) bool {
-	key, value, ok := splitTag(tag)
-	if !ok {
-		return true
-	}
-	return s.retainsBothParts(key, value)
-}
-
-func (s *Scoped) retainsBothParts(key, value string) bool {
-	switch s.source.decide(key, value) {
-	case keepDecision:
-		return true
-	case dropDecision:
-		return false
-	}
-	return s.global.decide(key, value) != dropDecision
+	return s.global == nil || s.global.decide(key, value) != dropDecision
 }

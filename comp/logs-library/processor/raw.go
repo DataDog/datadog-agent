@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // RawEncoder is a shared raw encoder.
@@ -27,7 +26,7 @@ func NewRawEncoder(useContainerTimestamp bool) Encoder {
 	return &rawEncoder{useContainerTimestamp: useContainerTimestamp}
 }
 
-func (r *rawEncoder) Encode(msg *message.Message, hostname string, filter sources.TagFilter) error {
+func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 	rendered, err := msg.Render()
 	if err != nil {
 		return fmt.Errorf("can't render the message: %v", err)
@@ -76,7 +75,7 @@ func (r *rawEncoder) Encode(msg *message.Message, hostname string, filter source
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		tagsPayload := msg.Origin.TransportTagsPayload(filter, nil)
+		tagsPayload := msg.Origin.TransportTagsPayload(nil)
 		if len(tagsPayload) > 0 {
 			extraContent = append(extraContent, tagsPayload...)
 		} else {

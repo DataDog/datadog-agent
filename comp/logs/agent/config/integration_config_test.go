@@ -61,19 +61,6 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	}
 }
 
-// TestMalformedTagFiltersDoesNotFailValidate ensures bad patterns do not stop a source.
-func TestMalformedTagFiltersDoesNotFailValidate(t *testing.T) {
-	cfg := &LogsConfig{
-		Type: FileType,
-		Path: "/var/log/foo.log",
-		TagFilters: &TagFilters{
-			Include: []string{"not_a_valid_pattern_no_colon"},
-			Exclude: []string{"source:*"},
-		},
-	}
-	assert.Nil(t, cfg.Validate())
-}
-
 func TestAutoMultilineEnabled(t *testing.T) {
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}

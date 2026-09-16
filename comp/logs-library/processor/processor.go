@@ -206,7 +206,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		msg.SetRendered(rendered)
 
-		filter := p.resolveTagFilter(msg)
+		p.resolveTagFilter(msg)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -216,7 +216,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		// encode the message to its final format, it is done in-place
-		if err := p.encoder.Encode(msg, p.GetHostname(msg), filter); err != nil {
+		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
 		}
@@ -229,14 +229,14 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 // ResolveSourceTagFilter compiles and caches a source's effective filter. It is
 // idempotent and safe for concurrent calls.
-func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) sources.TagFilter {
+func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) {
 	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
 	// appended before rejecting for a nil Config.
 	if src == nil || src.Config == nil {
-		return nil
+		return
 	}
-	if filter, resolved := src.TagFilter(); resolved {
-		return filter
+	if _, resolved := src.TagFilter(); resolved {
+		return
 	}
 
 	var sourceFilters *tagfilter.Filters
@@ -252,8 +252,7 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 	}
 
 	if !src.SetTagFilterIfUnset(resolved) {
-		cached, _ := src.TagFilter()
-		return cached
+		return
 	}
 
 	// A malformed pattern degrades to filtering less, never blocks the source
@@ -262,6 +261,7 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 		src.Messages.AddMessage("tag_filters:rejected:"+rejected.Pattern, rejected.Reason)
 	}
 	for _, warning := range report.Warnings {
+		log.Warnf("tag_filters for source %q: %s", src.Name, warning)
 		src.Messages.AddMessage("tag_filters:warning:"+warning, warning)
 	}
 
@@ -273,21 +273,19 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 			sourcePatterns.Include, sourcePatterns.Exclude))
 	}
 
-	return resolved
 }
 
-// resolveTagFilter returns the tag filter for msg's source, resolving it via
-// ResolveSourceTagFilter if the logs agent's eager subscriber hasn't already.
-func (p *Processor) resolveTagFilter(msg *message.Message) sources.TagFilter {
+// resolveTagFilter resolves the filter if the eager subscriber has not already.
+func (p *Processor) resolveTagFilter(msg *message.Message) {
 	if msg.Origin == nil || msg.Origin.LogSource == nil {
-		return nil
+		return
 	}
 	src := msg.Origin.LogSource
 
-	if filter, resolved := src.TagFilter(); resolved {
-		return filter
+	if _, resolved := src.TagFilter(); resolved {
+		return
 	}
-	return ResolveSourceTagFilter(p.tagFilters, src)
+	ResolveSourceTagFilter(p.tagFilters, src)
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF

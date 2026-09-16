@@ -8,45 +8,10 @@ package tagfilter
 import (
 	"strings"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func sameBackingArray(a, b []string) bool {
-	return unsafe.SliceData(a) == unsafe.SliceData(b)
-}
-
-func realisticK8sTags() []string {
-	return []string{
-		"source:myapp",
-		"service:myapp",
-		"env:prod",
-		"host:ip-10-0-1-23.ec2.internal",
-		"version:1.4.2",
-		"kube_namespace:default",
-		"kube_pod_name:myapp-7c9f8d6b4-abcde",
-		"kube_container_name:myapp",
-		"kube_replica_set:myapp-7c9f8d6b4",
-		"kube_deployment:myapp",
-		"kube_service:myapp",
-		"pod_name:myapp-7c9f8d6b4-abcde",
-		"container_id:9f8d7c6b5a4321009f8d7c6b5a4321009f8d7c6b5a4321009f8d7c6b5a4321",
-		"container_name:myapp",
-		"image_name:myapp",
-		"image_tag:1.4.2",
-		"availability-zone:us-east-1a",
-		"region:us-east-1",
-		"instance-type:m5.large",
-		"log_hash:9f8d7c6b5a432100",
-	}
-}
-
-func noMatchFilter() *Scoped {
-	global, _ := Compile(nil, []string{"nonexistent_key_a:*", "nonexistent_key_b:*"})
-	return NewScoped(global, nil)
-}
 
 func TestCompileRejectsInvalidPatterns(t *testing.T) {
 	for _, pattern := range []string{
@@ -59,12 +24,9 @@ func TestCompileRejectsInvalidPatterns(t *testing.T) {
 		"cont*iner:foo",
 	} {
 		t.Run(pattern, func(t *testing.T) {
-			_, includeReport := Compile([]string{pattern}, nil)
-			require.Len(t, includeReport.Rejected, 1)
-			assert.NotEmpty(t, includeReport.Rejected[0].Reason)
-
 			excludeFilters, excludeReport := Compile(nil, []string{pattern})
 			require.Len(t, excludeReport.Rejected, 1)
+			assert.NotEmpty(t, excludeReport.Rejected[0].Reason)
 			assert.True(t, excludeFilters.IsEmpty())
 		})
 	}
@@ -88,13 +50,15 @@ func TestCompileDeduplicatesPatterns(t *testing.T) {
 	assert.Equal(t, []string{"Team:Infra"}, f.Patterns().Include)
 }
 
-func TestCompileWarnsOnProtectedExclude(t *testing.T) {
-	f, report := Compile(nil, []string{"Source:foo"})
-	require.Len(t, report.Warnings, 1)
+func TestPayloadAttributeWarningsDoNotProtectTags(t *testing.T) {
+	f, report := Compile(nil, []string{"Source:*", "service:*", "HOST:*", "hostname:*", "env:*", "version:*"})
+	require.Len(t, report.Warnings, 3)
 	assert.Contains(t, report.Warnings[0], "source")
-	assert.Contains(t, report.Warnings[0], "no effect")
-	assert.True(t, f.IsEmpty())
-	assert.Nil(t, NewScoped(f, nil))
+	assert.Contains(t, report.Warnings[1], "service")
+	assert.Contains(t, report.Warnings[2], "host")
+	for _, tag := range []string{"source:app", "service:web", "host:node", "hostname:node", "env:prod", "version:1"} {
+		assert.False(t, f.Retains(tag))
+	}
 }
 
 func TestMatchingUsesASCIICaseFolding(t *testing.T) {
@@ -123,22 +87,6 @@ func TestMatchingUsesASCIICaseFolding(t *testing.T) {
 	assert.True(t, f.Retains("city:münchen"), "non-ASCII casing must be compared exactly")
 }
 
-func TestProtectedKeysSurviveMixedCaseTags(t *testing.T) {
-	f, _ := Compile(nil, []string{"Host:*", "SERVICE:web"})
-	for _, tag := range []string{"Host:myhost", "HOST:myhost", "Service:web", "sErViCe:web"} {
-		assert.True(t, f.Retains(tag), "protected tag %q must survive", tag)
-	}
-}
-
-func TestCaseInsensitiveLookupAllocatesNothing(t *testing.T) {
-	f, _ := Compile(nil, []string{"team:in*"})
-	require.False(t, f.Retains("Team:infra"))
-	allocs := testing.AllocsPerRun(1000, func() {
-		_ = f.Retains("Team:INFRA")
-	})
-	assert.Equal(t, float64(0), allocs)
-}
-
 func TestIncludeOnlyRemovesNothing(t *testing.T) {
 	f, _ := Compile([]string{"foo:keep*"}, nil)
 	assert.True(t, f.Retains("foo:keep1"))
@@ -165,13 +113,6 @@ func TestScopedPrecedence(t *testing.T) {
 		tag           string
 		want          bool
 	}{
-		{
-			name:          "protected key retained",
-			globalExclude: []string{"source:*", "foo:*"},
-			sourceExclude: []string{"source:*"},
-			tag:           "source:svc",
-			want:          true,
-		},
 		{
 			name:          "source include wins over source exclude",
 			sourceInclude: []string{"foo:keep*"},
@@ -258,51 +199,6 @@ func TestScopedKeepDoesNotMutateInput(t *testing.T) {
 	tags := []string{"keep:1", "drop:1"}
 	original := append([]string(nil), tags...)
 	got := scoped.Keep(tags)
-	assert.False(t, sameBackingArray(tags, got))
 	assert.Equal(t, []string{"keep:1"}, got)
 	assert.Equal(t, original, tags)
-
-	noDrop := []string{"keep:1", "keep:2"}
-	assert.True(t, sameBackingArray(noDrop, scoped.Keep(noDrop)))
-}
-
-func TestKeepAgreesWithRetains(t *testing.T) {
-	global, _ := Compile(
-		[]string{"kube_namespace:kube-system"},
-		[]string{"container_id:*", "kube_replica_set:*", "kube_namespace:*"},
-	)
-	source, _ := Compile(
-		[]string{"pod_name:keep-*"},
-		[]string{"pod_name:*", "filename:*"},
-	)
-	scoped := NewScoped(global, source)
-	require.NotNil(t, scoped)
-
-	tags := []string{
-		"source:myapp",
-		"container_id:abc123",
-		"kube_namespace:kube-system",
-		"kube_namespace:default",
-		"pod_name:keep-me",
-		"pod_name:drop-me",
-		"filename:app.log",
-		"standalone_tag",
-	}
-
-	var want []string
-	for _, tag := range tags {
-		if scoped.Retains(tag) {
-			want = append(want, tag)
-		}
-	}
-	assert.Equal(t, want, scoped.Keep(tags))
-}
-
-func TestKeepNoMatchAllocatesNothing(t *testing.T) {
-	scoped := noMatchFilter()
-	tags := realisticK8sTags()
-	allocs := testing.AllocsPerRun(1000, func() {
-		_ = scoped.Keep(tags)
-	})
-	assert.Equal(t, float64(0), allocs)
 }

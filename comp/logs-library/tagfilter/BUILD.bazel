@@ -10,10 +10,7 @@ go_library(
 
 dd_agent_go_test(
     name = "tagfilter_test",
-    srcs = [
-        "lookup_test.go",
-        "tagfilter_test.go",
-    ],
+    srcs = ["tagfilter_test.go"],
     embed = [":tagfilter"],
     deps = [
         "@com_github_stretchr_testify//assert",

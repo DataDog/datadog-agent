@@ -42,9 +42,13 @@ func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
-// TransportTags returns tags after f for intake encoders. Tags remains unfiltered.
+// TransportTags returns tags after filtering for intake encoders. Tags remains unfiltered.
 // The returned slice must not be modified by the caller.
-func (o *Origin) TransportTags(f sources.TagFilter) []string {
+func (o *Origin) TransportTags() []string {
+	if o == nil || o.LogSource == nil {
+		return nil
+	}
+	f, _ := o.LogSource.TagFilter()
 	if f == nil {
 		return o.Tags()
 	}
@@ -53,12 +57,19 @@ func (o *Origin) TransportTags(f sources.TagFilter) []string {
 
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
-	return o.TransportTagsPayload(nil, processingTags)
+	return o.tagsPayload(nil, processingTags)
 }
 
-// TransportTagsPayload applies f to ddtags and ddsourcecategory. It never filters
-// ddsource, and a nil f is the identity.
-func (o *Origin) TransportTagsPayload(f sources.TagFilter, processingTags []string) []byte {
+// TransportTagsPayload filters ddtags and ddsourcecategory. It never filters ddsource.
+func (o *Origin) TransportTagsPayload(processingTags []string) []byte {
+	if o == nil || o.LogSource == nil {
+		return []byte{}
+	}
+	f, _ := o.LogSource.TagFilter()
+	return o.tagsPayload(f, processingTags)
+}
+
+func (o *Origin) tagsPayload(f sources.TagFilter, processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
 	}
