@@ -1135,8 +1135,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-		p.monitors.ProcessEvent(event, p.probe.scrubber)
 	}
+
+	p.monitors.ProcessEvent(event, p.probe.scrubber)
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -2375,8 +2376,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
-	case model.BindEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingBindEnabled
 	}
 	return false
 }
@@ -3145,18 +3144,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_bind_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_bind_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_bind_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
-		},
-		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
@@ -3267,7 +3254,6 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
-		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
