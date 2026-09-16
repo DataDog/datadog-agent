@@ -66,3 +66,17 @@ func TestResolvePeerIdentity(t *testing.T) {
 		assert.ErrorContains(t, err, "malformed remote port")
 	})
 }
+
+func TestMintTimeIdentity(t *testing.T) {
+	t.Run("root is treated as unconstrained", func(t *testing.T) {
+		assert.Empty(t, mintTimeIdentity(rootIdentity))
+	})
+
+	t.Run("an unresolved identity stays unconstrained", func(t *testing.T) {
+		assert.Empty(t, mintTimeIdentity(peerIdentity("")))
+	})
+
+	t.Run("a non-root identity is preserved", func(t *testing.T) {
+		assert.Equal(t, peerIdentity("1000"), mintTimeIdentity(peerIdentity("1000")))
+	})
+}

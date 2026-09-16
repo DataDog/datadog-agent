@@ -21,6 +21,29 @@ import (
 // can't be established, instead of breaking the feature outright.
 type peerIdentity string
 
+// rootIdentity is the peerIdentity a Unix root (UID 0) connection resolves
+// to. Windows SIDs are never a plain "0" (they're dot-separated triplets
+// like "S-1-5-21-..."), so comparing against this constant is safe on every
+// platform we support, not just Unix ones.
+const rootIdentity peerIdentity = "0"
+
+// mintTimeIdentity decides what identity, if any, an intent token should be
+// bound to, given what the minting connection resolved to. Root is
+// deliberately treated the same as an unresolvable identity
+// (unconstrained): a root-minting connection (e.g. `sudo datadog-agent
+// launch-gui`) commonly hands the resulting URL to the OS's own
+// URL-opener, which on some platforms (e.g. macOS's Launch Services)
+// dispatches it to the logged-in console user's browser, not root's.
+// Binding to UID 0 would then reject that legitimate redeem, so we fall
+// back to the pre-existing TTL/single-use protection instead of breaking
+// the launch flow outright.
+func mintTimeIdentity(resolved peerIdentity) peerIdentity {
+	if resolved == rootIdentity {
+		return ""
+	}
+	return resolved
+}
+
 // resolvePeerIdentity returns the identity of the process holding the local
 // end of the loopback TCP connection whose remote address (as observed by
 // our own server) is remoteAddr, and whose local address is serverAddr: the

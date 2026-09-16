@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -65,7 +66,15 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 
 	t.Run("same OS identity: mint then redeem succeeds", func(t *testing.T) {
 		token, record := mintToken(t)
-		require.NotEmpty(t, record.identity, "a real loopback connection from this same process should resolve to a real OS identity")
+		if os.Getuid() == 0 {
+			// mintTimeIdentity deliberately treats root as unconstrained
+			// (see its doc comment), so this test process being root
+			// itself (e.g. a containerized Linux CI runner) is expected
+			// to leave the token unbound rather than resolve a real UID.
+			assert.Empty(t, record.identity, "root's mint-time identity is intentionally treated as unconstrained")
+		} else {
+			require.NotEmpty(t, record.identity, "a real loopback connection from this same process should resolve to a real OS identity")
+		}
 
 		resp, err := noRedirectClient.Get(ts.URL + "/auth?intent=" + token)
 		require.NoError(t, err)
@@ -74,9 +83,10 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	})
 
 	t.Run("mismatched OS identity: redeem is rejected", func(t *testing.T) {
+		// The identity is forced directly, rather than relying on the real
+		// mint-time resolution being non-empty, so this test is independent
+		// of the test process's own OS identity (see mintTimeIdentity).
 		token, record := mintToken(t)
-		require.NotEmpty(t, record.identity)
-
 		record.identity = "not-the-real-identity"
 		g.intentMu.Lock()
 		g.intentTokens[token] = record
@@ -89,8 +99,12 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	})
 
 	t.Run("bound identity but unresolvable redeem connection fails closed", func(t *testing.T) {
+		// The identity is forced directly for the same reason as above.
 		token, record := mintToken(t)
-		require.NotEmpty(t, record.identity)
+		record.identity = "some-bound-identity"
+		g.intentMu.Lock()
+		g.intentTokens[token] = record
+		g.intentMu.Unlock()
 
 		// Bypass the real listener: a synthetic, non-loopback request
 		// simulates an environment where redeem-time resolution can't

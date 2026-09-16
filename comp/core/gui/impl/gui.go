@@ -222,6 +222,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		g.logger.Warnf("GUI intent token: could not determine caller's OS identity, issuing an unconstrained token: %s", err)
 	}
+	identity = mintTimeIdentity(identity)
 
 	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentMu.Lock()
