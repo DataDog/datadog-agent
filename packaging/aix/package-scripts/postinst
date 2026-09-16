@@ -44,6 +44,15 @@ while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
+# mksys options:
+# -G datadog-agent: all services are in a common datadog-agent group so that they can be started/stopped together with a single command
+# -u dd-agent: run the service as the dd-agent user
+# -e: redirect stderr to that file
+# -R: restart on failure
+# -S: use signals for communication
+# -n 15: send SIGTERM on normal stop
+# -f 9: send SIGKILL on force stop
+
 mkssys -s datadog-agent \
        -p /opt/datadog-agent/bin/agent/agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
