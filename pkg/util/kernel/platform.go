@@ -83,6 +83,11 @@ func getPlatformInformation() (platformInfo, error) {
 // Ensure kernel version matches platform information. This helps correct when containerized environments
 // do not have the host /etc/os-release (or related) files correctly mounted into the container.
 func correctPlatform(info platformInfo, kernelVersion string) platformInfo {
+	if info.platform == "ol" {
+		// gopsutil doesn't handle the ol->oracle alias
+		info.platform, info.family = "oracle", "rhel"
+	}
+
 	for _, p := range platformCorrections {
 		matches := p.pattern.FindStringSubmatch(kernelVersion)
 		if matches == nil {
