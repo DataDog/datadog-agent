@@ -14,26 +14,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/handler"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const twoCredentialsYAML = `
-credentials:
-  - id: cred-abc
-    snmp_version: "2c"
-    community_string: public
-  - id: cred-v3
-    snmp_version: "3"
-    user: test-user
-    authProtocol: SHA
-    authKey: test-auth-key
-  - id: cred-bad-version
-    snmp_version: "9"
-    community_string: public
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
+    - id: cred-v3
+      snmp_version: "3"
+      user: test-user
+      authProtocol: SHA
+      authKey: test-auth-key
+    - id: cred-bad-version
+      snmp_version: "9"
+      community_string: public
 `
 
-func newTestHandler(t *testing.T, credentials string) *Handler {
+func newTestHandler(t *testing.T, yaml string) *Handler {
 	t.Helper()
-	return NewHandler(newTestConfig(t, credentials), logmock.New(t))
+	return NewHandler(configmock.NewFromYAML(t, yaml), logmock.New(t))
 }
 
 const twoInstanceDocument = `{
@@ -127,7 +130,7 @@ func TestRenderSchedulesTheResolvableInstancesAndNamesTheRest(t *testing.T) {
 func TestRenderErrorNamesNoCredentialValue(t *testing.T) {
 	h := newTestHandler(t, `
 network_devices:
-  credentials:
+  snmp_credentials:
     - id: cred-bad
       snmp_version: "9"
       community_string: s3cret-community
@@ -154,11 +157,12 @@ func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 }
 
 func TestRenderPicksUpACredentialValueThatChangedInPlace(t *testing.T) {
-	cfg := newTestConfig(t, `
-credentials:
-  - id: cred-abc
-    snmp_version: "2c"
-    community_string: public
+	cfg := configmock.NewFromYAML(t, `
+network_devices:
+  snmp_credentials:
+    - id: cred-abc
+      snmp_version: "2c"
+      community_string: public
 `)
 	h := NewHandler(cfg, logmock.New(t))
 	doc := json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred_id":"cred-abc"}]}`)
@@ -167,12 +171,9 @@ credentials:
 	require.NoError(t, err)
 	assert.Contains(t, string(first[0].Instances[0]), "community_string: public")
 
-	writeCredentials(t, cfg.GetString("conf_path"), `
-credentials:
-  - id: cred-abc
-    snmp_version: "2c"
-    community_string: rotated
-`)
+	cfg.Set("network_devices.snmp_credentials", []map[string]string{
+		{"id": "cred-abc", "snmp_version": "2c", "community_string": "rotated"},
+	}, model.SourceAgentRuntime)
 
 	second, err := h.Render("path-a", doc)
 	require.NoError(t, err)
@@ -180,5 +181,5 @@ credentials:
 }
 
 func TestHandlerSatisfiesTheHandlerInterface(t *testing.T) {
-	var _ handler.Handler = NewHandler(newTestConfig(t, ""), logmock.New(t))
+	var _ handler.Handler = NewHandler(configmock.New(t), logmock.New(t))
 }
