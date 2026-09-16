@@ -34,9 +34,7 @@ chown -R dd-agent:dd-agent /etc/datadog-agent \
 if [ -f "$CONFIG_FILE" ]; then
     if [ -z "$DD_INSTALL_ONLY" ]; then
         echo "Starting Datadog Agent services..."
-        startsrc -s datadog-agent
-        startsrc -s datadog-trace-agent
-        startsrc -s datadog-agent-data-plane
+        startsrc -g datadog-agent
     else
         echo ""
         echo "DD_INSTALL_ONLY is set: the Datadog Agent was not started."
