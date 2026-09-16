@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 const dialTimeout = 1 * time.Second
@@ -23,7 +23,7 @@ const dialTimeout = 1 * time.Second
 // to the metadata endpoint: a timeout (as opposed to "no route to host") indicates
 // that a route exists but packets are dropped by the EC2 hypervisor because the TTL
 // expires after the container-to-host hop.
-func Check() (*healthplatform.IssueReport, error) {
+func Check() ([]runnerdef.IssueReport, error) {
 	// Only relevant when running inside a container
 	if !isContainerized() {
 		return nil, nil
@@ -42,12 +42,15 @@ func Check() (*healthplatform.IssueReport, error) {
 	// present on this host, so we do not report an issue.
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
-		return &healthplatform.IssueReport{
-			IssueId: IssueID,
-			Context: map[string]string{
-				"imds_address": imdsAddress,
+		return []runnerdef.IssueReport{
+			{
+				IssueID:   IssueID,
+				IssueName: IssueName,
+				Context: map[string]string{
+					"imds_address": imdsAddress,
+				},
+				Tags: []string{"aws", "imds", "hop-limit", "container"},
 			},
-			Tags: []string{"aws", "imds", "hop-limit", "container"},
 		}, nil
 	}
 

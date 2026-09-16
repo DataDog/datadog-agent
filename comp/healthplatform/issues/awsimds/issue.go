@@ -42,13 +42,13 @@ func (t *AWSIMDSIssue) BuildIssue(context map[string]string) (*healthplatform.Is
 	}
 
 	return &healthplatform.Issue{
-		Id:          IssueID,
-		IssueName:   "aws_imds_hop_limit",
+		IssueName:   IssueName,
+		IssueType:   IssueType,
 		Title:       "AWS IMDSv2 Unreachable from Container (Hop Limit Too Low)",
 		Description: "The Datadog Agent is running inside a container on AWS EC2 but cannot reach the instance metadata service (IMDS) at 169.254.169.254. This is typically caused by the default IMDSv2 hop limit of 1: the metadata request needs to traverse an extra network hop from the container to the host, but the packet's TTL expires before it arrives. As a result, the agent cannot resolve the EC2 hostname, which breaks host-level data correlation in Datadog.",
 		Category:    "connectivity",
 		Location:    "core-agent",
-		Severity:    "high",
+		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH,
 		DetectedAt:  "", // Filled by health platform
 		Source:      "core",
 		Extra:       issueExtra,

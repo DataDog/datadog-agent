@@ -10,8 +10,9 @@
 package awsimds
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -19,14 +20,16 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for AWS IMDS hop limit issues
+	// IssueName is the identifier for AWS IMDS hop limit issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "AWS IMDS Hop Limit"
+
+	// IssueType is the snake_case type key for AWS IMDS hop limit issues:
+	// IssueName lowercased with spaces replaced by underscores.
+	IssueType = "aws_imds_hop_limit"
+
+	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "aws-imds-hop-limit"
-
-	// CheckID is the unique identifier for the built-in health check
-	CheckID = "aws-imds-connectivity"
-
-	// CheckName is the human-readable name for the health check
-	CheckName = "AWS IMDS Connectivity"
 )
 
 // awsIMDSModule implements issues.Module
@@ -35,29 +38,33 @@ type awsIMDSModule struct {
 }
 
 // NewModule creates a new AWS IMDS hop limit issue module
-func NewModule(_ config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &awsIMDSModule{
 		template: NewAWSIMDSIssue(),
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *awsIMDSModule) IssueID() string {
-	return IssueID
+func (m *awsIMDSModule) IssueName() string {
+	return IssueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *awsIMDSModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *awsIMDSModule) IssueType() string {
+	return IssueType
 }
 
-// BuiltInHealthCheck returns the built-in health check configuration
-// Interval is 0 to use the default (15 minutes)
-func (m *awsIMDSModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
-	return &issues.BuiltInHealthCheck{
-		ID:      CheckID,
-		Name:    CheckName,
-		CheckFn: Check,
-		Once:    true,
+func (m *awsIMDSModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
+}
+
+// BuiltInPeriodicHealthCheck returns nil — the hop limit check runs once at startup, not periodically.
+func (m *awsIMDSModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck runs the AWS IMDS connectivity check once at agent startup.
+func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return &runnerdef.BuiltInHealthCheck{
+		Source: "core",
+		Fn:     Check,
 	}
 }
