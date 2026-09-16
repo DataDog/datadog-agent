@@ -649,6 +649,8 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGro
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
+			f := &event.ProcessCacheEntry.FileEvent
+			seclog.Errorf("failed to resolve new process cache entry for pid %d (%s), inode %d, mountid %d: %s", event.ProcessCacheEntry.Pid, f.BasenameStr, f.Inode, f.MountID, err)
 			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 		}
 	} else {
