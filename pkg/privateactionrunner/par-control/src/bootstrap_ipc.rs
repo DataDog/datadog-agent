@@ -23,6 +23,7 @@ const EXTRA_CONFIG_PATH_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH"
 const URN_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_URN";
 const PRIVATE_KEY_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY";
 const AUTH_TOKEN_FILE_NAME: &str = "auth_token";
+const IPC_CERT_FILE_NAME: &str = "ipc_cert.pem";
 
 /// Bootstrap settings from the local configuration and environment, without CLI overrides.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -54,6 +55,10 @@ pub fn load(config_path: &Path) -> Result<Settings> {
 
 fn auth_token_file_path(configured: Option<PathBuf>, config_path: &Path) -> PathBuf {
     configured.unwrap_or_else(|| config_path.with_file_name(AUTH_TOKEN_FILE_NAME))
+}
+
+pub fn ipc_cert_file_path(configured: Option<PathBuf>, auth_token_file: &Path) -> PathBuf {
+    configured.unwrap_or_else(|| auth_token_file.with_file_name(IPC_CERT_FILE_NAME))
 }
 
 fn generic_config(yaml_path: &Path, extra_path: Option<&Path>) -> Result<GenericConfiguration> {
@@ -152,6 +157,25 @@ mod tests {
         assert_eq!(
             auth_token_file_path(None, Path::new("/custom/config/datadog.yaml")),
             PathBuf::from("/custom/config/auth_token")
+        );
+    }
+
+    #[test]
+    fn defaults_ipc_cert_next_to_effective_auth_token() {
+        assert_eq!(
+            ipc_cert_file_path(None, Path::new("/custom/auth/auth_token")),
+            PathBuf::from("/custom/auth/ipc_cert.pem")
+        );
+    }
+
+    #[test]
+    fn uses_configured_ipc_cert() {
+        assert_eq!(
+            ipc_cert_file_path(
+                Some(PathBuf::from("/custom/cert.pem")),
+                Path::new("/ignored/auth_token"),
+            ),
+            PathBuf::from("/custom/cert.pem")
         );
     }
 

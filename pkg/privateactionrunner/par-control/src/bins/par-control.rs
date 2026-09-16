@@ -64,16 +64,17 @@ async fn run() -> Result<()> {
         .cfgpath
         .unwrap_or_else(PlatformSettings::get_config_file_path);
     let bootstrap = par_control::bootstrap_ipc::load(&config_path)?;
+    let auth_token_file = cli
+        .auth_token_file
+        .or(bootstrap.auth_token_file_path)
+        .unwrap_or_default();
+    let ipc_cert_file = par_control::bootstrap_ipc::ipc_cert_file_path(
+        cli.ipc_cert_file.or(bootstrap.ipc_cert_file_path),
+        &auth_token_file,
+    );
     let ipc = RemoteAgentClientConfiguration {
         cmd_port: cli.cmd_port.or(bootstrap.cmd_port).unwrap_or(5001),
-        auth: IpcAuthConfiguration::new(
-            cli.auth_token_file
-                .or(bootstrap.auth_token_file_path)
-                .unwrap_or_default(),
-            cli.ipc_cert_file
-                .or(bootstrap.ipc_cert_file_path)
-                .unwrap_or_default(),
-        ),
+        auth: IpcAuthConfiguration::new(auth_token_file, ipc_cert_file),
         grpc_max_message_size: 128 * 1024 * 1024,
         #[cfg(target_os = "linux")]
         vsock_cid: None,
