@@ -46,6 +46,29 @@ func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
 	assert.Zero(t, ia.submits, "Inject must not enqueue a payload")
 }
 
+// Pins where each Unified Service Tagging field is sourced from: env, service,
+// and version track the tag map so inventory agrees with the tags on this
+// container's telemetry, while site is not a tag and comes from the config.
+func TestInjectReportsUnifiedServiceTaggingFromTagMap(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
+	conf.Set("env", "config-env", model.SourceAgentRuntime)
+	ia := newFakeComponent()
+
+	Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{
+		"env":     "tag-env",
+		"service": "my-service",
+		"version": "1.2.3",
+	})
+
+	assert.Equal(t, "tag-env", ia.fields["dd_env"],
+		"env must come from the tag map, which is lowercased and honors DD_TAGS")
+	assert.Equal(t, "my-service", ia.fields["dd_service"])
+	assert.Equal(t, "1.2.3", ia.fields["dd_version"])
+	assert.Equal(t, "datadoghq.eu", ia.fields["dd_site"])
+}
+
 func TestInjectGatedOff(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", false, model.SourceAgentRuntime)
