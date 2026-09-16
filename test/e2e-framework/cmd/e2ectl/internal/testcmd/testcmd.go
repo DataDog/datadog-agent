@@ -51,6 +51,7 @@ func Run(args []string) error {
 	suite := fs.String("suite", "", "go test target(s), repo-root-relative, e.g. ./test/new-e2e/tests/containers/ (required)")
 	run := fs.String("run", "\x00", "go test -run pattern (default: the attach entry-point pattern for the environment's base; set '' to run every test)")
 	verbose := fs.Bool("v", true, "pass -v to go test")
+	timeout := fs.String("timeout", "90m", "go test -timeout for the whole suite (suites with warmup waits need more than the 10m go-test default)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func Run(args []string) error {
 		return fmt.Errorf("agent not installed on %q — run:\n  e2ectl install -env %s", *name, *name)
 	}
 
-	goArgs := []string{"test", "-tags", "test"}
+	goArgs := []string{"test", "-tags", "test", "-timeout", *timeout}
 	if *verbose {
 		goArgs = append(goArgs, "-v")
 	}

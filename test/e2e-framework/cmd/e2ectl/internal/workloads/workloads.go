@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/localinfra"
 	wc "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/workloads/catalog"
 )
 
@@ -56,7 +58,7 @@ func Validate(cfg *config.File) []error {
 			errs = append(errs, fmt.Errorf(
 				"workloads[%d].manifest: Kubernetes manifests are not supported on base %q (supported forms: app, image)",
 				i, cfg.Environment.Base))
-		case w.App != "" && !catalog.Has(w.App, cfg.Environment.Base):
+		case w.App != "" && !catalog.Has(w.App):
 			available := catalog.AvailableForms(w.App)
 			errs = append(errs, fmt.Errorf(
 				"workloads[%d].app: %q has no definition for base %q (available: %s)",
@@ -90,13 +92,17 @@ func deployKubernetes(cfg *config.File, entry envstore.Entry) error {
 			return err
 		}
 	}
+	vars, err := templateVarsFor(entry)
+	if err != nil {
+		return err
+	}
 	for i, w := range decls {
 		manifests, err := resolve(w, cfg.Environment.Base)
 		if err != nil {
 			return fmt.Errorf("workloads[%d]: %w", i, err)
 		}
 		for _, manifest := range manifests {
-			if err := kubectlApply(kubeconfig, manifest, w.Namespace); err != nil {
+			if err := kubectlApply(kubeconfig, renderTemplate(manifest, vars), w.Namespace); err != nil {
 				return fmt.Errorf("workloads[%d]: %w", i, err)
 			}
 		}
@@ -212,6 +218,41 @@ func kubectlEnsureNamespace(kubeconfig, namespace string) error {
 	return nil
 }
 
+// templateVars collects the values substituted into catalog manifests.
+type templateVars struct {
+	APIKey        string
+	FakeintakeURL string
+	ClusterName   string
+}
+
+// templateVars resolves the substitution variables from the environment
+// store: the API key from the runner profile (the same source the
+// installers use), the fakeintake URL and the cluster name from the
+// environment metadata.
+func templateVarsFor(entry envstore.Entry) (templateVars, error) {
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	if err != nil {
+		return templateVars{}, fmt.Errorf("resolving API key for workload templates: %w", err)
+	}
+	return templateVars{
+		APIKey:        apiKey,
+		FakeintakeURL: entry.Meta.FakeIntakeURL,
+		ClusterName:   entry.Name,
+	}, nil
+}
+
+// renderTemplate substitutes the {{...}} variables catalog manifests may
+// carry. Unknown variables are left untouched (they surface as apply
+// errors rather than being silently emptied).
+func renderTemplate(manifest string, v templateVars) string {
+	r := strings.NewReplacer(
+		"{{API_KEY}}", v.APIKey,
+		"{{FAKEINTAKE_URL}}", v.FakeintakeURL,
+		"{{CLUSTER_NAME}}", v.ClusterName,
+	)
+	return r.Replace(manifest)
+}
+
 func splitDocuments(data string) []string {
 	var docs []string
 	for _, doc := range strings.Split(data, "\n---") {
@@ -240,34 +281,44 @@ func kubectlApply(kubeconfig, manifest, namespace string) error {
 
 func kubectlWait(kubeconfig, base string, decls []wc.Workload) error {
 	for _, w := range decls {
-		name := w.Name
-		if name == "" {
-			if w.App != "" {
-				name = w.App
-			} else if w.Image != "" {
+		// The catalog declares exactly which Deployments to wait on;
+		// manifest/image forms derive the name from the declaration.
+		var names []string
+		switch {
+		case w.App != "":
+			names = catalog.K8sWaitNames(w.App)
+		case w.Image != "":
+			name := w.Name
+			if name == "" {
 				name = imageName(w.Image)
 			}
-		}
-		if name == "" {
+			names = []string{name}
+		default:
 			continue
 		}
-		ns := w.Namespace
-		if ns == "" && w.App != "" {
-			if entry, ok := catalog.Get(w.App, base); ok && entry.K8sNamespace != "" {
-				ns = entry.K8sNamespace
+		for _, name := range names {
+			ns := w.Namespace
+			if w.App != "" && ns == "" {
+				if entry, ok := catalog.Get(w.App, base); ok && entry.K8sNamespace != "" {
+					ns = entry.K8sNamespace
+				}
 			}
-		}
-		args := []string{"wait", "--kubeconfig", kubeconfig,
-			"--for=condition=Available", "deployment/" + name,
-			"--timeout=180s"}
-		if ns != "" {
-			args = append(args, "-n", ns)
-		}
-		cmd := exec.Command("kubectl", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("waiting for deployment %s: %w", name, err)
+			// An explicit namespace/name prefix overrides the default.
+			if i := strings.Index(name, "/"); i >= 0 {
+				ns, name = name[:i], name[i+1:]
+			}
+			args := []string{"wait", "--kubeconfig", kubeconfig,
+				"--for=condition=Available", "deployment/" + name,
+				"--timeout=180s"}
+			if ns != "" {
+				args = append(args, "-n", ns)
+			}
+			cmd := exec.Command("kubectl", args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("waiting for deployment %s: %w", name, err)
+			}
 		}
 	}
 	return nil

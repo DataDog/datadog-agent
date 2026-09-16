@@ -84,6 +84,21 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
+// containerIP returns the container's IP address on its Docker network.
+func (h *sshExecutor) containerIP() (string, error) {
+	out, err := exec.Command("docker", "inspect", "-f",
+		"{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+		h.containerName).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("inspecting container %s: %w (%s)", h.containerName, err, strings.TrimSpace(string(out)))
+	}
+	ip := strings.TrimSpace(string(out))
+	if ip == "" {
+		return "", fmt.Errorf("container %s has no network IP", h.containerName)
+	}
+	return ip, nil
+}
+
 // executeDocker runs a command inside the container via docker exec.
 // It is the docker transport for the sshExecutor: same error semantics,
 // no SSH connection, no reconnect.
@@ -119,6 +134,30 @@ func newDockerHost(ctx Context, out outputs.HostOutput) (*Host, error) {
 		sshExecutor:          executor,
 		convertPathSeparator: convertPathSeparatorFactory(out.OSFamily),
 		osFamily:             out.OSFamily,
+		// The HTTP client dials the container's network IP directly: the
+		// container publishes no ports; hosts on the same Docker network
+		// (the test process included) reach it by address.
+		httpTransport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				hostname, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				if hostname != "" && hostname != "localhost" && hostname != "127.0.0.1" {
+					return nil, fmt.Errorf("request hostname %s does not match any valid host name", hostname)
+				}
+				ip, err := executor.containerIP()
+				if err != nil {
+					return nil, err
+				}
+				var d net.Dialer
+				return d.DialContext(ctx, "tcp", net.JoinHostPort(ip, port))
+			},
+			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+			ForceAttemptHTTP2:   true,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
 	}, nil
 }
 

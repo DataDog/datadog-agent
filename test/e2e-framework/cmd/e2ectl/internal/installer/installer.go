@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
@@ -31,7 +34,6 @@ import (
 	helminstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/kubernetes/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
-	"go.yaml.in/yaml/v3"
 )
 
 // Installer owns one agent installation method. The interfaces live here
@@ -126,6 +128,26 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 	}
 
 	values := map[string]interface{}{}
+	if strings.TrimSpace(section.Values) != "" {
+		rendered := section.Values
+		if env.FakeIntake != nil {
+			fi := env.FakeIntake.FakeintakeOutput
+			rendered = strings.NewReplacer(
+				"{{FAKEINTAKE_URL}}", fi.URL,
+				"{{FAKEINTAKE_HOST}}", fi.Host,
+				"{{FAKEINTAKE_PORT}}", fmt.Sprintf("%d", fi.Port),
+			).Replace(rendered)
+		}
+		var extra map[string]interface{}
+		if err := yaml.Unmarshal([]byte(rendered), &extra); err != nil {
+			return fmt.Errorf("agent.helm.values: %w", err)
+		}
+		mergeValues(values, extra)
+	}
+	// The framework's scenarios tag the agent with the Pulumi stack id
+	// (stackid:<stack>); the e2ectl analog is the environment name. Suites
+	// like the containers k8sSuite assert it on cluster-scoped metrics.
+	setAgentTag(values, "stackid:"+entry.Name)
 	params := helminstaller.Params{Values: values}
 	params.Namespace = "datadog"
 	if section.Image != "" {
@@ -285,3 +307,32 @@ var (
 	_ Updatable = (*Kubernetes)(nil)
 	_ Installer = (*HostScript)(nil)
 )
+
+// mergeValues deep-merges src into dst (maps merge recursively, everything
+// else is overwritten by src).
+func mergeValues(dst, src map[string]interface{}) {
+	for k, v := range src {
+		if srcMap, ok := v.(map[string]interface{}); ok {
+			if dstMap, ok := dst[k].(map[string]interface{}); ok {
+				mergeValues(dstMap, srcMap)
+				continue
+			}
+		}
+		dst[k] = v
+	}
+}
+
+// setAgentTag appends tag to datadog.tags in the Helm values map without
+// clobbering other chart values.
+func setAgentTag(values map[string]interface{}, tag string) {
+	datadog, ok := values["datadog"].(map[string]interface{})
+	if !ok {
+		datadog = map[string]interface{}{}
+		values["datadog"] = datadog
+	}
+	var tags []string
+	if existing, ok := datadog["tags"].([]string); ok {
+		tags = existing
+	}
+	datadog["tags"] = append(tags, tag)
+}

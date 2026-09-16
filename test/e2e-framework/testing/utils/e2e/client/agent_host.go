@@ -15,12 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
+// DockerAgentBinPath is the agent binary path inside the official agent
+// container image — used when a docker-exec host has no pinned path.
+const DockerAgentBinPath = "/opt/datadog-agent/bin/agent/agent"
+
 type agentHostExecutor struct {
 	baseCommand string
 	host        *Host
 }
 
-func newAgentHostExecutor(osFamily types.Family, host *Host, params *agentclientparams.Params) agentCommandExecutor {
+func newAgentHostExecutor(osFamily types.Family, host *Host, params *agentclientparams.Params, transport string) agentCommandExecutor {
 	var baseCommand string
 	switch osFamily {
 	case types.WindowsFamily:
@@ -31,7 +35,19 @@ func newAgentHostExecutor(osFamily types.Family, host *Host, params *agentclient
 		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case types.LinuxFamily:
-		baseCommand = "sudo datadog-agent"
+		switch {
+		case params.AgentBinPath != "":
+			// The installation pinned the agent binary at a known path:
+			// invoke it directly, no wrapper, no sudo.
+			baseCommand = params.AgentBinPath
+		case transport == "docker":
+			// The host is a docker container (docker exec transport):
+			// there is no sudo and no datadog-agent wrapper inside the
+			// agent image, only the binary at its standard path.
+			baseCommand = DockerAgentBinPath
+		default:
+			baseCommand = "sudo datadog-agent"
+		}
 	case types.MacOSFamily:
 		baseCommand = "datadog-agent"
 	default:

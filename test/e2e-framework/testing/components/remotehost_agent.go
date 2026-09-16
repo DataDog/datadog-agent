@@ -28,7 +28,16 @@ var _ common.Initializable = (*RemoteHostAgent)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (a *RemoteHostAgent) Init(ctx common.Context) (err error) {
-	a.Client, err = client.NewHostAgentClientWithParams(ctx, a.HostAgentOutput.Host, a.ClientOptions...)
+	options := a.ClientOptions
+	// The installation records the pinned agent binary path when it knows
+	// it; the client then invokes that binary directly instead of the
+	// sudo datadog-agent wrapper.
+	if a.HostAgentOutput.AgentBinPath != "" {
+		options = append([]agentclientparams.Option{
+			agentclientparams.WithAgentBinPath(a.HostAgentOutput.AgentBinPath),
+		}, options...)
+	}
+	a.Client, err = client.NewHostAgentClientWithParams(ctx, a.HostAgentOutput.Host, options...)
 	return err
 }
 

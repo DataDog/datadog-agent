@@ -1,0 +1,134 @@
+schema: 1
+environment:
+  base: kind
+  fakeintake: true
+  kind:
+    # Kubernetes version of the kind node image; 0 = the default.
+    nodes: 0
+agent:
+  install: helm
+  helm:
+    version: 7.69.0
+    # Extra chart values mirroring what the framework's Kubernetes agent
+    # Helm baseline applies for the containers suites (see
+    # components/datadog/agent/kubernetes_helm.go buildValues and the
+    # kindvm scenario options), plus the container suite's own values
+    # (values.yaml, logLevel DEBUG, AD tag completeness wait, endpoint
+    # slices). The stackid tag and clusterName are set by the installer.
+    values: |
+      datadog:
+        logLevel: DEBUG
+        checksCardinality: high
+        leaderElectionResource: ""
+        env:
+          - name: DD_AD_TAG_COMPLETENESS_MAX_WAIT
+            value: "60"
+          - name: DD_EC2_METADATA_TIMEOUT
+            value: "5000"
+          - name: DD_TELEMETRY_ENABLED
+            value: "true"
+          - name: DD_TELEMETRY_CHECKS
+            value: "*"
+        namespaceLabelsAsTags:
+          related_team: team
+        kubernetesResourcesAnnotationsAsTags:
+          deployments.apps:
+            x-sub-team: sub-team
+          pods:
+            x-parent-name: parent-name
+          namespaces:
+            related_email: mail
+        kubernetesResourcesLabelsAsTags:
+          deployments.apps:
+            x-team: team
+          pods:
+            x-parent-type: domain
+          namespaces:
+            related_org: org
+          nodes:
+            kubernetes.io/os: os
+            kubernetes.io/arch: arch
+        originDetectionUnified:
+          enabled: true
+        logs:
+          enabled: true
+          containerCollectAll: false
+        dogstatsd:
+          originDetection: true
+          tagCardinality: high
+          useHostPort: true
+        apm:
+          portEnabled: true
+          instrumentation:
+            enabled: true
+            enabledNamespaces:
+              - workload-mutated-lib-injection
+            language_detection:
+              enabled: true
+        processAgent:
+          processCollection: true
+        helmCheck:
+          enabled: true
+        kubeStateMetricsCore:
+          enabled: true
+          collectVpaMetrics: true
+          useClusterCheckRunners: true
+          tags:
+            - "kube_instance_tag:static"
+          collectCrMetrics:
+            - groupVersionKind:
+                group: datadoghq.com
+                kind: DatadogMetric
+                version: v1alpha1
+              commonLabels:
+                cr_type: ddm
+              labelsFromPath:
+                ddm_namespace: [metadata, namespace]
+                ddm_name: [metadata, name]
+              metrics:
+                - name: ddm_value
+                  help: DatadogMetric value
+                  each:
+                    type: gauge
+                    gauge:
+                      path: [status, currentValue]
+        prometheusScrape:
+          enabled: true
+        sbom:
+          host:
+            enabled: true
+          containerImage:
+            enabled: true
+            uncompressedLayersSupport: true
+        confd:
+          container_image.yaml: |
+            {"ad_identifiers": ["_container_image"], "init_config": {}, "instances": [{"periodic_refresh_seconds": 60}]}
+          sbom.yaml: |
+            {"ad_identifiers": ["_sbom"], "init_config": {}, "instances": [{"periodic_refresh_seconds": 60}]}
+        kubernetesUseEndpointSlices: true
+        # Installs the datadog-crds subchart (DatadogMetric, VPA CRDs) —
+        # the workloads below depend on them.
+        autoscaling:
+          workload:
+            enabled: true
+      clusterAgent:
+        env:
+          - name: DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF
+            value: 10s
+      csi:
+        enabled: true
+workloads:
+  # Parity with the kindvm scenario's WithDeployTestWorkload,
+  # WithDeployDogstatsd and the suite's nginx/redis/cpustress apps.
+  # The VPA CRD comes first: nginx/redis declare VerticalPodAutoscalers.
+  - app: vpa-crd
+  - app: nginx
+  - app: redis
+  - app: cpustress
+  - app: dogstatsd
+  - app: dogstatsd-standalone
+  - app: dogstatsd-standalone-clients
+  - app: tracegen
+  - app: prometheus
+  - app: etcd
+  - app: mutated

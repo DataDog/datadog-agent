@@ -135,6 +135,15 @@ func installChart(kubeconfig, clusterName string, fi *compout.FakeintakeOutput, 
 			Version:        p.ClusterAgentVersion,
 			LabelSelectors: map[string]string{"app": releaseName + "-datadog-cluster-agent"},
 		},
+		// The chart deploys cluster-checks runners when KSM core runs in
+		// cluster-checks mode; the suite's readiness assertions list them
+		// through this ref. Empty selectors would silently match nothing.
+		LinuxClusterChecks: compout.KubernetesObjRefOutput{
+			Namespace:      p.Namespace,
+			Kind:           "Pod",
+			Version:        p.AgentVersion,
+			LabelSelectors: map[string]string{"app": releaseName + "-datadog-clusterchecks"},
+		},
 	}, nil
 }
 

@@ -33,7 +33,7 @@ func NewHostAgentClient(context Context, hostOutput outputs.HostOutput, waitForA
 		return nil, err
 	}
 
-	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
+	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params, hostOutput.Transport)
 	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {
@@ -55,7 +55,7 @@ func NewHostAgentClientWithParams(context Context, hostOutput outputs.HostOutput
 		return nil, err
 	}
 
-	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
+	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params, hostOutput.Transport)
 	commandRunner := newAgentCommandRunner(context, ae)
 
 	if params.ShouldWaitForReady {

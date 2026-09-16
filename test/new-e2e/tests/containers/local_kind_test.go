@@ -39,6 +39,21 @@ type localKindSuite struct {
 	fi          *fakeintakeclient.Client
 }
 
+// TestKindSuiteOnLocalKind runs the ORIGINAL kind suite (kindSuite, the same
+// suite TestKindSuite runs on Pulumi-provisioned kind-on-EC2) against a
+// local e2ectl kind environment — the same test bodies, only the
+// provisioning differs. The scenario options of the Pulumi entry point
+// (helm values, workloads, argo-rollouts) are expressed by the e2ectl
+// environment instead: see examples/kind-containers.yml.
+func TestKindSuiteOnLocalKind(t *testing.T) {
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
+	t.Parallel()
+	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(
+		e2ectlenv.Attach[environments.Kubernetes](envName),
+	))
+}
+
 // TestContainersOnLocalKind runs against a local kind cluster managed by
 // e2ectl (e2ectl start --base kind, then e2ectl install). It attaches to
 // the existing environment via the snapshot; no Pulumi, no provisioning,

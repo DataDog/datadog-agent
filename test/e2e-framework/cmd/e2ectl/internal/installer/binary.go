@@ -30,6 +30,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// agentBinPathInContainer is where the pinned agent binary lands inside the
+// runtime container: the install bind-mounts it over the image's agent binary.
+const agentBinPathInContainer = "/opt/datadog-agent/bin/agent/agent"
+
 // DefaultRuntimeImage is the pinned official Agent image the locally built
 // binary runs in. The binary is mounted over the image's own binary path, so
 // the image provides the runtime (glibc, embedded python) — not the Agent.
@@ -104,24 +108,41 @@ func (b *Binary) Install(cfg *config.File, entry envstore.Entry) error {
 	if err := b.waitForFlushedMetrics(entry); err != nil {
 		return err
 	}
-	// remoteHost makes the agent container look like a Host to the test
-	// framework: Transport=docker tells RemoteHost.Init to use docker exec
-	// with Address as the container name. The existing
-	// StaticStackProvisioner rehydrates environments.Host from the snapshot
-	// — fakeIntake + remoteHost — with zero provisioner changes.
-	hostJSON, err := json.Marshal(map[string]any{
-		"transport":     "docker",
-		"address":       localinfra.AgentContainer(entry.Name),
-		"cloudProvider": "local",
-		"osFamily":      e2eostypes.LinuxFamily,
-		"osFlavor":      e2eostypes.Ubuntu,
-		"osVersion":     "24.04",
-		"architecture":  e2eostypes.ARM64Arch,
+	return b.writeSnapshotOutputs(entry)
+}
+
+// writeSnapshotOutputs records the host and agent components in the
+// snapshot. remoteHost makes the agent container look like a Host to the test
+// framework: Transport=docker tells RemoteHost.Init to use docker exec with
+// Address as the container name. agent carries the pinned binary path so the
+// AgentClient invokes it directly (the container has no sudo and no
+// datadog-agent wrapper). The existing StaticStackProvisioner rehydrates
+// environments.Host from these resources with zero provisioner changes.
+func (b *Binary) writeSnapshotOutputs(entry envstore.Entry) error {
+	hostOut := outputs.HostOutput{
+		CloudProvider: "local",
+		Transport:     "docker",
+		Address:       localinfra.AgentContainer(entry.Name),
+		OSFamily:      e2eostypes.LinuxFamily,
+		OSFlavor:      e2eostypes.Ubuntu,
+		OSVersion:     "24.04",
+		Architecture:  e2eostypes.ARM64Arch,
+	}
+	hostJSON, err := json.Marshal(hostOut)
+	if err != nil {
+		return err
+	}
+	if err := provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON); err != nil {
+		return err
+	}
+	agentJSON, err := json.Marshal(outputs.HostAgentOutput{
+		Host:         hostOut,
+		AgentBinPath: agentBinPathInContainer,
 	})
 	if err != nil {
 		return err
 	}
-	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON)
+	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "agent", agentJSON)
 }
 
 // Update implements Updatable: prepare (rebuild unless skipBuild), replace
@@ -151,24 +172,7 @@ func (b *Binary) Update(cfg *config.File, entry envstore.Entry, skipBuild bool) 
 	if err := b.waitForFlushedMetrics(entry); err != nil {
 		return err
 	}
-	// remoteHost makes the agent container look like a Host to the test
-	// framework: Transport=docker tells RemoteHost.Init to use docker exec
-	// with Address as the container name. The existing
-	// StaticStackProvisioner rehydrates environments.Host from the snapshot
-	// — fakeIntake + remoteHost — with zero provisioner changes.
-	hostJSON, err := json.Marshal(map[string]any{
-		"transport":     "docker",
-		"address":       localinfra.AgentContainer(entry.Name),
-		"cloudProvider": "local",
-		"osFamily":      e2eostypes.LinuxFamily,
-		"osFlavor":      e2eostypes.Ubuntu,
-		"osVersion":     "24.04",
-		"architecture":  e2eostypes.ARM64Arch,
-	})
-	if err != nil {
-		return err
-	}
-	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON)
+	return b.writeSnapshotOutputs(entry)
 }
 
 func (b *Binary) runAgentContainer(entry envstore.Entry, section binaryconfig.Config) error {

@@ -83,6 +83,12 @@ type HostAgentOutput struct {
 
 	Host        HostOutput `json:"host"`
 	FIPSEnabled bool       `json:"fipsEnabled"`
+	// AgentBinPath is the full path of the agent binary on the host, when
+	// the installation knows it. Set by installers that pin the binary at a
+	// known location (e.g. the local container install); empty for OS
+	// package installs, where the agent runs through the datadog-agent
+	// wrapper and sudo.
+	AgentBinPath string `json:"agentBinPath,omitempty"`
 }
 
 // HostUpdaterOutput describes an updater installed on a remote host.

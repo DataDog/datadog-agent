@@ -1,0 +1,22 @@
+# Local kind cluster and optional Docker fakeintake
+# Generated starter config: review example values before provisioning.
+# Credentials come from the runner profile, not this file.
+schema: 1
+environment:
+  base: kind
+  # Deploy fakeintake with the environment (Pulumi for EC2, local Docker for kind).
+  # Default value.
+  fakeintake: true
+  kind:
+    # Kubernetes kindest/node version, not the installed kind CLI version.
+    # Example value; adjust before provisioning.
+    version: 1.33.0
+    # Additional worker nodes; a control-plane node is always created.
+    # Default value.
+    nodes: 0
+agent:
+  # Agent installation method selected for this environment.
+  install: helm
+  # Released Agent version to test; for local images use image instead.
+  # Example value; adjust before provisioning.
+  version: 7.69.0

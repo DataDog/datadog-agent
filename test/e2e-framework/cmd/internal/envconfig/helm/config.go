@@ -24,6 +24,10 @@ import (
 type Config struct {
 	Version string `yaml:"version,omitempty" example:"7.69.0" description:"Released agent version; or set image for a local development image."`
 	Image   string `yaml:"image,omitempty" description:"Local development image, fully qualified with a semver-shaped tag."`
+	// Values is extra Helm chart values, deep-merged over the installer's
+	// defaults. The escape hatch for chart knobs e2ectl does not type —
+	// the same mechanism the framework's WithHelmValues provides.
+	Values string `yaml:"values,omitempty" description:"Extra Helm chart values (YAML), deep-merged over the installer's defaults."`
 }
 
 var (

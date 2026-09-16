@@ -1,0 +1,23 @@
+# AWS EC2 VM and optional ECS Fargate fakeintake (Pulumi)
+# Generated starter config: review example values before provisioning.
+# Credentials come from the runner profile, not this file.
+schema: 1
+environment:
+  base: ec2-host
+  # Deploy fakeintake with the environment (Pulumi for EC2, local Docker for kind).
+  # Default value.
+  fakeintake: false
+  ec2-host:
+    # Operating system to provision.
+    # Example value; adjust before provisioning.
+    os: ubuntu-24.04
+    # VM CPU architecture.
+    # Default value.
+    arch: amd64
+agent:
+  # Agent installation method selected for this environment.
+  install: script
+  script:
+    # Released agent version to install.
+    # Example value; adjust before provisioning.
+    version: 7.82.0

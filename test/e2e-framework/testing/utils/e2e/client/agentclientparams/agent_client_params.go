@@ -34,6 +34,10 @@ import (
 type Params struct {
 	ShouldWaitForReady bool
 	AgentInstallPath   string
+	// AgentBinPath is the full path of the agent binary (no sudo, no
+	// datadog-agent wrapper) — set by installs that pin the binary at a
+	// known path, e.g. the local container install.
+	AgentBinPath string
 
 	AuthToken         string
 	AuthTokenPath     string
@@ -71,6 +75,14 @@ func applyOption(instance *Params, options ...Option) *Params {
 func WithSkipWaitForAgentReady() Option {
 	return func(p *Params) {
 		p.ShouldWaitForReady = false
+	}
+}
+
+// WithAgentBinPath sets the full path of the agent binary, bypassing the
+// sudo datadog-agent wrapper on Linux.
+func WithAgentBinPath(path string) Option {
+	return func(p *Params) {
+		p.AgentBinPath = path
 	}
 }
 
