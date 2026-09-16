@@ -6,6 +6,7 @@
 package com_datadoghq_authoredscripts
 
 import (
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -13,9 +14,11 @@ type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
-func NewAuthoredScripts() *AuthoredScripts {
+// NewAuthoredScripts creates the bundle with its execution gate and
+// artifact catalog supplied by the bundle registry.
+func NewAuthoredScripts(enabled bool, catalog authoredscriptssupport.Catalog) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(),
+		runAuthoredScript: NewRunAuthoredScriptHandler(enabled, catalog),
 	}
 }
 
