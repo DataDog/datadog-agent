@@ -23,6 +23,24 @@ var (
 	loopbackV6 = net.ParseIP("::1")
 )
 
+func init() {
+	// elevatedMintIdentity remaps a root mint-time identity to whoever owns /dev/console (see
+	// peeridentity_darwin.go); without this, Test_intentToken_peerIdentity's "same OS identity" subtest
+	// would bind to whatever real, uncontrolled UID actually owns the console on the machine running the
+	// test, then fail redemption from the literal root test process whenever that's a different,
+	// non-root user (e.g. running `sudo go test` on a Mac with someone logged into the GUI). Pointing
+	// consoleDevicePath at a fixture this test creates itself keeps the resolved UID deterministic: as
+	// root, the fixture it creates is root-owned too, so elevatedMintIdentity resolves to "" (unconstrained)
+	// and the existing 302 assertion holds regardless of who's actually logged into the real console.
+	setupPeerIdentityResolutionForTest = func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "console")
+		require.NoError(t, os.WriteFile(path, nil, 0o644))
+		orig := consoleDevicePath
+		consoleDevicePath = path
+		t.Cleanup(func() { consoleDevicePath = orig })
+	}
+}
+
 // buildHeaderRecord fabricates the leading xinpgen header record; findUIDInPCBList only cares about its self-declared length, not its content.
 func buildHeaderRecord(size int) []byte {
 	rec := make([]byte, size)
