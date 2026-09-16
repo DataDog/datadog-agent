@@ -7,7 +7,8 @@
 
 **Status:** implemented for `kind` and `local` bases; live-verified on kind
 (`app: nginx` → Deployment+Service in `workload-nginx`, agent monitoring
-asserted by `TestWorkloadContainerMetrics` — 8/8 pass in 10s).
+asserted by `TestWorkloadContainerMetrics`, the AD-annotation-triggered
+nginx check asserted by `TestWorkloadADCheck` — 9/9 pass).
 **Replaces the previous version of this plan**, which was Kubernetes-only.
 
 ## As-built deviations from the design
@@ -20,6 +21,7 @@ asserted by `TestWorkloadContainerMetrics` — 8/8 pass in 10s).
 | client-go apply | `kubectl` via the snapshot's kubeconfig | The kubeconfig is already materialized at `entry.KubeconfigPath()`; kubectl handles multi-doc and applies atomically |
 | (not in design) | Idempotent namespace creation (`kubectlEnsureNamespace`) | Catalog namespaces (`workload-nginx`…) don't exist in a fresh kind cluster |
 | (not in design) | AD annotation on the **pod template**, not the Deployment metadata | Deployment-level annotations never reach pods; fixed live |
+| (not in design) | v2 annotation format `ad.datadoghq.com/<container>.checks` + `%%host%%` variable, not `.instances` + `%{host}` | The `.instances` suffix is only valid in the v1 trio (with `check_names`); standalone it is silently ignored. `%{host}` is not a template variable. Fixed live (commit `d1dc66fc3e9`); the nginx AD check now runs and `nginx.net.*` metrics reach the fakeintake |
 
 ## Not yet implemented (was step 6)
 
@@ -305,7 +307,7 @@ manifest can run on a VM.
 | 5. Kubernetes deployer | kubectl apply for `manifest:`/`app:`/`image:` | `e2ectl install` with `app: nginx` deploys a Deployment on kind | ✅ done, live-verified |
 | 6. Host deployer | SSH execute / docker run for `image:`/`app:` | `e2ectl install` with `app: nginx` deploys nginx on the VM | ⬜ not started |
 | 7. Stop integration | Each driver removes its workload type | `stop` cleans everything on all three bases | ✅ inherent (cluster deletion / container network teardown) |
-| 8. Test expansion | `TestContainersOnLocalKind` gains workload assertions | Workload tests pass on local kind | ✅ done (TestWorkloadRunning, TestWorkloadContainerMetrics — 8/8 pass) |
+| 8. Test expansion | `TestContainersOnLocalKind` gains workload assertions | Workload tests pass on local kind | ✅ done (TestWorkloadRunning, TestWorkloadContainerMetrics, TestWorkloadADCheck — 9/9 pass) |
 
 The local Docker deployer is the simplest (step 4) — it's the same
 mechanism as the fakeintake. The Kubernetes deployer (step 5) is the next
