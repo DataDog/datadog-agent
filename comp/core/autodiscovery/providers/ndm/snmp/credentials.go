@@ -19,8 +19,8 @@ import (
 )
 
 // credentialsFile is the credential file Fleet Automation writes, relative to
-// confd_path.
-const credentialsFile = "snmp.d/snmp_credentials.yaml"
+// conf_path.
+const credentialsFile = "snmp_credentials.yaml"
 
 // credential is one entry of the credentials file. The yaml names match
 // pkg/snmp.Authentication.
@@ -43,7 +43,7 @@ type credentialsDocument struct {
 }
 
 // credentialStore reads the credential file Fleet Automation writes next to
-// the snmp check configuration.
+// datadog.yaml.
 type credentialStore struct {
 	cfg model.Reader
 }
@@ -54,7 +54,7 @@ func newCredentialStore(cfg model.Reader) *credentialStore {
 
 // path returns where the credential file is expected.
 func (s *credentialStore) path() string {
-	return filepath.Join(s.cfg.GetString("confd_path"), credentialsFile)
+	return filepath.Join(s.cfg.GetString("conf_path"), credentialsFile)
 }
 
 // load returns the credentials indexed by id, re-reading the file on every
