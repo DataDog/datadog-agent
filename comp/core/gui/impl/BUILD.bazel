@@ -80,6 +80,7 @@ dd_agent_go_test(
         "agent_test.go",
         "auth_test.go",
         "checks_test.go",
+        "gui_peeridentity_test.go",
         "gui_test.go",
         "peeridentity_darwin_test.go",
         "peeridentity_linux_test.go",
