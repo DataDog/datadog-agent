@@ -2,6 +2,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/variables:variables.bzl", "compute_version_variables")
+
+_BUILD_VARIABLES = compute_version_variables()
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -22,7 +25,7 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
-        "src/bootstrap.rs",
+        "src/bootstrap_ipc.rs",
         "src/config.rs",
         "src/executor.rs",
         "src/identity.rs",
@@ -41,6 +44,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"]},
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -90,6 +94,7 @@ rust_binary(
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:clap",
+        "@crates//:datadog-agent-commons",
         "@crates//:log",
         "@crates//:tokio",
     ],

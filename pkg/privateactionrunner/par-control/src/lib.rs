@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-pub mod bootstrap;
+pub mod bootstrap_ipc;
 pub mod config;
 pub mod executor;
 pub mod identity;
@@ -15,6 +15,10 @@ pub mod proto;
 pub mod remote_config;
 pub mod tls;
 pub mod transport;
+
+pub fn agent_version() -> &'static str {
+    option_env!("DD_AGENT_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))
+}
 
 #[cfg(all(test, unix))]
 pub mod test_support;

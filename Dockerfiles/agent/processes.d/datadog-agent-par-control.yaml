@@ -1,9 +1,6 @@
 description: Datadog Private Action Runner - Control Plane
 command: /opt/datadog-agent/embedded/bin/par-control
 args:
-  - --bootstrap-command
-  - /opt/datadog-agent/embedded/bin/privateactionrunner
-  - bootstrap-par-control
   - --cfgpath
   - /etc/datadog-agent/datadog.yaml
 auto_start: true

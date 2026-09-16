@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::config::BootstrapConfig;
 use anyhow::{Context, Result};
 use datadog_agent_commons::ipc::{
     client::RemoteAgentClient,
-    config::{IpcAuthConfiguration, RemoteAgentClientConfiguration},
+    config::RemoteAgentClientConfiguration,
     session::{SessionId, SessionIdHandle},
 };
 use datadog_protos::agent::{ConfigSetting as AgentConfigSetting, ConfigSnapshot, config_event};
@@ -23,10 +22,11 @@ use tokio::sync::{mpsc, oneshot};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
-pub async fn load(bootstrap: &BootstrapConfig) -> Result<(GenericConfiguration, bool)> {
-    let ipc_config = ipc_config(bootstrap);
+pub async fn load(
+    ipc_config: &RemoteAgentClientConfiguration,
+) -> Result<(GenericConfiguration, bool)> {
     let session_id = SessionIdHandle::empty();
-    let (client, refresh_interval) = connect_and_register(&ipc_config, &session_id).await;
+    let (client, refresh_interval) = connect_and_register(ipc_config, &session_id).await;
     tokio::spawn(maintain_registration(
         client.clone(),
         session_id.clone(),
@@ -46,19 +46,6 @@ pub async fn load(bootstrap: &BootstrapConfig) -> Result<(GenericConfiguration, 
         .await
         .context("configuration stream closed before its initial snapshot")?;
     Ok((config, dd_url_explicit))
-}
-
-fn ipc_config(bootstrap: &BootstrapConfig) -> RemoteAgentClientConfiguration {
-    RemoteAgentClientConfiguration {
-        cmd_port: bootstrap.cmd_port,
-        auth: IpcAuthConfiguration::new(
-            bootstrap.auth_token_file_path.clone().into(),
-            bootstrap.ipc_cert_file_path.clone().into(),
-        ),
-        grpc_max_message_size: 128 * 1024 * 1024,
-        #[cfg(target_os = "linux")]
-        vsock_cid: None,
-    }
 }
 
 async fn connect_and_register(
@@ -242,21 +229,6 @@ fn proto_value_to_json(value: &Option<prost_types::Value>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn resolves_the_default_auth_token_path() {
-        let bootstrap: BootstrapConfig =
-            serde_json::from_str(r#"{"cmd_port":5001,"ipc_cert_file_path":"/tmp/ipc-cert.pem"}"#)
-                .unwrap();
-
-        assert!(
-            !ipc_config(&bootstrap)
-                .auth
-                .auth_token_file_path()
-                .as_os_str()
-                .is_empty()
-        );
-    }
 
     #[test]
     fn detects_explicit_settings() {

@@ -1,9 +1,6 @@
 description: Datadog Private Action Runner - Control Plane
 command: '{{.InstallDir}}/bin/agent/par-control.exe'
 args:
-  - --bootstrap-command
-  - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
-  - bootstrap-par-control
   - --cfgpath
   - '{{.EtcDir}}/datadog.yaml'
 auto_start: true

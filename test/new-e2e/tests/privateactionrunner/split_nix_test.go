@@ -254,37 +254,59 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.T().Cleanup(s.restoreBaseline)
 
 	client := s.Env().FakeIntake.Client()
-	selfEnrollConfig := selfEnrollSplitConfig(client.URL())
+	monolithicConfig := selfEnrollConfig(client.URL(), false)
+	splitModeConfig := selfEnrollConfig(client.URL(), true)
+	_ = s.runProcmgr("stop", parControlProcess)
+	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
-	s.restartControl(selfEnrollConfig, "Running")
+	s.Require().NoError(s.writeConfig(monolithicConfig))
+	s.restartAgent()
+	_, err := host.Execute("sudo systemctl restart " + privateActionRunnerServiceName)
+	s.Require().NoError(err)
+	s.waitForSystemdState(privateActionRunnerServiceName, "active", 2*time.Minute)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPAREnrollmentCount()
 		require.NoError(c, err)
-		require.Equal(c, 1, count, "first identity-less startup should enroll once")
+		require.Equal(c, 1, count, "monolithic runner should enroll once")
 	}, 2*time.Minute, 2*time.Second)
-	firstIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
+	monolithicIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
 
-	// A subsequent startup adopts the persisted identity without enrollment or
-	// file rotation.
-	s.restartControl(selfEnrollConfig, "Running")
-	secondIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
-	s.Require().Equal(firstIdentity, secondIdentity, "valid persisted identity should not rotate")
+	// Enabling split mode is only a topology change: par-control adopts the
+	// identity created by the monolithic runner without enrolling again.
+	_, err = host.Execute("sudo systemctl stop " + privateActionRunnerServiceName)
+	s.Require().NoError(err)
+	s.Require().NoError(s.writeConfig(splitModeConfig))
+	s.restartAgent()
+	s.waitForSystemdState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
+	s.startControl()
+	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+	splitIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
+	s.Require().Equal(monolithicIdentity, splitIdentity, "split mode should preserve the monolithic identity")
 	count, err := client.GetPAREnrollmentCount()
+	s.Require().NoError(err)
+	s.Require().Equal(1, count, "split mode should not enroll again")
+
+	// A subsequent startup also adopts the persisted identity without enrollment
+	// or file rotation.
+	s.restartControl(splitModeConfig, "Running")
+	secondIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
+	s.Require().Equal(splitIdentity, secondIdentity, "valid persisted identity should not rotate")
+	count, err = client.GetPAREnrollmentCount()
 	s.Require().NoError(err)
 	s.Require().Equal(1, count, "valid persisted identity should not enroll again")
 
-	// A hostname mismatch makes bootstrap-par-control replace the stale identity.
+	// A hostname mismatch makes the Core Agent identity endpoint replace the stale identity.
 	host.MustExecute(
 		`sudo sed -i 's/"hostname":"[^"]*"/"hostname":"definitely-not-this-host"/' ` + parIdentityPath,
 	)
-	s.restartControl(selfEnrollConfig, "Running")
+	s.restartControl(splitModeConfig, "Running")
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPAREnrollmentCount()
 		require.NoError(c, err)
 		require.Equal(c, 2, count, "stale hostname should trigger reenrollment")
 	}, 2*time.Minute, 2*time.Second)
 	reenrolledIdentity := strings.TrimSpace(host.MustExecute("sudo sha256sum " + parIdentityPath + " | cut -d' ' -f1"))
-	s.Require().NotEqual(firstIdentity, reenrolledIdentity, "reenrollment should replace the identity")
+	s.Require().NotEqual(splitIdentity, reenrolledIdentity, "reenrollment should replace the identity")
 
 	// A legacy persisted identity (without hostname) wins over even a malformed
 	// inline URN, because Go resolves identity before deriving the config.
@@ -293,7 +315,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	persistedConfig := splitConfig("not-a-runner-urn", s.inlineKey)
 	s.restartControl(persistedConfig, "Running")
 
-	// A stale hostname makes bootstrap-par-control ignore the persisted identity.
+	// A stale hostname makes the Core Agent identity endpoint ignore the persisted identity.
 	// Invalid persisted values prove the configured inline identity wins.
 	stale := `{"private_key":"invalid","urn":"not-a-runner-urn","hostname":"definitely-not-this-host"}`
 	s.Require().NoError(s.writeIdentity(stale))
@@ -318,21 +340,22 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(s.baselineConfig))
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
+	s.restartAgent()
 	s.startControl()
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
-func selfEnrollSplitConfig(fakeintakeURL string) string {
+func selfEnrollConfig(fakeintakeURL string, splitEnabled bool) string {
 	return fmt.Sprintf(`dd_url: %q
 skip_ssl_validation: true
 private_action_runner:
   enabled: true
-  split_enabled: true
+  split_enabled: %t
   self_enroll: true
   idle_timeout_seconds: 5
   actions_allowlist:
     - %s
-`, fakeintakeURL, runCommandAction)
+`, fakeintakeURL, splitEnabled, runCommandAction)
 }
 
 func splitConfig(urn, privateKey string) string {
@@ -357,8 +380,19 @@ func (s *linuxPARSplitSuite) restartControl(config, expectedState string) {
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
 	s.Require().NoError(s.writeConfig(config))
+	s.restartAgent()
 	s.startControl()
 	s.waitForProcessState(parControlProcess, expectedState, 2*time.Minute)
+}
+
+func (s *linuxPARSplitSuite) restartAgent() {
+	host := s.Env().RemoteHost
+	_, err := host.Execute("sudo systemctl restart " + coreAgentServiceName)
+	s.Require().NoError(err)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		_, err := host.Execute("sudo datadog-agent status")
+		require.NoError(c, err)
+	}, 2*time.Minute, 2*time.Second, "Core Agent should restart with the updated configuration")
 }
 
 func (s *linuxPARSplitSuite) startControl() {
