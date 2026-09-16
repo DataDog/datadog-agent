@@ -211,6 +211,11 @@ func installFilesystem(ctx HookContext, layout agentLayout) (err error) {
 // pool: the files the entry stands for live in the install root, and are replaced there by the
 // next .dmg rather than installed alongside. What the shared code needs is a repository whose
 // stable and experiment links resolve, which is what this creates.
+//
+// The version it is registered under is not a placeholder, though: it is what Fleet Automation
+// reads as the host's stable version and health-checks the running Agent against, so it has to
+// name the Agent actually installed -- see registeredVersion -- and has to move forward when a
+// .dmg replaces that Agent.
 func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) {
 	span, ctx := ctx.StartSpan("register_package_repository")
 	defer func() {
@@ -222,18 +227,32 @@ func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) 
 	}
 	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
 
-	// A package already registered is left alone. Repository.Create removes whatever it finds
-	// before writing, so re-registering would discard a real package: once the Agent can be
-	// installed from an OCI package, doInstall has registered that package and pointed stable at
-	// it before the wrapped .pkg runs -- and the .pkg's postinstall script is the same one a .dmg
-	// install runs, so it reaches this code with the real package already in place. The version
-	// the links resolve to is a placeholder either way, so there is nothing here worth refreshing.
 	state, err := repositories.GetState(ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to read the %s package state: %w", ctx.Package, err)
 	}
 	if state.HasStable() {
-		return nil
+		isPlaceholder, err := stableIsPlaceholder(repositories, ctx.Package)
+		if err != nil {
+			return err
+		}
+		// A real package is left alone. Repository.Create removes whatever it finds before
+		// writing, so re-registering would discard it: once the Agent can be installed from an OCI
+		// package, doInstall has registered that package and pointed stable at it before the
+		// wrapped .pkg runs -- and the .pkg's postinstall script is the same one a .dmg install
+		// runs, so it reaches this code with the real package already in place. Its version is the
+		// one the Agent underneath reports anyway, so there is nothing to refresh.
+		if !isPlaceholder {
+			return nil
+		}
+		// A placeholder this function registered on an earlier .dmg install. The .dmg replaces the
+		// Agent in the install root without touching this entry, so after an upgrade it still
+		// names the version installed first while the binaries it stands for are newer. The entry
+		// is what Fleet Automation health-checks the host against, so it has to move forward with
+		// the Agent: fall through and register it again under the current version.
+		if state.Stable == registeredVersion() {
+			return nil
+		}
 	}
 
 	// Create wants a source directory to move in as the version, and takes ownership of it. An
@@ -245,10 +264,40 @@ func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) 
 	// Only reached if Create failed before moving it.
 	defer os.RemoveAll(placeholder)
 
-	if err = repositories.Create(ctx, ctx.Package, version.AgentVersion, placeholder); err != nil {
+	if err = repositories.Create(ctx, ctx.Package, registeredVersion(), placeholder); err != nil {
 		return fmt.Errorf("failed to register %s as a package: %w", ctx.Package, err)
 	}
 	return nil
+}
+
+// registeredVersion is the version the placeholder package entry is registered under.
+//
+// It has to be the same value the installer daemon reports as the package's running version, which
+// is version.AgentPackageVersion (see runningVersions in pkg/fleet/daemon/daemon.go): Fleet
+// Automation decides whether a host is healthy by comparing the two, and fails every deployment to
+// it before pushing any configuration when they differ. version.AgentVersion is not
+// interchangeable -- it is the human-facing form and uses '+' where AgentPackageVersion uses '.'.
+func registeredVersion() string {
+	if version.AgentPackageVersion != "" {
+		return version.AgentPackageVersion
+	}
+	// Only builds that go through tasks/omnibus.py stamp AgentPackageVersion. Fall back so a
+	// locally built installer registers a resolvable entry rather than failing on an empty version.
+	return version.AgentVersion
+}
+
+// stableIsPlaceholder reports whether the package's stable link resolves to a placeholder entry --
+// the empty directory registerPackageRepository moves in -- rather than to a real package.
+//
+// It is what tells an entry this function owns, and may replace to move the version forward, apart
+// from one an OCI install registered, which holds the package's files and must not be touched.
+func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (bool, error) {
+	stablePath := repositories.Get(pkg).StablePath()
+	entries, err := os.ReadDir(stablePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read the %s stable package directory %s: %w", pkg, stablePath, err)
+	}
+	return len(entries) == 0, nil
 }
 
 // installStableJobs writes and loads the stable launchd job set, including the installer daemon.

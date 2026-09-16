@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Domain is a launchd domain.
@@ -82,6 +83,14 @@ func (j Job) Write(content []byte) error {
 	if err := tmp.Chmod(0644); err != nil {
 		tmp.Close()
 		return fmt.Errorf("could not set job definition mode: %w", err)
+	}
+	// A LaunchDaemon definition is expected to be owned by root:wheel. Ownership is asserted
+	// explicitly here rather than left to whichever identity happened to invoke Write -- matching
+	// the behavior the .pkg postinst previously enforced with an explicit chown. Failure is a
+	// warning, not a hard error: Write also runs unprivileged in tests, where changing ownership
+	// to root is never permitted.
+	if err := tmp.Chown(0, 0); err != nil {
+		log.Warnf("could not set root:wheel ownership on job definition %s: %v", path, err)
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("could not close job definition: %w", err)
@@ -162,8 +171,17 @@ func (c *Client) bootoutSettlePollInterval() time.Duration {
 // Bootstrap loads a job definition into the domain. It succeeds when the job is already loaded.
 func (c *Client) Bootstrap(ctx context.Context, job Job) error {
 	out, err := c.launchctl(ctx, "bootstrap", c.domainTarget(), job.Path())
-	if err == nil || isAlreadyLoaded(out) {
+	if err == nil {
 		return nil
+	}
+	// launchctl's "file exists"-shaped errors are ambiguous: they are errno text, not a specific
+	// diagnosis, so the same message covers the job already being loaded and an unrelated resource
+	// (e.g. a stale socket) already existing. Print settles it either way: only a job the domain
+	// actually reports as loaded is treated as a successful, idempotent bootstrap.
+	if isAlreadyLoaded(out) {
+		if loaded, loadedErr := c.Loaded(ctx, job.Label); loadedErr == nil && loaded {
+			return nil
+		}
 	}
 	return fmt.Errorf("could not bootstrap %s: %w (%s)", job.Label, err, strings.TrimSpace(string(out)))
 }

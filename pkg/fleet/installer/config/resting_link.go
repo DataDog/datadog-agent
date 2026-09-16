@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 )
 
 // restingLink is the experiment configuration path together with the stable path it points at
@@ -58,10 +60,19 @@ func (l restingLink) IsResting() (bool, error) {
 // It is idempotent, and it is the only way a deployed experiment is removed: a host that never
 // started one and a host whose experiment was just discarded are indistinguishable afterwards.
 func (l restingLink) Rest() error {
-	if err := os.RemoveAll(l.path); err != nil {
-		return fmt.Errorf("could not clear %s: %w", l.path, err)
+	info, err := os.Lstat(l.path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("could not inspect %s: %w", l.path, err)
 	}
-	if err := os.Symlink(l.target, l.path); err != nil {
+	// A real directory cannot be replaced by a symlink with a single rename (rename(2) refuses to
+	// swap a directory for a non-directory), so it has to be cleared out first. An absent path or
+	// an existing symlink can go straight to the atomic swap below.
+	if err == nil && info.Mode()&os.ModeSymlink == 0 {
+		if err := os.RemoveAll(l.path); err != nil {
+			return fmt.Errorf("could not clear %s: %w", l.path, err)
+		}
+	}
+	if err := symlink.Set(l.path, l.target); err != nil {
 		return fmt.Errorf("could not rest %s on %s: %w", l.path, l.target, err)
 	}
 	return nil
