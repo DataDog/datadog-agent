@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -162,6 +163,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("node_name", nodeName),
 	)
 	if err := grpc.DoWithTimeout(func() error {
@@ -194,6 +196,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			}
 			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
+				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 				tracer.Tag("node_name", nodeName),
 				tracer.Tag("event_type", "pod_services"),
 			)
@@ -217,6 +220,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			resp := metadataDiff.response(false)
 			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
+				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 				tracer.Tag("node_name", nodeName),
 				tracer.Tag("event_type", "metadata"),
 			)
@@ -235,6 +239,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			// Send empty keepalive
 			keepaliveSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_keepalive",
 				tracer.ResourceName("sendKeepalive"),
+				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 				tracer.Tag("node_name", nodeName),
 			)
 			if err := grpc.DoWithTimeout(func() error {
