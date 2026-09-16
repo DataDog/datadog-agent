@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
-	github.com/apache/arrow-go/v18 v18.7.0
+	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
 )
@@ -90,7 +90,7 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect
-	github.com/andybalholm/brotli v1.2.2 // indirect
+	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.46.0 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
