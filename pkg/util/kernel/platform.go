@@ -50,7 +50,7 @@ var platformCorrections = []struct {
 }{
 	{pattern: regexp.MustCompile(`\.amzn([1-2])\.`), info: platformInfo{platform: "amazon", family: "rhel"}},
 	{pattern: regexp.MustCompile(`\.amzn2023\.`), info: platformInfo{platform: "amazon", family: "rhel", version: "2023"}},
-	{pattern: regexp.MustCompile(`\.el([7-8])uek\.`), info: platformInfo{platform: "oracle", family: "rhel"}},
+	{pattern: regexp.MustCompile(`\.el([7-8])uek\.`), info: platformInfo{platform: "oracle", family: "rhel"}, ubuntuOnly: true},
 	// we don't know the actual platform between CentOS, RHEL, Rocky, etc. but we know it isn't Ubuntu. Set to RHEL as reasonable default.
 	{pattern: regexp.MustCompile(`\.el(\d+(_\d+)?)\.`), info: platformInfo{platform: "redhat", family: "rhel"}, ubuntuOnly: true, versionTransform: func(v string) string {
 		return strings.Replace(v, "_", ".", 1)
