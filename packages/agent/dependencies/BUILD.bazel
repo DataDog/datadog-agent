@@ -11,6 +11,9 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
+# List of targets/filegroups that need to be installed to {install_dir} for
+# the omnibus build to succeed.
+# This is meant to be removed once the migration is complete
 pkg_filegroup(
     name = "all_files",
     srcs = [
