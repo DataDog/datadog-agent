@@ -82,6 +82,7 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 		OS:           imgInfo.os,
 		Architecture: imgInfo.arch,
 		Variant:      imgInfo.variant,
+		Created:      imgInfo.created,
 		Layers:       imgInfo.layers,
 	}
 
@@ -145,6 +146,7 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 			imgInfo.arch = parsed.ImageSpec.Architecture
 			imgInfo.variant = parsed.ImageSpec.Variant
 			imgInfo.labels = parsed.Labels
+			imgInfo.created, _ = time.Parse(time.RFC3339, parsed.ImageSpec.Created)
 
 			// Match layers with their history entries, including empty layers
 			historyIndex := 0
@@ -307,13 +309,14 @@ type layerInfo struct {
 	MediaType string `json:"mediaType"`
 }
 
-// imageInfo holds the size, OS, architecture, variant, labels, and layers of an image.
+// imageInfo holds the size, OS, architecture, variant, labels, creation time and layers of an image.
 type imageInfo struct {
 	size    int64
 	os      string
 	arch    string
 	variant string
 	labels  map[string]string
+	created time.Time
 	layers  []workloadmeta.ContainerImageLayer
 }
 
@@ -324,6 +327,7 @@ type parsedInfo struct {
 		OS           string `json:"os"`
 		Architecture string `json:"architecture"`
 		Variant      string `json:"variant"`
+		Created      string `json:"created"`
 		RootFS       struct {
 			DiffIDs []string `json:"diff_ids"`
 		} `json:"rootfs"`

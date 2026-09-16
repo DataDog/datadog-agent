@@ -107,6 +107,7 @@ func (c *fakeCRIOContainer) ConfigFile() (*v1.ConfigFile, error) {
 	configFile := &v1.ConfigFile{
 		Architecture: c.imgMeta.Architecture,
 		OS:           c.imgMeta.OS,
+		Created:      v1.Time{Time: c.imgMeta.Created},
 	}
 	diffIDs := c.diffIDs()
 	configFile.RootFS.DiffIDs = make([]v1.Hash, len(diffIDs))

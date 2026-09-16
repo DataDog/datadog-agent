@@ -39,6 +39,8 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, o
 		bom.Dependencies = nil
 	}
 
+	appendSBOMImageCreated(bom, &report.Metadata.ImageConfig)
+
 	bom14 := bomconvert.ConvertBOM(bom, opts.simplifyBomRefs)
 
 	return &Report{
