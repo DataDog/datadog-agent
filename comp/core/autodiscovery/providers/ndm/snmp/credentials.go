@@ -6,44 +6,31 @@
 package snmp
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-
-	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-// credentialsFile is the credential file Fleet Automation writes, relative to
-// conf_path.
-const credentialsFile = "snmp_credentials.yaml"
+const credentialsConfigKey = "network_devices.snmp_credentials"
 
-// credential is one entry of the credentials file. The yaml names match
-// pkg/snmp.Authentication.
+// credential is one entry of network_devices.snmp_credentials. The mapstructure
+// tags match pkg/snmp.Authentication.
 type credential struct {
-	ID              string `yaml:"id"`
-	SNMPVersion     string `yaml:"snmp_version"`
-	CommunityString string `yaml:"community_string"`
-	User            string `yaml:"user"`
-	AuthProtocol    string `yaml:"authProtocol"`
-	AuthKey         string `yaml:"authKey"`
-	PrivProtocol    string `yaml:"privProtocol"`
-	PrivKey         string `yaml:"privKey"`
-	ContextName     string `yaml:"context_name"`
+	ID              string `mapstructure:"id"`
+	SNMPVersion     string `mapstructure:"snmp_version"`
+	CommunityString string `mapstructure:"community_string"`
+	User            string `mapstructure:"user"`
+	AuthProtocol    string `mapstructure:"authProtocol"`
+	AuthKey         string `mapstructure:"authKey"`
+	PrivProtocol    string `mapstructure:"privProtocol"`
+	PrivKey         string `mapstructure:"privKey"`
+	ContextName     string `mapstructure:"context_name"`
 	// context_engine_id is absent: the snmp check's InstanceConfig has no such field.
 }
 
-// credentialsDocument is the credential file Fleet Automation writes.
-type credentialsDocument struct {
-	Credentials []credential `yaml:"credentials"`
-}
-
-// credentialStore reads the credential file Fleet Automation writes next to
-// datadog.yaml.
+// credentialStore reads the credentials from the Agent configuration.
 type credentialStore struct {
 	cfg model.Reader
 }
@@ -52,33 +39,18 @@ func newCredentialStore(cfg model.Reader) *credentialStore {
 	return &credentialStore{cfg: cfg}
 }
 
-// path returns where the credential file is expected.
-func (s *credentialStore) path() string {
-	return filepath.Join(s.cfg.GetString("conf_path"), credentialsFile)
-}
-
-// load returns the credentials indexed by id, re-reading the file on every
-// call. An absent file is an empty set, not an error. An entry with no id is
-// skipped and the first of two entries sharing an id wins.
+// load returns the configured credentials indexed by id, re-reading the
+// configuration on every call. An entry with no id is skipped and the first
+// of two entries sharing an id wins.
 func (s *credentialStore) load() (map[string]credential, error) {
-	path := s.path()
-
-	body, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return map[string]credential{}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	var entries []credential
+	if err := structure.UnmarshalKey(s.cfg, credentialsConfigKey, &entries); err != nil {
+		// The unmarshal error is dropped, not wrapped: it quotes the offending value.
+		return nil, fmt.Errorf("failed to read %s", credentialsConfigKey)
 	}
 
-	var doc credentialsDocument
-	if err := yaml.Unmarshal(body, &doc); err != nil {
-		// The parse error is dropped, not wrapped: it quotes the offending value.
-		return nil, fmt.Errorf("failed to parse %s", path)
-	}
-
-	creds := make(map[string]credential, len(doc.Credentials))
-	for _, e := range doc.Credentials {
+	creds := make(map[string]credential, len(entries))
+	for _, e := range entries {
 		if e.ID == "" {
 			continue
 		}
