@@ -43,6 +43,8 @@ func nvlinkErrorCounterSample(device ddnvml.Device, metricName string, counter n
 	return samples, 0, nil
 }
 
+// createNVLinkStatelessAPIs creates the API calls for the NVLink stateless collector, spawning multiple simple collectors
+// for each API call and port.
 func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 	nvlinkAPICalls := []nvlinkAPICallInfo{
 		{
