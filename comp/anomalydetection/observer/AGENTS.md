@@ -129,6 +129,18 @@ When `anomaly_detection.metrics.enabled=false`, handles wrap with
 still passes through; log-derived virtual metrics produced inside the engine
 are unaffected.
 
+### Tag ownership and host identity
+
+Metrics-pipeline tags enter the observer as immutable `tagset.CompositeTags`.
+Core observer paths (ingestion, filtering, storage, detectors, and
+correlators) retain and iterate that view; they must not flatten, sort, or
+copy it. Materialize a `[]string` only at an external serialization boundary
+such as a JSON, event, Parquet, or testbench DTO.
+
+Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
+reused. Copy it once at raw-log ingestion; all derived metric paths should then
+use a composite view.
+
 ### Correlator-owned deduplication (`correlationEmitter`)
 
 All correlation event deduplication lives **inside each correlator**, not in reporters.

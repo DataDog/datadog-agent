@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
@@ -44,8 +45,8 @@ func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.Met
 
 func TestFormatScorerContributorMessage(t *testing.T) {
 	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
-		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: []string{"env:prod"}},
-		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: []string{"service:api"}},
+		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
+		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
 	}}
 
 	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
@@ -62,8 +63,8 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 	storage := &sumRangeStorage{
 		metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
-			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Host: "web-1", Tags: []string{"service:api"}},
-			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: []string{"env:prod"}},
+			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
+			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
 		},
 		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
 			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
@@ -102,7 +103,7 @@ func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing
 		metas[ref] = observerdef.SeriesMeta{
 			Ref:  ref,
 			Name: fmt.Sprintf("metric.%d", i),
-			Tags: []string{strings.Repeat("tag:value,", 100)},
+			Tags: tagset.CompositeTagsFromSlice([]string{strings.Repeat("tag:value,", 100)}),
 		}
 		contributors[i] = observerdef.ScorerContributor{
 			Handle: observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
@@ -113,7 +114,8 @@ func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing
 	message := formatScorerContributorMessage(contributors, &sumRangeStorage{metas: metas})
 	assert.LessOrEqual(t, len(message), changeEventMessageMaxLen)
 	assert.True(t, utf8.ValidString(message))
-	assert.Contains(t, message, metas[1].Tags[0])
+	tags, _ := metas[1].Tags.UnsafeGet()
+	assert.Contains(t, message, tags[0])
 	assert.Contains(t, message, "metric.3:avg{...}")
 	assert.Contains(t, message, "other anomalies")
 }
@@ -296,7 +298,7 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 				Type: observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{
 					Namespace: "dogstatsd",
-					Tags:      []string{"service:web", "env:prod", "host:h1", "version:1.0"},
+					Tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod", "host:h1", "version:1.0"}),
 				},
 			},
 		},
@@ -317,7 +319,7 @@ func TestBuildEventTags_DimensionalHostFromSource(t *testing.T) {
 				Source: observerdef.SeriesDescriptor{
 					Namespace: "dogstatsd",
 					Host:      "web-1",
-					Tags:      []string{"service:web", "env:prod"},
+					Tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
 				},
 			},
 		},
@@ -358,11 +360,11 @@ func TestBuildEventTags_DeduplicatesDimensions(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:web"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:web"})},
 			},
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:web"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:web"})},
 			},
 		},
 	}
@@ -382,7 +384,7 @@ func TestBuildEventTags_SourceAndPatternAreFirstTwo(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:svc"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:svc"})},
 			},
 		},
 	}

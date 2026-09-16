@@ -426,7 +426,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.AddWithKeyAndHost(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
+	e.storage.AddWithKeyAndHostComposite(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -862,7 +862,7 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 			return key
 		}
 	}
-	return storageKeyForIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
+	return storageKeyForCompositeIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.
@@ -1047,7 +1047,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 	if e.baseline.config.Verbose {
 		for _, ref := range refs {
 			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
-				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Host, meta.Tags))
+				displayNames = append(displayNames, seriesKeyComposite(meta.Namespace, meta.Name, meta.Host, meta.Tags))
 			}
 		}
 		sort.Strings(displayNames)

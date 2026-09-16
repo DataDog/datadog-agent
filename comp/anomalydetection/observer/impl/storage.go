@@ -15,6 +15,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -161,9 +162,8 @@ type seriesStats struct {
 	Namespace  string
 	Name       string
 	Host       string
-	Tags       []string
+	Tags       tagset.CompositeTags
 	storageKey uint64                  // series identity key assigned at ingestion
-	tagsHash   uint64                  // fnv64a hash of Tags; 0 means not interned
 	ref        observer.SeriesRef      // compact numeric ID assigned on creation
 	context    *observer.MetricContext // optional; set by extractors for anomaly enrichment
 	// supportedAggregations is a bit mask. Zero means all aggregations are
@@ -342,6 +342,17 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 // AddWithKeyAndHost inserts a point using a series key already computed by the
 // caller. The key must be derived from namespace, name, host, and tags.
 func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags []string, key uint64) AddResult {
+	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(tags), key)
+}
+
+// AddWithKeyAndHostComposite inserts a point using immutable composite tags.
+// Tags are materialized only when a new series needs the storage-owned,
+// canonical representation; writes to an existing series retain the view.
+func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
+	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key)
+}
+
+func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -355,18 +366,15 @@ func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, valu
 	}
 	stats, exists := s.series[key]
 	if !exists {
-		// Only intern on new series creation so the ref count tracks exactly
-		// the number of live series holding the canonical slice.
-		canonical, th := s.internTags(tags)
+		// Composite tags are immutable and can be retained directly.
 		id := s.nextSeriesRef
 		s.nextSeriesRef++
 		stats = &seriesStats{
 			Namespace:  namespace,
 			Name:       name,
 			Host:       host,
-			Tags:       canonical,
+			Tags:       tags,
 			storageKey: key,
-			tagsHash:   th,
 			ref:        id,
 		}
 		s.series[key] = stats
@@ -570,6 +578,29 @@ func seriesKey(namespace, name, host string, tags []string) string {
 	return b.String()
 }
 
+func seriesKeyComposite(namespace, name, host string, tags tagset.CompositeTags) string {
+	n := len(namespace) + len(name) + len(host) + 3
+	tags.ForEach(func(tag string) { n += len(tag) })
+	n += max(0, tags.Len()-1)
+	var b strings.Builder
+	b.Grow(n)
+	b.WriteString(namespace)
+	b.WriteByte('|')
+	b.WriteString(name)
+	b.WriteByte('|')
+	b.WriteString(host)
+	b.WriteByte('|')
+	first := true
+	tags.ForEach(func(tag string) {
+		if !first {
+			b.WriteByte(',')
+		}
+		b.WriteString(tag)
+		first = false
+	})
+	return b.String()
+}
+
 // copyTags creates a copy of tags slice.
 func copyTags(tags []string) []string {
 	if tags == nil {
@@ -705,6 +736,11 @@ func storageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
 	return storageKeyForContextKey(namespace, contextKeyForIdentity(name, host, tags))
 }
 
+func storageKeyForCompositeIdentity(namespace, name, host string, tags tagset.CompositeTags) uint64 {
+	contextKey := ckey.NewSliceKeyGenerator().GenerateComposite(name, host, tags)
+	return storageKeyForContextKey(namespace, uint64(contextKey))
+}
+
 func storageKeyForContextKey(namespace string, contextKey uint64) uint64 {
 	return avalanche64(contextKey ^ fnv64aString(namespace))
 }
@@ -779,7 +815,7 @@ type seriesMeta struct {
 	Namespace  string
 	Name       string
 	Host       string
-	Tags       []string
+	Tags       tagset.CompositeTags
 	PointCount int
 }
 
@@ -797,7 +833,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
 				Host:       stats.Host,
-				Tags:       copyTags(stats.Tags),
+				Tags:       stats.Tags,
 				PointCount: stats.pointCount(),
 			})
 		}
@@ -809,7 +845,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 		if result[i].Name != result[j].Name {
 			return result[i].Name < result[j].Name
 		}
-		return strings.Join(result[i].Tags, ",") < strings.Join(result[j].Tags, ",")
+		return result[i].Tags.Join(",") < result[j].Tags.Join(",")
 	})
 	return result
 }
@@ -896,7 +932,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			Namespace: st.Namespace,
 			Name:      st.Name,
 			Host:      st.Host,
-			Tags:      st.Tags,
+			Tags:      st.Tags.UnsafeToReadOnlySliceString(),
 		}
 		n := st.pointCount()
 		for i := 0; i < n; i++ {
@@ -990,7 +1026,6 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 	if stats == nil || stats.ref < 0 || s.seriesIDStats[stats.ref] != stats {
 		return false
 	}
-	s.releaseTagIntern(stats.tagsHash)
 	if s.series[stats.storageKey] == stats {
 		delete(s.series, stats.storageKey)
 	}
@@ -1351,16 +1386,16 @@ func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime 
 }
 
 // matchTags checks if tags contain all required key=value pairs.
-func matchTags(tags []string, matchers map[string]string) bool {
+func matchTags(tags tagset.CompositeTags, matchers map[string]string) bool {
 	if len(matchers) == 0 {
 		return true
 	}
 	tagMap := make(map[string]string)
-	for _, t := range tags {
+	tags.ForEach(func(t string) {
 		if idx := strings.Index(t, ":"); idx > 0 {
 			tagMap[t[:idx]] = t[idx+1:]
 		}
-	}
+	})
 	for k, v := range matchers {
 		if tagMap[k] != v {
 			return false

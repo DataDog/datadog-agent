@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // TestBuildChangeEventPayload_WireShape asserts the JSON envelope produced for
@@ -30,7 +31,7 @@ func TestBuildChangeEventPayload_WireShape(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "dogstatsd", Tags: []string{"service:web", "env:prod"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "dogstatsd", Tags: tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"})},
 				DebugInfo: &observerdef.AnomalyDebugInfo{
 					CurrentValue: 10,
 					BaselineMean: 1,

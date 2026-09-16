@@ -167,12 +167,12 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	// Same metric name, different tags = different Source descriptors
 	// Both should be separate members in the cluster
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: []string{"host:A"}},
+		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: testCompositeTags([]string{"host:A"})},
 		Title:     "Anomaly from host A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
-		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: []string{"host:B"}},
+		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: testCompositeTags([]string{"host:B"})},
 		Title:     "Anomaly from host B",
 		Timestamp: 102,
 	})

@@ -109,7 +109,7 @@ func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
 	decision := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name: "system.cpu.user",
 		host: "host-a",
-		tags: []string{"service:api", "env:prod"},
+		tags: testCompositeTags([]string{"service:api", "env:prod"}),
 	}, filter)
 
 	require.NotNil(t, decision.metric)
@@ -117,6 +117,26 @@ func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
 		testStorageKeyForIdentity("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
 		decision.metric.storageKey,
 	)
+}
+
+func TestPrepareMetricIngestRetainsCompositeTagViews(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	first := []string{"service:api"}
+	second := []string{"env:prod"}
+	sample := &metricObs{
+		name: "system.cpu.user",
+		tags: tagset.NewCompositeTags(first, second),
+	}
+
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
+
+	require.NotNil(t, decision.metric)
+	gotFirst, gotSecond := decision.metric.tags.UnsafeGet()
+	require.Len(t, gotFirst, 1)
+	require.Len(t, gotSecond, 1)
+	assert.Same(t, &first[0], &gotFirst[0])
+	assert.Same(t, &second[0], &gotSecond[0])
 }
 
 func TestMetricsFilterRulesAllowWithoutRules(t *testing.T) {
@@ -304,10 +324,10 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: testCompositeTags([]string{"env:dev"})}, filter)
 	assert.Nil(t, dropped.metric)
 
-	kept := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
+	kept := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: testCompositeTags([]string{"env:prod"})}, filter)
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, "dogstatsd", kept.source)
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
@@ -361,7 +381,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 
 	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	require.NotNil(t, decision.metric)
-	assert.Equal(t, []string{"env:prod", "service:web"}, decision.metric.tags)
+	assert.Equal(t, []string{"service:web", "env:prod"}, decision.metric.tags.UnsafeToReadOnlySliceString())
 	assert.Equal(t, 1, sample.tagsRead)
 
 	rejectedSample := &tagsTrackingMetric{
@@ -373,7 +393,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	assert.Equal(t, 1, rejectedSample.tagsRead)
 }
 
-func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
+func TestPrepareMetricIngestTaglessIncludeHonorsMuteSetWithoutReadingTags(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        includeAtMatch,
 		Name:        "keep_system_cpu",
@@ -392,7 +412,7 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 
 	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, sample.tagsRead)
+	assert.Equal(t, 0, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
@@ -500,7 +520,7 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
-		tags:      []string{"env:prod"},
+		tags:      testCompositeTags([]string{"env:prod"}),
 		timestamp: 1000,
 	})
 	testObserveMetric(obs.GetHandle("check"), &metricObs{
@@ -732,19 +752,19 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
-		tags:      []string{"env:dev", "service:web"},
+		tags:      testCompositeTags([]string{"env:dev", "service:web"}),
 		timestamp: 1000,
 	})
 	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
-		tags:      []string{"env:dev"},
+		tags:      testCompositeTags([]string{"env:dev"}),
 		timestamp: 1000,
 	})
 	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
-		tags:      []string{"service:web"},
+		tags:      testCompositeTags([]string{"service:web"}),
 		timestamp: 1000,
 	})
 

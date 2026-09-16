@@ -71,7 +71,7 @@ type metricObs struct {
 	name       string
 	value      float64
 	host       string
-	tags       []string
+	tags       tagset.CompositeTags
 	timestamp  int64
 	storageKey uint64
 }
@@ -88,7 +88,7 @@ func (m *metricObs) GetValue() float64 {
 }
 
 func (m *metricObs) GetTags() tagset.CompositeTags {
-	return tagset.CompositeTagsFromSlice(m.tags)
+	return m.tags
 }
 
 func (m *metricObs) GetHost() string { return m.host }
@@ -1074,14 +1074,12 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
-	// Canonicalize once for tag-aware filtering and downstream storage's sorted
-	// tag interning fast path.
-	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
-	if precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate) {
-		return metricIngestDecision{source: normalizedSource}
-	}
 	seriesKey := storageKeyForContextKey(normalizedSource, contextKey)
 	if filter.isMutedWithKey(normalizedSource, seriesKey) {
+		return metricIngestDecision{source: normalizedSource}
+	}
+	tags := sample.GetTags()
+	if precheck.needsTags && !filter.isAllowedByRulesFromWithHostComposite(name, normalizedSource, host, tags, precheck.firstCandidate) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
