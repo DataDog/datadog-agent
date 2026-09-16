@@ -83,16 +83,6 @@ type Violation struct {
 	ExpectedTypes []string
 }
 
-func collectValidationErrors(ve *jsonschema.ValidationError, out *[]string) {
-	if len(ve.Causes) == 0 {
-		*out = append(*out, ve.Error())
-		return
-	}
-	for _, cause := range ve.Causes {
-		collectValidationErrors(cause, out)
-	}
-}
-
 func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 	if len(ve.Causes) == 0 {
 		violation := Violation{
@@ -112,20 +102,14 @@ func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 }
 
 func validateData(sch *jsonschema.Schema, config interface{}) ([]string, error) {
-	if sch == nil {
-		return nil, errors.New("no embedded schema")
-	}
-
-	err := sch.Validate(config)
-	if err == nil {
+	violations, err := validateDataDetailed(sch, config)
+	if err != nil || len(violations) == 0 {
 		return nil, err
 	}
-	var ve *jsonschema.ValidationError
-	if !errors.As(err, &ve) {
-		return []string{err.Error()}, nil
+	out := make([]string, len(violations))
+	for index, violation := range violations {
+		out[index] = violation.Message
 	}
-	var out []string
-	collectValidationErrors(ve, &out)
 	return out, nil
 }
 
@@ -149,18 +133,11 @@ func validateDataDetailed(sch *jsonschema.Schema, config interface{}) ([]Violati
 
 // ValidateCoreConfig validates a unmarshal YAML/JSON contents against the core agent schema
 func ValidateCoreConfig(config interface{}) ([]string, error) {
-	violations, err := ValidateCoreConfigDetailed(config)
+	sch, err := coreSchemaGetter()
 	if err != nil {
 		return nil, err
 	}
-	if len(violations) == 0 {
-		return nil, nil
-	}
-	errors := make([]string, len(violations))
-	for index, violation := range violations {
-		errors[index] = violation.Message
-	}
-	return errors, nil
+	return validateData(sch, config)
 }
 
 // ValidateCoreConfigDetailed validates unmarshaled YAML/JSON contents against

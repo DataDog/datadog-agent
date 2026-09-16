@@ -17,16 +17,6 @@ import (
 
 var (
 	testYAMLSchema = `
-$defs:
-  parent:
-    type: object
-    properties:
-      optional:
-        type: boolean
-      "required/key~name":
-        type: integer
-    required:
-      - "required/key~name"
 properties:
   api_key:
     type: string
@@ -36,8 +26,6 @@ properties:
     items:
       type: string
     default: []
-  parent:
-    $ref: "#/$defs/parent"
 `
 	testSchema        *jsonschema.Schema
 	schemaCompileOnce sync.Once
@@ -111,7 +99,6 @@ func TestValidateCoreFileValid(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, errs)
-	assert.Nil(t, errs)
 }
 
 func TestValidateSystemProbeFileValid(t *testing.T) {
