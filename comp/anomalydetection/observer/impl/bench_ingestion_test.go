@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
@@ -60,6 +61,59 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkCompositeTagsStorage isolates the two hot storage cases for the
+// CompositeTags contract: existing-series writes must not inspect tags, while
+// new series may hash once to join the bounded composite interner.
+func BenchmarkCompositeTagsStorage(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		tags tagset.CompositeTags
+	}{
+		{name: "existing_one_segment", tags: tagset.CompositeTagsFromSlice([]string{"env:prod", "service:api"})},
+		{name: "existing_two_segments", tags: tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			key := storageKeyForCompositeIdentity("ns", "metric", "", tc.tags)
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, 0, tc.tags, key)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i+1), tc.tags, key)
+			}
+		})
+	}
+
+	b.Run("new_series_interner_hit", func(b *testing.B) {
+		tags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})
+		anchorKey := storageKeyForCompositeIdentity("ns", "anchor", "", tags)
+		key := storageKeyForCompositeIdentity("ns", "metric", "", tags)
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "anchor", "", 1, 0, tags, anchorKey)
+			b.StartTimer()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i), tags, key)
+		}
+	})
+}
+
+func BenchmarkMetricFilterV1RulesCompositeSegments(b *testing.B) {
+	filter := newV1MetricFilter(b)
+	metric := highLoadMetric("system.cpu.user")
+	first, _ := metric.tags.UnsafeGet()
+	metric.tags = tagset.NewCompositeTags(first[:8], first[8:])
+	contextKey := testContextKeyFor(metric)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if decision := prepareMetricIngest("check", contextKey, metric, filter); decision.metric == nil {
+			b.Fatal("expected metric to be accepted")
+		}
 	}
 }
 
