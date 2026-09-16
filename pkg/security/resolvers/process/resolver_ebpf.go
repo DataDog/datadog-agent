@@ -66,6 +66,9 @@ const (
 	otelProcCtxQueueSize     = 10000
 	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
+
+	// eksPodIdentityAgentBinary is the well-known binary name of the EKS Pod Identity Agent
+	eksPodIdentityAgentBinary = "eks-pod-identity-agent"
 )
 
 // EBPFResolver resolved process context
@@ -120,7 +123,8 @@ type EBPFResolver struct {
 	reparentProcfsResolutionOk   *atomic.Int64
 	reparentProcfsResolutionFail *atomic.Int64
 	procFallbackLimiterDrop      *atomic.Int64
-	inodeErrStats                map[string]*atomic.Int64 // inode error stats by tag
+	inodeErrStats                map[string]*atomic.Int64     // inode error stats by tag
+	spanCtxStats                 map[spanCtxKey]*atomic.Int64 // span context stats by (step, status)
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
@@ -567,6 +571,10 @@ func (p *EBPFResolver) SendStats() error {
 				return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
 			}
 		}
+	}
+
+	if err := p.sendSpanCtxStats(); err != nil {
+		return err
 	}
 
 	return nil
@@ -1525,6 +1533,13 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	return nil
 }
 
+// hasEntry reports whether pid has a process cache entry.
+func (p *EBPFResolver) hasEntry(pid uint32) bool {
+	p.RLock()
+	defer p.RUnlock()
+	return p.entryCache[pid] != nil
+}
+
 // SnapshotTracer detects whether a process that started before the agent is
 // running a Datadog tracer and, if so, applies its metadata the same way the
 // runtime tracer_memfd_seal event handler does.
@@ -1532,10 +1547,7 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
 	// SyncCache actually entered into the cache — anything else can't be
 	// updated downstream anyway.
-	p.RLock()
-	hasEntry := p.entryCache[pid] != nil
-	p.RUnlock()
-	if !hasEntry {
+	if !p.hasEntry(pid) {
 		return
 	}
 
@@ -1564,9 +1576,8 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 		return
 	}
 
-	if err := p.resolveGoLabels(pid); err != nil {
-		seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
-	}
+	err := p.resolveGoLabels(pid)
+	p.reportSpanCtx(spanCtxStepGoLabels, pid, err)
 }
 
 // ResolveOTelProcessContext queues the resolution of the OTel process context
@@ -1587,6 +1598,7 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 	case p.otelProcCtxQueue <- pid:
 		p.otelProcCtxPending[pid] = struct{}{}
 	default:
+		p.countSpanCtx(spanCtxStepProcessCtx, spanCtxQueueFull)
 		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
 	}
 }
@@ -1597,10 +1609,11 @@ func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
-
-	if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
-		seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	if !p.hasEntry(pid) {
+		return
 	}
+
+	p.resolveAndUpdateOTelTLS(pid)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
@@ -1617,39 +1630,70 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			delete(p.otelProcCtxPending, pid)
 			p.otelProcCtxLock.Unlock()
 
-			if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
-				seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+			if !p.hasEntry(pid) {
+				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
+				continue
 			}
+			p.resolveAndUpdateOTelTLS(pid)
 		}
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) error {
-	// Only do the (mildly expensive) resolution for pids that SyncCache actually entered into the cache
-	p.RLock()
-	hasEntry := p.entryCache[pid] != nil
-	p.RUnlock()
-	if !hasEntry {
-		return nil
-	}
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
+	target := newOTelTargetProcess(pid)
 
-	res, err := resolveOTelTLS(pid)
+	procCtx, err := target.processContext()
 	if err != nil {
-		return err
+		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, err)
+		return
+	}
+	if procCtx == nil {
+		// The process publishes no OTel process context at all.
+		return
+	}
+	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
+	seclog.Debugf("read the OTel process context of pid %d", pid)
+
+	attributeKeys, err := otelAttributeKeys(procCtx)
+	if err != nil {
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
+		return
+	}
+	p.attachOTelAttributeKeys(pid, attributeKeys)
+
+	value, lookupErr := p.otelTLSMap.LookupBytes(pid)
+	if lookupErr != nil {
+		seclog.Errorf("kernel map lookup error: %v", lookupErr)
+	}
+	if value == nil {
+		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
+		res, resolveErr := target.resolveTLSOffsets()
+		if resolveErr == nil {
+			resolveErr = p.updateOTelTLS(pid, res)
+		}
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
+		return
 	}
 
+	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
+}
+
+func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
 	value := serializeOTelTLSValue(res)
 	if err := p.otelTLSMap.Put(pid, value); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
-
-	p.Lock()
-	if entry := p.entryCache[pid]; entry != nil {
-		entry.Tracer.ThreadlocalAttributeKeys = res.attributeKeys
-	}
-	p.Unlock()
 
 	return nil
+}
+
+// attachOTelAttributeKeys records the OTel attribute key names on pid.
+func (p *EBPFResolver) attachOTelAttributeKeys(pid uint32, attributeKeys []string) {
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil {
+		entry.Tracer.ThreadlocalAttributeKeys = attributeKeys
+	}
+	p.Unlock()
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1662,15 +1706,22 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
-	if entry != nil {
-		// check if this key is already in cache
-		for _, key := range entry.AWSSecurityCredentials {
-			if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
-				return
-			}
-		}
-		entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
+	if entry == nil {
+		return
 	}
+
+	// skip the agent itself: attribute the key to the requester, not the broker
+	if e.IMDS.CredentialSource == uint32(model.CredentialSourceEKSPodIdentity) && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
+		return
+	}
+
+	// check if this key is already in cache
+	for _, key := range entry.AWSSecurityCredentials {
+		if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
+			return
+		}
+	}
+	entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
 }
 
 // FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event for the
@@ -2097,6 +2148,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		reparentProcfsResolutionFail: atomic.NewInt64(0),
 		procFallbackLimiterDrop:      atomic.NewInt64(0),
 		inodeErrStats:                make(map[string]*atomic.Int64),
+		spanCtxStats:                 newSpanCtxStats(),
 		mountResolver:                mountResolver,
 		cgroupResolver:               cgroupResolver,
 		userGroupResolver:            userGroupResolver,

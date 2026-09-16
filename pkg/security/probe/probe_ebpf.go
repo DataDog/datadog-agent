@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -673,7 +674,53 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	if err := p.initCredentialEndpoints(); err != nil {
+		return fmt.Errorf("initCredentialEndpoints error: %w", err)
+	}
+
 	return nil
+}
+
+// initCredentialEndpoints fills the `credential_endpoints` map used by the TC classifier
+func (p *EBPFProbe) initCredentialEndpoints() error {
+	// map only exists when the TC classifiers are loaded
+	if !p.probe.IsNetworkEnabled() {
+		return nil
+	}
+
+	endpoints, err := p.config.RuntimeSecurity.CredentialEndpoints()
+	if err != nil {
+		return err
+	}
+
+	endpointsMap, err := managerhelper.Map(p.Manager.Get(), "credential_endpoints")
+	if err != nil {
+		return err
+	}
+
+	for _, endpoint := range endpoints {
+		key := credentialEndpointKey(endpoint.Addr)
+		if err := endpointsMap.Put(key, uint32(endpoint.Source)); err != nil {
+			return fmt.Errorf("couldn't push credential endpoint %s: %w", endpoint.Addr, err)
+		}
+	}
+	return nil
+}
+
+// credentialEndpointKey builds a `credential_endpoints` map key, matching flow_t's layout
+func credentialEndpointKey(addr netip.Addr) [2]uint64 {
+	var raw [16]byte
+	if addr.Is4() {
+		v4 := addr.As4()
+		copy(raw[0:4], v4[:])
+	} else {
+		raw = addr.As16()
+	}
+
+	return [2]uint64{
+		binary.NativeEndian.Uint64(raw[0:8]),
+		binary.NativeEndian.Uint64(raw[8:16]),
+	}
 }
 
 // IsRuntimeCompiled returns true if the eBPF programs where successfully runtime compiled
@@ -2406,6 +2453,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 			}
 		}
 	}
+	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		for _, e := range p.config.RuntimeSecurity.SecurityProfileV2EventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -2417,8 +2471,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
 	case model.BindEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingBindEnabled
-	case model.DNSEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
 	}
 	return false
 }
@@ -3109,10 +3161,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.CaptureAllSyscallErrorsEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "imds_ip",
-			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
-		},
-		manager.ConstantEditor{
 			Name:  "dns_port",
 			Value: uint64(utils.HostToNetworkShort(p.probe.Opts.DNSPort)),
 		},
@@ -3207,18 +3255,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
@@ -3329,7 +3365,6 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
-		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 

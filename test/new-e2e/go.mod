@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.6
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.209
+	github.com/DataDog/agent-payload/v5 v5.0.210
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -20,33 +20,32 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.78.3
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/DataDog/orchestrion v1.13.0
-	github.com/aws/aws-sdk-go-v2 v1.45.1
-	github.com/aws/aws-sdk-go-v2/config v1.33.2
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.110.0
+	github.com/aws/aws-sdk-go-v2 v1.46.0
+	github.com/aws/aws-sdk-go-v2/config v1.33.3
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.96.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.112.0
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/fatih/color v1.19.0
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/google/uuid v1.6.0
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/kr/pretty v0.3.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0
-	github.com/pulumi/pulumi/sdk/v3 v3.260.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
+	github.com/pulumi/pulumi/sdk/v3 v3.261.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
-	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.55.0
 	golang.org/x/mod v0.40.0
@@ -54,7 +53,6 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.41.0
-	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -63,7 +61,7 @@ require (
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.1 // indirect
-	cloud.google.com/go/auth v0.20.0 // indirect
+	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.67.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -122,23 +120,23 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.2 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.19.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.3 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.19.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.330.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.64.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.98.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.36.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.41.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.48.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.9.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.77.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.37.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.42.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -172,7 +170,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.5.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
-	github.com/docker/cli v29.7.2+incompatible // indirect
+	github.com/docker/cli v29.8.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -219,7 +217,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.18 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
@@ -237,7 +235,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -252,7 +250,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.28 // indirect
-	github.com/mdlayher/socket v0.6.1 // indirect
+	github.com/mdlayher/socket v0.7.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -261,8 +259,8 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/moby/api v1.55.0 // indirect
-	github.com/moby/moby/client v0.5.1 // indirect
+	github.com/moby/moby/api v1.56.0 // indirect
+	github.com/moby/moby/client v0.6.0 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -300,24 +298,25 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/rogpeppe/go-internal v1.15.0 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -371,13 +370,14 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.287.1 // indirect
+	google.golang.org/api v0.288.0 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
@@ -386,6 +386,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.20.2 // indirect
 	k8s.io/apiextensions-apiserver v0.35.5 // indirect
 	k8s.io/apiserver v0.35.5 // indirect

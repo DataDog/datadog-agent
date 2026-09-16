@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,28 +39,19 @@ func concatenateError(input error, new string) error {
 	return fmt.Errorf("%w %s", input, new)
 }
 
+func shouldExecuteCustomQuery(lastExecutionTime *time.Time, collectionInterval *int64, now time.Time) bool {
+	if collectionInterval == nil {
+		return true
+	}
+	if lastExecutionTime.IsZero() || now.Sub(*lastExecutionTime).Seconds() >= float64(*collectionInterval) {
+		*lastExecutionTime = now
+		return true
+	}
+	return false
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) CustomQueries() error {
-	/*
-	 * We are creating a dedicated DB connection for custom queries. Custom queries is
-	 * the only feature that switches to PDBs (all other queries are running against the
-	 * root container). Switching to PDB and subsequent query execution isn't atomic, so
-	 * there's no guarantee the both operations would get the same connection from the pool.
-	 */
-	if c.dbCustomQueries == nil {
-		db, err := c.Connect()
-		if err != nil {
-			closeDatabase(c, db)
-			return err
-		}
-		if db == nil {
-			return errors.New("empty connection")
-		}
-		c.dbCustomQueries = db
-	}
-
-	var metricRows []metricRow
-	var allErrors error
 	var customQueries []config.CustomQuery
 
 	if len(c.config.InstanceConfig.CustomQueries) > 0 {
@@ -78,7 +70,39 @@ func (c *Check) CustomQueries() error {
 		}
 	}
 
-	for _, q := range customQueries {
+	if len(c.customQueryLastRuns) != len(customQueries) {
+		c.customQueryLastRuns = make([]time.Time, len(customQueries))
+	}
+
+	var metricRows []metricRow
+	var allErrors error
+	for i, q := range customQueries {
+		// Evaluate each query immediately before starting it. Using one timestamp for the
+		// entire batch would let an earlier slow query shorten the effective interval of
+		// every query that follows it.
+		if !shouldExecuteCustomQuery(&c.customQueryLastRuns[i], q.CollectionInterval, c.clock.Now()) {
+			continue
+		}
+
+		/*
+		 * We are creating a dedicated DB connection for custom queries. Custom queries is
+		 * the only feature that switches to PDBs (all other queries are running against the
+		 * root container). Switching to PDB and subsequent query execution isn't atomic, so
+		 * there's no guarantee the both operations would get the same connection from the pool.
+		 * The connection is created lazily so skipped queries do not open one unnecessarily.
+		 */
+		if c.dbCustomQueries == nil {
+			db, err := c.Connect()
+			if err != nil {
+				closeDatabase(c, db)
+				return err
+			}
+			if db == nil {
+				return errors.New("empty connection")
+			}
+			c.dbCustomQueries = db
+		}
+
 		metricRows = metricRows[:0]
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
