@@ -17,7 +17,7 @@ from things we have:
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
 load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
-load("//bazel/rules/variables:variables.bzl", "DdBuildTimeVariables", "compute_version_variables")
+load("//bazel/rules/variables:variables.bzl", "DdBuildTimeInfo", "compute_version_variables")
 
 # Map of architecture names we might see into those we need to use in package names
 _arch_names = {
@@ -111,7 +111,7 @@ def _inject_flavor(name, flavor):
     return "%s-%s-%s" % (words[0], flavor, "-".join(words[1:]))
 
 def _package_name_variables_impl(ctx):
-    common = ctx.attr._variables[DdBuildTimeVariables].values
+    common = ctx.attr._variables[DdBuildTimeInfo].values
 
     values = {}
 

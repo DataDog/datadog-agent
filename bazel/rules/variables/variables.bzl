@@ -5,7 +5,7 @@ a substitution dictionary that can be used by packaging rules.  The canonical
 case is to allow rules to set values based on the release version.
 
 Most consumers are rules and can depend on the `variables` target below and
-read its DdBuildTimeVariables provider.
+read its DdBuildTimeInfo provider.
 """
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
@@ -20,7 +20,7 @@ DEFAULT_PRODUCT_DIR = "/opt/datadog-agent"
 # We use /tmp for lack of a better safe space.
 DEFAULT_OUTPUT_CONFIG_DIR = "/tmp"
 
-DdBuildTimeVariables = provider(
+DdBuildTimeInfo = provider(
     doc = "A dict of common build-time substitution values, computed once from " +
           "the build environment (env vars, release.json, build settings).",
     fields = ["values"],
@@ -126,12 +126,12 @@ def _variables_impl(ctx):
     # There are use cases for either. For now, we are relative to the output base.
     values["etc_dir"] = output_config_dir + "/etc/datadog-agent"
 
-    return [DdBuildTimeVariables(values = values)]
+    return [DdBuildTimeInfo(values = values)]
 
 variables = rule(
     implementation = _variables_impl,
     doc = """Computes the common build-time substitution values shared across packaging
-and version-stamping rules, and returns them as a DdBuildTimeVariables provider.
+and version-stamping rules, and returns them as a DdBuildTimeInfo provider.
 
 Values provided:
   install_dir:  The value of the flag //:install_dir

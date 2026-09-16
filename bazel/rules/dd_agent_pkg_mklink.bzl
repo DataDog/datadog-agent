@@ -1,10 +1,10 @@
 """dd_agent_pkg_mklink. Expand a template, splicing in agent specific flags."""
 
 load("@rules_pkg//pkg:providers.bzl", "PackageSymlinkInfo")
-load("//bazel/rules/variables:variables.bzl", "DdBuildTimeVariables")
+load("//bazel/rules/variables:variables.bzl", "DdBuildTimeInfo")
 
 def _dd_agent_pkg_mklink_impl(ctx):
-    common = ctx.attr._variables[DdBuildTimeVariables].values
+    common = ctx.attr._variables[DdBuildTimeInfo].values
 
     subs = {}
     subs["install_dir"] = common["install_dir"]

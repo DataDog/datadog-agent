@@ -2,10 +2,10 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo")
-load("//bazel/rules/variables:variables.bzl", "DdBuildTimeVariables")
+load("//bazel/rules/variables:variables.bzl", "DdBuildTimeInfo")
 
 def _dd_agent_expand_template_impl(ctx):
-    common = ctx.attr._variables[DdBuildTimeVariables].values
+    common = ctx.attr._variables[DdBuildTimeInfo].values
 
     subs = {}
     subs["{output_config_dir}"] = common["output_config_dir"]
