@@ -1,8 +1,8 @@
 # OpenMetrics scraping quality gate. Measures Agent CPU and memory overhead
 # while scraping a high-volume OpenMetrics endpoint served by lading.
 #
-# Workload: lading serves ~8100 samples per scrape on port 9100 (4000 counters,
-# 4000 gauges, 50 histograms, 50 summaries) scraped by 100 check instances
+# Workload: lading serves ~9000 samples per scrape on port 9100 (4000 counters,
+# 4000 gauges, 50 histograms, 50 summaries) scraped by 500 check instances
 # every 15 seconds.
 #
 # Further documentation:
@@ -16,7 +16,7 @@ target:
   cpu_allotment: 4
   # Set to 30% higher than the memory_usage check upper_bound below.
   # Update both together when recalibrating.
-  memory_allotment: 1.8GiB
+  memory_allotment: 10GiB
 
   environment:
     DD_API_KEY: a0000001
@@ -44,23 +44,23 @@ checks:
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
     bounds:
       series: avg(total_cpu_usage_millicores)
-      # Calibrated from baseline run: observed 1345 millicores.
-      upper_bound: 1700
+      # TODO: recalibrate after first successful 500-instance run. Estimated ~5x from 100-instance baseline (1345 mc).
+      upper_bound: 8000
 
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
     bounds:
       series: total_pss_bytes
       # When updating this, update memory_allotment in the target section to 30% higher.
-      # Calibrated from baseline run: observed 1.26 GiB.
-      upper_bound: "1.4 GiB"
+      # TODO: recalibrate after first successful 500-instance run. Estimated ~5x from 100-instance baseline (1.26 GiB).
+      upper_bound: "7.5 GiB"
 
   - name: checks_execution_time
     description: "Check execution time quality gate. This puts a bound on the average time to execute check instances."
     bounds:
       series: avg(target/checks.execution_time)
-      # Calibrated from baseline run: observed 74.08.
-      upper_bound: 100
+      # TODO: recalibrate after first successful 500-instance run. Estimated higher due to runner saturation.
+      upper_bound: 500
 
 report_links:
   - text: "bounds checks dashboard"
