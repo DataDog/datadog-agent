@@ -6,6 +6,7 @@
 package guiimpl
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -35,7 +36,7 @@ type peerIdentity string
 // client-controlled header, so neither can be spoofed by the request itself.
 func resolvePeerIdentity(serverAddr net.Addr, remoteAddr string) (peerIdentity, error) {
 	if serverAddr == nil {
-		return "", fmt.Errorf("server address unavailable")
+		return "", errors.New("server address unavailable")
 	}
 	// serverAddr won't parse as host:port if our own server is instead
 	// listening on a Unix domain socket; that's also handled here, by simply
