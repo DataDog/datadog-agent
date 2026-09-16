@@ -33,8 +33,8 @@ chmod 750 /etc/datadog-agent               2>/dev/null || true
 for _svc in agent trace-agent agent-data-plane; do
     _stderr_log="/var/log/datadog/${_svc}-stderr.log"
     touch "$_stderr_log" 2>/dev/null || true
-    chown dd-agent:dd-agent "$_stderr_log" 2>/dev/null || true
-    chmod 640 "$_stderr_log" 2>/dev/null || true
+    chown -h dd-agent:dd-agent "$_stderr_log" 2>/dev/null || true
+    chmod -h 640 "$_stderr_log" 2>/dev/null || true
 done
 
 # Remove ALL stale SRC entries then register fresh.
@@ -56,9 +56,7 @@ while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
 # -e captures each subsystem's stderr in a file. Panics, Go fatal errors and
 # pre-logger output (e.g. AIX loader errors, rtloader failures) bypass the
-# internal logger; without -e they only reach /dev/console. stdout is left on
-# the default /dev/console (it mirrors the internal log stream while
-# log_to_console is on, so it must not go to a growing file).
+# internal logger; without -e they only reach /dev/console.
 mkssys -s datadog-agent \
        -p /opt/datadog-agent/bin/agent/agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
