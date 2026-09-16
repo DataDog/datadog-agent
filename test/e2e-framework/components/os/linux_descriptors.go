@@ -8,13 +8,12 @@ package os
 // Implements commonly used descriptors for easier usage
 // See platforms.go for the AMIs used for each OS
 var (
-	UbuntuDefault    = Ubuntu2204E2E
-	Ubuntu2404       = NewDescriptor(Ubuntu, "24-04")
-	Ubuntu2204       = NewDescriptor(Ubuntu, "22-04")
-	Ubuntu2004       = NewDescriptor(Ubuntu, "20-04")
-	Ubuntu2204E2E    = NewDescriptor(Ubuntu, "22-04-e2e")
-	Ubuntu2404E2E    = NewDescriptor(Ubuntu, "24-04-e2e")
-	Ubuntu2204E2EARM = NewDescriptorWithArch(Ubuntu, "22-04-e2e", ARM64Arch)
+	UbuntuDefault = Ubuntu2204E2E
+	Ubuntu2404    = NewDescriptor(Ubuntu, "24-04")
+	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
+	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
+	Ubuntu2204E2E = NewDescriptor(Ubuntu, "22-04-e2e")
+	Ubuntu2404E2E = NewDescriptor(Ubuntu, "24-04-e2e")
 
 	DebianDefault = Debian12
 	Debian11E2E   = NewDescriptor(Debian, "11-e2e")
@@ -23,7 +22,6 @@ var (
 	AmazonLinuxDefault = AmazonLinux2023
 	AmazonLinux2023    = NewDescriptor(AmazonLinux, "2023")
 	AmazonLinux2       = NewDescriptor(AmazonLinux, "2")
-	AmazonLinux2018    = NewDescriptor(AmazonLinux, "2018")
 
 	AmazonLinuxECSDefault = AmazonLinuxECS2
 	AmazonLinuxECS2023    = NewDescriptor(AmazonLinuxECS, "2023")
