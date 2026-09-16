@@ -26,6 +26,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func schemaPayloadEmitter(_ *Check, emit payloadEmitter) schemaEventEmitter {
+	return func(event schemaEvent) {
+		payload, err := json.Marshal(event)
+		if err == nil {
+			emit(payload)
+		}
+	}
+}
+
+func emitSchemaSnapshotEvents(events []schemaEvent, complete bool, emit payloadEmitter) error {
+	coordinator := newSchemaSnapshotCoordinator(emit)
+	for _, event := range events {
+		coordinator.add(event)
+	}
+	if complete {
+		return coordinator.complete()
+	}
+	return coordinator.err
+}
+
+func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
+}
+
+func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
+	return c.tableDetailsForPage(ctx, allowed, allowedColumns, allowed)
+}
+
+func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumns int, add func(schemaRowDB)) error {
+	rows, err := c.tablePageRows(ctx, keys, maxColumns)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		add(row)
+	}
+	return nil
+}
+
 func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)

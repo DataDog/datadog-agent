@@ -5,7 +5,6 @@
 
 //go:build oracle
 
-//nolint:unused // Declarations in this collector are wired by later PRs in the stack.
 package oracle
 
 import (
@@ -667,28 +666,6 @@ func (c *schemaSnapshotCoordinator) hasContainer(conID int64) bool {
 	return ok
 }
 
-func schemaPayloadEmitter(c *Check, emit payloadEmitter) schemaEventEmitter {
-	return func(event schemaEvent) {
-		payload, err := json.Marshal(event)
-		if err != nil {
-			log.Errorf("%s failed to marshal schema payload: %s", c.logPrompt, err)
-			return
-		}
-		emit(payload)
-	}
-}
-
-func emitSchemaSnapshotEvents(events []schemaEvent, complete bool, emit payloadEmitter) error {
-	coordinator := newSchemaSnapshotCoordinator(emit)
-	for _, event := range events {
-		coordinator.add(event)
-	}
-	if complete {
-		return coordinator.complete()
-	}
-	return coordinator.err
-}
-
 type tableKey struct {
 	conID int64
 	owner string
@@ -726,10 +703,6 @@ type schemaCollector struct {
 	currentSchema *schemaObject
 	currentTable  *schemaTable
 	currentView   *viewObject
-}
-
-func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
-	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
 }
 
 func newSchemaEventCollector(c *Check, emit schemaEventEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
@@ -1373,10 +1346,6 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	return names
 }
 
-func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
-	return c.tableDetailsForPage(ctx, allowed, allowedColumns, allowed)
-}
-
 func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
@@ -1954,17 +1923,6 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		return nil
 	})
 	return details
-}
-
-func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumns int, add func(schemaRowDB)) error {
-	rows, err := c.tablePageRows(ctx, keys, maxColumns)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		add(row)
-	}
-	return nil
 }
 
 func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
