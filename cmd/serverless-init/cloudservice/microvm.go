@@ -63,6 +63,11 @@ type MicroVM struct {
 	server       *lifecycle.Server
 	child        *lifecycle.Child
 	flushTimeout time.Duration
+
+	// startLifecycleServer is nil in production and injectable in package tests
+	// so Init can be exercised without binding a process-wide TCP port. It is a
+	// pointer so adding test-only behavior does not make MicroVM non-comparable.
+	startLifecycleServer *lifecycleServerStarter
 }
 
 // GetTags returns MicroVM-specific tags parsed from the image ARN env var,
@@ -133,8 +138,22 @@ func isSupportedArch(arch string) bool {
 	return arch == archAMD64 || arch == archARM64
 }
 
+// lifecycleServerStarter starts a configured lifecycle server.
+// It is injectable only inside this package so Init tests do not need to bind
+// a process-wide TCP port.
+type lifecycleServerStarter func(*lifecycle.Server, func(error)) error
+
 // Init starts the MicroVM lifecycle hook server.
 func (m *MicroVM) Init(ctx *TracingContext) error {
+	if m.startLifecycleServer != nil {
+		return m.initWithServerStarter(ctx, *m.startLifecycleServer)
+	}
+	return m.initWithServerStarter(ctx, func(server *lifecycle.Server, onServeError func(error)) error {
+		return server.ListenAndServe(onServeError)
+	})
+}
+
+func (m *MicroVM) initWithServerStarter(ctx *TracingContext, startServer lifecycleServerStarter) error {
 	if arch := runtime.GOARCH; !isSupportedArch(arch) {
 		log.Fatalf(unsupportedArchMsg, arch)
 	}
@@ -184,7 +203,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	if lc.MetricTagSetter != nil {
 		m.server.SetMetricTagSetter(lc.MetricTagSetter, lc.BaseUsageMetricTags)
 	}
-	if err := m.server.ListenAndServe(func(err error) {
+	if err := startServer(m.server, func(err error) {
 		log.Fatalf("MicroVM lifecycle server error: %v", err)
 	}); err != nil {
 		log.Fatalf("MicroVM lifecycle server failed to bind: %v", err)
