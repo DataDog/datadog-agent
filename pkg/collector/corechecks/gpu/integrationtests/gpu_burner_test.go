@@ -11,22 +11,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
-	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	mockcontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 const (
@@ -35,83 +27,8 @@ const (
 	gpuBurnerCollectionInterval = 5 * time.Second
 )
 
-type smiResult struct {
-	sample *testutil.SmiSample
-	err    error
-}
-
-func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration, smiUUIDs []string) (map[string]map[string][]gpuspec.MetricObservation, map[string]smiResult) {
-	t.Helper()
-	require.Positive(t, passes)
-	require.Positive(t, interval)
-
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	gpu.SetupWorkloadmetaGPUs(t, wmetaMock, fakeTagger, gpuspec.DeviceModePhysical, false)
-
-	senderManager := mocksender.CreateDefaultDemultiplexer(t)
-	checkInstance := gpu.NewCheck(fakeTagger, testutil.GetTelemetryMock(t), wmetaMock)
-	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
-	mockSender.SetupAcceptAll()
-	gpu.WithGPUConfigEnabled(t)
-
-	checkInternal, ok := checkInstance.(*gpu.Check)
-	require.True(t, ok)
-	containerProvider := mockcontainers.NewMockContainerProvider(gomock.NewController(t))
-	containerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
-	checkInternal.SetContainerProvider(containerProvider)
-	require.NoError(t, checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
-	t.Cleanup(checkInstance.Cancel)
-
-	smiResults := make([]smiResult, len(smiUUIDs))
-	var smiWG sync.WaitGroup
-
-	// Run once to initialize rate-derived collectors, then collect multiple
-	// intervals while the burner is active. Start nvidia-smi dmon after the
-	// penultimate run: its three one-second samples overlap most of the final
-	// five-second Agent collection interval.
-	require.NoError(t, checkInstance.Run())
-	for pass := range passes {
-		time.Sleep(interval)
-		require.NoError(t, checkInstance.Run())
-		if pass != passes-2 {
-			continue
-		}
-		for i, uuid := range smiUUIDs {
-			smiWG.Add(1)
-			go func(i int, uuid string) {
-				defer smiWG.Done()
-				sample, err := testutil.CollectSmiSample(uuid)
-				smiResults[i] = smiResult{sample: sample, err: err}
-			}(i, uuid)
-		}
-	}
-	smiWG.Wait()
-
-	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation)
-	for metricName, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
-		for _, observation := range observations {
-			uuids := gpuspec.TagsToKeyValues(observation.Tags)["gpu_uuid"]
-			if len(uuids) == 0 {
-				continue
-			}
-			uuid := strings.ToLower(uuids[0])
-			if metricsByUUID[uuid] == nil {
-				metricsByUUID[uuid] = make(map[string][]gpuspec.MetricObservation)
-			}
-			metricsByUUID[uuid][metricName] = append(metricsByUUID[uuid][metricName], observation)
-		}
-	}
-	samplesByUUID := make(map[string]smiResult, len(smiUUIDs))
-	for i, uuid := range smiUUIDs {
-		samplesByUUID[strings.ToLower(uuid)] = smiResults[i]
-	}
-	return metricsByUUID, samplesByUUID
-}
-
 func TestGPUBurnerSingleGPUDeviceSelection(t *testing.T) {
 	testutil.RequireGPU(t)
-	testutil.RequireSmi(t)
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
 	lib, err := safenvml.GetSafeNvmlLib()
@@ -131,14 +48,13 @@ func TestGPUBurnerSingleGPUDeviceSelection(t *testing.T) {
 	for _, index := range indices {
 		t.Run(fmt.Sprintf("one-gpu-%d", index), func(t *testing.T) {
 			burner := StartGPUBurner(t, strconv.Itoa(index), 1, 100)
-			assertBurnerDevicesActive(t, burner, expectedUUIDsByIndex[index], 100)
+			assertBurnerDeviceSelection(t, burner, expectedUUIDsByIndex[index])
 		})
 	}
 }
 
 func TestGPUBurnerTwoGPUDeviceSelection(t *testing.T) {
 	testutil.RequireGPU(t)
-	testutil.RequireSmi(t)
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
 	lib, err := safenvml.GetSafeNvmlLib()
@@ -159,7 +75,7 @@ func TestGPUBurnerTwoGPUDeviceSelection(t *testing.T) {
 	for i, devices := range deviceSets {
 		t.Run(fmt.Sprintf("two-gpus-%d-%d", devices[0], devices[1]), func(t *testing.T) {
 			burner := StartGPUBurner(t, fmt.Sprintf("%d,%d", devices[0], devices[1]), 2, 100)
-			assertBurnerDevicesActive(t, burner, expectedUUIDsBySet[i], 100)
+			assertBurnerDeviceSelection(t, burner, expectedUUIDsBySet[i])
 		})
 	}
 }
@@ -178,7 +94,7 @@ func gpuUUIDsForIndices(t *testing.T, lib safenvml.SafeNVML, indices []int) []st
 	return uuids
 }
 
-func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedUUIDs []string, targetSM float64) {
+func assertBurnerDeviceSelection(t *testing.T, burner *GPUBurner, expectedUUIDs []string) *GPUBurnerStatus {
 	t.Helper()
 
 	status, err := burner.Status(t.Context())
@@ -194,50 +110,27 @@ func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedUUIDs []
 	}
 	require.ElementsMatch(t, expectedUUIDKeys, actualUUIDs, "gpu-burner workers do not match the selected CUDA-visible devices")
 
-	metricsByUUID, smiResults := collectGPUBurnerMetrics(t, gpuBurnerCollectionPasses, gpuBurnerCollectionInterval, expectedUUIDs)
+	return &status
+}
+
+func startCalibratedWorkload(t *testing.T, lib safenvml.SafeNVML, indices []int, targetSM float64) map[string]map[string]*float64 {
+	t.Helper()
+
+	expectedUUIDs := gpuUUIDsForIndices(t, lib, indices)
+	visibleDevices := make([]string, len(indices))
+	for i, index := range indices {
+		visibleDevices[i] = strconv.Itoa(index)
+	}
+	burner := StartGPUBurner(t, strings.Join(visibleDevices, ","), len(indices), int(targetSM))
+	status := assertBurnerDeviceSelection(t, burner, expectedUUIDs)
+
+	valuesByUUID := make(map[string]map[string]*float64, len(status.Workers))
 	for _, worker := range status.Workers {
+		uuid := strings.ToLower(worker.GPUUUID)
 		require.NotNil(t, worker.Metrics)
-		deviceMetrics := metricsByUUID[strings.ToLower(worker.GPUUUID)]
-		require.NotEmpty(t, deviceMetrics, "no metrics emitted for gpu-burner worker GPU %s", worker.GPUUUID)
-		require.NotEmpty(t, deviceMetrics["sm_active"], "sm_active was not emitted for gpu-burner worker GPU %s", worker.GPUUUID)
-		require.InDelta(t, targetSM, worker.Metrics.SMActive, smActiveDelta, "gpu-burner status SM activity differs from target")
-		requireMetricNearValue(t, deviceMetrics, "sm_active", targetSM, smActiveDelta)
-		smiResult := smiResults[strings.ToLower(worker.GPUUUID)]
-		require.NoError(t, smiResult.err, "collect nvidia-smi sample for GPU %s", worker.GPUUUID)
-		requireMetricsMatchSmi(t, deviceMetrics, smiResult.sample)
+		require.NotNil(t, worker.Metrics.SMActive, "gpu-burner did not report SM activity for GPU %s", worker.GPUUUID)
+		require.InDelta(t, targetSM, *worker.Metrics.SMActive, smActiveDelta, "gpu-burner status SM activity differs from target")
+		valuesByUUID[uuid] = worker.Metrics.MetricValues()
 	}
-}
-
-func requireMetricsMatchSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, sample *testutil.SmiSample) {
-	t.Helper()
-
-	requireLatestMetricNearSmi(t, deviceMetrics, "sm_active", sample.SMUtilPct, 1, smActiveDelta)
-	requireLatestMetricNearSmi(t, deviceMetrics, "temperature", sample.GPUTempC, 1, 5)
-	requireLatestMetricNearSmi(t, deviceMetrics, "encoder_active", sample.EncoderPct, 1, 5)
-	requireLatestMetricNearSmi(t, deviceMetrics, "decoder_active", sample.DecoderPct, 1, 5)
-	requireLatestMetricNearSmi(t, deviceMetrics, "clock.speed.memory", sample.MemClockMHz, 1, 25)
-	if sample.MemTempC != nil {
-		requireLatestMetricNearSmi(t, deviceMetrics, "memory.temperature", sample.MemTempC, 1, 5)
-	}
-}
-
-func requireMetricNearValue(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, name string, expected, delta float64) {
-	t.Helper()
-
-	observations := deviceMetrics[name]
-	require.NotEmpty(t, observations, "%s was not emitted", name)
-	latest := observations[len(observations)-1]
-	require.NotNil(t, latest.Value, "%s was emitted without a value", name)
-	require.InDelta(t, expected, *latest.Value, delta, "%s differs from gpu-burner status value", name)
-}
-
-func requireLatestMetricNearSmi(t *testing.T, deviceMetrics map[string][]gpuspec.MetricObservation, name string, smiValue *float64, scale, delta float64) {
-	t.Helper()
-
-	observations := deviceMetrics[name]
-	require.NotEmpty(t, observations, "%s was not emitted for this device", name)
-	latest := observations[len(observations)-1]
-	require.NotNil(t, latest.Value, "%s was emitted without a value", name)
-	require.NotNil(t, smiValue, "nvidia-smi value was blank for %s", name)
-	require.InDelta(t, *smiValue*scale, *latest.Value, delta, "%s value %v differs from nvidia-smi reading %v", name, *latest.Value, *smiValue*scale)
+	return valuesByUUID
 }

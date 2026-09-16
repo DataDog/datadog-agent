@@ -19,6 +19,42 @@ The Go code in this package turns those YAML specs into shared validation logic 
 
 The spec files are also validated by tests in `pkg/collector/corechecks/gpu/spec/spec_test.go`.
 
+## Metric availability
+
+Metric availability is evaluated independently from support by architecture,
+device mode, and hardware capabilities:
+
+- `workload_only: true` means a metric is expected only when the caller
+  declares an active workload.
+- `config_required` lists named Agent configuration features that must all be
+  enabled for the metric to be expected. `system_probe_ebpf` and
+  `system_probe_prm` represent their respective system-probe GPU monitoring
+  features.
+- `optional: true` means an otherwise supported metric may be absent on an
+  individual device, such as a fanless GPU. If emitted, optional metrics still
+  undergo normal support, tag, type, and value validation.
+
+Workload-only tagsets are selected separately through
+`ValidationOptions.WorkloadTagsets`. This allows a bare process workload to
+require the `process` tagset without also requiring Kubernetes container tags.
+Live Datadog validation enables all config features and workload-only tagsets;
+real-GPU integration tests provide their actual configuration and context.
+
+## External value validation
+
+Metric `validator` entries can validate real-GPU integration-test values against
+external references:
+
+- `nvidia_smi: true` compares with the normalized `nvidia-smi` sample.
+- `calibrated_workload: true` compares with gpu-burner's measured status value.
+- `value_tolerance` is required with either source and contains `absolute` and/or
+  `relative` (percentage of the known-good value). When both are provided, both
+  limits must pass.
+
+These checks fail if the marked Agent metric or its external reference is
+missing. They are only evaluated by real-GPU integration tests; the live
+Datadog validator applies only static `range` and `values` constraints.
+
 ## Validate the spec
 
 Run one or more of these three validation levels:
