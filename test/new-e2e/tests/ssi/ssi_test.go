@@ -706,12 +706,12 @@ func (v *ssiSuite) TestRemoteConfig() {
 		v.requireHelmTargetStillSSI(k8s)
 	})
 
-	// Static targeting is evaluated before RC. A remote deny matching targeted-namespace
-	// must not block the helm python workload; RC only applies when no helm target matches.
-	// An allow matching "other" is published first so a pod leaves the helm baseline;
-	// replacing that same document with the deny must restore lib-injection in "other"
-	// (the deny does not match that namespace) while helm targeting stays SSI.
-	v.Run("HelmTargetWinsOverRemoteDeny", func() {
+	// A remote deny matching targeted-namespace overrides the helm python
+	// target. An allow matching "other" is published first so a pod leaves
+	// the helm baseline; replacing that same document with the deny must
+	// restore lib-injection in "other" (the deny does not match that
+	// namespace) and uninject the helm-targeted workload.
+	v.Run("RemoteDenyOverridesHelmTarget", func() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcNamespaceOtherPolicyJSON)
@@ -733,7 +733,10 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
 
-		v.requireHelmTargetStillSSI(k8s)
+		helm := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, noInjection(rcHelmTargetApp))
+		helmValidator := testutils.NewPodValidator(helm, testutils.InjectionModeAuto)
+		helmValidator.RequireNoInjection(v.T())
+		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
 	})
 
 	// Two RC policies both match namespace "other": allow then deny. Last TRUE wins,

@@ -3,8 +3,8 @@
   after_script:
     - |-
       if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 To fix the above problem, please consider running the following command:"
-        echo >&2 "$FIX_COMMAND"
+        echo >&2 "💡 To fix the above problem, please consider applying the following remediation:"
+        echo >&2 "$REMEDIATION"
       fi
 
 bazel:mod-deps:
@@ -20,7 +20,7 @@ bazel:mod-deps:
     - bazel mod deps --lockfile_mode=refresh
     - git diff --exit-code
   variables:
-    FIX_COMMAND: "bazel mod deps"
+    REMEDIATION: "bazel mod deps"
 
 bazel:mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
@@ -28,25 +28,38 @@ bazel:mod-tidy:
     - bazel mod tidy --lockfile_mode=off
     - git diff --exit-code
   variables:
-    FIX_COMMAND: "bazel mod tidy"
+    REMEDIATION: "bazel mod tidy"
+
+bazel:query-missing-manual-tags:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - |-
+      locations="$(bazel query 'kind("go_test", rdeps(//test/new-e2e/..., //test/e2e-framework/testing/e2e)) except attr(tags, manual, //test/new-e2e/...)' --output=location)"
+      if [ -n "$locations" ]; then
+        echo >&2 'Found missing "manual" tags in e2e test targets:'
+        echo >&2 "$locations"
+        exit 1
+      fi
+  variables:
+    REMEDIATION: 'Add "manual" tags to each of the above locations'
 
 bazel:run-buildifier-test:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //bazel/buildifier:test
   variables:
-    FIX_COMMAND: "bazel run //bazel/buildifier"
+    REMEDIATION: "bazel run //bazel/buildifier"
 
 bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //:gazelle -- -mode=diff
   variables:
-    FIX_COMMAND: "bazel run //:gazelle"
+    REMEDIATION: "bazel run //:gazelle"
 
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //:go_mod_tidy_all -- -diff
   variables:
-    FIX_COMMAND: "bazel run //:go_mod_tidy_all"
+    REMEDIATION: "bazel run //:go_mod_tidy_all"
