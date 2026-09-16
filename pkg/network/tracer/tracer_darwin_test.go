@@ -36,6 +36,7 @@ type mockConnTracer struct {
 	stopCalled    bool
 	startCallback func(*network.ConnectionStats)
 	connsToReturn []*network.ConnectionStats
+	tracerType    connection.TracerType
 }
 
 func (m *mockConnTracer) Start(cb func(*network.ConnectionStats)) error {
@@ -68,7 +69,12 @@ func (m *mockConnTracer) GetMap(_ string) (*ebpf.Map, error) { return nil, nil }
 
 func (m *mockConnTracer) DumpMaps(_ io.Writer, _ ...string) error { return nil }
 
-func (m *mockConnTracer) Type() connection.TracerType { return connection.TracerTypeDarwin }
+func (m *mockConnTracer) Type() connection.TracerType {
+	if m.tracerType == 0 {
+		return connection.TracerTypeDarwin
+	}
+	return m.tracerType
+}
 
 func (m *mockConnTracer) Pause() error { return nil }
 
@@ -85,9 +91,13 @@ func (m *mockConnTracer) Collect(_ chan<- prometheus.Metric) {}
 type mockNetworkState struct {
 	registerClientCalls []string
 	closedConns         []*network.ConnectionStats
+	passThroughConns    bool
 }
 
-func (m *mockNetworkState) GetDelta(_ string, _ uint64, _ []network.ConnectionStats, _ dns.StatsByKeyByNameByType, _ map[protocols.ProtocolType]interface{}) network.Delta {
+func (m *mockNetworkState) GetDelta(_ string, _ uint64, conns []network.ConnectionStats, _ dns.StatsByKeyByNameByType, _ map[protocols.ProtocolType]interface{}) network.Delta {
+	if m.passThroughConns {
+		return network.Delta{Conns: conns}
+	}
 	return network.Delta{}
 }
 
@@ -180,6 +190,38 @@ func TestDarwinTracer_GetActiveConnections_ReturnsConnections(t *testing.T) {
 	assert.NotNil(t, conns)
 }
 
+func TestDarwinTracer_GetActiveConnections_PreservesNStatFields(t *testing.T) {
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("10.0.0.2"),
+			SPort:  12345,
+			DPort:  443,
+			Pid:    4242,
+		},
+		Monotonic: network.StatCounters{
+			SentBytes: 123,
+			RecvBytes: 456,
+		},
+		LastUpdateEpoch: uint64(time.Now().UnixNano()),
+		TCPFailures:     map[uint16]uint32{61: 1},
+	}
+	tr := newTestTracer(
+		&mockConnTracer{
+			connsToReturn: []*network.ConnectionStats{conn},
+			tracerType:    connection.TracerTypeNStat,
+		},
+		&mockNetworkState{passThroughConns: true},
+	)
+
+	conns, _, err := tr.GetActiveConnections("nstat-client")
+	require.NoError(t, err)
+	require.Len(t, conns.Conns, 1)
+	assert.Equal(t, conn.Pid, conns.Conns[0].Pid)
+	assert.Equal(t, conn.Monotonic, conns.Conns[0].Monotonic)
+	assert.Equal(t, conn.TCPFailures, conns.Conns[0].TCPFailures)
+}
+
 func TestDarwinTracer_StoreClosedConnection_SkipsExcluded(t *testing.T) {
 	state := &mockNetworkState{}
 	tr := newTestTracer(&mockConnTracer{}, state)
@@ -227,6 +269,25 @@ func TestDarwinTracer_GetStats_ReturnsExpectedKeys(t *testing.T) {
 	tracerStats, ok := stats["tracer"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "darwin_pcap", tracerStats["type"])
+	assert.Equal(t, "ebpfless", tracerStats["active_backend"])
+	assert.Equal(t, 0, tracerStats["nstat_abi_revision"])
+	assert.Equal(t, true, tracerStats["source_healthy"])
+}
+
+func TestDarwinTracer_GetStats_ReportsNStat(t *testing.T) {
+	tr := newTestTracer(
+		&mockConnTracer{tracerType: connection.TracerTypeNStat},
+		&mockNetworkState{},
+	)
+
+	stats, err := tr.GetStats()
+	require.NoError(t, err)
+	tracerStats, ok := stats["tracer"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "darwin_nstat", tracerStats["type"])
+	assert.Equal(t, "nstat", tracerStats["active_backend"])
+	assert.Equal(t, 9, tracerStats["nstat_abi_revision"])
+	assert.Equal(t, false, tracerStats["runtime_fallback"])
 }
 
 func TestDarwinTracer_DebugNetworkState(t *testing.T) {

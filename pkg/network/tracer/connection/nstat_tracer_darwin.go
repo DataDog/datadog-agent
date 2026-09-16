@@ -32,15 +32,15 @@ import (
 )
 
 const (
-	nstatQueryInterval       = time.Second
-	nstatPollInterval        = 250 * time.Millisecond
-	nstatPendingRemovalTTL   = 2 * darwinLibprocInterval
-	nstatDescriptionRetry    = 100 * time.Millisecond
-	nstatDescriptionBatch    = 8
-	nstatSubscriptionTimeout = 2 * time.Second
-	nstatDatagramBufferSize  = 65535
-	nstatTCPRTTScale         = 32
-	nstatTCPRTTVarianceScale = 16
+	nstatQueryInterval         = time.Second
+	nstatPollInterval          = 250 * time.Millisecond
+	nstatPendingRemovalMinimum = 2 * time.Second
+	nstatDescriptionRetry      = 100 * time.Millisecond
+	nstatDescriptionBatch      = 8
+	nstatSubscriptionTimeout   = 2 * time.Second
+	nstatDatagramBufferSize    = 65535
+	nstatTCPRTTScale           = 32
+	nstatTCPRTTVarianceScale   = 16
 
 	tcpStateClosed      = 0
 	tcpStateListen      = 1
@@ -164,13 +164,14 @@ type nstatTracer struct {
 	subscriptionOnce     sync.Once
 	enumerationComplete  bool
 
-	closeCallback func(*network.ConnectionStats)
-	cookieHasher  *cookieHasher
-	now           func() time.Time
-	subscribed    bool
-	started       bool
-	stopped       bool
-	runtimeErr    error
+	closeCallback     func(*network.ConnectionStats)
+	cookieHasher      *cookieHasher
+	now               func() time.Time
+	subscribed        bool
+	started           bool
+	stopped           bool
+	runtimeErr        error
+	pendingRemovalTTL time.Duration
 
 	runtimeFailureCallback func(error)
 
@@ -211,6 +212,7 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		subscriptionErrors:   make(chan error, 1),
 		cookieHasher:         newCookieHasher(),
 		now:                  time.Now,
+		pendingRemovalTTL:    max(nstatPendingRemovalMinimum, 2*cfg.DarwinConnectionTracerLibprocInterval),
 		exit:                 make(chan struct{}),
 	}
 }
@@ -1119,7 +1121,7 @@ func (t *nstatTracer) expirePendingRemovals(now time.Time) {
 
 func (t *nstatTracer) expirePendingRemovalsLocked(now time.Time) {
 	for sourceRef, source := range t.sources {
-		if source.removed && now.Sub(source.removedAt) >= nstatPendingRemovalTTL {
+		if source.removed && now.Sub(source.removedAt) >= t.pendingRemovalTTL {
 			t.removeTCPListener(sourceRef, source)
 			delete(t.sources, sourceRef)
 			delete(t.descriptionQueued, sourceRef)

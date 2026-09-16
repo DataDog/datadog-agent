@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	darwinLibprocInterval        = 10 * time.Second
 	darwinLibprocStartTimeLeeway = time.Second
 	libprocHostWalkMinTicks      = 3
 	libprocTransientCap          = 3
@@ -62,6 +61,7 @@ type darwinLibprocReconciler struct {
 	scanner  libproc.Scanner
 	primary  *nstatTracer
 	interval time.Duration
+	onResult func(error)
 
 	exit     chan struct{}
 	stopOnce sync.Once
@@ -84,22 +84,32 @@ func (r *darwinLibprocReconciler) start() {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		if err := r.runOnce(); err != nil {
-			log.Debugf("initial Darwin libproc reconciliation failed: %v", err)
-		}
+		r.runAndReport("initial")
 		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if err := r.runOnce(); err != nil {
-					log.Debugf("Darwin libproc reconciliation failed: %v", err)
-				}
+				r.runAndReport("periodic")
 			case <-r.exit:
 				return
 			}
 		}
 	}()
+}
+
+func (r *darwinLibprocReconciler) runAndReport(phase string) {
+	err := r.runOnce()
+	if err != nil {
+		log.Debugf("%s Darwin libproc reconciliation failed: %v", phase, err)
+	}
+	if r.onResult != nil {
+		r.onResult(err)
+	}
+}
+
+func (r *darwinLibprocReconciler) setResultCallback(callback func(error)) {
+	r.onResult = callback
 }
 
 type libprocScanScope struct {
