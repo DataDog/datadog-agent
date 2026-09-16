@@ -18,10 +18,10 @@ type peerIdentity string
 // rootIdentity is Unix root (UID 0); Windows SIDs are never a plain "0", so this constant is safe to compare against on every platform.
 const rootIdentity peerIdentity = "0"
 
-// mintTimeIdentity treats a root mint-time identity as unconstrained, since sudo-minted tokens are often redeemed by a different console user's browser (e.g. via macOS Launch Services).
+// mintTimeIdentity re-resolves a root mint-time identity per-platform (see elevatedMintIdentity), since sudo/elevated launches are sometimes redeemed by a different, unelevated identity.
 func mintTimeIdentity(resolved peerIdentity) peerIdentity {
 	if resolved == rootIdentity {
-		return ""
+		return elevatedMintIdentity()
 	}
 	return resolved
 }

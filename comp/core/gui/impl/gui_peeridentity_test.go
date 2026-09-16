@@ -60,8 +60,8 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	t.Run("same OS identity: mint then redeem succeeds", func(t *testing.T) {
 		token, record := mintToken(t)
 		if os.Getuid() == 0 {
-			// mintTimeIdentity deliberately treats root as unconstrained, so this test process being root (e.g. a containerized CI runner) leaves the token unbound rather than resolving a real UID.
-			assert.Empty(t, record.identity, "root's mint-time identity is intentionally treated as unconstrained")
+			// elevatedMintIdentity's resolution is platform-specific (see its per-OS implementations); cross-check against it directly rather than assuming a single fixed outcome for root.
+			assert.Equal(t, mintTimeIdentity(rootIdentity), record.identity, "root's mint-time identity should match this platform's elevatedMintIdentity")
 		} else {
 			require.NotEmpty(t, record.identity, "a real loopback connection from this same process should resolve to a real OS identity")
 		}

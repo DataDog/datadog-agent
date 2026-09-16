@@ -11,10 +11,41 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+// consoleDevicePath is stat'd to resolve the console user's UID; a var so tests can point it at a fixture instead of the real /dev/console.
+var consoleDevicePath = "/dev/console"
+
+// elevatedMintIdentity resolves a root mint-time identity to the console user's UID via /dev/console's owner (chowned by loginwindow on login), since sudo-minted tokens are typically redeemed by that user's browser, not root's.
+func elevatedMintIdentity() peerIdentity {
+	uid, ok := consoleUID()
+	return identityFromConsoleUID(uid, ok)
+}
+
+func consoleUID() (uint32, bool) {
+	info, err := os.Stat(consoleDevicePath)
+	if err != nil {
+		return 0, false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, false
+	}
+	return stat.Uid, true
+}
+
+// identityFromConsoleUID treats a stat failure or UID 0 (nobody logged in, or genuinely root) as undeterminable, falling back to unconstrained.
+func identityFromConsoleUID(uid uint32, ok bool) peerIdentity {
+	if !ok || uid == 0 {
+		return ""
+	}
+	return peerIdentity(strconv.FormatUint(uint64(uid), 10))
+}
 
 // Layout of struct xtcpcb64, as returned by the "net.inet.tcp.pcblist64" sysctl; packed under a non-default #pragma pack, so offsets don't follow ordinary LP64 alignment and were obtained via offsetof()/sizeof() against real SDK headers, not derived by hand.
 const (

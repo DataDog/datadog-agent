@@ -187,3 +187,7 @@ func TestFindPID_DoesNotConfuseAddressFamilies(t *testing.T) {
 	_, ok = findPIDInV6Table(v6Buf, 8080, 80, loopbackV4, loopbackV6)
 	assert.False(t, ok, "must not match a v6 row against a v4 local address")
 }
+
+func TestElevatedMintIdentity_Windows(t *testing.T) {
+	assert.Equal(t, rootIdentity, mintTimeIdentity(rootIdentity))
+}

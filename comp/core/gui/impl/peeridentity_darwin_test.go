@@ -10,6 +10,8 @@ package guiimpl
 import (
 	"encoding/binary"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -168,4 +170,52 @@ func TestFindUIDInPCBList(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, peerIdentity("7000"), id)
 	})
+}
+
+func TestConsoleUID(t *testing.T) {
+	t.Run("resolves the owning UID of an existing file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "console")
+		require.NoError(t, os.WriteFile(path, nil, 0o644))
+		orig := consoleDevicePath
+		consoleDevicePath = path
+		t.Cleanup(func() { consoleDevicePath = orig })
+
+		uid, ok := consoleUID()
+		require.True(t, ok)
+		assert.Equal(t, uint32(os.Getuid()), uid)
+	})
+
+	t.Run("a missing device path is undeterminable", func(t *testing.T) {
+		orig := consoleDevicePath
+		consoleDevicePath = filepath.Join(t.TempDir(), "does-not-exist")
+		t.Cleanup(func() { consoleDevicePath = orig })
+
+		_, ok := consoleUID()
+		assert.False(t, ok)
+	})
+}
+
+func TestIdentityFromConsoleUID(t *testing.T) {
+	t.Run("a resolved non-root UID is bound", func(t *testing.T) {
+		assert.Equal(t, peerIdentity("1000"), identityFromConsoleUID(1000, true))
+	})
+
+	t.Run("an unresolved lookup stays unconstrained", func(t *testing.T) {
+		assert.Empty(t, identityFromConsoleUID(0, false))
+	})
+
+	t.Run("UID 0 (nobody logged in, or genuinely root) stays unconstrained", func(t *testing.T) {
+		assert.Empty(t, identityFromConsoleUID(0, true))
+	})
+}
+
+func TestElevatedMintIdentity_Darwin(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "console")
+	require.NoError(t, os.WriteFile(path, nil, 0o644))
+	orig := consoleDevicePath
+	consoleDevicePath = path
+	t.Cleanup(func() { consoleDevicePath = orig })
+
+	want := identityFromConsoleUID(uint32(os.Getuid()), true)
+	assert.Equal(t, want, elevatedMintIdentity())
 }

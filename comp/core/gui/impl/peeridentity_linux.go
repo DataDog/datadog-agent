@@ -73,6 +73,11 @@ func searchProcNetTCP(path string, serverAddr net.IP, serverPort, peerPort int, 
 	return "", false, scanner.Err()
 }
 
+// elevatedMintIdentity binds directly to root here: a sudo-launched xdg-open can't reach the desktop session to hand a URL to a different user's browser, so mint and redeem stay consistently root on the rare occasion it runs at all.
+func elevatedMintIdentity() peerIdentity {
+	return rootIdentity
+}
+
 // hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}, whose address is one (IPv4) or four (IPv6) 32-bit words, each byte-swapped to native order (e.g. loopback 127.0.0.1 is "0100007F").
 func hexAddrPort(field string) (net.IP, int, error) {
 	idx := strings.LastIndexByte(field, ':')

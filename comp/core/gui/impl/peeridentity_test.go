@@ -63,10 +63,6 @@ func TestResolvePeerIdentity(t *testing.T) {
 }
 
 func TestMintTimeIdentity(t *testing.T) {
-	t.Run("root is treated as unconstrained", func(t *testing.T) {
-		assert.Empty(t, mintTimeIdentity(rootIdentity))
-	})
-
 	t.Run("an unresolved identity stays unconstrained", func(t *testing.T) {
 		assert.Empty(t, mintTimeIdentity(peerIdentity("")))
 	})

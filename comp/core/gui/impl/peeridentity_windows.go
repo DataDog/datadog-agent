@@ -163,6 +163,11 @@ func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, pee
 	return "", fmt.Errorf("no matching IPv6 TCP connection for local port %d, remote port %d", peerPort, serverPort)
 }
 
+// elevatedMintIdentity is unreachable here: peerIdentity is a Windows SID string, never a plain "0" (see rootIdentity), so mintTimeIdentity's root check never triggers on this platform.
+func elevatedMintIdentity() peerIdentity {
+	return rootIdentity
+}
+
 // sidForPID returns pid's owning SID (skipping LookupAccount's friendly-name resolution, since only equality is needed); subject to a residual PID-reuse race (Windows exposes no atomic SID-with-connection-lookup API), accepted because winning it only grants the recycled process's own identity within a single 30s token's lifetime.
 func sidForPID(pid uint32) (peerIdentity, error) {
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)

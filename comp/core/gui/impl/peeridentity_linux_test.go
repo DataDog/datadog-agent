@@ -182,3 +182,7 @@ func TestLookupLoopbackPeerIdentity(t *testing.T) {
 		assert.Equal(t, peerIdentity("5000"), id)
 	})
 }
+
+func TestElevatedMintIdentity_Linux(t *testing.T) {
+	assert.Equal(t, rootIdentity, mintTimeIdentity(rootIdentity))
+}
