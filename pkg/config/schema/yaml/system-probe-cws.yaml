@@ -716,6 +716,7 @@ properties:
             - open
             - dns
             - bind
+            - mount
             items:
               type: string
           excluded_images:

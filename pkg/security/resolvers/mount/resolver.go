@@ -648,6 +648,18 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 	}
 }
 
+// IterateNamespace calls cb for every cached mount in the given mount namespace
+func (mr *Resolver) IterateNamespace(nsInode uint32, cb func(*model.Mount)) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode {
+			cb(mount)
+		}
+	}
+}
+
 // NewResolver instantiates a new mount resolver
 func NewResolver(statsdClient statsd.ClientInterface, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)

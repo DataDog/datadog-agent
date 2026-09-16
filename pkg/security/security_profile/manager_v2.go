@@ -941,13 +941,13 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Link this workload to the profile (tracks in profile.Instances)
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	m.linkWorkloadToProfile(secprof, workload)
+	if m.linkWorkloadToProfile(secprof, workload) {
+		m.seedMountsForWorkload(secprof, event)
+	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
-	// TODO: we should handle this in a better way
-
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
@@ -1032,10 +1032,11 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked
-func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already
+// tracked. It returns true when the workload was newly linked.
+func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) bool {
 	if workload == nil {
-		return
+		return false
 	}
 
 	prof.InstancesLock.Lock()
@@ -1045,11 +1046,29 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
-			return
+			return false
 		}
 	}
 
 	prof.Instances = append(prof.Instances, workload)
+	return true
+}
+
+// seedMountsForWorkload seeds a profile's mount table from the mount resolver's
+// current view of the workload's mount namespace. This captures the workload's
+// pre-existing mounts (rootfs, binds set up before the profile existed); later
+// changes come from live mount events.
+func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, event *model.Event) {
+	nsID := event.ProcessContext.Process.MntNS
+	if nsID == 0 {
+		return
+	}
+
+	imageTag := secprof.GetTagValue("image_tag")
+	now := time.Now()
+	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
+		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+	})
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
