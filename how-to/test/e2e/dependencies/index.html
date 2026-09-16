@@ -1333,6 +1333,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#the-agents-own-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The Agent's own image
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#kubernetes-and-kind" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4118,6 +4129,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#the-agents-own-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The Agent's own image
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#kubernetes-and-kind" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4308,6 +4330,41 @@ This is one of the biggest source of unreliability in e2e tests: DockerHub will 
 <li><code>test/new-e2e/tests/installer/host/host.go</code> — the mirrored-with-upstream-fallback pair, for when you need both forms</li>
 </ul>
 </details>
+<h3 id="the-agents-own-image">The Agent's own image<a class="headerlink" href="#the-agents-own-image" title="Permanent link">&para;</a></h3>
+<p>You do not have to do anything for the images the framework itself deploys — the Agent, the
+Cluster Agent, the DDOT collector, the Operator, standalone dogstatsd and the fakeintake.
+When a test targets a pipeline they come from <code>agent-qa</code>; otherwise they come from
+<code>e.DatadogPublicRegistry()</code>, which resolves per cloud:</p>
+<table>
+<thead>
+<tr>
+<th>Cloud</th>
+<th>Resolves to</th>
+<th>Leaves the account?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AWS</td>
+<td><code>669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog/…</code></td>
+<td>no, it is the pull-through cache</td>
+</tr>
+<tr>
+<td>GCP, Azure, local</td>
+<td><code>gcr.io/datadoghq/…</code></td>
+<td>yes — no cache exists there</td>
+</tr>
+</tbody>
+</table>
+<p>Use that accessor rather than naming a registry, the same way you would use
+<code>InternalDockerhubMirror()</code> for a third-party image. Two exceptions are deliberate and
+commented in the code:</p>
+<ul>
+<li><strong>Fargate</strong> pins <code>public.ecr.aws</code>. The ECS control plane pulls the image as part of the
+  service definition, so there is no host to authenticate against the cache on.</li>
+<li><strong>The unstable <code>agent-dev</code> images</strong> behind the FIPS and OTel variants are only published
+  to DockerHub, so they resolve through <code>InternalDockerhubMirror()</code> instead.</li>
+</ul>
 <h3 id="kubernetes-and-kind">Kubernetes and Kind<a class="headerlink" href="#kubernetes-and-kind" title="Permanent link">&para;</a></h3>
 <p>Two different pulls happen, with two different defaults:</p>
 <ul>
