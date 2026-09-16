@@ -84,12 +84,7 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 }
 
 // addParameterEnvironment converts input parameters into environment variable
-// assignments in environment, using the packager-provided parameterEnvMapping
-// to resolve each parameter's variable name. String values pass through
-// verbatim; all other types are JSON-encoded. It errors if a parameter has no
-// entry in parameterEnvMapping, or if its environment variable name collides
-// with one already present in environment, whether from another parameter or
-// from a managed/allowed/session variable.
+// assignments in the environment.
 func addParameterEnvironment(environment map[string]string, parameterEnvMapping map[string]string, parameters map[string]interface{}) error {
 	for name, value := range parameters {
 		envName, ok := parameterEnvMapping[name]
