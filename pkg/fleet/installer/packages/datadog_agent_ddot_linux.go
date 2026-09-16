@@ -126,7 +126,7 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ensurePermissionsInDir(ctx, "/etc/datadog-agent", ddotConfigPermissions); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -177,7 +177,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-	if err = ddotConfigPermissionsDEBRPM.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ensurePermissionsInDir(ctx, "/etc/datadog-agent", ddotConfigPermissionsDEBRPM); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -272,7 +272,7 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 	}
 
 	// Ensure the DDOT configuration files have the correct permissions
-	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ensurePermissionsInDir(ctx, "/etc/datadog-agent", ddotConfigPermissions); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -293,13 +293,15 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	return nil
 }
 
-// copyFile copies a file from src to dst with the specified permissions
+// copyFile copies a file from src to dst with the specified permissions. Neither end follows
+// a symlink out of its directory: src lives in the dd-agent-owned package tree and dst in the
+// dd-agent-owned configuration directory.
 func copyFile(src, dst string, perm os.FileMode) error {
-	data, err := os.ReadFile(src)
+	data, err := readFileInDir(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, perm)
+	return writeFileInDir(dst, data, perm)
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
