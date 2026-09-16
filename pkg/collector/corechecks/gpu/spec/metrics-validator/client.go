@@ -27,6 +27,29 @@ type metricsClient struct {
 	ctx context.Context
 }
 
+const maxAPIErrorBodyLength = 4 * 1024
+
+type apiErrorWithBody interface {
+	Body() []byte
+}
+
+func includeAPIErrorBody(err error) error {
+	var apiErr apiErrorWithBody
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+
+	body := strings.TrimSpace(string(apiErr.Body()))
+	if body == "" {
+		return err
+	}
+	if len(body) > maxAPIErrorBodyLength {
+		body = body[:maxAPIErrorBodyLength] + "... (truncated)"
+	}
+
+	return fmt.Errorf("%w: API response: %s", err, body)
+}
+
 func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, errors.New("api key is required")
@@ -75,7 +98,7 @@ func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query scalar data: %w", err)
+		return nil, fmt.Errorf("query scalar data: %w", includeAPIErrorBody(err))
 	}
 	if response.Errors != nil && strings.TrimSpace(*response.Errors) != "" {
 		return nil, fmt.Errorf("query scalar data returned errors: %s", strings.TrimSpace(*response.Errors))
@@ -267,7 +290,7 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("list tag configurations for %+v: %w", config, err)
+		return nil, fmt.Errorf("list tag configurations for %+v: %w", config, includeAPIErrorBody(err))
 	}
 
 	for _, item := range response.Data {
@@ -305,7 +328,7 @@ func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes 
 			_ = httpResp.Body.Close()
 		}
 		if err != nil {
-			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, err)
+			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, includeAPIErrorBody(err))
 		}
 		if response.Data == nil || response.Data.Attributes == nil {
 			continue
