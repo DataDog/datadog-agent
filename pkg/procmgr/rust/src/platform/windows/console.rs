@@ -7,13 +7,19 @@ use anyhow::Result;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    GetLastError, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
+    CloseHandle, GetLastError, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
 };
-use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_UNKNOWN, GetFileType};
+use windows_sys::Win32::Storage::FileSystem::{
+    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE, FILE_TYPE_UNKNOWN, GetFileType, OPEN_EXISTING,
+};
 use windows_sys::Win32::System::Console::{
-    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
-    STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
+    ATTACH_PARENT_PROCESS, AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
+    GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    SetConsoleCtrlHandler, SetStdHandle,
 };
+
+use super::wide;
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -21,10 +27,10 @@ pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
     CONSOLE_LOCK.lock().expect("console lock poisoned")
 }
 
-/// True when the std handle is live enough for a child to inherit.
+/// True when the std handle still refers to something usable.
 ///
 /// After `FreeConsole`, `GetStdHandle` can still return stale console handles.
-fn std_handle_inheritable(handle: u32) -> bool {
+fn std_handle_live(handle: u32) -> bool {
     unsafe {
         let h = GetStdHandle(handle);
         if h.is_null() || h == INVALID_HANDLE_VALUE {
@@ -38,11 +44,11 @@ fn std_handle_inheritable(handle: u32) -> bool {
 }
 
 pub fn stdout_inheritable() -> bool {
-    std_handle_inheritable(STD_OUTPUT_HANDLE)
+    std_handle_live(STD_OUTPUT_HANDLE)
 }
 
 pub fn stderr_inheritable() -> bool {
-    std_handle_inheritable(STD_ERROR_HANDLE)
+    std_handle_live(STD_ERROR_HANDLE)
 }
 
 /// Detach from the current console without clearing std handles.
@@ -78,6 +84,88 @@ impl Drop for IgnoreCtrlGuard {
                     std::io::Error::last_os_error()
                 );
             }
+        }
+    }
+}
+
+/// Std handles owned by a console, paired with the device that reopens them.
+const CONSOLE_STD_HANDLES: [(u32, &str); 3] = [
+    (STD_INPUT_HANDLE, "CONIN$"),
+    (STD_OUTPUT_HANDLE, "CONOUT$"),
+    (STD_ERROR_HANDLE, "CONOUT$"),
+];
+
+/// Reattaches the caller to its own console once signaling is done.
+///
+/// Signaling requires leaving that console (see `ChildConsoleGuard`). A supervisor started
+/// from a terminal logs to stdout, so staying detached would silence its log for the rest
+/// of the process lifetime.
+struct CallerConsoleGuard {
+    had_console: bool,
+}
+
+impl CallerConsoleGuard {
+    fn capture() -> Self {
+        Self {
+            // GetConsoleWindow is also NULL for a windowless console. GetConsoleCP returns
+            // 0 only when the process has no console at all, which is the service case.
+            had_console: unsafe { GetConsoleCP() != 0 },
+        }
+    }
+}
+
+impl Drop for CallerConsoleGuard {
+    fn drop(&mut self) {
+        if !self.had_console {
+            return;
+        }
+        // The console we left belongs to whoever launched us, so it is reachable through
+        // the parent process. It is gone for good if that process already exited.
+        if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } == 0 {
+            log::warn!(
+                "AttachConsole(ATTACH_PARENT_PROCESS) failed: {}, supervisor console output stays detached",
+                std::io::Error::last_os_error()
+            );
+            return;
+        }
+        for (kind, device) in CONSOLE_STD_HANDLES {
+            // Redirected handles survive FreeConsole untouched, and rebinding them would
+            // discard the redirection. Only the ones the console owned come back dead.
+            if !std_handle_live(kind) {
+                rebind_std_handle(kind, device);
+            }
+        }
+    }
+}
+
+/// Point a std handle back at the console, which `AttachConsole` leaves closed.
+fn rebind_std_handle(kind: u32, device: &str) {
+    let name = wide::null_terminated(device);
+    let handle = unsafe {
+        CreateFileW(
+            name.as_ptr(),
+            FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            std::ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE || handle.is_null() {
+        log::warn!(
+            "CreateFileW({device}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    if unsafe { SetStdHandle(kind, handle) } == 0 {
+        log::warn!(
+            "SetStdHandle({device}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        unsafe {
+            CloseHandle(handle);
         }
     }
 }
@@ -133,9 +221,12 @@ fn signal_ctrl_break(pgid: u32) -> Result<()> {
     Ok(())
 }
 
+// Declaration order matters: guards drop in reverse, so the caller console is restored
+// after leaving the child's and before the ctrl handler goes back to normal.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
     let _ignore_ctrl = IgnoreCtrlGuard::install()?;
+    let _caller_console = CallerConsoleGuard::capture();
     let _child_console = ChildConsoleGuard::attach(pid)?;
     signal_ctrl_break(pid)
 }
