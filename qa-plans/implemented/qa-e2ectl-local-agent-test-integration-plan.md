@@ -1,8 +1,7 @@
 # e2ectl: running existing Host tests against the local container agent — code plan
 
-> **Category C — pending implementation blueprint.** The design plan above holds; this
-> document is the developer-facing code detail. See the
-> [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
+> **Implemented — live-verified (4/4 tests pass against a local container in 0.07s).**
+> See the [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
 
 **Status:** code excerpts, not a patch. Grounded in the current source.
 

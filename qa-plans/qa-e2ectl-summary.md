@@ -22,16 +22,19 @@ YAML config language, locally and in CI.
 e2ectl environments                    # what environment types exist
 e2ectl init --base kind --output my.yaml   # annotated starter config, generated from typed Go structs
 e2ectl start   --config my.yaml --name dev    # provision (kind locally; EC2 via the executor)
-e2ectl install --env dev                       # install the Agent (Helm / official script)
+e2ectl install --env dev                       # install the Agent (Helm / script / dev binary) + deploy workloads
 e2ectl update  --env dev                       # rebuild your change and redeploy (kind dev loop)
 e2ectl fakeintake metrics --env dev            # what the Agent actually sent
 e2ectl list / stop --env dev
 ```
 
-Two flows work today:
+Three flows work today:
 - **Local kind** — the full loop is Pulumi-free and fast: cluster + local fakeintake,
   `update` rebuilds a dev image and upgrades the chart, metrics visible in the fakeintake.
   Verified live (rename-a-metric → `update` → renamed metric observed).
+- **Local container agent** — the Agent binary built from the working tree, pinned with
+  rtloader into a container on a per-env Docker network: the fastest iteration loop, and
+  existing Host tests run against it unchanged via the docker-exec transport.
 - **EC2 host** — VM plus ECS Fargate fakeintake via a Pulumi executor child process, then
   the official install script in-process. Implemented and tested offline; the live AWS
   smoke is gated on credentials.
@@ -54,7 +57,9 @@ per environment. Build with
    attachment will consume.
 3. **Configuration is typed and self-describing.** `environment.base` selects a driver
    whose typed Go struct owns its section (`kind:`, `ec2-host:`); `agent.install` selects
-   an installer whose typed struct owns its section (`script:`, `helm:`). One schema engine
+   an installer whose typed struct owns its section (`script:`, `helm:`); a top-level
+   `workloads:` list deploys test apps (nginx, redis…) after the Agent, by the
+   environment's own mechanism. One schema engine
    derives validation, defaults and the annotated starter config — unknown fields fail
    with actionable messages, and fields an installer doesn't consume (e.g. `image` for a
    script install) simply don't exist in its section.
@@ -73,10 +78,11 @@ per environment. Build with
 |---|---|---|
 | EKS environment | Reuse the framework's existing EKS Pulumi scenario (Linux/Windows node groups) behind the same CLI | Designed, not implemented |
 | Local host agent | The laptop as the environment: the Agent built from the working tree and run in a local container on a per-env Docker network (conflict-free multi-agent), wired to the fakeintake — the fastest possible loop | **Implemented, live-verified** |
+| Workloads | `workloads:` in the config — named catalog apps (nginx, redis, cpustress, tracegen, dogstatsd), inline/file manifests or images, deployed after the Agent by the environment's mechanism (kubectl on kind, docker run on local) | **Implemented for kind+local, live-verified (8/8 containers tests)**; EC2 host deployer remains |
 | Receiver selection | Choose fakeintake vs. the real backend explicitly; today routing is inferred from fakeintake presence | Designed, not implemented |
 | Custom/multi-Agent environments | Scenarios expose their own typed config (two Agents, two fakeintakes…) and their own installer; the CLI stays single-agent-generic | Designed, not implemented |
 | Agent-config typing remainder | Contract revision so installers receive typed sections end-to-end; scenario agent sections | Partially implemented |
-| Test execution | Run existing suites against a live environment; needs-probing; CI job generation from configs | Vision, not started |
+| Test execution | Existing suites attach to live environments via the proven `E2ECTL_ENV`/`E2ECTL_HOME` mechanism (Host metric tests and the containers suite run this way today); a `e2ectl test` wrapper, needs-probing and CI job generation are next | Attach mechanism **implemented, live-verified** (4/4 metric tests, 8/8 containers tests); wrapper command designed, not implemented |
 
 Everything above has a concrete plan with status and boundaries in the
 [plan status index](qa-e2ectl-plans-index.md); the implemented ledger distinguishes what

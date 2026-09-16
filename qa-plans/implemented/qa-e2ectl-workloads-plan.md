@@ -1,12 +1,34 @@
 # e2ectl: deploy workloads alongside the Agent — across environment types
 
-> **Category C — pending feature; not implemented.** Specifying test workloads
+> **Implemented** (commit `a345609a38f`). Specifying test workloads
 > in the e2ectl config, deployed after the Agent, with the right mechanism per
 > environment type. See the
 > [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
 
-**Status:** design only; no application code changes.
+**Status:** implemented for `kind` and `local` bases; live-verified on kind
+(`app: nginx` → Deployment+Service in `workload-nginx`, agent monitoring
+asserted by `TestWorkloadContainerMetrics` — 8/8 pass in 10s).
 **Replaces the previous version of this plan**, which was Kubernetes-only.
+
+## As-built deviations from the design
+
+| Design | As built | Why |
+|---|---|---|
+| `WorkloadSupport` / `WorkloadDeployer` interfaces | Plain `Deploy`/`Validate` functions dispatched by base string | Two bases, two dispatch arms — the interface layer would be ceremony until a third mechanism appears |
+| Section schema = `Config` wrapper | Per-entry schema; the section node is a sequence, so each list item decodes through `Schema` individually (`decodeWorkloadList` in config.go) | The wrapper expected a mapping where the YAML is a list — caught live |
+| `command:` form | Not implemented | Defer until a host deployer exists (see below) |
+| client-go apply | `kubectl` via the snapshot's kubeconfig | The kubeconfig is already materialized at `entry.KubeconfigPath()`; kubectl handles multi-doc and applies atomically |
+| (not in design) | Idempotent namespace creation (`kubectlEnsureNamespace`) | Catalog namespaces (`workload-nginx`…) don't exist in a fresh kind cluster |
+| (not in design) | AD annotation on the **pod template**, not the Deployment metadata | Deployment-level annotations never reach pods; fixed live |
+
+## Not yet implemented (was step 6)
+
+The **EC2 host deployer** is missing — `Deploy` rejects `ec2-host` with
+"workloads are not supported on base %q yet". `Validate` also accepts
+`app:`/`image:` on `ec2-host` (the catalog has no host definitions yet, so
+`app:` is rejected per-entry; `image:` passes validation but fails at
+install). Design section 4's host mechanism (SSH `docker run` / package
+install) is the template for whoever picks this up.
 
 ## 1. The core insight
 
@@ -274,16 +296,16 @@ manifest can run on a VM.
 
 ## 7. Implementation steps
 
-| Step | What | Gate |
-|---|---|---|
-| 1. `workloads` schema | `cmd/internal/envconfig/workloads` — typed list, mutual-exclusion rule | Round-trip, rules, valid example |
-| 2. `workloads` in the envelope | Top-level section in config.Parse | `init --base kind` generates a config with a commented example |
-| 3. Workload catalog | `testing/workloads/catalog.go` — named apps with per-type definitions | Each app produces the right artifacts for each environment type |
-| 4. Local Docker deployer | `docker run` on the agent's network for `image:`/`app:` | `e2ectl install --env dev` with `app: nginx` deploys a container alongside the agent |
-| 5. Kubernetes deployer | client-go apply for `manifest:`/`app:`/`image:` | `e2ectl install --env dev` with `app: nginx` deploys a Deployment on kind |
-| 6. Host deployer | SSH execute / docker run for `image:`/`app:` | `e2ectl install --env vm` with `app: nginx` deploys nginx on the VM |
-| 7. Stop integration | Each driver removes its workload type | `stop` cleans everything on all three bases |
-| 8. Test expansion | `TestContainersOnLocalKind` gains nginx/redis/CPU assertions | Full containers metric assertions pass on local kind |
+| Step | What | Gate | Status |
+|---|---|---|---|
+| 1. `workloads` schema | `cmd/internal/envconfig/workloads` — per-entry type, mutual-exclusion rule | Round-trip, rules, valid example | ✅ done |
+| 2. `workloads` in the envelope | Top-level section in config.Parse | `init --base kind` accepts the section | ✅ done |
+| 3. Workload catalog | `testing/workloads/catalog` — named apps with per-base definitions | Each app produces the right artifacts for each environment type | ✅ done (kind + local forms) |
+| 4. Local Docker deployer | `docker run` on the agent's network for `image:`/`app:` | `e2ectl install` with `app: nginx` deploys a container alongside the agent | ✅ done |
+| 5. Kubernetes deployer | kubectl apply for `manifest:`/`app:`/`image:` | `e2ectl install` with `app: nginx` deploys a Deployment on kind | ✅ done, live-verified |
+| 6. Host deployer | SSH execute / docker run for `image:`/`app:` | `e2ectl install` with `app: nginx` deploys nginx on the VM | ⬜ not started |
+| 7. Stop integration | Each driver removes its workload type | `stop` cleans everything on all three bases | ✅ inherent (cluster deletion / container network teardown) |
+| 8. Test expansion | `TestContainersOnLocalKind` gains workload assertions | Workload tests pass on local kind | ✅ done (TestWorkloadRunning, TestWorkloadContainerMetrics — 8/8 pass) |
 
 The local Docker deployer is the simplest (step 4) — it's the same
 mechanism as the fakeintake. The Kubernetes deployer (step 5) is the next

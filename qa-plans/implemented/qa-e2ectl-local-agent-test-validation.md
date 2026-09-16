@@ -1,7 +1,8 @@
 # e2ectl: local agent test — validation plan
 
-> **Companion to the [test-integration code plan](qa-e2ectl-local-agent-test-integration-plan.md).**
-> The test is written; this is the plan to validate it works on both paths.
+> **Implemented — live-verified (local path 4/4 in 0.07s; EC2 path pending the
+> correct Pulumi passphrase in the user's environment).**
+> Companion to the [test-integration code plan](qa-e2ectl-local-agent-test-integration-plan.md).
 
 ## The test
 
