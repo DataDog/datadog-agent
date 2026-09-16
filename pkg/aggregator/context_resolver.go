@@ -32,7 +32,9 @@ type Context struct {
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
-// observer. It is valid only for the synchronous duration of ObserveMetric.
+// observer. The view itself is valid only for the synchronous duration of
+// ObserveMetric, but its CompositeTags are immutable and may be retained by the
+// observer after the call returns.
 type resolvedMetricView struct {
 	sample *metrics.MetricSample
 	host   string
