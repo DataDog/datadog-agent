@@ -183,6 +183,63 @@ var (
 	errLimitsMustBeObject = errors.New("limits must be an object")
 )
 
+// RemoteQueryTraceContext carries the optional trace-continuation metadata the
+// private-action-runner attaches at the Remote Queries action boundary: the active
+// trace ID, the action.run span's own ID as the downstream parent, and the effective
+// sampling priority — restricted to the positive keep priorities 1 and 2, the exact
+// domain the integration's strict carrier validation accepts. It is observability
+// metadata only — never signed task data and never an authorization, routing, or
+// result-validation input — and it is optional end to end: absent or invalid values
+// leave the query executing exactly as before.
+type RemoteQueryTraceContext struct {
+	TraceID          uint64
+	SpanID           uint64
+	SamplingPriority int
+}
+
+const (
+	// remoteQuerySamplingPriorityMin and remoteQuerySamplingPriorityMax bound the
+	// only sampling-priority values that may cross the bridge: the tracer's positive
+	// keep priorities, AutoKeep (1) and UserKeep (2), which are exactly the values the
+	// integration's strict carrier validation accepts. A propagated priority outside
+	// the keep domain — the tracer's drop priorities UserDrop (-1) and AutoDrop (0), or
+	// any other integer — is unsupported trace context and is dropped, never fatal.
+	remoteQuerySamplingPriorityMin = 1
+	remoteQuerySamplingPriorityMax = 2
+)
+
+// NewRemoteQueryTraceContext validates the optional propagated trace context and
+// returns the normalized value, or nil when the context is invalid: a zero trace or
+// parent ID cannot identify a real trace, and only the positive keep sampling
+// priorities 1 and 2 are supported — the integration's strict carrier validation
+// accepts exactly those, so anything else (including the tracer's drop priorities
+// -1 and 0) must never be emitted. Invalid context is dropped without failing the
+// request, so an untraced or old caller executes exactly as before, and optional
+// invalid metadata never becomes a strict query-validation failure downstream.
+func NewRemoteQueryTraceContext(traceID, spanID uint64, samplingPriority int) *RemoteQueryTraceContext {
+	if traceID == 0 || spanID == 0 {
+		return nil
+	}
+	if samplingPriority < remoteQuerySamplingPriorityMin || samplingPriority > remoteQuerySamplingPriorityMax {
+		return nil
+	}
+	return &RemoteQueryTraceContext{
+		TraceID:          traceID,
+		SpanID:           spanID,
+		SamplingPriority: samplingPriority,
+	}
+}
+
+// normalizeRemoteQueryTraceContext revalidates an already-typed trace context at the
+// integration request boundary, so a hand-assembled typed request can emit only a
+// supported context on the wire.
+func normalizeRemoteQueryTraceContext(traceContext *RemoteQueryTraceContext) *RemoteQueryTraceContext {
+	if traceContext == nil {
+		return nil
+	}
+	return NewRemoteQueryTraceContext(traceContext.TraceID, traceContext.SpanID, traceContext.SamplingPriority)
+}
+
 type remoteQueryStreamRunner interface {
 	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
 }
@@ -310,6 +367,9 @@ type RemoteQueryExecuteRequest struct {
 	Query          string
 	IncludeSchema  bool
 	ResultDelivery *RemoteQueryResultDelivery
+	// TraceContext is the optional propagated trace-continuation metadata; nil
+	// means the caller is untraced and the integration request omits the field.
+	TraceContext *RemoteQueryTraceContext
 }
 
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
@@ -431,6 +491,7 @@ type remoteQueryExecuteRequest struct {
 	Query          string
 	IncludeSchema  bool
 	ResultDelivery *RemoteQueryResultDelivery
+	TraceContext   *RemoteQueryTraceContext
 }
 
 type remoteQueryExecuteRequestJSON struct {
@@ -540,6 +601,17 @@ type remoteQueryProduceJSONPagesRequestJSON struct {
 	Query          string                         `json:"query"`
 	IncludeSchema  bool                           `json:"includeSchema"`
 	ResultDelivery *remoteQueryResultDeliveryJSON `json:"resultDelivery"`
+	TraceContext   *remoteQueryTraceContextJSON   `json:"traceContext,omitempty"`
+}
+
+// remoteQueryTraceContextJSON is the optional trace-continuation object of the
+// integration request. The IDs cross as unsigned decimal strings so the exact
+// 64-bit value survives without numeric precision or format drift, and the
+// sampling priority is an integer. Absence stays absent.
+type remoteQueryTraceContextJSON struct {
+	TraceID          string `json:"traceId"`
+	ParentID         string `json:"parentId"`
+	SamplingPriority int    `json:"samplingPriority"`
 }
 
 // remoteQueryResultDeliveryJSON is the result-delivery handle forwarded to the
@@ -797,6 +869,7 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 		Target:        remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName, DatabaseInstance: r.Target.DatabaseInstance},
 		Query:         r.Query,
 		IncludeSchema: r.IncludeSchema,
+		TraceContext:  r.TraceContext,
 	}
 	if r.ResultDelivery != nil {
 		internal.ResultDelivery = r.ResultDelivery
@@ -811,6 +884,7 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 		Query:          req.Query,
 		IncludeSchema:  req.IncludeSchema,
 		ResultDelivery: req.ResultDelivery,
+		TraceContext:   req.TraceContext,
 	}
 }
 
@@ -837,7 +911,12 @@ func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, err
 // operation and the explicit includeSchema flag, and carries the full upload handle —
 // including baseUrl — so the integration can upload page files directly; the session
 // has no upload token, so the request cannot carry one. The integration reads the org
-// API/application keys from Agent config, so they never appear on the request wire.
+// API/application keys from Agent config, so they never appear on the request wire. The
+// optional propagated trace context is revalidated here and emitted as the top-level
+// traceContext object — decimal-string IDs and the integer sampling priority — only
+// when a supported keep-priority context is present; absent stays absent and invalid
+// — including any non-keep priority — is dropped without failing the run, so the
+// integration never receives a carrier its strict validation would reject.
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	if req.ResultDelivery == nil {
 		return "", errors.New("result_delivery is required")
@@ -867,6 +946,13 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 				TimeoutMs:      limits.TimeoutMs,
 			},
 		},
+	}
+	if traceContext := normalizeRemoteQueryTraceContext(req.TraceContext); traceContext != nil {
+		wireReq.TraceContext = &remoteQueryTraceContextJSON{
+			TraceID:          strconv.FormatUint(traceContext.TraceID, 10),
+			ParentID:         strconv.FormatUint(traceContext.SpanID, 10),
+			SamplingPriority: traceContext.SamplingPriority,
+		}
 	}
 	requestJSON, err := json.Marshal(wireReq)
 	if err != nil {

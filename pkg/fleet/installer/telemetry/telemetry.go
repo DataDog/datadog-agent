@@ -40,6 +40,13 @@ func normalizeSite(site string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(site)), ".")
 }
 
+// defaultSamplingPriority is the effective sampling priority of a trace that
+// carried no propagated priority: the flush stamps it on every completed span
+// without one (see WithSamplingPriority), so it is also the effective keep
+// behavior TraceContextFromContext reports for such traces. 2 is the Datadog
+// user-keep priority.
+const defaultSamplingPriority = 2
+
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
 	telemetryClient *client
@@ -120,7 +127,7 @@ func (t *Telemetry) extractCompletedSpans() traces {
 		span.span.Meta["env"] = t.env
 		span.span.Meta["version"] = version.AgentVersion
 		if _, ok := span.span.Metrics["_sampling_priority_v1"]; !ok {
-			span.span.Metrics["_sampling_priority_v1"] = 2
+			span.span.Metrics["_sampling_priority_v1"] = defaultSamplingPriority
 		}
 		ts[span.span.TraceID] = append(ts[span.span.TraceID], &span.span)
 	}
@@ -152,6 +159,51 @@ func SpanFromContext(ctx context.Context) (*Span, bool) {
 // (and child contexts) inherit the service unless overridden by another WithService call.
 func WithService(ctx context.Context, service string) context.Context {
 	return context.WithValue(ctx, serviceKey, service)
+}
+
+// TraceContext is an immutable value snapshot of the active trace identity on a
+// context: the trace ID, the ID of the span currently active on the context, and the
+// effective sampling priority of the trace. It is the narrow read-side surface for a
+// caller that must forward the active trace identity to a downstream service (the
+// Remote Queries AgentSecure request is the first caller): it carries copies of the
+// values only and exposes no mutable span internals.
+type TraceContext struct {
+	// TraceID is the 64-bit trace ID shared by every span of the active trace.
+	TraceID uint64
+	// SpanID is the ID of the span currently active on the context. A caller that
+	// forwards it as a parent ID makes the downstream work a child of that span —
+	// never of its parent.
+	SpanID uint64
+	// SamplingPriority is the effective sampling priority of the trace: the
+	// propagated priority when one was set with WithSamplingPriority, otherwise the
+	// tracer's existing effective keep behavior for unpropagated traces —
+	// defaultSamplingPriority, the value the flush stamps on the completed spans of
+	// such a trace.
+	SamplingPriority int
+}
+
+// TraceContextFromContext returns the active trace identity on ctx as an immutable
+// value. It reports false when ctx carries no active span, or when the active span
+// belongs to no real trace (a zero span ID, or the zero and internal drop-sentinel
+// trace IDs): in those cases there is no trace to continue, and the caller must
+// execute without propagation rather than inventing identity.
+func TraceContextFromContext(ctx context.Context) (TraceContext, bool) {
+	sIDs, ok := getSpanIDsFromContext(ctx)
+	if !ok {
+		return TraceContext{}, false
+	}
+	if sIDs.traceID == 0 || sIDs.traceID == dropTraceID || sIDs.spanID == 0 {
+		return TraceContext{}, false
+	}
+	priority := defaultSamplingPriority
+	if propagated, ok := getSamplingPriorityFromContext(ctx); ok {
+		priority = *propagated
+	}
+	return TraceContext{
+		TraceID:          sIDs.traceID,
+		SpanID:           sIDs.spanID,
+		SamplingPriority: priority,
+	}, true
 }
 
 // WithSamplingPriority sets the sampling priority on the context. Spans created from

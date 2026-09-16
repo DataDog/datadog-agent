@@ -564,6 +564,18 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	if err != nil {
 		return remotequeriesimpl.RemoteQueryExecuteRequest{}, err
 	}
+	// The optional trace-continuation metadata is validated fail-open: absent or
+	// invalid values leave the request executing exactly as before, and nothing
+	// about the delivery handle changes. Only the positive keep priorities 1 and 2
+	// survive the bridge — the exact domain the integration's strict carrier
+	// validation accepts — so a hand-built request carrying a drop priority (-1,
+	// 0) or any other value normalizes to absent instead of becoming a strict
+	// request-validation failure in the integration.
+	execReq.TraceContext = remotequeriesimpl.NewRemoteQueryTraceContext(
+		req.GetTraceContext().GetTraceId(),
+		req.GetTraceContext().GetParentId(),
+		int(req.GetTraceContext().GetSamplingPriority()),
+	)
 	return execReq, nil
 }
 
