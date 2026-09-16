@@ -32,8 +32,27 @@ oracle:
             ulimit -a
           } > environment.log 2>&1
           (
-            timeout --signal=TERM --kill-after=10s 180s "$ORACLE_BASE/$RUN_FILE" --nowait
+            configure_oracle() {
+              timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL || return
+          whenever oserror exit failure
+          whenever sqlerror exit failure
+          create pfile='/tmp/oracle-ci-init.ora' from spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora';
+          exit
+          SQL
+              printf '\n*.cpu_count=2\n' >> /tmp/oracle-ci-init.ora || return
+              timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
+          whenever oserror exit failure
+          whenever sqlerror exit failure
+          create spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora' from pfile='/tmp/oracle-ci-init.ora';
+          exit
+          SQL
+            }
+            configure_oracle > configure.log 2>&1
             startup_status=$?
+            if [ "$startup_status" -eq 0 ]; then
+              timeout --signal=TERM --kill-after=10s 180s "$ORACLE_BASE/$RUN_FILE" --nowait
+              startup_status=$?
+            fi
             if [ "$startup_status" -ne 0 ]; then
               printf 'whenever sqlerror exit failure\nconnect / as sysdba\nstartup\nexit\n' | timeout --signal=TERM --kill-after=5s 15s "$ORACLE_HOME/bin/sqlplus" -L /nolog > startup-sql.log 2>&1
               printf 'SQL startup probe exit status: %s\n' "$?" >> startup-sql.log
@@ -83,7 +102,7 @@ oracle:
   after_script:
     - mkdir -p oracle-ci-logs
     - |
-      for logfile in environment.log startup.log startup-sql.log alert_XE.log startup.exit; do
+      for logfile in environment.log configure.log startup.log startup-sql.log alert_XE.log startup.exit; do
         curl --noproxy '*' --fail --silent --show-error --connect-timeout 2 --max-time 10 "http://127.0.0.1:18080/$logfile" -o "oracle-ci-logs/$logfile" || true
       done
       tail -n 200 oracle-ci-logs/*.log
