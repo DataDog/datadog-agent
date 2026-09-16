@@ -9,6 +9,8 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
+- Redirect each SRC subsystem's stderr to `/var/log/datadog/{agent,trace-agent,agent-data-plane}-stderr.log`, so output that bypasses the agents' internal logging (startup errors before the log file is opened, AIX loader errors, panics, Go fatal errors) is kept on disk instead of only going to `/dev/console`.
+
 
 --
 

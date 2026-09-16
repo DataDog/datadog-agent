@@ -1,8 +1,0 @@
----
-enhancements:
-  - |
-    On AIX, the agent, trace-agent and agent-data-plane subsystems now have their stderr
-    redirected to ``/var/log/datadog/agent-stderr.log``, ``trace-agent-stderr.log`` and
-    ``agent-data-plane-stderr.log``. Output that bypasses the agents' internal logging,
-    such as panics, fatal errors and startup failures before the log file is opened, is
-    now available on disk instead of only on the system console.
