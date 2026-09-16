@@ -27,6 +27,7 @@ type EBPFMapStats struct {
 	MaxSize    uint64
 	Type       string
 	Entries    int64 // Allow negative values to indicate that the number of entries could not be calculated
+	NoPrealloc bool
 
 	// used only for tests
 	NumCPUs uint32

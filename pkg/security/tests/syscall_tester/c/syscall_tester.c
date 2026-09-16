@@ -307,6 +307,47 @@ int test_process_set(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// test_snapshot_credentials configures all four Uid/Gid values, then waits
+// to be collected by the process snapshot. The test runs it with effective
+// UID/GID zero so the filesystem IDs can be distinct from the other three.
+int test_snapshot_credentials(int argc, char **argv) {
+    if (argc != 9) {
+        fprintf(stderr, "%s: Please pass real, effective, saved and filesystem UID and GID.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    uid_t uid = (uid_t)atoi(argv[1]);
+    uid_t euid = (uid_t)atoi(argv[2]);
+    uid_t suid = (uid_t)atoi(argv[3]);
+    uid_t fsuid = (uid_t)atoi(argv[4]);
+    gid_t gid = (gid_t)atoi(argv[5]);
+    gid_t egid = (gid_t)atoi(argv[6]);
+    gid_t sgid = (gid_t)atoi(argv[7]);
+    gid_t fsgid = (gid_t)atoi(argv[8]);
+
+    if (setresgid(gid, egid, sgid) != 0) {
+        perror("setresgid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsgid(fsgid);
+    if (setfsgid(fsgid) != fsgid) {
+        fprintf(stderr, "setfsgid failed\n");
+        return EXIT_FAILURE;
+    }
+    if (setresuid(uid, euid, suid) != 0) {
+        perror("setresuid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsuid(fsuid);
+    if (setfsuid(fsuid) != fsuid) {
+        fprintf(stderr, "setfsuid failed\n");
+        return EXIT_FAILURE;
+    }
+
+    pause();
+    return EXIT_SUCCESS;
+}
+
 int self_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please pass a command name\n");
@@ -316,6 +357,18 @@ int self_exec(int argc, char **argv) {
     execv("/proc/self/exe", argv + 1);
 
     return EXIT_SUCCESS;
+}
+
+int test_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+
+    return EXIT_FAILURE;
 }
 
 void* connect_thread_ipv4(void *arg) {
@@ -2216,6 +2269,8 @@ int main(int argc, char **argv) {
             exit_code = test_mkdirat_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-credentials") == 0) {
             exit_code = test_process_set(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "snapshot-credentials") == 0) {
+            exit_code = test_snapshot_credentials(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "accept") == 0) {
@@ -2242,6 +2297,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec") == 0) {
+            exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {

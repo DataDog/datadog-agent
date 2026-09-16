@@ -52,7 +52,12 @@ dd_agent_go_test(
         "dogstatsdreplay/fixtures/metrics_capture.zstd",
         "status/fixtures/custom_check.py",
         "status/fixtures/custom_check.yaml",
+        "//test/new-e2e/tests/agent-subcommands/config:fixtures/datadog-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/datadog-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",  # keep
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",
@@ -81,6 +86,6 @@ dd_agent_go_test(
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

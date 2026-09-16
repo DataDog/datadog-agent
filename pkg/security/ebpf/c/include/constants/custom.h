@@ -66,6 +66,32 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
     DR_ERPC_LAST,
 };
 
+// Reader that attempted a per-event span context fill. Matches
+// (span_ctx_stats.go)
+enum span_ctx_event_reader {
+    SPAN_CTX_EVENT_READER_OTEL,       // reader:otel_tls
+    SPAN_CTX_EVENT_READER_GO_LABELS,  // reader:go_labels
+    SPAN_CTX_EVENT_READER_FILL,       // reader:fill  (the tail-call plumbing itself)
+    SPAN_CTX_EVENT_READER_LAST,
+};
+
+// Why a per-event span context fill attempt produced nothing or failed attribute/label lookup
+enum span_ctx_event_status {
+    SPAN_CTX_EVENT_OK,                // filled; also the "no failure" return
+    SPAN_CTX_EVENT_NONE,              // nothing to read (no reader, no record, no labels)
+    SPAN_CTX_EVENT_NO_THREAD_POINTER, // read_thread_pointer() returned 0
+    SPAN_CTX_EVENT_READ_FAULT,        // a bpf_probe_read_user in the chain faulted
+    SPAN_CTX_EVENT_TORN,              // OTel record changed under the copy
+    SPAN_CTX_EVENT_G_NOT_FOUND,       // no goroutine pointer from TLS nor register
+    SPAN_CTX_EVENT_ATTRS_READ_FAULT,  // ids delivered, attributes payload unreadable
+    SPAN_CTX_EVENT_MAP_ERROR,         // scratch / ring / gen-id lookup failed
+    SPAN_CTX_EVENT_MALFORMED,         // fill plumbing: payload offsets out of bounds
+    SPAN_CTX_EVENT_STATUS_LAST,
+};
+
+// Statuses below this are outcomes, not failures, and are never counted.
+#define SPAN_CTX_EVENT_FIRST_ERROR SPAN_CTX_EVENT_NO_THREAD_POINTER
+
 enum TC_TAIL_CALL_KEYS {
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
@@ -91,6 +117,15 @@ enum TC_RAWPACKET_KEYS {
 #define PACKET_KEY 0
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
+
+// which credential endpoint served an EVENT_IMDS event
+enum CREDENTIAL_SOURCE {
+    CREDENTIAL_SOURCE_UNKNOWN = 0,
+    CREDENTIAL_SOURCE_IMDS,
+    CREDENTIAL_SOURCE_EKS_POD_IDENTITY,
+    // reserved, not populated yet
+    CREDENTIAL_SOURCE_ECS,
+};
 
 #define STATE_NULL 0
 #define STATE_NEWLINK 1
@@ -215,12 +250,6 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     return anomaly;
 };
 
-static __attribute__((always_inline)) u64 get_imds_ip() {
-    u64 imds_ip;
-    LOAD_CONSTANT("imds_ip", imds_ip);
-    return imds_ip;
-};
-
 static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
     u64 capabilities_monitoring_period = 5000000000; // 5 seconds in nanoseconds
     LOAD_CONSTANT("capabilities_monitoring_period", capabilities_monitoring_period);
@@ -324,7 +353,6 @@ enum global_rate_limiter_type {
     RAW_PACKET_ACTION_LIMITER,
     OPEN_SAMPLE_LIMITER,
     BIND_SAMPLE_LIMITER,
-    DNS_SAMPLE_LIMITER,
     CONNECT_SAMPLE_LIMITER,
 };
 
