@@ -153,17 +153,53 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 			return fmt.Errorf("error getting files in directory: %w", err)
 		}
 	}
+	// The walked trees are writable by the unprivileged Agent user, so a symlink found here
+	// must never be resolved: it would redirect these root-run operations onto a file outside
+	// the tree. Targets that legitimately live inside the tree are walked on their own and
+	// stay covered.
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := Chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := Lchown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
 		if p.Mode != 0 {
-			if err := os.Chmod(file, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := chmodNoFollow(file, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file mode: %w", err)
 			}
 		}
+	}
+	return nil
+}
+
+// chmodNoFollow changes the mode of path, skipping it if it is a symlink.
+//
+// os.Chmod resolves symlinks and there is no lchmod, so stat-then-chmod over a path string
+// would leave a window for the unprivileged Agent user to swap the entry for a symlink and
+// have the mode applied to the file it points at. Going through an os.Root anchored at the
+// containing directory removes that: the mode is applied with fchmodat relative to a directory
+// handle, so losing the race can only affect a file inside that directory, never one outside
+// it. The Lstat below is the skip-symlinks policy, not the safety boundary: mode bits on a link
+// are meaningless, and a link a customer put in a configuration directory must not fail an
+// upgrade.
+func chmodNoFollow(path string, mode os.FileMode) error {
+	name := filepath.Base(path)
+	// os.OpenRoot reports the operation and the full directory path itself; the os.Root methods
+	// below report only the name they were given, so those restate the full path.
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	info, err := root.Lstat(name)
+	if err != nil {
+		return fmt.Errorf("error stating %s: %w", path, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil
+	}
+	if err := root.Chmod(name, mode); err != nil {
+		return fmt.Errorf("error setting mode of %s: %w", path, err)
 	}
 	return nil
 }
@@ -208,6 +244,14 @@ func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
 	return nil
 }
 
+// UserAndGroupIDs returns the IDs of the given user and group. Lookups are cached for the
+// lifetime of the process: resolving a name forks a getent subprocess, so callers that apply
+// ownership themselves instead of going through Chown or Permission.Ensure should use this
+// rather than the user package directly, or a hook ends up forking getent per entry.
+func UserAndGroupIDs(ctx context.Context, username, group string) (uid, gid int, err error) {
+	return getUserAndGroup(ctx, username, group)
+}
+
 func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int, err error) {
 	// Use internal user package GetUserID and GetGroupID, caching as before for efficiency
 	uidRaw, uidOk := userCache.Load(username)
@@ -240,17 +284,26 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
+// Lchown changes the ownership of a file to the specified owner and group. Unlike Chown it
+// does not resolve path's final component, so ownership of a symlink's target is never changed.
+func Lchown(ctx context.Context, path string, username string, group string) (err error) {
+	uid, gid, err := getUserAndGroup(ctx, username, group)
+	if err != nil {
+		return fmt.Errorf("error getting user and group IDs for %s: %w", path, err)
+	}
+	// Returned as is: os.Lchown reports a *PathError naming both the operation and the path,
+	// so restating that here only stutters with whatever the caller adds.
+	return os.Lchown(path, uid, gid)
+}
+
 // Chown changes the ownership of a file to the specified owner and group.
 func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
-		return fmt.Errorf("error getting user and group IDs: %w", err)
+		return fmt.Errorf("error getting user and group IDs for %s: %w", path, err)
 	}
-	err = os.Chown(path, uid, gid)
-	if err != nil {
-		return fmt.Errorf("error changing file ownership: %w", err)
-	}
-	return nil
+	// See Lchown: os.Chown already names the operation and the path.
+	return os.Chown(path, uid, gid)
 }
 
 func filesInDir(dir string) ([]string, error) {
