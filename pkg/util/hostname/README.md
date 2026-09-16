@@ -63,8 +63,9 @@ The notion of `isOSHostnameUsable` means:
 6. **FQDN**
    1. If `isOSHostnameUsable` is false we return an error
    2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
-      1. On Linux we use `/bin/hostname -f`
-      2. On Windows we use `golang.org/x/sys/windows:GetHostByName`
+      1. On Linux and macOS we use `/bin/hostname -f`
+      2. On AIX we do a CNAME lookup
+      3. On Windows we use `golang.org/x/sys/windows:GetHostByName`
    3. Else we return an error
 7. **CONTAINER**
    1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
