@@ -223,15 +223,26 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
 	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 
+	// The first ClusterID() call above has its own bounded wait that's
+	// independent of the background resolver goroutine, so it can return
+	// before that goroutine has actually stored the settled result. Wait
+	// for the real settle point directly instead of assuming the first
+	// call's return implies it — otherwise the timing assertion below
+	// races the resolver goroutine and is flaky under scheduler/GC jitter
+	// (see incident: the two durations it compared could land within
+	// fractions of a millisecond of each other).
+	assert.Eventually(t, func() bool {
+		return s.clusterID.Load() != nil
+	}, time.Second, time.Millisecond, "resolution must settle (cache populated) within a reasonable time")
+
 	// Cached from the settled resolution; must return immediately without
-	// re-running the resolution loop. A single before/after comparison is
-	// too sensitive to one-off scheduler/GC jitter under -race, so this
-	// amortizes across many calls: if caching were broken and each call
-	// re-ran the full retry loop, this would take ~50x the first call's
-	// elapsed time; if cached, it's ~50 atomic loads.
+	// re-running the resolution loop. Compared against a fixed budget
+	// instead of the first call's elapsed time: once truly cached, 50
+	// atomic loads take microseconds, orders of magnitude below even a
+	// single retry delay, while a broken cache would take multiples of it.
 	start = time.Now()
 	for i := 0; i < 50; i++ {
 		assert.Empty(t, s.ClusterID())
 	}
-	assert.Less(t, time.Since(start), elapsed, "later calls must return immediately from cache, not re-run resolution")
+	assert.Less(t, time.Since(start), s.resolveRetryDelay, "later calls must return immediately from cache, not re-run resolution")
 }
