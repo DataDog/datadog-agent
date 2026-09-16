@@ -806,6 +806,7 @@ func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
 	copied := IMDSEvent{}
 	copied.AWS = deepCopyAWSIMDSEvent(fieldToCopy.AWS)
 	copied.CloudProvider = fieldToCopy.CloudProvider
+	copied.CredentialSource = fieldToCopy.CredentialSource
 	copied.Host = fieldToCopy.Host
 	copied.Server = fieldToCopy.Server
 	copied.Type = fieldToCopy.Type

@@ -9,6 +9,8 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
+- The agent, trace-agent, and agent-data-plane SRC subsystems are now registered in a shared `datadog-agent` SRC group, so all services can be started/stopped together with `startsrc -g datadog-agent` / `stopsrc -g datadog-agent` (and listed with `lssrc -g datadog-agent`) instead of one subsystem at a time. Individual subsystems can still be addressed with `-s` as before, but this might change in the future, group should be used.
+
 
 --
 
