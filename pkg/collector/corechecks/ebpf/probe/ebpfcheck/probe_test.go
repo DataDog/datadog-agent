@@ -654,3 +654,57 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 		assert.Equal(t, result.RSS, result.MaxSize)
 	})
 }
+
+func TestMapNoPrealloc(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
+
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		cfg := testConfig()
+
+		probe, err := NewProbe(cfg)
+		require.NoError(t, err)
+		t.Cleanup(probe.Close)
+
+		mapSpecs := []*ebpf.MapSpec{
+			{Name: "et_np_hash", Type: ebpf.Hash, Flags: unix.BPF_F_NO_PREALLOC},
+			{Name: "et_pa_hash", Type: ebpf.Hash},
+			{Name: "et_np_pcpu", Type: ebpf.PerCPUHash, Flags: unix.BPF_F_NO_PREALLOC},
+			{Name: "et_pa_pcpu", Type: ebpf.PerCPUHash},
+		}
+
+		ids := make(map[string]ebpf.MapID)
+		for _, spec := range mapSpecs {
+			spec.KeySize, spec.ValueSize, spec.MaxEntries = 8, 8, 100
+			testMap, err := ebpf.NewMap(spec)
+			require.NoError(t, err, spec.Name)
+			t.Cleanup(func() { _ = testMap.Close() })
+			info, err := testMap.Info()
+			require.NoError(t, err, spec.Name)
+			ids[spec.Name], _ = info.ID()
+		}
+
+		var result []model.EBPFMapStats
+		require.Eventually(t, func() bool {
+			stats := probe.GetAndFlush()
+			for name, id := range ids {
+				if !slices.ContainsFunc(stats.Maps, func(stats model.EBPFMapStats) bool {
+					return stats.ID == uint32(id)
+				}) {
+					t.Logf("missing name=%s id=%d", name, id)
+					return false
+				}
+			}
+			result = stats.Maps
+			return true
+		}, 5*time.Second, 500*time.Millisecond, "failed to find all maps")
+
+		for _, spec := range mapSpecs {
+			idx := slices.IndexFunc(result, func(stats model.EBPFMapStats) bool {
+				return stats.ID == uint32(ids[spec.Name])
+			})
+			require.GreaterOrEqual(t, idx, 0, spec.Name)
+			expected := (spec.Flags & unix.BPF_F_NO_PREALLOC) != 0
+			assert.Equal(t, expected, result[idx].NoPrealloc, "map name: %s", spec.Name)
+		}
+	})
+}

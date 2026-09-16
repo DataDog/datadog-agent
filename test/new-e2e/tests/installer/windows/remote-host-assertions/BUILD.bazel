@@ -25,6 +25,6 @@ go_library(
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
