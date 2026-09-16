@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -148,6 +150,60 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, queryFilter s
 	}
 
 	return len(columns), nil
+}
+
+func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS int64) (string, error) {
+	columns, err := c.runScalarQueries(
+		[]datadogV2.ScalarQuery{
+			buildScalarQuery(
+				"q0",
+				"avg:datadog.agent.running{*} by {kube_cluster_name,image_tag}",
+				datadogV2.METRICSAGGREGATOR_AVG,
+			),
+		},
+		fromTS,
+		toTS,
+	)
+	if err != nil {
+		return "", fmt.Errorf("query agent versions by Kubernetes cluster: %w", err)
+	}
+
+	versionsByCluster := make(map[string]map[string]struct{})
+	for _, column := range columns {
+		cluster := column.tags["kube_cluster_name"]
+		imageTag := column.tags["image_tag"]
+		if isNullishGroupValue(cluster) || isNullishGroupValue(imageTag) {
+			continue
+		}
+		if versionsByCluster[cluster] == nil {
+			versionsByCluster[cluster] = make(map[string]struct{})
+		}
+		versionsByCluster[cluster][imageTag] = struct{}{}
+	}
+
+	clusters := make([]string, 0, len(versionsByCluster))
+	for cluster, versions := range versionsByCluster {
+		matchesVersion := true
+		for version := range versions {
+			matches, err := path.Match(agentVersion, version)
+			if err != nil {
+				return "", fmt.Errorf("match agent version %q: %w", agentVersion, err)
+			}
+			if !matches {
+				matchesVersion = false
+				break
+			}
+		}
+		if matchesVersion {
+			clusters = append(clusters, cluster)
+		}
+	}
+	if len(clusters) == 0 {
+		return "", fmt.Errorf("no Kubernetes clusters exclusively run agent version %q", agentVersion)
+	}
+
+	sort.Strings(clusters)
+	return fmt.Sprintf("kube_cluster_name:(%s)", strings.Join(clusters, " OR ")), nil
 }
 
 func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]gpuspec.TagSpec, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
