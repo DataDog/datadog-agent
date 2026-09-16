@@ -595,38 +595,45 @@ func (s *packageAgentSuite) TestInstallFips() {
 }
 
 // TestInstallDoesNotFollowPlantedSymlinks asserts that the recursive ownership pass of the
-// root-run install hooks never resolves a symlink found in the trees it walks. Both
-// /etc/datadog-agent and the package directory are owned by the unprivileged dd-agent user, so
-// following a link planted there would hand ownership of any root-owned file to dd-agent
-// during a routine install or upgrade.
+// root-run install hooks never resolves a symlink found in the configuration directory.
+// /etc/datadog-agent ends up owned by the unprivileged dd-agent user, so following a link
+// planted there would hand ownership of any root-owned file to dd-agent during a routine
+// install.
+//
+// The entries are planted before the one install rather than between two installs: an install
+// that finds the same version already present returns before running any hook, so re-running
+// the install script is not a reliable way to make the ownership pass run again. The package
+// tree is deliberately not covered here — every install that reaches the ownership pass first
+// rebuilds that tree from the freshly extracted layers, so nothing planted in it survives to
+// be walked. Replacement of a directory below the walked root is covered deterministically by
+// TestPermissionEnsureRecursiveRefusesDirectorySwappedAfterListing in the file package.
 func (s *packageAgentSuite) TestInstallDoesNotFollowPlantedSymlinks() {
+	const configDir = "/etc/datadog-agent"
 	const victim = "/etc/datadog-agent-symlink-victim"
-	const agentDir = "/opt/datadog-agent"
+
+	// A root-owned file outside the walked tree that the hooks must never reach.
+	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + victim)
+
+	// Planted by root only because dd-agent does not exist before the install; the walk cannot
+	// tell who created an entry, and this directory is dd-agent's once the install is done.
+	// Alongside the symlink a root-owned regular file is planted: the ownership pass must pick
+	// it up, which is what proves the walk actually ran and keeps this test from passing
+	// vacuously.
+	s.host.Run("sudo mkdir -p " + configDir)
+	s.host.Run("sudo ln -sf " + victim + " " + configDir + "/planted-symlink")
+	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + configDir + "/planted-regular")
 
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.waitForCoreUnitsActive()
 
-	// A root-owned file outside both walked trees that the hooks must never reach.
-	s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + victim)
+	owner := strings.TrimSpace(s.host.Run("stat -c '%U:%G' " + configDir + "/planted-regular"))
+	assert.Equal(s.T(), "dd-agent:dd-agent", owner,
+		"the recursive ownership pass must have walked %s", configDir)
 
-	// dd-agent owns both trees, so it can plant entries in them. Alongside each symlink a
-	// root-owned regular file is planted: the ownership pass must pick those up, which is what
-	// proves the walk actually ran and keeps this test from passing vacuously.
-	for _, dir := range []string{"/etc/datadog-agent", agentDir} {
-		s.host.Run("sudo -u dd-agent ln -sf " + victim + " " + dir + "/planted-symlink")
-		s.host.Run("sudo install -o root -g root -m 0600 /dev/null " + dir + "/planted-regular")
-	}
-
-	// Re-run the install so the post-install hooks walk both trees again.
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-
-	for _, dir := range []string{"/etc/datadog-agent", agentDir} {
-		owner := strings.TrimSpace(s.host.Run("stat -c '%U:%G' " + dir + "/planted-regular"))
-		assert.Equal(s.T(), "dd-agent:dd-agent", owner,
-			"the recursive ownership pass must have walked %s", dir)
-	}
+	// stat does not dereference by default, so this reports the victim itself.
 	victimState := strings.TrimSpace(s.host.Run("stat -c '%U:%G:%a' " + victim))
 	assert.Equal(s.T(), "root:root:600", victimState,
-		"the root-owned file the planted symlinks point at must be untouched")
+		"the root-owned file the planted symlink points at must be untouched")
+	s.host.Run("sudo test -L " + configDir + "/planted-symlink")
 }
