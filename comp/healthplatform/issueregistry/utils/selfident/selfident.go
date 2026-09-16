@@ -129,17 +129,14 @@ func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
 	})
-	// Fast path: once settled, avoid select/After's per-call timer
-	// allocation and return straight from the atomic load, as documented.
+	// Fast path: once settled, return straight from the atomic load.
 	if id := s.clusterID.Load(); id != nil {
 		return *id
 	}
 	select {
 	case <-s.clusterIDReady:
 	case <-s.clock.After(time.Duration(s.resolveRetries) * s.resolveRetryDelay):
-		// resolveClusterID is still retrying; give up on this call rather
-		// than block indefinitely. It keeps running and will close
-		// clusterIDReady once it settles, for later callers to benefit from.
+		// Still resolving; give up here, resolveClusterID keeps running.
 	}
 	if id := s.clusterID.Load(); id != nil {
 		return *id
@@ -150,10 +147,8 @@ func (s *SelfIdent) ClusterID() string {
 // resolveClusterID retries clustername.GetClusterID() a bounded number of
 // times (clustername caches a successful result process-wide, so retries
 // here only matter while the Cluster Agent hasn't answered yet) before
-// giving up and caching empty for the process lifetime. clusterIDReady is
-// closed exactly once resolution has settled (found or given up), which is
-// the single signal ClusterID() callers wait on — replacing what used to be
-// two independently-timed polling loops racing the same clock.
+// giving up and caching empty for the process lifetime.
+// clusterIDReady is closed once resolution settles; ClusterID() waits on it.
 func (s *SelfIdent) resolveClusterID() {
 	defer close(s.clusterIDReady)
 	for attempt := 0; ; attempt++ {
