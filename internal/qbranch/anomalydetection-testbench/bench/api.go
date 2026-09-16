@@ -23,6 +23,7 @@ import (
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // BenchAPI handles HTTP API requests for the bench.
@@ -460,7 +461,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
 					Host:       m.Host,
-					Tags:       m.Tags,
+					Tags:       m.Tags.UnsafeToReadOnlySliceString(),
 					PointCount: pointCount,
 					Virtual:    virtual,
 					MetricKind: metricKind,
@@ -590,7 +591,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
 		Host:      meta.Host,
-		Tags:      series.Tags,
+		Tags:      series.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -660,7 +661,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		if m.Name != name {
 			continue
 		}
-		if (requestedID == "" || m.Host == host) && (tags == nil || tagsMatch(m.Tags, tags)) {
+		if (requestedID == "" || m.Host == host) && (tags == nil || compositeTagsMatch(m.Tags, tags)) {
 			foundMeta = m
 			break
 		}
@@ -734,7 +735,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		Namespace: namespace,
 		Name:      nameWithAgg,
 		Host:      foundMeta.Host,
-		Tags:      foundMeta.Tags,
+		Tags:      foundMeta.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -806,7 +807,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 			Title:             a.Title,
 			Description:       a.Description,
 			Host:              a.Source.Host,
-			Tags:              a.Source.Tags,
+			Tags:              a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
@@ -879,7 +880,7 @@ func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) 
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
-			Tags:         a.Source.Tags,
+			Tags:         a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
 		})
@@ -1047,7 +1048,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tgs := a.Source.Tags
+			tgs := a.Source.Tags.UnsafeToReadOnlySliceString()
 			if tgs == nil {
 				tgs = []string{}
 			}
@@ -1396,25 +1397,24 @@ func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observer
 	}.DisplayName()
 }
 
-func logReportContributorName(name, host string, tags []string) string {
+func logReportContributorName(name, host string, tags tagset.CompositeTags) string {
 	name = "log: " + name
-	if host != "" {
-		hostTag := "host:" + host
-		hasHost := false
-		for _, tag := range tags {
-			if tag == hostTag {
-				hasHost = true
-				break
-			}
-		}
-		if !hasHost {
-			tags = append([]string{hostTag}, tags...)
-		}
-	}
-	if len(tags) == 0 {
+	if tags.Len() == 0 && host == "" {
 		return name
 	}
-	return name + " — {" + strings.Join(tags, ",") + "}"
+	var b strings.Builder
+	b.WriteString(name)
+	b.WriteString(" — {")
+	if host != "" && !tags.Find(func(tag string) bool { return tag == "host:"+host }) {
+		b.WriteString("host:")
+		b.WriteString(host)
+		if tags.Len() > 0 {
+			b.WriteByte(',')
+		}
+	}
+	b.WriteString(tags.Join(","))
+	b.WriteByte('}')
+	return b.String()
 }
 
 // scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating
