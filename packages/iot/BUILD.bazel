@@ -44,14 +44,7 @@ pkg_filegroup(
     srcs = [
         ":dirs",
         ":iot_agent_binary",
-    ] + select({
-        # When we can build the iot-agent binary with bazel, replace that
-        # target with this.
-        "@platforms//os:linux": [
-            "@systemd//:all_files",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 # Everything here lands under /opt/datadog-agent.
