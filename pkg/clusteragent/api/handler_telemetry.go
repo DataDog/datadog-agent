@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -49,6 +50,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.api.request",
 		tracer.ResourceName(t.handlerName),
 		tracer.SpanType("web"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("http.method", r.Method),
 		tracer.Tag("http.url", r.URL.Path))
 	wrapper.setSpanTags = func(statusCode int) {
