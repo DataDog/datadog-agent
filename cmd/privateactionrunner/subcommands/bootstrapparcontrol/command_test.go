@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -119,24 +118,29 @@ func TestBootstrapSelfEnrolls(t *testing.T) {
 
 func TestBootstrapResolvesConfig(t *testing.T) {
 	cfg := splitConfig(t, map[string]interface{}{
-		"private_action_runner.urn":                  validURN(),
-		"private_action_runner.private_key":          validPrivateKey(t),
-		"private_action_runner.executor.socket_path": "/tmp/executor.sock",
-		"private_action_runner.task_concurrency":     7,
-		"proxy.https":                                "http://proxy.example:8443",
-		"skip_ssl_validation":                        true,
-		"min_tls_version":                            "tlsv1.3",
+		"private_action_runner.urn":         validURN(),
+		"private_action_runner.private_key": validPrivateKey(t),
+		"auth_token_file_path":              "/tmp/auth_token",
 	})
 
 	resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
 
 	require.NoError(t, err)
-	assert.Equal(t, "http://proxy.example:8443", resolved.OPMSProxyURL)
-	assert.Equal(t, "/tmp/executor.sock", resolved.ExecutorSocket)
-	assert.Equal(t, int32(7), resolved.TaskConcurrency)
-	assert.True(t, resolved.TLS.SkipSSLValidation)
-	assert.Equal(t, "tlsv1.3", resolved.TLS.MinTLSVersion)
-	assert.NotZero(t, resolved.LoopIntervalMilliseconds)
+	assert.NotZero(t, resolved.CmdPort)
+	assert.Equal(t, "/tmp/auth_token", resolved.AuthTokenFilePath)
+	assert.NotEmpty(t, resolved.IPCCertFilePath)
+}
+
+func TestBootstrapRejectsInvalidIdentity(t *testing.T) {
+	cfg := splitConfig(t, map[string]interface{}{
+		"private_action_runner.urn":         "invalid",
+		"private_action_runner.private_key": validPrivateKey(t),
+	})
+
+	_, err := runBootstrap(t, cfg, failIfEnrolled(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse")
 }
 
 func TestBootstrapRejectsFIPS(t *testing.T) {
@@ -150,20 +154,6 @@ func TestBootstrapRejectsFIPS(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fips.enabled")
-}
-
-func TestBootstrapUsesDDURLForFakeintake(t *testing.T) {
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
-	cfg := splitConfig(t, map[string]interface{}{
-		"private_action_runner.urn":         validURN(),
-		"private_action_runner.private_key": validPrivateKey(t),
-		"dd_url":                            "http://fakeintake.test:8080",
-	})
-
-	resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
-
-	require.NoError(t, err)
-	assert.Equal(t, "http://fakeintake.test:8080", resolved.OPMSBaseURL)
 }
 
 func writeIdentity(t *testing.T, cfg coreconfig.Component, urn, key, hostname string) {
