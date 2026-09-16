@@ -93,7 +93,8 @@ def _check_e2e_local_config_or_exit(
     if cfg is None or aws is None or not aws.keyPairName:
         raise Exit(
             "Local E2E config is missing or incomplete. "
-            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow). "
+            "Pass `--team=<github-team>` to skip the interactive team prompt (AI agents should always do this).",
             1,
         )
 
