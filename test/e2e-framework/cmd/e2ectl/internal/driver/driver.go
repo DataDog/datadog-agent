@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
 )
 
@@ -76,6 +77,11 @@ func (d *typedDriver[P]) Installers() []installer.Installer { return d.impl.Inst
 func (d *typedDriver[P]) Prepare(cfg *config.File) (*Prepared, error) {
 	if cfg.Environment.Base != d.ID() {
 		return nil, fmt.Errorf("driver %q cannot prepare base %q", d.ID(), cfg.Environment.Base)
+	}
+	// Workload validation is environment-owned, the same principle as the
+	// agent section's installers: fail before infrastructure is created.
+	if errs := workloads.Validate(cfg); len(errs) > 0 {
+		return nil, config.NewErrors(errs)
 	}
 	path := "environment." + d.ID()
 	if cfg.Path != "" {

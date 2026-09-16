@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//test/e2e-framework/cmd/internal/configschema",
         "//test/e2e-framework/cmd/internal/envconfig/fixtures",
+        "//test/e2e-framework/cmd/internal/envconfig/workloads",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

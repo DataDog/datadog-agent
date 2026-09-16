@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/workloads"
 )
 
 func cmdStart(args []string) error {
@@ -161,6 +162,11 @@ func cmdInstall(args []string) error {
 		return err
 	}
 	if err := saveAppliedConfig(cfg, entry); err != nil {
+		return err
+	}
+	// Workloads deploy after the agent is running, so the agent captures
+	// metrics from workload startup. Not redeployed by update.
+	if err := workloads.Deploy(cfg, entry); err != nil {
 		return err
 	}
 	version, image, err := inst.Artifact(cfg)

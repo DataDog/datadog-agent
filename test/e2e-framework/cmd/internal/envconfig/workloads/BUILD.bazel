@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "workloads",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads",
+    visibility = ["//test/e2e-framework/cmd:__subpackages__"],
+    deps = ["//test/e2e-framework/cmd/internal/configschema"],
+)
+
+dd_agent_go_test(
+    name = "workloads_test",
+    srcs = ["config_test.go"],
+    embed = [":workloads"],
+    deps = ["//test/e2e-framework/cmd/internal/configschema"],
+)

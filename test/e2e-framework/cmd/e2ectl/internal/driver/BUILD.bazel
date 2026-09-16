@@ -17,6 +17,7 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/drivers/local",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/internal/workloads",
         "//test/e2e-framework/cmd/internal/configschema",
         "//test/e2e-framework/cmd/internal/envconfig/ec2host",
         "//test/e2e-framework/cmd/internal/envconfig/kind",

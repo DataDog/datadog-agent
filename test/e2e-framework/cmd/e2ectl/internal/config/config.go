@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -25,6 +26,7 @@ type File struct {
 	Schema      int
 	Environment Environment
 	Agent       Agent
+	Workloads   workloads.Config
 	Path        string
 	source      []byte
 }
@@ -80,8 +82,8 @@ func Parse(data []byte) (*File, []error) {
 	f := &File{}
 	var errs []error
 	for key := range members {
-		if key != "schema" && key != "environment" && key != "agent" {
-			errs = append(errs, errf(key, "unknown top-level field (supported: schema, environment, agent)"))
+		if key != "schema" && key != "environment" && key != "agent" && key != "workloads" {
+			errs = append(errs, errf(key, "unknown top-level field (supported: schema, environment, agent, workloads)"))
 		}
 	}
 	if n := members["schema"]; n != nil {
@@ -96,6 +98,13 @@ func Parse(data []byte) (*File, []error) {
 		errs = append(errs, err)
 	}
 	if err := f.parseAgent(members["agent"]); err != nil {
+		errs = append(errs, err)
+	}
+	// Workloads is a list, not a mapping — decode each item through the
+	// schema for shape validation, then validate form compatibility at
+	// prepare time.
+	f.Workloads.Workloads, err = decodeWorkloadList(members["workloads"])
+	if err != nil {
 		errs = append(errs, err)
 	}
 	if len(errs) != 0 {
@@ -213,4 +222,24 @@ func StrictDecode(raw []byte, out any) error {
 func NewErrors(errs []error) error { return errors.Join(errs...) }
 func errf(field, format string, args ...any) error {
 	return fmt.Errorf("%s: %s", field, fmt.Sprintf(format, args...))
+}
+
+// decodeWorkloadList decodes the workloads section (a YAML sequence) into
+// typed Workload entries with schema validation.
+func decodeWorkloadList(n *yaml.Node) ([]workloads.Workload, error) {
+	if n == nil {
+		return nil, nil
+	}
+	if n.Kind != yaml.SequenceNode {
+		return nil, errf("workloads", "expected a list of workloads")
+	}
+	var result []workloads.Workload
+	for i, item := range n.Content {
+		w, _, err := workloads.Schema.DecodeNode(item, fmt.Sprintf("workloads[%d]", i))
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, w)
+	}
+	return result, nil
 }

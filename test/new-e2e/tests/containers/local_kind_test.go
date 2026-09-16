@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	fakeintakeaggregator "github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -147,4 +148,33 @@ func (suite *localKindSuite) TestAgentCLIStatus() {
 // TestFakeintakeReachable verifies the fakeintake is queryable.
 func (suite *localKindSuite) TestFakeintakeReachable() {
 	suite.Require().NoError(suite.fi.GetServerHealth(), "fakeintake should be reachable")
+}
+
+// TestWorkloadRunning verifies the workload deployed by e2ectl's
+// workloads section is Running in its catalog namespace. This is the
+// deployment-side half of the workloads feature: the same declaration
+// deploys via kubectl on kind.
+func (suite *localKindSuite) TestWorkloadRunning() {
+	ctx := suite.T().Context()
+	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").List(ctx, metav1.ListOptions{})
+	suite.Require().NoError(err, "Failed to list workload pods — was a workload declared in the e2ectl config?")
+	suite.Require().NotEmpty(pods.Items, "No nginx workload pods found — add 'workloads: [{app: nginx}]' to the e2ectl config")
+	for _, pod := range pods.Items {
+		for _, cs := range pod.Status.ContainerStatuses {
+			suite.Require().Truef(cs.Ready, "Workload container %s of pod %s isn't Ready", cs.Name, pod.Name)
+		}
+	}
+}
+
+// TestWorkloadContainerMetrics verifies the agent monitors the workload
+// container: container metrics for the nginx pod reach the fakeintake,
+// tagged with the Kubernetes workload identity. This proves the whole
+// loop — workload deployed, agent sees it, metrics flow.
+func (suite *localKindSuite) TestWorkloadContainerMetrics() {
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := suite.fi.FilterMetrics("container.cpu.usage",
+			fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"kube_container_name:nginx"}))
+		require.NoErrorf(c, err, "Failed to filter container metrics")
+		require.NotEmptyf(c, metrics, "No container.cpu.usage for the nginx workload yet")
+	}, 3*time.Minute, 15*time.Second, "Agent is not monitoring the nginx workload")
 }
