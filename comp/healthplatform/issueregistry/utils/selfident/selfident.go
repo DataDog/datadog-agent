@@ -49,6 +49,7 @@ type SelfIdent struct {
 	clock clock.Clock
 
 	clusterIDResolveOnce sync.Once
+	clusterIDReady       chan struct{}
 	clusterID            atomic.Pointer[string]
 }
 
@@ -62,12 +63,14 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		resolveRetries:    defaultResolveRetries,
 		resolveRetryDelay: defaultResolveRetryDelay,
 		clock:             clock.New(),
+		clusterIDReady:    make(chan struct{}),
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
 		s.deploymentID.Store(&empty)
 		s.clusterIDResolveOnce.Do(func() {})
 		s.clusterID.Store(&empty)
+		close(s.clusterIDReady)
 	}
 	return s
 }
@@ -126,22 +129,28 @@ func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
 	})
-	for attempt := 0; ; attempt++ {
-		if id := s.clusterID.Load(); id != nil {
-			return *id
-		}
-		if attempt >= s.resolveRetries {
-			return ""
-		}
-		s.clock.Sleep(s.resolveRetryDelay)
+	// Fast path: once settled, return straight from the atomic load.
+	if id := s.clusterID.Load(); id != nil {
+		return *id
 	}
+	select {
+	case <-s.clusterIDReady:
+	case <-s.clock.After(time.Duration(s.resolveRetries) * s.resolveRetryDelay):
+		// Still resolving; give up here, resolveClusterID keeps running.
+	}
+	if id := s.clusterID.Load(); id != nil {
+		return *id
+	}
+	return ""
 }
 
 // resolveClusterID retries clustername.GetClusterID() a bounded number of
 // times (clustername caches a successful result process-wide, so retries
 // here only matter while the Cluster Agent hasn't answered yet) before
 // giving up and caching empty for the process lifetime.
+// clusterIDReady is closed once resolution settles; ClusterID() waits on it.
 func (s *SelfIdent) resolveClusterID() {
+	defer close(s.clusterIDReady)
 	for attempt := 0; ; attempt++ {
 		id, err := clustername.GetClusterID()
 		if err == nil {
