@@ -39,7 +39,7 @@ func (h *BanUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.BanUser(inputs.UserId)
+	_, err = git.Users.BanUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

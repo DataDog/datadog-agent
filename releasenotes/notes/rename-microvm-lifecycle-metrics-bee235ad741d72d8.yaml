@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    AWS Lambda MicroVM lifecycle and heartbeat metrics now use the
+    ``aws.lambda.microvm.enhanced.*`` namespace instead of
+    ``aws.lambda.enhanced.microvm.*``. Update any dashboards, monitors, or
+    metric queries that use the previous names.

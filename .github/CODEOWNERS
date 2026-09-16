@@ -196,7 +196,7 @@
 /.gitlab/test/e2e/e2e_otel.yml                                            @DataDog/opentelemetry-agent @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_security.yml                                        @DataDog/agent-security @DataDog/agent-cspm @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_configuration.yml                             @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/remote-config @DataDog/agent-devx
-/.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/fleet-remediation @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_agent_runtimes.yml                                  @DataDog/agent-runtimes @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_agent_health.yml                                    @DataDog/fleet-remediation @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_apm.yml                                             @DataDog/agent-apm @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_pipelines.yml                                       @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-anomaly-detection @DataDog/agent-devx
@@ -258,6 +258,7 @@
 /cmd/agent/subcommands/validatepodannotation        @DataDog/container-platform
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
+/cmd/agent/subcommands/coverage                     @DataDog/agent-devx
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/                             @DataDog/agent-integrations
@@ -840,7 +841,7 @@
 /comp/core/workloadmeta/collectors/internal/kubemetadata              @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences
 /comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
 /comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations
@@ -1011,6 +1012,7 @@
 /test/new-e2e/tests/security-agent-functional                   @DataDog/windows-products @DataDog/agent-security
 /test/new-e2e/tests/cws                                         @DataDog/agent-security
 /test/new-e2e/tests/cws/fargate_test.go                         @DataDog/agent-security @DataDog/ecs-experiences
+/test/new-e2e/tests/data-security                               @DataDog/sensitive-data-scanner
 /test/new-e2e/tests/agent-log-pipelines                         @DataDog/agent-log-pipelines
 /test/new-e2e/tests/windows                                     @DataDog/windows-products @DataDog/windows-products
 /test/new-e2e/tests/apm                                         @DataDog/agent-apm
