@@ -52,7 +52,9 @@ agent:
           enabled: true
         logs:
           enabled: true
-          containerCollectAll: false
+          # Framework default (kubernetes_helm.go passes
+          # !DisableLogsContainerCollectAll): the suites assert workload logs.
+          containerCollectAll: true
         dogstatsd:
           originDetection: true
           tagCardinality: high
@@ -117,6 +119,22 @@ agent:
             value: 10s
       csi:
         enabled: true
+      agents:
+        useConfigMap: true
+        # Framework parity (kubernetes_helm.go, configureMetadataProviders
+        # + testingWorkloadsEnabled): the etcd config provider that serves
+        # the openmetrics check configured in etcd keys, and faster host
+        # metadata so host tags land in the fakeintake early.
+        customAgentConfig: |-
+          metadata_providers:
+            - name: host
+              interval: 120
+              early_interval: 60
+          config_providers:
+            - name: etcd
+              polling: true
+              template_dir: /datadog/check_configs
+              template_url: http://etcd.etcd.svc.cluster.local:2379
 workloads:
   # Parity with the kindvm scenario's WithDeployTestWorkload,
   # WithDeployDogstatsd and the suite's nginx/redis/cpustress apps.
