@@ -48,12 +48,16 @@ build do
 
     # Next steps:
     # - Add //cmd/installer:installer to the deps in //packages/agent/iot
-    # - Drop the invoke here
     # - Drop the copy bin/agent -> install_dir/bin
-    command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    # Clean out the things that invoke agent.build leaves in bin/agent/dist, which we now get via bazel belowe.
-    delete 'bin/agent/dist/conf.d'
-    delete 'bin/agent/dist/datadog.yaml'
+    #
+    # armhf cross-compiles from an aarch64 host via the linux_armv7 platform
+    # (no native armv7 CI runners exist).
+    platform_flags = ENV['PACKAGE_ARCH'] == 'armhf' ? ' --platforms=//bazel/platforms:linux_armv7' : ''
+    command "bazel build#{platform_flags} //cmd/iot-agent", :live_stream => Omnibus.logger.live_stream(:info)
+    mkdir 'bin/agent'
+    command "cp \"$(bazel info execution_root)/$(bazel cquery#{platform_flags} //cmd/iot-agent " \
+            "--output=starlark --starlark:expr='target.files.to_list()[0].path')\" " \
+            "bin/agent/agent", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Installs: bin/ and run/ dirs
     command "bazel run #{omnibazel_flags} -- " \
