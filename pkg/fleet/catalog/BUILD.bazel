@@ -13,4 +13,5 @@ dd_agent_go_test(
     name = "catalog_test",
     srcs = ["catalog_test.go"],
     embed = [":catalog"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

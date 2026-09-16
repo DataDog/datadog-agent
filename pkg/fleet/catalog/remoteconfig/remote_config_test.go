@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateHandlerAppliesMergedSnapshotAndAcknowledgesUpdates(t *testing.T) {
@@ -146,9 +147,7 @@ func TestUpdateHandlerRejectsNilApplyFunction(t *testing.T) {
 func rawCatalog(t *testing.T, c catalog.Catalog) state.RawConfig {
 	t.Helper()
 	data, err := json.Marshal(c)
-	if err != nil {
-		t.Fatalf("could not marshal test catalog: %v", err)
-	}
+	require.NoError(t, err)
 	return state.RawConfig{Config: data}
 }
 

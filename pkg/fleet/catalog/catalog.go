@@ -76,30 +76,30 @@ func (c Catalog) GetPackage(packageName, version, platform, arch string) (Packag
 // Validate validates every package in the catalog.
 func (c Catalog) Validate() error {
 	for _, pkg := range c.Packages {
-		if err := ValidatePackage(pkg); err != nil {
+		if err := pkg.Validate(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// ValidatePackage validates package coordinates accepted from a catalog.
-func ValidatePackage(pkg Package) error {
-	if pkg.Name == "" {
+// Validate validates package coordinates accepted from a catalog.
+func (p Package) Validate() error {
+	if p.Name == "" {
 		return errors.New("package name is empty")
 	}
-	if pkg.Version == "" {
+	if p.Version == "" {
 		return errors.New("package version is empty")
 	}
-	if pkg.URL == "" {
+	if p.URL == "" {
 		return errors.New("package URL is empty")
 	}
-	parsedURL, err := url.Parse(pkg.URL)
+	parsedURL, err := url.Parse(p.URL)
 	if err != nil {
 		return fmt.Errorf("could not parse package URL: %w", err)
 	}
 	if parsedURL.Scheme == "oci" {
-		ociURL := strings.TrimPrefix(pkg.URL, "oci://")
+		ociURL := strings.TrimPrefix(p.URL, "oci://")
 		// Packages received through a catalog must use immutable OCI references.
 		if _, err := name.NewDigest(ociURL); err != nil {
 			return fmt.Errorf("could not parse oci digest URL: %w", err)

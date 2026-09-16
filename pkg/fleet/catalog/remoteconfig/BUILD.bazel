@@ -20,5 +20,6 @@ dd_agent_go_test(
     deps = [
         "//pkg/fleet/catalog",
         "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//require",
     ],
 )

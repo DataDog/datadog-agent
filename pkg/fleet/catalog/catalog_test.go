@@ -8,6 +8,8 @@ package catalog
 import (
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
@@ -22,9 +24,7 @@ func TestParse(t *testing.T) {
 	}}}
 
 	got, err := Parse([]byte(`{"packages":[{"package":"package","version":"1.2.3","sha256":"digest","url":"https://example.com/package","size":42,"platform":"linux","arch":"arm64"}]}`))
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
+	require.NoError(t, err)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Parse() = %#v, want %#v", got, want)
 	}
@@ -159,7 +159,7 @@ func TestGetPackage(t *testing.T) {
 	}
 }
 
-func TestValidatePackage(t *testing.T) {
+func TestPackageValidate(t *testing.T) {
 	validDigestURL := "oci://example.com/package@sha256:2a5ca68f1f0a088cdf1cd1efa086ffe0ca80f8339c7fa12a7f41bbe9d1527cb6"
 	tests := []struct {
 		name    string
@@ -203,9 +203,9 @@ func TestValidatePackage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidatePackage(tt.pkg)
+			err := tt.pkg.Validate()
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("ValidatePackage() error = %v, wantErr %t", err, tt.wantErr)
+				t.Fatalf("Validate() error = %v, wantErr %t", err, tt.wantErr)
 			}
 		})
 	}
