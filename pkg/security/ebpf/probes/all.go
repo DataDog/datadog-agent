@@ -215,7 +215,6 @@ type MapSpecEditorOpts struct {
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
 	EventSamplingConnectEnabled   bool
-	EventSamplingBindEnabled      bool
 	BasenameApproversSize         int
 }
 
@@ -307,13 +306,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
 			MaxEntries: 20000,
-			EditorFlag: manager.EditMaxEntries,
-		}
-	}
-
-	if opts.EventSamplingBindEnabled {
-		editors["bind_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
