@@ -3,6 +3,10 @@ logs:
     path: '/var/log/e2e_test_logs/hello-world.log'
     service: hello
     source: custom_log
+  - type: file
+    path: '/var/log/e2e_test_logs/tag-filter.log'
+    service: tag-filter
+    source: custom_log
     tags:
       - e2e_global_drop:yes
       - e2e_source_drop:yes

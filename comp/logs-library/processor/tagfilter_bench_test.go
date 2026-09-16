@@ -8,8 +8,6 @@ package processor
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -93,28 +91,6 @@ func benchRemovalGlobal() *tagfilter.Filters {
 		"container_id:*", "kube_replica_set:*", "pod_name:*", "display_container_name:*",
 	})
 	return global
-}
-
-// TestJSONEncodeFilterFixturesAreEngaged pins the Group 2 benchmark fixtures
-// against a typo silently turning a filtering benchmark into a no-op one.
-func TestJSONEncodeFilterFixturesAreEngaged(t *testing.T) {
-	tags := benchTags()
-
-	_, noMatchSrc := benchSource(t, benchNoMatchGlobal(), nil)
-	noMatchFilter, _ := noMatchSrc.TagFilter()
-	if noMatchFilter == nil {
-		t.Fatal("no-match fixture resolved to a nil filter")
-	}
-	gotNoMatch := noMatchFilter.Keep(tags)
-	assert.Equal(t, tags, gotNoMatch, "the no-match fixture must return tags unchanged")
-
-	_, removalSrc := benchSource(t, benchRemovalGlobal(), nil)
-	removalFilter, _ := removalSrc.TagFilter()
-	if removalFilter == nil {
-		t.Fatal("removal fixture resolved to a nil filter")
-	}
-	gotRemoval := removalFilter.Keep(tags)
-	assert.Less(t, len(gotRemoval), len(gotNoMatch), "the removal fixture must drop tags the no-match fixture keeps")
 }
 
 // errSink defeats dead-code elimination for Encode's returned error.

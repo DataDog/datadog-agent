@@ -54,7 +54,7 @@ type LogSource struct {
 	hiddenFromStatus bool
 	// tagFilterState is read on every message, so it's cached behind an atomic
 	// pointer rather than lock.
-	tagFilterState atomic.Pointer[TagFilterState]
+	tagFilterState atomic.Pointer[tagFilterState]
 }
 
 // NewLogSource creates a new log source.
@@ -183,44 +183,24 @@ func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 	return s.info.RenderedVerbose(verbose)
 }
 
-// TagFilterState is the immutable, atomically-swapped record of a source's
-// resolved tag filter.
-type TagFilterState struct {
+type tagFilterState struct {
 	filter TagFilter
-}
-
-// NewTagFilterState returns a resolved state. f is nil when there is nothing
-// for this source to filter.
-func NewTagFilterState(f TagFilter) *TagFilterState {
-	return &TagFilterState{filter: f}
-}
-
-// Filter returns the resolved filter. A nil state (unresolved) returns nil.
-func (t *TagFilterState) Filter() TagFilter {
-	if t == nil {
-		return nil
-	}
-	return t.filter
 }
 
 // TagFilter returns the tag filter currently cached for this source, without
 // resolving it, and whether resolution has happened.
 func (s *LogSource) TagFilter() (TagFilter, bool) {
-	st := s.TagFilterState()
-	return st.Filter(), st != nil
+	state := s.tagFilterState.Load()
+	if state == nil {
+		return nil, false
+	}
+	return state.filter, true
 }
 
-// TagFilterState returns the currently cached resolution state, or nil if this
-// source has never been resolved. Lock-free: a single atomic load.
-func (s *LogSource) TagFilterState() *TagFilterState {
-	return s.tagFilterState.Load()
-}
-
-// CompareAndSwapTagFilterState installs newState if the cached state is still
-// old, mirroring atomic.Pointer.CompareAndSwap. Only the caller this returns
-// true for should perform one-time side effects tied to the resolution.
-func (s *LogSource) CompareAndSwapTagFilterState(old, newState *TagFilterState) bool {
-	return s.tagFilterState.CompareAndSwap(old, newState)
+// SetTagFilterIfUnset caches f if this source has not already been resolved.
+// It returns true only to the caller that installs the filter.
+func (s *LogSource) SetTagFilterIfUnset(f TagFilter) bool {
+	return s.tagFilterState.CompareAndSwap(nil, &tagFilterState{filter: f})
 }
 
 // HideFromStatus hides the source from the status output

@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/afero"
@@ -36,8 +37,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func (*logAgent) supportsTagFilters() bool {
-	return true
+func (a *logAgent) configureTagFilters() {
+	// Invalid patterns degrade to filtering less and must not block startup.
+	tagFilters, report, err := config.GlobalTagFilters(a.config)
+	if err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf("Invalid tag_filters setting: %v", err))
+	}
+	for _, warning := range report.Warnings {
+		a.log.Warn(warning)
+	}
+	for _, rejected := range report.Rejected {
+		a.log.Warnf("tag_filters: %s", rejected.Reason)
+	}
+	// status warnings are registered after status.Init in startTagFiltering.
+	a.tagFilterReport = report
+	a.tagFilters = tagFilters
 }
 
 func (a *logAgent) startTagFiltering() {

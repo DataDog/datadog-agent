@@ -242,9 +242,8 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 	if src == nil || src.Config == nil {
 		return nil
 	}
-	old := src.TagFilterState()
-	if old != nil {
-		return old.Filter()
+	if filter, resolved := src.TagFilter(); resolved {
+		return filter
 	}
 
 	var sourceFilters *tagfilter.Filters
@@ -261,8 +260,9 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 		resolved = scoped
 	}
 
-	if !src.CompareAndSwapTagFilterState(old, sources.NewTagFilterState(resolved)) {
-		return resolved
+	if !src.SetTagFilterIfUnset(resolved) {
+		cached, _ := src.TagFilter()
+		return cached
 	}
 
 	// A malformed pattern degrades to filtering less, never blocks the source
@@ -293,8 +293,8 @@ func (p *Processor) resolveTagFilter(msg *message.Message) sources.TagFilter {
 	}
 	src := msg.Origin.LogSource
 
-	if state := src.TagFilterState(); state != nil {
-		return state.Filter()
+	if filter, resolved := src.TagFilter(); resolved {
+		return filter
 	}
 	return ResolveSourceTagFilter(p.tagFilters, src)
 }

@@ -29,9 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func (*logAgent) supportsTagFilters() bool {
-	return false
-}
+func (*logAgent) configureTagFilters() {}
 
 func (*logAgent) startTagFiltering() {}
 

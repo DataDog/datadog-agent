@@ -46,6 +46,10 @@ const (
 	logFileName = "hello-world.log"
 	logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
 
+	tagFilterLogFileName = "tag-filter.log"
+	tagFilterLogFilePath = utils.LinuxLogsFolderPath + "/" + tagFilterLogFileName
+	tagFilterService     = "tag-filter"
+
 	iisLogFileName = "iis-w3c.log"
 	iisLogFilePath = utils.LinuxLogsFolderPath + "/" + iisLogFileName
 	iisService     = "iis-w3c"
@@ -79,13 +83,13 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 }
 
 func (s *LinuxFakeintakeSuite) TestTagFiltersReachIntake() {
-	s.Env().RemoteHost.MustExecute("sudo touch " + logFilePath)
-	s.Env().RemoteHost.MustExecute("sudo chmod +r " + logFilePath)
-	utils.AssertAgentTailerOK(s, logFileName)
-	utils.AppendLog(s, logFileName, "tag-filter-e2e", 1)
+	s.Env().RemoteHost.MustExecute("sudo touch " + tagFilterLogFilePath)
+	s.Env().RemoteHost.MustExecute("sudo chmod +r " + tagFilterLogFilePath)
+	utils.AssertAgentTailerOK(s, tagFilterLogFileName)
+	utils.AppendLog(s, tagFilterLogFileName, "tag-filter-e2e", 1)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := utils.FetchAndFilterLogs(s.Env().FakeIntake, "hello", "tag-filter-e2e")
+		logs, err := utils.FetchAndFilterLogs(s.Env().FakeIntake, tagFilterService, "tag-filter-e2e")
 		require.NoError(c, err)
 		if !assert.NotEmpty(c, logs) {
 			return
@@ -106,7 +110,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		for _, service := range []string{"hello", iisService} {
+		for _, service := range []string{"hello", iisService, tagFilterService} {
 			logs, err := s.Env().FakeIntake.Client().FilterLogs(service)
 			require.NoError(c, err, "Unable to filter logs by the service '%s'.", service)
 			if !assert.Empty(c, logs, "Logs were found for service '%s' when none were expected.", service) {

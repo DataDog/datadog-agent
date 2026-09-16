@@ -229,8 +229,8 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	originalSourceFilterState := suite.source.TagFilterState()
-	suite.NotNil(originalSourceFilterState)
+	originalSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
 
 	// Set up HTTP test server for restart
 	cfg := configmock.New(suite.T())
@@ -267,7 +267,9 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	suite.Same(originalAuditor, agent.auditor)
 	suite.Same(originalSchedulers, agent.schedulers)
 	suite.Same(originalTagFilters, agent.tagFilters, "transport restarts must reuse the compiled global tag filter")
-	suite.Same(originalSourceFilterState, suite.source.TagFilterState(), "transport restarts must preserve source filter caches")
+	restartedSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
+	suite.Same(originalSourceFilter, restartedSourceFilter, "transport restarts must preserve source filter caches")
 
 	// Verify transient components were recreated
 	suite.NotNil(agent.destinationsCtx)

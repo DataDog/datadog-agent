@@ -291,23 +291,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filter
 
 	if !a.tagFiltersConfigured {
 		a.tagFiltersConfigured = true
-		if a.supportsTagFilters() {
-			// A malformed tag_filters block must never block startup: it degrades to
-			// filtering less, so problems are surfaced as warnings only.
-			tagFilters, report, tagFilterErr := config.GlobalTagFilters(a.config)
-			if tagFilterErr != nil {
-				report.Warnings = append(report.Warnings, fmt.Sprintf("Invalid tag_filters setting: %v", tagFilterErr))
-			}
-			for _, warning := range report.Warnings {
-				a.log.Warn(warning)
-			}
-			for _, rejected := range report.Rejected {
-				a.log.Warnf("tag_filters: %s", rejected.Reason)
-			}
-			// status.AddGlobalWarning is a no-op until startPipeline calls status.Init.
-			a.tagFilterReport = report
-			a.tagFilters = tagFilters
-		}
+		a.configureTagFilters()
 	}
 
 	return processingRules, a.tagFilters, fingerprintConfig, nil

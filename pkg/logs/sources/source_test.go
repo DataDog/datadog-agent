@@ -7,7 +7,6 @@ package sources
 
 import (
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -160,15 +159,15 @@ func TestLogSourceTagFilterUnset(t *testing.T) {
 	f, ok := source.TagFilter()
 	assert.False(t, ok)
 	assert.True(t, f == nil)
-	assert.Nil(t, source.TagFilterState())
 }
 
 func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 	source := NewLogSource("test", nil)
 	want := fakeTagFilter{}
 
-	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(want))
+	ok := source.SetTagFilterIfUnset(want)
 	assert.True(t, ok)
+	assert.False(t, source.SetTagFilterIfUnset(nil))
 
 	got, resolved := source.TagFilter()
 	assert.True(t, resolved)
@@ -181,80 +180,10 @@ func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 func TestLogSourceTagFilterResolvedInert(t *testing.T) {
 	source := NewLogSource("test", nil)
 
-	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil))
+	ok := source.SetTagFilterIfUnset(nil)
 	assert.True(t, ok)
 
 	got, resolved := source.TagFilter()
 	assert.True(t, resolved)
 	assert.True(t, got == nil)
-}
-
-// TestLogSourceSetTagFilterNil guards the typed-nil trap: passing the untyped
-// nil literal must yield an interface value that compares equal to nil.
-func TestLogSourceSetTagFilterNil(t *testing.T) {
-	source := NewLogSource("test", nil)
-
-	assert.True(t, source.CompareAndSwapTagFilterState(nil, NewTagFilterState(fakeTagFilter{})))
-	assert.True(t, source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil)))
-
-	got, ok := source.TagFilter()
-	assert.True(t, ok)
-	assert.True(t, got == nil)
-}
-
-// TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner races goroutines
-// through the same compare-and-swap and counts successes. ResolveSourceTagFilter
-// gates its one-time side effects (RegisterInfo, Messages.AddMessage) behind this
-// exact call, so exactly one winner here is what makes "side effects run once" true.
-func TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner(t *testing.T) {
-	source := NewLogSource("test", nil)
-	old := source.TagFilterState() // nil: unresolved
-
-	var wins atomic.Int64
-	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if source.CompareAndSwapTagFilterState(old, NewTagFilterState(fakeTagFilter{})) {
-				wins.Add(1)
-			}
-		}()
-	}
-	wg.Wait()
-
-	assert.Equal(t, int64(1), wins.Load())
-}
-
-// TestLogSourceTagFilterConcurrent runs CompareAndSwapTagFilterState and TagFilter
-// concurrently to catch races (-race).
-func TestLogSourceTagFilterConcurrent(t *testing.T) {
-	source := NewLogSource("racesource", nil)
-
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-
-	wg.Go(func() {
-		defer close(stop)
-		for i := 0; i < 1000; i++ {
-			source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(fakeTagFilter{}))
-		}
-	})
-
-	wg.Go(func() {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				source.TagFilter()
-			}
-		}
-	})
-
-	wg.Wait()
-
-	got, resolved := source.TagFilter()
-	assert.True(t, resolved)
-	assert.Equal(t, fakeTagFilter{}, got)
 }

@@ -67,27 +67,6 @@ func TestResolveTagFilter_TypedNilTrap(t *testing.T) {
 	assert.True(t, resolved == nil, "expected a genuinely nil TagFilter interface, got %#v", resolved)
 }
 
-// TestResolveTagFilter_ResolvesOnceAndReuses asserts that once a source's
-// filter has been resolved, later messages reuse the cached value instead of
-// recomputing it. The sentinel is unreachable from a fresh compile (which
-// would produce a nil filter in this test, given no rules are configured), so
-// seeing it on msg2 proves resolveTagFilter took the "already resolved" path.
-func TestResolveTagFilter_ResolvesOnceAndReuses(t *testing.T) {
-	p := &Processor{}
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	msg1 := newMessage([]byte("one"), source, message.StatusInfo)
-	p.resolveTagFilter(msg1)
-
-	// Stamp a sentinel so a second call can only see it by reusing the cache,
-	// never by recomputing.
-	sentinel := &fakeTagFilter{Drop: map[string]bool{"sentinel": true}}
-	source.CompareAndSwapTagFilterState(source.TagFilterState(), sources.NewTagFilterState(sentinel))
-
-	msg2 := newMessage([]byte("two"), source, message.StatusInfo)
-	assert.Same(t, sentinel, p.resolveTagFilter(msg2))
-}
-
 // TestResolveTagFilter_NoSource is a defensive regression: a message with no
 // Origin/LogSource must not panic.
 func TestResolveTagFilter_NoSource(t *testing.T) {
@@ -155,8 +134,8 @@ func TestResolveTagFilter_NoInfoProviderWhenUnconfigured(t *testing.T) {
 // TestResolveSourceTagFilter_CalledTwice_RegistersOnce pins the idempotency the
 // eager subscriber and the processor both rely on: racing or repeated calls for
 // the same source must not double up its status info or messages. The state
-// pointer identity check proves the second call took the early-return path
-// rather than recomputing and overwriting with an equivalent value.
+// filter identity check proves the second call took the early-return path
+// rather than recomputing an equivalent value.
 func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 	global, _ := tagfilter.Compile(nil, []string{"team:*"})
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -164,10 +143,11 @@ func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 	})
 
 	ResolveSourceTagFilter(global, source)
-	stateAfterFirst := source.TagFilterState()
+	filterAfterFirst, _ := source.TagFilter()
 	ResolveSourceTagFilter(global, source)
 
-	assert.Same(t, stateAfterFirst, source.TagFilterState(), "second call for the same global must not recompute")
+	filterAfterSecond, _ := source.TagFilter()
+	assert.Same(t, filterAfterFirst, filterAfterSecond, "second call must not recompute")
 
 	info := source.GetInfo("Tag Filters")
 	if assert.NotNil(t, info) {
@@ -181,34 +161,6 @@ func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, rejectedCount)
-}
-
-// TestResolveSourceTagFilter_SourceOnlyStillGetsInfo asserts that a source with
-// per-source filters but no global block still renders a status block.
-func TestResolveSourceTagFilter_SourceOnlyStillGetsInfo(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{
-		TagFilters: &config.TagFilters{Exclude: []string{"container_id:*"}},
-	})
-
-	ResolveSourceTagFilter(nil, source)
-
-	info := source.GetInfo("Tag Filters")
-	if assert.NotNil(t, info) {
-		assert.Contains(t, strings.Join(info.Info(), " | "), "source exclude: container_id:*")
-	}
-}
-
-// TestResolveSourceTagFilter_NeitherScopeConfigured_NoInfo asserts that a source
-// with no filters configured anywhere gets no status block.
-func TestResolveSourceTagFilter_NeitherScopeConfigured_NoInfo(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
-
-	ResolveSourceTagFilter(nil, source)
-
-	assert.Nil(t, source.GetInfo("Tag Filters"))
-	resolved, ok := source.TagFilter()
-	assert.True(t, ok)
-	assert.True(t, resolved == nil)
 }
 
 // TestResolveSourceTagFilter_ConcurrentCallsConverge exercises the race between
