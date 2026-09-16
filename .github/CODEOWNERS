@@ -1071,6 +1071,7 @@
 /**/go.mod            # do not notify anyone
 /**/go.sum            # do not notify anyone
 /deps/go.MODULE.bazel # do not notify anyone
+/tasks/agent_payload_version.bzl # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod @DataDog/agent-runtimes
