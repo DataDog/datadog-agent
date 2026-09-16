@@ -397,12 +397,12 @@ func testDarwinLibprocObservation(pid uint32, start uint64) libproc.Observation 
 }
 
 type recordingLibprocScanner struct {
-	hostWalks     int
-	scanPIDs      []uint32
-	hostSnapshot  libproc.Snapshot
-	pidSnapshots  map[uint32]libproc.Snapshot
-	err           error
-	pidErrs       map[uint32]error
+	hostWalks    int
+	scanPIDs     []uint32
+	hostSnapshot libproc.Snapshot
+	pidSnapshots map[uint32]libproc.Snapshot
+	err          error
+	pidErrs      map[uint32]error
 }
 
 func (s *recordingLibprocScanner) Scan() (libproc.Snapshot, error) {

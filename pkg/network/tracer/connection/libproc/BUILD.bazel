@@ -27,9 +27,11 @@ go_library(
     ] + select({
         "@rules_go//go/platform:darwin": [
             "//pkg/process/util",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/process/util",
+            "//pkg/util/log",
         ],
         "//conditions:default": [],
     }),
@@ -37,7 +39,10 @@ go_library(
 
 dd_agent_go_test(
     name = "libproc_test",
-    srcs = ["scanner_test.go"],
+    srcs = [
+        "scanner_darwin_test.go",
+        "scanner_test.go",
+    ],
     embed = [":libproc"],
     deps = ["@com_github_stretchr_testify//require"],
 )

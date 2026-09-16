@@ -265,7 +265,7 @@ func (t *nstatTracer) reconcileLibprocSnapshot(snapshot libproc.Snapshot, scope 
 			observations = index.candidates(tupleFromNStatFlow(source))
 		}
 		candidate, status := matchDarwinLibprocSource(source, observations)
-		outcome := libprocOutcomeMiss
+		var outcome libprocOutcome
 		switch status {
 		case darwinLibprocAmbiguous:
 			ambiguous++
