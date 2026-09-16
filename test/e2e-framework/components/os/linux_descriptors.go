@@ -23,10 +23,6 @@ var (
 	AmazonLinux2023    = NewDescriptor(AmazonLinux, "2023")
 	AmazonLinux2       = NewDescriptor(AmazonLinux, "2")
 
-	AmazonLinuxECSDefault = AmazonLinuxECS2
-	AmazonLinuxECS2023    = NewDescriptor(AmazonLinuxECS, "2023")
-	AmazonLinuxECS2       = NewDescriptor(AmazonLinuxECS, "2")
-
 	RedHatDefault = RedHat9
 	RedHat8       = NewDescriptor(RedHat, "8")
 	RedHat9       = NewDescriptor(RedHat, "9")
@@ -44,11 +40,10 @@ var (
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{
-	Ubuntu:         UbuntuDefault,
-	AmazonLinux:    AmazonLinuxDefault,
-	AmazonLinuxECS: AmazonLinuxECSDefault,
-	Debian:         DebianDefault,
-	RedHat:         RedHatDefault,
-	Suse:           SuseDefault,
-	CentOS:         CentOSDefault,
+	Ubuntu:      UbuntuDefault,
+	AmazonLinux: AmazonLinuxDefault,
+	Debian:      DebianDefault,
+	RedHat:      RedHatDefault,
+	Suse:        SuseDefault,
+	CentOS:      CentOSDefault,
 }

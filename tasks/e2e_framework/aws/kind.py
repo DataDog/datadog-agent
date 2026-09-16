@@ -58,7 +58,7 @@ def create_kind(
     """
 
     extra_flags = {
-        "ddinfra:osDescriptor": f"amazonlinuxecs::{_get_architecture(architecture)}",
+        "ddinfra:osDescriptor": f"ubuntu::{_get_architecture(architecture)}",
         "ddinfra:deployFakeintakeWithLoadBalancer": use_loadBalancer,
         "ddinfra:aws/defaultInstanceType": "t3.xlarge",
         "ddagent:deployWithOperator": bool(install_agent_with_operator),

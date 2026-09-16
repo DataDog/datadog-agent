@@ -22,31 +22,29 @@ type amiInformation struct {
 }
 
 var defaultUsers = map[os.Flavor]string{
-	os.WindowsServer:  "Administrator",
-	os.Ubuntu:         "ubuntu",
-	os.AmazonLinux:    "ec2-user",
-	os.AmazonLinuxECS: "ec2-user",
-	os.Debian:         "admin",
-	os.RedHat:         "ec2-user",
-	os.Suse:           "ec2-user",
-	os.CentOS:         "centos",
-	os.AlmaLinux:      "ec2-user",
-	os.MacosOS:        "ec2-user",
+	os.WindowsServer: "Administrator",
+	os.Ubuntu:        "ubuntu",
+	os.AmazonLinux:   "ec2-user",
+	os.Debian:        "admin",
+	os.RedHat:        "ec2-user",
+	os.Suse:          "ec2-user",
+	os.CentOS:        "centos",
+	os.AlmaLinux:     "ec2-user",
+	os.MacosOS:       "ec2-user",
 }
 
 type amiResolverFunc func(aws.Environment, *os.Descriptor) (string, error)
 
 var amiResolvers = map[os.Flavor]amiResolverFunc{
-	os.WindowsServer:  resolveWindowsAMI,
-	os.Ubuntu:         resolveUbuntuAMI,
-	os.AmazonLinux:    resolveAmazonLinuxAMI,
-	os.AmazonLinuxECS: resolveAmazonLinuxECSAMI,
-	os.Debian:         resolveDebianAMI,
-	os.RedHat:         resolveRedHatAMI,
-	os.Suse:           resolveSuseAMI,
-	os.CentOS:         resolveCentOSAMI,
-	os.AlmaLinux:      resolveAlmaLinuxAMI,
-	os.MacosOS:        resolveMacosAMI,
+	os.WindowsServer: resolveWindowsAMI,
+	os.Ubuntu:        resolveUbuntuAMI,
+	os.AmazonLinux:   resolveAmazonLinuxAMI,
+	os.Debian:        resolveDebianAMI,
+	os.RedHat:        resolveRedHatAMI,
+	os.Suse:          resolveSuseAMI,
+	os.CentOS:        resolveCentOSAMI,
+	os.AlmaLinux:     resolveAlmaLinuxAMI,
+	os.MacosOS:       resolveMacosAMI,
 }
 
 // Returns the default version for the given flavor
@@ -74,7 +72,11 @@ func resolveOS(e aws.Environment, vmArgs *vmArgs) (*amiInformation, error) {
 
 		// If no AMI set and latest AMI is requested, resolve the AMI
 		if vmArgs.osInfo.Version == "" && vmArgs.useLatestAMI {
-			vmArgs.ami, err = amiResolvers[vmArgs.osInfo.Flavor](e, vmArgs.osInfo)
+			resolver, ok := amiResolvers[vmArgs.osInfo.Flavor]
+			if !ok {
+				return nil, fmt.Errorf("no AMI resolver for flavor %s", vmArgs.osInfo.Flavor)
+			}
+			vmArgs.ami, err = resolver(e, vmArgs.osInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -129,33 +131,15 @@ func resolveWindowsAMI(e aws.Environment, osInfo *os.Descriptor) (string, error)
 func resolveAmazonLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
 	var paramName string
 	switch osInfo.Version {
-	case "", os.AmazonLinuxECS2.Version:
+	case "", os.AmazonLinux2.Version:
 		paramName = fmt.Sprintf("amzn2-ami-hvm-%s-gp2", osInfo.Architecture)
-	case os.AmazonLinuxECS2023.Version:
+	case os.AmazonLinux2023.Version:
 		paramName = fmt.Sprintf("al2023-ami-kernel-default-%s", osInfo.Architecture)
 	default:
 		return "", fmt.Errorf("unsupported Amazon Linux version %s", osInfo.Version)
 	}
 
 	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/ami-amazon-linux-latest/%s", paramName))
-}
-
-func resolveAmazonLinuxECSAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
-	var paramName string
-	switch osInfo.Version {
-	case "", os.AmazonLinuxECSDefault.Version:
-		paramName = "amazon-linux-2"
-	case os.AmazonLinuxECS2023.Version:
-		paramName = "amazon-linux-2023"
-	default:
-		return "", fmt.Errorf("unsupported Amazon Linux ECS version %s", osInfo.Version)
-	}
-
-	if osInfo.Architecture == os.ARM64Arch {
-		paramName += "/arm64"
-	}
-
-	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/ecs/optimized-ami/%s/recommended/image_id", paramName))
 }
 
 func resolveUbuntuAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {

@@ -228,8 +228,8 @@ SSH in and inspect the agent directly.
 constraints shape how a macOS suite must be wired into CI:
 
 - **Dedicated hosts.** `scenarios/aws/ec2/vm.go` allocates a `mac1.metal`
-  (amd64) or `mac2.metal` (arm64) dedicated host, which AWS bills with a 24-hour
-  minimum. Keep macOS jobs manual.
+  dedicated host, which AWS bills with a 24-hour minimum. Keep macOS jobs
+  manual.
 - **The agent comes from a DMG in the macOS testing bucket.** `host_macos.go`
   installs via the install script with `DD_REPO_URL` pointing at
   `pipeline-<id>-<arch>`, which only exists once `deploy_dmg_testing-a7_<arch>`

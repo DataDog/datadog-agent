@@ -11,7 +11,6 @@ go_library(
         "//test/e2e-framework/scenarios/aws/ec2docker",
         "//test/e2e-framework/scenarios/aws/ecs",
         "//test/e2e-framework/scenarios/aws/eks",
-        "//test/e2e-framework/scenarios/aws/gensim-eks",
         "//test/e2e-framework/scenarios/aws/installer",
         "//test/e2e-framework/scenarios/aws/integrations",
         "//test/e2e-framework/scenarios/aws/kindvm",

@@ -66,7 +66,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			HostID:                pulumi.String(vmArgs.hostID),
 			VolumeThroughput:      vmArgs.volumeThroughput,
 			WithoutInternetAccess: vmArgs.withoutInternetAccess,
-			StorageSize:        vmArgs.storageSize,
+			StorageSize:           vmArgs.storageSize,
 		}
 
 		// TODO: remove E2E_MACOS_POOL_ENABLED and this bypass path once the pool has
@@ -307,13 +307,9 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 
 	// macOS dedicated host defaults
 	if vmArgs.osInfo.Family() == os.MacOSFamily {
-		// default to mac2.metal for arm64 and mac1.metal for amd64 if not set explicitly
+		// default to mac1.metal (amd64) if not set explicitly
 		if vmArgs.instanceType == "" || strings.HasPrefix(vmArgs.instanceType, "t3.") || strings.HasPrefix(vmArgs.instanceType, "t4g.") {
-			if vmArgs.osInfo.Architecture == os.ARM64Arch {
-				vmArgs.instanceType = "mac2.metal"
-			} else {
-				vmArgs.instanceType = "mac1.metal"
-			}
+			vmArgs.instanceType = "mac1.metal"
 		}
 		if vmArgs.tenancy == "" {
 			vmArgs.tenancy = "host"

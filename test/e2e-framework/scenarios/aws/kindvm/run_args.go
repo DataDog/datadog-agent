@@ -86,11 +86,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	// VM: pick OS from InfraOSDescriptor
 	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
-	if osDesc.Flavor == os.AmazonLinuxECS && osDesc.Version == "" {
-		// AmazonLinuxECS descriptors passed with an empty version (see kind.py)
-		// are resolved live via SSM rather than looked up in platforms.json.
-		p.vmOptions = append(p.vmOptions, ec2.WithLatestAMI())
-	}
 
 	// Agent defaults
 	if e.AgentDeploy() && !e.AgentDeployWithOperator() {

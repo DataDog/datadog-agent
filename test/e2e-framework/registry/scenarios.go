@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-	awsgensimeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/gensim-eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -41,7 +40,6 @@ func Scenarios() ScenarioRegistry {
 		"aws/ecs":                 ecs.Run,
 		"aws/eks":                 eks.Run,
 		"aws/benchmarkeks":        benchmarkeks.Run,
-		"aws/gensim-eks":          awsgensimeks.Run,
 		"aws/installer":           installer.Run,
 		"aws/microvms":            microvms.Run,
 		"aws/kind":                kindvm.Run,
@@ -51,7 +49,7 @@ func Scenarios() ScenarioRegistry {
 		"gcp/gke":                 gke.Run,
 		"gcp/openshiftvm":         openshiftvm.Run,
 		"local/kindmonocontainer": localkindmonocontainer.Run,
-		"local/multipassvm": 	   localmultipassvm.VMRun,
+		"local/multipassvm":       localmultipassvm.VMRun,
 		"local/openshiftvm":       localopenshiftvm.Run,
 		"localpodman/vm":          localpodmanrun.VMRun,
 	}
