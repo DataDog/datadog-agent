@@ -441,8 +441,7 @@ logs:
 	assert.Equal(t, []string{"filename:keep.log"}, config.TagFilters.Include)
 }
 
-// TestParseJSONWithTagFilters covers the pod-annotation shape: a JSON array of LogsConfig
-// objects, as delivered by autodiscovery container labels / Kubernetes annotations.
+// TestParseJSONWithTagFilters covers the autodiscovery annotation shape.
 func TestParseJSONWithTagFilters(t *testing.T) {
 	jsonConfig := []byte(`[{"source":"myapp","service":"myapp","tag_filters":{"exclude":["container_id:*"],"include":["pod_name:keep-me"]}}]`)
 	configs, err := ParseJSON(jsonConfig)

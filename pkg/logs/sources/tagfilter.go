@@ -5,18 +5,13 @@
 
 package sources
 
-// TagFilter removes tags from a log's serialized tag set before it is encoded for
-// the intake.
-//
-// The interface is declared here rather than alongside its implementation so that
-// neither this package nor pkg/logs/message needs to depend on comp/logs-library.
-// Implementations must be immutable, safe for concurrent use, nil-receiver safe,
-// and must never mutate the slice passed to Keep.
+// TagFilter removes tags before intake encoding. It lives here to avoid an import
+// cycle; implementations must be immutable and must not mutate Keep's input.
 type TagFilter interface {
 	// Keep returns the tags that survive the filter, preserving order. It may
 	// return the input slice itself when nothing is removed.
 	Keep(tags []string) []string
 
-	// Retains reports whether a single "key:value" tag survives the filter.
-	Retains(tag string) bool
+	// RetainsTag reports whether a tag with the provided key and value survives.
+	RetainsTag(key, value string) bool
 }

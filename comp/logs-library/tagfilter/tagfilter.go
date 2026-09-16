@@ -3,16 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tagfilter removes log tags matching user-configured key:value patterns
-// before a log is encoded for the intake.
-//
-// A pattern is "key:value". The key is a literal exact match; "*" is legal only
-// in the value, where it matches zero or more characters. Matching is
-// case-insensitive over ASCII. A tag carrying no colon is never matched by any
-// pattern.
-//
-// Filters are immutable once compiled and safe for concurrent use. Every method is
-// nil-receiver safe and treats a nil filter as the identity.
+// Package tagfilter removes user-configured log tags before intake encoding.
+// Matching uses case-insensitive key:value patterns with value-only wildcards.
 package tagfilter
 
 import (
@@ -33,11 +25,6 @@ type RejectedPattern struct {
 type Report struct {
 	Rejected []RejectedPattern
 	Warnings []string
-}
-
-// IsEmpty reports whether Compile had nothing to say.
-func (r Report) IsEmpty() bool {
-	return len(r.Rejected) == 0 && len(r.Warnings) == 0
 }
 
 // Patterns is the compiled pattern set, for the status page.
@@ -63,8 +50,9 @@ type Filters struct {
 	// long holds rule keys longer than maxBucketedKeyLen. Normally nil.
 	long []keyEntry
 	// maxKeyLen is the true longest rule key, including long ones.
-	maxKeyLen int
-	patterns  Patterns
+	maxKeyLen           int
+	hasEffectiveExclude bool
+	patterns            Patterns
 }
 
 // keyEntry is one literal rule key. key is ASCII-folded; first is key[0],
@@ -89,11 +77,8 @@ type valueGlob struct {
 	segments []string
 }
 
-// Compile builds a filter from include and exclude pattern lists.
-//
-// Compile never fails: invalid patterns are dropped individually and reported in
-// Report, so a malformed configuration degrades to filtering less rather than
-// breaking log delivery.
+// Compile builds a filter, dropping and reporting invalid patterns instead of
+// failing the full configuration.
 func Compile(include, exclude []string) (*Filters, Report) {
 	// Accumulate in a map, then discard it for length buckets once every
 	// pattern is in; compilation is not on any hot path.
@@ -108,6 +93,12 @@ func Compile(include, exclude []string) (*Filters, Report) {
 		Include: compileList(byKey, include, false, &report),
 		Exclude: compileList(byKey, exclude, true, &report),
 	}
+	for _, rules := range byKey {
+		if !rules.protected && (rules.excludeAny || len(rules.excludeVals) > 0) {
+			f.hasEffectiveExclude = true
+			break
+		}
+	}
 	f.buildBuckets(byKey)
 	return f, report
 }
@@ -120,9 +111,7 @@ func (f *Filters) buildBuckets(byKey map[string]*keyRules) {
 			f.maxKeyLen = len(key)
 		}
 	}
-	// Cap the array from maxBucketedKeyLen, never from maxKeyLen: pattern keys
-	// are user-configured and nothing bounds their length, and filters compile
-	// once per source.
+	// Cap the array because user-configured keys have no length limit.
 	f.byLen = make([][]keyEntry, min(f.maxKeyLen, maxBucketedKeyLen)+1)
 	for key, rules := range byKey {
 		e := keyEntry{key: key, first: key[0], rules: rules}
@@ -233,9 +222,7 @@ func hasASCIIUpper(s string) bool {
 	return false
 }
 
-// asciiLower lowercases ASCII letters in s, returning s unchanged when it holds
-// none. Folding is ASCII-only so pattern compilation and tag matching normalize
-// identically; a Unicode-aware fold on one side only would silently disagree.
+// asciiLower lowercases ASCII letters in s and returns s unchanged when possible.
 func asciiLower(s string) string {
 	if !hasASCIIUpper(s) {
 		return s
@@ -249,9 +236,8 @@ func asciiLower(s string) string {
 	return string(b)
 }
 
-// lookupKey resolves a tag key against the compiled rules, case-insensitively.
-// A key with no rule -- the common case -- is rejected by a length compare or an
-// empty bucket, without its bytes being read at all.
+// lookupKey resolves a tag key case-insensitively, rejecting most misses by
+// length before reading the key bytes.
 func (f *Filters) lookupKey(key string) *keyRules {
 	n := len(key)
 	if n == 0 || n > f.maxKeyLen {
@@ -298,10 +284,12 @@ func foldByte(c byte) byte {
 	return c
 }
 
-// equalFolded reports whether s case-folds to folded. Callers guarantee equal
-// lengths and a matching first byte.
+// equalFolded reports whether s case-folds to folded.
 func equalFolded(folded, s string) bool {
-	for i := 1; i < len(s); i++ {
+	if len(folded) != len(s) {
+		return false
+	}
+	for i := range s {
 		if foldByte(s[i]) != folded[i] {
 			return false
 		}
@@ -340,11 +328,6 @@ func (f *Filters) decide(key, value string) decision {
 	if kr.protected {
 		return keepDecision
 	}
-	// Pattern values are stored folded; only fold the tag value when a glob will
-	// actually consult it.
-	if len(kr.includeVals) > 0 || len(kr.excludeVals) > 0 {
-		value = asciiLower(value)
-	}
 	if kr.includeAny || matchesGlob(kr.includeVals, value) {
 		return keepDecision
 	}
@@ -366,21 +349,21 @@ func matchesGlob(globs []valueGlob, value string) bool {
 func (g valueGlob) match(value string) bool {
 	segs := g.segments
 	if len(segs) == 1 {
-		return value == segs[0]
+		return equalFolded(segs[0], value)
 	}
 	head, tail := segs[0], segs[len(segs)-1]
-	if !strings.HasPrefix(value, head) {
+	if !hasPrefixFolded(value, head) {
 		return false
 	}
 	// Consume the head before matching the tail so overlapping runs (pattern
 	// "a*a" against value "a") can't have one character satisfy both ends.
 	value = value[len(head):]
-	if !strings.HasSuffix(value, tail) {
+	if !hasSuffixFolded(value, tail) {
 		return false
 	}
 	value = value[:len(value)-len(tail)]
 	for _, mid := range segs[1 : len(segs)-1] {
-		i := strings.Index(value, mid)
+		i := indexFolded(value, mid)
 		if i < 0 {
 			return false
 		}
@@ -389,10 +372,31 @@ func (g valueGlob) match(value string) bool {
 	return true
 }
 
-// Keep returns the tags that survive f, preserving order.
-//
-// The returned slice is tags itself when nothing is removed. Keep never mutates
-// tags, because callers may hold a shared cached slice.
+func hasPrefixFolded(s, foldedPrefix string) bool {
+	return len(s) >= len(foldedPrefix) && equalFolded(foldedPrefix, s[:len(foldedPrefix)])
+}
+
+func hasSuffixFolded(s, foldedSuffix string) bool {
+	return len(s) >= len(foldedSuffix) && equalFolded(foldedSuffix, s[len(s)-len(foldedSuffix):])
+}
+
+func indexFolded(s, foldedNeedle string) int {
+	if foldedNeedle == "" {
+		return 0
+	}
+	for i := 0; i+len(foldedNeedle) <= len(s); i++ {
+		if foldByte(s[i]) != foldedNeedle[0] {
+			continue
+		}
+		if equalFolded(foldedNeedle, s[i:i+len(foldedNeedle)]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// Keep returns surviving tags in order without mutating tags. It returns tags
+// itself when nothing is removed.
 func (f *Filters) Keep(tags []string) []string {
 	if f == nil {
 		return tags
@@ -422,7 +426,12 @@ func (f *Filters) Retains(tag string) bool {
 	if !ok {
 		return true
 	}
-	return f.decide(key, value) != dropDecision
+	return f.RetainsTag(key, value)
+}
+
+// RetainsTag reports whether a tag with the provided key and value survives f.
+func (f *Filters) RetainsTag(key, value string) bool {
+	return f == nil || f.decide(key, value) != dropDecision
 }
 
 // IsEmpty reports whether f would remove nothing.
@@ -430,8 +439,7 @@ func (f *Filters) IsEmpty() bool {
 	if f == nil {
 		return true
 	}
-	// Only exclude patterns can ever remove a tag; an include-only filter is inert.
-	return len(f.patterns.Exclude) == 0
+	return !f.hasEffectiveExclude
 }
 
 // Patterns returns the compiled pattern set for the status page.
@@ -457,20 +465,13 @@ const (
 	scopedGlobalOnly
 )
 
-// NewScoped pairs a source-level filter with the process-global filter.
-//
-// It returns nil when neither scope would remove anything, so callers can store a
-// nil TagFilter interface rather than a typed nil.
+// NewScoped pairs source and global filters, returning nil when both are inert.
 func NewScoped(global, source *Filters) *Scoped {
 	if global.IsEmpty() && source.IsEmpty() {
 		return nil
 	}
-	// Avoid paying for two scope lookups on every tag when only one scope can
-	// affect the result. A source with any include patterns must remain in front
-	// of an active global filter because those includes can rescue globally
-	// excluded tags. Global includes, however, are inert when the global scope
-	// cannot drop anything: source rules have higher precedence and unmatched
-	// tags are retained by default.
+	// Source includes must remain ahead of global excludes; otherwise specialize
+	// single-scope filters to avoid a second lookup per tag.
 	if global.IsEmpty() {
 		return &Scoped{source: source, global: global, mode: scopedSourceOnly}
 	}
@@ -509,25 +510,31 @@ func (s *Scoped) Keep(tags []string) []string {
 	return tags
 }
 
-// Retains reports whether a single "key:value" tag survives s.
-//
-// Precedence, highest first: protected key, source include, source exclude, global
-// include, global exclude, then retained by default. This is not sequential
-// application of the two scopes -- a source include must rescue a tag that a global
-// exclude would drop.
+// Retains reports whether a tag survives. Precedence is protected key, source
+// include/exclude, global include/exclude, then retained by default.
 func (s *Scoped) Retains(tag string) bool {
 	if s == nil {
 		return true
 	}
-	// NewScoped specializes the common single-scope cases. Delegate directly so
-	// the tag is split and its key looked up only once.
+	key, value, ok := splitTag(tag)
+	if !ok {
+		return true
+	}
+	return s.RetainsTag(key, value)
+}
+
+// RetainsTag reports whether a tag with the provided key and value survives s.
+func (s *Scoped) RetainsTag(key, value string) bool {
+	if s == nil {
+		return true
+	}
 	if s.mode == scopedGlobalOnly {
-		return s.global.Retains(tag)
+		return s.global.decide(key, value) != dropDecision
 	}
 	if s.mode == scopedSourceOnly {
-		return s.source.Retains(tag)
+		return s.source.decide(key, value) != dropDecision
 	}
-	return s.retainsBoth(tag)
+	return s.retainsBothParts(key, value)
 }
 
 // retainsBoth applies the full source-before-global precedence after NewScoped
@@ -537,6 +544,10 @@ func (s *Scoped) retainsBoth(tag string) bool {
 	if !ok {
 		return true
 	}
+	return s.retainsBothParts(key, value)
+}
+
+func (s *Scoped) retainsBothParts(key, value string) bool {
 	switch s.source.decide(key, value) {
 	case keepDecision:
 		return true
@@ -544,25 +555,4 @@ func (s *Scoped) retainsBoth(tag string) bool {
 		return false
 	}
 	return s.global.decide(key, value) != dropDecision
-}
-
-// IsEmpty reports whether s would remove nothing.
-func (s *Scoped) IsEmpty() bool {
-	return s == nil || (s.source.IsEmpty() && s.global.IsEmpty())
-}
-
-// GlobalPatterns returns the process-global pattern set, for the status page.
-func (s *Scoped) GlobalPatterns() Patterns {
-	if s == nil {
-		return Patterns{}
-	}
-	return s.global.Patterns()
-}
-
-// SourcePatterns returns the source-level pattern set, for the status page.
-func (s *Scoped) SourcePatterns() Patterns {
-	if s == nil {
-		return Patterns{}
-	}
-	return s.source.Patterns()
 }

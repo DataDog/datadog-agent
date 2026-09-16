@@ -150,8 +150,8 @@ func TestConcurrentPublicJSONAndSetTailingMode(t *testing.T) {
 // fakeTagFilter is a minimal TagFilter for exercising LogSource's tag filter storage.
 type fakeTagFilter struct{}
 
-func (fakeTagFilter) Keep(tags []string) []string { return tags }
-func (fakeTagFilter) Retains(string) bool         { return true }
+func (fakeTagFilter) Keep(tags []string) []string    { return tags }
+func (fakeTagFilter) RetainsTag(string, string) bool { return true }
 
 func TestLogSourceTagFilterUnset(t *testing.T) {
 	source := NewLogSource("test", nil)
@@ -174,9 +174,7 @@ func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 	assert.Equal(t, TagFilter(want), got)
 }
 
-// TestLogSourceTagFilterResolvedInert guards the middle of the three states: a
-// non-nil state whose filter is nil must read back as resolved with a filter
-// that compares equal to nil, not as unresolved.
+// TestLogSourceTagFilterResolvedInert distinguishes resolved-nil from unresolved.
 func TestLogSourceTagFilterResolvedInert(t *testing.T) {
 	source := NewLogSource("test", nil)
 

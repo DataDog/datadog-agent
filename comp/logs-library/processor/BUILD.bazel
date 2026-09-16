@@ -34,7 +34,6 @@ dd_agent_go_test(
     srcs = [
         "encoder_test.go",
         "processor_test.go",
-        "tagfilter_bench_test.go",
         "transport_tags_test.go",
     ],
     embed = [":processor"],

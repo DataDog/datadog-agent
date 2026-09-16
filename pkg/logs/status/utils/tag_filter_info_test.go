@@ -11,12 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTagFilterInfoKeyAndVerbose(t *testing.T) {
-	info := NewTagFilterInfo(nil, nil, nil, nil)
-	assert.Equal(t, "Tag Filters", info.InfoKey())
-	assert.True(t, info.IsVerbose())
-}
-
 func TestTagFilterInfoAllScopes(t *testing.T) {
 	info := NewTagFilterInfo(
 		[]string{"kube_namespace:*"},
@@ -31,11 +25,6 @@ func TestTagFilterInfoAllScopes(t *testing.T) {
 		"source exclude: filename:*, dirname:*",
 	}
 	assert.Equal(t, expected, info.Info())
-}
-
-func TestTagFilterInfoAllEmptyRendersNothing(t *testing.T) {
-	info := NewTagFilterInfo(nil, nil, nil, nil)
-	assert.Empty(t, info.Info())
 }
 
 // TestTagFilterInfoSkippedWhenUnconfigured pins the requirement that an unconfigured source

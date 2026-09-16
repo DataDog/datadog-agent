@@ -11,9 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// startTagFilterSubscriber resolves each source's tag filter as soon as the logs
-// agent learns of it, instead of waiting for its first message to reach a
-// processor. It runs until done is closed.
+// startTagFilterSubscriber resolves filters when sources appear rather than on
+// their first message. It runs until done is closed.
 func startTagFilterSubscriber(logSources *sources.LogSources, tagFilters *tagfilter.Filters, done chan struct{}) {
 	added, removed := logSources.SubscribeAll(done, done)
 

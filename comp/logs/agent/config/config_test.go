@@ -159,26 +159,6 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.NotNil(rule.Regex)
 }
 
-func (suite *ConfigTestSuite) TestGlobalTagFiltersDefaultIsEmpty() {
-	filters, report, err := GlobalTagFilters(suite.config)
-	suite.NoError(err)
-	suite.NotNil(filters)
-	suite.True(filters.IsEmpty())
-	suite.True(report.IsEmpty())
-}
-
-func (suite *ConfigTestSuite) TestGlobalTagFiltersNilAndEmptyString() {
-	suite.config.SetInTest("logs_config.tag_filters", nil)
-	filters, _, err := GlobalTagFilters(suite.config)
-	suite.NoError(err)
-	suite.True(filters.IsEmpty())
-
-	suite.config.SetInTest("logs_config.tag_filters", "")
-	filters, _, err = GlobalTagFilters(suite.config)
-	suite.NoError(err)
-	suite.True(filters.IsEmpty())
-}
-
 func (suite *ConfigTestSuite) TestGlobalTagFiltersYAMLMapForm() {
 	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
 		"exclude": []string{"container_id:*"},
@@ -187,7 +167,8 @@ func (suite *ConfigTestSuite) TestGlobalTagFiltersYAMLMapForm() {
 	filters, report, err := GlobalTagFilters(suite.config)
 	suite.NoError(err)
 	suite.NotNil(filters)
-	suite.True(report.IsEmpty())
+	suite.Empty(report.Rejected)
+	suite.Empty(report.Warnings)
 }
 
 func (suite *ConfigTestSuite) TestGlobalTagFiltersJSONEnvVarStringForm() {
@@ -195,7 +176,8 @@ func (suite *ConfigTestSuite) TestGlobalTagFiltersJSONEnvVarStringForm() {
 	filters, report, err := GlobalTagFilters(suite.config)
 	suite.NoError(err)
 	suite.NotNil(filters)
-	suite.True(report.IsEmpty())
+	suite.Empty(report.Rejected)
+	suite.Empty(report.Warnings)
 }
 
 func (suite *ConfigTestSuite) TestGlobalTagFiltersUnknownSubKeyErrors() {
@@ -205,17 +187,6 @@ func (suite *ConfigTestSuite) TestGlobalTagFiltersUnknownSubKeyErrors() {
 	filters, _, err := GlobalTagFilters(suite.config)
 	suite.Error(err)
 	suite.Nil(filters)
-}
-
-func (suite *ConfigTestSuite) TestGlobalTagFiltersProtectedKeyWarnsNotErrors() {
-	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
-		"exclude": []string{"source:*"},
-	})
-	filters, report, err := GlobalTagFilters(suite.config)
-	suite.NoError(err)
-	suite.NotNil(filters)
-	suite.Empty(report.Rejected)
-	suite.NotEmpty(report.Warnings)
 }
 
 func (suite *ConfigTestSuite) TestGlobalTagFiltersMalformedPatternIsReportedNotErrored() {

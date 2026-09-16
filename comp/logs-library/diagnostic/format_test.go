@@ -31,8 +31,7 @@ func (f *dropKeyFilter) Keep(tags []string) []string {
 	return out
 }
 
-func (f *dropKeyFilter) Retains(tag string) bool {
-	key, _, _ := strings.Cut(tag, ":")
+func (f *dropKeyFilter) RetainsTag(key, _ string) bool {
 	return !f.drop[key]
 }
 
@@ -55,22 +54,7 @@ func tagsField(t *testing.T, formatted string) string {
 	return before
 }
 
-// TestFormatWithoutFilterMatchesTagsToString pins that stream-logs output is
-// unchanged when no filter is configured.
-func TestFormatWithoutFilterMatchesTagsToString(t *testing.T) {
-	f := &logFormatter{hostname: getNewHostname("hostname")}
-	msg := formatTestMessage(t)
-
-	got := tagsField(t, f.Format(msg, "", msg.GetContent()))
-
-	assert.Equal(t, msg.TagsToString(), got)
-	assert.Contains(t, got, "container_id:deadbeef")
-}
-
-// TestFormatShowsTransportTags pins that stream-logs reports the tags that
-// actually ship, so it can be used to verify a tag_filters configuration.
-// Format has no global filter to resolve with, so the filter is installed
-// directly on the source, as ResolveSourceTagFilter would from a processor.
+// TestFormatShowsTransportTags verifies stream-logs displays the outgoing tags.
 func TestFormatShowsTransportTags(t *testing.T) {
 	f := &logFormatter{hostname: getNewHostname("hostname")}
 	msg := formatTestMessage(t)

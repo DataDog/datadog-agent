@@ -243,9 +243,7 @@ func (a *logAgent) setupAgent() error {
 	return nil
 }
 
-// configureAgent validates and retrieves configuration settings needed for agent operation.
-// reportTagFilterWarnings surfaces the global tag_filters report on the status
-// page. Each entry needs its own key because Messages.AddMessage overwrites.
+// reportTagFilterWarnings restores tag-filter warnings after status initialization.
 func (a *logAgent) reportTagFilterWarnings() {
 	for i, warning := range a.tagFilterReport.Warnings {
 		status.AddGlobalWarning(fmt.Sprintf("%s_warning_%d", invalidTagFilters, i), warning)
@@ -256,6 +254,7 @@ func (a *logAgent) reportTagFilterWarnings() {
 	}
 }
 
+// configureAgent validates and retrieves configuration settings needed for agent operation.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filters, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)

@@ -173,10 +173,11 @@ func (i *InfoRegistry) RenderedVerbose(verbose bool) map[string][]string {
 		if vp, ok := v.(VerboseInfoProvider); ok && vp.IsVerbose() && !verbose {
 			continue
 		}
-		if len(v.Info()) == 0 {
+		values := v.Info()
+		if len(values) == 0 {
 			continue
 		}
-		info[v.InfoKey()] = v.Info()
+		info[v.InfoKey()] = values
 	}
 	return info
 }

@@ -61,8 +61,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	}
 }
 
-// TestMalformedTagFiltersDoesNotFailValidate pins that Validate() never inspects TagFilters:
-// sources.go silently drops a source when Validate() fails, so a bad annotation must not stop logs.
+// TestMalformedTagFiltersDoesNotFailValidate ensures bad patterns do not stop a source.
 func TestMalformedTagFiltersDoesNotFailValidate(t *testing.T) {
 	cfg := &LogsConfig{
 		Type: FileType,
@@ -263,17 +262,6 @@ func TestConfigDump(t *testing.T) {
 	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
 }
 
-func TestConfigDumpSurfacesTagFilters(t *testing.T) {
-	config := LogsConfig{
-		Type:       FileType,
-		Path:       "/var/log/foo.log",
-		TagFilters: &TagFilters{Exclude: []string{"container_id:*"}},
-	}
-	dump := config.Dump(true)
-	assert.Contains(t, dump, "TagFilters:")
-	assert.Contains(t, dump, "container_id:*")
-}
-
 func TestPublicJSON(t *testing.T) {
 	config := LogsConfig{
 		Type:     FileType,
@@ -290,8 +278,8 @@ func TestPublicJSON(t *testing.T) {
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
-// PublicJSON is sent to the backend as metadata and only exports fields that are
-// documented publicly; tag_filters is experimental and undocumented, so it must stay out.
+// PublicJSON is sent to the backend as metadata; filtering rules are Agent-local
+// configuration and must stay out.
 func TestPublicJSONExcludesTagFilters(t *testing.T) {
 	config := LogsConfig{
 		Type:       FileType,

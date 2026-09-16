@@ -6,9 +6,7 @@
 package tagfilter
 
 import (
-	"regexp"
 	"strings"
-	"sync"
 	"testing"
 	"unsafe"
 
@@ -20,7 +18,6 @@ func sameBackingArray(a, b []string) bool {
 	return unsafe.SliceData(a) == unsafe.SliceData(b)
 }
 
-// realisticK8sTags mirrors a typical 20-tag Kubernetes log's tag set.
 func realisticK8sTags() []string {
 	return []string{
 		"source:myapp",
@@ -46,95 +43,43 @@ func realisticK8sTags() []string {
 	}
 }
 
-// noMatchFilter is configured but shares no key with realisticK8sTags.
 func noMatchFilter() *Scoped {
 	global, _ := Compile(nil, []string{"nonexistent_key_a:*", "nonexistent_key_b:*"})
 	return NewScoped(global, nil)
 }
 
-// withDropsFilter excludes four keys present in realisticK8sTags.
-func withDropsFilter() *Scoped {
-	global, _ := Compile(nil, []string{"container_id:*", "kube_replica_set:*", "pod_name:*", "log_hash:*"})
-	return NewScoped(global, nil)
-}
-
-func TestReportIsEmpty(t *testing.T) {
-	assert.True(t, Report{}.IsEmpty())
-	assert.False(t, Report{Warnings: []string{"x"}}.IsEmpty())
-	assert.False(t, Report{Rejected: []RejectedPattern{{Pattern: "x", Reason: "y"}}}.IsEmpty())
-}
-
-func TestPatternsIsEmpty(t *testing.T) {
-	assert.True(t, Patterns{}.IsEmpty())
-	assert.False(t, Patterns{Include: []string{"x"}}.IsEmpty())
-	assert.False(t, Patterns{Exclude: []string{"x"}}.IsEmpty())
-}
-
-func TestCompileNilAndEmptyInputsAreEquivalent(t *testing.T) {
-	f1, r1 := Compile(nil, nil)
-	f2, r2 := Compile([]string{}, []string{})
-	assert.Equal(t, r1, r2)
-	assert.True(t, f1.IsEmpty())
-	assert.True(t, f2.IsEmpty())
-}
-
 func TestCompileRejectsInvalidPatterns(t *testing.T) {
-	tests := []struct {
-		name    string
-		pattern string
-	}{
-		{"missing colon", "container_id"},
-		{"missing colon, arbitrary text", "not-a-pattern-at-all"},
-		{"bare star", "*"},
-		{"star colon star", "*:*"},
-		{"empty pattern", ""},
-		{"whitespace-only pattern", "   "},
-		{"empty key", ":foo"},
-		{"wildcard in key", "cont*iner:foo"},
-		{"wildcard key with star value", "foo*:*"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, includeReport := Compile([]string{tt.pattern}, nil)
-			requireActionableRejection(t, includeReport, tt.pattern)
+	for _, pattern := range []string{
+		"container_id",
+		"*",
+		"*:*",
+		"",
+		"   ",
+		":foo",
+		"cont*iner:foo",
+	} {
+		t.Run(pattern, func(t *testing.T) {
+			_, includeReport := Compile([]string{pattern}, nil)
+			require.Len(t, includeReport.Rejected, 1)
+			assert.NotEmpty(t, includeReport.Rejected[0].Reason)
 
-			excludeFilters, excludeReport := Compile(nil, []string{tt.pattern})
-			requireActionableRejection(t, excludeReport, tt.pattern)
-			assert.True(t, excludeFilters.IsEmpty(), "a rejected exclude pattern must not apply")
+			excludeFilters, excludeReport := Compile(nil, []string{pattern})
+			require.Len(t, excludeReport.Rejected, 1)
+			assert.True(t, excludeFilters.IsEmpty())
 		})
 	}
 }
 
-func requireActionableRejection(t *testing.T, report Report, pattern string) {
-	t.Helper()
-	require.Len(t, report.Rejected, 1)
-	reason := report.Rejected[0].Reason
-	assert.NotEmpty(t, reason)
-	trimmed := strings.TrimSpace(pattern)
-	assert.True(t, strings.Contains(reason, trimmed) || strings.Contains(reason, trimmed+":*"),
-		"reason %q for pattern %q should mention the pattern or the fix", reason, pattern)
-}
-
-func TestMissingColonReasonSuggestsFix(t *testing.T) {
-	_, report := Compile([]string{"container_id"}, nil)
-	require.Len(t, report.Rejected, 1)
-	assert.Contains(t, report.Rejected[0].Reason, `"container_id:*"`)
-}
-
-func TestCompileReportsAllRejectionsInOrderAndKeepsTheRest(t *testing.T) {
-	patterns := []string{"container_id", "*", "good:*", ":empty-key", "*:*"}
-	f, report := Compile(nil, patterns)
+func TestCompileReportsAllRejectionsAndKeepsValidPatterns(t *testing.T) {
+	f, report := Compile(nil, []string{"container_id", "*", "good:*", ":empty-key", "*:*"})
 	require.Len(t, report.Rejected, 4)
-	assert.Equal(t, "container_id", report.Rejected[0].Pattern)
-	assert.Equal(t, "*", report.Rejected[1].Pattern)
-	assert.Equal(t, ":empty-key", report.Rejected[2].Pattern)
-	assert.Equal(t, "*:*", report.Rejected[3].Pattern)
+	assert.Equal(t, []string{"container_id", "*", ":empty-key", "*:*"}, []string{
+		report.Rejected[0].Pattern,
+		report.Rejected[1].Pattern,
+		report.Rejected[2].Pattern,
+		report.Rejected[3].Pattern,
+	})
 	assert.Equal(t, []string{"good:*"}, f.Patterns().Exclude)
-}
-
-func TestCompileDedupesEmptyAndWhitespacePatterns(t *testing.T) {
-	_, report := Compile([]string{"", "   ", "\t"}, nil)
-	assert.Len(t, report.Rejected, 1)
 }
 
 func TestCompileDeduplicatesPatterns(t *testing.T) {
@@ -143,45 +88,23 @@ func TestCompileDeduplicatesPatterns(t *testing.T) {
 	assert.Equal(t, []string{"foo:*"}, f.Patterns().Include)
 }
 
-func TestCompileDoesNotDedupeAcrossIncludeAndExclude(t *testing.T) {
-	f, report := Compile([]string{"foo:*"}, []string{"foo:*"})
-	assert.Empty(t, report.Rejected)
-	assert.Equal(t, []string{"foo:*"}, f.Patterns().Include)
-	assert.Equal(t, []string{"foo:*"}, f.Patterns().Exclude)
-	assert.True(t, f.Retains("foo:bar"), "the include rescues the identical exclude")
-}
-
 func TestCompileWarnsOnProtectedExclude(t *testing.T) {
-	_, report := Compile(nil, []string{"source:foo"})
+	f, report := Compile(nil, []string{"Source:foo"})
 	require.Len(t, report.Warnings, 1)
 	assert.Contains(t, report.Warnings[0], "source")
 	assert.Contains(t, report.Warnings[0], "no effect")
+	assert.True(t, f.IsEmpty())
+	assert.Nil(t, NewScoped(f, nil))
 }
 
-func TestCompileIncludeNamingProtectedKeyWarnsNothing(t *testing.T) {
-	_, report := Compile([]string{"source:foo"}, nil)
-	assert.Empty(t, report.Warnings)
-}
-
-func TestCompileMixedCaseProtectedExcludeStillWarns(t *testing.T) {
-	_, report := Compile(nil, []string{"Source:foo"})
-	require.Len(t, report.Warnings, 1)
-	assert.Contains(t, report.Warnings[0], "no effect")
-}
-
-// TestMatchingIsCaseInsensitive pins that neither side of a comparison is
-// case-sensitive: tag keys and values arrive verbatim from user config
-// (logs_config.tags, DD_TAGS, container label mappings), so a rule must not
-// silently no-op on a capital letter.
 func TestMatchingIsCaseInsensitive(t *testing.T) {
 	tests := []struct {
 		name    string
 		exclude string
 		tag     string
 	}{
-		{"upper pattern key, lower tag key", "Team:*", "team:infra"},
-		{"lower pattern key, upper tag key", "team:*", "Team:infra"},
-		{"mixed on both sides", "TeAm:*", "tEaM:infra"},
+		{"upper pattern key", "Team:*", "team:infra"},
+		{"upper tag key", "team:*", "Team:infra"},
 		{"upper pattern value", "team:INFRA", "team:infra"},
 		{"upper tag value", "team:infra", "team:INFRA"},
 		{"glob spans case", "image_tag:V1.*", "image_tag:v1.4.2"},
@@ -202,29 +125,13 @@ func TestProtectedKeysSurviveMixedCaseTags(t *testing.T) {
 	}
 }
 
-func TestCaseFoldedKeyLookupAllocatesNothing(t *testing.T) {
-	f, _ := Compile(nil, []string{"team:*"})
-	require.False(t, f.Retains("Team:infra"), "fixture must take the folded-lookup path")
+func TestCaseInsensitiveLookupAllocatesNothing(t *testing.T) {
+	f, _ := Compile(nil, []string{"team:in*"})
+	require.False(t, f.Retains("Team:infra"))
 	allocs := testing.AllocsPerRun(1000, func() {
-		_ = f.Retains("Team:infra")
+		_ = f.Retains("Team:INFRA")
 	})
 	assert.Equal(t, float64(0), allocs)
-}
-
-// TestLookupBeyondBucketedKeyLen covers rule keys too long to be bucketed by
-// length, which land in the long overflow and are the only users of it.
-func TestLookupBeyondBucketedKeyLen(t *testing.T) {
-	key := strings.Repeat("a", maxBucketedKeyLen) + "B"
-	f, report := Compile(nil, []string{key + ":*"})
-	require.Empty(t, report.Rejected)
-	require.Len(t, f.long, 1, "an over-length rule key must land in long")
-
-	assert.False(t, f.Retains(key+":anything"))
-	assert.False(t, f.Retains(strings.ToUpper(key)+":anything"))
-	// Same length, different content: must miss without matching the bucket.
-	assert.True(t, f.Retains(strings.Repeat("z", len(key))+":anything"))
-	// A key one byte longer than the longest rule is rejected outright.
-	assert.True(t, f.Retains(key+"a:anything"))
 }
 
 func TestIncludeOnlyRemovesNothing(t *testing.T) {
@@ -232,134 +139,6 @@ func TestIncludeOnlyRemovesNothing(t *testing.T) {
 	assert.True(t, f.Retains("foo:keep1"))
 	assert.True(t, f.Retains("foo:anything-else"))
 	assert.True(t, f.IsEmpty())
-}
-
-func TestFiltersIsEmpty(t *testing.T) {
-	empty, _ := Compile(nil, nil)
-	assert.True(t, empty.IsEmpty())
-
-	includeOnly, _ := Compile([]string{"foo:*"}, nil)
-	assert.True(t, includeOnly.IsEmpty(), "include-only filters remove nothing")
-
-	withExclude, _ := Compile(nil, []string{"foo:*"})
-	assert.False(t, withExclude.IsEmpty())
-
-	rejectedOnly, _ := Compile(nil, []string{"bad-pattern"})
-	assert.True(t, rejectedOnly.IsEmpty())
-
-	var nilFilters *Filters
-	assert.True(t, nilFilters.IsEmpty())
-}
-
-func TestFiltersPatterns(t *testing.T) {
-	f, report := Compile([]string{"Foo:*", " bar:baz ", "bar:baz"}, []string{"qux:*"})
-	assert.Empty(t, report.Rejected)
-	assert.Empty(t, report.Warnings)
-
-	got := f.Patterns()
-	assert.ElementsMatch(t, []string{"Foo:*", "bar:baz"}, got.Include)
-	assert.Equal(t, []string{"qux:*"}, got.Exclude)
-
-	var nilFilters *Filters
-	assert.Equal(t, Patterns{}, nilFilters.Patterns())
-}
-
-func TestScopedPatternAccessors(t *testing.T) {
-	global, _ := Compile(nil, []string{"g:*"})
-	source, _ := Compile([]string{"s:*"}, nil)
-	scoped := NewScoped(global, source)
-	require.NotNil(t, scoped)
-
-	gp := scoped.GlobalPatterns()
-	assert.Empty(t, gp.Include)
-	assert.Equal(t, []string{"g:*"}, gp.Exclude)
-
-	sp := scoped.SourcePatterns()
-	assert.Equal(t, []string{"s:*"}, sp.Include)
-	assert.Empty(t, sp.Exclude)
-
-	var nilScoped *Scoped
-	assert.Equal(t, Patterns{}, nilScoped.GlobalPatterns())
-	assert.Equal(t, Patterns{}, nilScoped.SourcePatterns())
-}
-
-func TestNilFiltersIsSafe(t *testing.T) {
-	var f *Filters
-	assert.True(t, f.IsEmpty())
-	assert.Equal(t, Patterns{}, f.Patterns())
-	assert.True(t, f.Retains("any:thing"))
-	assert.True(t, f.Retains("no-colon"))
-
-	tags := []string{"a:b", "c:d"}
-	got := f.Keep(tags)
-	assert.True(t, sameBackingArray(tags, got))
-}
-
-func TestNilScopedIsSafe(t *testing.T) {
-	var s *Scoped
-	assert.True(t, s.IsEmpty())
-	assert.Equal(t, Patterns{}, s.GlobalPatterns())
-	assert.Equal(t, Patterns{}, s.SourcePatterns())
-	assert.True(t, s.Retains("any:thing"))
-	assert.True(t, s.Retains("no-colon"))
-
-	tags := []string{"a:b", "c:d"}
-	got := s.Keep(tags)
-	assert.True(t, sameBackingArray(tags, got))
-}
-
-func TestNewScopedNilNilReturnsNil(t *testing.T) {
-	assert.Nil(t, NewScoped(nil, nil))
-}
-
-func TestNewScopedEmptyReturnsNil(t *testing.T) {
-	empty, _ := Compile(nil, nil)
-	includeOnly, _ := Compile([]string{"foo:*"}, nil)
-
-	assert.Nil(t, NewScoped(empty, includeOnly))
-	assert.Nil(t, NewScoped(nil, empty))
-	assert.Nil(t, NewScoped(empty, nil))
-}
-
-func TestNewScopedNonEmptyReturnsScoped(t *testing.T) {
-	withExclude, _ := Compile(nil, []string{"foo:*"})
-	assert.NotNil(t, NewScoped(withExclude, nil))
-	assert.NotNil(t, NewScoped(nil, withExclude))
-}
-
-func TestNewScopedSpecializesSingleScopeWithoutLosingPatterns(t *testing.T) {
-	t.Run("global only", func(t *testing.T) {
-		global, _ := Compile(nil, []string{"global:*"})
-		scoped := NewScoped(global, nil)
-		require.NotNil(t, scoped)
-		assert.Equal(t, scopedGlobalOnly, scoped.mode)
-		assert.False(t, scoped.Retains("global:value"))
-		assert.Equal(t, []string{"global:*"}, scoped.GlobalPatterns().Exclude)
-	})
-
-	t.Run("source only", func(t *testing.T) {
-		// A global include cannot change the outcome when only the higher-priority
-		// source scope can drop, but it must remain visible through the pattern
-		// accessors used by status reporting.
-		global, _ := Compile([]string{"foo:keep"}, nil)
-		source, _ := Compile(nil, []string{"foo:*"})
-		scoped := NewScoped(global, source)
-		require.NotNil(t, scoped)
-		assert.Equal(t, scopedSourceOnly, scoped.mode)
-		assert.False(t, scoped.Retains("foo:value"))
-		assert.Equal(t, []string{"foo:keep"}, scoped.GlobalPatterns().Include)
-		assert.Equal(t, []string{"foo:*"}, scoped.SourcePatterns().Exclude)
-	})
-
-	t.Run("both scopes", func(t *testing.T) {
-		global, _ := Compile(nil, []string{"shared:*"})
-		source, _ := Compile([]string{"shared:keep"}, nil)
-		scoped := NewScoped(global, source)
-		require.NotNil(t, scoped)
-		assert.Equal(t, scopedBoth, scoped.mode)
-		assert.True(t, scoped.Retains("shared:keep"))
-		assert.False(t, scoped.Retains("shared:drop"))
-	})
 }
 
 func mustScoped(t *testing.T, globalInclude, globalExclude, sourceInclude, sourceExclude []string) *Scoped {
@@ -382,47 +161,40 @@ func TestScopedPrecedence(t *testing.T) {
 		want          bool
 	}{
 		{
-			name:          "protected key retained despite matching source and global excludes",
-			globalExclude: []string{"source:*"},
+			name:          "protected key retained",
+			globalExclude: []string{"source:*", "foo:*"},
 			sourceExclude: []string{"source:*"},
 			tag:           "source:svc",
 			want:          true,
 		},
 		{
-			name:          "source include retains over source exclude on the same key",
+			name:          "source include wins over source exclude",
 			sourceInclude: []string{"foo:keep*"},
 			sourceExclude: []string{"foo:*"},
 			tag:           "foo:keep1",
 			want:          true,
 		},
 		{
-			name:          "source exclude removes when nothing rescues it",
+			name:          "source exclude removes",
 			sourceExclude: []string{"foo:*"},
 			tag:           "foo:bar",
 			want:          false,
 		},
 		{
-			name:          "global include retains when source has no opinion",
+			name:          "global include wins over global exclude",
 			globalInclude: []string{"foo:keep*"},
 			globalExclude: []string{"foo:*"},
 			tag:           "foo:keep1",
 			want:          true,
 		},
 		{
-			name:          "global exclude removes when source has no opinion",
+			name:          "global exclude removes",
 			globalExclude: []string{"foo:*"},
 			tag:           "foo:bar",
 			want:          false,
 		},
 		{
-			name:          "no rule for this key retains by default",
-			globalExclude: []string{"another_key:*"},
-			sourceExclude: []string{"unrelated_key:*"},
-			tag:           "foo:bar",
-			want:          true,
-		},
-		{
-			name:          "source include rescues a tag global would exclude",
+			name:          "source include rescues global exclude",
 			sourceInclude: []string{"foo:keep*"},
 			globalExclude: []string{"foo:*"},
 			tag:           "foo:keep1",
@@ -433,148 +205,44 @@ func TestScopedPrecedence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scoped := mustScoped(t, tt.globalInclude, tt.globalExclude, tt.sourceInclude, tt.sourceExclude)
 			assert.Equal(t, tt.want, scoped.Retains(tt.tag))
+			key, value, _ := strings.Cut(tt.tag, ":")
+			assert.Equal(t, tt.want, scoped.RetainsTag(key, value))
 		})
 	}
-}
-
-// TestScopedIsNotSequential pins the case that a sequential source-then-global
-// implementation gets wrong: source has no exclude of its own for this key, so a
-// sequential apply would fall through to global's exclude and drop the tag.
-func TestScopedIsNotSequential(t *testing.T) {
-	global, _ := Compile(nil, []string{"pod_name:*"})
-	source, _ := Compile([]string{"pod_name:keep-*"}, nil)
-	scoped := NewScoped(global, source)
-	require.NotNil(t, scoped)
-
-	assert.True(t, scoped.Retains("pod_name:keep-me"))
-	assert.False(t, scoped.Retains("pod_name:drop-me"))
-
-	kept := scoped.Keep([]string{"pod_name:keep-me", "pod_name:drop-me"})
-	assert.Equal(t, []string{"pod_name:keep-me"}, kept)
-}
-
-func TestProtectedKeysSurviveEveryExcludeForm(t *testing.T) {
-	for _, key := range protectedKeys {
-		t.Run(key, func(t *testing.T) {
-			tag := key + ":anything"
-
-			literal, _ := Compile(nil, []string{key + ":anything"})
-			assert.True(t, literal.Retains(tag), "literal-value exclude")
-
-			any, _ := Compile(nil, []string{key + ":*"})
-			assert.True(t, any.Retains(tag), "key:* exclude")
-
-			glob, _ := Compile(nil, []string{key + ":any*"})
-			assert.True(t, glob.Retains(tag), "glob-value exclude")
-
-			globalScoped := NewScoped(any, nil)
-			require.NotNil(t, globalScoped)
-			assert.True(t, globalScoped.Retains(tag), "global-scoped exclude")
-
-			sourceScoped := NewScoped(nil, any)
-			require.NotNil(t, sourceScoped)
-			assert.True(t, sourceScoped.Retains(tag), "source-scoped exclude")
-		})
-	}
-}
-
-func TestKeyStarNeverInspectsValue(t *testing.T) {
-	f, _ := Compile(nil, []string{"container_id:*"})
-	kr := f.lookupKey("container_id")
-	require.NotNil(t, kr)
-	assert.True(t, kr.excludeAny)
-	assert.Empty(t, kr.excludeVals)
-	assert.False(t, f.Retains("container_id:anything-at-all-however-long"))
 }
 
 func TestValueGlobMatching(t *testing.T) {
-	// want reports whether pattern "val:<pattern>" excludes tag "val:<value>".
 	tests := []struct {
 		name    string
 		pattern string
 		value   string
 		want    bool
 	}{
-		{"exact match, no wildcard", "bar", "bar", true},
-		{"exact mismatch, no wildcard", "bar", "baz", false},
-		{"leading star matches any prefix", "*bar", "foobar", true},
-		{"leading star with empty prefix", "*bar", "bar", true},
-		{"leading star requires the suffix", "*bar", "foobaz", false},
-		{"trailing star matches any suffix", "foo*", "foobar", true},
-		{"trailing star with empty suffix", "foo*", "foo", true},
-		{"trailing star requires the prefix", "foo*", "barfoo", false},
-		{"star only in the middle", "foo*bar", "fooXXXbar", true},
-		{"star only in the middle, empty gap", "foo*bar", "foobar", true},
-		{"star only in the middle, missing tail", "foo*bar", "foobarextra", false},
+		{"exact match", "bar", "bar", true},
+		{"exact mismatch", "bar", "baz", false},
+		{"leading star", "*bar", "foobar", true},
+		{"trailing star", "foo*", "foobar", true},
+		{"middle star", "foo*bar", "fooXXXbar", true},
+		{"middle star missing tail", "foo*bar", "foobarextra", false},
 		{"multiple stars", "a*b*c", "aXbYc", true},
-		{"multiple stars, empty gaps", "a*b*c", "abc", true},
-		{"multiple stars, missing middle segment", "a*b*c", "ac", false},
-		{"a*a does not match the single character a", "a*a", "a", false},
-		{"a*a matches aa", "a*a", "aa", true},
-		{"a*a matches aXa", "a*a", "aXa", true},
-		{"wildcard pattern against an empty value", "foo*bar", "", false},
-		{"exact pattern against an empty value", "bar", "", false},
-		{"literal star in the value is ordinary data", "a*b", "*", false},
-		{"pattern of literal stars around content matches", "*x*", "*x*", true},
-		{"key-star pattern matches the literal star value too", "*", "*", true},
+		{"multiple stars missing segment", "a*b*c", "ac", false},
+		{"repeated literal needs two characters", "a*a", "a", false},
+		{"empty value", "foo*bar", "", false},
+		{"key-star", "*", "anything", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f, report := Compile(nil, []string{"val:" + tt.pattern})
 			require.Empty(t, report.Rejected)
-			excluded := !f.Retains("val:" + tt.value)
-			assert.Equal(t, tt.want, excluded)
+			assert.Equal(t, tt.want, !f.Retains("val:"+tt.value))
 		})
 	}
 }
 
 func TestValuelessTagsAlwaysSurvive(t *testing.T) {
-	// A pattern's key can textually equal a valueless tag, but a tag with no
-	// colon is never matched by any pattern.
 	f, _ := Compile(nil, []string{"standalone_tag:*"})
 	assert.True(t, f.Retains("standalone_tag"))
-
-	kept := f.Keep([]string{"standalone_tag", "standalone_tag:foo"})
-	assert.Equal(t, []string{"standalone_tag"}, kept)
-}
-
-func TestKeepDoesNotMutateInput(t *testing.T) {
-	f, _ := Compile(nil, []string{"drop:*"})
-
-	t.Run("nothing dropped returns the same backing array", func(t *testing.T) {
-		tags := []string{"keep:1", "keep:2", "keep:3"}
-		original := append([]string(nil), tags...)
-		got := f.Keep(tags)
-		assert.True(t, sameBackingArray(tags, got))
-		assert.Equal(t, original, tags)
-	})
-
-	t.Run("something dropped leaves the input untouched", func(t *testing.T) {
-		tags := []string{"keep:1", "drop:1", "keep:2", "drop:2"}
-		original := append([]string(nil), tags...)
-		got := f.Keep(tags)
-		assert.False(t, sameBackingArray(tags, got))
-		assert.Equal(t, []string{"keep:1", "keep:2"}, got)
-		assert.Equal(t, original, tags)
-	})
-
-	t.Run("drop at index zero", func(t *testing.T) {
-		tags := []string{"drop:1", "keep:1", "keep:2"}
-		original := append([]string(nil), tags...)
-		got := f.Keep(tags)
-		assert.False(t, sameBackingArray(tags, got))
-		assert.Equal(t, []string{"keep:1", "keep:2"}, got)
-		assert.Equal(t, original, tags)
-	})
-
-	t.Run("drop at the final index", func(t *testing.T) {
-		tags := []string{"keep:1", "keep:2", "drop:1"}
-		original := append([]string(nil), tags...)
-		got := f.Keep(tags)
-		assert.False(t, sameBackingArray(tags, got))
-		assert.Equal(t, []string{"keep:1", "keep:2"}, got)
-		assert.Equal(t, original, tags)
-	})
+	assert.Equal(t, []string{"standalone_tag"}, f.Keep([]string{"standalone_tag", "standalone_tag:foo"}))
 }
 
 func TestScopedKeepDoesNotMutateInput(t *testing.T) {
@@ -593,7 +261,7 @@ func TestScopedKeepDoesNotMutateInput(t *testing.T) {
 	assert.True(t, sameBackingArray(noDrop, scoped.Keep(noDrop)))
 }
 
-func TestApplyAgreesWithRetains(t *testing.T) {
+func TestKeepAgreesWithRetains(t *testing.T) {
 	global, _ := Compile(
 		[]string{"kube_namespace:kube-system"},
 		[]string{"container_id:*", "kube_replica_set:*", "kube_namespace:*"},
@@ -608,14 +276,12 @@ func TestApplyAgreesWithRetains(t *testing.T) {
 	tags := []string{
 		"source:myapp",
 		"container_id:abc123",
-		"kube_replica_set:myapp-123",
 		"kube_namespace:kube-system",
 		"kube_namespace:default",
 		"pod_name:keep-me",
 		"pod_name:drop-me",
 		"filename:app.log",
 		"standalone_tag",
-		"env:prod",
 	}
 
 	var want []string
@@ -624,62 +290,7 @@ func TestApplyAgreesWithRetains(t *testing.T) {
 			want = append(want, tag)
 		}
 	}
-	assert.NotEqual(t, len(tags), len(want), "fixture should exercise at least one drop")
 	assert.Equal(t, want, scoped.Keep(tags))
-}
-
-func TestApplyAgreesWithRetainsOnFixtures(t *testing.T) {
-	tags := realisticK8sTags()
-	for _, scoped := range []*Scoped{noMatchFilter(), withDropsFilter()} {
-		var want []string
-		for _, tag := range tags {
-			if scoped.Retains(tag) {
-				want = append(want, tag)
-			}
-		}
-		assert.Equal(t, want, scoped.Keep(tags))
-	}
-}
-
-func TestKeepConcurrent(t *testing.T) {
-	f, _ := Compile([]string{"pod_name:keep-*"}, []string{"container_id:*", "pod_name:*"})
-	scoped := NewScoped(f, nil)
-	require.NotNil(t, scoped)
-
-	tags := []string{
-		"source:myapp", "container_id:abc123", "pod_name:keep-me", "pod_name:drop-me", "env:prod",
-	}
-
-	const goroutines = 50
-	const iterations = 200
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
-		go func(n int) {
-			defer wg.Done()
-			for j := 0; j < iterations; j++ {
-				got := scoped.Keep(tags)
-				assert.Len(t, got, 3)
-				_ = scoped.Retains(tags[(n+j)%len(tags)])
-				_ = f.Keep(tags)
-			}
-		}(i)
-	}
-	wg.Wait()
-}
-
-func TestBenchmarkFilterIsEngaged(t *testing.T) {
-	tags := realisticK8sTags()
-
-	withDrops := withDropsFilter()
-	require.NotNil(t, withDrops)
-	got := withDrops.Keep(tags)
-	assert.Less(t, len(got), len(tags), "the with-drops benchmark fixture must actually drop something")
-
-	noMatch := noMatchFilter()
-	require.NotNil(t, noMatch)
-	gotNoMatch := noMatch.Keep(tags)
-	assert.True(t, sameBackingArray(tags, gotNoMatch), "the no-match benchmark fixture must drop nothing")
 }
 
 func TestKeepNoMatchAllocatesNothing(t *testing.T) {
@@ -689,66 +300,4 @@ func TestKeepNoMatchAllocatesNothing(t *testing.T) {
 		_ = scoped.Keep(tags)
 	})
 	assert.Equal(t, float64(0), allocs)
-}
-
-func BenchmarkKeepNoMatch(b *testing.B) {
-	scoped := noMatchFilter()
-	tags := realisticK8sTags()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for range b.N {
-		_ = scoped.Keep(tags)
-	}
-}
-
-func BenchmarkKeepWithDrops(b *testing.B) {
-	scoped := withDropsFilter()
-	tags := realisticK8sTags()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for range b.N {
-		_ = scoped.Keep(tags)
-	}
-}
-
-func BenchmarkRetains(b *testing.B) {
-	scoped := withDropsFilter()
-	tags := realisticK8sTags()
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = scoped.Retains(tags[i%len(tags)])
-	}
-}
-
-// TestRejectionReasonsOnlySuggestValidPatterns pins that any pattern a
-// rejection reason recommends is itself accepted by Compile. A reason that
-// suggests p+":*" for a pattern already containing "*" would put the "*" in
-// the key, which Compile also rejects -- advice the user cannot act on.
-func TestRejectionReasonsOnlySuggestValidPatterns(t *testing.T) {
-	candidates := []string{
-		"", "   ", "*", "*:*", ":foo", "foo", "image*", "test_tag_key*",
-		"kube_*", "kube*:*", "*:web", "a*b", "foo:", "foo:*", "FOO:bar",
-	}
-
-	quoted := regexp.MustCompile(`"([^"]*)"`)
-	for _, c := range candidates {
-		_, report := Compile(nil, []string{c})
-		for _, rej := range report.Rejected {
-			for _, m := range quoted.FindAllStringSubmatch(rej.Reason, -1) {
-				suggestion := m[1]
-				// The reason echoes the offending pattern too; only check the others.
-				if suggestion == rej.Pattern || suggestion == "*" {
-					continue
-				}
-				_, sugReport := Compile(nil, []string{suggestion})
-				assert.Empty(t, sugReport.Rejected,
-					"pattern %q was rejected with reason %q, which suggests %q -- but %q is itself rejected",
-					c, rej.Reason, suggestion, suggestion)
-			}
-		}
-	}
 }

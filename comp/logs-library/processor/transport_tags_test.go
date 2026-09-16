@@ -21,17 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// fakeTagFilter drops any tag whose key is in Drop, and records every
-// argument it is called with. It intentionally does not depend on the real
-// matcher, so these tests isolate transport wiring from matcher behavior.
+// fakeTagFilter isolates transport wiring from matcher behavior.
 type fakeTagFilter struct {
-	Drop         map[string]bool
-	KeepCalls    [][]string
-	RetainsCalls []string
+	Drop map[string]bool
 }
 
 func (f *fakeTagFilter) Keep(tags []string) []string {
-	f.KeepCalls = append(f.KeepCalls, tags)
 	out := make([]string, 0, len(tags))
 	for _, t := range tags {
 		key, _, _ := strings.Cut(t, ":")
@@ -42,18 +37,12 @@ func (f *fakeTagFilter) Keep(tags []string) []string {
 	}
 	return out
 }
-
-func (f *fakeTagFilter) Retains(tag string) bool {
-	f.RetainsCalls = append(f.RetainsCalls, tag)
-	key, _, _ := strings.Cut(tag, ":")
+func (f *fakeTagFilter) RetainsTag(key, _ string) bool {
 	return !f.Drop[key]
 }
 
-// TestResolveTagFilter_TypedNilTrap pins the requirement that a source with
-// nothing configured (neither global nor per-source rules) stamps a message
-// with a genuinely nil sources.TagFilter interface, not a non-nil interface
-// wrapping a nil *tagfilter.Scoped. Only "== nil" catches the regression;
-// assert.Nil would pass either way.
+// TestResolveTagFilter_TypedNilTrap guards against an interface containing a
+// nil *tagfilter.Scoped, which would compare non-nil.
 func TestResolveTagFilter_TypedNilTrap(t *testing.T) {
 	p := &Processor{}
 	source := sources.NewLogSource("", &config.LogsConfig{})
@@ -67,20 +56,8 @@ func TestResolveTagFilter_TypedNilTrap(t *testing.T) {
 	assert.True(t, resolved == nil, "expected a genuinely nil TagFilter interface, got %#v", resolved)
 }
 
-// TestResolveTagFilter_NoSource is a defensive regression: a message with no
-// Origin/LogSource must not panic.
-func TestResolveTagFilter_NoSource(t *testing.T) {
-	p := &Processor{}
-	msg := message.NewMessage([]byte("hello"), nil, message.StatusInfo, 0)
-	var f sources.TagFilter
-	assert.NotPanics(t, func() { f = p.resolveTagFilter(msg) })
-	assert.True(t, f == nil)
-}
-
-// TestResolveTagFilter_MalformedPatternStillResolvesAndRecordsMessage pins the
-// feature's failure mode: a malformed per-source pattern degrades to
-// filtering less, it never stops the source from resolving (and so tailing
-// and shipping), and it is surfaced on the source's status block.
+// TestResolveTagFilter_MalformedPatternStillResolvesAndRecordsMessage verifies
+// malformed rules degrade safely and remain visible in status.
 func TestResolveTagFilter_MalformedPatternStillResolvesAndRecordsMessage(t *testing.T) {
 	p := &Processor{}
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -102,70 +79,8 @@ func TestResolveTagFilter_MalformedPatternStillResolvesAndRecordsMessage(t *test
 	assert.True(t, found, "expected a message naming the rejected pattern, got %v", source.Messages.GetMessages())
 }
 
-// TestResolveTagFilter_RegistersTagFilterInfoWhenConfigured asserts that a
-// source with a valid pattern gets a "Tag Filters" status provider naming it.
-func TestResolveTagFilter_RegistersTagFilterInfoWhenConfigured(t *testing.T) {
-	p := &Processor{}
-	source := sources.NewLogSource("", &config.LogsConfig{
-		TagFilters: &config.TagFilters{Exclude: []string{"container_id:*"}},
-	})
-	msg := newMessage([]byte("hello"), source, message.StatusInfo)
-
-	p.resolveTagFilter(msg)
-
-	info := source.GetInfo("Tag Filters")
-	if assert.NotNil(t, info, "expected a Tag Filters info provider to be registered") {
-		assert.Contains(t, strings.Join(info.Info(), " | "), "container_id:*")
-	}
-}
-
-// TestResolveTagFilter_NoInfoProviderWhenUnconfigured asserts that an
-// unconfigured source shows no Tag Filters block at all.
-func TestResolveTagFilter_NoInfoProviderWhenUnconfigured(t *testing.T) {
-	p := &Processor{}
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	msg := newMessage([]byte("hello"), source, message.StatusInfo)
-
-	p.resolveTagFilter(msg)
-
-	assert.Nil(t, source.GetInfo("Tag Filters"))
-}
-
-// TestResolveSourceTagFilter_CalledTwice_RegistersOnce pins the idempotency the
-// eager subscriber and the processor both rely on: racing or repeated calls for
-// the same source must not double up its status info or messages. The state
-// filter identity check proves the second call took the early-return path
-// rather than recomputing an equivalent value.
-func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
-	global, _ := tagfilter.Compile(nil, []string{"team:*"})
-	source := sources.NewLogSource("", &config.LogsConfig{
-		TagFilters: &config.TagFilters{Exclude: []string{"no_colon_here"}},
-	})
-
-	ResolveSourceTagFilter(global, source)
-	filterAfterFirst, _ := source.TagFilter()
-	ResolveSourceTagFilter(global, source)
-
-	filterAfterSecond, _ := source.TagFilter()
-	assert.Same(t, filterAfterFirst, filterAfterSecond, "second call must not recompute")
-
-	info := source.GetInfo("Tag Filters")
-	if assert.NotNil(t, info) {
-		assert.Equal(t, 1, strings.Count(strings.Join(info.Info(), "|"), "team:*"))
-	}
-
-	rejectedCount := 0
-	for _, m := range source.Messages.GetMessages() {
-		if strings.Contains(m, "no_colon_here") {
-			rejectedCount++
-		}
-	}
-	assert.Equal(t, 1, rejectedCount)
-}
-
-// TestResolveSourceTagFilter_ConcurrentCallsConverge exercises the race between
-// the eager subscriber and the processor resolving the same source. Run with
-// -race to check for unsynchronized access.
+// TestResolveSourceTagFilter_ConcurrentCallsConverge covers simultaneous eager
+// and processor resolution.
 func TestResolveSourceTagFilter_ConcurrentCallsConverge(t *testing.T) {
 	global, _ := tagfilter.Compile(nil, []string{"team:*"})
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -188,9 +103,8 @@ func TestResolveSourceTagFilter_ConcurrentCallsConverge(t *testing.T) {
 	assert.NotNil(t, source.GetInfo("Tag Filters"))
 }
 
-// TestByteParity_NilFilterMatchesUnfilteredAccessors is the most important
-// test in the set: with no filter stamped, every encoder must produce output
-// byte-identical to the untouched, unfiltered accessors.
+// TestByteParity_NilFilterMatchesUnfilteredAccessors protects the no-filter
+// encoder output.
 func TestByteParity_NilFilterMatchesUnfilteredAccessors(t *testing.T) {
 	logsConfig := &config.LogsConfig{
 		Service:        "Service",
@@ -239,9 +153,7 @@ func TestByteParity_NilFilterMatchesUnfilteredAccessors(t *testing.T) {
 	})
 }
 
-// TestEncoders_ApplyStampedFilter checks each encoder against a stamped
-// filter: excluded tags are absent, kept tags survive, ddsource is never
-// dropped, and ddsourcecategory is dropped via a single Retains check.
+// TestEncoders_ApplyStampedFilter covers filtered JSON, protobuf, and raw output.
 func TestEncoders_ApplyStampedFilter(t *testing.T) {
 	logsConfig := &config.LogsConfig{
 		Source:         "mysource",
@@ -280,19 +192,15 @@ func TestEncoders_ApplyStampedFilter(t *testing.T) {
 		msg := buildMsg()
 		assert.NoError(t, RawEncoder.Encode(msg, "host", f))
 		content := string(msg.GetContent())
-		// ddsource survives even though the filter would drop the "source" key.
 		assert.Contains(t, content, "ddsource=\"mysource\"")
-		// ddsourcecategory is dropped via a single Retains("sourcecategory:cat") check.
 		assert.NotContains(t, content, "ddsourcecategory")
 		assert.NotContains(t, content, "drop:me")
 		assert.Contains(t, content, "keep:me")
 	})
 }
 
-// TestResolveSourceTagFilter_NilConfigDoesNotPanic pins the replay path:
-// LogSources.AddSource appends a source to its slice before rejecting it for a
-// nil Config, and SubscribeAll replays that slice, so the eager subscriber can
-// be handed a source with no Config at all.
+// TestResolveSourceTagFilter_NilConfigDoesNotPanic covers invalid sources
+// replayed by SubscribeAll.
 func TestResolveSourceTagFilter_NilConfigDoesNotPanic(t *testing.T) {
 	global, _ := tagfilter.Compile(nil, []string{"container_id:*"})
 

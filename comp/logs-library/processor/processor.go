@@ -227,15 +227,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 	}
 }
 
-// ResolveSourceTagFilter compiles src's tag filters against the global set, records
-// any problems on src, registers its status block, and caches the result on src
-// and returns the resolved filter.
-//
-// Safe to call more than once for the same source, including concurrently: it
-// computes the candidate result purely and installs it with a compare-and-swap,
-// so only the caller that wins the race performs the one-time side effects
-// (RegisterInfo, Messages.AddMessage). Global filters are immutable and reused
-// across transport-only pipeline restarts, so a source only needs resolving once.
+// ResolveSourceTagFilter compiles and caches a source's effective filter. It is
+// idempotent and safe for concurrent calls.
 func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) sources.TagFilter {
 	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
 	// appended before rejecting for a nil Config.
@@ -252,9 +245,7 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) s
 		sourceFilters, report = src.Config.TagFilters.Compile()
 	}
 
-	// Typed-nil trap: NewScoped can return a nil *Scoped. Only assign resolved when
-	// it doesn't, so a fully-unfiltered source stamps a genuinely nil
-	// sources.TagFilter rather than a non-nil interface wrapping a nil pointer.
+	// Avoid storing a non-nil interface containing a nil *Scoped.
 	var resolved sources.TagFilter
 	if scoped := tagfilter.NewScoped(global, sourceFilters); scoped != nil {
 		resolved = scoped

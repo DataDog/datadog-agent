@@ -102,9 +102,8 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 	return rules, nil
 }
 
-// GlobalTagFilters returns the compiled global tag filters and the compile report. A
-// structurally invalid config (e.g. an unknown sub-key) is returned as an error; a merely
-// malformed pattern is not — it is reported instead, so a bad global block never breaks logs.
+// GlobalTagFilters compiles the global filters. Structural errors are returned;
+// malformed patterns are reported and otherwise ignored.
 func GlobalTagFilters(coreConfig pkgconfigmodel.Reader) (*tagfilter.Filters, tagfilter.Report, error) {
 	var tf TagFilters
 	if err := structure.UnmarshalKey(coreConfig, "logs_config.tag_filters", &tf, structure.EnableStringUnmarshal, structure.ErrorUnused); err != nil {

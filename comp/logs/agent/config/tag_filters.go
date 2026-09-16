@@ -5,9 +5,7 @@
 
 package config
 
-import (
-	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
-)
+import "github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 
 // TagFilters defines include/exclude tag patterns, either global (logs_config.tag_filters)
 // or per-source (the tag_filters field on LogsConfig).
@@ -21,8 +19,8 @@ func (f *TagFilters) IsEmpty() bool {
 	return f == nil || (len(f.Include) == 0 && len(f.Exclude) == 0)
 }
 
-// Compile builds the matcher for f. A nil f compiles like an empty filter, and, like
-// tagfilter.Compile, this never fails: a malformed pattern is reported, not returned as an error.
+// Compile builds the matcher, treating nil as empty and reporting malformed
+// patterns instead of returning an error.
 func (f *TagFilters) Compile() (*tagfilter.Filters, tagfilter.Report) {
 	if f == nil {
 		return tagfilter.Compile(nil, nil)

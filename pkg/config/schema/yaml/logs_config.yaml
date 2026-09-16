@@ -800,6 +800,7 @@ properties:
     node_type: setting
     type: object
     default: {}
+    visibility: public
     env_parser: json
     unevaluatedProperties: false
     properties:
@@ -812,13 +813,18 @@ properties:
         items:
           type: string
     description: |-
-      EXPERIMENTAL and undocumented; subject to change without notice.
+      Remove matching tags from logs before they are sent to the intake. Each pattern uses
+      "key:value" syntax. Keys are exact, "*" in a value matches zero or more characters,
+      and matching is case-insensitive. Exclude patterns remove tags, while include patterns
+      preserve tags that would otherwise match an exclude pattern. The source, service, host,
+      hostname, env, and version tags cannot be removed. Add "tag_filters" to an integration's
+      log configuration to apply filters only to that source.
+    example: |2-
 
-      Removes tags matching a "key:value" pattern from a log's outgoing tag set before it
-      reaches the intake, to reduce billed ingested bytes. The key is a literal exact match;
-      "*" in the value matches zero or more characters. Matching is case-insensitive.
-      Protected keys (source, service, host, hostname, env, version) can never be removed.
-      See the per-source "tag_filters" field to scope filtering to a single log source.
+        include:
+          - "kube_namespace:kube-system"
+        exclude:
+          - "container_id:*"
   tag_multi_line_logs:
     node_type: setting
     type: boolean
