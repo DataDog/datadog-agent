@@ -48,6 +48,7 @@ type NetworkDevicesMetadata struct {
 	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
 	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
+	FDBEntries       []FDBEntryMetadata       `json:"fdb_entries,omitempty"`
 	CollectTimestamp int64                    `json:"collect_timestamp"`
 }
 
@@ -226,4 +227,11 @@ type DiagnosisMetadata struct {
 	ResourceType string      `json:"resource_type"`
 	ResourceID   string      `json:"resource_id"`
 	Diagnoses    []Diagnosis `json:"diagnoses"`
+}
+
+// FDBEntryMetadata is one resolved FDB observation timestamped by the enclosing payload.
+type FDBEntryMetadata struct {
+	DeviceID       string `json:"device_id"`
+	MacAddress     string `json:"mac_address"`
+	InterfaceIndex int32  `json:"interface_index"`
 }

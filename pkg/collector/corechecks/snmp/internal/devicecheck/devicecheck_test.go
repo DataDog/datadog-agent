@@ -17,6 +17,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -1389,4 +1390,116 @@ profiles:
 	// Verify it's the correct type (implementation detail, but good to check)
 	_, ok := deviceCk.connMgr.(*snmpConnectionManager)
 	assert.True(t, ok, "connMgr should be a *snmpConnectionManager")
+}
+
+func TestDeviceCheckFDBCollection(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+collect_device_metadata: false
+collect_fdb: true
+`)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	require.NoError(t, err)
+
+	var payloads []metadata.NetworkDevicesMetadata
+	sender := mocksender.NewMockSender(t, "123")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+		var data metadata.NetworkDevicesMetadata
+		assert.NoError(t, json.Unmarshal(args.Get(0).([]byte), &data))
+		payloads = append(payloads, data)
+	})
+	sender.On("Commit").Return()
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	sess.
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetTime("1.3.6.1.2.1.1.3.0", 20).
+		SetInt("1.3.6.1.2.1.17.1.4.1.2.1", 10).
+		SetInt("1.3.6.1.2.1.17.7.1.2.2.1.2.1.10.20.30.40.50.60", 1)
+
+	t0 := time.Unix(1000, 0)
+	err = deviceCk.Run(t0)
+	assert.Nil(t, err)
+	sender.AssertMetricTaggedWith(t, "Gauge", fdbCollectionMetric, []string{"status:success", "source:q-bridge", "snmp_version:3"})
+	sender.AssertMetricTaggedWith(t, "Gauge", fdbRequestsMetric, []string{"request_type:getbulk"})
+
+	var fdbPayloads []metadata.NetworkDevicesMetadata
+	for _, p := range payloads {
+		if len(p.FDBEntries) > 0 {
+			fdbPayloads = append(fdbPayloads, p)
+		}
+	}
+	require.Len(t, fdbPayloads, 1)
+	require.Len(t, fdbPayloads[0].FDBEntries, 1)
+	assert.Equal(t, "0a:14:1e:28:32:3c", fdbPayloads[0].FDBEntries[0].MacAddress)
+	assert.Equal(t, int32(10), fdbPayloads[0].FDBEntries[0].InterfaceIndex)
+	assert.Equal(t, t0.Unix(), fdbPayloads[0].CollectTimestamp)
+
+	payloads = nil
+	err = deviceCk.Run(t0.Add(time.Minute))
+	assert.Nil(t, err)
+	for _, p := range payloads {
+		assert.Empty(t, p.FDBEntries)
+	}
+
+	payloads = nil
+	err = deviceCk.Run(t0.Add(6 * time.Minute))
+	assert.Nil(t, err)
+	found := false
+	for _, p := range payloads {
+		if len(p.FDBEntries) > 0 {
+			found = true
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestDeviceCheckEmptyFDBDoesNotFailCheck(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+collect_device_metadata: false
+collect_fdb: true
+`)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	require.NoError(t, err)
+
+	sender := mocksender.NewMockSender(t, "123")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").SetTime("1.3.6.1.2.1.1.3.0", 20)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }

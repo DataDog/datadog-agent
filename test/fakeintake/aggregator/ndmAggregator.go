@@ -24,8 +24,16 @@ type NDMPayload struct {
 	Integration      string              `json:"integration"`
 	Devices          []DeviceMetadata    `json:"devices,omitempty"`
 	Interfaces       []InterfaceMetadata `json:"interfaces,omitempty"`
+	FDBEntries       []FDBEntryMetadata  `json:"fdb_entries,omitempty"`
 	Diagnoses        []DiagnosisMetadata `json:"diagnoses,omitempty"`
 	CollectTimestamp int64               `json:"collect_timestamp"`
+}
+
+// FDBEntryMetadata contains one MAC-to-device-interface observation.
+type FDBEntryMetadata struct {
+	DeviceID       string `json:"device_id"`
+	MacAddress     string `json:"mac_address"`
+	InterfaceIndex int32  `json:"interface_index"`
 }
 
 // DeviceMetadata contains device metadata

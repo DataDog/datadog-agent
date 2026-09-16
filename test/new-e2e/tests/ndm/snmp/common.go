@@ -34,13 +34,39 @@ func checkLastNDMPayload(c *assert.CollectT, fakeIntake *components.FakeIntake, 
 	require.NoError(c, err)
 	require.NotEmpty(c, ndmPayloads)
 
-	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
+	var ndmPayload *aggregator.NDMPayload
+	for i := len(ndmPayloads) - 1; i >= 0; i-- {
+		if len(ndmPayloads[i].Devices) > 0 {
+			ndmPayload = ndmPayloads[i]
+			break
+		}
+	}
+	require.NotNil(c, ndmPayload, "no SNMP device metadata payload received yet")
 	assert.Equal(c, "snmp", ndmPayload.Integration)
 	assert.Equal(c, expectedNamespace, ndmPayload.Namespace)
 	assert.Greater(c, len(ndmPayload.Devices), 0)
 	assert.Greater(c, len(ndmPayload.Interfaces), 0)
 
 	return ndmPayload
+}
+
+func checkFDBMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
+	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
+	require.NoError(c, err)
+
+	expected := aggregator.FDBEntryMetadata{
+		DeviceID:       "default:127.0.0.1",
+		MacAddress:     "00:09:0f:09:0a:09",
+		InterfaceIndex: 2,
+	}
+	for _, payload := range ndmPayloads {
+		for _, entry := range payload.FDBEntries {
+			if entry == expected {
+				return
+			}
+		}
+	}
+	assert.Fail(c, "expected FDB metadata was not received yet", "expected: %+v", expected)
 }
 
 func checkCiscoNexusDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator.DeviceMetadata) {

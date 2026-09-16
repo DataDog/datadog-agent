@@ -40,6 +40,7 @@ dd_agent_go_test(
     srcs = [
         "interface_bandwidth_usage_rate_test.go",
         "report_device_metadata_test.go",
+        "report_fdb_test.go",
         "report_format_test.go",
         "report_interface_volume_metrics_test.go",
         "report_memory_usage_test.go",

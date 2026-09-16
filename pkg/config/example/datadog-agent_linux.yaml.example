@@ -3806,6 +3806,14 @@ api_key:
 #
 #     collect_vpn: true
 
+#     # @param collect_fdb - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_COLLECT_FDB - boolean - optional - default: false
+#     # Enable bounded collection of switch forwarding-database (FDB) entries
+#     # used for host-to-device correlation. Collection is opt-in and uses
+#     # standard Q-BRIDGE-MIB and BRIDGE-MIB data.
+#
+#     collect_fdb: true
+
 #     # @param ping - custom object - optional
 #     # Configure ICMP pings for all hosts in SNMP autodiscovery
 #     # Devices will be pinged with these settings each time the SNMP

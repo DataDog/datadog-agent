@@ -119,6 +119,19 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	}
 }
 
+// ReportFDB reports timestamped FDB observations.
+func (ms *MetricSender) ReportFDB(config *checkconfig.CheckConfig, collectTime time.Time, entries []devicemetadata.FDBEntryMetadata) {
+	payloads := devicemetadata.BatchFDBPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, entries)
+	for _, payload := range payloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("Error marshalling FDB metadata: %s", err)
+			return
+		}
+		ms.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
+	}
+}
+
 func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
 	if adminStatus == devicemetadata.AdminStatusUp {
 		switch {

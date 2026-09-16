@@ -131,6 +131,12 @@ instances:
     #
     collect_vpn: "%%extra_collect_vpn%%"
 
+    ## @param collect_fdb - boolean - optional - default: false
+    ## Enable bounded collection of switch forwarding-database (FDB) entries
+    ## for host-to-device correlation. Disabled by default.
+    #
+    collect_fdb: "%%extra_collect_fdb%%"
+
     ## @param device_tags_source - string - optional - default: resource
     ## Where the device tags on metrics come from.
     ## `resource`: only the resource tag is sent and the backend attaches the device tags from

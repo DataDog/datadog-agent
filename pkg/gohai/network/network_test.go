@@ -239,9 +239,9 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 				assert.Equal(t, "eth0", ifaces[0].Name)
 				assert.Empty(t, ifaces[0].IPv4)
 				assert.Empty(t, ifaces[0].IPv6)
-				// MacAddress should be an error since there are no addresses
-				_, err := ifaces[0].MacAddress.Value()
-				assert.Error(t, err)
+				mac, err := ifaces[0].MacAddress.Value()
+				require.NoError(t, err)
+				assert.Equal(t, "00:11:22:33:44:55", mac)
 			},
 		},
 		{
