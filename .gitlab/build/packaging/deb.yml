@@ -127,6 +127,7 @@ installer_deb-arm64:
   extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
+  needs: ["setup_agent_version"]
   stage: packaging
   script:
     - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)

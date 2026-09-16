@@ -218,6 +218,7 @@ installer_suse_rpm-arm64:
   extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
+  needs: ["setup_agent_version"]
   script:
     - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
     - bazel build --config=cache --//packages/agent:flavor=iot ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm
