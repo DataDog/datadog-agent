@@ -59,10 +59,16 @@ dd_agent_go_test(
         "//pkg/network/usm/testdata/site-packages/ddtrace:testdata",
     ],
     embed = [":cuda"],
-    gotags_sets = [[
-        "bpf",
-        "nvml",
-    ]],
+    gotags_sets = [
+        # keep: tests with the bpf tag are filtered out in unit testing,
+        # manually adding a set with just `nvml` lets us run tests that don't require ebpf.
+        # TODO (alopezz): incorporate this knowledge to gazelle extension to automate it
+        ["nvml"],
+        [
+            "bpf",
+            "nvml",
+        ],
+    ],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/gpu/cuda/testutil",
