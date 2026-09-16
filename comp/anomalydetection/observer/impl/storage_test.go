@@ -1115,7 +1115,7 @@ func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
 	assert.Equal(t, "web-1", metas[0].Host)
 }
 
-func TestSeriesKeyHashCanonicalizesMetricIdentity(t *testing.T) {
+func TestSeriesKeyHashIsUnordered(t *testing.T) {
 	sorted := testStorageKeyForIdentity("ns", "metric", "web-1", []string{"env:prod", "service:api"})
 	unsorted := testStorageKeyForIdentity("ns", "metric", "web-1", []string{"service:api", "env:prod"})
 
