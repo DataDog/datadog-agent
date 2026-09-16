@@ -734,6 +734,15 @@ Compression algorithm.
 | `BZIP2` | all |
 | `XZ` | all |
 
+### `Credential sources` {#credential-sources}
+Credential sources are the endpoints that can serve cloud credentials.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IMDS` | all |
+| `EKS_POD_IDENTITY` | all |
+| `ECS` | all |
+
 ### `DNS Responses` {#dns-responses}
 DNS Responses are the supported response codes
 

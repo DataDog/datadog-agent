@@ -608,6 +608,7 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 		Type:       mp.Type().String(),
 		MaxEntries: mp.MaxEntries(),
 		Entries:    -1, // Indicates no entries were calculated
+		NoPrealloc: (mp.Flags() & unix.BPF_F_NO_PREALLOC) != 0,
 	}
 
 	switch mp.Type() {

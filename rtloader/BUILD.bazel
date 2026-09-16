@@ -91,7 +91,7 @@ cc_static_library(
 
 cc_import(
     name = "_rtloader_shared",
-    shared_library = "//rtloader:datadog-agent-rtloader",
+    shared_library = ":rtloader_pkg",
 )
 
 # Headers + dynamic link against libdatadog-agent-rtloader.so.

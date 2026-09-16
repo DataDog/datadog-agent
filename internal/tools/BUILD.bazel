@@ -13,6 +13,11 @@ go_shim(
     tool = "@tools_gotest_gotestsum//:gotestsum",
 )
 
+go_shim(
+    name = "mockery",
+    tool = "@com_github_vektra_mockery_v3//:v3",
+)
+
 pkg_files(
     name = "gotestsum_exe",
     srcs = ["@tools_gotest_gotestsum//:gotestsum"],

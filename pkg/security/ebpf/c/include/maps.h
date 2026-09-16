@@ -62,6 +62,7 @@ BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 1) // max entries updated at runtime; preallocated (written only from userspace)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
+BPF_HASH_MAP(credential_endpoints, struct credential_endpoint_t, u32, 8) // populated from the configuration at startup
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
 BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
 
