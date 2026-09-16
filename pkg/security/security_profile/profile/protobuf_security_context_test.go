@@ -52,7 +52,7 @@ func networkToolsDebugKey() securitycontext.Key {
 func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
 	yes, no := true, false
 	in := newProfileWithSelector(t)
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Privileged: true,
 		Seccomp: &securitycontext.SeccompProfile{
 			Type:             securitycontext.SeccompLocalhost,
@@ -89,7 +89,7 @@ func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
 
 func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
 	in := newProfileWithSelector(t)
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
 
 	buf, err := in.EncodeSecDumpProtobuf()
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
 
 func TestSecurityProfileSecurityContextRoundtrip(t *testing.T) {
 	in := newProfileWithSelector(t)
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Seccomp:         &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
 		CapabilitiesAdd: []string{"NET_ADMIN"},
 	})
@@ -149,14 +149,14 @@ func TestSecurityContextNilRoundtrip(t *testing.T) {
 func TestSecDumpSecurityContextMultipleEntriesRoundtrip(t *testing.T) {
 	in := newProfileWithSelector(t)
 	yes := true
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		RunAsNonRoot:           &yes,
 		ReadOnlyRootFilesystem: &yes,
 		CapabilitiesDrop:       []string{"ALL"},
 		CapabilitiesAdd:        []string{"NET_BIND_SERVICE"},
 		Seccomp:                &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
 	})
-	in.UpsertSecurityContext(networkToolsDebugKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(networkToolsDebugKey(), &securitycontext.SecurityContext{
 		Privileged:      true,
 		CapabilitiesAdd: []string{"NET_ADMIN", "NET_RAW"},
 	})
@@ -181,14 +181,14 @@ func TestSecDumpSecurityContextMultipleEntriesRoundtrip(t *testing.T) {
 	assert.Equal(t, []string{"NET_ADMIN", "NET_RAW"}, debug.CapabilitiesAdd)
 }
 
-func TestSecDumpSecurityContextRepeatedUpsertLastWins(t *testing.T) {
+func TestSecDumpSecurityContextRepeatedSaveLastWins(t *testing.T) {
 	yes, no := true, false
 	in := newProfileWithSelector(t)
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Privileged:             true,
 		ReadOnlyRootFilesystem: &no,
 	})
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Privileged:             false,
 		ReadOnlyRootFilesystem: &yes,
 	})
@@ -206,16 +206,16 @@ func TestSecDumpSecurityContextRepeatedUpsertLastWins(t *testing.T) {
 	assert.True(t, *sc.ReadOnlyRootFilesystem)
 }
 
-func TestUpsertSecurityContextIgnoresZeroKeyAndNilValue(t *testing.T) {
+func TestSaveSecurityContextIgnoresZeroKeyAndNilValue(t *testing.T) {
 	in := newProfileWithSelector(t)
 
-	in.UpsertSecurityContext(securitycontext.Key{}, &securitycontext.SecurityContext{Privileged: true})
+	in.SaveSecurityContext(securitycontext.Key{}, &securitycontext.SecurityContext{Privileged: true})
 	assert.Nil(t, in.SecurityContexts)
 
-	in.UpsertSecurityContext(frontendWebKey(), nil)
+	in.SaveSecurityContext(frontendWebKey(), nil)
 	assert.Nil(t, in.SecurityContexts)
 
-	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
 	assert.Len(t, in.SecurityContexts, 1)
 }
 

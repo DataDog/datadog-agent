@@ -8,10 +8,12 @@ package securitycontext
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 
-// SeccompProfileType mirrors adproto.SeccompProfile_Type.
+// SeccompProfileType mirrors adproto.SeccompProfile_Type defined in
+// github.com/DataDog/agent-payload/v5/cws/dumpsv1.
 type SeccompProfileType uint8
 
-// Seccomp profile types. Zero value is Unknown.
+// Seccomp profile types — values must stay in sync with the SeccompProfile_Type
+// enum in agent-payload (cws/dumpsv1). Zero value is Unknown.
 const (
 	SeccompUnknown SeccompProfileType = iota
 	SeccompUnconfined
@@ -56,10 +58,3 @@ type Resolver interface {
 	Resolve(id containerutils.ContainerID) (Key, *SecurityContext)
 }
 
-// NoopResolver always returns (Key{}, nil).
-type NoopResolver struct{}
-
-// Resolve implements Resolver.
-func (NoopResolver) Resolve(_ containerutils.ContainerID) (Key, *SecurityContext) {
-	return Key{}, nil
-}

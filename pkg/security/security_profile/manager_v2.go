@@ -1032,7 +1032,7 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
 func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
 	if workload == nil {
 		return
@@ -1050,6 +1050,8 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	}
 
 	prof.Instances = append(prof.Instances, workload)
+
+	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1147,8 +1149,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
 	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
 
-	// Backfill only: never overwrite an existing entry for the same slot.
-	m.observeSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID, false)
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
 
 	// Apply eviction right away if configured
 	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
@@ -1200,7 +1201,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
-	m.observeSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID, true)
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -1212,10 +1213,9 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	return secprof, nil
 }
 
-// observeSecurityContext resolves the container's declared SecurityContext
-// and upserts it under its workload-template key. When allowOverwrite is
-// false, an existing entry for the same key is kept.
-func (m *ManagerV2) observeSecurityContext(secprof *profile.Profile, id containerutils.ContainerID, allowOverwrite bool) {
+// resolveAndSaveSecurityContext resolves the container's declared SecurityContext
+// and saves it under its workload-template key.
+func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id containerutils.ContainerID) {
 	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
 		return
 	}
@@ -1223,10 +1223,7 @@ func (m *ManagerV2) observeSecurityContext(secprof *profile.Profile, id containe
 	if sc == nil || key.IsZero() {
 		return
 	}
-	if !allowOverwrite && secprof.HasSecurityContextFor(key) {
-		return
-	}
-	secprof.UpsertSecurityContext(key, sc)
+	secprof.SaveSecurityContext(key, sc)
 }
 
 // resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile

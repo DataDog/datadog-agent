@@ -361,9 +361,3 @@ func TestWorkloadmetaResolver_KeyFallsBackWhenReplicaSetIsNotDeploymentManaged(t
 	}, key)
 }
 
-func TestNoopResolver(t *testing.T) {
-	var r Resolver = NoopResolver{}
-	key, sc := r.Resolve(containerutils.ContainerID("anything"))
-	assert.True(t, key.IsZero())
-	assert.Nil(t, sc)
-}
