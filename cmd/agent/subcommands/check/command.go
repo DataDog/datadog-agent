@@ -8,10 +8,15 @@ package check
 
 import (
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -25,7 +30,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfigName:           command.ConfigName,
 			LoggerName:           command.LoggerName,
 		}
-	}, wmcatalog.GetCatalog())
+	}, fx.Options(
+		wmcatalog.GetCatalog(),
+		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
+		}),
+	))
 
 	return []*cobra.Command{cmd}
 }

@@ -1,0 +1,50 @@
+{
+  "languages": {
+    "Go": {
+      "format_on_save": "on",
+      "formatter": "language_server"
+    }
+  },
+  "lsp": {
+    "gopls": {
+      "initialization_options": {
+        "buildFlags": [
+          "-tags=anomalydetectiontestbench,cel,clusterchecks,consul,containerd,cri,crio,docker,ec2,etcd,fargateprocess,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,ncm,netcgo,nvml,oracle,orchestrator,otlp,podman,python,retrynotrace,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zk,zlib,zstd",
+          "-buildvcs=false"
+        ],
+        "codelenses": {
+          "test": true
+        },
+        "directoryFilters": [
+          // The rtloader tests require native cgo headers. To work on them, remove this
+          // filter and set lsp.gopls.binary.env.CGO_CFLAGS to
+          // "-I<repo>/rtloader/include -I<repo>/rtloader/common -Wno-deprecated-declarations".
+          "-rtloader/test",
+          "-test/integration"
+        ],
+        "local": "github.com/DataDog/datadog-agent"
+      }
+    },
+    "ruff": {
+      "initialization_options": {
+        "settings": {
+          "configurationPreference": "filesystemFirst"
+        }
+      }
+    }
+  },
+  "context_servers": {
+    "dd-api": {
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all"
+    },
+    "dd-ci": {
+      "url": "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp"
+    },
+    "dd-google-workspace": {
+      "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
+    },
+    "dd-atlassian": {
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    }
+  }
+}

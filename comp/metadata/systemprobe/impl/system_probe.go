@@ -12,15 +12,15 @@ import (
 	"net/http"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"

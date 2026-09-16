@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = [
+        "interface.go",
+        "mock.go",
+        "serverless_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/pipeline",
+        "//comp/logs/agent/def",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/sources",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

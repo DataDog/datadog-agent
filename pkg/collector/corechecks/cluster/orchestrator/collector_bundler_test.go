@@ -36,14 +36,15 @@ func createMockAPIClient() *apiserver.APIClient {
 	dynamicClient := fake.NewSimpleDynamicClientWithCustomListKinds(scheme,
 		map[schema.GroupVersionResource]string{
 			// Datadog resources
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}:        "DatadogMetricList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmonitors"}:       "DatadogMonitorList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogslos"}:           "DatadogSloList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogdashboards"}:     "DatadogDashboardList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogagentprofiles"}:  "DatadogAgentProfileList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogpodautoscalers"}: "DatadogPodAutoscalerList",
-			{Group: "datadoghq.com", Version: "v1alpha2", Resource: "datadogpodautoscalers"}: "DatadogPodAutoscalerList",
-			{Group: "datadoghq.com", Version: "v2alpha1", Resource: "datadogagents"}:         "DatadogAgentList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}:          "DatadogMetricList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmonitors"}:         "DatadogMonitorList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogslos"}:             "DatadogSloList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogdashboards"}:       "DatadogDashboardList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogagentprofiles"}:    "DatadogAgentProfileList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogpodautoscalers"}:   "DatadogPodAutoscalerList",
+			{Group: "datadoghq.com", Version: "v1alpha2", Resource: "datadogpodautoscalers"}:   "DatadogPodAutoscalerList",
+			{Group: "datadoghq.com", Version: "v2alpha1", Resource: "datadogagents"}:           "DatadogAgentList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadoginstrumentations"}: "DatadogInstrumentationList",
 			// Third-party resources
 			{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}: "RolloutList",
 		})
@@ -56,22 +57,23 @@ func createMockAPIClient() *apiserver.APIClient {
 
 func TestImportBuiltinCollectors(t *testing.T) {
 	cfg := mockconfig.New(t)
-	cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", true)
-	cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	cfg.SetInTest("orchestrator_explorer.terminated_pods.enabled", true)
+	cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", true)
 
 	// Set up discovery cache with supported resources
 	collectorDiscovery := &discovery.DiscoveryCollector{}
 	collectorDiscovery.SetCache(discovery.DiscoveryCache{
 		CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-			{GroupVersion: "v1", Kind: "pods"}:                                      {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:           {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:     {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:  {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
-			{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
-			{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
+			{GroupVersion: "v1", Kind: "pods"}:                                        {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:          {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:         {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:             {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:       {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:    {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}:   {},
+			{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}:   {},
+			{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:           {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadoginstrumentations"}: {},
 		},
 		Groups: []*v1.APIGroup{
 			{
@@ -121,6 +123,7 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		"datadoghq.com/v1alpha1/datadogagentprofiles",
 		"datadoghq.com/v1alpha2/datadogpodautoscalers", // preferred version selected
 		"datadoghq.com/v2alpha1/datadogagents",
+		"datadoghq.com/v1alpha1/datadoginstrumentations",
 	}
 	require.ElementsMatch(t, expected, names)
 }
@@ -286,7 +289,7 @@ func TestGetDatadogCustomResourceCollectors(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := mockconfig.New(t)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", testCase.enabled)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.enabled)
 
 			collectorDiscovery.SetCache(testCase.supportedResources)
 
@@ -370,8 +373,8 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", testCase.terminatedPodsEnabled)
-			cfg.SetWithoutSource("orchestrator_explorer.terminated_pods_improved.enabled", testCase.terminatedPodsImprovedEnabled)
+			cfg.SetInTest("orchestrator_explorer.terminated_pods.enabled", testCase.terminatedPodsEnabled)
+			cfg.SetInTest("orchestrator_explorer.terminated_pods_improved.enabled", testCase.terminatedPodsImprovedEnabled)
 
 			cb := CollectorBundle{
 				collectors:         []collectors.K8sCollector{},
@@ -407,6 +410,7 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"datadoghq.com/v1alpha1/datadogagentprofiles",
 		"datadoghq.com/v1alpha1/datadogmonitors",
 		"datadoghq.com/v1alpha1/datadogmetrics",
+		"datadoghq.com/v1alpha1/datadoginstrumentations",
 
 		// Argo
 		"argoproj.io/v1alpha1/rollouts",
@@ -429,6 +433,38 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 
 		// EKS Auto Mode NodeClass resource
 		"eks.amazonaws.com/v1/nodeclasses",
+
+		// Dynamo
+		"nvidia.com/v1alpha1/dynamocheckpoints",
+		"nvidia.com/v1beta1/dynamocomponentdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentrequests",
+		"nvidia.com/v1beta1/dynamographdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentscalingadapters",
+		"nvidia.com/v1alpha1/dynamomodels",
+		"nvidia.com/v1alpha1/dynamoworkermetadatas",
+
+		// KubeRay
+		"ray.io/v1/rayclusters",
+		"ray.io/v1/raycronjobs",
+		"ray.io/v1/rayjobs",
+		"ray.io/v1/rayservices",
+
+		// KubeAI
+		"kubeai.org/v1/models",
+
+		// KServe
+		"serving.kserve.io/v1alpha1/clusterstoragecontainers",
+		"serving.kserve.io/v1alpha2/llminferenceserviceconfigs",
+		"serving.kserve.io/v1alpha2/llminferenceservices",
+		"serving.kserve.io/v1alpha1/localmodelcaches",
+		"serving.kserve.io/v1alpha1/localmodelnamespacecaches",
+		"serving.kserve.io/v1alpha1/localmodelnodegroups",
+		"serving.kserve.io/v1alpha1/localmodelnodes",
+		"serving.kserve.io/v1alpha1/clusterservingruntimes",
+		"serving.kserve.io/v1alpha1/inferencegraphs",
+		"serving.kserve.io/v1beta1/inferenceservices",
+		"serving.kserve.io/v1alpha1/servingruntimes",
+		"serving.kserve.io/v1alpha1/trainedmodels",
 
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",
@@ -477,6 +513,35 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	}
 
 	require.ElementsMatch(t, expectedConfigs, foundConfigs)
+}
+
+func TestNewBuiltinKServeCRDConfigs(t *testing.T) {
+	cfg := mockconfig.New(t)
+	cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", true)
+
+	var kserveConfigs []builtinCRDConfig
+	for _, config := range newBuiltinCRDConfigs() {
+		if config.group == KServeAPIGroup {
+			kserveConfigs = append(kserveConfigs, config)
+		}
+	}
+
+	expectedConfigs := []builtinCRDConfig{
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterstoragecontainers", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceserviceconfigs", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceservices", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelcaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnamespacecaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodegroups", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterservingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferencegraphs", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", true, "v1beta1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", true, "v1alpha1"),
+	}
+
+	require.ElementsMatch(t, expectedConfigs, kserveConfigs)
 }
 
 func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
@@ -543,10 +608,10 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := mockconfig.New(t)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
-			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
 
 			configs := newBuiltinCRDConfigs()
 

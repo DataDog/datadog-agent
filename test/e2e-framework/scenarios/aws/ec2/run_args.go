@@ -168,7 +168,9 @@ func WithUpdater() Option {
 	}
 }
 
-// WithDocker installs docker on the VM
+// WithDocker provisions a docker.Manager on the VM. Docker itself is
+// pre-baked into the AWS e2e AMI; the Manager configures the daemon and
+// asserts docker-compose is present at the expected version.
 func WithDocker() Option {
 	return func(params *Params) error {
 		params.installDocker = true

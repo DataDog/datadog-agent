@@ -96,6 +96,7 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewAgentSecureClient(conn)
+	remoteAgentClient := pb.NewRemoteAgentClient(conn)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
@@ -111,7 +112,7 @@ func main() {
 		Services:       []string{},        // Test client doesn't provide any services
 	}
 
-	registerResp, err := client.RegisterRemoteAgent(ctx, registerReq)
+	registerResp, err := remoteAgentClient.RegisterRemoteAgent(ctx, registerReq)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to register with RAR: %v\n", err)
 		os.Exit(1)
@@ -199,9 +200,20 @@ func main() {
 
 			setting := e.Update.Setting
 			fmt.Printf("  Key: %s\n", setting.Key)
-			fmt.Printf("  Value: %v\n", formatValue(setting.Value))
-			fmt.Printf("  Source: %s\n", setting.Source)
+			if setting.UnsetSource != "" {
+				fmt.Printf("  Cleared source: %s\n", setting.UnsetSource)
+			}
+			if setting.Source == "" {
+				fmt.Printf("  Now resolves to: nothing\n")
+			} else {
+				fmt.Printf("  Value: %v\n", formatValue(setting.Value))
+				fmt.Printf("  Source: %s\n", setting.Source)
+			}
 			fmt.Println()
+
+		default:
+			// Resynchronizing beats ignoring it: skipping an event diverges from the sender.
+			fmt.Printf("Unknown event type %T, a newer core agent may be sending events this client cannot read\n", event.Event)
 		}
 	}
 

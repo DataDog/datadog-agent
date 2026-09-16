@@ -1,9 +1,18 @@
+"""Hermetic MinGW-w64 cc_toolchain_config.
+
+All tool paths are relative to the package containing the cc_toolchain target
+(see @winlibs_mingw64//:winlibs.BUILD.bazel), so this rule has no host-path
+attrs and works in sandboxed / remote-exec contexts.
+
+WinLibs gcc.exe locates its sibling tools (as, ld, cc1, ...) via relative path
+lookup against argv[0], which is why no PATH env_entry is needed once the full
+WinLibs tree is staged as the cc_toolchain's `all_files`.
+"""
+
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
     "action_config",
     "artifact_name_pattern",
-    "env_entry",
-    "env_set",
     "feature",
     "flag_group",
     "flag_set",
@@ -13,40 +22,27 @@ load(
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:defs.bzl", "CcToolchainConfigInfo", "cc_common")
 
+_TOOL_NAMES = [
+    "ar",
+    "cpp",
+    "gcc",
+    "gcov",
+    "ld",
+    "nm",
+    "objdump",
+    "strip",
+]
+
 def _impl(ctx):
-    tools = [
-        "ar",
-        "cpp",
-        "gcc",
-        "gcov",
-        "ld",
-        "nm",
-        "objdump",
-        "strip",
+    gpp_tool = tool(path = "bin/g++.exe")
+    gcc_tool = tool(path = "bin/gcc.exe")
+    as_tool = tool(path = "bin/as.exe")
+    ar_tool = tool(path = "bin/ar.exe")
+
+    tool_paths = [
+        tool_path(name = name, path = "bin/{}.exe".format(name))
+        for name in _TOOL_NAMES
     ]
-
-    gpp_tool = tool(
-        path = ctx.attr.MINGW_PATH + "/bin/g++",
-    )
-
-    gcc_tool = tool(
-        path = ctx.attr.MINGW_PATH + "/bin/gcc",
-    )
-
-    # For assembly files, GCC can act as the assembler (preprocesses and assembles .S files)
-    as_tool = tool(
-        path = ctx.attr.MINGW_PATH + "/bin/as",
-    )
-
-    # For creating static libraries (.a files)
-    ar_tool = tool(
-        path = ctx.attr.MINGW_PATH + "/bin/ar",
-    )
-
-    tool_paths = []
-
-    for mingw_tool in tools:
-        tool_paths.append(tool_path(name = mingw_tool, path = "{}/bin/{}".format(ctx.attr.MINGW_PATH, mingw_tool)))
 
     default_feature = feature(
         name = "default_env_feature",
@@ -68,25 +64,8 @@ def _impl(ctx):
                 ],
             ),
         ],
-        env_sets = [
-            env_set(
-                actions = [
-                    ACTION_NAMES.c_compile,
-                    ACTION_NAMES.cpp_compile,
-                    ACTION_NAMES.assemble,
-                    ACTION_NAMES.preprocess_assemble,
-                    ACTION_NAMES.cpp_link_executable,
-                    ACTION_NAMES.cpp_link_dynamic_library,
-                    ACTION_NAMES.cpp_link_static_library,
-                ],
-                env_entries = [
-                    env_entry("PATH", "{}/usr/bin;{}/bin".format(ctx.attr.MSYS2_PATH, ctx.attr.MINGW_PATH)),
-                ],
-            ),
-        ],
     )
 
-    # Feature for archiver flags (ar)
     archiver_flags_feature = feature(
         name = "archiver_flags",
         enabled = True,
@@ -96,9 +75,8 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = ["rcsD", "%{output_execpath}"],
-                        # This is needed to make rules_foreign_cc work
-                        # as it cannot find output_execpath. This way we
-                        # don't expand this flag group if variable is not available.
+                        # Needed for rules_foreign_cc which doesn't expose
+                        # output_execpath; skip the group when absent.
                         expand_if_available = "output_execpath",
                     ),
                     flag_group(
@@ -125,37 +103,32 @@ def _impl(ctx):
             target_libc = "nothing",
             cc_target_os = "windows",
             compiler = "mingw-gcc",
-            abi_version = "gcc-" + ctx.attr.GCC_VERSION,
+            abi_version = "gcc-" + ctx.attr.gcc_version,
             abi_libc_version = "nothing",
             action_configs = [
-                # C compilation - use gcc
                 action_config(
                     action_name = ACTION_NAMES.c_compile,
                     enabled = True,
                     tools = [gcc_tool],
                 ),
-                # C++ compilation - use g++
                 action_config(
                     action_name = ACTION_NAMES.cpp_compile,
                     enabled = True,
                     tools = [gpp_tool],
                 ),
-                # Assembly actions
-                # preprocess_assemble: for .S files (assembly with C preprocessor)
+                # .S files (assembly with C preprocessor) go through gcc.
                 action_config(
                     action_name = ACTION_NAMES.preprocess_assemble,
                     enabled = True,
-                    tools = [gcc_tool],  # GCC can preprocess and assemble .S files
+                    tools = [gcc_tool],
                 ),
-                # assemble: for .s files (pure assembly, no preprocessing)
+                # .s files (pure assembly) go straight to as.
                 action_config(
                     action_name = ACTION_NAMES.assemble,
                     enabled = True,
-                    tools = [as_tool],  # Use 'as' directly for pure assembly
+                    tools = [as_tool],
                 ),
-                # Linking actions (shared between C and C++)
-                # For C projects, gcc is typically used; for C++ projects, g++ is used
-                # We'll use g++ for linking to handle both cases properly
+                # g++ for linking covers both C and C++ link cases.
                 action_config(
                     action_name = ACTION_NAMES.cpp_link_executable,
                     enabled = True,
@@ -166,7 +139,6 @@ def _impl(ctx):
                     enabled = True,
                     tools = [gpp_tool],
                 ),
-                # Static library archiving - use ar (archiver)
                 action_config(
                     action_name = ACTION_NAMES.cpp_link_static_library,
                     enabled = True,
@@ -174,12 +146,17 @@ def _impl(ctx):
                 ),
             ],
             tool_paths = tool_paths,
+            # Paths are relative to the cc_toolchain's package (the root of
+            # @winlibs_mingw64//:), so rules_cc resolves them via crosstool_top
+            # and never constructs a Label("@winlibs_mingw64//...") from inside
+            # @@rules_cc+'s repo_mapping. Using %package(@winlibs_mingw64//)%
+            # here trips rules_cc 0.2.18 on Bazel 9 with an invalid-Label error.
             cxx_builtin_include_directories = [
-                ctx.attr.MINGW_PATH + "/include",
-                ctx.attr.MINGW_PATH + "/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.GCC_VERSION + "/include-fixed",
-                ctx.attr.MINGW_PATH + "/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.GCC_VERSION + "/include",
-                ctx.attr.MINGW_PATH + "/lib/gcc/x86_64-w64-mingw32/" + ctx.attr.GCC_VERSION + "/install-tools/include",
-                ctx.attr.MINGW_PATH + "/x86_64-w64-mingw32/include",
+                "include",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include-fixed",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/include",
+                "lib/gcc/x86_64-w64-mingw32/" + ctx.attr.gcc_version + "/install-tools/include",
+                "x86_64-w64-mingw32/include",
             ],
             artifact_name_patterns = [
                 artifact_name_pattern(
@@ -204,9 +181,7 @@ def _impl(ctx):
 mingw_cc_toolchain_config = rule(
     implementation = _impl,
     attrs = {
-        "MSYS2_PATH": attr.string(mandatory = True),
-        "MINGW_PATH": attr.string(mandatory = True),
-        "GCC_VERSION": attr.string(mandatory = True),
+        "gcc_version": attr.string(mandatory = True),
     },
     provides = [CcToolchainConfigInfo],
 )

@@ -3,6 +3,7 @@
 
 #include "constants/enums.h"
 #include "helpers/network/context.h"
+#include "helpers/network/credentials.h"
 #include "helpers/process.h"
 #include "maps.h"
 
@@ -25,16 +26,20 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    // reset and fill span context unconditionally
+    reset_span_context(&evt->span, &evt->go_labels);
+
     u64 sched_cls_has_current_pid_tgid_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
     if (sched_cls_has_current_pid_tgid_helper) {
-        // reset and fill span context
-        reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     // network context
     fill_network_context(&evt->network, skb, pkt);
+
+    // which credential endpoint served this event ?
+    evt->credential_source = get_credential_source(pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     fill_cgroup_context(entry, &evt->cgroup);

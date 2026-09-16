@@ -69,7 +69,7 @@ func (s *GetEventsTestSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 	err = s.ti.InstallSource(s.channelPath, s.eventSource)
 	require.NoError(s.T(), err)
-	s.sender = mocksender.NewMockSender("")
+	s.sender = mocksender.NewMockSender(s.T(), "")
 }
 
 func (s *GetEventsTestSuite) TearDownSuite() {
@@ -89,7 +89,7 @@ func (s *GetEventsTestSuite) testsetup() {
 	// they will load bookmarks from previous runs.
 	testDir := s.T().TempDir()
 	mockConfig := agentConfigmock.New(s.T())
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 }
 
 func (s *GetEventsTestSuite) SetupTest() {
@@ -1106,7 +1106,7 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(b, "")
 
 	benchmarkStartTime := time.Now()
 	benchmarkTotalEvents := uint(0)
@@ -1145,7 +1145,7 @@ payload_size: %d
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
 						testDir := b.TempDir()
-						mockConfig.SetWithoutSource("run_path", testDir)
+						mockConfig.SetInTest("run_path", testDir)
 						// create check
 						check, err := newCheck(ti.API(), sender, instanceConfig)
 						require.NoError(b, err)

@@ -34,6 +34,7 @@ type testOpts struct {
 	activityDumpLocalStorageFormats            []string
 	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
+	disableSecurityProfileV2                   bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
@@ -74,6 +75,7 @@ type testOpts struct {
 	dnsPort                                    uint16
 	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
+	captureAllSyscallErrorsEnabled             bool
 }
 
 type dynamicTestOpts struct {
@@ -86,13 +88,23 @@ type tmOpts struct {
 	staticOpts  testOpts
 	dynamicOpts dynamicTestOpts
 	forceReload bool
+
+	// staticOptsSet distinguishes "no static opts" from "the default config,
+	// explicitly": an empty testOpts is a legitimate config, so the zero value
+	// of staticOpts cannot answer that on its own.
+	staticOptsSet bool
 }
 
 type optFunc = func(opts *tmOpts)
 
+// withStaticOpts supplies the config for this newTestModule call, for a config
+// only knowable at run time; it pairs with declareInlineConfig. Prefer
+// declaring it next to the test function (testdecl.go), which lets the test
+// share a module with the others using the same config.
 func withStaticOpts(opts testOpts) optFunc {
 	return func(tmo *tmOpts) {
 		tmo.staticOpts = opts
+		tmo.staticOptsSet = true
 	}
 }
 

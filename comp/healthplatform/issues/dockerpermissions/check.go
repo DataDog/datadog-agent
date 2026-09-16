@@ -8,14 +8,14 @@
 package dockerpermissions
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -27,8 +27,9 @@ const (
 	socketTimeout = 500 * time.Millisecond
 )
 
-// Check checks if Docker socket exists but is not reachable (permission issue)
-func Check() (*healthplatform.IssueReport, error) {
+// Check reports an issue for every Docker socket/named pipe that exists but
+// is unreachable because of a permission error.
+func Check() ([]runnerdef.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		return nil, nil
@@ -36,20 +37,24 @@ func Check() (*healthplatform.IssueReport, error) {
 
 	var unreachableSockets []string
 	for _, socketPath := range getDockerSocketPaths() {
-		exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-		if exists && !reachable {
+		exists, err := socket.IsAvailable(socketPath, socketTimeout)
+		if exists && errors.Is(err, os.ErrPermission) {
 			unreachableSockets = append(unreachableSockets, socketPath)
 		}
 	}
 
 	if len(unreachableSockets) > 0 {
-		return &healthplatform.IssueReport{
-			IssueId: IssueID,
-			Context: map[string]string{
-				"dockerDirs": strings.Join(unreachableSockets, ","),
-				"os":         runtime.GOOS,
+		return []runnerdef.IssueReport{
+			{
+				IssueID:   IssueID,
+				IssueName: IssueName,
+				Source:    "docker",
+				Context: map[string]string{
+					"socketPaths": strings.Join(unreachableSockets, ","),
+					"os":          runtime.GOOS,
+				},
+				Tags: []string{"docker-socket", "permissions"},
 			},
-			Tags: []string{"docker-socket", "permissions"},
 		}, nil
 	}
 

@@ -6,6 +6,7 @@ claim_pattern:
   project_path: "DataDog/datadog-agent"
   project_id: "4670"
   ref: ".+"
-  
+
 permissions:
   contents: write
+  workflows: write

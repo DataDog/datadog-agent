@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    [DBM] Bump ``go-sqllexer`` to v0.2.4 to fix a SQL normalization bug:
+    - Stop treating backslash as a string escape character in SQL Server and
+      Oracle string literals, which previously caused the obfuscator to
+      swallow SQL past a literal like ``ESCAPE '\'`` and truncate the
+      obfuscated query.

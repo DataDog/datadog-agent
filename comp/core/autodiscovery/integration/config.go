@@ -10,12 +10,13 @@ package integration
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/twmb/murmur3"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,7 +75,7 @@ type Config struct {
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
 	// CELSelector is the list of CEL-based selectors for this integration. (optional)
-	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
+	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: true)
 
 	// Internal field to Autodiscovery, not serialized.
 	// Maps resource type to the compiled CEL matching program for that type.
@@ -129,7 +130,14 @@ type Config struct {
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
-type DiscoveryConfig struct{}
+type DiscoveryConfig struct {
+	// MetricsPrefix is the integration's own metric namespace/prefix, as
+	// declared by its auto_conf.yaml's `discovery.metrics_prefix` field.
+	// Empty when the integration doesn't declare one, in which case
+	// consumers may fall back to the check name as the expected namespace
+	// root instead.
+	MetricsPrefix string `yaml:"metrics_prefix,omitempty"`
+}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -399,6 +407,8 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	for k := range tagSet {
 		rawConfig["tags"] = append(rawConfig["tags"].([]string), k)
 	}
+	// sort the list of tags so the digest stays stable for identical configs
+	slices.Sort(rawConfig["tags"].([]string))
 	// modify original config
 	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
@@ -472,12 +482,13 @@ func (c *Config) IntDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
-		_, _ = h.Write([]byte("discovery"))
+		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
 
 	return h.Sum64()
@@ -498,12 +509,13 @@ func (c *Config) FastDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
-		_, _ = h.Write([]byte("discovery"))
+		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
 
 	return h.Sum64()

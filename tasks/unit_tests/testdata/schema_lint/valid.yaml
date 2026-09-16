@@ -29,6 +29,14 @@ properties:
       darwin: 1
       windows: 2
       linux: 3
+      aix: 4
+  renamed_setting:
+    node_type: setting
+    type: string
+    default: hello
+    renamed_from:
+      oldest_setting_name: "7.60.0"
+      old_setting_name: "7.71.1"
   public_section:
     node_type: section
     description: A public section.

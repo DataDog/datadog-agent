@@ -44,8 +44,6 @@ const (
 	// Winlogon
 	evtWinlogonShellCmdStart uint16 = 9
 	evtWinlogonShellCmdEnd   uint16 = 10
-	evtWinlogonInit          uint16 = 101
-	evtWinlogonInitDone      uint16 = 102
 	evtLoginUIStart          uint16 = 103
 	evtLoginUIDone           uint16 = 104
 	evtSessionLogon          uint16 = 7001
@@ -62,6 +60,12 @@ const (
 	evtUserGPStart    uint16 = 4001
 	evtUserGPEnd      uint16 = 8001
 
+	// Group Policy client-side extensions
+	evtCSEStart       uint16 = 4016
+	evtCSEStopSuccess uint16 = 5016
+	evtCSEStopWarning uint16 = 6016
+	evtCSEStopError   uint16 = 7016
+
 	// Shell-Core
 	evtExplorerInitStart  uint16 = 9601
 	evtExplorerInitEnd    uint16 = 9602
@@ -74,10 +78,6 @@ const (
 // BootTimeline holds all milestone timestamps collected from ETL events.
 type BootTimeline struct {
 	BootStart                    time.Time // Kernel-General Event 12
-	SmssStart                    time.Time // Kernel-Process Event 1 (first smss.exe)
-	WinlogonStart                time.Time // Kernel-Process Event 1 (first winlogon.exe, Session 1)
-	UserSmssStart                time.Time // Kernel-Process Event 1 (smss.exe, Session 2+)
-	UserWinlogonStart            time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
 	SessionLogon                 time.Time // Winlogon Event 7001 (Session Logon)
 	ProfileLoadStart             time.Time // User Profile Service Event 1
 	ProfileLoadEnd               time.Time // User Profile Service Event 2
@@ -89,7 +89,6 @@ type BootTimeline struct {
 	UserGPEnd                    time.Time // GroupPolicy Event 8001
 	ExecuteShellCommandListStart time.Time // Winlogon Event 9
 	ExecuteShellCommandListEnd   time.Time // Winlogon Event 10
-	UserinitStart                time.Time // Kernel-Process Event 1 (userinit.exe)
 	ExplorerStart                time.Time // Kernel-Process Event 1 (explorer.exe)
 	ExplorerInitStart            time.Time // Shell-Core Event 9601 (Explorer_InitializingExplorerStart)
 	ExplorerInitEnd              time.Time // Shell-Core Event 9602 (Explorer_InitializingExplorerStop)
@@ -97,14 +96,10 @@ type BootTimeline struct {
 	DesktopCreateEnd             time.Time // Shell-Core Event 9612 (Explorer_CreateDesktopStop)
 	DesktopVisibleStart          time.Time // Shell-Core Event 9648 (waitfordesktopvisuals step)
 	DesktopVisibleEnd            time.Time // Shell-Core Event 9649 (waitfordesktopvisuals step)
-	DesktopReadyStart            time.Time // Shell-Core Event 9648 (finalize step)
-	DesktopReadyEnd              time.Time // Shell-Core Event 9649 (finalize step)
 
 	// Winlogon sub-events for detailed component timing
-	WinlogonInit     time.Time // Winlogon Event 101
-	WinlogonInitDone time.Time // Winlogon Event 102
-	LoginUIStart     time.Time // Winlogon Event 103
-	LoginUIDone      time.Time // Winlogon Event 104
+	LoginUIStart time.Time // Winlogon Event 103
+	LoginUIDone  time.Time // Winlogon Event 104
 
 	// Shell-Core sub-events for detailed component timing
 	DesktopStartupAppsStart time.Time // Shell-Core Event 9648 (desktopstartupapps step)
@@ -138,14 +133,15 @@ type providerConfig struct {
 
 // collector accumulates events during ETL processing.
 type collector struct {
-	timeline  BootTimeline
-	providers map[windows.GUID]providerConfig
+	timeline    BootTimeline
+	groupPolicy *gpAccumulator
+	providers   map[windows.GUID]providerConfig
 }
 
 // buildProviders wires each provider's accepted event IDs together with
 // its parser, creating a single source of truth for both filtering and
 // dispatching.
-func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
+func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]providerConfig {
 	return map[windows.GUID]providerConfig{
 		guidKernelGeneral: {
 			acceptedIDs: map[uint16]struct{}{evtBootStart: {}},
@@ -158,7 +154,6 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 		guidWinlogon: {
 			acceptedIDs: map[uint16]struct{}{
 				evtWinlogonShellCmdStart: {}, evtWinlogonShellCmdEnd: {},
-				evtWinlogonInit: {}, evtWinlogonInitDone: {},
 				evtLoginUIStart: {}, evtLoginUIDone: {},
 				evtSessionLogon: {},
 			},
@@ -172,11 +167,14 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 			parser: &userProfileParser{timeline: timeline},
 		},
 		guidGroupPolicy: {
+			// Handed to the ETW filter, so an ID missing here never reaches the parser.
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
+				evtCSEStart:       {},
+				evtCSEStopSuccess: {}, evtCSEStopWarning: {}, evtCSEStopError: {},
 			},
-			parser: &groupPolicyParser{timeline: timeline},
+			parser: &groupPolicyParser{timeline: timeline, gp: gp},
 		},
 		guidShellCore: {
 			acceptedIDs: map[uint16]struct{}{
@@ -192,6 +190,8 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 // AnalysisResult holds the structured output from ETL analysis.
 type AnalysisResult struct {
 	Timeline BootTimeline
+	// GroupPolicy holds the client-side-extension invocations measured during each boot Group Policy pass; nil when none were.
+	GroupPolicy *GroupPolicyDetails
 }
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
@@ -210,8 +210,8 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 
 	log.Debugf("Analyzing ETL file: %s", absPath)
 
-	coll := &collector{}
-	coll.providers = buildProviders(&coll.timeline)
+	coll := &collector{groupPolicy: newGPAccumulator()}
+	coll.providers = buildProviders(&coll.timeline, coll.groupPolicy)
 
 	var totalEvents atomic.Int64
 
@@ -243,15 +243,67 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 	}
 
 	return &AnalysisResult{
-		Timeline: coll.timeline,
+		Timeline:    coll.timeline,
+		GroupPolicy: coll.groupPolicy.finalize(coll.timeline),
 	}, nil
 }
 
 // directPropertyLookup is optionally implemented by events that support
 // looking up a single property by name (via TdhGetProperty), bypassing
 // sequential parsing that can fail on schema-mismatched properties.
+// Only valid for string properties: the call returns the property's raw bytes read
+// as UTF-16, so a GUID, boolean or integer decodes to garbage.
 type directPropertyLookup interface {
 	GetPropertyByName(name string) (string, error)
+}
+
+// activityScoped is optionally implemented by events exposing the ETW activity
+// ID, which correlates events belonging to one instance of an operation.
+type activityScoped interface {
+	GetActivityID() windows.GUID
+}
+
+// bulkPropertyLookup is optionally implemented by events that can return every
+// property in one decode.
+type bulkPropertyLookup interface {
+	EventProperties() (map[string]interface{}, error)
+}
+
+// activityIDOf returns an event's ETW activity ID, or the zero GUID when the event does not expose one.
+func activityIDOf(e eventWithProperties) windows.GUID {
+	if scoped, ok := e.(activityScoped); ok {
+		return scoped.GetActivityID()
+	}
+	return windows.GUID{}
+}
+
+// eventPropertyReader returns a lookup function over an event's properties.
+// Property access has no cache, so each GetPropertyString call re-decodes the whole event; when the event supports
+// a bulk read this does one decode and serves every lookup from it, including a partial result that recovered anything.
+func eventPropertyReader(e eventWithProperties) func(string) string {
+	if e == nil {
+		return func(string) string { return "" }
+	}
+	if bulk, ok := e.(bulkPropertyLookup); ok {
+		props, err := bulk.EventProperties()
+		if err != nil {
+			log.Debugf("Logon duration: partial property decode (%d properties recovered): %v", len(props), err)
+			// Recovered nothing: serve empty directly, since the per-property path re-enters the same decode and repeats the failure on every lookup.
+			if len(props) == 0 {
+				return func(string) string { return "" }
+			}
+		}
+		if len(props) > 0 {
+			return func(name string) string {
+				v, ok := props[name]
+				if !ok {
+					return ""
+				}
+				return fmt.Sprintf("%v", v)
+			}
+		}
+	}
+	return func(name string) string { return getEventPropString(e, name) }
 }
 
 // processEvent dispatches a filtered event to the appropriate provider parser.
@@ -277,11 +329,9 @@ func (p *kernelGeneralParser) Parse(_ eventWithProperties, _ uint16, ts time.Tim
 }
 
 // kernelProcessParser processes Kernel-Process events (Event 1: Process Start).
-// Tracks key process milestones: smss.exe, winlogon.exe, userinit.exe, explorer.exe.
+// Tracks the first explorer.exe process start.
 type kernelProcessParser struct {
-	timeline      *BootTimeline
-	smssCount     int
-	winlogonCount int
+	timeline *BootTimeline
 }
 
 func (p *kernelProcessParser) Parse(e eventWithProperties, _ uint16, ts time.Time) {
@@ -298,29 +348,8 @@ func (p *kernelProcessParser) Parse(e eventWithProperties, _ uint16, ts time.Tim
 	imageName = strings.ToLower(filepath.Base(imageName))
 	log.Debugf("Parsing kernel process event: imageName: %s", imageName)
 
-	switch {
-	case strings.Contains(imageName, "smss.exe"):
-		p.smssCount++
-		if p.smssCount == 1 {
-			p.timeline.SmssStart = ts
-		} else if p.timeline.UserSmssStart.IsZero() && p.smssCount >= 3 {
-			p.timeline.UserSmssStart = ts
-		}
-	case strings.Contains(imageName, "winlogon.exe"):
-		p.winlogonCount++
-		if p.winlogonCount == 1 {
-			p.timeline.WinlogonStart = ts
-		} else if p.timeline.UserWinlogonStart.IsZero() && p.winlogonCount >= 2 {
-			p.timeline.UserWinlogonStart = ts
-		}
-	case strings.Contains(imageName, "userinit.exe"):
-		if p.timeline.UserinitStart.IsZero() {
-			p.timeline.UserinitStart = ts
-		}
-	case strings.Contains(imageName, "explorer.exe"):
-		if p.timeline.ExplorerStart.IsZero() {
-			p.timeline.ExplorerStart = ts
-		}
+	if strings.Contains(imageName, "explorer.exe") && p.timeline.ExplorerStart.IsZero() {
+		p.timeline.ExplorerStart = ts
 	}
 }
 
@@ -331,14 +360,6 @@ type winlogonParser struct {
 
 func (p *winlogonParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 	switch id {
-	case evtWinlogonInit:
-		if p.timeline.WinlogonInit.IsZero() {
-			p.timeline.WinlogonInit = ts
-		}
-	case evtWinlogonInitDone:
-		if p.timeline.WinlogonInitDone.IsZero() {
-			p.timeline.WinlogonInitDone = ts
-		}
 	case evtLoginUIStart:
 		if p.timeline.LoginUIStart.IsZero() {
 			p.timeline.LoginUIStart = ts
@@ -388,17 +409,19 @@ func (p *userProfileParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 	}
 }
 
-// groupPolicyParser processes Group Policy events (4000/4001: start, 8000/8001: end).
+// groupPolicyParser processes Group Policy pass milestones and the client-side-extension invocations within each pass.
 type groupPolicyParser struct {
 	timeline *BootTimeline
+	gp       *gpAccumulator
 }
 
-func (p *groupPolicyParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
+func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
 			p.timeline.MachineGPStart = ts
 		}
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtMachineGPEnd:
 		if p.timeline.MachineGPEnd.IsZero() {
 			p.timeline.MachineGPEnd = ts
@@ -407,11 +430,63 @@ func (p *groupPolicyParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 		if p.timeline.UserGPStart.IsZero() {
 			p.timeline.UserGPStart = ts
 		}
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtUserGPEnd:
 		if p.timeline.UserGPEnd.IsZero() {
 			p.timeline.UserGPEnd = ts
 		}
+	case evtCSEStart:
+		p.parseCSEStart(e, ts)
+	case evtCSEStopSuccess, evtCSEStopWarning, evtCSEStopError:
+		p.parseCSEStop(e, id, ts)
 	}
+}
+
+// parseCSEStart handles event 4016, which opens an extension invocation and
+// carries the list of Group Policy objects feeding it.
+func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
+	prop := eventPropertyReader(e)
+
+	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
+	if !ok {
+		// Without an extension identity the invocation cannot be paired with its terminal event.
+		log.Debugf("Logon duration: CSE start event has no usable CSEExtensionId")
+		return
+	}
+
+	// Absent or unrecognized, treat the extension as synchronous: the flag only annotates the duration's meaning.
+	isAsync, _ := parseETWBool(prop("IsExtensionAsyncProcessing"))
+
+	ids, names, omitted := gpoRefsFromList(prop("ApplicableGPOList"))
+	p.gp.mergeGPONames(names)
+
+	p.gp.startCSE(activityIDOf(e), observedCSEStart{
+		guid:        guid,
+		guidString:  guidString,
+		name:        prop("CSEExtensionName"),
+		isAsync:     isAsync,
+		gpoIDs:      ids,
+		gposOmitted: omitted,
+	}, ts)
+}
+
+// parseCSEStop handles events 5016, 6016, and 7016, which close an extension invocation.
+func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts time.Time) {
+	prop := eventPropertyReader(e)
+
+	// No GetPropertyByName fallback for CSEExtensionId: it would read a win:GUID as UTF-16 junk.
+	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
+	if !ok {
+		log.Debugf("Logon duration: CSE stop event %d has no usable CSEExtensionId", id)
+		return
+	}
+
+	p.gp.finishCSE(activityIDOf(e), observedCSEStop{
+		eventID:    id,
+		guid:       guid,
+		guidString: guidString,
+		name:       prop("CSEExtensionName"),
+	}, ts)
 }
 
 // shellCoreParser processes Shell-Core events for Explorer startup tracking.
@@ -444,10 +519,6 @@ func (p *shellCoreParser) Parse(e eventWithProperties, id uint16, ts time.Time) 
 			if p.timeline.DesktopVisibleStart.IsZero() {
 				p.timeline.DesktopVisibleStart = ts
 			}
-		case "finalize":
-			if p.timeline.DesktopReadyStart.IsZero() {
-				p.timeline.DesktopReadyStart = ts
-			}
 		case "desktopstartupapps":
 			if p.timeline.DesktopStartupAppsStart.IsZero() {
 				p.timeline.DesktopStartupAppsStart = ts
@@ -459,10 +530,6 @@ func (p *shellCoreParser) Parse(e eventWithProperties, id uint16, ts time.Time) 
 		case "waitfordesktopvisuals":
 			if p.timeline.DesktopVisibleEnd.IsZero() {
 				p.timeline.DesktopVisibleEnd = ts
-			}
-		case "finalize":
-			if p.timeline.DesktopReadyEnd.IsZero() {
-				p.timeline.DesktopReadyEnd = ts
 			}
 		case "desktopstartupapps":
 			if p.timeline.DesktopStartupAppsEnd.IsZero() {

@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    The DDOT (OpenTelemetry) config converter now automatically injects the
+    ``cumulativetodelta`` processor into metrics pipelines that export to the
+    ``datadog`` exporter, converting all cumulative metric types (sum, histogram
+    and exponential histogram) to delta. The processor is added only to metrics
+    pipelines, and is skipped for any pipeline where a ``cumulativetodelta``
+    processor is already defined. This behavior is controlled by the new
+    ``cumulativetodelta`` entry in ``otelcollector.converter.features``, which is
+    enabled by default; remove it from that list to disable the auto-injection.

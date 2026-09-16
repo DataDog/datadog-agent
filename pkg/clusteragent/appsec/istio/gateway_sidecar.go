@@ -9,6 +9,7 @@ package istio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -28,13 +29,7 @@ type istioNativeGatewaySidecarPattern struct {
 	*istioNativeGatewayPattern
 }
 
-func (e *istioNativeGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
-	// Check if sidecar already exists
-	if sidecar.HasProcessorSidecar(pod) {
-		e.logger.Debugf("Pod %s already has appsec processor sidecar", mutatecommon.PodString(pod))
-		return false
-	}
-
+func (e *istioNativeGatewaySidecarPattern) IsPodEligible(pod *corev1.Pod, _ string) bool {
 	// List all Istio native Gateways and check if any selector matches the pod's labels
 	list, err := e.client.Resource(istioGatewayGVR).Namespace(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -51,18 +46,15 @@ func (e *istioNativeGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool
 	return false
 }
 
-func (e *istioNativeGatewaySidecarPattern) IsNamespaceEligible(string) bool {
-	return true
-}
-
-func (e *istioNativeGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	return false, nil
+func (e *istioNativeGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 func (e *istioNativeGatewaySidecarPattern) MatchCondition() admissionregistrationv1.MatchCondition {
 	// Standard Istio gateway pods (istio-ingressgateway, istio-egressgateway) always carry
 	// the "istio" label key (e.g. istio=ingressgateway). This is a broad pre-filter that passes
-	// gateway proxy pods through to ShouldMutatePod, which performs precise spec.selector matching.
+	// gateway proxy pods through to IsPodEligible, which performs precise spec.selector matching.
 	return admissionregistrationv1.MatchCondition{
 		Expression: "'istio' in object.metadata.labels",
 	}
@@ -74,11 +66,15 @@ func (e *istioNativeGatewaySidecarPattern) Added(context.Context, *unstructured.
 }
 
 // MutatePod creates the EnvoyFilter lazily on first pod mutation and injects the sidecar container
-func (e *istioNativeGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (e *istioNativeGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	if sidecar.HasProcessorSidecar(pod) {
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySidecar}
+	}
+
 	// Verify at least one Istio Gateway's selector matches this pod
 	list, err := e.client.Resource(istioGatewayGVR).Namespace(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return false, fmt.Errorf("error listing Istio gateways: %w", err)
+		return appsecconfig.MutationError, fmt.Errorf("error listing Istio gateways: %w", err)
 	}
 
 	matched := false
@@ -90,12 +86,12 @@ func (e *istioNativeGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, 
 	}
 
 	if !matched {
-		return false, nil
+		return appsecconfig.MutationError, errors.New("no Istio gateway selector matched pod after eligibility check")
 	}
 
 	// Lazy EnvoyFilter creation (idempotent)
 	if err := e.createEnvoyFilter(context.TODO(), e.config.IstioNamespace); err != nil {
-		return false, fmt.Errorf("could not create Envoy Filter: %w", err)
+		return appsecconfig.MutationError, fmt.Errorf("could not create Envoy Filter: %w", err)
 	}
 
 	// Build and inject processor container
@@ -104,7 +100,7 @@ func (e *istioNativeGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, 
 
 	e.logger.Infof("Injected appsec processor sidecar into pod %s", mutatecommon.PodString(pod))
 
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }
 
 // selectorMatchesPod checks if a networking.istio.io/v1 Gateway's spec.selector matches a pod's labels

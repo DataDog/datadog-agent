@@ -54,7 +54,7 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(coreconfig),
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-				agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
+				agentparams.WithSystemProbeConfig("network_config:\n  enabled: true\n  direct_send: false"),
 			),
 			ec2.WithAgentClientOptions(
 				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),

@@ -11,7 +11,7 @@
   review:
     name: '#action-platform-reviews'
     id: 'C0AG2UCHUKZ'
-'@datadog/agent-all':
+'@datadog/agent-community-eng':
   notification:
     name: '#datadog-agent-pipelines'
     id: 'CR5TV8QBY'
@@ -37,8 +37,10 @@
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
   review:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
+    # DO NOT FILL IN - team opted out of PR review notifications, see:
+    # https://github.com/DataDog/datadog-agent/pull/51716#issuecomment-4610991841
+    name: ''
+    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
@@ -74,13 +76,13 @@
   review:
     name: '#agent-discovery'
     id: 'C089ER2M7MZ'
-'@datadog/agent-health':
+'@datadog/fleet-remediation':
   notification:
-    name: '#agent-health'
+    name: '#fleet-remediation'
     id: 'C08U2C0GCMV'
   review:
-    name: '#agent-health'
-    id: 'C08U2C0GCMV'
+    name: '#fleet-remediation-reviews'
+    id: 'C0BEJRSH57Z'
 '@datadog/agent-integrations':
   notification:
     name: '#agent-integrations'
@@ -181,8 +183,8 @@
     id: 'C02HVGRLQ8Z'
 '@datadog/cloud-network-monitoring':
   notification:
-    name: '#cloud-network-monitoring'
-    id: 'CFB4213BJ'
+    name: '#cnm-agent'
+    id: 'C07FNUP1M3N'
   review:
     name: '#cnm-agent'
     id: 'C07FNUP1M3N'
@@ -214,20 +216,20 @@
   review:
     name: '#container-platform'
     id: 'C0702JHC7G8'
-'@datadog/core-authn':
+'@datadog/credential-management':
   notification:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
   review:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
-'@datadog/data-jobs-monitoring':
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
+'@datadog/delegated-auth-login':
   notification:
-    name: ''
-    id: ''
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
   review:
-    name: '#data-jobs-monitoring'
-    id: 'C05DAN6ULF6'
+    name: '#workload-identity-federation'
+    id: 'C08GB70HTV4'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
@@ -249,6 +251,13 @@
   review:
     name: '#database-monitoring'
     id: 'C011QG8MJBA'
+'@datadog/dd-agent-mcp':
+  notification:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
+  review:
+    name: '#dd-agent-mcp'
+    id: 'C0A9L3290GZ'
 '@datadog/debugger':
   notification:
     name: '#debugger-ops-prod'
@@ -258,8 +267,8 @@
     id: ''
 '@datadog/debugger-go':
   notification:
-    name: '#dynamic-instrumentation-go'
-    id: 'C04J1N8L2Q6'
+    name: '#debugger-go'
+    id: 'C09DBHFJE4E'
   review:
     name: '#debugger-go'
     id: 'C09DBHFJE4E'
@@ -268,8 +277,8 @@
     name: 'DEFAULT_SLACK_CHANNEL'
     id: 'C0795C1C2AE'
   review:
-    name: '#documentation'
-    id: 'C0DESMBQU'
+    name: ''
+    id: ''
 '@datadog/ebpf-platform':
   notification:
     name: '#ebpf-platform-ops'
@@ -286,25 +295,39 @@
     id: 'C09FX078WH2'
 '@datadog/fleet':
   notification:
-    name: '#fleet-automation-monitoring'
-    id: 'C06TZ0APY6Q'
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/fleet-automation':
+  notification:
+    name: '#fleet-automation-software-monitoring'
+    id: 'C08QD8GB0CA'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
+'@datadog/gpu-monitoring-agent':
+  notification:
+    name: '#gpu-monitoring-agent-ops'
+    id: 'C0APTNVCC04'
+  review:
+    name: '#gpu-monitoring-agent-reviews'
+    id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
-    name: '#injection-platform'
-    id: 'C06UEUW9A75'
+    name: '#injection-platform-alerts'
+    id: 'C09LN4BCCP7'
   review:
     name: '#injection-platform'
     id: 'C06UEUW9A75'
 '@datadog/kubernetes-experiences':
   notification:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-ops'
+    id: 'C0135179MGA'
   review:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-prs'
+    id: 'C03LTNY5Q5N'
 '@datadog/metrics-aggregation':
   notification:
     name: '#metrics-aggregation'
@@ -368,6 +391,13 @@
   review:
     name: '#sdlc-security'
     id: 'C027P1CK07N'
+'@datadog/sensitive-data-scanner':
+  notification:
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
+  review:
+    name: '#data-security-dev'
+    id: 'C0B1T21VBM1'
 '@datadog/serverless':
   notification:
     name: '#serverless-agent'
@@ -375,7 +405,7 @@
   review:
     name: '#serverless-agent'
     id: 'C017ES2MY05'
-'@datadog/serverless-azure-gcp':
+'@datadog/serverless-azure-and-gcp':
   notification:
     name: '#serverless-azure-gcp-team'
     id: 'C06P8R33PD3'
@@ -412,11 +442,18 @@
     id: 'C01R6Q0HQDD'
 '@datadog/q-branch':
   notification:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
   review:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+'@datadog/agent-anomaly-detection':
+  notification:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
+  review:
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'

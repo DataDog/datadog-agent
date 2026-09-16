@@ -371,11 +371,11 @@ func TestConvertToIdx_NilChunksSkipped(t *testing.T) {
 
 	result := ConvertToIdx(payload, "")
 
-	require.Len(t, result.Chunks, 2)
-	// First chunk should be nil/empty, second should have data
-	assert.Nil(t, result.Chunks[0])
-	assert.NotNil(t, result.Chunks[1])
-	assert.Len(t, result.Chunks[1].Spans, 1)
+	// The nil chunk is dropped (not left as a nil slot, which downstream
+	// consumers would dereference); only the valid chunk remains.
+	require.Len(t, result.Chunks, 1)
+	require.NotNil(t, result.Chunks[0])
+	assert.Len(t, result.Chunks[0].Spans, 1)
 }
 
 // Test that chunks with empty spans are skipped
@@ -401,9 +401,11 @@ func TestConvertToIdx_EmptySpansChunksSkipped(t *testing.T) {
 
 	result := ConvertToIdx(payload, "")
 
-	require.Len(t, result.Chunks, 2)
-	assert.Nil(t, result.Chunks[0])
-	assert.NotNil(t, result.Chunks[1])
+	// The empty-spans chunk is dropped (not left as a nil slot); only the valid
+	// chunk remains.
+	require.Len(t, result.Chunks, 1)
+	require.NotNil(t, result.Chunks[0])
+	assert.Len(t, result.Chunks[0].Spans, 1)
 }
 
 // Test that span metrics are converted correctly
@@ -1723,4 +1725,202 @@ func compareEventAttributes(t *testing.T, event1, event2 *idx.InternalSpanEvent,
 	}
 
 	assert.Equal(t, keys1, keys2, "chunk %d span %d event %d: attributes should match", chunkIdx, spanIdx, eventIdx)
+}
+
+// TestConvertArrayValue_NilAndNilElement ensures converting an array attribute
+// tolerates both a nil array and a nil element inside the array (both are valid
+// msgpack decode results) without panicking, and that nil elements are dropped
+// rather than stored as unusable nil AnyValue entries (which several V1 paths
+// dereference).
+func TestConvertArrayValue_NilAndNilElement(t *testing.T) {
+	st := idx.NewStringTable()
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(nil, st)
+		assert.NotNil(t, got)
+		assert.Empty(t, got.Values)
+	})
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(&pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+			nil,
+			{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "keep"},
+			nil,
+		}}, st)
+		// Nil elements are dropped; only the convertible entry survives.
+		require.Len(t, got.Values, 1)
+		require.NotNil(t, got.Values[0])
+		assert.Equal(t, "keep", got.Values[0].AsString(st))
+
+		// Downstream V1 paths iterate every element and must not panic.
+		av := &idx.AnyValue{Value: &idx.AnyValue_ArrayValue{ArrayValue: got}}
+		assert.NotPanics(t, func() {
+			_ = av.AsString(st)
+			_ = av.Msgsize()
+		})
+	})
+}
+
+// TestConvertSpanEventAttributes_NilValue ensures a nil span event attribute
+// value (e.g. attributes["cc"] = nil, a valid msgpack decode result) does not
+// dereference the nil on v.Type, and the nil entry is dropped.
+func TestConvertSpanEventAttributes_NilValue(t *testing.T) {
+	st := idx.NewStringTable()
+
+	assert.NotPanics(t, func() {
+		got := convertSpanEventAttributes(map[string]*pb.AttributeAnyValue{
+			"cc": nil,
+			"ok": {Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: "keep"},
+		}, st)
+		// The nil-valued attribute is dropped; the convertible one survives.
+		assert.NotContains(t, got, st.Add("cc"))
+		require.Contains(t, got, st.Add("ok"))
+	})
+}
+
+// TestConvertToIdx_NilSpanEventDoesNotPanic ensures a nil entry in a span's
+// SpanEvents slice does not cause a nil dereference on event.TimeUnixNano.
+func TestConvertToIdx_NilSpanEventDoesNotPanic(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Spans: []*pb.Span{
+					{
+						Service:  "test-service",
+						Name:     "test-span",
+						Resource: "test-resource",
+						TraceID:  123,
+						SpanID:   456,
+						SpanEvents: []*pb.SpanEvent{
+							nil,
+							{Name: "evt", TimeUnixNano: 42},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var result *idx.InternalTracerPayload
+	assert.NotPanics(t, func() {
+		result = ConvertToIdx(payload, "")
+	})
+
+	require.Len(t, result.Chunks, 1)
+	require.Len(t, result.Chunks[0].Spans, 1)
+}
+
+// TestConvertToIdx_NilSpanEntryDoesNotPanic ensures a nil entry in a chunk's
+// Spans slice does not cause a nil dereference. Nil spans can arrive from a
+// decoded payload (e.g. v0.4 JSON `[[null]]`) and reach ConvertToIdx before
+// normalization, where both chunk.Spans[0].Get128BitTraceID() and the per-span
+// loop (span.Meta, span.SpanLinks) would dereference the nil span.
+func TestConvertToIdx_NilSpanEntryDoesNotPanic(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				// First entry nil (hits Get128BitTraceID) and a nil in the middle.
+				Spans: []*pb.Span{
+					nil,
+					{
+						Service:  "test-service",
+						Name:     "test-span",
+						Resource: "test-resource",
+						TraceID:  123,
+						SpanID:   456,
+					},
+					nil,
+				},
+			},
+		},
+	}
+
+	var result *idx.InternalTracerPayload
+	assert.NotPanics(t, func() {
+		result = ConvertToIdx(payload, "")
+	})
+
+	require.Len(t, result.Chunks, 1)
+	// Only the single non-nil span survives.
+	require.Len(t, result.Chunks[0].Spans, 1)
+}
+
+// TestConvertToIdx_DropsUnconvertibleChunks ensures chunks that are nil, empty,
+// or all-nil-spans are dropped rather than left as nil entries in the resulting
+// Chunks slice. A nil chunk slot would be dereferenced by downstream consumers
+// (firstService in api.go, ProcessV1 in agent.go, which has no recover).
+func TestConvertToIdx_DropsUnconvertibleChunks(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{Spans: []*pb.Span{nil, nil}}, // all spans nil
+			{
+				Spans: []*pb.Span{
+					{Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 2},
+				},
+			},
+			{Spans: []*pb.Span{}}, // empty
+			nil,                   // nil chunk
+		},
+	}
+
+	var result *idx.InternalTracerPayload
+	assert.NotPanics(t, func() {
+		result = ConvertToIdx(payload, "")
+	})
+
+	// Only the one convertible chunk survives, and no entry is nil.
+	require.Len(t, result.Chunks, 1)
+	for i, c := range result.Chunks {
+		require.NotNilf(t, c, "chunk %d must not be nil", i)
+	}
+	require.Len(t, result.Chunks[0].Spans, 1)
+}
+
+// TestTraceChunksFromSpans_NilSpanDoesNotPanic ensures a nil entry in the
+// decoded v0.1 JSON span slice does not cause a nil dereference on s.TraceID.
+func TestTraceChunksFromSpans_NilSpanDoesNotPanic(t *testing.T) {
+	var chunks []*pb.TraceChunk
+	assert.NotPanics(t, func() {
+		chunks = traceChunksFromSpans([]*pb.Span{
+			nil,
+			{TraceID: 1, SpanID: 2},
+			nil,
+		})
+	})
+
+	// Only the non-nil span is grouped into a chunk.
+	require.Len(t, chunks, 1)
+	require.Len(t, chunks[0].Spans, 1)
+}
+
+// TestConvertToIdx_NilSpanLinkDoesNotPanic ensures a nil entry in a span's
+// SpanLinks slice does not cause a nil dereference on link.TraceID.
+func TestConvertToIdx_NilSpanLinkDoesNotPanic(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Spans: []*pb.Span{
+					{
+						Service:  "test-service",
+						Name:     "test-span",
+						Resource: "test-resource",
+						TraceID:  123,
+						SpanID:   456,
+						SpanLinks: []*pb.SpanLink{
+							nil,
+							{TraceID: 7, SpanID: 8},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var result *idx.InternalTracerPayload
+	assert.NotPanics(t, func() {
+		result = ConvertToIdx(payload, "")
+	})
+
+	require.Len(t, result.Chunks, 1)
+	require.Len(t, result.Chunks[0].Spans, 1)
 }

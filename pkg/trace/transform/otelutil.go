@@ -339,13 +339,17 @@ func getOTelResourceV2[A semantics.Accessor](span ptrace.Span, accessor A) (resN
 		return
 	}
 
-	// HTTP: use method + route (if available)
+	// HTTP: use method + URL template for clients or route for servers.
 	if m := lookupString(accessor, semantics.ConceptHTTPMethod, false); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
 		resName = m
-		if span.Kind() == ptrace.SpanKindServer {
+		if span.Kind() == ptrace.SpanKindClient {
+			if template := lookupString(accessor, semantics.ConceptURLTemplate, false); template != "" {
+				resName = resName + " " + template
+			}
+		} else if span.Kind() == ptrace.SpanKindServer {
 			if route := lookupString(accessor, semantics.ConceptHTTPRoute, false); route != "" {
 				resName = resName + " " + route
 			}

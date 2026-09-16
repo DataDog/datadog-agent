@@ -12,11 +12,83 @@ from tasks.e2e_framework import doc
 from tasks.e2e_framework.tool import (
     debug,
     error,
+    get_aws_cmd,
     get_pulumi_run_folder,
+    get_resource_owner_id,
     info,
     is_windows,
+    run_pulumi,
     warn,
 )
+
+
+def _force_cleanup(
+    ctx: Context,
+    config_path: str | None = None,
+    account: str | None = None,
+    with_azure: bool = False,
+    with_gcp: bool = False,
+) -> None:
+    """
+    Delete the config file and the SSH keys that setup would auto-generate:
+    the AWS keypair (from EC2 and local disk) always; Azure and GCP local files
+    when the matching --with-* flag is active.
+
+    Uses computed default paths — not the existing config — so it targets exactly
+    what the next setup run would create.
+    """
+    from tasks.e2e_framework.config import get_full_profile_path
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_ACCOUNT, _default_keypair_name
+    from tasks.e2e_framework.setup.ssh_keys import default_key_paths, ssh_agent_supported
+
+    info("🧹 Force-cleaning existing config and SSH keys...")
+
+    def _remove_key(priv: Path, pub: Path) -> None:
+        """Remove key from ssh-agent then delete both local files."""
+        if ssh_agent_supported() and pub.is_file():
+            try:
+                ctx.run(f'ssh-add -d "{pub}"', hide=True, warn=True)
+                info(f"✓ Removed key from ssh-agent: {pub.name}")
+            except Exception:
+                pass
+        for p in [priv, pub]:
+            if p.is_file():
+                p.unlink()
+                info(f"✓ Deleted {p}")
+
+    user = get_resource_owner_id()
+    effective_account = account or DEFAULT_AWS_ACCOUNT
+
+    # AWS: remove from agent, delete local files, then delete EC2 keypair
+    _remove_key(*default_key_paths(effective_account, user))
+    keypair_name = _default_keypair_name(effective_account, user)
+    try:
+        cmd = get_aws_cmd(
+            f'ec2 delete-key-pair --key-name "{keypair_name}"',
+            use_aws_vault=True,
+            aws_account=effective_account,
+        )
+        out = ctx.run(cmd, warn=True, hide="stdout")
+        if out and out.exited == 0:
+            info(f"✓ Deleted AWS keypair '{keypair_name}'")
+        else:
+            warn(f"AWS keypair '{keypair_name}' not found or credentials expired — skipping")
+    except Exception as e:
+        warn(f"Could not delete AWS keypair '{keypair_name}': {e}")
+
+    # Azure: remove from agent and delete local files when --with-azure is active
+    if with_azure:
+        _remove_key(*default_key_paths(effective_account, user, provider="azure", key_type="ed25519"))
+
+    # GCP: remove from agent and delete local files when --with-gcp is active
+    if with_gcp:
+        _remove_key(*default_key_paths(effective_account, user, provider="gcp", key_type="ed25519"))
+
+    # Delete config file last
+    full_config_path = Path(get_full_profile_path(config_path))
+    if full_config_path.is_file():
+        full_config_path.unlink()
+        info(f"✓ Deleted config {full_config_path}")
 
 
 @task(
@@ -27,6 +99,8 @@ from tasks.e2e_framework.tool import (
         "with_azure": doc.with_azure,
         "with_gcp": doc.with_gcp,
         "account": doc.account,
+        "team": doc.team,
+        "force": doc.force,
     },
     default=True,
 )
@@ -38,14 +112,16 @@ def setup(
     with_azure: bool = False,
     with_gcp: bool = False,
     account: str | None = None,
+    team: str | None = None,
+    force: bool = False,
 ) -> None:
     """
     Configure the local environment for E2E tests.
 
     On the default path this configures AWS only (the cloud the vast majority of
-    E2E tests target) and asks at most one question (the GitHub team tag for
-    resource attribution). Pass --with-azure / --with-gcp to also configure
-    those providers.
+    E2E tests target) and is fully non-interactive when --team is passed. Without
+    --team it asks at most one question (the GitHub team tag for resource
+    attribution). Pass --with-azure / --with-gcp to also configure those providers.
     """
     from tasks.e2e_framework import config
     from tasks.e2e_framework.setup.agent import setup_agent_config
@@ -76,9 +152,8 @@ def setup(
     else:
         install_pulumi(ctx)
 
-    with ctx.cd(get_pulumi_run_folder()):
-        ctx.run("pulumi --non-interactive plugin install", hide=True)
-        ctx.run("pulumi login --local", hide=True)
+    run_pulumi(ctx, "--non-interactive plugin install", project_dir=get_pulumi_run_folder(), hide=True)
+    run_pulumi(ctx, "login --local", project_dir=False, hide=True)
     info("✓ Pulumi plugins installed; local backend configured")
 
     try:
@@ -86,20 +161,24 @@ def setup(
     except Exception:
         cfg = config.Config.model_validate({})
 
+    if force:
+        _force_cleanup(ctx, config_path=config_path, account=account, with_azure=with_azure, with_gcp=with_gcp)
+        cfg = config.Config.model_validate({})
+
     if interactive:
         info("🤖 Configuring E2E environment...")
-        setup_aws_config(ctx, cfg, account=account)
+        setup_aws_config(ctx, cfg, account=account, team=team)
         setup_agent_config(cfg)
         setup_pulumi_config(cfg)
 
         if with_azure:
             from tasks.e2e_framework.setup.azure import setup_azure_config
 
-            setup_azure_config(cfg)
+            setup_azure_config(ctx, cfg)
         if with_gcp:
             from tasks.e2e_framework.setup.gcp import setup_gcp_config
 
-            setup_gcp_config(cfg)
+            setup_gcp_config(ctx, cfg)
 
         cfg.save_to_local_config(config_path)
 
@@ -109,7 +188,7 @@ def setup(
         debug_env(ctx, config_path=config_path)
 
     if interactive:
-        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./test/new-e2e/examples\n")
+        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./examples\n")
 
 
 @task
@@ -375,9 +454,11 @@ def debug_env(ctx, config_path: str | None = None):
     """
     Debug E2E and test-infra-definitions required tools and configuration
     """
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION
+
     # check pulumi found
     try:
-        out = ctx.run("pulumi version", hide=True)
+        out = run_pulumi(ctx, "version", project_dir=False, skip_update_check=False, hide=True)
     except UnexpectedExit as e:
         error(f"{e}")
         error("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
@@ -386,7 +467,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Check pulumi credentials
     try:
-        out = ctx.run("pulumi whoami", hide=True)
+        out = run_pulumi(ctx, "whoami", project_dir=False, hide=True)
     except UnexpectedExit as e:
         error("No pulumi credentials found")
         info("Please login, e.g. pulumi login --local")
@@ -415,7 +496,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     # check .aws/config exists and contains expected profile
     # some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    expected_profile = 'sso-agent-sandbox-account-admin-8h'
     aws_conf_path = Path.home().joinpath(".aws", "config")
     if not os.path.isfile(aws_conf_path):
         error(f"Missing aws config file: {aws_conf_path}")
@@ -430,18 +511,24 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Show AWS account info
     info("Logged-in aws account info:")
+    # AWS_REGION being unset is not fatal: every resource the E2E framework uses lives in
+    # us-east-1, which is also what the SSO profile sets. Some setups (aws-vault on a
+    # Datadog workspace, for one) simply don't export it.
+    region = os.environ.get("AWS_REGION")
     if os.environ.get("AWS_PROFILE"):
         info(f"\tAWS_PROFILE={os.environ.get('AWS_PROFILE')}")
-        region = os.environ.get("AWS_REGION")
-        if not region:
-            raise Exit("Missing env var AWS_REGION, please set var", 1)
-        info(f"\tAWS_REGION={region}")
     else:
-        for env in ["AWS_VAULT", "AWS_REGION"]:
-            val = os.environ.get(env, None)
-            if val is None:
-                raise Exit(f"Missing env var {env}, please login with awscli/aws-vault or set AWS_PROFILE", 1)
-            info(f"\t{env}={val}")
+        aws_vault = os.environ.get("AWS_VAULT")
+        if aws_vault is None:
+            raise Exit("Missing env var AWS_VAULT, please login with awscli/aws-vault or set AWS_PROFILE", 1)
+        info(f"\tAWS_VAULT={aws_vault}")
+
+    if region:
+        info(f"\tAWS_REGION={region}")
+        if region != DEFAULT_AWS_REGION:
+            warn(f"\tAWS_REGION is {region}, but the E2E resources only exist in {DEFAULT_AWS_REGION}")
+    else:
+        info(f"\tAWS_REGION is unset, {DEFAULT_AWS_REGION} will be used")
 
     # Check if aws creds are valid
     try:
@@ -454,7 +541,7 @@ def debug_env(ctx, config_path: str | None = None):
     print()
 
     # Check aws-vault profile name, some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    expected_profile = 'sso-agent-sandbox-account-admin-8h'
     out = ctx.run("aws-vault list", hide=True)
     if expected_profile not in out.stdout:
         warn(f"WARNING: expected profile {expected_profile} missing from aws-vault. Some invoke tasks may fail.")

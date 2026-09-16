@@ -10,7 +10,6 @@
 package controllers
 
 import (
-	"context"
 	"errors"
 	"sync"
 
@@ -25,6 +24,7 @@ import (
 	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -93,6 +93,7 @@ type ControllerContext struct {
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
 	InstrumentationHandlers     []instrumentation.Handler
+	Telemetry                   telemetry.Component
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
@@ -192,29 +193,6 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	go autoscalersController.runHPA(ctx.StopCh)
 
 	autoscalersController.runControllerLoop(ctx.StopCh)
-}
-
-// startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
-func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
-	controller, err := instrumentation.NewController(
-		ctx.DynamicUpdateClient,
-		ctx.DynamicInformerFactory,
-		ctx.InstrumentationHandlers,
-		ctx.IsLeaderFunc,
-	)
-	if err != nil {
-		c <- err
-		return
-	}
-
-	controllerCtx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-ctx.StopCh
-		cancel()
-	}()
-
-	go controller.Run(controllerCtx)
-	ctx.DynamicInformerFactory.Start(ctx.StopCh)
 }
 
 // registerServicesInformer registers the services informer.

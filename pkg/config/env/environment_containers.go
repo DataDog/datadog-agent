@@ -53,6 +53,7 @@ func init() {
 	registerFeature(PodResources)
 	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(Process)
 	registerFeature(NonstandardCRIRuntime)
 }
 
@@ -72,7 +73,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
-func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
+func detectContainerFeatures(features FeatureMap, cfg model.ReaderWriter) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
 	detectCriRuntimes(features, cfg)
@@ -82,6 +83,13 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectPodResources(features, cfg)
 	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
+	detectProcess(features)
+}
+
+func detectProcess(features FeatureMap) {
+	if runtime.GOOS == "linux" {
+		features[Process] = struct{}{}
+	}
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -101,13 +109,13 @@ func detectDocker(features FeatureMap) {
 		features[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
-			if exists && !reachable {
-				log.Infof("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
+			exists, err := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
+			if exists && err != nil {
+				log.Warnf("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
 			}
 
-			if exists && reachable {
+			if exists && err == nil {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
@@ -121,7 +129,7 @@ func detectDocker(features FeatureMap) {
 }
 
 // detectCriRuntimes checks for both containerd and crio runtimes
-func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
+func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
@@ -132,7 +140,7 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 			// Check default CRI paths
 			criSocket = checkCriSocket(defaultCriPath)
 			if criSocket != "" {
-				model.AddOverride("cri_socket_path", criSocket)
+				cfg.Set("cri_socket_path", criSocket, model.SourceAgentRuntime)
 				// Currently we do not support multiple CRI paths
 				break
 			}
@@ -160,17 +168,17 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 
 func checkCriSocket(socketPath string) string {
 	// Check if the socket exists and is reachable
-	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && reachable {
+	exists, err := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && err == nil {
 		log.Infof("Agent found cri socket at: %s", socketPath)
 		return socketPath
-	} else if exists && !reachable {
-		log.Infof("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
+	} else if exists && err != nil {
+		log.Warnf("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
 	}
 	return ""
 }
 
-func mergeContainerdNamespaces(cfg model.Reader) {
+func mergeContainerdNamespaces(cfg model.ReaderWriter) {
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(
 		cfg.GetStringSlice("containerd_namespaces"),
@@ -178,19 +186,15 @@ func mergeContainerdNamespaces(cfg model.Reader) {
 	)
 
 	// Workaround: convert to []interface{}.
-	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
-	// v1.10.0) raises an error if we send a []string{} in AddOverride():
-	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
-	// The reason is that when reading from a config file, all the arrays are
-	// considered as []interface{} by Viper, and the merge fails when the types
-	// are different.
+	// Arrays read from a config file are decoded as []interface{}, so setting a []string{}
+	// here could raise a type-mismatch error when the value is merged with the existing one.
 	convertedNamespaces := make([]interface{}, len(namespaces))
 	for i, namespace := range namespaces {
 		convertedNamespaces[i] = namespace
 	}
 
-	model.AddOverride("containerd_namespace", convertedNamespaces)
-	model.AddOverride("containerd_namespaces", convertedNamespaces)
+	cfg.Set("containerd_namespace", convertedNamespaces, model.SourceAgentRuntime)
+	cfg.Set("containerd_namespaces", convertedNamespaces, model.SourceAgentRuntime)
 }
 
 func isCriSupported() bool {
@@ -279,12 +283,12 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	// without the unix:/// prefix, as socket.IsAvailable receives a filesystem path.
 	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
-	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && reachable {
+	exists, err := socket.IsAvailable(socketPath, socketTimeout)
+	if exists && err == nil {
 		log.Infof("Agent found PodResources socket at %s", socketPath)
 		features[PodResources] = struct{}{}
-	} else if exists && !reachable {
-		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
+	} else if exists && err != nil {
+		log.Warnf("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
 	}
@@ -403,8 +407,10 @@ func getDefaultNvmlPaths() []string {
 	}
 
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

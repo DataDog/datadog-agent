@@ -20,7 +20,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -71,7 +71,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
 						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", !cliParams.json && !cliParams.prettyJSON)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -102,7 +102,7 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 }
 
 func getTaggerURL(config config.Component) (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}

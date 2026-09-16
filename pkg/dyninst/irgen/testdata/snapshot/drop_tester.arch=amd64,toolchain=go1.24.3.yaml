@@ -1,5 +1,12 @@
 ID: 1
 Probes:
+    - instances:
+        - subprogram: {subprogram: 7}
+          events:
+            - Kind: Entry
+              Type: 1221 EventRootType Probe[runtime.recovery]
+              InjectionPoints: [{PC: "0x4397c0", Frameless: false}]
+              Condition: null
     - id: capture_bytes
       version: 0
       type: LOG_PROBE
@@ -353,7 +360,7 @@ Subprograms:
       InlinePCRanges: []
       Variables:
         - Name: head
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x613ea0..0x613ea4
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -371,7 +378,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: cur
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x613ea0..0x613eb8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -385,7 +392,7 @@ Subprograms:
       InlinePCRanges: []
       Variables:
         - Name: head
-          Type: 109 PointerType *main.StringNode
+          Type: 110 PointerType *main.StringNode
           Locations:
             - Range: 0x613ec0..0x613ec6
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -413,7 +420,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: cur
-          Type: 109 PointerType *main.StringNode
+          Type: 110 PointerType *main.StringNode
           Locations:
             - Range: 0x613ec0..0x613ee0
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -427,7 +434,7 @@ Subprograms:
       InlinePCRanges: []
       Variables:
         - Name: head
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x614100..0x61412c
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -449,7 +456,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: ~r0
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x614100..0x6141c3
               Pieces: []
@@ -477,7 +484,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: result
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x614197..0x6141ac
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
@@ -495,7 +502,7 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: cur
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
           Locations:
             - Range: 0x614100..0x61412c
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -504,6 +511,94 @@ Subprograms:
             - Range: 0x614197..0x6141aa
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+      DictRegister: null
+    - ID: 7
+      Name: runtime.recovery
+      OutOfLinePCRanges: [0x4397c0..0x439a25]
+      InlinePCRanges: []
+      Variables:
+        - Name: gp
+          Type: 58 PointerType *runtime.g
+          Locations:
+            - Range: 0x4397c0..0x4398a4
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x4398a4..0x439914
+              Pieces: [{Size: 8, Op: {CfaOffset: 0}}]
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: p
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4397d6..0x4398a9
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: pc
+          Type: 3 BaseType uintptr
+          Locations:
+            - Range: 0x4397f8..0x4398a9
+              Pieces: [{Size: 8, Op: {RegNo: 8, Shift: 0}}]
+            - Range: 0x4398a9..0x439914
+              Pieces: [{Size: 8, Op: {CfaOffset: -56}}]
+            - Range: 0x439914..0x439966
+              Pieces: [{Size: 8, Op: {RegNo: 8, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: sp
+          Type: 3 BaseType uintptr
+          Locations:
+            - Range: 0x4397fb..0x439855
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+            - Range: 0x439855..0x4398a9
+              Pieces: [{Size: 8, Op: {RegNo: 9, Shift: 0}}]
+            - Range: 0x4398a9..0x4399fb
+              Pieces: [{Size: 8, Op: {CfaOffset: -64}}]
+            - Range: 0x4399fb..0x439a0c
+              Pieces: [{Size: 8, Op: {RegNo: 9, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: fp
+          Type: 3 BaseType uintptr
+          Locations:
+            - Range: 0x4397e3..0x4398a9
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+            - Range: 0x4398a9..0x439914
+              Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
+            - Range: 0x439914..0x439966
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: p0
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4397d6..0x4397fd
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: saveOpenDeferState
+          Type: 6 BaseType bool
+          Locations:
+            - Range: 0x4397f0..0x439831
+              Pieces: [{Size: 1, Op: {RegNo: 4, Shift: 0}}]
+            - Range: 0x43983b..0x4398a9
+              Pieces: [{Size: 1, Op: {RegNo: 4, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: '@gp'
+          Type: 26 PointerType *runtime._panic
+          Locations:
+            - Range: 0x4397c0..0x439a25
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
@@ -564,10 +659,10 @@ Types:
       ByteSize: 8
       Pointee: 901 PointerType *table<*net/http.http2serverConn,struct {}>
     - __kind: PointerType
-      ID: 132
+      ID: 140
       Name: '**table<context.canceler,struct {}>'
       ByteSize: 8
-      Pointee: 133 PointerType *table<context.canceler,struct {}>
+      Pointee: 141 PointerType *table<context.canceler,struct {}>
     - __kind: PointerType
       ID: 1112
       Name: '**table<crypto/x509.sum224,bool>'
@@ -795,10 +890,10 @@ Types:
       ByteSize: 8
       Pointee: 729 GoSliceDataType []net/http.segment.array
     - __kind: PointerType
-      ID: 168
+      ID: 156
       Name: '*[]os.Signal.array'
       ByteSize: 8
-      Pointee: 167 GoSliceDataType []os.Signal.array
+      Pointee: 155 GoSliceDataType []os.Signal.array
     - __kind: PointerType
       ID: 41
       Name: '*[]runtime.ancestorInfo'
@@ -824,15 +919,15 @@ Types:
       ByteSize: 8
       Pointee: 494 GoSliceDataType []syscall.Iovec.array
     - __kind: PointerType
-      ID: 170
+      ID: 174
       Name: '*[]time.zone.array'
       ByteSize: 8
-      Pointee: 169 GoSliceDataType []time.zone.array
+      Pointee: 173 GoSliceDataType []time.zone.array
     - __kind: PointerType
-      ID: 172
+      ID: 176
       Name: '*[]time.zoneTrans.array'
       ByteSize: 8
-      Pointee: 171 GoSliceDataType []time.zoneTrans.array
+      Pointee: 175 GoSliceDataType []time.zoneTrans.array
     - __kind: PointerType
       ID: 1139
       Name: '*[]uint16.array'
@@ -846,15 +941,15 @@ Types:
       GoKind: 22
       Pointee: 40 GoSliceHeaderType []uint8
     - __kind: PointerType
-      ID: 148
+      ID: 152
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 147 GoSliceDataType []uint8.array
+      Pointee: 151 GoSliceDataType []uint8.array
     - __kind: PointerType
-      ID: 150
+      ID: 154
       Name: '*[]uintptr.array'
       ByteSize: 8
-      Pointee: 149 GoSliceDataType []uintptr.array
+      Pointee: 153 GoSliceDataType []uintptr.array
     - __kind: PointerType
       ID: 951
       Name: '*[]vendor/golang.org/x/net/http2/hpack.HeaderField.array'
@@ -896,19 +991,19 @@ Types:
       GoKind: 22
       Pointee: 523 StructureType bytes.Reader
     - __kind: PointerType
-      ID: 179
+      ID: 122
       Name: '*context.backgroundCtx'
       ByteSize: 8
       GoRuntimeType: 325472
       GoKind: 22
-      Pointee: 122 StructureType context.backgroundCtx
+      Pointee: 123 GoContextImplementationType context.backgroundCtx
     - __kind: PointerType
-      ID: 112
+      ID: 131
       Name: '*context.cancelCtx'
       ByteSize: 8
       GoRuntimeType: 365312
       GoKind: 22
-      Pointee: 113 StructureType context.cancelCtx
+      Pointee: 132 GoContextImplementationType context.cancelCtx
     - __kind: PointerType
       ID: 319
       Name: '*context.deadlineExceededError'
@@ -917,33 +1012,33 @@ Types:
       GoKind: 22
       Pointee: 320 StructureType context.deadlineExceededError
     - __kind: PointerType
-      ID: 176
+      ID: 113
       Name: '*context.emptyCtx'
       ByteSize: 8
       GoRuntimeType: 287136
       GoKind: 22
-      Pointee: 123 StructureType context.emptyCtx
+      Pointee: 114 GoContextImplementationType context.emptyCtx
     - __kind: PointerType
-      ID: 114
+      ID: 115
       Name: '*context.stopCtx'
       ByteSize: 8
       GoRuntimeType: 287296
       GoKind: 22
-      Pointee: 115 StructureType context.stopCtx
+      Pointee: 116 GoContextImplementationType context.stopCtx
     - __kind: PointerType
-      ID: 116
+      ID: 142
       Name: '*context.timerCtx'
       ByteSize: 8
       GoRuntimeType: 365504
       GoKind: 22
-      Pointee: 117 StructureType context.timerCtx
+      Pointee: 143 GoContextImplementationType context.timerCtx
     - __kind: PointerType
-      ID: 118
+      ID: 120
       Name: '*context.valueCtx'
       ByteSize: 8
       GoRuntimeType: 325152
       GoKind: 22
-      Pointee: 119 StructureType context.valueCtx
+      Pointee: 121 GoContextImplementationType context.valueCtx
     - __kind: PointerType
       ID: 270
       Name: '*crypto/aes.KeySizeError'
@@ -1335,7 +1430,7 @@ Types:
       GoKind: 22
       Pointee: 197 BaseType encoding/base64.CorruptInputError
     - __kind: PointerType
-      ID: 104
+      ID: 105
       Name: '*error'
       ByteSize: 8
       GoRuntimeType: 93440
@@ -1349,7 +1444,7 @@ Types:
       GoKind: 22
       Pointee: 236 StructureType errors.errorString
     - __kind: PointerType
-      ID: 98
+      ID: 99
       Name: '*float64'
       ByteSize: 8
       GoRuntimeType: 94464
@@ -1394,9 +1489,9 @@ Types:
       ByteSize: 8
       GoRuntimeType: 109312
       GoKind: 22
-      Pointee: 61 GoSubroutineType func()
+      Pointee: 62 GoSubroutineType func()
     - __kind: PointerType
-      ID: 100
+      ID: 101
       Name: '*int'
       ByteSize: 8
       GoRuntimeType: 94080
@@ -1410,14 +1505,14 @@ Types:
       GoKind: 22
       Pointee: 12 BaseType int32
     - __kind: PointerType
-      ID: 99
+      ID: 100
       Name: '*int64'
       ByteSize: 8
       GoRuntimeType: 93952
       GoKind: 22
       Pointee: 14 BaseType int64
     - __kind: PointerType
-      ID: 105
+      ID: 106
       Name: '*int8'
       ByteSize: 8
       GoRuntimeType: 93568
@@ -1485,7 +1580,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 330112
       GoKind: 22
-      Pointee: 126 StructureType internal/sync.Mutex
+      Pointee: 135 StructureType internal/sync.Mutex
     - __kind: PointerType
       ID: 570
       Name: '*io.LimitedReader'
@@ -1529,19 +1624,19 @@ Types:
       GoKind: 22
       Pointee: 660 StructureType log.Logger
     - __kind: PointerType
-      ID: 107
+      ID: 108
       Name: '*main.Node'
       ByteSize: 8
       GoRuntimeType: 87936
       GoKind: 22
-      Pointee: 108 StructureType main.Node
+      Pointee: 109 StructureType main.Node
     - __kind: PointerType
-      ID: 109
+      ID: 110
       Name: '*main.StringNode'
       ByteSize: 8
       GoRuntimeType: 88000
       GoKind: 22
-      Pointee: 110 StructureType main.StringNode
+      Pointee: 111 StructureType main.StringNode
     - __kind: PointerType
       ID: 670
       Name: '*map<*net.Listener,struct {}>'
@@ -1558,10 +1653,10 @@ Types:
       ByteSize: 8
       Pointee: 899 GoSwissMapHeaderType map<*net/http.http2serverConn,struct {}>
     - __kind: PointerType
-      ID: 130
+      ID: 138
       Name: '*map<context.canceler,struct {}>'
       ByteSize: 8
-      Pointee: 131 GoSwissMapHeaderType map<context.canceler,struct {}>
+      Pointee: 139 GoSwissMapHeaderType map<context.canceler,struct {}>
     - __kind: PointerType
       ID: 1110
       Name: '*map<crypto/x509.sum224,bool>'
@@ -1877,12 +1972,12 @@ Types:
       GoKind: 22
       Pointee: 214 StructureType net.notFoundError
     - __kind: PointerType
-      ID: 177
+      ID: 118
       Name: '*net.onlyValuesCtx'
       ByteSize: 8
       GoRuntimeType: 287776
       GoKind: 22
-      Pointee: 178 StructureType net.onlyValuesCtx
+      Pointee: 119 GoContextImplementationType net.onlyValuesCtx
     - __kind: PointerType
       ID: 215
       Name: '*net.result·2'
@@ -2665,10 +2760,10 @@ Types:
       ByteSize: 8
       Pointee: 905 StructureType noalg.map.group[*net/http.http2serverConn]struct {}
     - __kind: PointerType
-      ID: 153
+      ID: 159
       Name: '*noalg.map.group[context.canceler]struct {}'
       ByteSize: 8
-      Pointee: 154 StructureType noalg.map.group[context.canceler]struct {}
+      Pointee: 160 StructureType noalg.map.group[context.canceler]struct {}
     - __kind: PointerType
       ID: 1129
       Name: '*noalg.map.group[crypto/x509.sum224]bool'
@@ -2754,12 +2849,12 @@ Types:
       GoKind: 22
       Pointee: 297 StructureType os.LinkError
     - __kind: PointerType
-      ID: 142
+      ID: 128
       Name: '*os.Signal'
       ByteSize: 8
       GoRuntimeType: 91584
       GoKind: 22
-      Pointee: 143 GoInterfaceType os.Signal
+      Pointee: 129 GoInterfaceType os.Signal
     - __kind: PointerType
       ID: 328
       Name: '*os.SyscallError'
@@ -2803,12 +2898,12 @@ Types:
       GoKind: 22
       Pointee: 619 StructureType os.noWriteTo
     - __kind: PointerType
-      ID: 120
+      ID: 124
       Name: '*os/signal.signalCtx'
       ByteSize: 8
       GoRuntimeType: 342464
       GoKind: 22
-      Pointee: 121 StructureType os/signal.signalCtx
+      Pointee: 125 GoContextImplementationType os/signal.signalCtx
     - __kind: PointerType
       ID: 239
       Name: '*reflect.ValueError'
@@ -2850,7 +2945,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 291296
       GoKind: 22
-      Pointee: 27 UnresolvedPointeeType runtime._panic
+      Pointee: 27 StructureType runtime._panic
     - __kind: PointerType
       ID: 304
       Name: '*runtime.boundsError'
@@ -2859,12 +2954,12 @@ Types:
       GoKind: 22
       Pointee: 305 StructureType runtime.boundsError
     - __kind: PointerType
-      ID: 64
+      ID: 65
       Name: '*runtime.cgoCallers'
       ByteSize: 8
       GoRuntimeType: 95360
       GoKind: 22
-      Pointee: 65 UnresolvedPointeeType runtime.cgoCallers
+      Pointee: 66 UnresolvedPointeeType runtime.cgoCallers
     - __kind: PointerType
       ID: 49
       Name: '*runtime.coro'
@@ -2892,7 +2987,7 @@ Types:
       ByteSize: 8
       Pointee: 281 GoStringDataType runtime.errorString.str
     - __kind: PointerType
-      ID: 57
+      ID: 58
       Name: '*runtime.g'
       ByteSize: 8
       GoRuntimeType: 188736
@@ -2939,12 +3034,12 @@ Types:
       GoKind: 22
       Pointee: 47 UnresolvedPointeeType runtime.timer
     - __kind: PointerType
-      ID: 78
+      ID: 79
       Name: '*runtime.traceBuf'
       ByteSize: 8
       GoRuntimeType: 347264
       GoKind: 22
-      Pointee: 79 UnresolvedPointeeType runtime.traceBuf
+      Pointee: 80 UnresolvedPointeeType runtime.traceBuf
     - __kind: PointerType
       ID: 298
       Name: '*strconv.NumError'
@@ -2953,17 +3048,17 @@ Types:
       GoKind: 22
       Pointee: 299 StructureType strconv.NumError
     - __kind: PointerType
-      ID: 95
+      ID: 96
       Name: '*string'
       ByteSize: 8
       GoRuntimeType: 93504
       GoKind: 22
       Pointee: 11 GoStringHeaderType string
     - __kind: PointerType
-      ID: 146
+      ID: 150
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 145 GoStringDataType string.str
+      Pointee: 149 GoStringDataType string.str
     - __kind: PointerType
       ID: 605
       Name: '*strings.Reader'
@@ -3003,7 +3098,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 250112
       GoKind: 22
-      Pointee: 124 StructureType sync.Mutex
+      Pointee: 133 StructureType sync.Mutex
     - __kind: PointerType
       ID: 1069
       Name: '*sync.RWMutex'
@@ -3017,7 +3112,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 213728
       GoKind: 22
-      Pointee: 125 StructureType sync.noCopy
+      Pointee: 134 StructureType sync.noCopy
     - __kind: PointerType
       ID: 1065
       Name: '*sync/atomic.noCopy'
@@ -3040,12 +3135,12 @@ Types:
       GoKind: 22
       Pointee: 493 StructureType syscall.Iovec
     - __kind: PointerType
-      ID: 175
+      ID: 179
       Name: '*syscall.Signal'
       ByteSize: 8
       GoRuntimeType: 217824
       GoKind: 22
-      Pointee: 174 BaseType syscall.Signal
+      Pointee: 178 BaseType syscall.Signal
     - __kind: PointerType
       ID: 673
       Name: '*table<*net.Listener,struct {}>'
@@ -3062,10 +3157,10 @@ Types:
       ByteSize: 8
       Pointee: 902 StructureType table<*net/http.http2serverConn,struct {}>
     - __kind: PointerType
-      ID: 133
+      ID: 141
       Name: '*table<context.canceler,struct {}>'
       ByteSize: 8
-      Pointee: 151 StructureType table<context.canceler,struct {}>
+      Pointee: 157 StructureType table<context.canceler,struct {}>
     - __kind: PointerType
       ID: 1113
       Name: '*table<crypto/x509.sum224,bool>'
@@ -3137,12 +3232,12 @@ Types:
       ByteSize: 8
       Pointee: 973 StructureType table<vendor/golang.org/x/net/http2/hpack.pairNameValue,uint64>
     - __kind: PointerType
-      ID: 138
+      ID: 147
       Name: '*time.Location'
       ByteSize: 8
       GoRuntimeType: 343616
       GoKind: 22
-      Pointee: 139 StructureType time.Location
+      Pointee: 148 StructureType time.Location
     - __kind: PointerType
       ID: 233
       Name: '*time.ParseError'
@@ -3151,12 +3246,12 @@ Types:
       GoKind: 22
       Pointee: 234 StructureType time.ParseError
     - __kind: PointerType
-      ID: 135
+      ID: 144
       Name: '*time.Timer'
       ByteSize: 8
       GoRuntimeType: 213984
       GoKind: 22
-      Pointee: 136 StructureType time.Timer
+      Pointee: 145 StructureType time.Timer
     - __kind: PointerType
       ID: 232
       Name: '*time.fileSizeError'
@@ -3170,28 +3265,28 @@ Types:
       ByteSize: 8
       Pointee: 194 GoStringDataType time.fileSizeError.str
     - __kind: PointerType
-      ID: 162
+      ID: 168
       Name: '*time.zone'
       ByteSize: 8
       GoRuntimeType: 92160
       GoKind: 22
-      Pointee: 163 StructureType time.zone
+      Pointee: 169 StructureType time.zone
     - __kind: PointerType
-      ID: 165
+      ID: 171
       Name: '*time.zoneTrans'
       ByteSize: 8
       GoRuntimeType: 92224
       GoKind: 22
-      Pointee: 166 StructureType time.zoneTrans
+      Pointee: 172 StructureType time.zoneTrans
     - __kind: PointerType
-      ID: 106
+      ID: 107
       Name: '*uint'
       ByteSize: 8
       GoRuntimeType: 94144
       GoKind: 22
       Pointee: 18 BaseType uint
     - __kind: PointerType
-      ID: 102
+      ID: 103
       Name: '*uint16'
       ByteSize: 8
       GoRuntimeType: 93760
@@ -3205,7 +3300,7 @@ Types:
       GoKind: 22
       Pointee: 4 BaseType uint32
     - __kind: PointerType
-      ID: 101
+      ID: 102
       Name: '*uint64'
       ByteSize: 8
       GoRuntimeType: 94016
@@ -3287,7 +3382,7 @@ Types:
       GoRuntimeType: 132480
       GoKind: 18
     - __kind: GoChannelType
-      ID: 173
+      ID: 177
       Name: <-chan time.Time
       GoRuntimeType: 134528
       GoKind: 18
@@ -3318,6 +3413,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 25
           Kind: argument
@@ -3331,6 +3427,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1212
       Name: Probe[main.CaptureBytesReturn]Return
@@ -3350,6 +3447,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: r1
           Offset: 25
           Kind: return
@@ -3363,6 +3461,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1209
       Name: Probe[main.CaptureBytes]
@@ -3382,6 +3481,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 25
           Kind: argument
@@ -3395,6 +3495,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1210
       Name: Probe[main.CaptureBytes]Return
@@ -3408,7 +3509,7 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 107 PointerType *main.Node
+            Type: 108 PointerType *main.Node
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 6, index: 0, name: head}
@@ -3417,6 +3518,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: returnLen
           Offset: 9
           Kind: argument
@@ -3430,6 +3532,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1220
       Name: Probe[main.CaptureChainReturn]Return
@@ -3440,7 +3543,7 @@ Types:
           Offset: 1
           Kind: return
           Expression:
-            Type: 107 PointerType *main.Node
+            Type: 108 PointerType *main.Node
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 6, index: 2, name: ~r0}
@@ -3449,6 +3552,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: r1
           Offset: 9
           Kind: return
@@ -3462,6 +3566,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1215
       Name: Probe[main.CaptureChain]
@@ -3472,7 +3577,7 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 107 PointerType *main.Node
+            Type: 108 PointerType *main.Node
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 4, index: 0, name: head}
@@ -3481,6 +3586,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1216
       Name: Probe[main.CaptureChain]Return
@@ -3503,6 +3609,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1214
       Name: Probe[main.CaptureSleep]Return
@@ -3516,7 +3623,7 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 109 PointerType *main.StringNode
+            Type: 110 PointerType *main.StringNode
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 5, index: 0, name: head}
@@ -3525,9 +3632,41 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1218
       Name: Probe[main.CaptureStringChain]Return
+    - __kind: EventRootType
+      ID: 1221
+      Name: Probe[runtime.recovery]
+      ByteSize: 17
+      EventKind: Entry
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: '@exception'
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 57 GoEmptyInterfaceType interface {}
+            Operations:
+                - __kind: PanicUnwindPrepareOp
+                - __kind: LocationOp
+                  Variable: {subprogram: 7, index: 7, name: '@gp'}
+                  Offset: 0
+                  ByteSize: 8
+                - __kind: DereferenceOp
+                  Bias: 32
+                  ByteSize: 8
+                  NullAsZero: false
+                - __kind: DereferenceOp
+                  Bias: 8
+                  ByteSize: 16
+                  NullAsZero: false
+                - __kind: PanicUnwindEvictSlotsOp
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 648
       Name: '[0]*net/http.response'
@@ -3555,23 +3694,23 @@ Types:
       GoRuntimeType: 142368
       GoKind: 17
       HasCount: true
-      Element: 95 PointerType *string
+      Element: 96 PointerType *string
     - __kind: ArrayType
-      ID: 94
+      ID: 95
       Name: '[0]uint8'
       GoRuntimeType: 158368
       GoKind: 17
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 91
+      ID: 92
       Name: '[10]runtime.heldLockInfo'
       ByteSize: 160
       GoRuntimeType: 158272
       GoKind: 17
       Count: 10
       HasCount: true
-      Element: 92 StructureType runtime.heldLockInfo
+      Element: 93 StructureType runtime.heldLockInfo
     - __kind: ArrayType
       ID: 640
       Name: '[10]uint8'
@@ -3645,32 +3784,32 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 77
+      ID: 78
       Name: '[2]*runtime.traceBuf'
       ByteSize: 16
       GoRuntimeType: 157888
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 78 PointerType *runtime.traceBuf
+      Element: 79 PointerType *runtime.traceBuf
     - __kind: ArrayType
-      ID: 76
+      ID: 77
       Name: '[2][2]*runtime.traceBuf'
       ByteSize: 32
       GoRuntimeType: 157984
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 77 ArrayType [2]*runtime.traceBuf
+      Element: 78 ArrayType [2]*runtime.traceBuf
     - __kind: ArrayType
-      ID: 83
+      ID: 84
       Name: '[2][8]runtime.pcvalueCacheEnt'
       ByteSize: 384
       GoRuntimeType: 158176
       GoKind: 17
       Count: 2
       HasCount: true
-      Element: 84 ArrayType [8]runtime.pcvalueCacheEnt
+      Element: 85 ArrayType [8]runtime.pcvalueCacheEnt
     - __kind: ArrayType
       ID: 56
       Name: '[2]uint64'
@@ -3690,7 +3829,7 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 89
+      ID: 90
       Name: '[32]uint64'
       ByteSize: 256
       GoRuntimeType: 167200
@@ -3708,7 +3847,7 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 67
+      ID: 68
       Name: '[32]uintptr'
       ByteSize: 256
       GoRuntimeType: 157696
@@ -3744,7 +3883,7 @@ Types:
       HasCount: true
       Element: 4 BaseType uint32
     - __kind: ArrayType
-      ID: 90
+      ID: 91
       Name: '[4]uint64'
       ByteSize: 32
       GoRuntimeType: 147456
@@ -3798,7 +3937,7 @@ Types:
       HasCount: true
       Element: 5 BaseType uint8
     - __kind: ArrayType
-      ID: 60
+      ID: 61
       Name: '[6]uintptr'
       ByteSize: 48
       GoRuntimeType: 152896
@@ -3816,14 +3955,14 @@ Types:
       HasCount: true
       Element: 528 StructureType crypto/tls.QUICEvent
     - __kind: ArrayType
-      ID: 84
+      ID: 85
       Name: '[8]runtime.pcvalueCacheEnt'
       ByteSize: 192
       GoRuntimeType: 158080
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 85 StructureType runtime.pcvalueCacheEnt
+      Element: 86 StructureType runtime.pcvalueCacheEnt
     - __kind: ArrayType
       ID: 1183
       Name: '[8]uint32'
@@ -4017,11 +4156,11 @@ Types:
       ByteSize: 8
       Element: 901 PointerType *table<*net/http.http2serverConn,struct {}>
     - __kind: GoSliceDataType
-      ID: 159
+      ID: 165
       Name: '[]*table<context.canceler,struct {}>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 133 PointerType *table<context.canceler,struct {}>
+      Element: 141 PointerType *table<context.canceler,struct {}>
     - __kind: GoSliceDataType
       ID: 1134
       Name: '[]*table<crypto/x509.sum224,bool>.array'
@@ -4460,7 +4599,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 104 PointerType *error
+          Type: 105 PointerType *error
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -4496,7 +4635,7 @@ Types:
       Name: '[]func().array'
       DynamicSizeClass: slice
       ByteSize: 8
-      Element: 61 GoSubroutineType func()
+      Element: 62 GoSubroutineType func()
     - __kind: GoSliceHeaderType
       ID: 1120
       Name: '[]int'
@@ -4506,7 +4645,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 100 PointerType *int
+          Type: 101 PointerType *int
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -4677,11 +4816,11 @@ Types:
       ByteSize: 136
       Element: 905 StructureType noalg.map.group[*net/http.http2serverConn]struct {}
     - __kind: GoSliceDataType
-      ID: 160
+      ID: 166
       Name: '[]noalg.map.group[context.canceler]struct {}.array'
       DynamicSizeClass: hashmap
       ByteSize: 200
-      Element: 154 StructureType noalg.map.group[context.canceler]struct {}
+      Element: 160 StructureType noalg.map.group[context.canceler]struct {}
     - __kind: GoSliceDataType
       ID: 1135
       Name: '[]noalg.map.group[crypto/x509.sum224]bool.array'
@@ -4767,7 +4906,7 @@ Types:
       ByteSize: 328
       Element: 976 StructureType noalg.map.group[vendor/golang.org/x/net/http2/hpack.pairNameValue]uint64
     - __kind: GoSliceHeaderType
-      ID: 141
+      ID: 127
       Name: '[]os.Signal'
       ByteSize: 24
       GoRuntimeType: 109248
@@ -4775,20 +4914,20 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 142 PointerType *os.Signal
+          Type: 128 PointerType *os.Signal
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 167 GoSliceDataType []os.Signal.array
+      Data: 155 GoSliceDataType []os.Signal.array
     - __kind: GoSliceDataType
-      ID: 167
+      ID: 155
       Name: '[]os.Signal.array'
       DynamicSizeClass: slice
       ByteSize: 16
-      Element: 143 GoInterfaceType os.Signal
+      Element: 129 GoInterfaceType os.Signal
     - __kind: UnresolvedPointeeType
       ID: 42
       Name: '[]runtime.ancestorInfo'
@@ -4802,7 +4941,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 95 PointerType *string
+          Type: 96 PointerType *string
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -4840,7 +4979,7 @@ Types:
       ByteSize: 16
       Element: 493 StructureType syscall.Iovec
     - __kind: GoSliceHeaderType
-      ID: 161
+      ID: 167
       Name: '[]time.zone'
       ByteSize: 24
       GoRuntimeType: 115072
@@ -4848,22 +4987,22 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 162 PointerType *time.zone
+          Type: 168 PointerType *time.zone
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 169 GoSliceDataType []time.zone.array
+      Data: 173 GoSliceDataType []time.zone.array
     - __kind: GoSliceDataType
-      ID: 169
+      ID: 173
       Name: '[]time.zone.array'
       DynamicSizeClass: slice
       ByteSize: 32
-      Element: 163 StructureType time.zone
+      Element: 169 StructureType time.zone
     - __kind: GoSliceHeaderType
-      ID: 164
+      ID: 170
       Name: '[]time.zoneTrans'
       ByteSize: 24
       GoRuntimeType: 115136
@@ -4871,20 +5010,20 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 165 PointerType *time.zoneTrans
+          Type: 171 PointerType *time.zoneTrans
         - Name: len
           Offset: 8
           Type: 9 BaseType int
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 171 GoSliceDataType []time.zoneTrans.array
+      Data: 175 GoSliceDataType []time.zoneTrans.array
     - __kind: GoSliceDataType
-      ID: 171
+      ID: 175
       Name: '[]time.zoneTrans.array'
       DynamicSizeClass: slice
       ByteSize: 16
-      Element: 166 StructureType time.zoneTrans
+      Element: 172 StructureType time.zoneTrans
     - __kind: GoSliceHeaderType
       ID: 555
       Name: '[]uint16'
@@ -4894,7 +5033,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 102 PointerType *uint16
+          Type: 103 PointerType *uint16
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -4924,9 +5063,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 147 GoSliceDataType []uint8.array
+      Data: 151 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 147
+      ID: 151
       Name: '[]uint8.array'
       DynamicSizeClass: slice
       ByteSize: 1
@@ -4947,9 +5086,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 149 GoSliceDataType []uintptr.array
+      Data: 153 GoSliceDataType []uintptr.array
     - __kind: GoSliceDataType
-      ID: 149
+      ID: 153
       Name: '[]uintptr.array'
       DynamicSizeClass: slice
       ByteSize: 8
@@ -5104,7 +5243,7 @@ Types:
       GoRuntimeType: 134912
       GoKind: 18
     - __kind: GoChannelType
-      ID: 144
+      ID: 130
       Name: chan os.Signal
       GoRuntimeType: 135744
       GoKind: 18
@@ -5114,25 +5253,25 @@ Types:
       GoRuntimeType: 132800
       GoKind: 18
     - __kind: BaseType
-      ID: 97
+      ID: 98
       Name: complex128
       ByteSize: 16
       GoRuntimeType: 129856
       GoKind: 16
     - __kind: BaseType
-      ID: 96
+      ID: 97
       Name: complex64
       ByteSize: 8
       GoRuntimeType: 129792
       GoKind: 15
     - __kind: GoSubroutineType
-      ID: 140
+      ID: 126
       Name: context.CancelFunc
       ByteSize: 8
       GoRuntimeType: 141312
       GoKind: 19
     - __kind: GoInterfaceType
-      ID: 111
+      ID: 112
       Name: context.Context
       ByteSize: 16
       GoRuntimeType: 264704
@@ -5145,19 +5284,19 @@ Types:
           Offset: 8
           Type: 16 VoidPointerType unsafe.Pointer
     - __kind: GoContextImplementationType
-      ID: 122
+      ID: 123
       Name: context.backgroundCtx
       GoRuntimeType: 386688
       GoKind: 25
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 123 StructureType context.emptyCtx
+          Type: 114 GoContextImplementationType context.emptyCtx
       ContextOffset: -1
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 113
+      ID: 132
       Name: context.cancelCtx
       ByteSize: 80
       GoRuntimeType: 427360
@@ -5165,16 +5304,16 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: mu
           Offset: 16
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: done
           Offset: 24
-          Type: 127 StructureType sync/atomic.Value
+          Type: 136 StructureType sync/atomic.Value
         - Name: children
           Offset: 40
-          Type: 129 GoMapType map[context.canceler]struct {}
+          Type: 137 GoMapType map[context.canceler]struct {}
         - Name: err
           Offset: 48
           Type: 15 GoInterfaceType error
@@ -5184,7 +5323,7 @@ Types:
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoInterfaceType
-      ID: 157
+      ID: 163
       Name: context.canceler
       ByteSize: 16
       GoRuntimeType: 230464
@@ -5203,7 +5342,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: GoContextImplementationType
-      ID: 123
+      ID: 114
       Name: context.emptyCtx
       GoRuntimeType: 335872
       GoKind: 25
@@ -5212,7 +5351,7 @@ Types:
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 115
+      ID: 116
       Name: context.stopCtx
       ByteSize: 24
       GoRuntimeType: 393536
@@ -5220,14 +5359,14 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: stop
           Offset: 16
-          Type: 134 GoSubroutineType func() bool
+          Type: 117 GoSubroutineType func() bool
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 117
+      ID: 143
       Name: context.timerCtx
       ByteSize: 112
       GoRuntimeType: 337664
@@ -5235,17 +5374,17 @@ Types:
       RawFields:
         - Name: cancelCtx
           Offset: 0
-          Type: 113 StructureType context.cancelCtx
+          Type: 132 GoContextImplementationType context.cancelCtx
         - Name: timer
           Offset: 80
-          Type: 135 PointerType *time.Timer
+          Type: 144 PointerType *time.Timer
         - Name: deadline
           Offset: 88
-          Type: 137 GoTimeType time.Time
+          Type: 146 GoTimeType time.Time
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
-      ID: 119
+      ID: 121
       Name: context.valueCtx
       ByteSize: 48
       GoRuntimeType: 394432
@@ -5253,13 +5392,13 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: key
           Offset: 16
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: val
           Offset: 32
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
       KeyOffset: 16
       ValueOffset: 32
     - __kind: GoEmptyInterfaceType
@@ -5695,7 +5834,7 @@ Types:
           Type: 499 StructureType sync/atomic.Bool
         - Name: handshakeMutex
           Offset: 44
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: handshakeErr
           Offset: 56
           Type: 15 GoInterfaceType error
@@ -6109,7 +6248,7 @@ Types:
       RawFields:
         - Name: Mutex
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: err
           Offset: 8
           Type: 15 GoInterfaceType error
@@ -6118,7 +6257,7 @@ Types:
           Type: 8 BaseType uint16
         - Name: cipher
           Offset: 32
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: mac
           Offset: 48
           Type: 517 GoInterfaceType hash.Hash
@@ -6130,7 +6269,7 @@ Types:
           Type: 519 ArrayType [13]uint8
         - Name: nextCipher
           Offset: 88
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: nextMac
           Offset: 104
           Type: 517 GoInterfaceType hash.Hash
@@ -6186,7 +6325,7 @@ Types:
           Type: 534 GoChannelType <-chan struct {}
         - Name: cancel
           Offset: 512
-          Type: 140 GoSubroutineType context.CancelFunc
+          Type: 126 GoSubroutineType context.CancelFunc
         - Name: waitingForDrain
           Offset: 520
           Type: 6 BaseType bool
@@ -6214,7 +6353,7 @@ Types:
           Type: 525 ArrayType [16]uint8
         - Name: created
           Offset: 32
-          Type: 137 GoTimeType time.Time
+          Type: 146 GoTimeType time.Time
     - __kind: StructureType
       ID: 553
       Name: crypto/x509.CertPool
@@ -6267,7 +6406,7 @@ Types:
           Type: 403 BaseType crypto/x509.PublicKeyAlgorithm
         - Name: PublicKey
           Offset: 160
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: Version
           Offset: 176
           Type: 9 BaseType int
@@ -6282,10 +6421,10 @@ Types:
           Type: 406 StructureType crypto/x509/pkix.Name
         - Name: NotBefore
           Offset: 688
-          Type: 137 GoTimeType time.Time
+          Type: 146 GoTimeType time.Time
         - Name: NotAfter
           Offset: 712
-          Type: 137 GoTimeType time.Time
+          Type: 146 GoTimeType time.Time
         - Name: KeyUsage
           Offset: 736
           Type: 411 BaseType crypto/x509.KeyUsage
@@ -6560,7 +6699,7 @@ Types:
           Type: 417 GoSliceHeaderType encoding/asn1.ObjectIdentifier
         - Name: Value
           Offset: 24
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
     - __kind: StructureType
       ID: 414
       Name: crypto/x509/pkix.Extension
@@ -6626,7 +6765,7 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 100 PointerType *int
+          Type: 101 PointerType *int
         - Name: len
           Offset: 8
           Type: 9 BaseType int
@@ -6802,7 +6941,7 @@ Types:
           Type: 1187 GoSliceHeaderType fmt.buffer
         - Name: arg
           Offset: 24
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: value
           Offset: 40
           Type: 1188 StructureType reflect.Value
@@ -6854,7 +6993,7 @@ Types:
           Offset: 16
           Type: 375 GoSliceHeaderType []error
     - __kind: GoSubroutineType
-      ID: 61
+      ID: 62
       Name: func()
       ByteSize: 8
       GoRuntimeType: 109376
@@ -6878,7 +7017,7 @@ Types:
       GoRuntimeType: 151168
       GoKind: 19
     - __kind: GoSubroutineType
-      ID: 134
+      ID: 117
       Name: func() bool
       ByteSize: 8
       GoRuntimeType: 132736
@@ -6920,7 +7059,7 @@ Types:
       GoRuntimeType: 177664
       GoKind: 19
     - __kind: GoSubroutineType
-      ID: 72
+      ID: 73
       Name: func(*runtime.g, unsafe.Pointer) bool
       ByteSize: 8
       GoRuntimeType: 179008
@@ -7070,19 +7209,19 @@ Types:
       GroupType: 905 StructureType noalg.map.group[*net/http.http2serverConn]struct {}
       GroupSliceType: 909 GoSliceDataType []noalg.map.group[*net/http.http2serverConn]struct {}.array
     - __kind: GoSwissMapGroupsType
-      ID: 152
+      ID: 158
       Name: groupReference<context.canceler,struct {}>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 153 PointerType *noalg.map.group[context.canceler]struct {}
+          Type: 159 PointerType *noalg.map.group[context.canceler]struct {}
         - Name: lengthMask
           Offset: 8
           Type: 10 BaseType uint64
-      GroupType: 154 StructureType noalg.map.group[context.canceler]struct {}
-      GroupSliceType: 160 GoSliceDataType []noalg.map.group[context.canceler]struct {}.array
+      GroupType: 160 StructureType noalg.map.group[context.canceler]struct {}
+      GroupSliceType: 166 GoSliceDataType []noalg.map.group[context.canceler]struct {}.array
     - __kind: GoSwissMapGroupsType
       ID: 1128
       Name: groupReference<crypto/x509.sum224,bool>
@@ -7299,7 +7438,7 @@ Types:
       GoRuntimeType: 129600
       GoKind: 2
     - __kind: BaseType
-      ID: 103
+      ID: 104
       Name: int16
       ByteSize: 2
       GoRuntimeType: 129216
@@ -7336,7 +7475,7 @@ Types:
           Offset: 8
           Type: 16 VoidPointerType unsafe.Pointer
     - __kind: GoEmptyInterfaceType
-      ID: 128
+      ID: 57
       Name: interface {}
       ByteSize: 16
       GoRuntimeType: 178816
@@ -7423,7 +7562,7 @@ Types:
           Offset: 0
           Type: 11 GoStringHeaderType string
     - __kind: StructureType
-      ID: 88
+      ID: 89
       Name: internal/chacha8rand.State
       ByteSize: 304
       GoRuntimeType: 404064
@@ -7431,10 +7570,10 @@ Types:
       RawFields:
         - Name: buf
           Offset: 0
-          Type: 89 ArrayType [32]uint64
+          Type: 90 ArrayType [32]uint64
         - Name: seed
           Offset: 256
-          Type: 90 ArrayType [4]uint64
+          Type: 91 ArrayType [4]uint64
         - Name: i
           Offset: 288
           Type: 4 BaseType uint32
@@ -7556,7 +7695,7 @@ Types:
           Offset: 0
           Type: 38 StructureType internal/runtime/atomic.Uint8
     - __kind: StructureType
-      ID: 70
+      ID: 71
       Name: internal/runtime/atomic.Int64
       ByteSize: 8
       GoRuntimeType: 354752
@@ -7567,7 +7706,7 @@ Types:
           Type: 35 StructureType internal/runtime/atomic.noCopy
         - Name: _
           Offset: 0
-          Type: 71 StructureType internal/runtime/atomic.align64
+          Type: 72 StructureType internal/runtime/atomic.align64
         - Name: value
           Offset: 0
           Type: 14 BaseType int64
@@ -7598,7 +7737,7 @@ Types:
           Offset: 0
           Type: 5 BaseType uint8
     - __kind: StructureType
-      ID: 75
+      ID: 76
       Name: internal/runtime/atomic.Uintptr
       ByteSize: 8
       GoRuntimeType: 318112
@@ -7611,7 +7750,7 @@ Types:
           Offset: 0
           Type: 3 BaseType uintptr
     - __kind: StructureType
-      ID: 71
+      ID: 72
       Name: internal/runtime/atomic.align64
       GoRuntimeType: 205024
       GoKind: 25
@@ -7623,7 +7762,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 126
+      ID: 135
       Name: internal/sync.Mutex
       ByteSize: 8
       GoRuntimeType: 316992
@@ -7751,7 +7890,7 @@ Types:
       RawFields:
         - Name: outMu
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: out
           Offset: 8
           Type: 563 GoInterfaceType io.Writer
@@ -7765,7 +7904,7 @@ Types:
           Offset: 36
           Type: 499 StructureType sync/atomic.Bool
     - __kind: StructureType
-      ID: 108
+      ID: 109
       Name: main.Node
       ByteSize: 72
       GoRuntimeType: 301152
@@ -7776,9 +7915,9 @@ Types:
           Type: 1182 ArrayType [64]uint8
         - Name: Next
           Offset: 64
-          Type: 107 PointerType *main.Node
+          Type: 108 PointerType *main.Node
     - __kind: StructureType
-      ID: 110
+      ID: 111
       Name: main.StringNode
       ByteSize: 24
       GoRuntimeType: 301312
@@ -7789,7 +7928,7 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: Next
           Offset: 16
-          Type: 109 PointerType *main.StringNode
+          Type: 110 PointerType *main.StringNode
     - __kind: GoSwissMapHeaderType
       ID: 671
       Name: map<*net.Listener,struct {}>
@@ -7887,7 +8026,7 @@ Types:
       TablePtrSliceType: 908 GoSliceDataType []*table<*net/http.http2serverConn,struct {}>.array
       GroupType: 905 StructureType noalg.map.group[*net/http.http2serverConn]struct {}
     - __kind: GoSwissMapHeaderType
-      ID: 131
+      ID: 139
       Name: map<context.canceler,struct {}>
       ByteSize: 48
       GoKind: 25
@@ -7900,7 +8039,7 @@ Types:
           Type: 3 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 132 PointerType **table<context.canceler,struct {}>
+          Type: 140 PointerType **table<context.canceler,struct {}>
         - Name: dirLen
           Offset: 24
           Type: 9 BaseType int
@@ -7916,8 +8055,8 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 10 BaseType uint64
-      TablePtrSliceType: 159 GoSliceDataType []*table<context.canceler,struct {}>.array
-      GroupType: 154 StructureType noalg.map.group[context.canceler]struct {}
+      TablePtrSliceType: 165 GoSliceDataType []*table<context.canceler,struct {}>.array
+      GroupType: 160 StructureType noalg.map.group[context.canceler]struct {}
     - __kind: GoSwissMapHeaderType
       ID: 1111
       Name: map<crypto/x509.sum224,bool>
@@ -8388,12 +8527,12 @@ Types:
       GoKind: 21
       HeaderType: 899 GoSwissMapHeaderType map<*net/http.http2serverConn,struct {}>
     - __kind: GoMapType
-      ID: 129
+      ID: 137
       Name: map[context.canceler]struct {}
       ByteSize: 8
       GoRuntimeType: 235072
       GoKind: 21
-      HeaderType: 131 GoSwissMapHeaderType map<context.canceler,struct {}>
+      HeaderType: 139 GoSwissMapHeaderType map<context.canceler,struct {}>
     - __kind: GoMapType
       ID: 1109
       Name: map[crypto/x509.sum224]bool
@@ -8588,7 +8727,7 @@ Types:
       RawFields:
         - Name: lk
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: s
           Offset: 8
           Type: 1074 PointerType *math/rand.rngSource
@@ -8617,7 +8756,7 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
     - __kind: StructureType
       ID: 840
       Name: mime/multipart.FileHeader
@@ -9124,8 +9263,8 @@ Types:
         - Name: s
           Offset: 0
           Type: 11 GoStringHeaderType string
-    - __kind: StructureType
-      ID: 178
+    - __kind: GoContextImplementationType
+      ID: 119
       Name: net.onlyValuesCtx
       ByteSize: 32
       GoRuntimeType: 370880
@@ -9133,10 +9272,12 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: lookupValues
           Offset: 16
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
+      KeyOffset: -1
+      ValueOffset: -1
     - __kind: StructureType
       ID: 216
       Name: net.result·2
@@ -9360,7 +9501,7 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: ctx
           Offset: 248
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: pat
           Offset: 264
           Type: 697 PointerType *net/http.pattern
@@ -9520,7 +9661,7 @@ Types:
           Type: 15 GoInterfaceType error
         - Name: mu
           Offset: 184
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: listeners
           Offset: 192
           Type: 669 GoMapType map[*net.Listener]struct {}
@@ -9545,7 +9686,7 @@ Types:
           Type: 537 GoInterfaceType io.Reader
         - Name: hdr
           Offset: 16
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
         - Name: r
           Offset: 32
           Type: 610 PointerType *bufio.Reader
@@ -9557,7 +9698,7 @@ Types:
           Type: 6 BaseType bool
         - Name: mu
           Offset: 44
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: sawEOF
           Offset: 52
           Type: 6 BaseType bool
@@ -9569,7 +9710,7 @@ Types:
           Type: 6 BaseType bool
         - Name: onHitEOF
           Offset: 56
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
     - __kind: StructureType
       ID: 569
       Name: net/http.bodyLocked
@@ -9621,7 +9762,7 @@ Types:
           Type: 643 PointerType *net/http.Server
         - Name: cancelCtx
           Offset: 8
-          Type: 140 GoSubroutineType context.CancelFunc
+          Type: 126 GoSubroutineType context.CancelFunc
         - Name: rwc
           Offset: 16
           Type: 360 GoInterfaceType net.Conn
@@ -9654,7 +9795,7 @@ Types:
           Type: 649 StructureType sync/atomic.Uint64
         - Name: mu
           Offset: 128
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: hijackedv
           Offset: 136
           Type: 6 BaseType bool
@@ -9670,7 +9811,7 @@ Types:
           Type: 627 PointerType *net/http.conn
         - Name: mu
           Offset: 8
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: hasByte
           Offset: 16
           Type: 6 BaseType bool
@@ -10363,7 +10504,7 @@ Types:
       GoRuntimeType: 183744
       GoKind: 17
       HasCount: true
-      Element: 61 GoSubroutineType func()
+      Element: 62 GoSubroutineType func()
     - __kind: StructureType
       ID: 865
       Name: net/http.http2inflow
@@ -10402,7 +10543,7 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: c
           Offset: 8
           Type: 1060 StructureType sync.Cond
@@ -10423,7 +10564,7 @@ Types:
           Type: 533 GoChannelType chan struct {}
         - Name: readFn
           Offset: 128
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
     - __kind: GoInterfaceType
       ID: 1071
       Name: net/http.http2pipeBuffer
@@ -10542,7 +10683,7 @@ Types:
           Type: 14 BaseType int64
         - Name: closeNotifierMu
           Offset: 104
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: closeNotifierCh
           Offset: 112
           Type: 642 GoChannelType chan bool
@@ -10589,7 +10730,7 @@ Types:
           Type: 651 GoInterfaceType net/http.Handler
         - Name: baseCtx
           Offset: 56
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: framer
           Offset: 72
           Type: 874 PointerType *net/http.http2Framer
@@ -10755,7 +10896,7 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: activeConns
           Offset: 8
           Type: 897 GoMapType map[*net/http.http2serverConn]struct {}
@@ -10780,10 +10921,10 @@ Types:
           Type: 861 GoChannelType net/http.http2closeWaiter
         - Name: ctx
           Offset: 32
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: cancelCtx
           Offset: 48
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
         - Name: bodyBytes
           Offset: 56
           Type: 14 BaseType int64
@@ -10851,7 +10992,7 @@ Types:
       RawFields:
         - Name: Timer
           Offset: 0
-          Type: 135 PointerType *time.Timer
+          Type: 144 PointerType *time.Timer
     - __kind: StructureType
       ID: 890
       Name: net/http.http2unstartedHandler
@@ -11089,7 +11230,7 @@ Types:
       RawFields:
         - Name: ctx
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: c
           Offset: 16
           Type: 482 PointerType *crypto/tls.Conn
@@ -11219,7 +11360,7 @@ Types:
           Type: 626 GoInterfaceType io.ReadCloser
         - Name: cancelCtx
           Offset: 32
-          Type: 140 GoSubroutineType context.CancelFunc
+          Type: 126 GoSubroutineType context.CancelFunc
         - Name: wroteHeader
           Offset: 40
           Type: 6 BaseType bool
@@ -11231,7 +11372,7 @@ Types:
           Type: 6 BaseType bool
         - Name: writeContinueMu
           Offset: 44
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: canWriteContinue
           Offset: 52
           Type: 499 StructureType sync/atomic.Bool
@@ -11401,7 +11542,7 @@ Types:
       RawFields:
         - Name: ctx
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: c
           Offset: 16
           Type: 360 GoInterfaceType net.Conn
@@ -11682,14 +11823,14 @@ Types:
       HasCount: true
       Element: 907 StructureType noalg.struct { key *net/http.http2serverConn; elem struct {} }
     - __kind: ArrayType
-      ID: 155
+      ID: 161
       Name: noalg.[8]struct { key context.canceler; elem struct {} }
       ByteSize: 192
       GoRuntimeType: 143424
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 156 StructureType noalg.struct { key context.canceler; elem struct {} }
+      Element: 162 StructureType noalg.struct { key context.canceler; elem struct {} }
     - __kind: ArrayType
       ID: 1131
       Name: noalg.[8]struct { key crypto/x509.sum224; elem bool }
@@ -11856,7 +11997,7 @@ Types:
           Offset: 8
           Type: 906 ArrayType noalg.[8]struct { key *net/http.http2serverConn; elem struct {} }
     - __kind: StructureType
-      ID: 154
+      ID: 160
       Name: noalg.map.group[context.canceler]struct {}
       ByteSize: 200
       GoRuntimeType: 266624
@@ -11867,7 +12008,7 @@ Types:
           Type: 10 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 155 ArrayType noalg.[8]struct { key context.canceler; elem struct {} }
+          Type: 161 ArrayType noalg.[8]struct { key context.canceler; elem struct {} }
     - __kind: StructureType
       ID: 1130
       Name: noalg.map.group[crypto/x509.sum224]bool
@@ -12062,7 +12203,7 @@ Types:
           Type: 780 PointerType *net.Listener
         - Name: elem
           Offset: 8
-          Type: 158 StructureType struct {}
+          Type: 164 StructureType struct {}
     - __kind: StructureType
       ID: 789
       Name: noalg.struct { key *net/http.conn; elem struct {} }
@@ -12075,7 +12216,7 @@ Types:
           Type: 627 PointerType *net/http.conn
         - Name: elem
           Offset: 8
-          Type: 158 StructureType struct {}
+          Type: 164 StructureType struct {}
     - __kind: StructureType
       ID: 907
       Name: noalg.struct { key *net/http.http2serverConn; elem struct {} }
@@ -12088,9 +12229,9 @@ Types:
           Type: 859 PointerType *net/http.http2serverConn
         - Name: elem
           Offset: 8
-          Type: 158 StructureType struct {}
+          Type: 164 StructureType struct {}
     - __kind: StructureType
-      ID: 156
+      ID: 162
       Name: noalg.struct { key context.canceler; elem struct {} }
       ByteSize: 24
       GoRuntimeType: 266496
@@ -12098,10 +12239,10 @@ Types:
       RawFields:
         - Name: key
           Offset: 0
-          Type: 157 GoInterfaceType context.canceler
+          Type: 163 GoInterfaceType context.canceler
         - Name: elem
           Offset: 16
-          Type: 158 StructureType struct {}
+          Type: 164 StructureType struct {}
     - __kind: StructureType
       ID: 1132
       Name: noalg.struct { key crypto/x509.sum224; elem bool }
@@ -12314,7 +12455,7 @@ Types:
           Offset: 48
           Type: 15 GoInterfaceType error
     - __kind: GoInterfaceType
-      ID: 143
+      ID: 129
       Name: os.Signal
       ByteSize: 16
       GoRuntimeType: 232384
@@ -12348,7 +12489,7 @@ Types:
       RawFields:
         - Name: mu
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: buf
           Offset: 8
           Type: 505 PointerType *[]uint8
@@ -12422,7 +12563,7 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: GoContextImplementationType
-      ID: 121
+      ID: 125
       Name: os/signal.signalCtx
       ByteSize: 56
       GoRuntimeType: 427616
@@ -12430,16 +12571,16 @@ Types:
       RawFields:
         - Name: Context
           Offset: 0
-          Type: 111 GoInterfaceType context.Context
+          Type: 112 GoInterfaceType context.Context
         - Name: cancel
           Offset: 16
-          Type: 140 GoSubroutineType context.CancelFunc
+          Type: 126 GoSubroutineType context.CancelFunc
         - Name: signals
           Offset: 24
-          Type: 141 GoSliceHeaderType []os.Signal
+          Type: 127 GoSliceHeaderType []os.Signal
         - Name: ch
           Offset: 48
-          Type: 144 GoChannelType chan os.Signal
+          Type: 130 GoChannelType chan os.Signal
       KeyOffset: -1
       ValueOffset: -1
     - __kind: BaseType
@@ -12538,10 +12679,55 @@ Types:
       ID: 29
       Name: runtime._defer
       ByteSize: 8
-    - __kind: UnresolvedPointeeType
+    - __kind: StructureType
       ID: 27
       Name: runtime._panic
-      ByteSize: 8
+      ByteSize: 104
+      GoRuntimeType: 466368
+      GoKind: 25
+      RawFields:
+        - Name: argp
+          Offset: 0
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: arg
+          Offset: 8
+          Type: 57 GoEmptyInterfaceType interface {}
+        - Name: link
+          Offset: 24
+          Type: 26 PointerType *runtime._panic
+        - Name: startPC
+          Offset: 32
+          Type: 3 BaseType uintptr
+        - Name: startSP
+          Offset: 40
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: sp
+          Offset: 48
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: lr
+          Offset: 56
+          Type: 3 BaseType uintptr
+        - Name: fp
+          Offset: 64
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: retpc
+          Offset: 72
+          Type: 3 BaseType uintptr
+        - Name: deferBitsPtr
+          Offset: 80
+          Type: 7 PointerType *uint8
+        - Name: slotsPtr
+          Offset: 88
+          Type: 16 VoidPointerType unsafe.Pointer
+        - Name: recovered
+          Offset: 96
+          Type: 6 BaseType bool
+        - Name: goexit
+          Offset: 97
+          Type: 6 BaseType bool
+        - Name: deferreturn
+          Offset: 98
+          Type: 6 BaseType bool
     - __kind: StructureType
       ID: 305
       Name: runtime.boundsError
@@ -12568,7 +12754,7 @@ Types:
       GoRuntimeType: 130176
       GoKind: 8
     - __kind: UnresolvedPointeeType
-      ID: 65
+      ID: 66
       Name: runtime.cgoCallers
       ByteSize: 8
     - __kind: UnresolvedPointeeType
@@ -12576,7 +12762,7 @@ Types:
       Name: runtime.coro
       ByteSize: 8
     - __kind: StructureType
-      ID: 86
+      ID: 87
       Name: runtime.dlogPerM
       GoRuntimeType: 203200
       GoKind: 25
@@ -12846,7 +13032,7 @@ Types:
           Offset: 0
           Type: 4 BaseType uint32
     - __kind: StructureType
-      ID: 58
+      ID: 59
       Name: runtime.gsignalStack
       ByteSize: 40
       GoRuntimeType: 376064
@@ -12871,7 +13057,7 @@ Types:
       GoRuntimeType: 174656
       GoKind: 12
     - __kind: StructureType
-      ID: 92
+      ID: 93
       Name: runtime.heldLockInfo
       ByteSize: 16
       GoRuntimeType: 310752
@@ -12882,9 +13068,9 @@ Types:
           Type: 3 BaseType uintptr
         - Name: rank
           Offset: 8
-          Type: 93 BaseType runtime.lockRank
+          Type: 94 BaseType runtime.lockRank
     - __kind: StructureType
-      ID: 80
+      ID: 81
       Name: runtime.libcall
       ByteSize: 48
       GoRuntimeType: 418400
@@ -12909,7 +13095,7 @@ Types:
           Offset: 40
           Type: 3 BaseType uintptr
     - __kind: BaseType
-      ID: 93
+      ID: 94
       Name: runtime.lockRank
       ByteSize: 8
       GoRuntimeType: 174560
@@ -12923,7 +13109,7 @@ Types:
       RawFields:
         - Name: g0
           Offset: 0
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: morebuf
           Offset: 8
           Type: 32 StructureType runtime.gobuf
@@ -12938,34 +13124,34 @@ Types:
           Type: 10 BaseType uint64
         - Name: gsignal
           Offset: 80
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: goSigStack
           Offset: 88
-          Type: 58 StructureType runtime.gsignalStack
+          Type: 59 StructureType runtime.gsignalStack
         - Name: sigmask
           Offset: 128
-          Type: 59 ArrayType runtime.sigset
+          Type: 60 ArrayType runtime.sigset
         - Name: tls
           Offset: 136
-          Type: 60 ArrayType [6]uintptr
+          Type: 61 ArrayType [6]uintptr
         - Name: mstartfn
           Offset: 184
-          Type: 61 GoSubroutineType func()
+          Type: 62 GoSubroutineType func()
         - Name: curg
           Offset: 192
-          Type: 57 PointerType *runtime.g
+          Type: 58 PointerType *runtime.g
         - Name: caughtsig
           Offset: 200
           Type: 33 BaseType runtime.guintptr
         - Name: p
           Offset: 208
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: nextp
           Offset: 216
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: oldp
           Offset: 224
-          Type: 62 BaseType runtime.puintptr
+          Type: 63 BaseType runtime.puintptr
         - Name: id
           Offset: 232
           Type: 14 BaseType int64
@@ -12974,7 +13160,7 @@ Types:
           Type: 12 BaseType int32
         - Name: throwing
           Offset: 244
-          Type: 63 BaseType runtime.throwType
+          Type: 64 BaseType runtime.throwType
         - Name: preemptoff
           Offset: 248
           Type: 11 GoStringHeaderType string
@@ -13034,10 +13220,10 @@ Types:
           Type: 34 StructureType internal/runtime/atomic.Uint32
         - Name: cgoCallers
           Offset: 312
-          Type: 64 PointerType *runtime.cgoCallers
+          Type: 65 PointerType *runtime.cgoCallers
         - Name: park
           Offset: 320
-          Type: 66 StructureType runtime.note
+          Type: 67 StructureType runtime.note
         - Name: alllink
           Offset: 328
           Type: 30 PointerType *runtime.m
@@ -13049,7 +13235,7 @@ Types:
           Type: 33 BaseType runtime.guintptr
         - Name: createstack
           Offset: 352
-          Type: 67 ArrayType [32]uintptr
+          Type: 68 ArrayType [32]uintptr
         - Name: lockedExt
           Offset: 608
           Type: 4 BaseType uint32
@@ -13058,16 +13244,16 @@ Types:
           Type: 4 BaseType uint32
         - Name: mWaitList
           Offset: 616
-          Type: 68 StructureType runtime.mWaitList
+          Type: 69 StructureType runtime.mWaitList
         - Name: mLockProfile
           Offset: 624
-          Type: 69 StructureType runtime.mLockProfile
+          Type: 70 StructureType runtime.mLockProfile
         - Name: profStack
           Offset: 688
           Type: 45 GoSliceHeaderType []uintptr
         - Name: waitunlockf
           Offset: 712
-          Type: 72 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
+          Type: 73 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
         - Name: waitlock
           Offset: 720
           Type: 16 VoidPointerType unsafe.Pointer
@@ -13076,7 +13262,7 @@ Types:
           Type: 9 BaseType int
         - Name: waitTraceBlockReason
           Offset: 736
-          Type: 73 BaseType runtime.traceBlockReason
+          Type: 74 BaseType runtime.traceBlockReason
         - Name: syscalltick
           Offset: 740
           Type: 4 BaseType uint32
@@ -13085,10 +13271,10 @@ Types:
           Type: 30 PointerType *runtime.m
         - Name: trace
           Offset: 752
-          Type: 74 StructureType runtime.mTraceState
+          Type: 75 StructureType runtime.mTraceState
         - Name: libcall
           Offset: 808
-          Type: 80 StructureType runtime.libcall
+          Type: 81 StructureType runtime.libcall
         - Name: libcallpc
           Offset: 856
           Type: 3 BaseType uintptr
@@ -13100,7 +13286,7 @@ Types:
           Type: 33 BaseType runtime.guintptr
         - Name: winsyscall
           Offset: 880
-          Type: 81 StructureType runtime.winlibcall
+          Type: 82 StructureType runtime.winlibcall
         - Name: vdsoSP
           Offset: 880
           Type: 3 BaseType uintptr
@@ -13115,16 +13301,16 @@ Types:
           Type: 34 StructureType internal/runtime/atomic.Uint32
         - Name: pcvalueCache
           Offset: 904
-          Type: 82 StructureType runtime.pcvalueCache
+          Type: 83 StructureType runtime.pcvalueCache
         - Name: dlogPerM
           Offset: 1296
-          Type: 86 StructureType runtime.dlogPerM
+          Type: 87 StructureType runtime.dlogPerM
         - Name: mOS
           Offset: 1296
-          Type: 87 StructureType runtime.mOS
+          Type: 88 StructureType runtime.mOS
         - Name: chacha8
           Offset: 1320
-          Type: 88 StructureType internal/chacha8rand.State
+          Type: 89 StructureType internal/chacha8rand.State
         - Name: cheaprand
           Offset: 1624
           Type: 10 BaseType uint64
@@ -13133,12 +13319,12 @@ Types:
           Type: 9 BaseType int
         - Name: locksHeld
           Offset: 1640
-          Type: 91 ArrayType [10]runtime.heldLockInfo
+          Type: 92 ArrayType [10]runtime.heldLockInfo
         - Name: _
           Offset: 1800
-          Type: 94 ArrayType [0]uint8
+          Type: 95 ArrayType [0]uint8
     - __kind: StructureType
-      ID: 69
+      ID: 70
       Name: runtime.mLockProfile
       ByteSize: 64
       GoRuntimeType: 430176
@@ -13146,7 +13332,7 @@ Types:
       RawFields:
         - Name: waitTime
           Offset: 0
-          Type: 70 StructureType internal/runtime/atomic.Int64
+          Type: 71 StructureType internal/runtime/atomic.Int64
         - Name: stack
           Offset: 8
           Type: 45 GoSliceHeaderType []uintptr
@@ -13166,7 +13352,7 @@ Types:
           Offset: 57
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 87
+      ID: 88
       Name: runtime.mOS
       ByteSize: 24
       GoRuntimeType: 400256
@@ -13188,7 +13374,7 @@ Types:
           Offset: 16
           Type: 4 BaseType uint32
     - __kind: StructureType
-      ID: 74
+      ID: 75
       Name: runtime.mTraceState
       ByteSize: 56
       GoRuntimeType: 400032
@@ -13196,10 +13382,10 @@ Types:
       RawFields:
         - Name: seqlock
           Offset: 0
-          Type: 75 StructureType internal/runtime/atomic.Uintptr
+          Type: 76 StructureType internal/runtime/atomic.Uintptr
         - Name: buf
           Offset: 8
-          Type: 76 ArrayType [2][2]*runtime.traceBuf
+          Type: 77 ArrayType [2][2]*runtime.traceBuf
         - Name: link
           Offset: 40
           Type: 30 PointerType *runtime.m
@@ -13210,7 +13396,7 @@ Types:
           Offset: 52
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 68
+      ID: 69
       Name: runtime.mWaitList
       ByteSize: 8
       GoRuntimeType: 252800
@@ -13226,14 +13412,14 @@ Types:
       GoRuntimeType: 174272
       GoKind: 12
     - __kind: StructureType
-      ID: 66
+      ID: 67
       Name: runtime.note
       ByteSize: 8
       GoRuntimeType: 252672
       GoKind: 25
       RawFields: [{Name: key, Offset: 0, Type: 3 BaseType uintptr}]
     - __kind: StructureType
-      ID: 82
+      ID: 83
       Name: runtime.pcvalueCache
       ByteSize: 392
       GoRuntimeType: 310592
@@ -13241,12 +13427,12 @@ Types:
       RawFields:
         - Name: entries
           Offset: 0
-          Type: 83 ArrayType [2][8]runtime.pcvalueCacheEnt
+          Type: 84 ArrayType [2][8]runtime.pcvalueCacheEnt
         - Name: inUse
           Offset: 384
           Type: 9 BaseType int
     - __kind: StructureType
-      ID: 85
+      ID: 86
       Name: runtime.pcvalueCacheEnt
       ByteSize: 24
       GoRuntimeType: 376832
@@ -13284,13 +13470,13 @@ Types:
       DynamicSizeClass: string
       ByteSize: 1
     - __kind: BaseType
-      ID: 62
+      ID: 63
       Name: runtime.puintptr
       ByteSize: 8
       GoRuntimeType: 174464
       GoKind: 12
     - __kind: ArrayType
-      ID: 59
+      ID: 60
       Name: runtime.sigset
       ByteSize: 8
       GoRuntimeType: 188352
@@ -13320,7 +13506,7 @@ Types:
       Name: runtime.synctestGroup
       ByteSize: 8
     - __kind: BaseType
-      ID: 63
+      ID: 64
       Name: runtime.throwType
       ByteSize: 4
       GoRuntimeType: 130304
@@ -13330,13 +13516,13 @@ Types:
       Name: runtime.timer
       ByteSize: 8
     - __kind: BaseType
-      ID: 73
+      ID: 74
       Name: runtime.traceBlockReason
       ByteSize: 1
       GoRuntimeType: 130368
       GoKind: 8
     - __kind: UnresolvedPointeeType
-      ID: 79
+      ID: 80
       Name: runtime.traceBuf
       ByteSize: 8
     - __kind: StructureType
@@ -13359,7 +13545,7 @@ Types:
       GoRuntimeType: 265472
       GoKind: 8
     - __kind: StructureType
-      ID: 81
+      ID: 82
       Name: runtime.winlibcall
       GoRuntimeType: 203104
       GoKind: 25
@@ -13389,13 +13575,13 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 146 PointerType *string.str
+          Type: 150 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 9 BaseType int
-      Data: 145 GoStringDataType string.str
+      Data: 149 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 145
+      ID: 149
       Name: string.str
       DynamicSizeClass: string
       ByteSize: 1
@@ -13452,7 +13638,7 @@ Types:
           Offset: 16
           Type: 598 GoInterfaceType io.WriterTo
     - __kind: StructureType
-      ID: 158
+      ID: 164
       Name: struct {}
       GoRuntimeType: 176480
       GoKind: 25
@@ -13466,7 +13652,7 @@ Types:
       RawFields:
         - Name: noCopy
           Offset: 0
-          Type: 125 StructureType sync.noCopy
+          Type: 134 StructureType sync.noCopy
         - Name: L
           Offset: 0
           Type: 1061 GoInterfaceType sync.Locker
@@ -13490,7 +13676,7 @@ Types:
           Offset: 8
           Type: 16 VoidPointerType unsafe.Pointer
     - __kind: StructureType
-      ID: 124
+      ID: 133
       Name: sync.Mutex
       ByteSize: 8
       GoRuntimeType: 305312
@@ -13498,10 +13684,10 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 125 StructureType sync.noCopy
+          Type: 134 StructureType sync.noCopy
         - Name: mu
           Offset: 0
-          Type: 126 StructureType internal/sync.Mutex
+          Type: 135 StructureType internal/sync.Mutex
     - __kind: StructureType
       ID: 667
       Name: sync.Once
@@ -13511,13 +13697,13 @@ Types:
       RawFields:
         - Name: _
           Offset: 0
-          Type: 125 StructureType sync.noCopy
+          Type: 134 StructureType sync.noCopy
         - Name: done
           Offset: 0
           Type: 668 StructureType sync/atomic.Uint32
         - Name: m
           Offset: 4
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
     - __kind: StructureType
       ID: 567
       Name: sync.RWMutex
@@ -13527,7 +13713,7 @@ Types:
       RawFields:
         - Name: w
           Offset: 0
-          Type: 124 StructureType sync.Mutex
+          Type: 133 StructureType sync.Mutex
         - Name: writerSem
           Offset: 8
           Type: 4 BaseType uint32
@@ -13549,7 +13735,7 @@ Types:
       RawFields:
         - Name: noCopy
           Offset: 0
-          Type: 125 StructureType sync.noCopy
+          Type: 134 StructureType sync.noCopy
         - Name: state
           Offset: 0
           Type: 649 StructureType sync/atomic.Uint64
@@ -13563,7 +13749,7 @@ Types:
       GoRuntimeType: 128896
       GoKind: 12
     - __kind: StructureType
-      ID: 125
+      ID: 134
       Name: sync.noCopy
       GoRuntimeType: 202336
       GoKind: 25
@@ -13694,7 +13880,7 @@ Types:
           Offset: 0
           Type: 10 BaseType uint64
     - __kind: StructureType
-      ID: 127
+      ID: 136
       Name: sync/atomic.Value
       ByteSize: 16
       GoRuntimeType: 250752
@@ -13702,7 +13888,7 @@ Types:
       RawFields:
         - Name: v
           Offset: 0
-          Type: 128 GoEmptyInterfaceType interface {}
+          Type: 57 GoEmptyInterfaceType interface {}
     - __kind: StructureType
       ID: 650
       Name: sync/atomic.align64
@@ -13735,7 +13921,7 @@ Types:
           Offset: 8
           Type: 10 BaseType uint64
     - __kind: BaseType
-      ID: 174
+      ID: 178
       Name: syscall.Signal
       ByteSize: 8
       GoRuntimeType: 203680
@@ -13813,7 +13999,7 @@ Types:
           Offset: 16
           Type: 903 GoSwissMapGroupsType groupReference<*net/http.http2serverConn,struct {}>
     - __kind: StructureType
-      ID: 151
+      ID: 157
       Name: table<context.canceler,struct {}>
       ByteSize: 32
       GoKind: 25
@@ -13835,7 +14021,7 @@ Types:
           Type: 9 BaseType int
         - Name: groups
           Offset: 16
-          Type: 152 GoSwissMapGroupsType groupReference<context.canceler,struct {}>
+          Type: 158 GoSwissMapGroupsType groupReference<context.canceler,struct {}>
     - __kind: StructureType
       ID: 1127
       Name: table<crypto/x509.sum224,bool>
@@ -14179,7 +14365,7 @@ Types:
       GoRuntimeType: 417376
       GoKind: 6
     - __kind: StructureType
-      ID: 139
+      ID: 148
       Name: time.Location
       ByteSize: 104
       GoRuntimeType: 429312
@@ -14190,10 +14376,10 @@ Types:
           Type: 11 GoStringHeaderType string
         - Name: zone
           Offset: 16
-          Type: 161 GoSliceHeaderType []time.zone
+          Type: 167 GoSliceHeaderType []time.zone
         - Name: tx
           Offset: 40
-          Type: 164 GoSliceHeaderType []time.zoneTrans
+          Type: 170 GoSliceHeaderType []time.zoneTrans
         - Name: extend
           Offset: 64
           Type: 11 GoStringHeaderType string
@@ -14205,7 +14391,7 @@ Types:
           Type: 14 BaseType int64
         - Name: cacheZone
           Offset: 96
-          Type: 162 PointerType *time.zone
+          Type: 168 PointerType *time.zone
     - __kind: StructureType
       ID: 234
       Name: time.ParseError
@@ -14229,7 +14415,7 @@ Types:
           Offset: 64
           Type: 11 GoStringHeaderType string
     - __kind: GoTimeType
-      ID: 137
+      ID: 146
       Name: time.Time
       ByteSize: 24
       GoRuntimeType: 502112
@@ -14243,7 +14429,7 @@ Types:
           Type: 14 BaseType int64
         - Name: loc
           Offset: 16
-          Type: 138 PointerType *time.Location
+          Type: 147 PointerType *time.Location
       ExtFieldOffset: 8
       LocFieldOffset: 16
       CacheResolved: true
@@ -14253,7 +14439,7 @@ Types:
       ZoneOffsetFieldOffset: 16
       ZoneOffsetFieldSize: 8
     - __kind: StructureType
-      ID: 136
+      ID: 145
       Name: time.Timer
       ByteSize: 16
       GoRuntimeType: 306432
@@ -14261,7 +14447,7 @@ Types:
       RawFields:
         - Name: C
           Offset: 0
-          Type: 173 GoChannelType <-chan time.Time
+          Type: 177 GoChannelType <-chan time.Time
         - Name: initTimer
           Offset: 8
           Type: 6 BaseType bool
@@ -14285,7 +14471,7 @@ Types:
       DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
-      ID: 163
+      ID: 169
       Name: time.zone
       ByteSize: 32
       GoRuntimeType: 343424
@@ -14301,7 +14487,7 @@ Types:
           Offset: 24
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 166
+      ID: 172
       Name: time.zoneTrans
       ByteSize: 16
       GoRuntimeType: 375488
@@ -14600,11 +14786,12 @@ Types:
       ByteSize: 4
       GoRuntimeType: 204544
       GoKind: 5
-MaxTypeID: 1220
+MaxTypeID: 1221
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x907c60", TypesOffset: 296}
-GoMapHashInfo: {UseAeshashAddr: "0x96fff6", AeskeyschedAddr: "0x9709c0"}
+GoModuledataInfo: {FirstModuledataAddr: "0x907c40", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x96ffd6", AeskeyschedAddr: "0x9709a0"}
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m
+    Panic: 27 StructureType runtime._panic
 IsARM64: false

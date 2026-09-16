@@ -16,9 +16,14 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
+
+var _ = declare(TestCapabilitiesEvent, testOpts{
+	capabilitiesMonitoringEnabled: true,
+})
 
 func TestCapabilitiesEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -38,13 +43,17 @@ func TestCapabilitiesEvent(t *testing.T) {
 	})
 
 	checkKernelCompatibility(t, "no override_creds/restore_creds", func(kv *kernel.Version) bool {
-		return kv.Code >= kernel.Kernel6_14
+		return !probe.IsCapabilitiesMonitoringSupported(kv)
 	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_capabilities_used_exec_flush",
 			Expression: `capabilities.used == CAP_SYS_CHROOT && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_capabilities_used_exec_flush_other_binary",
+			Expression: `capabilities.used == CAP_SETGID && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_capabilities_attempted_exit_flush",
@@ -56,9 +65,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		capabilitiesMonitoringEnabled: true,
-	}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +93,21 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_CHROOT), "capabilities attempted should contain CAP_SYS_CHROOT")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_CHROOT), "capabilities used should contain CAP_SYS_CHROOT")
 		}, "test_capabilities_used_exec_flush")
+	})
+
+	// the exec flush runs once the new program image is in place: /proc, comm and the
+	// kernel maps already describe the new program, so a resolver cache miss must drop
+	// the event rather than report the usage against the program that took over the pid
+	t.Run("used-exec-flush-other-binary", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			return dockerInstance.Command(syscallTester, []string{"setregid", ";", "exec", "/bin/sleep", "2"}, []string{}).Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_used_exec_flush_other_binary", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
+			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Used, "wrong capabilities used")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "capabilities usage must be reported against the program that used them")
+		}, "test_capabilities_used_exec_flush_other_binary")
 	})
 
 	t.Run("attempted-exit-flush", func(t *testing.T) {

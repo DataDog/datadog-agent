@@ -1232,8 +1232,8 @@ ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
 TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342
 `, nil
 	}
-	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
-	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
+	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 drop=1 early_drop=0 search_restart=39936711
+	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 drop=1 early_drop=0 search_restart=36983181`, nil
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
@@ -1408,7 +1408,7 @@ collect_count_metrics: true
 collect_ethtool_metrics: true
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1564,7 +1564,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1652,7 +1652,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1734,7 +1734,7 @@ func TestFetchEthtoolStats(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1782,7 +1782,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1830,7 +1830,7 @@ func TestFetchEthtoolStatsENODEVOnDriverInfo(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1873,7 +1873,7 @@ func TestFetchEthtoolStatsENODEVOnStats(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1962,7 +1962,7 @@ procfs_path: "/mocked/procfs"
 `)
 	var customTags []string
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1997,7 +1997,7 @@ func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
 procfs_path: "/wrong_mocked/procfs"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2033,7 +2033,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2068,7 +2068,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2102,7 +2102,7 @@ procfs_path: "/mocked/procfs"
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2134,7 +2134,7 @@ procfs_path: "/mocked/procfs"
 `)
 	var customTags []string
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -2171,7 +2171,7 @@ collect_conntrack_metrics: true
 conntrack_path: "/usr/bin/conntrack"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2186,17 +2186,56 @@ conntrack_path: "/usr/bin/conntrack"
 
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_insert", []byte(
+	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_ignore_this", []byte(
 		`13`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_count", []byte(
+		`42`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_max", []byte(
+		`42`),
 		0644)
 	assert.Nil(t, err)
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", []string(nil))
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestConntrackPathAllowlist(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{"empty path is allowed", "", ""},
+		{"default usr bin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
+		{"default usr sbin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
+		{"default sbin path is allowed", "/sbin/conntrack", "/sbin/conntrack"},
+		{"nix store path is allowed", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack"},
+		{"arbitrary path is rejected", "/tmp/usr/bin/conntrack", ""},
+		{"path traversal is rejected", "/nix/store/../../etc/conntrack", ""},
+		{"command injection attempt is rejected", "/usr/sbin/conntrack; cat /etc/passwd", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+			networkCheck := createTestNetworkCheck(net)
+
+			rawInstanceConfig := []byte(`conntrack_path: "` + tt.path + `"`)
+			mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+
+			err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+			assert.Nil(t, err)
+
+			assert.Equal(t, tt.expected, networkCheck.config.instance.ConntrackPath)
+		})
+	}
 }
 
 func TestConntrackGaugeBlacklist(t *testing.T) {
@@ -2211,7 +2250,7 @@ whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2252,7 +2291,7 @@ conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2310,7 +2349,7 @@ func TestFetchQueueStatsSS(t *testing.T) {
 	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2355,7 +2394,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2893,7 +2932,7 @@ func TestNetworkCheckUncombinedConnectionStates(t *testing.T) {
 collect_connection_state: true
 combine_connection_states: false
 `)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
@@ -2966,7 +3005,7 @@ func TestNetworkCheckUncombinedConnectionStatesSS(t *testing.T) {
 collect_connection_state: true
 combine_connection_states: false
 `)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 
@@ -3010,4 +3049,54 @@ func emptyConnectionStateEntry() *connectionStateEntry {
 		recvQ: []uint64{},
 		sendQ: []uint64{},
 	}
+}
+
+// TestAddConntrackStatsFromProcFileHexParsing documents the current behavior of
+// addConntrackStatsFromProcFile against a real-shaped /proc/net/stat/nf_conntrack
+// sample (double-spaced header, matching the format in the function's own comment).
+func TestAddConntrackStatsFromProcFileHexParsing(t *testing.T) {
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err := afero.WriteFile(fs, "/mocked/procfs/net/stat/nf_conntrack", []byte(
+		`entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+00000015  0000027b 00000000 00000000 00000001 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000001 00000002 00000003 00000004 00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 0000000c  0000000d 0000000e 0000000f 00000010`),
+		0644)
+	assert.Nil(t, err)
+
+	stats, err := addConntrackStatsFromProcFile("/mocked/procfs")
+	assert.Nil(t, err)
+	assert.Len(t, stats, 8)
+
+	assert.Equal(t, "0", stats[0].cpuID)
+	assert.Equal(t, float64(0), stats[0].Found)
+	assert.Equal(t, float64(1), stats[0].Invalid)
+	assert.Equal(t, float64(0), stats[0].Ignore)
+	assert.Equal(t, float64(0), stats[0].Insert)
+	assert.Equal(t, float64(0), stats[0].InsertFailed)
+	assert.Equal(t, float64(0), stats[0].Drop)
+	assert.Equal(t, float64(0), stats[0].EarlyDrop)
+	assert.Equal(t, float64(0), stats[0].Error)
+	assert.Equal(t, float64(0), stats[0].SearchRestart)
+	assert.Equal(t, float64(635), stats[0].ClashResolve)
+	assert.Equal(t, float64(0), stats[0].ChainTooLong)
+
+	assert.Equal(t, "7", stats[7].cpuID)
+	assert.Equal(t, float64(2), stats[7].Found)
+	assert.Equal(t, float64(4), stats[7].Invalid)
+	assert.Equal(t, float64(5), stats[7].Ignore)
+	assert.Equal(t, float64(8), stats[7].Insert)
+	assert.Equal(t, float64(9), stats[7].InsertFailed)
+	assert.Equal(t, float64(10), stats[7].Drop)
+	assert.Equal(t, float64(11), stats[7].EarlyDrop)
+	assert.Equal(t, float64(12), stats[7].Error)
+	assert.Equal(t, float64(16), stats[7].SearchRestart)
+	assert.Equal(t, float64(1), stats[7].ClashResolve)
+	assert.Equal(t, float64(7), stats[7].ChainTooLong)
 }

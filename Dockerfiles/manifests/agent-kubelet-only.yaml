@@ -15,7 +15,7 @@ spec:
     spec:
       serviceAccountName: datadog-agent
       containers:
-      - image: datadog/agent:7
+      - image: registry.datadoghq.com/agent:7
         imagePullPolicy: Always
         name: datadog-agent
         env:

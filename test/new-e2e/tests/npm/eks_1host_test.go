@@ -52,7 +52,6 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 			return err
 		}
 
-		// install docker.io
 		manager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
 		if err != nil {
 			return err
@@ -72,7 +71,10 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 
 		provisionerOpts := []eks.RunOption{
 			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
-			eks.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
+			eks.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues),
+				kubernetesagentparams.WithTimeout(600),
+			),
 			eks.WithWorkloadApp(npmToolsWorkload),
 		}
 		provisionerOpts = append(provisionerOpts, opts...)

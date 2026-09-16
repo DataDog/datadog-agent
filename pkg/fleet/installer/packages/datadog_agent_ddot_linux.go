@@ -60,6 +60,14 @@ var (
 		SystemdUnitsStable:    []string{"datadog-agent-ddot.service"},
 		SystemdUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
 
+		// This package predates the ddot extension and is unaffected by the service manager: it
+		// installs its own unit under procmgr too, which is why datadog-agent-ddot.service is
+		// generated into both unit trees.
+		ProcmgrMainUnitStable: "datadog-agent-ddot.service",
+		ProcmgrMainUnitExp:    "datadog-agent-ddot-exp.service",
+		ProcmgrUnitsStable:    []string{"datadog-agent-ddot.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
+
 		UpstartMainService: "datadog-agent-ddot",
 		UpstartServices:    []string{"datadog--ddot"},
 
@@ -126,12 +134,10 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err = enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
-
 	// Restart agent to pick up otelcollector config changes
 	if err = agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart agent after enabling otelcollector: %v", err)
 	}
-
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}

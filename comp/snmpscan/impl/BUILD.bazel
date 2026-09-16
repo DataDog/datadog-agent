@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "impl",
+    srcs = [
+        "devicescan.go",
+        "sendpayload.go",
+        "snmpscan.go",
+        "walkdevice.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmpscan/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/remote-config/rcclient/types",
+        "//comp/snmpscan/def",
+        "//pkg/logs/message",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/batchsize",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpparse",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "devicescan_test.go",
+        "snmpscan_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/forwarder/eventplatform/mock",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

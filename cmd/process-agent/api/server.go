@@ -8,13 +8,12 @@ package api
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -41,24 +40,24 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
-	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
-	r.HandleFunc("/config/without-defaults", deps.Settings.GetFullConfigWithoutDefaults("process_config")).Methods("GET")
-	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
-	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
+func SetupAPIServerHandlers(deps APIServerDeps, r *http.ServeMux) {
+	r.HandleFunc("GET /config", deps.Settings.GetFullConfig("process_config"))
+	r.HandleFunc("GET /config/without-defaults", deps.Settings.GetFullConfigWithoutDefaults("process_config"))
+	r.HandleFunc("GET /config/all", deps.Settings.GetFullConfig("")) // Get all fields from process-agent Config object
+	r.HandleFunc("GET /config/list-runtime", deps.Settings.ListConfigurable)
+	r.HandleFunc("GET /config/{setting}", deps.Settings.GetValue)
+	r.HandleFunc("POST /config/{setting}", deps.Settings.SetValue)
 
-	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
-	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
-	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
+	r.HandleFunc("GET /agent/status", injectDeps(deps, statusHandler))
+	r.HandleFunc("GET /agent/tagger-list", injectDeps(deps, getTaggerList))
+	r.HandleFunc("GET /agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, false, deps.WorkloadMeta)
-	}).Methods("GET")
-	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
+	})
+	r.HandleFunc("GET /agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, true, deps.WorkloadMeta)
-	}).Methods("GET")
-	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
-	r.HandleFunc("/secret/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
+	})
+	r.HandleFunc("GET /check/{check}", checkHandler)
+	r.HandleFunc("GET /secret/refresh", injectDeps(deps, secretRefreshHandler))
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
 }

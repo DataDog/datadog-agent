@@ -206,9 +206,101 @@ func TestApproverWildcardBasename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if values, exists := approvers["open.file.path"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+}
+
+func TestApproverParentWildcardBasename(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/test-*/*"`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if values, exists := approvers["open.file.path"]; exists || len(values) != 0 {
 		t.Fatalf("unexpected approver found: %v", values)
 	}
+}
+
+// TestApproverParentBasenameWeightVsFlags ensures that a coarse parent-basename path
+// approver (which can only push the parent directory name to the kernel) does not shadow
+// a more selective flags approver. The path field weight is lowered to 20 via
+// FilterWeightFnc, so open.flags (weight 100) is preferred over the path field.
+func TestApproverParentBasenameWeightVsFlags(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/*" && open.flags & O_CREAT > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.file.path"]; exists {
+		t.Fatalf("expected no path approver, the flags approver should be preferred: %v", values)
+	}
+
+	values, exists := approvers["open.flags"]
+	if !exists || len(values) != 1 {
+		t.Fatalf("expected flags approver not found: %v", values)
+	}
+
+	valueInt, ok := values[0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", values[0].Value)
+	}
+	assert.Equal(t, unix.O_CREAT, valueInt, "expected O_CREAT flags approver, got %d", valueInt)
+}
+
+// TestApproverLeafBasenameWeightVsFlags ensures that a precise leaf-basename path approver
+// still wins over a flags approver. The basename wildcard has a long enough prefix to be a
+// useful kernel approver, so the path field keeps its full weight (300) and is preferred
+// over open.flags (weight 100).
+func TestApproverLeafBasenameWeightVsFlags(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secret*" && open.flags & O_CREAT > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.flags"]; exists {
+		t.Fatalf("expected no flags approver, the path approver should be preferred: %v", values)
+	}
+
+	values, exists := approvers["open.file.path"]
+	if !exists || len(values) != 1 {
+		t.Fatalf("expected path approver not found: %v", values)
+	}
+
+	valueString, ok := values[0].Value.(string)
+	if !ok {
+		t.Fatalf("expected string value, got %v", values[0].Value)
+	}
+	assert.Equal(t, "/var/run/secret*", valueString)
 }
 
 func TestApproverInUpperLayer(t *testing.T) {
@@ -324,27 +416,27 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 	}
 
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000`}, 1001, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid < 1000`}, 0, 999)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000`}, 1000, maxAUID)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid <= 1000`}, 0, 1000)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000`}, 1001, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid < 1000`}, 0, 999)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000`}, 1000, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid <= 1000`}, 0, 1000)
 
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid > 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid < 500`,
+		`open.file.path =~ "/*mp/*" && process.auid > 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid < 500`,
 	}, 0, maxAUID)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid >= 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid > 1500`,
+		`open.file.path =~ "/*mp/*" && process.auid >= 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid > 1500`,
 	}, 1000, maxAUID)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid < 1000`,
-		`open.file.path =~ "/tmp/*" && process.auid < 500`,
+		`open.file.path =~ "/*mp/*" && process.auid < 1000`,
+		`open.file.path =~ "/*mp/*" && process.auid < 500`,
 	}, 0, 999)
 	assert(t, []string{
-		`open.file.path =~ "/tmp/*" && process.auid != AUDIT_AUID_UNSET`,
+		`open.file.path =~ "/*mp/*" && process.auid != AUDIT_AUID_UNSET`,
 	}, 0, maxAUID)
 }
 
@@ -604,6 +696,82 @@ func TestApproverFlagsZeroValueFlag(t *testing.T) {
 
 	assert.Equal(t, unix.O_CREAT, valueInt, "expected O_CREAT, got %d", valueInt)
 	assert.Equal(t, eval.BitmaskValueType, approvers["open.flags"][0].Type)
+}
+
+func TestApproversUnshare(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	testCases := []struct {
+		name           string
+		ruleExpression string
+		expectedValue  int
+		expectedType   eval.FieldValueType
+	}{
+		{
+			name:           "unshare-single-flag",
+			ruleExpression: `unshare.flags & CLONE_NEWNET > 0`,
+			expectedValue:  unix.CLONE_NEWNET,
+			expectedType:   eval.BitmaskValueType,
+		},
+		{
+			name:           "unshare-flag-mask",
+			ruleExpression: `unshare.flags & (CLONE_NEWUSER | CLONE_NEWNET) > 0`,
+			expectedValue:  unix.CLONE_NEWUSER | unix.CLONE_NEWNET,
+			expectedType:   eval.BitmaskValueType,
+		},
+		{
+			// a flag not in the removed kernel-side allowlist still has to reach the kernel
+			name:           "unshare-non-allowlisted-flag",
+			ruleExpression: `unshare.flags & CLONE_NEWUTS > 0`,
+			expectedValue:  unix.CLONE_NEWUTS,
+			expectedType:   eval.BitmaskValueType,
+		},
+		{
+			name:           "unshare-scalar",
+			ruleExpression: `unshare.flags == CLONE_NEWPID`,
+			expectedValue:  unix.CLONE_NEWPID,
+			expectedType:   eval.ScalarValueType,
+		},
+	}
+
+	capabilities, exists := allCapabilities["unshare"]
+	if !exists {
+		t.Fatal("no capabilities for unshare")
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			rules.AddTestRuleExpr(t, rs, tc.ruleExpression)
+
+			approvers, _, _, err := rs.GetEventTypeApprovers("unshare", capabilities)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			values, exists := approvers["unshare.flags"]
+			if !exists || len(values) != 1 {
+				t.Fatalf("expected approver not found: %v", values)
+			}
+
+			valueInt, ok := values[0].Value.(int)
+			if !ok {
+				t.Fatalf("expected int value, got %v", values[0].Value)
+			}
+
+			assert.Equal(t, tc.expectedValue, valueInt)
+			assert.Equal(t, tc.expectedType, values[0].Type)
+
+			kfilters, fieldHandled, err := unshareKFiltersGetter(approvers)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, []eval.Field{"unshare.flags"}, fieldHandled)
+			assert.Len(t, kfilters, 1)
+		})
+	}
 }
 
 func TestLastApproverEventType(t *testing.T) {

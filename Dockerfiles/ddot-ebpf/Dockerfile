@@ -34,13 +34,37 @@ RUN \
 # ------------------------------
 
 FROM $AGENT_BASE_IMAGE_TAG AS release
+ARG CI
 
 LABEL org.opencontainers.image.title="DDOT Ebpf"
 # Copy the built full host profiler from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/host-profiler/host-profiler /opt/datadog-agent/embedded/bin/host-profiler
 COPY --from=builder /workspace/datadog-agent/bin/host-profiler/dist/host-profiler-config.yaml /etc/datadog-agent/host-profiler-config.yaml
+COPY seccomp-profile.json /etc/dd-host-profiler/seccomp.json
+COPY logging-seccomp.json /etc/dd-host-profiler/logging-seccomp.json
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
+# APT mirror resilience in CI: rewrite deb822 ubuntu.sources URIs: to an ordered
+# multi-URI list (>= 24.04) and the legacy one-line sources.list via mirror+file
+# (< 24.04), using Canonical's global endpoint first with Leaseweb as a fallback,
+# plus a short Acquire timeout.
+RUN if [ "$CI" = "true" ]; then \
+  printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+  printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+  printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+  if [ -f /etc/apt/sources.list ]; then \
+    sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+           -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+  fi && \
+  if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+    sed -i -E \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
+      /etc/apt/sources.list.d/ubuntu.sources; \
+  fi; \
+  fi
 # Host profiler requires objcopy
 RUN apt-get update && \
     apt-get install -y --no-install-recommends binutils && \

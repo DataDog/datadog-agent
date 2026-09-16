@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 )
@@ -84,6 +84,38 @@ installer:
 
 	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
 	assert.Nil(t, config.Installer.Registry.Extensions)
+}
+
+func TestEndUserDeviceModeEnabled(t *testing.T) {
+	const noConfigRead = "<config-should-not-be-read>"
+	tests := []struct {
+		name       string
+		envMode    string // DD_INFRASTRUCTURE_MODE
+		configMode string // datadog.yaml infrastructure_mode; noConfigRead asserts it is not consulted
+		want       bool
+	}{
+		{name: "env end_user_device enables", envMode: "end_user_device", configMode: noConfigRead, want: true},
+		{name: "env case-insensitive", envMode: "End_User_Device", configMode: noConfigRead, want: true},
+		// env is authoritative when set: a non-EUDM env value disables EUDM without even reading
+		// the config, even though the config still says end_user_device.
+		{name: "env full overrides config end_user_device", envMode: "full", configMode: noConfigRead, want: false},
+		{name: "env other value disables", envMode: "basic", configMode: noConfigRead, want: false},
+		// config is only consulted when the env var is blank.
+		{name: "blank env falls back to config end_user_device", envMode: "", configMode: "end_user_device", want: true},
+		{name: "blank env falls back to config full", envMode: "", configMode: "full", want: false},
+		{name: "blank env and empty config", envMode: "", configMode: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configModeFn := func() string {
+				if tt.configMode == noConfigRead {
+					t.Fatalf("config should not be read when DD_INFRASTRUCTURE_MODE is set")
+				}
+				return tt.configMode
+			}
+			assert.Equal(t, tt.want, endUserDeviceModeEnabled(tt.envMode, configModeFn))
+		})
+	}
 }
 
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {

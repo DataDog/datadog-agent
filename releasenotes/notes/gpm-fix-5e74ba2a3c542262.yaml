@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    gpu: fix an issue where some GPM metrics (gpu.gr_engine_active, gpu.sm_utilization, gpu.sm_occupancy, gpu.integer_active, gpu.fp16_active, gpu.fp32_active, gpu.fp64_active, gpu.tensor_active) were only emitted correctly one out of eight times on average.

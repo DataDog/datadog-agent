@@ -1,0 +1,569 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 348
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  {
+                    "type": "int",
+                    "value": "99"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 349
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 350
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 351
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "isNull": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 353
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 357
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 360
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 363
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1271
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 366
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntSlice_positive",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

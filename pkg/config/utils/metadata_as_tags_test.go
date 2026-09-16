@@ -108,14 +108,14 @@ func TestGetMetadataAsTagsNoError(t *testing.T) {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig := configmock.New(t)
 
-			mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", test.podLabelsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", test.podAnnotationsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_namespace_labels_as_tags", test.namespaceLabelsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_namespace_annotations_as_tags", test.namespaceAnnotationsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_node_labels_as_tags", test.nodeLabelsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_node_annotations_as_tags", test.nodeAnnotationsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_resources_labels_as_tags", test.resourcesLabelsAsTags)
-			mockConfig.SetWithoutSource("kubernetes_resources_annotations_as_tags", test.resourcesAnnotationsAsTags)
+			mockConfig.SetInTest("kubernetes_pod_labels_as_tags", test.podLabelsAsTags)
+			mockConfig.SetInTest("kubernetes_pod_annotations_as_tags", test.podAnnotationsAsTags)
+			mockConfig.SetInTest("kubernetes_namespace_labels_as_tags", test.namespaceLabelsAsTags)
+			mockConfig.SetInTest("kubernetes_namespace_annotations_as_tags", test.namespaceAnnotationsAsTags)
+			mockConfig.SetInTest("kubernetes_node_labels_as_tags", test.nodeLabelsAsTags)
+			mockConfig.SetInTest("kubernetes_node_annotations_as_tags", test.nodeAnnotationsAsTags)
+			mockConfig.SetInTest("kubernetes_resources_labels_as_tags", test.resourcesLabelsAsTags)
+			mockConfig.SetInTest("kubernetes_resources_annotations_as_tags", test.resourcesAnnotationsAsTags)
 
 			metadataAsTags := GetMetadataAsTags(mockConfig)
 

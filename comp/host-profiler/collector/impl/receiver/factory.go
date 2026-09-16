@@ -37,7 +37,9 @@ func createProfilesReceiver(
 		return nil, fmt.Errorf("invalid config type. Expected %T, got %T", Config{}, baseCfg)
 	}
 
-	logger.Info("Enabled tracers: " + config.EbpfCollectorConfig.Tracers)
+	logger.Info(fmt.Sprintf("Go symbolization disabled: %v, Go labels disabled: %v",
+		config.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled(),
+		config.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled()))
 
 	var createProfiles xreceiver.CreateProfilesFunc
 	if config.SymbolUploader.Enabled {

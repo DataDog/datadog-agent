@@ -1,4 +1,5 @@
 network_config:
   enabled: true
+  direct_send: false
 runtime_security_config:
   enabled: true

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -78,9 +78,10 @@ type msiexecArgs struct {
 
 	// logFile should be a full local path where msiexec will write the installation logs.
 	// If nothing is specified, a random, temporary file is used.
-	logFile             string
-	ddagentUserName     string
-	ddagentUserPassword string
+	logFile               string
+	ddagentUserName       string
+	ddagentUserPassword   string
+	ddagentUserKeepRights string
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
@@ -206,6 +207,16 @@ func WithDdAgentUserName(ddagentUserName string) MsiexecOption {
 func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.ddagentUserPassword = ddagentUserPassword
+		return nil
+	}
+}
+
+// WithDdAgentUserKeepRights opts the MSI out of re-applying the ddagentuser
+// SeDeny*LogonRight assignments by setting DDAGENTUSER_KEEP_RIGHTS. The MSI
+// accepts truthy values (1/true/yes); empty disables the opt-out.
+func WithDdAgentUserKeepRights(ddagentUserKeepRights string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.ddagentUserKeepRights = ddagentUserKeepRights
 		return nil
 	}
 }
@@ -344,6 +355,15 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			//   Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			//   MSI (s) (54:EC) [12:25:53:886]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			return FindAllIndexWithContext(regexp.MustCompile("Verify that you have sufficient privileges to install system services"), bytes, 2, 1)
+		},
+		func(bytes []byte) []TextRange {
+			// The first pattern is the owner check, in both the MSI (EnsureSecureConfigRoot) and the
+			// Go installer (paths.IsDirSecure), the second is the directory not being readable.
+			// Typically looks like this:
+			//   CA: 12:24:00: EnsureSecureConfigRoot. C:\ProgramData\Datadog has unexpected owner WIN-HOST\someuser (S-1-5-21-1-2-3-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
+			return FindAllIndexWithContext(
+				regexp.MustCompile("has unexpected owner|to verify its owner"),
+				bytes, 2, 2)
 		})
 }
 
@@ -427,8 +447,7 @@ func (m *Msiexec) Run(ctx context.Context) error {
 			span.SetTag("params.logfile", m.args.logFile)
 			span.SetTag("attempt_count", attemptCount)
 			if err != nil {
-				var perm *backoff.PermanentError
-				span.SetTag("is_error_retryable", !errors.As(err, &perm))
+				span.SetTag("is_error_retryable", !errors.Is(err, backoff.ErrPermanent))
 				// include the processed log data in the span, but only on error (msiexec failed)
 				// this way we get the error log on each attempt, in case it changes before the final error
 				// is reported by the caller.
@@ -532,6 +551,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 	if a.ddagentUserPassword != "" {
 		properties["DDAGENTUSER_PASSWORD"] = a.ddagentUserPassword
+	}
+	if a.ddagentUserKeepRights != "" {
+		properties["DDAGENTUSER_KEEP_RIGHTS"] = a.ddagentUserKeepRights
 	}
 	if a.msiAction == "/i" {
 		properties["MSIFASTINSTALL"] = "7"

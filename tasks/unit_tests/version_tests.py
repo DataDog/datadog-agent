@@ -1,13 +1,15 @@
+import json
 import os
 import random
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
-from invoke import MockContext, Result
+from invoke import MockContext, Result, UnexpectedExit
 
 from tasks.libs.releasing.version import (
     current_version_for_release_branch,
     get_matching_pattern,
+    get_version_numeric_only,
     next_rc_version,
     query_version,
 )
@@ -313,6 +315,38 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(c, 543)
         self.assertEqual(g, "315e3a2")
 
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("tasks.libs.releasing.version.GithubAPI")
+    def test_no_tag_local_falls_back_to_latest_release(self, mock_github_api):
+        mock_github_api.return_value.latest_release.return_value = "7.79.1"
+        ctx = MagicMock()
+        ctx.run.side_effect = [
+            UnexpectedExit(Result(exited=128)),  # git describe fails
+            Result("abc1234"),  # git rev-parse --short HEAD
+        ]
+        v, p, commits, g, pipeline_id = query_version(ctx, "7")
+        self.assertEqual(v, "7.79.1")
+        self.assertEqual(p, "devel")
+        self.assertEqual(commits, 0)
+        self.assertEqual(g, "abc1234")
+        self.assertIsNone(pipeline_id)
+        mock_github_api.assert_called_once_with(public_repo=True)
+        mock_github_api.return_value.latest_release.assert_called_once_with(7)
+
+    @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345"}, clear=True)
+    def test_no_tag_in_ci_reraises(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(exited=128))
+        with self.assertRaises(UnexpectedExit):
+            query_version(ctx, "7")
+
+    @patch.dict(os.environ, {"CI": "true"}, clear=True)
+    def test_no_tag_in_generic_ci_reraises(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(exited=128))
+        with self.assertRaises(UnexpectedExit):
+            query_version(ctx, "7")
+
 
 @patch("os.environ", {"BUCKET_BRANCH": "dev"})
 class TestGetMatchingPattern(unittest.TestCase):
@@ -468,3 +502,36 @@ class TestNextVersionForReleaseBranch(unittest.TestCase):
         ctx.run.return_value.stdout = "7.63.0-installer"
         version = next_rc_version(ctx, '7.63.x')
         self.assertEqual(version, Version(7, 64, 0, rc=1))
+
+
+_CACHE_CONTENTS = {
+    "6": ["6.84.0", "devel", 10, "abc1234", "131065751"],
+    "7": ["7.84.0", "devel", 203, "db4c825", "131065751"],
+    "nightly": False,
+    "dev": True,
+}
+
+
+class TestGetVersionNumericOnly(unittest.TestCase):
+    @patch.dict(os.environ, {"CI": "true"}, clear=True)
+    @patch("tasks.libs.releasing.version.os.path.exists", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=json.dumps(_CACHE_CONTENTS))
+    def test_uses_local_cache_without_pipeline_id(self, _mock_file, _mock_exists):
+        # Omnibus sanitizes CI_PIPELINE_ID out of the environment, but copies
+        # agent-version.cache into the source tree. The numeric version used
+        # for Windows resources must still come from that file.
+        ctx = MagicMock()
+        self.assertEqual(get_version_numeric_only(ctx), "7.84.0")
+        ctx.run.assert_not_called()
+
+    @patch.dict(
+        os.environ, {"CI": "true", "CI_PIPELINE_ID": "131065751", "CI_PROJECT_NAME": "datadog-agent"}, clear=True
+    )
+    @patch("tasks.libs.releasing.version.os.path.exists", return_value=False)
+    def test_fetches_cache_from_s3_when_missing(self, _mock_exists):
+        ctx = MagicMock()
+        ctx.run.return_value = Result(stderr="")
+        with patch("builtins.open", mock_open(read_data=json.dumps(_CACHE_CONTENTS))):
+            self.assertEqual(get_version_numeric_only(ctx), "7.84.0")
+        ctx.run.assert_called_once()
+        self.assertIn("aws s3 cp", ctx.run.call_args.args[0])

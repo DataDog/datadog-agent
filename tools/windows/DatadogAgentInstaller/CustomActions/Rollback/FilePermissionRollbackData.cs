@@ -36,6 +36,17 @@ namespace Datadog.CustomActions.Rollback
         /// </remarks>
         public void Restore(ISession session, IFileSystemServices fileSystemServices, IServiceController _)
         {
+            // The file may have been removed earlier in the rollback (e.g. by CleanupOnRollback, which
+            // deletes generated paths such as auth_token/ipc_cert.pem that also appear here). There
+            // is no ACL to restore on a file that no longer exists, so skip it. Without this guard
+            // GetAccessControl throws and aborts the entire restore loop, leaving later entries
+            // (datadog.yaml, install_info, ...) with their ACLs never restored.
+            if (!fileSystemServices.Exists(_filePath))
+            {
+                session.Log($"{_filePath} no longer exists, skipping ACL rollback");
+                return;
+            }
+
             var fileSystemSecurity = fileSystemServices.GetAccessControl(_filePath);
             session.Log(
                 $"{_filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");

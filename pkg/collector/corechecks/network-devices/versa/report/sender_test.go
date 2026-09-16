@@ -503,7 +503,7 @@ func TestSendDeviceMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -686,7 +686,7 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -790,7 +790,7 @@ func TestSendDirectorUptimeMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1020,7 +1020,7 @@ func TestSendDeviceStatusMetrics(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1149,7 +1149,7 @@ func TestSendInterfaceStatus(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1255,7 +1255,7 @@ func TestSendLinkStatusMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1432,7 +1432,7 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1608,7 +1608,7 @@ func TestSendTopUserMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
@@ -1824,7 +1824,7 @@ func TestSendAnalyticsInterfaceMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("testID")
+			mockSender := mocksender.NewMockSender(t, "testID")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")

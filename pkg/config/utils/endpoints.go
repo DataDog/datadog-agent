@@ -15,6 +15,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -33,7 +34,7 @@ const (
 
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
-	if c.IsSet("site") {
+	if c.IsConfigured("site") {
 		log.Debugf("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
 	}
 	return resolvedDDURL
@@ -47,6 +48,10 @@ type APIKeys struct {
 
 	// the apiKey to use for this endpoint
 	Keys []string
+
+	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA(...) directive
+	// is waiting for the delegatedauth component to write its resolved API key.
+	HasPendingDelegatedAuth bool
 }
 
 // NewAPIKeys creates an endpoint
@@ -63,16 +68,47 @@ func newAPIKeyset(path string, keys ...string) []APIKeys {
 
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
 func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
-	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
+	if c.IsConfigured(ddURLKey) && c.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over backwardKey and 'site'
 		return getResolvedDDUrl(c, ddURLKey)
-	} else if c.IsSet(backwardKey) && c.GetString(backwardKey) != "" {
+	} else if c.IsConfigured(backwardKey) && c.GetString(backwardKey) != "" {
 		// value under backwardKey takes precedence over 'site'
 		return getResolvedDDUrl(c, backwardKey)
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + pkgconfigsetup.DefaultSite
+	return prefix + constants.DefaultSite
+}
+
+// delaDirectivePrefix marks a value in an `additional_endpoints`-style config list as a
+// delegated-auth directive (e.g. "DELA(<org_uuid>, aws)") rather than a literal API key. Such
+// entries are resolved asynchronously by the delegatedauth component, which writes the real key
+// back into the same config slot once fetched; until then they must not be treated as real keys.
+const delaDirectivePrefix = "DELA("
+
+// IsDelaDirective reports whether a value is a delegated-auth directive rather than a literal
+// API key. Consumers must skip (not send) values where this returns true.
+func IsDelaDirective(value string) bool {
+	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+}
+
+// PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into
+// real API keys and reports whether at least one pending DELA(...) directive was present. A
+// caller that builds one endpoint per real key should still keep a placeholder entry for the
+// domain when hasPendingDelegatedAuth is true and no real keys are returned, so the domain still
+// gets a config-update watcher/resolver and can pick up the real key once delegated auth resolves
+// it and writes it back into the same config slot - otherwise a fully-pending domain would be
+// dropped and never see the key.
+func PartitionRealAndPendingKeys(keys []string) (realKeys []string, hasPendingDelegatedAuth bool) {
+	realKeys = make([]string, 0, len(keys))
+	for _, key := range keys {
+		if IsDelaDirective(key) {
+			hasPendingDelegatedAuth = true
+			continue
+		}
+		realKeys = append(realKeys, key)
+	}
+	return realKeys, hasPendingDelegatedAuth
 }
 
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
@@ -83,18 +119,22 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Remove any empty API keys.
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
-		trimmed := []string{}
+		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
+		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
+		// rather than dropping the domain outright.
+		nonEmpty := make([]string, 0, len(keys))
 		for _, key := range keys {
-			trimmedAPIKey := strings.TrimSpace(key)
-			if trimmedAPIKey != "" {
-				trimmed = append(trimmed, trimmedAPIKey)
+			if trimmedAPIKey := strings.TrimSpace(key); trimmedAPIKey != "" {
+				nonEmpty = append(nonEmpty, trimmedAPIKey)
 			}
 		}
+		trimmed, hasPendingDelegatedAuth := PartitionRealAndPendingKeys(nonEmpty)
 
-		if len(trimmed) > 0 {
+		if len(trimmed) > 0 || hasPendingDelegatedAuth {
 			result[url] = []APIKeys{{
-				ConfigSettingPath: root,
-				Keys:              trimmed,
+				ConfigSettingPath:       root,
+				Keys:                    trimmed,
+				HasPendingDelegatedAuth: hasPendingDelegatedAuth,
 			}}
 		} else {
 			log.Infof("No API key provided for domain %q, removing domain from endpoints", url)
@@ -129,13 +169,27 @@ type EndpointDescriptor struct {
 	BaseURL   string
 	APIKeySet []APIKeys
 	IsMRF     bool
+
+	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
+	// be waiting on one from the delegatedauth component (a DELA(...) directive in
+	// additional_endpoints). Consumers (e.g. the forwarder's resolver.IsUsable()) should treat
+	// such a domain as usable so it isn't dropped before delegated auth has a chance to deliver
+	// a real key.
+	HasPendingDelegatedAuth bool
 }
 
 func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
-	return EndpointDescriptor{
+	descriptor := EndpointDescriptor{
 		BaseURL:   baseURL,
 		APIKeySet: apiKeySet,
 	}
+	for _, apiKeys := range apiKeySet {
+		if apiKeys.HasPendingDelegatedAuth {
+			descriptor.HasPendingDelegatedAuth = true
+			break
+		}
+	}
+	return descriptor
 }
 
 // EndpointDescriptorSet is a collection of all endpoints for infra pipelines keyed by base URL.
@@ -163,7 +217,8 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
 	}
 
-	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+	rawAdditionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
+	additionalEndpoints := MakeEndpoints(rawAdditionalEndpoints, "additional_endpoints")
 
 	for domain, apiKeys := range additionalEndpoints {
 		// Validating domain
@@ -259,12 +314,12 @@ func BuildURLWithPrefix(prefix, site string) string {
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
 func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
-	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
+	if c.IsConfigured(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
-	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
+	return BuildURLWithPrefix(prefix, constants.DefaultSite)
 }
 
 // GetMRFEndpoint returns the generic MRF endpoint to use.
@@ -324,6 +379,19 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
 var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?\.` + ddSitePattern + `\.?$`)
+
+// IsDatadogURL reports whether the given URL is a well-known Datadog destination.
+func IsDatadogURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
+	if host == "" {
+		return false
+	}
+	return ddURLRegexp.MatchString(host)
+}
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

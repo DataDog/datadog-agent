@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
@@ -6,20 +7,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config",
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],
     deps = [
+        "//comp/api/api/apiimpl/observability",
         "//comp/api/api/def",
         "//pkg/config/model",
         "//pkg/util/common",
         "//pkg/util/log",
-        "@com_github_gorilla_mux//:mux",
         "@com_github_json_iterator_go//:go",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = ["endpoint_test.go"],
     embed = [":config"],
-    gotags = ["test"],
     deps = [
         "//comp/api/api/def",
         "//pkg/config/mock",

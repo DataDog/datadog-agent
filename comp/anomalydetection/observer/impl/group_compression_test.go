@@ -25,6 +25,17 @@ func TestExtractCommonTags_Overlapping(t *testing.T) {
 	assert.Equal(t, []string{"host:web3"}, residuals[2])
 }
 
+func TestExtractCommonTags_KeepsHostSeparate(t *testing.T) {
+	common, residuals := extractCommonTags([]seriesCompact{
+		{Host: "web-1", Tags: []string{"env:prod"}},
+		{Host: "web-2", Tags: []string{"env:prod"}},
+	})
+
+	assert.Equal(t, map[string]string{"env": "prod"}, common)
+	assert.Empty(t, residuals[0])
+	assert.Empty(t, residuals[1])
+}
+
 func TestExtractCommonTags_Disjoint(t *testing.T) {
 	members := []seriesCompact{
 		{Tags: []string{"host:web1", "env:prod"}},
@@ -181,8 +192,8 @@ func TestStripAggSuffix(t *testing.T) {
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:avg"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:count"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:sum"))
-	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:min"))
-	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user:max"))
+	assert.Equal(t, "cpu.user:min", stripAggSuffix("cpu.user:min"))
+	assert.Equal(t, "cpu.user:max", stripAggSuffix("cpu.user:max"))
 	assert.Equal(t, "cpu.user", stripAggSuffix("cpu.user"))
 	assert.Equal(t, "cpu.user:p99", stripAggSuffix("cpu.user:p99"))
 }

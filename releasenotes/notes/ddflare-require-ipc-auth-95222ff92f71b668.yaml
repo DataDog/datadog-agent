@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    The Datadog flare extension (``ddflare``) in DDOT no
+    longer serves its endpoint, by default ``https://localhost:7777``, without
+    authentication. 

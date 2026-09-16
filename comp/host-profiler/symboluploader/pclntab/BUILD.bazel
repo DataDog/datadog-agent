@@ -1,0 +1,70 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "pclntab",
+    srcs = ["pclntab.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "pclntab_internal_test",
+    srcs = ["pclntab_internal_test.go"],
+    embed = [":pclntab"],
+)
+
+# This test still invokes `go build` and may use GOTOOLCHAIN to download
+# historical Go toolchains at test runtime. The bootstrap `go` binary itself is
+# provided by Bazel so the test no longer depends on a system Go installation.
+dd_agent_go_test(
+    name = "pclntab_test",
+    srcs = ["pclntab_test.go"],
+    data = [
+        "//comp/host-profiler/symboluploader:testdata/go.mod",
+        "//comp/host-profiler/symboluploader:testdata/helloworld.go",
+        "@go_work_sdk//:ROOT",
+        "@go_work_sdk//:bin/go",
+        "@go_work_sdk//:files",
+    ],
+    env = {
+        "PCLNTAB_TEST_GO_BINARY": "$(rlocationpath @go_work_sdk//:bin/go)",
+        "PCLNTAB_TEST_GO_ROOT": "$(rlocationpath @go_work_sdk//:ROOT)",
+        "PCLNTAB_TEST_HELLOWORLD": "$(rlocationpath //comp/host-profiler/symboluploader:testdata/helloworld.go)",
+    },
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            ":pclntab",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@rules_go//go/runfiles",
+        ],
+        "@rules_go//go/platform:linux": [
+            ":pclntab",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@rules_go//go/runfiles",
+        ],
+        "//conditions:default": [],
+    }),
+)

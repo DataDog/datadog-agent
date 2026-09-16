@@ -25,7 +25,7 @@ const (
 
 	// MaxPathDepth defines the maximum depth of a path
 	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
-	MaxPathDepth = 1189
+	MaxPathDepth = 1160
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16
@@ -92,6 +92,25 @@ const (
 	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
 	IMDSOracleCloudProvider = "oracle"
 )
+
+// CredentialSource identifies the endpoint that served an IMDS event
+type CredentialSource uint32
+
+const (
+	// CredentialSourceUnknown is used when the credential endpoint could not be resolved
+	CredentialSourceUnknown CredentialSource = iota
+	// CredentialSourceIMDS is the cloud provider instance metadata service
+	CredentialSourceIMDS
+	// CredentialSourceEKSPodIdentity is the EKS Pod Identity Agent
+	CredentialSourceEKSPodIdentity
+	// CredentialSourceECS is the ECS task credential endpoint
+	CredentialSourceECS
+)
+
+// String returns the SECL representation of the credential source
+func (cs CredentialSource) String() string {
+	return credentialSourceStrings[cs]
+}
 
 // EventSource is the source of the event
 type EventSource = string
@@ -391,6 +410,14 @@ var (
 		"EGRESS":  Egress,
 	}
 
+	// CredentialSourceConstants is the list of supported credential sources
+	// generate_constants:Credential sources,Credential sources are the endpoints that can serve cloud credentials.
+	CredentialSourceConstants = map[string]CredentialSource{
+		"IMDS":             CredentialSourceIMDS,
+		"EKS_POD_IDENTITY": CredentialSourceEKSPodIdentity,
+		"ECS":              CredentialSourceECS,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
 	exitCauseConstants = map[string]sharedconsts.ExitCause{
 		"EXITED":     sharedconsts.ExitExited,
@@ -484,6 +511,7 @@ var (
 	l3ProtocolStrings          = map[L3Protocol]string{}
 	l4ProtocolStrings          = map[L4Protocol]string{}
 	networkDirectionStrings    = map[NetworkDirection]string{}
+	credentialSourceStrings    = map[CredentialSource]string{}
 	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
 	addressFamilyStrings       = map[uint16]string{}
 	tlsVersionStrings          = map[uint16]string{}
@@ -507,6 +535,7 @@ const (
 // SyscallDriftEventReason describes why a syscall drift event was sent
 type SyscallDriftEventReason uint64
 
+// mirrors the SYSCALL_MONITOR_REASON_* constants of the eBPF side
 const (
 	// SyscallMonitorPeriodReason means that the event was sent because the syscall cache entry was dirty for longer than syscall_monitor.period
 	SyscallMonitorPeriodReason SyscallDriftEventReason = iota + 1
@@ -580,6 +609,13 @@ func initNetworkDirectionContants() {
 	for k, v := range NetworkDirectionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		networkDirectionStrings[v] = k
+	}
+}
+
+func initCredentialSourceConstants() {
+	for k, v := range CredentialSourceConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		credentialSourceStrings[v] = k
 	}
 }
 
@@ -685,6 +721,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
+	initCredentialSourceConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
@@ -697,11 +734,13 @@ func initConstants() {
 	initSetSockOptOptNameConstantsTCP()
 	initSetSockOptOptNameConstantsIPv6()
 	initRlimitConstants()
+	initCloneFlagsConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()
 	initFileTypeConstants()
 	initLinkageTypeConstants()
+	initSocketDomainConstants()
 	initSocketTypeConstants()
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()

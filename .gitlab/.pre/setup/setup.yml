@@ -23,3 +23,4 @@ setup_agent_version:
       dotenv: build.env
   variables:
     DISABLE_GIT_CACHE: true
+    GIT_DEPTH: 0  # git describe --tags needs reachable tags

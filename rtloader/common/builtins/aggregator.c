@@ -53,6 +53,9 @@ static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODUL
 PyMODINIT_FUNC PyInit_aggregator(void)
 {
     PyObject *m = PyModule_Create(&module_def);
+    if (m == NULL) {
+        return NULL;
+    }
     add_constants(m);
     return m;
 }

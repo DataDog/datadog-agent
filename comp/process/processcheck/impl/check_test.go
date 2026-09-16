@@ -17,7 +17,8 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	taggerfxnoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -77,11 +78,15 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			sysprobeConf := sysprobeconfigmock.NewMock(t)
+			for k, v := range tc.sysProbeConfigs {
+				sysprobeConf.SetInTest(k, v)
+			}
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
-				sysprobeconfigimpl.MockModule(),
-				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
+				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
+				fxutil.ProvideOptional[sysprobeconfigdef.Component](),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				taggerfxnoop.Module(),
@@ -89,7 +94,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 					return &statsd.NoOpClient{}
 				}),
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

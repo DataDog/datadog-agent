@@ -1,0 +1,87 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "procscan",
+    srcs = [
+        "executable_filter.go",
+        "list_pids.go",
+        "proc_stat_reader.go",
+        "scanner.go",
+        "time_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@org_golang_x_time//rate",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@org_golang_x_time//rate",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "procscan_test",
+    srcs = [
+        "list_pids_test.go",
+        "proc_stat_reader_test.go",
+        "scanner_bench_test.go",
+        "scanner_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":procscan"],
+    embedsrcs = [
+        "testdata/stat/all_digits.txt",
+        "testdata/stat/closing_paren.txt",
+        "testdata/stat/golang.txt",
+        "testdata/stat/long_name.txt",
+        "testdata/stat/maxlen_comm.txt",
+        "testdata/stat/multiple_parens.txt",
+        "testdata/stat/numbers_start.txt",
+        "testdata/stat/parens_in_name.txt",
+        "testdata/stat/quotes_backslash.txt",
+        "testdata/stat/simple.txt",
+        "testdata/stat/single_char.txt",
+        "testdata/stat/small_pid.txt",
+        "testdata/stat/special_chars.txt",
+        "testdata/stat/with_spaces.txt",
+    ],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "//conditions:default": [],
+    }),
+)

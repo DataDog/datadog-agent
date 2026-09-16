@@ -8,12 +8,16 @@ package os
 // Implements commonly used descriptors for easier usage
 // See platforms.go for the AMIs used for each OS
 var (
-	UbuntuDefault = Ubuntu2204
-	Ubuntu2404    = NewDescriptor(Ubuntu, "24-04")
-	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
-	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
+	UbuntuDefault    = Ubuntu2204E2E
+	Ubuntu2404       = NewDescriptor(Ubuntu, "24-04")
+	Ubuntu2204       = NewDescriptor(Ubuntu, "22-04")
+	Ubuntu2004       = NewDescriptor(Ubuntu, "20-04")
+	Ubuntu2204E2E    = NewDescriptor(Ubuntu, "22-04-e2e")
+	Ubuntu2404E2E    = NewDescriptor(Ubuntu, "24-04-e2e")
+	Ubuntu2204E2EARM = NewDescriptorWithArch(Ubuntu, "22-04-e2e", ARM64Arch)
 
 	DebianDefault = Debian12
+	Debian11E2E   = NewDescriptor(Debian, "11-e2e")
 	Debian12      = NewDescriptor(Debian, "12")
 
 	AmazonLinuxDefault = AmazonLinux2023
@@ -26,7 +30,9 @@ var (
 	AmazonLinuxECS2       = NewDescriptor(AmazonLinuxECS, "2")
 
 	RedHatDefault = RedHat9
+	RedHat8       = NewDescriptor(RedHat, "8")
 	RedHat9       = NewDescriptor(RedHat, "9")
+	RedHat10      = NewDescriptor(RedHat, "10")
 
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
@@ -36,6 +42,10 @@ var (
 
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
+
+	// AlmaLinux 9. The AMI is resolved by search (resolveAlmaLinuxAMI), so the
+	// descriptor carries no version; provision it with WithLatestAMI.
+	AlmaLinux9 = NewDescriptor(AlmaLinux, "")
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{

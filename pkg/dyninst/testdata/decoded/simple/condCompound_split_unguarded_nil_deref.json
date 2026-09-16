@@ -77,17 +77,7 @@
           "location": {
             "method": "main.condGuarded"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "x.I32 == 1 || @return == 99",
-            "message": "nil pointer dereference"
-          },
-          {
-            "expr": "x.I32 == 1 || @return == 99",
-            "message": "nil pointer dereference"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

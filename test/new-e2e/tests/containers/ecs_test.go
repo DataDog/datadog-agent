@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"context"
 	"regexp"
 	"strings"
 	"testing"
@@ -117,7 +116,7 @@ func (suite *ecsSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
 // is run first.
 func (suite *ecsSuite) Test00UpAndRunning() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	suite.Require().NoErrorf(err, "Failed to load AWS config")

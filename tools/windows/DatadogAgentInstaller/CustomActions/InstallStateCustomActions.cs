@@ -14,6 +14,11 @@ namespace Datadog.CustomActions
 
     public class InstallStateCustomActions
     {
+        // Registry value name under HKLM\Constants.DatadogAgentRegistryKey that mirrors the
+        // DDAGENTUSER_KEEP_RIGHTS MSI property so remote-triggered upgrades can recover the
+        // operator's opt-out without it being re-supplied on the command line.
+        protected const string KeepRightsRegistryValueName = "keepRights";
+
         protected readonly ISession _session;
         protected readonly IRegistryServices _registryServices;
         protected readonly IServiceController _serviceController;
@@ -144,7 +149,7 @@ namespace Datadog.CustomActions
 
         protected void RemoveAgentUserInRegistry(IRegistryKey subkey)
         {
-            foreach (var value in new[] { "installedDomain", "installedUser" })
+            foreach (var value in new[] { "installedDomain", "installedUser", KeepRightsRegistryValueName })
             {
                 try
                 {
@@ -154,6 +159,33 @@ namespace Datadog.CustomActions
                 {
                     // Don't print stack trace as it may be seen as a terminal error by readers of the log.
                     _session.Log($"Warning, cannot removing registry value: {e.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Persist the DDAGENTUSER_KEEP_RIGHTS opt-out to the registry so that remote-triggered
+        /// upgrades (which inherit only what's on disk, not what was on the command line) can
+        /// honor the operator's choice. The value is cleared from the registry when the property
+        /// is empty so flipping back to defaults takes a single uninstall/reinstall cycle.
+        /// </summary>
+        protected void StoreKeepUserRightsInRegistry(IRegistryKey subkey)
+        {
+            var keepRights = _session.Property(ConfigureUserCustomActions.KeepRightsPropertyName);
+            if (!string.IsNullOrEmpty(keepRights))
+            {
+                _session.Log($"Storing {KeepRightsRegistryValueName}={keepRights}");
+                subkey.SetValue(KeepRightsRegistryValueName, keepRights, RegistryValueKind.String);
+            }
+            else
+            {
+                try
+                {
+                    subkey.DeleteValue(KeepRightsRegistryValueName);
+                }
+                catch (Exception)
+                {
+                    // Value was not previously set; nothing to do.
                 }
             }
         }

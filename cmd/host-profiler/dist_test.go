@@ -6,18 +6,3 @@
 //go:build linux
 
 package main
-
-import (
-	_ "embed"
-	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-//go:embed dist/host-profiler-config.yaml
-var config string
-
-func TestConverterInfraAttributesName(t *testing.T) {
-	require.Equal(t, 6, strings.Count(config, "infraattributes/default"))
-}

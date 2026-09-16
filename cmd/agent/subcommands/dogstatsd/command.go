@@ -22,12 +22,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcommon"
 	"github.com/DataDog/datadog-agent/comp/core"
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -87,7 +89,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error) {
-	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
@@ -109,6 +111,10 @@ func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error
 }
 
 func dumpContexts(config cconfig.Component, _ log.Component, client ipc.HTTPClient) error {
+	if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+		return err
+	}
+
 	path, err := triggerDump(config, client)
 	if err != nil {
 		return err
@@ -129,6 +135,10 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 
 	path := flags.path
 	if path == "" {
+		if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+			return err
+		}
+
 		path, err = triggerDump(config, client)
 		if err != nil {
 			return err

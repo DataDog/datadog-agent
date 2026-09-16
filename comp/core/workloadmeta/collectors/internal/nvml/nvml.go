@@ -9,10 +9,10 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"regexp"
+	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,14 +36,6 @@ const (
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
-// this regex matches device names from NVML and extracts the GPU type. For example, from "nvidia_a100-80gb" it will extract "a100". The groups are as follows:
-// 1. The optional prefix "nvidia" or "tesla" (T4 GPUs are named "tesla_t4" despite being NVIDIA GPUs)
-// 2. The optional prefix "geforce_" which we ignore
-// 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
-// 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
-var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
-var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
-
 type collector struct {
 	id                                 string
 	catalog                            workloadmeta.AgentType
@@ -52,12 +44,20 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	gpuMonitoringEnabled               bool
+	lastCollectionTimestamp            time.Time
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
 	// build the GPU device info using the pre-computed values
 	// from the device cache
 	devInfo := device.GetDeviceInfo()
+	nvlinkVersion := devInfo.NVLinkVersion
+	if devInfo.NVLinkLinkCount == 0 {
+		nvlinkVersion = "not_nvlink_capable"
+	} else if nvlinkVersion == "" {
+		nvlinkVersion = "unknown"
+	}
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -68,15 +68,16 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		},
 		Vendor:  nvidiaVendor,
 		Device:  devInfo.Name,
-		GPUType: extractGPUType(devInfo.Name),
+		GPUType: gpuutil.ExtractGPUType(devInfo.Name),
 		Index:   devInfo.Index,
 		ComputeCapability: workloadmeta.GPUComputeCapability{
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:   devInfo.CoreCount,
-		TotalMemory:  devInfo.Memory,
-		Architecture: gpuutil.ArchToString(devInfo.Architecture),
+		TotalCores:    devInfo.CoreCount,
+		TotalMemory:   devInfo.Memory,
+		Architecture:  gpuutil.ArchToString(devInfo.Architecture),
+		NVLinkVersion: nvlinkVersion,
 	}
 
 	switch d := device.(type) {
@@ -114,7 +115,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
@@ -124,6 +125,23 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		}
 	} else {
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
+	}
+
+	pciInfo, err := physicalDevice.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
+	}
+
+	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
+	if err == nil {
+		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
+			gpuDeviceInfo.FabricClusterUUID = clusterUUID
+			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
 	}
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
@@ -153,32 +171,73 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 }
 
+func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
+	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
+}
+
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+	seenPIDs := make(map[int]struct{})
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
-		return
 	}
 
 	for _, proc := range procs {
-		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, int(proc.Pid))
+		seenPIDs[int(proc.Pid)] = struct{}{}
 	}
+
+	// GetProcessUtilization can show more processes than GetComputeRunningProcesses, but it might not be supported by all devices.
+	utilizationProcs, err := device.GetProcessUtilization(uint64(c.lastCollectionTimestamp.UnixMicro()))
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			utilizationProcs = nil // error not found occurs normally when no process is using the GPU, clear the array to avoid processing any data
+		} else {
+			// only logs
+			if logLimiter.ShouldLog() {
+				log.Debugf("%v for %d", err, gpuDeviceInfo.Index)
+			}
+		}
+	}
+
+	for _, proc := range utilizationProcs {
+		seenPIDs[int(proc.Pid)] = struct{}{}
+	}
+
+	gpuDeviceInfo.ActivePIDs = make([]int, 0, len(seenPIDs))
+	for pid := range seenPIDs {
+		gpuDeviceInfo.ActivePIDs = append(gpuDeviceInfo.ActivePIDs, pid)
+	}
+	slices.Sort(gpuDeviceInfo.ActivePIDs) // Sort to ensure the gpu device info doesn't change due to PID ordering changes
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
 func newCollector(store workloadmeta.Component, config config.Component) *collector {
 	collector := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		seenUUIDs:      map[string]struct{}{},
-		seenPIDsToGPUs: make(map[int][]string),
-		store:          store,
+		id:                      collectorID,
+		catalog:                 workloadmeta.NodeAgent,
+		seenUUIDs:               map[string]struct{}{},
+		seenPIDsToGPUs:          make(map[int][]string),
+		store:                   store,
+		lastCollectionTimestamp: time.Now(),
+		gpuMonitoringEnabled:    true,
 	}
 
 	if config != nil {
 		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
 	}
 
 	return collector
@@ -199,7 +258,11 @@ func GetFxOptions() fx.Option {
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
-		return errors.NewDisabled(componentName, "Agent does not have NVML library available")
+		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
+	}
+
+	if !c.gpuMonitoringEnabled {
+		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
 	}
 
 	c.store = store
@@ -209,105 +272,119 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(ctx context.Context) error {
-	lib, err := ddnvml.GetSafeNvmlLib()
+	// While NVML is deliberately released, skip quietly: touching the
+	// library would re-initialize it and re-block the GPU reset the window
+	// exists to allow. A pull before the first initialization is NOT skipped.
+	// Hold the NVML gate for the whole pull: a deliberate release waits for
+	// the in-flight pull to finish instead of racing it. The gated helper
+	// keeps the library wrapper from escaping.
+	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
+		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
+		if err := deviceCache.Refresh(); err != nil {
+			return fmt.Errorf("failed to initialize device cache: %w", err)
+		}
+
+		// driver version is equal to all devices of the same vendor
+		// currently we handle only nvidia.
+		// in the future this function should be refactored to support more vendors
+		driverVersion, err := lib.SystemGetDriverVersion()
+		// we try to get the driver version as best effort, just log warning if it fails
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v", err)
+			}
+		}
+
+		// attempt getting list of unhealthy devices (if available)
+		unhealthyDevices, err := c.getUnhealthyDevices(ctx)
+		if err != nil && logLimiter.ShouldLog() {
+			log.Warnf("failed getting unhealthy devices: %v", err)
+		}
+
+		// note: the device list can change over time so we need to set/unset for reconciliation
+		allDevices, err := deviceCache.All()
+		if err != nil {
+			// Should not happen as we check the last init error for the library
+			return fmt.Errorf("failed to get all devices: %w", err)
+		}
+
+		// add/update current devices
+		currentUUIDs := map[string]struct{}{}
+		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
+		timestamp := time.Now()
+		var events []workloadmeta.CollectorEvent
+		for _, dev := range allDevices {
+			gpu, err := c.getGPUDeviceInfo(dev)
+			if err != nil {
+				return err
+			}
+
+			gpu.DriverVersion = driverVersion
+
+			_, unhealthy := unhealthyDevices[gpu.ID]
+			gpu.Healthy = !unhealthy
+
+			uuid := dev.GetDeviceInfo().UUID
+			currentUUIDs[uuid] = struct{}{}
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: gpu,
+			})
+
+			if c.integrateWithWorkloadmetaProcesses {
+				for _, pid := range gpu.ActivePIDs {
+					pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
+				}
+			}
+		}
+
+		// remove previous devices that are no more available
+		for uuid := range c.seenUUIDs {
+			if _, ok := currentUUIDs[uuid]; ok {
+				continue
+			}
+
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: &workloadmeta.GPU{
+					EntityID: workloadmeta.EntityID{
+						ID:   uuid,
+						Kind: workloadmeta.KindGPU,
+					},
+				},
+			})
+		}
+
+		c.seenUUIDs = currentUUIDs
+
+		if c.integrateWithWorkloadmetaProcesses {
+			events = append(events, c.createProcessEvents(pidToGPUs)...)
+		}
+
+		c.store.Notify(events)
+		c.lastCollectionTimestamp = timestamp
+
+		return nil
+	})
 	if err != nil {
+		// While NVML is deliberately released, skip quietly: the pull is
+		// retried on the next cycle.
+		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			return nil
+		}
 		// Do not consider an unloaded driver as an error more than once.
-		// Some installations will have the NVIDIA libraries but not the driver. Report the error
-		// only once to avoid log spam, treat it the same as if there was no library available or
-		// there were no GPUs.
+		// Some installations will have the NVIDIA libraries but not the
+		// driver. Report the error only once to avoid log spam, treat it the
+		// same as if there was no library available or there were no GPUs.
 		if ddnvml.IsDriverNotLoaded(err) && !c.reportedDriverNotLoaded {
 			c.reportedDriverNotLoaded = true
 			return nil
 		}
 
-		return fmt.Errorf("failed to get NVML library : %w", err)
+		return err
 	}
-
-	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
-	if err := deviceCache.Refresh(); err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
-	}
-
-	// driver version is equal to all devices of the same vendor
-	// currently we handle only nvidia.
-	// in the future this function should be refactored to support more vendors
-	driverVersion, err := lib.SystemGetDriverVersion()
-	// we try to get the driver version as best effort, just log warning if it fails
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v", err)
-		}
-	}
-
-	// attempt getting list of unhealthy devices (if available)
-	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if err != nil && logLimiter.ShouldLog() {
-		log.Warnf("failed getting unhealthy devices: %v", err)
-	}
-
-	// note: the device list can change over time so we need to set/unset for reconciliation
-	allDevices, err := deviceCache.All()
-	if err != nil {
-		// Should not happen as we check the last init error for the library
-		return fmt.Errorf("failed to get all devices: %w", err)
-	}
-
-	// add/update current devices
-	currentUUIDs := map[string]struct{}{}
-	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
-	var events []workloadmeta.CollectorEvent
-	for _, dev := range allDevices {
-		gpu, err := c.getGPUDeviceInfo(dev)
-		if err != nil {
-			return err
-		}
-
-		gpu.DriverVersion = driverVersion
-
-		_, unhealthy := unhealthyDevices[gpu.ID]
-		gpu.Healthy = !unhealthy
-
-		uuid := dev.GetDeviceInfo().UUID
-		currentUUIDs[uuid] = struct{}{}
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNVML,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: gpu,
-		})
-
-		if c.integrateWithWorkloadmetaProcesses {
-			for _, pid := range gpu.ActivePIDs {
-				pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
-			}
-		}
-	}
-
-	// remove previous devices that are no more available
-	for uuid := range c.seenUUIDs {
-		if _, ok := currentUUIDs[uuid]; ok {
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNVML,
-			Type:   workloadmeta.EventTypeUnset,
-			Entity: &workloadmeta.GPU{
-				EntityID: workloadmeta.EntityID{
-					ID:   uuid,
-					Kind: workloadmeta.KindGPU,
-				},
-			},
-		})
-	}
-
-	c.seenUUIDs = currentUUIDs
-
-	if c.integrateWithWorkloadmetaProcesses {
-		events = append(events, c.createProcessEvents(pidToGPUs)...)
-	}
-
-	c.store.Notify(events)
-
 	return nil
 }
 
@@ -368,43 +445,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func extractGPUType(deviceName string) string {
-	if deviceName == "" {
-		return ""
-	}
-
-	// Normalize case/whitespace and remove leading/trailing noise so regex matching is stable.
-	normalizedName := strings.ToLower(strings.TrimSpace(deviceName))
-	// Collapse any non-alphanumeric separators (spaces, dashes, quotes, punctuation) into underscores.
-	normalizedName = gpuNameSeparatorRegex.ReplaceAllString(normalizedName, "_")
-	// Trim underscores added by leading/trailing separators.
-	normalizedName = strings.Trim(normalizedName, "_")
-
-	// Extract the optional RTX prefix and the GPU model token.
-	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
-	if len(matches) == 0 {
-		return ""
-	}
-
-	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
-	return matches[1] + matches[2]
-}
-
-func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
-	switch nvmlVirtMode {
-	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
-		return "none"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
-		return "host_vgpu"
-	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
-		return "passthrough"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
-		return "host_vsga"
-	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
-		return "vgpu"
-	default:
-		return "unknown"
-	}
 }

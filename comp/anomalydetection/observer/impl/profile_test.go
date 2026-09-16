@@ -36,7 +36,7 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 	storage := buildRealisticStorage(numMetrics, numSeconds)
 
 	catalog := defaultCatalog()
-	detectors, correlators, _, _ := catalog.Instantiate(ComponentSettings{})
+	detectors, correlators, _, _, _ := catalog.Instantiate(ComponentSettings{})
 
 	// Apply window to all seriesDetectorAdapters.
 	if windowSec > 0 {

@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "windowsevent",
+    srcs = ["tailer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/telemetry/def",
+            "//comp/logs-library/processor",
+            "//comp/logs/auditor/def",
+            "//comp/publishermetadatacache/def",
+            "//pkg/logs/internal/decoder",
+            "//pkg/logs/message",
+            "//pkg/logs/sources",
+            "//pkg/logs/util/windowsevent",
+            "//pkg/util/log",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "//pkg/util/winutil/eventlog/bookmark",
+            "//pkg/util/winutil/eventlog/subscription",
+            "@com_github_cenkalti_backoff_v7//:backoff",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "windowsevent_test",
+    srcs = ["tailer_test.go"],
+    embed = [":windowsevent"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
+            "//pkg/logs/message",
+            "//pkg/logs/sources",
+            "//pkg/util/log",
+            "//pkg/util/testutil/flake",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/publishermetadatacache",
+            "//pkg/util/winutil/eventlog/test",
+            "@com_github_cenkalti_backoff_v7//:backoff",
+            "@com_github_stretchr_testify//require",
+            "@com_github_stretchr_testify//suite",
+        ],
+        "//conditions:default": [],
+    }),
+)

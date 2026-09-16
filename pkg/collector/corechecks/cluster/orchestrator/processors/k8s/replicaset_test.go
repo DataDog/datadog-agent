@@ -49,7 +49,7 @@ func TestReplicaSetHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewReplicaSetHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -119,16 +119,16 @@ func TestReplicaSetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.ReplicaSet)
 	assert.True(t, ok)
 	assert.Equal(t, "test-rs", resource1.Name)
-	assert.NotSame(t, rs1, resource1) // Should be a copy
+	assert.Same(t, rs1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.ReplicaSet)
 	assert.True(t, ok)
 	assert.Equal(t, "rs2", resource2.Name)
-	assert.NotSame(t, rs2, resource2) // Should be a copy
+	assert.Same(t, rs2, resource2) // ResourceList returns raw informer references
 }
 
 func TestReplicaSetHandlers_ResourceUID(t *testing.T) {
@@ -457,4 +457,14 @@ func createTestReplicaSet() *appsv1.ReplicaSet {
 			},
 		},
 	}
+}
+
+func TestReplicaSetHandlers_CloneResource(t *testing.T) {
+	handlers := &ReplicaSetHandlers{}
+	original := createTestReplicaSet()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.ReplicaSet)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

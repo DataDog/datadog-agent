@@ -1,10 +1,13 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aggregator",
     srcs = [
+        "agentDiscoveryAggregator.go",
         "agenthealthAggregator.go",
         "apmStatsAggregator.go",
+        "apmTelemetryAggregator.go",
         "checkRunAggregator.go",
         "common.go",
         "connectionsAggregator.go",
@@ -17,6 +20,8 @@ go_library(
         "metadataAggregator.go",
         "metricAggregator.go",
         "metricAggregatorV1.go",
+        "metricAggregatorV3.go",
+        "metricReaderV3.go",
         "ncmAggregator.go",
         "ndmAggregator.go",
         "ndmflowAggregator.go",
@@ -26,6 +31,7 @@ go_library(
         "processAggregator.go",
         "processDiscoveryAggregator.go",
         "sbomAggregator.go",
+        "sdsResultAggregator.go",
         "sketchAggregator.go",
         "traceAggregator.go",
     ],
@@ -35,12 +41,15 @@ go_library(
         "//comp/netflow/payload",
         "//pkg/metrics/event",
         "//pkg/networkpath/payload",
+        "//pkg/proto/pbgo/sds",
         "//pkg/proto/pbgo/trace",
         "//test/fakeintake/api",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_datadog_agent_payload_v5//contimage",
         "@com_github_datadog_agent_payload_v5//contlcycle",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_datadog_agent_payload_v5//metrics/intake_v3",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_agent_payload_v5//sbom",
         "@com_github_datadog_zstd//:zstd",
@@ -50,11 +59,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
+        "agentDiscoveryAggregator_test.go",
         "agenthealthAggregator_test.go",
         "apmStatsAggregator_test.go",
+        "apmTelemetryAggregator_test.go",
         "checkRunAggregator_test.go",
         "common_test.go",
         "connectionsAggregator_test.go",
@@ -65,6 +76,7 @@ go_test(
         "logAggregator_test.go",
         "metadataAggregator_test.go",
         "metricAggregatorV1_test.go",
+        "metricAggregatorV3_test.go",
         "metricAggregator_test.go",
         "ndmAggregator_test.go",
         "ndmflowAggregator_test.go",
@@ -74,6 +86,7 @@ go_test(
         "processAggregator_test.go",
         "processDiscoveryAggregator_test.go",
         "sbomAggregator_test.go",
+        "sdsResultAggregator_test.go",
         "sketchAggregator_test.go",
         "traceAggregator_test.go",
     ],
@@ -83,6 +96,7 @@ go_test(
         "fixtures/agenthealth_multi_bytes",
         "fixtures/agenthealth_noissues_bytes",
         "fixtures/apm_stats_bytes",
+        "fixtures/apm_telemetry_bytes",
         "fixtures/checkrun_bytes",
         "fixtures/connections_bytes",
         "fixtures/contimage_bytes",
@@ -101,16 +115,23 @@ go_test(
         "fixtures/sbom_bytes",
         "fixtures/trace_bytes",
     ],
-    gotags = ["test"],
     deps = [
         "//pkg/metrics/event",
         "//pkg/networkpath/payload",
+        "//pkg/proto/pbgo/sds",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_datadog_agent_payload_v5//metrics/intake_v3",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_zstd//:zstd",
         "@com_github_kr_pretty//:pretty",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//encoding/protowire",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )

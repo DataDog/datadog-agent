@@ -31,6 +31,21 @@ type Context struct {
 	source     metrics.MetricSource
 }
 
+// resolvedMetricView exposes the final metric identity to the anomaly-detection
+// observer. It is valid only for the synchronous duration of ObserveMetric.
+type resolvedMetricView struct {
+	sample *metrics.MetricSample
+	host   string
+	tags   tagset.CompositeTags
+}
+
+func (v resolvedMetricView) GetName() string               { return v.sample.GetName() }
+func (v resolvedMetricView) GetValue() float64             { return v.sample.GetValue() }
+func (v resolvedMetricView) GetTags() tagset.CompositeTags { return v.tags }
+func (v resolvedMetricView) GetHost() string               { return v.host }
+func (v resolvedMetricView) GetTimestampUnix() int64       { return v.sample.GetTimestampUnix() }
+func (v resolvedMetricView) GetSampleRate() float64        { return v.sample.GetSampleRate() }
+
 type resolverEntry struct {
 	lastSeen int64
 	context  *Context
@@ -256,7 +271,6 @@ func (cr *contextResolver) clearTagFilterCache() {
 	cr.tagFilterCache.clear()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}

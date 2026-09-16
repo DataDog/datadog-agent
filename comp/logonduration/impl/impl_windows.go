@@ -10,16 +10,17 @@ package logondurationimpl
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/host"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -226,55 +227,114 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
+type milestoneCandidate struct {
+	id       string
+	name     string
+	ts       time.Time
+	duration time.Duration
+}
+
+func timelineCandidates(tl BootTimeline) []milestoneCandidate {
+	return []milestoneCandidate{
+		{"boot_duration", "Boot Duration", tl.BootStart, durationBetween(tl.BootStart, tl.LoginUIStart)},
+		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
+		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
+		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
+		{"logon_duration", "Logon Duration", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
+		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
+		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
+		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
+		{"explorer_initializing", "Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
+		{"desktop_visible", "Desktop Visible", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopVisibleEnd)},
+		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
+	}
+}
+
+type interval struct {
+	start time.Time
+	end   time.Time
+}
+
+// unobservedIntervals returns the sub-intervals of [start, end) that no milestone covers,
+// sorted and disjoint - bootOffsetFunc walks them in order and stops at the first one past ts.
+func unobservedIntervals(tl BootTimeline, start, end time.Time) []interval {
+	var busy []interval
+	for _, c := range timelineCandidates(tl) {
+		if c.ts.IsZero() || c.duration <= 0 {
+			continue
+		}
+		s, e := c.ts, c.ts.Add(c.duration)
+		if !e.After(start) || !s.Before(end) {
+			continue
+		}
+		busy = append(busy, interval{s, e})
+	}
+	sort.Slice(busy, func(i, j int) bool { return busy[i].start.Before(busy[j].start) })
+
+	var idle []interval
+	cursor := start
+	for _, b := range busy {
+		if b.start.After(cursor) {
+			idle = append(idle, interval{cursor, b.start})
+		}
+		if b.end.After(cursor) {
+			cursor = b.end
+		}
+	}
+	if end.After(cursor) {
+		idle = append(idle, interval{cursor, end})
+	}
+	return idle
+}
+
+// bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The stretches of
+// the login screen wait (LoginUIDone -> SessionLogon) where nothing was observed are elided so the
+// timeline renders contiguously; the per-milestone Timestamp retains wall-clock truth. Eliding only
+// the unobserved stretches, never an observed span, is what keeps the mapping order-preserving.
+func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
+	boot := tl.BootStart
+	if boot.IsZero() {
+		return func(time.Time) int64 { return 0 }
+	}
+
+	if tl.LoginUIDone.IsZero() || tl.SessionLogon.IsZero() || !tl.SessionLogon.After(tl.LoginUIDone) {
+		return func(ts time.Time) int64 { return ts.Sub(boot).Milliseconds() }
+	}
+
+	elided := unobservedIntervals(tl, tl.LoginUIDone, tl.SessionLogon)
+
+	return func(ts time.Time) int64 {
+		offset := ts.Sub(boot)
+		for _, iv := range elided {
+			if !ts.After(iv.start) {
+				break
+			}
+			if ts.Before(iv.end) {
+				offset -= ts.Sub(iv.start)
+				break
+			}
+			offset -= iv.end.Sub(iv.start)
+		}
+		return offset.Milliseconds()
+	}
+}
+
 // buildTimelineMilestones returns an ordered slice of boot milestones.
 // Only milestones with a non-zero timestamp are included.
 func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
-	boot := tl.BootStart
 
-	candidates := []struct {
-		id       string
-		name     string
-		ts       time.Time
-		duration time.Duration
-	}{
-		{"boot_start", "Boot Start", tl.BootStart, 0},
-		{"smss_start", "SMSS Start", tl.SmssStart, 0},
-		{"user_session_smss_start", "User Session SMSS Start", tl.UserSmssStart, 0},
-		{"winlogon_start", "Winlogon Start", tl.WinlogonStart, 0},
-		{"winlogon_init", "Winlogon Init", tl.WinlogonInit, durationBetween(tl.WinlogonInit, tl.WinlogonInitDone)},
-		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
-		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
-		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
-		{"user_session_winlogon_start", "User Session Winlogon Start", tl.UserWinlogonStart, 0},
-		{"user_logon", "User Logon", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
-		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
-		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
-		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
-		{"userinit_exe", "Userinit.exe", tl.UserinitStart, durationBetween(tl.UserinitStart, tl.ExplorerStart)},
-		{"explorer_exe_start", "Explorer.exe Start", tl.ExplorerStart, 0},
-		{"explorer_initializing", "Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
-		{"desktop_created", "Desktop Created", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopCreateEnd)},
-		{"desktop_visible", "Desktop Visible", tl.DesktopVisibleStart, durationBetween(tl.DesktopVisibleStart, tl.DesktopVisibleEnd)},
-		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
-		{"desktop_ready", "Desktop Ready", tl.DesktopReadyStart, durationBetween(tl.DesktopReadyStart, tl.DesktopReadyEnd)},
-	}
-
-	hasBootRef := !boot.IsZero()
+	offsetOf := bootOffsetFunc(tl)
 
 	var milestones []Milestone
-	for _, c := range candidates {
+	for _, c := range timelineCandidates(tl) {
 		if c.ts.IsZero() {
 			continue
-		}
-		var offset float64
-		if hasBootRef {
-			offset = float64(c.ts.Sub(boot).Milliseconds())
 		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
 			Name:       c.name,
-			OffsetMs:   offset,
+			OffsetMs:   float64(offsetOf(c.ts)),
 			Timestamp:  c.ts.UTC().Format(tsFmt),
 			DurationMs: float64(c.duration.Milliseconds()),
 		})
@@ -282,7 +342,7 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	return milestones
 }
 
-func buildCustomPayload(tl BootTimeline) map[string]interface{} {
+func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]interface{} {
 	custom := make(map[string]interface{})
 
 	milestones := buildTimelineMilestones(tl)
@@ -312,6 +372,11 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	}
 
 	for _, milestone := range milestones {
+		// boot_duration and logon_duration are already represented by the
+		// authoritative boot_duration_ms / logon_duration_ms keys above.
+		if milestone.ID == "boot_duration" || milestone.ID == "logon_duration" {
+			continue
+		}
 		if milestone.DurationMs > 0 {
 			durations[milestone.ID] = milestone.DurationMs
 		}
@@ -319,6 +384,10 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 
 	if len(durations) > 0 {
 		custom["durations"] = durations
+	}
+
+	if gp != nil {
+		custom["group_policy_details"] = gp
 	}
 
 	return custom
@@ -329,22 +398,27 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	tl := result.Timeline
 
-	custom := buildCustomPayload(tl)
+	custom := buildCustomPayload(tl, result.GroupPolicy)
 
 	eventTimestamp := tl.BootStart
 	if eventTimestamp.IsZero() {
 		eventTimestamp = time.Now()
 	}
 
+	haveBoot := !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero()
+	haveLogon := !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) + getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
+	title := buildEventTitle(complete, totalMs)
+
 	msg := "Total boot duration analysis after reboot"
-	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
-			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
-		}
+	if complete {
+		msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: eventTimestamp,
 		Custom:    custom,

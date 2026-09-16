@@ -21,12 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var errProbeNotReceived = errors.New("dry-run probe configmap was not annotated by the webhook")
@@ -42,7 +43,7 @@ type Probe struct {
 	logLimiter     *log.Limit
 	diagnosticHint string
 
-	healthPlatform option.Option[healthplatformdef.Component]
+	healthPlatform healthplatformdef.Component
 
 	stats Stats
 }
@@ -83,7 +84,7 @@ const (
 // New creates a new admission controller connectivity probe.
 // The namespace parameter specifies where dry-run ConfigMaps are created; this
 // should be the namespace the cluster agent is deployed in.
-func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform option.Option[healthplatformdef.Component]) *Probe {
+func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform healthplatformdef.Component) *Probe {
 	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
 	if interval <= 0 {
 		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
@@ -250,31 +251,28 @@ func (p *Probe) handleError(err error) {
 }
 
 func (p *Probe) reportHealthIssue() {
-	hp, ok := p.healthPlatform.Get()
-	if !ok {
-		return
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+		"remediation": p.diagnosticHint,
+	})
+	if buildErr != nil {
+		issue = &healthplatformpayload.Issue{
+			Id:        healthIssueID,
+			IssueName: admissionprobe.IssueName,
+			IssueType: admissionprobe.IssueType,
+			Title:     "Admission Controller Unreachable",
+			Source:    "cluster-agent",
+		}
+	} else {
+		issue.Id = healthIssueID
 	}
 
-	report := healthplatformdef.IssueReport{
-		IssueID:   healthIssueID,
-		IssueType: healthIssueID,
-		Source:    "cluster-agent",
-		Context: map[string]string{
-			"remediation": p.diagnosticHint,
-		},
-	}
-
-	if reportErr := hp.ReportIssue(report); reportErr != nil {
+	if reportErr := p.healthPlatform.ReportIssue(issue); reportErr != nil {
 		log.Warnf("Failed to report admission probe health issue: %v", reportErr)
 	}
 }
 
 func (p *Probe) clearHealthIssue() {
-	hp, ok := p.healthPlatform.Get()
-	if !ok {
-		return
-	}
-	hp.ResolveIssue(healthIssueID)
+	p.healthPlatform.ResolveIssue(healthIssueID)
 }
 
 func (p *Probe) execute(ctx context.Context) error {

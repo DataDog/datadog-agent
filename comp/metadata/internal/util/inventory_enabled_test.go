@@ -15,15 +15,15 @@ import (
 func TestInventoryEnabled(t *testing.T) {
 	m := configmock.New(t)
 
-	m.SetWithoutSource("enable_metadata_collection", false)
-	m.SetWithoutSource("inventories_enabled", true)
+	m.SetInTest("enable_metadata_collection", false)
+	m.SetInTest("inventories_enabled", true)
 	assert.False(t, InventoryEnabled(m))
 
-	m.SetWithoutSource("enable_metadata_collection", true)
-	m.SetWithoutSource("inventories_enabled", false)
+	m.SetInTest("enable_metadata_collection", true)
+	m.SetInTest("inventories_enabled", false)
 	assert.False(t, InventoryEnabled(m))
 
-	m.SetWithoutSource("enable_metadata_collection", true)
-	m.SetWithoutSource("inventories_enabled", true)
+	m.SetInTest("enable_metadata_collection", true)
+	m.SetInTest("inventories_enabled", true)
 	assert.True(t, InventoryEnabled(m))
 }

@@ -10,16 +10,25 @@ go_library(
         "cmp_op.go",
         "cmp_op_string.go",
         "doc.go",
+        "errors.go",
         "event_kind.go",
         "event_kind_string.go",
+        "expression.go",
         "issue.go",
         "issuekind_string.go",
+        "location.go",
         "probe_definition.go",
         "probe_kind.go",
         "probe_kind_string.go",
+        "program.go",
+        "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/ir",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/exprlang",
+        "//pkg/dyninst/redaction",
+    ],
 )
 
 go_stringer(

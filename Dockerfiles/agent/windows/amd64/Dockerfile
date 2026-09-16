@@ -25,7 +25,7 @@ SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
 
-COPY install.ps1 ./
+COPY install.ps1 install-utils.ps1 ./
 RUN . ./install.ps1
 
 COPY bouncycastle-fips /fips-build

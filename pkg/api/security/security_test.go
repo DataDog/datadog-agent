@@ -33,7 +33,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetConfigFile(f.Name())
-	mockConfig.SetWithoutSource("auth_token", "")
+	mockConfig.SetInTest("auth_token", "")
 
 	return mockConfig, filepath.Join(testDir, "auth_token")
 }

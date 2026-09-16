@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultLoader       = "core"
-	defaultQueryTimeout = 20000
+	defaultQueryTimeout = 20
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -46,10 +46,11 @@ type DatabaseIdentifierConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
-	Enabled              bool `yaml:"enabled"`
-	IncludeAllSessions   bool `yaml:"include_all_sessions"`
-	ForceDirectQuery     bool `yaml:"force_direct_query"`
-	ActiveSessionHistory bool `yaml:"active_session_history"`
+	Enabled                        bool `yaml:"enabled"`
+	IncludeAllSessions             bool `yaml:"include_all_sessions"`
+	ForceDirectQuery               bool `yaml:"force_direct_query"`
+	ActiveSessionHistory           bool `yaml:"active_session_history"`
+	BlockingSessionFallbackEnabled bool `yaml:"blocking_session_fallback_enabled"`
 }
 
 type queryMetricsTrackerConfig struct {
@@ -118,11 +119,12 @@ type CustomQueryColumns struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
-	MetricPrefix string               `yaml:"metric_prefix"`
-	Pdb          string               `yaml:"pdb"`
-	Query        string               `yaml:"query"`
-	Columns      []CustomQueryColumns `yaml:"columns"`
-	Tags         []string             `yaml:"tags"`
+	MetricPrefix       string               `yaml:"metric_prefix"`
+	Pdb                string               `yaml:"pdb"`
+	Query              string               `yaml:"query"`
+	Columns            []CustomQueryColumns `yaml:"columns"`
+	Tags               []string             `yaml:"tags"`
+	CollectionInterval *int64               `yaml:"collection_interval"`
 }
 
 type asmConfig struct {
@@ -139,18 +141,17 @@ type locksConfig struct {
 
 // ConnectionConfig store the database connection information
 type ConnectionConfig struct {
-	Server             string `yaml:"server"`
-	Port               int    `yaml:"port"`
-	ServiceName        string `yaml:"service_name"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	TnsAlias           string `yaml:"tns_alias"`
-	TnsAdmin           string `yaml:"tns_admin"`
-	Protocol           string `yaml:"protocol"`
-	Wallet             string `yaml:"wallet"`
-	OracleClient       bool   `yaml:"oracle_client"`
-	OracleClientLibDir string `yaml:"oracle_client_lib_dir"`
-	QueryTimeout       int    `yaml:"query_timeout"`
+	Server       string `yaml:"server"`
+	Port         int    `yaml:"port"`
+	ServiceName  string `yaml:"service_name"`
+	Username     string `yaml:"username"`
+	Password     string `yaml:"password"`
+	TnsAlias     string `yaml:"tns_alias"`
+	TnsAdmin     string `yaml:"tns_admin"`
+	Protocol     string `yaml:"protocol"`
+	Wallet       string `yaml:"wallet"`
+	OracleClient bool   `yaml:"oracle_client"`
+	QueryTimeout int    `yaml:"query_timeout"`
 }
 
 func (c ConnectionConfig) QueryTimeoutString() string {
@@ -253,6 +254,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions = GetDefaultObfuscatorOptions()
 
 	instance.QuerySamples.Enabled = true
+	instance.QuerySamples.BlockingSessionFallbackEnabled = true
 
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
@@ -287,6 +289,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 	if err := yaml.Unmarshal(rawInitConfig, &initCfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {
+		return nil, err
+	}
+	if err := validateCustomQueryCollectionIntervals("global_custom_queries", initCfg.CustomQueries); err != nil {
 		return nil, err
 	}
 
@@ -397,6 +406,15 @@ func shouldPropagateAgentTags(instancePropagateTags, initConfigPropagateTags *bo
 	}
 	// if neither the instance nor the init_config has set the value, return False
 	return false
+}
+
+func validateCustomQueryCollectionIntervals(configName string, queries []CustomQuery) error {
+	for i, query := range queries {
+		if query.CollectionInterval != nil && *query.CollectionInterval <= 0 {
+			return fmt.Errorf("%s[%d].collection_interval must be greater than zero", configName, i)
+		}
+	}
+	return nil
 }
 
 func warnDeprecated(old string, new string) {

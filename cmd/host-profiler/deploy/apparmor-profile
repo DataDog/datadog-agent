@@ -1,0 +1,28 @@
+profile host-profiler flags=(attach_disconnected,mediate_deleted) {
+  # File access — unrestricted (readOnlyRootFilesystem + volume mounts handle this)
+  /       r,
+  /**     rwlkm,
+
+  # Network — unrestricted (NetworkPolicy handles egress)
+  network,
+  unix,
+
+  # Capabilities mirroring securityContext.capabilities.add
+  capability bpf,
+  capability perfmon,
+  capability sys_ptrace,
+  capability sys_resource,
+  capability dac_read_search,
+  capability syslog,
+  capability checkpoint_restore,
+  capability kill,
+  capability ipc_lock,
+
+  # Go runtime and host-wide process tracing
+  signal,
+  ptrace (read, readby, trace) peer=**,
+
+  # Only exec permitted: objcopy for symbol extraction
+  /usr/bin/objcopy ix,
+  /usr/bin/*objcopy ix,
+}

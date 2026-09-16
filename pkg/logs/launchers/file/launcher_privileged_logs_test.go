@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Built with linux_bpf since the tests need to run as root for testing the privileged access.
-//go:build linux && linux_bpf
+// Built with bpf since the tests need to run as root for testing the privileged access.
+//go:build linux && bpf
 
 package file
 
@@ -58,8 +58,8 @@ func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	})
 
 	systemProbeConfig := configmock.NewSystemProbe(t)
-	systemProbeConfig.SetWithoutSource("privileged_logs.enabled", true)
-	systemProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", handler.SocketPath)
+	systemProbeConfig.SetInTest("privileged_logs.enabled", true)
+	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", handler.SocketPath)
 
 	return TestSetupResult{TestDirs: s.unsearchableTempDirs[:], TestOps: TestOps{
 		create: func(name string) (*os.File, error) {

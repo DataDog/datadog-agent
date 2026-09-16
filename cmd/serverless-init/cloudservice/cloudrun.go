@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -201,9 +203,14 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 	return nil
 }
 
+// Run uses the default run behaviour for CloudRun.
+func (c *CloudRun) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (c *CloudRun) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(cloudRunShutdownMetricName, 1.0, c.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyShutdownMetricName, 1.0, c.GetSource())
 	}
@@ -212,11 +219,6 @@ func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent,
 func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(cloudRunStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyStartMetricName, 1.0, c.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (c *CloudRun) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isCloudRunService() bool {

@@ -5,11 +5,22 @@
 
 package types
 
+// ServiceTracker reports whether a service is being tracked for endpoint checks
+// by an external source (e.g., DatadogInstrumentation CRs).
+type ServiceTracker interface {
+	HasService(namespace, name string) bool
+	// NotifyOnChange registers a callback invoked with the namespace and name of a
+	// service whose templates or tracked-state change. Multiple subscribers are supported.
+	NotifyOnChange(func(namespace, name string))
+}
+
 const (
 	// CheckCmdName is the check name for autodiscovery component, used by cli mode.
 	CheckCmdName = "check-cmd"
 	// CelIdentifierPrefix is the prefix used to identify CEL-based AD identifiers.
 	CelIdentifierPrefix = "cel://"
+	// KubeContainerNameIdentifierPrefix is the prefix used to identify Kubernetes containers by container name.
+	KubeContainerNameIdentifierPrefix = "kube_container_name://"
 )
 
 // CelIdentifier represents a CEL-based AD identifier.
@@ -31,3 +42,8 @@ const (
 	// CelEndpointIdentifier is the CEL identifier for endpoint resources.
 	CelEndpointIdentifier CelIdentifier = CelIdentifierPrefix + "kube_endpoint"
 )
+
+// KubeContainerNameIdentifier returns the AD identifier for a Kubernetes container name.
+func KubeContainerNameIdentifier(containerName string) string {
+	return KubeContainerNameIdentifierPrefix + containerName
+}

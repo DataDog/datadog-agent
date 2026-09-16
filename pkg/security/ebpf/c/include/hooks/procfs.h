@@ -28,7 +28,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_EXIST);
 }
 
-static __attribute__((always_inline)) int handle_stat() {
+static __attribute__((always_inline)) int handle_stat(void *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -36,12 +36,12 @@ static __attribute__((always_inline)) int handle_stat() {
     struct syscall_cache_t syscall = {
         .type = EVENT_STAT,
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY0(newfstatat) {
-    return handle_stat();
+    return handle_stat(ctx);
 }
 
 static __attribute__((always_inline)) int handle_ret_stat() {
@@ -135,6 +135,11 @@ int hook_path_get(ctx_t *ctx) {
     if (sk == NULL) {
         return 0;
     }
+    // this map only support tcp and udp for now
+    route.l4_protocol = get_protocol_from_sock(sk);
+    if (route.l4_protocol != IPPROTO_TCP && route.l4_protocol != IPPROTO_UDP) {
+        return 0;
+    }
 
     route.netns = get_netns_from_sock(sk);
     if (route.netns == 0) {
@@ -146,7 +151,6 @@ int hook_path_get(ctx_t *ctx) {
         // without a port we can't do much, leave early
         return 0;
     }
-    route.l4_protocol = get_protocol_from_sock(sk);
     u16 family = get_family_from_sock_common((void *)sk);
     if (family == AF_INET6) {
         bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
@@ -180,21 +184,21 @@ int hook_proc_fd_link(ctx_t *ctx) {
 
     struct dentry *d = (struct dentry *)CTX_PARM1(ctx);
     struct dentry *d_parent = NULL;
-    struct basename_t basename = {};
+    char name[32];
 
-    get_dentry_name(d, &basename, sizeof(basename)); // this is the file descriptor number
-    bpf_probe_read(&d_parent, sizeof(d_parent), &d->d_parent);
+    get_dentry_name(d, name, sizeof(name)); // this is the file descriptor number
+    d_parent = get_dentry_parent(d);
     d = d_parent;
 
-    get_dentry_name(d, &basename, sizeof(basename)); // this should be 'fd'
-    if ((basename.value[0] != 'f') || (basename.value[1] != 'd') || (basename.value[2] != 0)) {
+    get_dentry_name(d, name, sizeof(name)); // this should be 'fd'
+    if ((name[0] != 'f') || (name[1] != 'd') || (name[2] != 0)) {
         return 0;
     }
 
-    bpf_probe_read(&d_parent, sizeof(d_parent), &d->d_parent);
+    d_parent = get_dentry_parent(d);
     d = d_parent;
-    get_dentry_name(d, &basename, sizeof(basename)); // this should be the pid of the procfs path
-    u32 pid = atoi(&basename.value[0]);
+    get_dentry_name(d, name, sizeof(name)); // this should be the pid of the procfs path
+    u32 pid = atoi(name);
 
     u8 key = 0;
     bpf_map_update_elem(&fd_link_pid, &key, &pid, BPF_ANY);

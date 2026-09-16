@@ -1,0 +1,10 @@
+# cumulativetodelta is NOT in the enabled features list, so it must not be injected.
+# infraattributes IS enabled, so it is injected — proving the converter ran and the
+# c2d feature flag is honored independently.
+processors:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]

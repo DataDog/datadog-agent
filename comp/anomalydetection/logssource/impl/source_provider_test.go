@@ -166,6 +166,26 @@ func TestHandleUnset_AllowsReAdd(t *testing.T) {
 	assert.Len(t, ls.GetSources(), 1)
 }
 
+func TestHandleSet_ConfigSourceSetToRuntime(t *testing.T) {
+	sp, ls := newTestSourceProvider()
+	sp.handleSet(runningContainer("abc", "nginx"))
+	srcs := ls.GetSources()
+	require.Len(t, srcs, 1)
+	assert.Equal(t, "containerd", srcs[0].Config.Source, "Config.Source must equal the container runtime")
+}
+
+// stubWmeta is a no-op wmetaStore for tests that don't need workloadmeta
+// behaviour. It starts no background goroutines, keeping the leak check clean.
+type stubWmeta struct{}
+
+func (s *stubWmeta) Subscribe(_ string, _ workloadmeta.SubscriberPriority, _ *workloadmeta.Filter) chan workloadmeta.EventBundle {
+	return make(chan workloadmeta.EventBundle, 1)
+}
+func (s *stubWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) { close(ch) }
+func (s *stubWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
+	return nil, nil
+}
+
 func newWMetaMock(t *testing.T) workloadmetamock.Mock {
 	t.Helper()
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -177,10 +197,9 @@ func newWMetaMock(t *testing.T) workloadmetamock.Mock {
 }
 
 func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
-	wmeta := newWMetaMock(t)
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, ls, nil)
+	sp := newSourceProvider(&stubWmeta{}, ls, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sp.run(ctx)

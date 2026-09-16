@@ -14,6 +14,17 @@ volatile const uint32_t OFFSET_runtime_dot_g__m = 0;
 volatile const uint32_t OFFSET_runtime_dot_m__curg = 0;
 volatile const uint32_t OFFSET_runtime_dot_stack__hi = 0;
 
+// runtime._panic field offsets, used by the runtime.recovery uprobe to
+// identify the SP range being unwound and capture the panic value. Zero
+// if the binary's DWARF lacks runtime._panic; the loader skips
+// attaching the recovery probe in that case.
+volatile const uint32_t OFFSET_runtime_dot_g___panic = 0;
+volatile const uint32_t OFFSET_runtime_dot__panic__arg = 0;
+volatile const uint32_t OFFSET_runtime_dot__panic__startSP = 0;
+volatile const uint32_t OFFSET_runtime_dot__panic__sp = 0;
+volatile const uint32_t OFFSET_runtime_dot__panic__recovered = 0;
+volatile const uint32_t OFFSET_runtime_dot__panic__goexit = 0;
+
 volatile const uint32_t prog_id = 0;
 
 struct {
@@ -56,6 +67,27 @@ struct {
   __type(value, probe_params_t);
 } probe_params SEC(".maps");
 volatile const uint32_t num_probe_params = 0;
+
+// Cumulative per-probe stats. ARRAY (not PERCPU_ARRAY) so we can size
+// it per IR probe count and key by probe_id; updates use __sync atomics
+// to remain race-free across CPUs. max_entries is set by the loader.
+// Declared here (rather than in event.c) so stack_machine.h can update
+// the recovery counters without a forward-declaration dance.
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, stats_t);
+} stats_buf SEC(".maps");
+
+// zero_uint32 is a reusable zero key. Used to address PERCPU_ARRAY maps
+// that hold a single per-CPU value (in_progress_calls_buf, the per-CPU
+// events scratch buffer) and also to address slot 0 of the shared
+// stats_buf ARRAY — the runtime.recovery probe writes its process-wide
+// counters into slot 0 regardless of which probe_id the recovery
+// firing nominally belongs to. Declared in the shared header so any
+// .c/.h file can address such maps without a forward declaration.
+static const uint32_t zero_uint32 = 0;
 
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);

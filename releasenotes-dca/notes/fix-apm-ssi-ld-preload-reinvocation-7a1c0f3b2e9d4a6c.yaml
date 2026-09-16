@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fixed APM Single Step Instrumentation injecting the library twice when the
+    admission webhook is reinvoked (for example on GKE Autopilot, where another
+    mutating webhook triggers reinvocation). In CSI injection mode the pod has no
+    init container, so the re-admission guard failed to detect that the pod was
+    already instrumented and appended the injector to ``LD_PRELOAD`` a second time.
+    The guard now also checks for the instrumentation volume, which is present in
+    every injection mode.

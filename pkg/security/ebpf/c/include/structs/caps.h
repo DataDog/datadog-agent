@@ -3,7 +3,7 @@
 
 struct capabilities_context_t {
     u64 cap_as_mask; // bitmask of capabilities that are being checked in the current task context
-    u64 override_creds_depth; // depth of override_creds calls, used to track if the capability checks are performed against user capabilities
+    u64 override_creds_depth; // depth of override_creds calls; used on kernels where override_creds/revert_creds are still hookable (< 6.13)
 };
 
 struct capabilities_usage_t {

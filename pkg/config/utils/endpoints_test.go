@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
-// key includes the key delimiter. Affects the config package when both secrets and multiple
+// TestSecretBackendWithMultipleEndpoints tests an edge case of the config's AllSettings() when a
+// config key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
-// Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
@@ -33,6 +32,17 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := GetMultipleEndpoints(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestEndpointDescriptorSetFromKeysPerDomainPreservesPendingDelegatedAuth(t *testing.T) {
+	descriptors := EndpointDescriptorSetFromKeysPerDomain(map[string][]APIKeys{
+		"https://pending.example": {{
+			ConfigSettingPath:       "process_config.additional_endpoints",
+			HasPendingDelegatedAuth: true,
+		}},
+	})
+
+	assert.True(t, descriptors["https://pending.example"].HasPendingDelegatedAuth)
 }
 
 func TestGetMultipleEndpointsDefault(t *testing.T) {
@@ -184,6 +194,46 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestGetMultipleEndpointsPendingDelegatedAuthDirective(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://second-org.datadoghq.com":
+  - 'DELA(some-org-uuid, aws)'
+  "https://third-org.datadoghq.com":
+  - "some-static-key"
+  - 'DELA(some-other-org-uuid, aws, region=us-east-1)'
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
+
+	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
+	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
+	// auth has a chance to deliver a real key.
+	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
+	})
+
+	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+	// real-key list until delegated auth resolves it, but the domain is still marked pending.
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{"some-static-key"}, HasPendingDelegatedAuth: true},
+	})
+
+	expectedMultipleEndpoints := EndpointDescriptorSet{
+		"https://app.datadoghq.com":        newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
+		"https://second-org.datadoghq.com": secondOrg,
+		"https://third-org.datadoghq.com":  thirdOrg,
+	}
+
+	assert.NoError(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
 func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.com"
@@ -323,7 +373,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -343,7 +393,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -367,7 +417,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -575,5 +625,27 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			assert.Equal(t, "https://"+testCase.expectedURL, appURL)
 			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
 		}
+	}
+}
+
+// TestIsDatadogURL only covers the logic IsDatadogURL adds on top of ddURLRegexp (host
+// extraction, lowercasing, trailing-dot trimming, empty-host and parse-error handling). The
+// regexp's site/domain matching is already covered by TestAddAgentVersionToDomain.
+func TestIsDatadogURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"https://app.datadoghq.com", true},     // baseline match
+		{"https://APP.DATADOGHQ.COM", true},     // host is lowercased
+		{"https://app.datadoghq.com.", true},    // trailing dot is trimmed
+		{"https://app.datadoghq.com:443", true}, // Hostname() strips the port
+		{"", false},                             // empty host
+		{"/just/a/path", false},                 // no host
+		{"http://\x7f", false},                  // url.Parse error
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
 	}
 }

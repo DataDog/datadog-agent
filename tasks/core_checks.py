@@ -9,6 +9,7 @@ AGENT_CORECHECKS = [
     "container_lifecycle",
     "cpu",
     "cri",
+    "datadog_csi_driver",
     "snmp",
     "docker",
     "file_handle",
@@ -35,35 +36,49 @@ AGENT_CORECHECKS = [
     "network_path",
     "gpu",
     "nccl",
-    "wlan",
     "discovery",
     "versa",
     "network_config_management",
-    "battery",
     "cloud_hostinfo",
 ]
 
 AIX_CORECHECKS = [
+    "cisco_sdwan",
+    "cloud_hostinfo",
     "cpu",
     "disk",
+    "discovery",
     "io",
     "load",
     "memory",
     "network",
     "ntp",
     "oracle",
+    "snmp",
+    "telemetry",
     "uptime",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "battery",
+    "powershell",
     "sbom",
+    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
     "windows_certificate",
     "winproc",
     "win32_event_log",
+    "wlan",
+]
+
+MACOS_CORECHECKS = [
+    "battery",
+    "thermal",
+    "wlan",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -78,8 +93,3 @@ IOT_AGENT_CORECHECKS = [
     "systemd",
     "jetson",
 ]
-
-CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
-CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
-CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
-LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"

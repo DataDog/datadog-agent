@@ -15,6 +15,12 @@ namespace Datadog.CustomActions
 {
     public class ConfigureUserCustomActions
     {
+        // Name must match the property declared in WixSetup/Datadog Agent/AgentInstaller.cs
+        // and plumbed through CustomActionData in AgentCustomActions.cs SetProperties().
+        // Public because the AgentCustomActions assembly references it when persisting
+        // the value to the registry, and the test assembly when verifying the skip path.
+        public const string KeepRightsPropertyName = "DDAGENTUSER_KEEP_RIGHTS";
+
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
         private readonly IRegistryServices _registryServices;
@@ -121,15 +127,44 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Returns true when the DDAGENTUSER_KEEP_RIGHTS MSI property is set to a truthy
+        /// value (1/true/yes, case-insensitive). When set, ConfigureUserAccountRights skips
+        /// re-applying the ddagentuser SeDeny*LogonRight assignments so customers can
+        /// preserve custom changes (e.g. removing SeDenyNetworkLogonRight to allow access
+        /// to network resources) across upgrades. SeServiceLogonRight is always granted
+        /// because the Agent service cannot start without it.
+        /// </summary>
+        internal bool ShouldKeepUserAccountRights()
+        {
+            var keep = _session.Property(KeepRightsPropertyName);
+            if (string.IsNullOrEmpty(keep))
+            {
+                return false;
+            }
+            return keep.Equals("1", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("true", StringComparison.OrdinalIgnoreCase)
+                   || keep.Equals("yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// User Rights Assignment for ddagentuser
         /// https://learn.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/user-rights-assignment
         /// </summary>
-        private void ConfigureUserAccountRights()
+        internal void ConfigureUserAccountRights()
         {
+            // SeServiceLogonRight is always granted: the Agent service cannot start
+            // without it, so opting out via DDAGENTUSER_KEEP_RIGHTS must not strip it.
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
+
+            if (ShouldKeepUserAccountRights())
+            {
+                _session.Log($"{KeepRightsPropertyName} is set, skipping ddagentuser SeDeny*LogonRight " +
+                             "configuration to preserve any custom rights set by the operator.");
+                return;
+            }
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
         }
 
         private void ConfigureRegistryPermissions()
@@ -171,6 +206,7 @@ namespace Datadog.CustomActions
         /// </summary>
         private void SetBaseInheritablePermissions()
         {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
             FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
             // disable inheritance, discard inherited rules
             fileSystemSecurity.SetAccessRuleProtection(true, false);
@@ -192,7 +228,7 @@ namespace Datadog.CustomActions
                 WellKnownSidType.LocalSystemSid, null));
             fileSystemSecurity.SetGroup(new SecurityIdentifier(
                 WellKnownSidType.LocalSystemSid, null));
-            UpdateAndLogAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
+            UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
         }
 
         /// <summary>
@@ -711,79 +747,137 @@ namespace Datadog.CustomActions
             }
         }
 
+        /// <summary>
+        /// Remove ddagentuser's explicit file access ACEs and restore base permissions on APPLICATIONDATADIRECTORY.
+        /// </summary>
+        private void UninstallRemoveFileAccess()
+        {
+            // lookup sid for ddagentuser
+            var ddAgentUserName = $"{_session.Property("DDAGENTUSER_NAME")}";
+            SecurityIdentifier securityIdentifier = null;
+            var validUser = false;
+
+            if (string.IsNullOrEmpty(ddAgentUserName))
+            {
+                // LookupAccountName("") succeeds and resolves to a domain SID (e.g. BUILTIN), not a user.
+                _session.Log("DDAGENTUSER_NAME is not set, skipping per-user file access removal");
+            }
+            else
+            {
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                    out _,
+                    out _,
+                    out securityIdentifier,
+                    out var sidNameUse);
+                // Defense in depth against operating on a non-user SID, matching the check in
+                // ProcessDdAgentUserCredentials (ProcessUserCustomActions.cs).
+                validUser = userFound && securityIdentifier != null &&
+                    (sidNameUse == SID_NAME_USE.SidTypeUser || sidNameUse == SID_NAME_USE.SidTypeWellKnownGroup);
+                if (!validUser)
+                {
+                    _session.Log($"Could not find user {ddAgentUserName}");
+                }
+            }
+
+            // Remove explicit ACE for ddagentuser
+            {
+                using var actionRecord = new Record(
+                    "UninstallUser",
+                    "Removing file access",
+                    ""
+                );
+                _session.Message(InstallMessage.ActionStart, actionRecord);
+            }
+
+            // LocalSystem never gets any extra per-file ACEs added during install, so there's
+            // nothing user-specific to remove, but base permissions are still reset below.
+            var isLocalSystem = securityIdentifier == new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+            if (validUser && !isLocalSystem)
+            {
+                _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
+                foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
+                {
+                    try
+                    {
+                        RemoveAgentAccess(securityIdentifier, filePath);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
+                    }
+                }
+            }
+
+            //remove datadog access to root folder and restore to base permissions
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+            if (_fileSystemServices.Exists(dataDirectory))
+            {
+                SetBaseInheritablePermissions();
+            }
+            else
+            {
+                _session.Log($"{dataDirectory} does not exist, skipping setting base permissions");
+            }
+        }
+
+        /// <summary>
+        /// Remove the ddagentuser password from the LSA secret store, unless this is an upgrade
+        /// (including a Fleet Automation uninstall->install upgrade), in which case the new
+        /// Agent install will still need it.
+        /// </summary>
+        private void UninstallRemoveLsaSecret()
+        {
+            var upgrading = !string.IsNullOrEmpty(_session.Property("UPGRADINGPRODUCTCODE"));
+            var fleetAutomation = _session.Property("FLEET_INSTALL") == "1";
+            if (upgrading || fleetAutomation)
+            {
+                // If this is an upgrade, we don't want to remove the password from the LSA secret store
+                // because the new version of the Agent will need it. Technically it should already have it
+                // because it's fetched in ProcessDDAgentUserCredentials, which runs before the existing
+                // products are removed, but we don't want to lose it on rollback.
+                // TODO(WINA-1357): rollback the password if the upgrade fails
+                // If this is a Fleet Automation upgrade (uninstall->install workflow), we don't want to remove
+                // the password from the LSA secret store because the new version of the Agent will need it.
+                _session.Log($"Upgrade detected, not removing password from LSA secret store");
+                return;
+            }
+
+            _session.Log("Uninstall detected, removing password from LSA secret store");
+            try
+            {
+                var keyName = AgentPasswordPrivateDataKey();
+                _nativeMethods.RemoveSecret(keyName);
+            }
+            catch (Exception e)
+            {
+                // Don't fail if we fail to remove the secret.
+                // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
+                // so it being left behind shouldn't affect future installs and may be removed then.
+                _session.Log($"Failed to remove agent secret: {e}");
+            }
+        }
+
         public ActionResult UninstallUser()
         {
             try
             {
-                // lookup sid for ddagentuser
-                var ddAgentUserName = $"{_session.Property("DDAGENTUSER_NAME")}";
-                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
-                    out _,
-                    out _,
-                    out var securityIdentifier,
-                    out _);
-                if (!userFound || securityIdentifier == null)
+                // Each cleanup step is independent: a failure in one must not prevent the other from running.
+                try
                 {
-                    _session.Log($"Could not find user {ddAgentUserName}");
-                    return ActionResult.Success;
+                    UninstallRemoveFileAccess();
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to remove file access during uninstall: {e}");
                 }
 
-                // Remove explicit ACE for ddagentuser
+                try
                 {
-                    using var actionRecord = new Record(
-                        "UninstallUser",
-                        "Removing file access",
-                        ""
-                    );
-                    _session.Message(InstallMessage.ActionStart, actionRecord);
+                    UninstallRemoveLsaSecret();
                 }
-                if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
+                catch (Exception e)
                 {
-                    _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
-                    {
-                        try
-                        {
-                            RemoveAgentAccess(securityIdentifier, filePath);
-                        }
-                        catch (Exception e)
-                        {
-                            _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
-                        }
-                    }
-                    //remove datadog access to root folder and restore to base permissions
-                    SetBaseInheritablePermissions();
-                }
-
-                // Remove password from LSA secret store
-                var upgrading = !string.IsNullOrEmpty(_session.Property("UPGRADINGPRODUCTCODE"));
-                var fleetAutomation = _session.Property("FLEET_INSTALL") == "1";
-                if (upgrading || fleetAutomation)
-                {
-                    // If this is an upgrade, we don't want to remove the password from the LSA secret store
-                    // because the new version of the Agent will need it. Technically it should already have it
-                    // because it's fetched in ProcessDDAgentUserCredentials, which runs before the existing
-                    // products are removed, but we don't want to lose it on rollback.
-                    // TODO(WINA-1357): rollback the password if the upgrade fails
-                    // If this is a Fleet Automation upgrade (uninstall->install workflow), we don't want to remove
-                    // the password from the LSA secret store because the new version of the Agent will need it.
-                    _session.Log($"Upgrade detected, not removing password from LSA secret store");
-                }
-                else
-                {
-                    _session.Log("Uninstall detected, removing password from LSA secret store");
-                    try
-                    {
-                        var keyName = AgentPasswordPrivateDataKey();
-                        _nativeMethods.RemoveSecret(keyName);
-                    }
-                    catch (Exception e)
-                    {
-                        // Don't fail if we fail to remove the secret.
-                        // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
-                        // so it being left behind shouldn't affect future installs and may be removed then.
-                        _session.Log($"Failed to remove agent secret: {e}");
-                    }
+                    _session.Log($"Failed to remove LSA secret during uninstall: {e}");
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.
@@ -793,6 +887,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
+                // Backstop for anything added here in the future that isn't already wrapped above.
                 _session.Log($"Failed to uninstall user: {e}");
                 return ActionResult.Failure;
             }

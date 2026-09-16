@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package uploader
 
@@ -49,10 +49,10 @@ type EventMetadata struct {
 	Language       string `json:"language"`
 	RuntimeID      string `json:"runtimeId"`
 	Type           string `json:"type"`
-	UploadID       string `json:"upload_id"`
-	BatchNum       int    `json:"batch_num"`
+	UploadID       string `json:"uploadId"`
+	BatchNum       int    `json:"batchNum"`
 	Final          bool   `json:"final"`
-	AttachmentSize int    `json:"attachment_size"`
+	AttachmentSize int    `json:"attachmentSize"`
 }
 
 type testServer struct {

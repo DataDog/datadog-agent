@@ -62,7 +62,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	cfg := configmock.New(t)
 
 	if tc.configHostname {
-		cfg.SetWithoutSource("hostname", "hostname-from-configuration")
+		cfg.SetInTest("hostname", "hostname-from-configuration")
 	}
 	if tc.hostnameFile {
 		setupHostnameFile(t, "hostname-from-file")
@@ -88,7 +88,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
 		osHostnameUsable = func(context.Context) bool { return true }
-		cfg.SetWithoutSource("hostname_fqdn", true)
+		cfg.SetInTest("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
 		} else {
@@ -117,7 +117,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	}
 
 	if tc.EC2Proritized {
-		cfg.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
+		cfg.SetInTest("ec2_prioritize_instance_id_as_hostname", true)
 	}
 }
 

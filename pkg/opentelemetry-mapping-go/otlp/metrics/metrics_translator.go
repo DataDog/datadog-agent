@@ -107,6 +107,7 @@ type defaultTranslator struct {
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               mapper
+	unitMapper           *attributes.UnitMapper
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
@@ -147,6 +148,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
+		unitMapper:           attributes.NewUnitMapper(),
 	}
 	// Use custom mapper if provided, otherwise create a defaultMapper
 	if cfg.customMapper != nil {
@@ -385,6 +387,20 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
+func tagsFromDimensions(dimensions map[string]string) []string {
+	keys := make([]string, 0, len(dimensions))
+	for key := range dimensions {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	tags := make([]string, 0, len(keys))
+	for _, key := range keys {
+		tags = append(tags, key+":"+dimensions[key])
+	}
+	return tags
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
@@ -572,7 +588,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
-				} else {
+				}
+				if !isRuntimeMetric(md.Name()) {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
 					seenNonAPMMetrics = true
@@ -611,6 +628,10 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
+			case source.AzureAppServiceKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
 			}
 		}
 	}
@@ -626,6 +647,11 @@ func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProduct:       t.cfg.originProduct,
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if t.cfg.withUnits {
+		if unit, ok := t.unitMapper.Map(md.Unit()); ok {
+			baseDims.unit = unit
+		}
 	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:

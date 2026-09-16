@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package config
 
@@ -20,7 +20,7 @@ import (
 func TestDisableMapPreallocation(t *testing.T) {
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.disable_map_preallocation", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.disable_map_preallocation", false)
 		cfg := New()
 
 		assert.False(t, cfg.DisableMapPreallocation)

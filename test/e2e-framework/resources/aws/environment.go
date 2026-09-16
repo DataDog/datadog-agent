@@ -28,22 +28,25 @@ const (
 	awsProfileParamName = "profile"
 
 	// AWS Infra
-	DDInfraDefaultVPCIDParamName               = "aws/defaultVPCID"
-	DDInfraDefaultSubnetsParamName             = "aws/defaultSubnets"
-	DDInfraDefaultSecurityGroupsParamName      = "aws/defaultSecurityGroups"
-	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
-	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
-	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
-	DDInfraDefaultWindowsInstanceTypeParamName = "aws/defaultWindowsInstanceType"
-	DDInfraDefaultKeyPairParamName             = "aws/defaultKeyPairName"
-	DDinfraDefaultPublicKeyPath                = "aws/defaultPublicKeyPath"
-	DDInfraDefaultPrivateKeyPath               = "aws/defaultPrivateKeyPath"
-	DDInfraDefaultPrivateKeyPassword           = "aws/defaultPrivateKeyPassword"
-	DDInfraDefaultInstanceStorageSize          = "aws/defaultInstanceStorageSize"
-	DDInfraDefaultShutdownBehavior             = "aws/defaultShutdownBehavior"
-	DDInfraDefaultInternalRegistry             = "aws/defaultInternalRegistry"
-	DDInfraDefaultInternalDockerhubMirror      = "aws/defaultInternalDockerhubMirror"
-	DDInfraUseMacosCompatibleSubnets           = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultVPCIDParamName                 = "aws/defaultVPCID"
+	DDInfraDefaultSubnetsParamName               = "aws/defaultSubnets"
+	DDInfraDefaultSecurityGroupsParamName        = "aws/defaultSecurityGroups"
+	DDInfraNoInternetSecurityGroupNamesParamName = "aws/noInternetSecurityGroupNames"
+	DDInfraDefaultInstanceTypeParamName          = "aws/defaultInstanceType"
+	DDInfraDefaultInstanceProfileParamName       = "aws/defaultInstanceProfile"
+	DDInfraDefaultARMInstanceTypeParamName       = "aws/defaultARMInstanceType"
+	DDInfraDefaultWindowsInstanceTypeParamName   = "aws/defaultWindowsInstanceType"
+	DDInfraDefaultKeyPairParamName               = "aws/defaultKeyPairName"
+	DDinfraDefaultPublicKeyPath                  = "aws/defaultPublicKeyPath"
+	DDInfraDefaultPrivateKeyPath                 = "aws/defaultPrivateKeyPath"
+	DDInfraDefaultPrivateKeyPassword             = "aws/defaultPrivateKeyPassword"
+	DDInfraDefaultInstanceStorageSize            = "aws/defaultInstanceStorageSize"
+	DDInfraDefaultShutdownBehavior               = "aws/defaultShutdownBehavior"
+	DDInfraDefaultInternalRegistry               = "aws/defaultInternalRegistry"
+	DDInfraDefaultInternalDockerhubMirror        = "aws/defaultInternalDockerhubMirror"
+	DDInfraDefaultDatadogPublicRegistry          = "aws/defaultDatadogPublicRegistry"
+	DDInfraUseMacosCompatibleSubnets             = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultLeaseBucket                    = "aws/defaultLeaseBucket"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -175,6 +178,24 @@ func (e *Environment) InternalDockerhubMirror() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalDockerhubMirror, e.envDefault.ddInfra.defaultInternalDockerhubMirror)
 }
 
+// DatadogPublicRegistry returns the pull-through cache of public.ecr.aws/datadog, the
+// registry an AWS customer pulls the Agent from. Going through the cache keeps the pull
+// inside the account.
+func (e *Environment) DatadogPublicRegistry() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultDatadogPublicRegistry, e.envDefault.ddInfra.defaultDatadogPublicRegistry)
+}
+
+// ecrRepositoryName returns the ECR repository name of an image, that is everything
+// after the registry host. Repository names can contain slashes, as pull-through cache
+// repositories do ("ecr-public/datadog/agent"), so only the host is stripped.
+func ecrRepositoryName(image string) string {
+	_, repositoryName, found := strings.Cut(image, "/")
+	if !found {
+		return image
+	}
+	return repositoryName
+}
+
 // Check if the image exists in the internal registry
 func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, error) {
 
@@ -191,10 +212,12 @@ func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, e
 		return false, err
 	}
 
+	repositoryName := ecrRepositoryName(image)
+
 	ecrClient := awsECR.NewFromConfig(cfg)
 	_, err = ecrClient.BatchGetImage(e.Ctx().Context(), &awsECR.BatchGetImageInput{
 		RegistryId:     &strings.Split(image, ".")[0],
-		RepositoryName: &strings.Split(image, "/")[len(strings.Split(image, "/"))-1],
+		RepositoryName: &repositoryName,
 		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
 	})
 
@@ -258,6 +281,14 @@ func (e *Environment) DefaultSecurityGroups() []string {
 	return e.GetStringListWithDefault(e.InfraConfig, DDInfraDefaultSecurityGroupsParamName, e.envDefault.ddInfra.defaultSecurityGroups)
 }
 
+// NoInternetSecurityGroupNames returns the names of security groups to attach to a VM instead of
+// the account's default security groups when internet access must be blocked. The groups are
+// resolved to IDs at provisioning time via LookupSecurityGroup; they must already exist in the
+// account's VPC and be configured accordingly.
+func (e *Environment) NoInternetSecurityGroupNames() []string {
+	return e.GetStringListWithDefault(e.InfraConfig, DDInfraNoInternetSecurityGroupNamesParamName, e.envDefault.ddInfra.noInternetSecurityGroupNames)
+}
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
 }
@@ -298,6 +329,10 @@ func (e *Environment) DefaultInstanceStorageSize() int {
 // shutdown behavior can be 'terminate' or 'stop'
 func (e *Environment) DefaultShutdownBehavior() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultShutdownBehavior, e.envDefault.ddInfra.defaultShutdownBehavior)
+}
+
+func (e *Environment) DefaultLeaseBucket() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
 }
 
 func (e *Environment) UseMacosCompatibleSubnets() bool {

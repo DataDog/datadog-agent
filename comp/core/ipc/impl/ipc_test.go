@@ -37,18 +37,18 @@ func TestSuccessfulCreateAndSetAuthToken(t *testing.T) {
 	err = os.Mkdir(authTokenDir, 0700)
 	require.NoError(t, err)
 	authTokenLocation := path.Join(authTokenDir, "auth_token")
-	mockConfig.SetWithoutSource("auth_token_file_path", authTokenLocation)
+	mockConfig.SetInTest("auth_token_file_path", authTokenLocation)
 
 	// Create an ipc_cert_file
 	ipcCertFileLocation := path.Join(tmpDir, "ipc_cert_file")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
+	mockConfig.SetInTest("ipc_cert_file_path", ipcCertFileLocation)
 
 	// Check that CreateAndSetAuthToken returns no error
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
 	// Check that the auth_token content is the same as the one in the file
@@ -70,14 +70,14 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 
 	// Create an auth_token file
 	authTokenLocation := path.Join(tmpDir, "auth_token")
-	mockConfig.SetWithoutSource("auth_token_file_path", authTokenLocation)
+	mockConfig.SetInTest("auth_token_file_path", authTokenLocation)
 
 	// Check that CreateAndSetAuthToken returns no error
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	RWComp, err := NewReadWriteComponent(reqs)
+	RWComp, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
 	// Check that SetAuthToken returns no error
@@ -94,13 +94,13 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 func TestDeadline(t *testing.T) {
 	// Create a new config
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("auth_init_timeout", 1*time.Second)
+	mockConfig.SetInTest("auth_init_timeout", 1*time.Second)
 
 	// Create a lock file to simulate contention on ipc_cert_file
 	tmpDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	ipcCertFileLocation := path.Join(tmpDir, "ipc_cert_file")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
+	mockConfig.SetInTest("ipc_cert_file_path", ipcCertFileLocation)
 	lockFile := flock.New(ipcCertFileLocation + ".lock")
 	err = lockFile.Lock()
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestDeadline(t *testing.T) {
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	_, err = NewReadWriteComponent(reqs)
+	_, err = NewComponent(reqs)
 	duration := time.Since(start)
 	assert.Error(t, err)
 	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
@@ -185,11 +185,11 @@ func setupBasicIPCConfig(t *testing.T) model.Config {
 
 	// Set up auth token path
 	authTokenLocation := path.Join(tmpDir, "auth_token")
-	mockConfig.SetWithoutSource("auth_token_file_path", authTokenLocation)
+	mockConfig.SetInTest("auth_token_file_path", authTokenLocation)
 
 	// Set up IPC cert path
 	ipcCertFileLocation := path.Join(tmpDir, "ipc_cert_file")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
+	mockConfig.SetInTest("ipc_cert_file_path", ipcCertFileLocation)
 
 	return mockConfig
 }
@@ -235,7 +235,7 @@ func TestClusterTrustChain_NoCA_SkipVerification(t *testing.T) {
 	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
 
 	mockConfig := setupBasicIPCConfig(t)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", false)
 	// cluster_trust_chain.ca_cert_file_path and ca_key_file_path are empty by default
 
 	reqs := Requires{
@@ -243,7 +243,7 @@ func TestClusterTrustChain_NoCA_SkipVerification(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -257,7 +257,7 @@ func TestClusterTrustChain_NoCA_RequireVerification(t *testing.T) {
 	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
 
 	mockConfig := setupBasicIPCConfig(t)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", true)
 	// cluster_trust_chain.ca_cert_file_path and ca_key_file_path are empty by default
 
 	reqs := Requires{
@@ -265,7 +265,7 @@ func TestClusterTrustChain_NoCA_RequireVerification(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	_, err := NewReadWriteComponent(reqs)
+	_, err := NewComponent(reqs)
 	require.Error(t, err, "IPC component creation should fail when TLS verification is enabled without CA")
 	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path is not set")
 }
@@ -283,19 +283,19 @@ func TestClusterTrustChain_WithCA_SkipVerification_ClusterAgent(t *testing.T) {
 	mockConfig := setupBasicIPCConfig(t)
 	caCertPath, caKeyPath, caCert := createTestCA(t)
 
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_key_file_path", caKeyPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
+	mockConfig.SetInTest("cluster_trust_chain.ca_cert_file_path", caCertPath)
+	mockConfig.SetInTest("cluster_trust_chain.ca_key_file_path", caKeyPath)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", false)
 
 	// Set cluster agent URL so retrieveExternalIPs works
-	mockConfig.SetWithoutSource("cluster_agent.url", "https://10.0.0.1:5005")
+	mockConfig.SetInTest("cluster_agent.url", "https://10.0.0.1:5005")
 
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 
 	// Check that CrossNodeClientTLSConfig is set to InsecureSkipVerify
@@ -333,19 +333,19 @@ func TestClusterTrustChain_WithCA_RequireVerification_ClusterAgent(t *testing.T)
 	mockConfig := setupBasicIPCConfig(t)
 	caCertPath, caKeyPath, caCert := createTestCA(t)
 
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_key_file_path", caKeyPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
+	mockConfig.SetInTest("cluster_trust_chain.ca_cert_file_path", caCertPath)
+	mockConfig.SetInTest("cluster_trust_chain.ca_key_file_path", caKeyPath)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", true)
 
 	// Set cluster agent URL so retrieveExternalIPs works
-	mockConfig.SetWithoutSource("cluster_agent.url", "https://10.0.0.1:5005")
+	mockConfig.SetInTest("cluster_agent.url", "https://10.0.0.1:5005")
 
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -377,24 +377,22 @@ func TestClusterTrustChain_WithCA_CLCRunner(t *testing.T) {
 	mockConfig := setupBasicIPCConfig(t)
 	caCertPath, caKeyPath, caCert := createTestCA(t)
 
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_key_file_path", caKeyPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
+	mockConfig.SetInTest("cluster_trust_chain.ca_cert_file_path", caCertPath)
+	mockConfig.SetInTest("cluster_trust_chain.ca_key_file_path", caKeyPath)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", false)
 
 	// Set CLC runner configuration - this requires specific setup to enable CLCRunner mode
-	mockConfig.SetWithoutSource("clc_runner_enabled", true)
-	mockConfig.SetWithoutSource("clc_runner_host", "10.0.0.2")
+	mockConfig.SetInTest("clc_runner_enabled", true)
+	mockConfig.SetInTest("clc_runner_host", "10.0.0.2")
 	// Set configuration providers to enable CLCRunner mode (this is checked by IsCLCRunner)
-	mockConfig.SetWithoutSource("config_providers", []map[string]interface{}{
-		{"name": "clusterchecks"},
-	})
+	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
 
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -429,16 +427,16 @@ func TestClusterTrustChain_WithCA_NodeAgent(t *testing.T) {
 	mockConfig := setupBasicIPCConfig(t)
 	caCertPath, caKeyPath, caCert := createTestCA(t)
 
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.ca_key_file_path", caKeyPath)
-	mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
+	mockConfig.SetInTest("cluster_trust_chain.ca_cert_file_path", caCertPath)
+	mockConfig.SetInTest("cluster_trust_chain.ca_key_file_path", caKeyPath)
+	mockConfig.SetInTest("cluster_trust_chain.enable_tls_verification", false)
 
 	reqs := Requires{
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 

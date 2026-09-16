@@ -15,7 +15,7 @@ import (
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 	"github.com/containerd/containerd/api/types"
-	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencontainers/runtime-spec/specs-go"

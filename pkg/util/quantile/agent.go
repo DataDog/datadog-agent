@@ -65,7 +65,10 @@ func (a *Agent) Reset() {
 func (a *Agent) Insert(v float64, sampleRate float64) {
 	k := agentConfig.key(v)
 	// bounds enforcement
-	if sampleRate <= 0 || sampleRate > 1 {
+	//
+	// A rate outside (0, 1] is invalid and falls back to unsampled. This
+	// inequality must handle non-finite values, hence the negation.
+	if !(sampleRate > 0 && sampleRate <= 1) {
 		sampleRate = 1
 	}
 
@@ -91,16 +94,35 @@ func (a *Agent) Insert(v float64, sampleRate float64) {
 
 // InsertInterpolate linearly interpolates a count from the given lower to upper bounds
 func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) error {
-	keys := make([]Key, 0)
-	for k := agentConfig.key(lower); k <= agentConfig.key(upper); k++ {
-		keys = append(keys, k)
+	// Widen to int32 so the loop counter cannot wrap around the int16 Key range
+	// when key(upper) saturates at uvinf (e.g. for very large finite bounds).
+	start := int32(agentConfig.key(lower))
+	end := int32(agentConfig.key(upper))
+	// Clamp the ±uvinf saturation sentinels to the largest representable finite
+	// key. Otherwise binLow returns ±Inf for these positions and poisons
+	// Sketch.Basic (min/max/sum/avg) for finite-but-out-of-range buckets like
+	// [1e300, 1e301].
+	if start == uvinf {
+		start = maxKey
+	} else if start == -uvinf {
+		start = -maxKey
+	}
+	if end == uvinf {
+		end = maxKey
+	} else if end == -uvinf {
+		end = -maxKey
+	}
+	n := end - start + 1
+	if n <= 0 {
+		return errors.New(ErrNonMonotonicBoundaries)
+	}
+	keys := make([]Key, 0, n)
+	for k := start; k <= end; k++ {
+		keys = append(keys, Key(k))
 	}
 	whatsLeft := int(count)
 	distance := upper - lower
 	startIdx := 0
-	if len(keys) == 0 {
-		return errors.New(ErrNonMonotonicBoundaries)
-	}
 	lowerB := agentConfig.binLow(keys[startIdx])
 	endIdx := 1
 	var remainder float64

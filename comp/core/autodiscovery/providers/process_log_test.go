@@ -3,16 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package providers
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -23,8 +27,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func scheduleToMap(configs []integration.Config) map[string]integration.Config {
@@ -39,12 +41,6 @@ func isRootUser() bool {
 	return os.Geteuid() == 0
 }
 
-func skipOnWindows(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows due to Unix-specific file operations and permissions")
-	}
-}
-
 func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 	// Create temporary directories with mock integration config files
 	tempDir := t.TempDir()
@@ -52,7 +48,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 
 	// Mock the confd_path configuration
 	originalConfig := configmock.New(t)
-	originalConfig.SetWithoutSource("confd_path", confdDir)
+	originalConfig.SetInTest("confd_path", confdDir)
 
 	// Create nginx integration in confd directory
 	nginxDir := filepath.Join(confdDir, "nginx.d")
@@ -153,7 +149,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 	// Test edge cases
 	t.Run("empty confd_path", func(t *testing.T) {
 		emptyConfig := configmock.New(t)
-		emptyConfig.SetWithoutSource("confd_path", "")
+		emptyConfig.SetInTest("confd_path", "")
 
 		// Should still work with just dist path (if it exists)
 		emptySources := discoverIntegrationSources()
@@ -163,7 +159,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 
 	t.Run("non-existent confd_path", func(t *testing.T) {
 		nonExistentConfig := configmock.New(t)
-		nonExistentConfig.SetWithoutSource("confd_path", "/non/existent/path")
+		nonExistentConfig.SetInTest("confd_path", "/non/existent/path")
 
 		// Should still work with just dist path (if it exists)
 		nonExistentSources := discoverIntegrationSources()
@@ -791,8 +787,6 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 // TestProcessLogProviderFileReadabilityVerification tests that only readable log files are configured
 // when using processEvents (with verification) vs processEventsNoVerifyReadable
 func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
-	skipOnWindows(t)
-
 	filter := workloadfilterfxmock.SetupMockFilter(t)
 	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil, nil)
 	require.NoError(t, err)
@@ -882,8 +876,6 @@ func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 
 // TestProcessLogProviderFileReadabilityWithPermissionDenied tests the case where a file exists but is not readable
 func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
-	skipOnWindows(t)
-
 	// Skip this test if running as root since root can read any file
 	if isRootUser() {
 		t.Skip("Skipping permission test when running as root")
@@ -956,8 +948,6 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 }
 
 func TestProcessLogProviderIsFileReadable(t *testing.T) {
-	skipOnWindows(t)
-
 	// Test 1: Readable text file
 	readableFile, err := os.CreateTemp("", "readable_test_*.log")
 	require.NoError(t, err)
@@ -1144,7 +1134,7 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 
 	createProvider := func(excludeAgent bool) *processLogConfigProvider {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
+		mockConfig.SetInTest("logs_config.process_exclude_agent", excludeAgent)
 
 		filter := workloadfilterfxmock.SetupMockFilter(t)
 		provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil, nil)

@@ -4,17 +4,21 @@ Running E2E Tests with infra based on Pulumi
 
 from __future__ import annotations
 
+import datetime
 import json
 import multiprocessing
 import os
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -22,6 +26,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.e2e_framework import tool
+from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -43,6 +49,7 @@ from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
+from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
@@ -86,9 +93,17 @@ def _check_e2e_local_config_or_exit(
     if cfg is None or aws is None or not aws.keyPairName:
         raise Exit(
             "Local E2E config is missing or incomplete. "
-            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow). "
+            "Pass `--team=<github-team>` to skip the interactive team prompt (AI agents should always do this).",
             1,
         )
+
+    # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
+    # rename like account-admin -> account-admin-8h). No-op if already present.
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
+
+    setup_aws_sso_config(cfg, interactive=False)
+
     azure_missing = cfg is None or cfg.configParams.azure is None
     gcp_missing = cfg is None or cfg.configParams.gcp is None
     if azure_missing:
@@ -122,6 +137,59 @@ class TestState:
     @staticmethod
     def get_human_readable_state(failing: bool, flaky: bool) -> str:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
+
+
+@contextmanager
+def _shared_orchestrion_jobserver():
+    """
+    Start a single `orchestrion server` and point `ORCHESTRION_JOBSERVER_URL` at it, so every `orchestrion go test -c`
+    invocation started underneath this context shares its package-resolution cache instead of each starting its own:
+    orchestrion only auto-shares a job server across invocations that reuse the same `go build` $WORK directory, which
+    independent top-level `orchestrion go test -c` processes never do.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        log_file = os.path.join(tmp_dir, "server.log")
+        url_file = os.path.join(tmp_dir, "server.url")
+        with open(log_file, "wb") as log:
+            server = subprocess.Popen(
+                ["orchestrion", "server", f"-url-file={url_file}", "-inactivity-timeout=15m"],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        try:
+            timeout = datetime.timedelta(seconds=10)
+            deadline = time.monotonic() + timeout.total_seconds()
+            url = ""
+            while time.monotonic() < deadline:
+                if os.path.exists(url_file):
+                    url = Path(url_file).read_text().strip()
+                    if url:
+                        break
+                try:
+                    server.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    continue
+                raise Exit(
+                    f"orchestrion server exited early with code {server.returncode}:\n{Path(log_file).read_text()}"
+                )
+            if not url:
+                raise Exit(
+                    f"orchestrion server did not report readiness within {timeout}:\n{Path(log_file).read_text()}"
+                )
+
+            with environ({"ORCHESTRION_JOBSERVER_URL": url}):
+                yield
+        finally:
+            # Orchestrion watches the url file and shuts itself down once it disappears.
+            if os.path.exists(url_file):
+                os.remove(url_file)
+            for escalate in lambda: None, server.terminate, server.kill:
+                escalate()
+                try:
+                    server.communicate(timeout=timeout.total_seconds())
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
 
 
 def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
@@ -179,6 +247,9 @@ def build_binaries(
 
     print(f"Building test binaries using {parallel} parallel workers")
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     e2e_test_dir = Path("test/new-e2e/tests")
     output_path = Path(output_dir).absolute()
 
@@ -209,7 +280,7 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"):
+    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {
@@ -419,23 +490,128 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
+# Buffer subtracted from the remaining GitLab job time to derive the go test
+# timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
+# state dump, dashboard URL log) a window to run after go test panics on its
+# own timeout and before GitLab kills the whole job.
+GO_TEST_CI_TIMEOUT_BUFFER_SECONDS = 5 * 60
+
+# Floor for the go test timeout: below this, attempting cleanup is pointless,
+# but we still want go test to exit with its own timeout (and stack dump)
+# rather than be killed mid-run by GitLab with no output.
+GO_TEST_MIN_TIMEOUT_SECONDS = 60
+
+# Fallback go test timeout when no GitLab CI timeout is available (local runs).
+DEFAULT_GO_TEST_TIMEOUT = "4h"
+
+
+def _format_go_duration(seconds: int) -> str:
+    """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
+    if seconds < 0:
+        seconds = 0
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours}h{minutes}m{secs}s"
+
+
+def _ci_job_elapsed_seconds(now: datetime.datetime | None = None) -> int | None:
+    """Return seconds elapsed since the GitLab job started, or None when unknown.
+
+    Uses `CI_JOB_STARTED_AT` (ISO 8601 UTC) set by GitLab, so the value
+    accounts for `before_script` time and any earlier retry attempts within
+    the same job.
+    """
+    started_at = os.environ.get("CI_JOB_STARTED_AT")
+    if not started_at:
+        return None
+    try:
+        # GitLab uses trailing 'Z' for UTC; datetime.fromisoformat needs '+00:00'.
+        parsed = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        print(f"WARNING: CI_JOB_STARTED_AT={started_at!r} is not a valid ISO 8601 datetime")
+        return None
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    return int((now - parsed).total_seconds())
+
+
+def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None = None) -> str:
+    """Resolve the value passed to `go test -timeout`.
+
+    Priority:
+      1. Explicit CLI value (`--timeout`).
+      2. Remaining GitLab job time (`CI_JOB_TIMEOUT` minus elapsed since
+         `CI_JOB_STARTED_AT`) minus a teardown buffer, so go test panics a
+         few minutes before GitLab kills the job and TearDownSuite can
+         complete.
+      3. Hardcoded fallback (`DEFAULT_GO_TEST_TIMEOUT`).
+    """
+    if explicit:
+        print(f"Using explicit go test timeout: {explicit}")
+        return explicit
+
+    ci_job_timeout = os.environ.get("CI_JOB_TIMEOUT")
+    if not ci_job_timeout:
+        return DEFAULT_GO_TEST_TIMEOUT
+    try:
+        job_seconds = int(ci_job_timeout)
+    except ValueError:
+        print(
+            f"WARNING: CI_JOB_TIMEOUT={ci_job_timeout!r} is not an integer, "
+            f"falling back to default go test timeout {DEFAULT_GO_TEST_TIMEOUT}"
+        )
+        return DEFAULT_GO_TEST_TIMEOUT
+
+    elapsed = _ci_job_elapsed_seconds(now=now) or 0
+    remaining = job_seconds - elapsed
+    go_seconds = remaining - GO_TEST_CI_TIMEOUT_BUFFER_SECONDS
+
+    if go_seconds < GO_TEST_MIN_TIMEOUT_SECONDS:
+        print(
+            f"WARNING: only {remaining}s left in the GitLab job (CI_JOB_TIMEOUT={job_seconds}s, "
+            f"elapsed={elapsed}s); the {GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s teardown buffer does "
+            f"not fit. Clamping go test timeout to {GO_TEST_MIN_TIMEOUT_SECONDS}s — cleanup may "
+            f"not finish before GitLab kills the job."
+        )
+        return _format_go_duration(GO_TEST_MIN_TIMEOUT_SECONDS)
+
+    go_timeout = _format_go_duration(go_seconds)
+    print(
+        f"Derived go test timeout from remaining GitLab job time "
+        f"(CI_JOB_TIMEOUT={job_seconds}s, elapsed={elapsed}s, "
+        f"buffer={GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s): {go_timeout}"
+    )
+    return go_timeout
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
         "profile": "Override auto-detected runner profile (local or CI)",
         "tags": "Build tags to use",
-        "targets": "Target packages (same as dda inv test)",
+        "targets": "Target packages, relative to the module (same as dda inv test). Repeatable",
         "configparams": "Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)",
         "verbose": "Verbose output: log all tests as they are run (same as gotest -v) [default: True]",
-        "run": "Only run tests matching the regular expression",
+        "run": "Only run tests matching the regular expression. Anchor it to avoid matching tests that share a prefix",
         "skip": "Only run tests not matching the regular expression",
+        "recursive": "Include subpackages of each target [default: True]",
+        "osdescriptors": "Restrict the run to these OS descriptors, comma-separated (e.g. 'ubuntu:22.04')",
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "local_package": "Directory holding a locally built Agent package to install instead of a published one; build one with `dda inv omnibus.build-repackaged-agent`",
+        "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
+        "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
+        "pipeline_id": "GitLab pipeline ID to use; the commit SHA is automatically fetched from this pipeline for container-based tests",
+        "cache": "Allow the Go test cache. Disabled by default so that re-running a passing test really re-runs it",
+        "extra_flags": "Flags appended verbatim to the go test command after -args, for suite-specific flags this task does not model",
+        "logs_folder": "Directory the Agent logs collected from the environment are written to",
+        "result_json": "Path to write the machine-readable test results to",
+        "junit_tar": "Path to write a tarball of JUnit XML reports to",
     },
 )
 def run(
@@ -471,6 +647,8 @@ def run(
     osdescriptors="",
     module_name="test/new-e2e",
     recursive=True,
+    timeout="",
+    pipeline_id="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -485,7 +663,6 @@ def run(
         )
 
     _check_e2e_local_config_or_exit(profile)
-    local_e2e_cfg = _load_e2e_local_config()
 
     e2e_module = get_default_modules()[module_name]
 
@@ -518,14 +695,9 @@ def run(
     if profile:
         env_vars["E2E_PROFILE"] = profile
 
-    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
-    # environment. Lets developers run E2E without putting the passphrase in their rc.
-    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and local_e2e_cfg is not None:
-        from tasks.e2e_framework.config import get_pulumi_passphrase
-
-        passphrase = get_pulumi_passphrase(local_e2e_cfg)
-        if passphrase:
-            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+    # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
+    # already carry one, so developers don't have to put the passphrase in their rc file.
+    env_vars.update(tool.pulumi_env(skip_update_check=False))
 
     parsed_params = {}
 
@@ -554,7 +726,7 @@ def run(
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
             sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
+                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
                 hide=True,
             ).stdout.strip()
             registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
@@ -565,14 +737,32 @@ def run(
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
         env_vars["E2E_IMAGE_PULL_USERNAME"] = ",".join(usernames)
         env_vars["E2E_IMAGE_PULL_PASSWORD"] = ",".join(passwords)
-    if not running_in_ci():
+    # resolved_commit_sha is the short SHA used for containers.GitCommit; start from local HEAD
+    resolved_commit_sha = get_commit_sha(ctx, short=True)
+
+    if pipeline_id:
+        # Explicit pipeline ID: fetch its commit SHA and wire up env vars directly
+        print(color_message(f"Using pipeline {pipeline_id}...", "blue"))
+        pipeline_commit_sha = get_pipeline_commit_sha(pipeline_id)
+        if pipeline_commit_sha:
+            resolved_commit_sha = pipeline_commit_sha
+            print(color_message(f"Fetched commit SHA {resolved_commit_sha} from pipeline {pipeline_id}", "blue"))
+        else:
+            print(
+                color_message(
+                    f"Could not fetch commit SHA for pipeline {pipeline_id}, falling back to local HEAD", "yellow"
+                )
+            )
+        env_vars["E2E_PIPELINE_ID"] = pipeline_id
+        env_vars["E2E_COMMIT_SHA"] = resolved_commit_sha
+    elif not running_in_ci():
         # Auto-detect pipeline ID and commit SHA for local runs if not already set
         if "E2E_PIPELINE_ID" not in os.environ:
             print(
                 color_message(
                     "E2E_PIPELINE_ID is not set. The E2E job you are running may require build and packaging "
                     "jobs to have completed in the pipeline (e.g. container images, deb/rpm packages, OCI deploys). "
-                    "Check the `needs:` of your target job in .gitlab/test/e2e/e2e.yml and ensure those jobs "
+                    "Check the `needs:` of your target job in the relevant .gitlab/test/e2e/*.yml file and ensure those jobs "
                     "have run on your branch before triggering the E2E job.",
                     "yellow",
                 )
@@ -580,11 +770,16 @@ def run(
             commit_sha = get_commit_sha(ctx)
             short_commit_sha = get_commit_sha(ctx, short=True)
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
-            pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
-            if pipeline_id:
-                print(color_message(f"Auto-detected pipeline {pipeline_id} for commit {short_commit_sha}", "blue"))
-                env_vars["E2E_PIPELINE_ID"] = pipeline_id
+            detected_pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
+            if detected_pipeline_id:
+                print(
+                    color_message(
+                        f"Auto-detected pipeline {detected_pipeline_id} for commit {short_commit_sha}", "blue"
+                    )
+                )
+                env_vars["E2E_PIPELINE_ID"] = detected_pipeline_id
                 env_vars["E2E_COMMIT_SHA"] = short_commit_sha
+                resolved_commit_sha = short_commit_sha
             else:
                 print(
                     color_message(
@@ -630,7 +825,10 @@ def run(
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
             f.write("{}")
 
-    cmd = f"gotestsum --format {gotestsum_format} "
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
+    cmd = f"--format {gotestsum_format} "
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
@@ -670,11 +868,13 @@ def run(
 
     args = {
         "go_mod": "readonly",
-        "timeout": "4h",
+        # Set per-attempt inside the retry loop so each attempt reflects the
+        # remaining GitLab job budget.
+        "timeout": "",
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
-        "commit": get_commit_sha(ctx, short=True),
+        "commit": resolved_commit_sha,
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
@@ -692,6 +892,10 @@ def run(
     result_jsons: list[str] = []
     result_junits: list[str] = []
     for attempt in range(max_retries + 1):
+        # Recomputed each attempt because retries eat into the GitLab job
+        # budget; a stale value would overshoot the kill deadline.
+        args["timeout"] = _compute_go_test_timeout(timeout)
+
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
             # If any tries are left, avoid destroying infra on failure
@@ -718,7 +922,6 @@ def run(
             env=env_vars,
             result_junit=partial_result_junit,
             result_json=partial_result_json,
-            test_profiler=None,
             recursive=recursive,
         )
         if test_res is None:
@@ -795,7 +998,6 @@ def run(
             env=env_vars,
             result_junit="",  # No need to store JUnit results for teardown-only runs
             result_json="",  # No need to store results for teardown-only runs
-            test_profiler=None,
         )
 
     # Merge all the partial result JSON files into the final result JSON
@@ -881,19 +1083,13 @@ def _get_pulumi_backend_url(ctx: Context) -> str | None:
     Get the Pulumi backend URL using 'pulumi whoami --json'.
     Returns the backend URL or None if it cannot be determined.
     """
-    res = ctx.run(
-        "pulumi whoami --json",
-        hide=True,
-        warn=True,
-        env=_get_default_env(),
-    )
-    if res is None or res.exited != 0:
-        return None
     try:
-        whoami = json.loads(res.stdout)
-        return whoami.get("url")
+        whoami = tool.pulumi_json(ctx, "whoami --json", project_dir=False, warn=True)
     except json.JSONDecodeError:
         return None
+    if whoami is None:
+        return None
+    return whoami.get("url")
 
 
 def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]:
@@ -968,14 +1164,7 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
         return _list_stacks_from_s3(backend_url, project)
 
     # Fallback to pulumi CLI for non-S3 backends (local, etc.)
-    res = ctx.run(
-        "pulumi stack ls --all --json",
-        hide=True,
-        warn=True,
-    )
-    if res is None or res.exited != 0:
-        return []
-    return json.loads(res.stdout)
+    return tool.pulumi_json(ctx, "stack ls --all --json", project_dir=False, warn=True) or []
 
 
 @task
@@ -1191,12 +1380,6 @@ def deps(ctx, verbose=False):
     download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
-def _get_default_env():
-    return {
-        "PULUMI_SKIP_UPDATE_CHECK": "true",
-    }
-
-
 def _get_home_dir():
     # TODO: Go os.UserHomeDir() uses a different algorithm than Python Path.home()
     #       so a different directory may be returned in some cases.
@@ -1261,36 +1444,63 @@ def _clean_locks():
 def _clean_stacks(ctx: Context, skip_destroy: bool):
     print("🧹 Clean up stack")
 
-    if not skip_destroy:
-        stacks = _get_existing_stacks(ctx)
-        for stack in stacks:
-            print(f"🔥 Destroying stack {stack}")
-            _destroy_stack(ctx, stack)
-
-    # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
-    for stack in stacks:
+    if not stacks:
+        print("No local stacks found")
+        return
+
+    selected_stacks = _prompt_select_stacks(stacks)
+    if not selected_stacks:
+        print("No stacks selected, aborting")
+        return
+
+    if not skip_destroy:
+        for stack in selected_stacks:
+            print(f"🔥 Destroying stack {stack}")
+            try:
+                _destroy_stack(ctx, stack)
+            except Exception as e:
+                print(
+                    color_message(
+                        f"⚠️  Failed to destroy stack {stack}, will remove it locally anyway: {e}", Color.ORANGE
+                    )
+                )
+
+    for stack in selected_stacks:
         print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> list[str]:
-    e2e_stacks: list[str] = []
-    output = ctx.run(
-        "pulumi stack ls --all --project e2elocal --json",
-        hide=True,
-        env=_get_default_env(),
-    )
-    if output is None or not output:
-        return []
-    stacks_data = json.loads(output.stdout)
-    for stack in stacks_data:
-        if "name" not in stack:
-            print(f"Skipping stack {stack} as it does not have a name")
+def _prompt_select_stacks(stacks: list[str]) -> list[str]:
+    print("Existing local stacks:")
+    for i, stack in enumerate(stacks, start=1):
+        print(f"  {i}. {stack}")
+
+    while True:
+        answer = input("Select stacks to destroy (comma-separated indices, 'all', or empty to cancel): ").strip()
+        if not answer:
+            return []
+        if answer.lower() == "all":
+            return stacks
+
+        indices = [chunk.strip() for chunk in answer.split(",") if chunk.strip()]
+        try:
+            selected_indices = [int(chunk) for chunk in indices]
+        except ValueError:
+            print(f"Invalid input: {answer!r}, expected comma-separated indices or 'all'")
             continue
-        stack_name = stack["name"]
+
+        if any(i < 1 or i > len(stacks) for i in selected_indices):
+            print(f"Invalid selection, indices must be between 1 and {len(stacks)}")
+            continue
+
+        return [stacks[i - 1] for i in selected_indices]
+
+
+def _get_existing_stacks(ctx: Context) -> list[str]:
+    e2e_stacks = tool.pulumi_stack_names(ctx, project="e2elocal", project_dir=False)
+    for stack_name in e2e_stacks:
         print(f"Adding stack {stack_name}")
-        e2e_stacks.append(stack_name)
     return e2e_stacks
 
 
@@ -1299,56 +1509,56 @@ def _destroy_stack(ctx: Context, stack: str):
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
 
-    destroy_env = _get_default_env()
-    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+    destroy_env = {"PULUMI_K8S_DELETE_UNREACHABLE": "true"}
+    tmp_dir = tempfile.gettempdir()
 
-    with ctx.cd(tempfile.gettempdir()):
-        ret = ctx.run(
-            f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
+    ret = tool.run_pulumi(
+        ctx,
+        f"destroy --stack {stack} --yes --remove --skip-preview",
+        project_dir=tmp_dir,
+        env=destroy_env,
+        warn=True,
+        hide=True,
+    )
+    if ret is not None and ret.exited != 0:
+        if "No valid credential sources found" in ret.stdout:
+            raise Exception(
+                f"no valid credentials sources found for stack {stack}, if you set the AWS_PROFILE environment variable ensure it is valid"
+            )
+        if "no previous deployment" in ret.stderr:
+            # Stack was created but never had a successful up; no resources to destroy.
+            print(f"Stack {stack} has no previous deployment, skipping destroy")
+            return
+        # run with refresh on first destroy attempt failure
+        ret = tool.run_pulumi(
+            ctx,
+            f"destroy --stack {stack} -r --yes --remove --skip-preview",
+            project_dir=tmp_dir,
+            env=destroy_env,
             warn=True,
             hide=True,
-            env=destroy_env,
         )
-        if ret is not None and ret.exited != 0:
-            if "No valid credential sources found" in ret.stdout:
-                print(
-                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
-                )
-                print(ret.stdout)
-                raise Exit(
-                    color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
-                        "red",
-                    ),
-                    1,
-                )
-            # run with refresh on first destroy attempt failure
-            ret = ctx.run(
-                f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                warn=True,
-                hide=True,
-                env=destroy_env,
-            )
-        if ret is not None and ret.exited != 0:
-            raise Exit(
-                color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"),
-                1,
-            )
+    if ret is not None and ret.exited != 0:
+        raise Exception(f"{ret.stdout, ret.stderr}")
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(
-        f"pulumi stack rm --force --yes --stack {stack}",
+    ret = tool.run_pulumi(
+        ctx,
+        f"stack rm --force --yes --stack {stack}",
+        project_dir=False,
+        warn=True,
         hide=True,
-        env=_get_default_env(),
     )
+    if ret is not None and ret.exited != 0:
+        if "no stack named" in ret.stderr:
+            print(f"Stack {stack} was already removed")
+            return
+        print(color_message(f"⚠️  Failed to remove stack {stack} locally: {ret.stderr}", Color.ORANGE))
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
-    if output is None or not output:
-        return {}
-    return json.loads(output.stdout)
+    return tool.pulumi_json(ctx, "about --json", project_dir=False) or {}
 
 
 def _is_local_state(pulumi_about: dict) -> bool:
@@ -1368,16 +1578,17 @@ def _is_local_state(pulumi_about: dict) -> bool:
 
 
 def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
+
     ecr_password_res = ctx.run(
-        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
+        hide=True,
+        warn=True,
     )
     if ecr_password_res.exited != 0:
-        ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
-        )
-    if ecr_password_res.exited != 0:
         print(
-            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
+            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
         )
         return ""
     return ecr_password_res.stdout.strip()

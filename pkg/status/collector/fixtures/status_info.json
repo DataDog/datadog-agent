@@ -42,6 +42,7 @@
     "Checks": {
       "cpu": {
         "cpu": {
+          "FirstExecutionTime": 0,
           "AverageExecutionTime": 1,
           "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/cpu.d/conf.yaml.default",
           "CheckID": "cpu",
@@ -106,6 +107,7 @@
       },
       "file_handle": {
         "file_handle": {
+          "FirstExecutionTime": 0,
           "AverageExecutionTime": 0,
           "CheckConfigSource": "file:/Users/datadog/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/conf.d/file_handle.d/conf.yaml.default",
           "CheckID": "file_handle",
@@ -170,6 +172,7 @@
       },
       "ntp": {
         "ntp:3c427a42a70bbf8": {
+          "FirstExecutionTime": 0,
           "AverageExecutionTime": 579,
           "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/ntp.d/conf.yaml.default",
           "CheckID": "ntp:3c427a42a70bbf8",
@@ -234,6 +237,7 @@
       },
       "telemetry": {
         "telemetry": {
+          "FirstExecutionTime": 0,
           "AverageExecutionTime": 0,
           "CheckConfigSource": "file:/opt/datadog-agent/etc/conf.d/telemetry.d/conf.yaml.default",
           "CheckID": "telemetry",

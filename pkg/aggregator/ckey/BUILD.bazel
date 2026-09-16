@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ckey",
@@ -11,14 +12,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ckey_test",
     srcs = [
         "key_test.go",
         "sort_test.go",
     ],
     embed = [":ckey"],
-    gotags = ["test"],
     deps = [
         "//pkg/tagset",
         "//pkg/util/sort",

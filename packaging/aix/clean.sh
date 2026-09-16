@@ -13,6 +13,7 @@
 #   - Library cache ($BUILD_DIR/lib-cache/) — zlib, bzip2, OpenSSL, xz, libxml2
 #     compiled artifacts; avoids ~9-min native-libs rebuild
 #   - integrations-core checkout ($BUILD_DIR/integrations-core/) — avoids re-clone
+#   - saluki checkout ($BUILD_DIR/saluki/) — avoids re-clone
 #
 # Usage:
 #   ./clean.sh              — clean build state, preserve all caches
@@ -34,7 +35,7 @@ for arg in "$@"; do
             ;;
         -h|--help)
             printf 'Usage: %s [--full]\n' "$0"
-            printf '  (no args)  Clean build state; preserve wheel cache, lib cache, and integrations-core\n'
+            printf '  (no args)  Clean build state; preserve wheel cache, lib cache, integrations-core, and saluki\n'
             printf '  --full     Also remove wheel cache and lib cache (forces full rebuild)\n'
             exit 0
             ;;
@@ -100,6 +101,9 @@ else
     fi
     if [ -d "$BUILD_DIR/integrations-core" ]; then
         printf 'integrations-core checkout preserved: %s/integrations-core\n' "$BUILD_DIR"
+    fi
+    if [ -d "$BUILD_DIR/saluki" ]; then
+        printf 'saluki checkout preserved: %s/saluki\n' "$BUILD_DIR"
     fi
 fi
 

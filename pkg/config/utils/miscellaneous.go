@@ -61,6 +61,20 @@ func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
 		cfg.GetBool("apm_config.error_tracking_standalone.enabled")
 }
 
+// IsDataSecurityEnabled returns true if Data Security is enabled. It requires both
+// data_security.enabled and shared_library_check.enabled, as it relies on the datasecurity
+// shared-library check.
+func IsDataSecurityEnabled(cfg pkgconfigmodel.Reader) bool {
+	if !cfg.GetBool("data_security.enabled") {
+		return false
+	}
+	if !cfg.GetBool("shared_library_check.enabled") {
+		log.Warnf("data_security.enabled cannot be enabled without shared_library_check.enabled. Skipping Data Security.")
+		return false
+	}
+	return true
+}
+
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
 func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud if it's not explicitly enabled
@@ -100,11 +114,12 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 	return false
 }
 
-// GetBindHost returns `bind_host` variable or default value
-// Not using `config.BindEnvAndSetDefault` as some processes need to know
-// if value was default one or not (e.g. trace-agent)
+// GetBindHost returns the `bind_host` value. Callers that need to distinguish
+// "user explicitly set bind_host" from "default applied" must check
+// `cfg.IsConfigured("bind_host")` directly (see trace-agent's containerized
+// auto-`0.0.0.0` logic).
 func GetBindHost(cfg pkgconfigmodel.Reader) string {
-	if cfg.IsSet("bind_host") {
+	if cfg.IsConfigured("bind_host") {
 		return cfg.GetString("bind_host")
 	}
 	return "localhost"

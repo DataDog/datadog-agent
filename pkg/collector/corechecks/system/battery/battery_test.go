@@ -59,7 +59,7 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 	batteryCheck := &Check{}
 
 	// Setup mock sender
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestBatteryConfigure(t *testing.T) {
 	defer setupMocks(true, &batteryInfo{})()
 
 	batteryCheck := &Check{}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestConfigureSkipsCheckWhenNoBattery(t *testing.T) {
 	defer func() { hasBatteryAvailableFunc = origFunc }()
 
 	batteryCheck := &Check{}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -124,7 +124,7 @@ func TestConfigureWithBatteryCheckError(t *testing.T) {
 	defer func() { hasBatteryAvailableFunc = origFunc }()
 
 	batteryCheck := &Check{}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -159,7 +159,7 @@ func TestBatteryMultipleRuns(t *testing.T) {
 	defer func() { getBatteryInfoFunc = originalFunc }()
 
 	batteryCheck := &Check{}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestBatteryHealthLevels(t *testing.T) {
 			})()
 
 			batteryCheck := &Check{}
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 			err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
 
@@ -270,7 +270,7 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 	defer func() { getBatteryInfoFunc = originalFunc }()
 
 	batteryCheck := &Check{}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.NoError(t, err)
 
@@ -348,7 +348,7 @@ func TestBatteryPowerStates(t *testing.T) {
 			})()
 
 			batteryCheck := &Check{}
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 			err := batteryCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
 

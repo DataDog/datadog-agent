@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -12,11 +13,12 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
-        "//comp/core/settings",
-        "//comp/core/sysprobeconfig",
+        "//comp/core/settings/def",
+        "//comp/core/sysprobeconfig/def",
         "//comp/def",
         "//comp/remote-config/rcclient/def",
         "//comp/remote-config/rcclient/types",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/remote/client",
         "//pkg/config/remote/data",
@@ -25,25 +27,25 @@ go_library(
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["rcclient_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
-        "//comp/core/settings",
-        "//comp/core/settings/settingsimpl",
-        "//comp/core/sysprobeconfig",
+        "//comp/core/settings/def",
+        "//comp/core/settings/fx",
+        "//comp/core/settings/mock",
+        "//comp/core/sysprobeconfig/def",
         "//comp/remote-config/rcclient/def",
+        "//pkg/config/helper",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/remote/client",

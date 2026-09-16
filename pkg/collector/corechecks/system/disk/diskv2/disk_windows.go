@@ -22,18 +22,38 @@ import (
 
 var defaultStatFn statFunc = func(_ string) (StatT, error) { return StatT{}, nil }
 
+// GetDriveTypeFn returns the Windows drive type for a given path.
+// It is a variable so it can be overridden in tests.
+var GetDriveTypeFn = func(path string) uint32 {
+	typePath, err := win.UTF16PtrFromString(path)
+	if err != nil {
+		return win.DRIVE_UNKNOWN
+	}
+	return win.GetDriveType(typePath)
+}
+
 func defaultIgnoreCase() bool {
 	return true
 }
 
 func baseDeviceName(device string) string {
-	return strings.ToLower(strings.Trim(device, "\\"))
+	return normalizeWindowsDeviceName(device)
 }
 
 // normalizeDeviceTag returns the device name for use in the device: tag.
-// On Windows, strips backslashes and lowercases (legacy behavior for C:\\ -> c:).
 func normalizeDeviceTag(deviceName string) string {
-	return strings.ToLower(strings.Trim(deviceName, "\\"))
+	return normalizeWindowsDeviceName(deviceName)
+}
+
+// normalizeWindowsDeviceName strips the surrounding backslashes of a Windows
+// device name (C:\ -> c:), turns the remaining ones into forward slashes
+// (F:\Tlog -> f:/tlog), and lowercases the result.
+//
+// Backslashes must never reach the backend: metric intake normalizes the
+// device resource with \ -> / but tag values with \ -> _, so a raw backslash
+// records the same volume under two device values.
+func normalizeWindowsDeviceName(deviceName string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.Trim(deviceName, `\`), `\`, "/"))
 }
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
@@ -49,10 +69,13 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 }
 
 func (c *Check) excludePartitionInPlatform(partition gopsutil_disk.PartitionStat) bool {
-	/* skip cd-rom drives with no disk in it; they may raise
-	ENOENT, pop-up a Windows GUI error for a non-ready
-	partition or just hang;
-	and all the other excluded disks */
+	// Skip CD-ROM drives entirely, including inserted CDFS/UDF media.
+	// gopsutil does not expose drive type in PartitionStat on Windows, so use
+	// the same GetDriveType API that psutil uses under the Python disk check.
+	if GetDriveTypeFn(partition.Mountpoint) == win.DRIVE_CDROM {
+		return true
+	}
+
 	return slices.Contains(partition.Opts, "cdrom") || partition.Fstype == ""
 }
 

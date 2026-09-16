@@ -33,7 +33,7 @@ import (
 func setupHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 }
 
 func TestConfigurations(t *testing.T) {
@@ -1031,6 +1031,67 @@ collect_vpn: true
 	assert.False(t, config.CollectVPN)
 }
 
+func Test_buildConfig_deviceTagsSource(t *testing.T) {
+	tests := []struct {
+		name         string
+		instanceYaml string
+		initYaml     string
+		expected     snmpintegration.DeviceTagsSource
+	}{
+		{
+			name:     "resource by default",
+			expected: snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:     "set in init config",
+			initYaml: "device_tags_source: agent",
+			expected: snmpintegration.DeviceTagsSourceAgent,
+		},
+		{
+			name:         "set in instance config",
+			instanceYaml: "device_tags_source: both",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+		{
+			name:         "instance config overrides init config",
+			instanceYaml: "device_tags_source: resource",
+			initYaml:     "device_tags_source: agent",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "invalid value falls back to the default",
+			instanceYaml: "device_tags_source: nope",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: resource\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+		{
+			name:         "agent is also forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: agent\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// language=yaml
+			rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+` + tt.instanceYaml)
+			// language=yaml
+			rawInitConfig := []byte(`
+oid_batch_size: 10
+` + tt.initYaml)
+			config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, config.DeviceTagsSource)
+		})
+	}
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
 	mockConfig := configmock.New(t)
 
@@ -1077,7 +1138,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	mockConfig.SetWithoutSource("network_devices.namespace", "totoro")
+	mockConfig.SetInTest("network_devices.namespace", "totoro")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
@@ -1105,7 +1166,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
-	mockConfig.SetWithoutSource("network_devices.namespace", "mononoke")
+	mockConfig.SetInTest("network_devices.namespace", "mononoke")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
@@ -1117,7 +1178,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	mockConfig.SetWithoutSource("network_devices.namespace", "")
+	mockConfig.SetInTest("network_devices.namespace", "")
 	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
@@ -1550,7 +1611,7 @@ ip_address: 1.2.3.4
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
 		name         string
@@ -1864,7 +1925,7 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 
 func TestCheckConfig_GetStaticTags(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 	tests := []struct {
 		name         string
 		config       CheckConfig
@@ -1948,6 +2009,8 @@ func TestHaveLegacyProfile(t *testing.T) {
 		rawInitConfig             []byte
 		mockConfd                 string
 		expectedHaveLegacyProfile bool
+		// expectedLegacySource is the part of the error naming what uses the legacy syntax
+		expectedLegacySource string
 	}{
 		{
 			name: "legacy custom profile (no oid) with loader specified should not fallback to Python",
@@ -2045,6 +2108,7 @@ profile: legacy
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "legacy_no_oid.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy",
 		},
 		{
 			name: "legacy custom profile (string symbol type) without loader specified should fallback to Python",
@@ -2059,6 +2123,7 @@ profile: legacy
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "legacy_symbol_type.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy",
 		},
 		{
 			name: "legacy init config profile without loader specified should fallback to Python",
@@ -2082,6 +2147,7 @@ profiles:
 `),
 			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "profile(s) legacy-init-config",
 		},
 		{
 			name: "legacy instance config profile without loader specified should fallback to Python",
@@ -2110,6 +2176,7 @@ metrics:
 			rawInitConfig:             []byte(``),
 			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
+			expectedLegacySource:      "the instance metrics",
 		},
 	}
 
@@ -2117,11 +2184,12 @@ metrics:
 		t.Run(tt.name, func(t *testing.T) {
 			profile.SetGlobalProfileConfigMap(nil)
 			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			mockConfig.SetWithoutSource("confd_path", mockConfdPath)
+			mockConfig.SetInTest("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedHaveLegacyProfile {
-				assert.EqualError(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+				require.ErrorContains(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+				assert.ErrorContains(t, err, tt.expectedLegacySource)
 			} else {
 				assert.NoError(t, err)
 			}

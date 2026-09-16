@@ -8,10 +8,10 @@
 package v1
 
 import (
-	"github.com/gorilla/mux"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
 
 // installInstrumentationCheckEndpoints not implemented
-func installInstrumentationCheckEndpoints(_ *mux.Router, _ clusteragent.ConfigLister) {}
+func installInstrumentationCheckEndpoints(_ *http.ServeMux, _ clusteragent.ConfigLister) {}

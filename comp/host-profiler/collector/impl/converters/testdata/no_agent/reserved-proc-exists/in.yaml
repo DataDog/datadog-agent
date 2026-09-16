@@ -3,7 +3,7 @@ service:
     profiles:
       receivers: [profiling]
       processors: [resource/dd-profiler-internal-metadata]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
 receivers:
   profiling:
     symbol_uploader:
@@ -15,6 +15,6 @@ processors:
         value: some_value
         action: upsert
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-key

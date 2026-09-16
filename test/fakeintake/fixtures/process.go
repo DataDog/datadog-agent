@@ -17,7 +17,7 @@ func encode(t *testing.T, typ agentmodel.MessageType, body agentmodel.MessageBod
 	encoded, err := agentmodel.EncodeMessage(agentmodel.Message{
 		Header: agentmodel.MessageHeader{
 			Version:  agentmodel.MessageV3,
-			Encoding: agentmodel.MessageEncodingZstdPB,
+			Encoding: agentmodel.MessageEncodingZstd1xPB,
 			Type:     typ,
 		},
 		Body: body,

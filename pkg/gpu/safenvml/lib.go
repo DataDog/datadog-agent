@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -71,6 +72,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed_v2"),
 		toNativeName("GetFieldValues"),
 		"nvmlDeviceReadWritePRM_v1",
+		toNativeName("GetGpuFabricInfoV"),
 		toNativeName("GetGpuInstanceId"),
 		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
@@ -80,8 +82,14 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
+		toNativeName("GetNvLinkVersion"),
 		toNativeName("GetNumFans"),
+		toNativeName("GetPciInfo"),
 		toNativeName("GetPcieThroughput"),
+		toNativeName("GetCurrPcieLinkGeneration"),
+		toNativeName("GetMaxPcieLinkGeneration"),
+		toNativeName("GetCurrPcieLinkWidth"),
+		toNativeName("GetMaxPcieLinkWidth"),
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
@@ -102,16 +110,31 @@ func getNonCriticalAPIs() []string {
 	}
 }
 
-// symbolLookup is an internal interface for checking symbol availability
-type symbolLookup interface {
+// nvmlSafety is an internal interface with methods to ensure safe operations
+// with NVML
+type nvmlSafety interface {
+	// lookup checks if the given symbol is available in the NVML library
 	lookup(string) error
+	// gpmLock locks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to lock the mutex to ensure that only one thread can access the GPM API at a time, specifically GpmSampleGet
+	gpmLock()
+	// gpmUnlock unlocks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to unlock the mutex to allow other threads to access the GPM API.
+	gpmUnlock()
+
+	// fieldValuesLock locks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesLock()
+	// fieldValuesUnlock unlocks the field values mutex. Similarly to GPM, the field values API is not thread safe
+	// despite docs saying that NVML is thread safe.
+	fieldValuesUnlock()
 }
 
 // SafeNVML represents a safe wrapper around NVML library operations.
 // It ensures that operations are only performed when the corresponding
 // symbols are available in the loaded library.
 type SafeNVML interface {
-	symbolLookup
+	nvmlSafety
 	// Shutdown shuts down the NVML library
 	Shutdown() error
 	// DeviceGetCount returns the number of NVIDIA devices in the system
@@ -135,9 +158,11 @@ type SafeNVML interface {
 }
 
 type safeNvml struct {
-	lib          nvml.Interface
-	mu           sync.Mutex
-	capabilities map[string]struct{}
+	lib              nvml.Interface
+	mu               sync.Mutex
+	gpmMutex         sync.Mutex
+	fieldValuesMutex sync.Mutex
+	capabilities     map[string]struct{}
 }
 
 func toNativeName(symbol string) string {
@@ -152,6 +177,22 @@ func (s *safeNvml) lookup(symbol string) error {
 	return nil
 }
 
+func (s *safeNvml) gpmLock() {
+	s.gpmMutex.Lock()
+}
+
+func (s *safeNvml) gpmUnlock() {
+	s.gpmMutex.Unlock()
+}
+
+func (s *safeNvml) fieldValuesLock() {
+	s.fieldValuesMutex.Lock()
+}
+
+func (s *safeNvml) fieldValuesUnlock() {
+	s.fieldValuesMutex.Unlock()
+}
+
 // SystemGetDriverVersion returns the Nvidia driver version
 func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 	if err := s.lookup("nvmlSystemGetDriverVersion"); err != nil {
@@ -161,10 +202,153 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
-// Shutdown shuts down the NVML library. Not thread safe (the underlying shutdown call is not thread safe either).
-// The caller must ensure that no other threads are using the library.
-// Should only be used for testing purposes/clean up before re-creating the library.
+// nvmlMu guards the released flag and the in-flight user count transitions.
+// nvmlCount tracks in-flight NVML users: Begin increments, End decrements, and
+// the release waits for the count to drain before shutting the library down.
+// The design is counting-based (not a held read lock) so nested users — a
+// workloadmeta pull that triggers a device-cache refresh — cannot deadlock
+// against a pending release writer.
+var (
+	nvmlMu       sync.Mutex
+	nvmlCount    int
+	nvmlDraining bool // a release drain/shutdown is in progress
+	nvmlReleased atomic.Bool
+)
+
+// nvmlReleaseDrainTimeout bounds how long a release waits for in-flight NVML
+// users before giving up (the caller retries on its next cycle). A
+// workloadmeta pull or a cache refresh drains in well under this bound.
+const nvmlReleaseDrainTimeout = 30 * time.Second
+
+// BeginNVMLUse registers an NVML user: it takes the gate's read side (blocking
+// while a release is in progress), refuses while the library is deliberately
+// released, and initializes the library if needed. The caller MUST call
+// EndNVMLUse when done with NVML.
+func BeginNVMLUse() error {
+	nvmlMu.Lock()
+	defer nvmlMu.Unlock()
+
+	if nvmlReleased.Load() {
+		return ErrNVMLReleased
+	}
+	nvmlCount++
+	if err := singleton.ensureInit(); err != nil {
+		nvmlCount--
+		return err
+	}
+	return nil
+}
+
+// EndNVMLUse marks the user done. Pairs with BeginNVMLUse; every Begin must
+// be matched by exactly one End.
+func EndNVMLUse() {
+	nvmlMu.Lock()
+	defer nvmlMu.Unlock()
+	if nvmlCount == 0 {
+		// A negative count never reaches the drain's zero, so every later
+		// release would spin to its timeout forever.
+		log.Errorf("EndNVMLUse called without a matching BeginNVMLUse; ignoring")
+		return
+	}
+	nvmlCount--
+}
+
+// IsDraining reports whether a release drain/shutdown is currently in
+// progress. Used by the reacquire path to avoid clearing the released flag
+// mid-drain.
+func IsDraining() bool {
+	// ReleaseNVML writes nvmlDraining under nvmlMu; an unlocked read races.
+	nvmlMu.Lock()
+	defer nvmlMu.Unlock()
+	return nvmlDraining
+}
+
+// WithNVML runs fn with the shared library wrapper while holding the NVML
+// gate (BeginNVMLUse/EndNVMLUse), so a concurrent deliberate release waits
+// for fn to finish instead of racing it. The wrapper never escapes this
+// function.
+func WithNVML(fn func(SafeNVML) error) error {
+	if err := BeginNVMLUse(); err != nil {
+		return err
+	}
+	defer EndNVMLUse()
+	return fn(&singleton)
+}
+
+// ReleaseNVML arms the deliberate-release state (rejecting all new
+// acquisitions), waits (bounded) for in-flight users to finish, and shuts the
+// library down. On a shutdown error the flag is un-armed — callers stay in the
+// not-released state and simply retry on their next cycle, instead of latching
+// a released state over an initialized (still reset-blocking) library.
+func ReleaseNVML() error {
+	nvmlMu.Lock()
+	if nvmlDraining || nvmlReleased.Load() {
+		nvmlMu.Unlock()
+		return nil
+	}
+	nvmlDraining = true
+	nvmlReleased.Store(true)
+	nvmlMu.Unlock()
+
+	// Bounded poll for the in-flight users to drain. Deliberately NOT a
+	// WaitGroup.Wait in a helper goroutine: on timeout that waiter would be
+	// abandoned, and re-arming the flag would let new Begin calls Add against
+	// the outstanding Wait — a documented WaitGroup misuse that can panic.
+	deadline := time.Now().Add(nvmlReleaseDrainTimeout)
+	for {
+		nvmlMu.Lock()
+		count := nvmlCount
+		nvmlMu.Unlock()
+		if count == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			// Don't latch: un-arm so the caller's next cycle retries the
+			// release instead of leaving an initialized (still reset-blocking)
+			// library behind a released flag.
+			nvmlMu.Lock()
+			nvmlDraining = false
+			nvmlReleased.Store(false)
+			nvmlMu.Unlock()
+			return errors.New("timed out waiting for in-flight NVML users; the release was not applied and will be retried")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	singleton.mu.Lock()
+	defer singleton.mu.Unlock()
+	if singleton.lib == nil {
+		nvmlMu.Lock()
+		nvmlDraining = false
+		nvmlMu.Unlock()
+		return nil
+	}
+	if err := singleton.shutdownLocked(); err != nil {
+		// Don't latch: un-arm so the caller's next cycle retries the release
+		// instead of leaving an initialized (still reset-blocking) library
+		// behind a released flag.
+		nvmlMu.Lock()
+		nvmlDraining = false
+		nvmlReleased.Store(false)
+		nvmlMu.Unlock()
+		return err
+	}
+	nvmlMu.Lock()
+	nvmlDraining = false
+	nvmlMu.Unlock()
+	return nil
+}
+
+// Shutdown shuts down the NVML library.
 func (s *safeNvml) Shutdown() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.shutdownLocked()
+}
+
+// shutdownLocked shuts the library down; the caller must hold s.mu so the
+// inited-check and the shutdown are atomic against a concurrent ensureInit.
+func (s *safeNvml) shutdownLocked() error {
 	if err := s.lookup("nvmlShutdown"); err != nil {
 		return err
 	}
@@ -396,9 +580,33 @@ func (s *safeNvml) ensureInit() error {
 
 var singleton safeNvml
 
+// ErrNVMLReleased is returned by initialization paths while NVML has been
+// deliberately released (a GPU reset window): callers should skip quietly
+// and retry on their next cycle.
+var ErrNVMLReleased = errors.New("NVML deliberately released (GPU reset window)")
+
+// ReacquireNVML ends the deliberate-release state so NVML can be initialized
+// again on the next use. The caller must only clear the state once the release
+// window is really over; use IsDraining to defer until an in-flight release
+// drain has completed.
+func ReacquireNVML() {
+	nvmlReleased.Store(false)
+}
+
+// IsNVMLReleased reports whether NVML was deliberately released. Unlike a
+// combined inited-and-not-released check, this does not conflate "not yet
+// initialized" with "deliberately released", so a collector that runs before
+// the first initialization proceeds normally.
+func IsNVMLReleased() bool {
+	return nvmlReleased.Load()
+}
+
 // GetSafeNvmlLib returns the safe wrapper around NVML library instance.
 // This function acts as a singleton pattern and will initialize the library if it is not already initialized.
 func GetSafeNvmlLib() (SafeNVML, error) {
+	if nvmlReleased.Load() {
+		return nil, ErrNVMLReleased
+	}
 	if err := singleton.ensureInit(); err != nil {
 		return nil, err
 	}
@@ -413,8 +621,10 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 // is imported by nearly every binary in the repo.
 func generateDefaultNvmlPaths() []string {
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

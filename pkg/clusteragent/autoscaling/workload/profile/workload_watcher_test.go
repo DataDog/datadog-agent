@@ -20,7 +20,7 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
@@ -37,7 +37,7 @@ func newTestNSLister(namespaces map[string]map[string]string) cache.GenericListe
 }
 
 func newTestWorkloadWatcher(
-	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
+	profileStore *autoscalingstore.Store[model.PodAutoscalerProfileInternal],
 ) *WorkloadWatcher {
 	return &WorkloadWatcher{
 		profileStore:            profileStore,
@@ -89,8 +89,9 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	noLabeledNs := map[string]string{}
 
 	t.Run("Labelled Deployment with existing profile", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app",
@@ -107,7 +108,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Profile not found - skipped", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app",
@@ -118,7 +119,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("No label - skipped", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app", nil)
@@ -128,8 +129,9 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Multiple workloads one profile", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		dep1 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-1",
@@ -143,9 +145,11 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Multiple profiles", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("foo", validTestProfile("foo"), "test")
-		profileStore.Set("bar", validTestProfile("bar"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		fooItem, _ := profileStore.Get("foo")
+		fooItem.Upsert(validTestProfile("foo"), "test")
+		barItem, _ := profileStore.Get("bar")
+		barItem.Upsert(validTestProfile("bar"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		dep1 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-1",
@@ -160,8 +164,9 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Namespace-level: discovers workloads in labeled namespace", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		dep1 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-1", nil)
@@ -174,9 +179,11 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Namespace-level: skips workloads with profile label (precedence)", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("ns-profile", validTestProfile("ns-profile"), "test")
-		profileStore.Set("wl-profile", validTestProfile("wl-profile"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		nsItem, _ := profileStore.Get("ns-profile")
+		nsItem.Upsert(validTestProfile("ns-profile"), "test")
+		wlItem, _ := profileStore.Get("wl-profile")
+		wlItem.Upsert(validTestProfile("wl-profile"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		labeled := newPartialWorkload("Deployment", "apps/v1", "prod", "web-labeled",
@@ -193,8 +200,9 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Namespace-level: skips workloads with profile=excluded label", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("ns-profile", validTestProfile("ns-profile"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		nsItem, _ := profileStore.Get("ns-profile")
+		nsItem.Upsert(validTestProfile("ns-profile"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		optedOut := newPartialWorkload("Deployment", "apps/v1", "prod", "web-opted-out",
@@ -209,7 +217,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 
 	t.Run("Namespace-level: namespace with unknown profile is filtered by buildLabeledNamespaces", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		w := newTestWorkloadWatcher(profileStore)
 		w.nsLister = newTestNSLister(map[string]map[string]string{
 			"prod": {model.ProfileLabelKey: "nonexistent"},
@@ -225,8 +233,9 @@ func TestWorkloadWatcherScanRollouts(t *testing.T) {
 	noLabeledNs := map[string]string{}
 
 	t.Run("Labelled Rollout with existing profile", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout",
@@ -243,8 +252,9 @@ func TestWorkloadWatcherScanRollouts(t *testing.T) {
 	})
 
 	t.Run("Namespace-level discovers rollouts", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout", nil)
@@ -263,8 +273,9 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 	gvkr := deploymentGVKR()
 
 	t.Run("Sets workload refs on profile", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app",
@@ -275,7 +286,7 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		pi, ok := profileStore.Get("high-cpu")
+		pi, ok := profileStore.Peek("high-cpu")
 		require.True(t, ok)
 		require.Len(t, pi.Workloads(), 1)
 
@@ -286,10 +297,11 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 	})
 
 	t.Run("Clears workload refs when label removed", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		prof := validTestProfile("high-cpu")
 		prof.UpdateWorkloads([]model.NamespacedObjectReference{testRef("prod", "web-app")})
-		profileStore.Set("high-cpu", prof, "test")
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(prof, "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		w.informers = []workloadInformer{
@@ -298,20 +310,21 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		pi, ok := profileStore.Get("high-cpu")
+		pi, ok := profileStore.Peek("high-cpu")
 		require.True(t, ok)
 		assert.Empty(t, pi.Workloads(), "Workload refs should be cleared")
 	})
 
 	t.Run("No change when refs unchanged", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		prof := validTestProfile("high-cpu")
 		prof.UpdateWorkloads([]model.NamespacedObjectReference{testRef("prod", "web-app")})
-		profileStore.Set("high-cpu", prof, "test")
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(prof, "test")
 
 		updated := false
-		profileStore.RegisterObserver(autoscaling.Observer{
-			SetFunc: func(_ string, sender autoscaling.SenderID) {
+		profileStore.RegisterObserver(autoscalingstore.Observer{
+			SetFunc: func(_ string, sender autoscalingstore.SenderID) {
 				if sender == workloadWatcherStoreID {
 					updated = true
 				}
@@ -333,8 +346,9 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 
 func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 	t.Run("Aggregates refs from deployments and rollouts into same profile", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-deploy",
@@ -349,7 +363,7 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 
 		w.reconcile()
 
-		pi, ok := profileStore.Get("high-cpu")
+		pi, ok := profileStore.Peek("high-cpu")
 		require.True(t, ok)
 		require.Len(t, pi.Workloads(), 2)
 
@@ -361,9 +375,11 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 	})
 
 	t.Run("Different profiles for different workload types", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("deploy-profile", validTestProfile("deploy-profile"), "test")
-		profileStore.Set("rollout-profile", validTestProfile("rollout-profile"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		deployItem, _ := profileStore.Get("deploy-profile")
+		deployItem.Upsert(validTestProfile("deploy-profile"), "test")
+		rolloutItem, _ := profileStore.Get("rollout-profile")
+		rolloutItem.Upsert(validTestProfile("rollout-profile"), "test")
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-deploy",
@@ -378,7 +394,7 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 
 		w.reconcile()
 
-		dPI, ok := profileStore.Get("deploy-profile")
+		dPI, ok := profileStore.Peek("deploy-profile")
 		require.True(t, ok)
 		require.Len(t, dPI.Workloads(), 1)
 		for _, ref := range dPI.Workloads() {
@@ -386,7 +402,7 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 			assert.Equal(t, "Deployment", ref.Kind)
 		}
 
-		rPI, ok := profileStore.Get("rollout-profile")
+		rPI, ok := profileStore.Peek("rollout-profile")
 		require.True(t, ok)
 		require.Len(t, rPI.Workloads(), 1)
 		for _, ref := range rPI.Workloads() {
@@ -400,8 +416,9 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 	gvkr := deploymentGVKR()
 
 	t.Run("Namespace label discovers all workloads in namespace", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(validTestProfile("high-cpu"), "test")
 
 		dep1 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-1", nil)
 		dep2 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-2", nil)
@@ -416,7 +433,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		pi, ok := profileStore.Get("high-cpu")
+		pi, ok := profileStore.Peek("high-cpu")
 		require.True(t, ok)
 		require.Len(t, pi.Workloads(), 2)
 		var names []string
@@ -429,9 +446,11 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 	})
 
 	t.Run("Workload label takes precedence over namespace label", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("ns-profile", validTestProfile("ns-profile"), "test")
-		profileStore.Set("wl-profile", validTestProfile("wl-profile"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		nsItem, _ := profileStore.Get("ns-profile")
+		nsItem.Upsert(validTestProfile("ns-profile"), "test")
+		wlItem, _ := profileStore.Get("wl-profile")
+		wlItem.Upsert(validTestProfile("wl-profile"), "test")
 
 		labeledDep := newPartialWorkload("Deployment", "apps/v1", "prod", "web-labeled",
 			map[string]string{model.ProfileLabelKey: "wl-profile"})
@@ -447,14 +466,14 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		wlPI, ok := profileStore.Get("wl-profile")
+		wlPI, ok := profileStore.Peek("wl-profile")
 		require.True(t, ok)
 		require.Len(t, wlPI.Workloads(), 1)
 		for _, ref := range wlPI.Workloads() {
 			assert.Equal(t, "web-labeled", ref.Name)
 		}
 
-		nsPI, ok := profileStore.Get("ns-profile")
+		nsPI, ok := profileStore.Peek("ns-profile")
 		require.True(t, ok)
 		require.Len(t, nsPI.Workloads(), 1)
 		for _, ref := range nsPI.Workloads() {
@@ -463,9 +482,11 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 	})
 
 	t.Run("Multiple namespaces with different profiles", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
-		profileStore.Set("prof-a", validTestProfile("prof-a"), "test")
-		profileStore.Set("prof-b", validTestProfile("prof-b"), "test")
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+		itemA, _ := profileStore.Get("prof-a")
+		itemA.Upsert(validTestProfile("prof-a"), "test")
+		itemB, _ := profileStore.Get("prof-b")
+		itemB.Upsert(validTestProfile("prof-b"), "test")
 
 		depA := newPartialWorkload("Deployment", "apps/v1", "ns-a", "app-a", nil)
 		depB := newPartialWorkload("Deployment", "apps/v1", "ns-b", "app-b", nil)
@@ -481,7 +502,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		piA, ok := profileStore.Get("prof-a")
+		piA, ok := profileStore.Peek("prof-a")
 		require.True(t, ok)
 		require.Len(t, piA.Workloads(), 1)
 		for _, ref := range piA.Workloads() {
@@ -489,7 +510,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 			assert.Equal(t, "ns-a", ref.Namespace)
 		}
 
-		piB, ok := profileStore.Get("prof-b")
+		piB, ok := profileStore.Peek("prof-b")
 		require.True(t, ok)
 		require.Len(t, piB.Workloads(), 1)
 		for _, ref := range piB.Workloads() {
@@ -499,10 +520,11 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 	})
 
 	t.Run("Namespace label removed clears workload refs", func(t *testing.T) {
-		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 		prof := validTestProfile("high-cpu")
 		prof.UpdateWorkloads([]model.NamespacedObjectReference{testRef("prod", "web-app")})
-		profileStore.Set("high-cpu", prof, "test")
+		item, _ := profileStore.Get("high-cpu")
+		item.Upsert(prof, "test")
 
 		w := newTestWorkloadWatcher(profileStore)
 		w.informers = []workloadInformer{
@@ -511,7 +533,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 
 		w.reconcile()
 
-		pi, ok := profileStore.Get("high-cpu")
+		pi, ok := profileStore.Peek("high-cpu")
 		require.True(t, ok)
 		assert.Empty(t, pi.Workloads())
 	})

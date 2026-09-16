@@ -8,7 +8,7 @@
 package hostnameimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,9 +17,9 @@ import (
 // Injecting MockModule will provide the hostname 'my-hostname';
 // override this with fx.Replace(hostname.MockHostname("whatever")).
 func MockModule() fxutil.Module {
-	return hostnameinterface.MockModule()
+	return hostnamemock.MockModule()
 }
 
 // MockHostname is an alias for injecting a mock hostname.
 // Usage: fx.Replace(hostname.MockHostname("whatever"))
-type MockHostname = hostnameinterface.MockHostname
+type MockHostname = hostnamemock.MockHostname

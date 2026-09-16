@@ -184,7 +184,7 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 		payloads, err = env.FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		assertProcessCollectedNew(c, payloads, withIOStats, processName)
+		assertProcessCollected(c, payloads, withIOStats, processName)
 
 		procs := FilterProcessPayloadsByName(payloads, processName)
 		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)
@@ -293,7 +293,7 @@ func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	// Try multiple times as all the I/O data may not be available in a given instant
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.
-			MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+			MustExecuteOn(c, "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 		assertManualProcessCheck(c, check, true, process)
 
 		var checkOutput struct {
@@ -348,10 +348,7 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 
 	var lastOutput string
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
-		if !assert.NoError(c, err, "workload-list command failed") {
-			return
-		}
+		out := s.Env().RemoteHost.MustExecuteOn(c, `& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
 		lastOutput = out
 		var resp workloadResponse
 		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {

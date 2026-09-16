@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <appSettings>
+    <add key="DD_SERVICE" value="from-appsettings" />
+    <add key="DD_ENV" value="from-appsettings-env" />
+  </appSettings>
+  <system.webServer>
+    <aspNetCore>
+      <environmentVariables>
+        <environmentVariable name="DD_SERVICE" value="from-env" />
+        <environmentVariable name="DD_VERSION" value="2.0-env" />
+      </environmentVariables>
+    </aspNetCore>
+  </system.webServer>
+</configuration>

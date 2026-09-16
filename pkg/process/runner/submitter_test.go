@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -25,8 +25,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsfxnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
@@ -466,10 +466,13 @@ type submitterDeps struct {
 }
 
 func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysprobeconfigOverrides map[string]interface{}) submitterDeps {
+	sysprobeConf := sysprobeconfigmock.NewMock(t)
+	for k, v := range sysprobeconfigOverrides {
+		sysprobeConf.SetInTest(k, v)
+	}
 	return fxutil.Test[submitterDeps](t, fx.Options(
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
+		fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),
 		forwardersimpl.Module(),
@@ -487,7 +490,7 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 		fx.Provide(func() config.Component {
 			return configObj
 		}),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),
 		forwardersimpl.Module(),

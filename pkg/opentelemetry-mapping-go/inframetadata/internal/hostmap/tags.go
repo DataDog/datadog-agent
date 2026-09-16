@@ -67,7 +67,9 @@ func getHostTags(m pcommon.Map) ([]string, error) {
 	return tags, err
 }
 
-// getHostAliases tries to get a host aliases from attribute datadog.host.aliases
+// getHostAliases tries to get host aliases from attribute datadog.host.aliases.
+// Returns nil if the attribute is absent, and a non-nil slice (possibly empty)
+// if the attribute is present — callers use nil to mean "attribute not set".
 func getHostAliases(attrs pcommon.Map) []string {
 	var hostAliases []string
 	attrs.Range(func(k string, v pcommon.Value) bool {
@@ -75,8 +77,8 @@ func getHostAliases(attrs pcommon.Map) []string {
 			if v.Type() != pcommon.ValueTypeSlice {
 				return false
 			}
-			hostAliasesAny := v.Slice().AsRaw()
-			for _, hostAlias := range hostAliasesAny {
+			hostAliases = []string{} // non-nil: attribute was present
+			for _, hostAlias := range v.Slice().AsRaw() {
 				if hostAliasStr, ok := hostAlias.(string); ok {
 					hostAliases = append(hostAliases, hostAliasStr)
 				}

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["rcservice.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
+        "//comp/def",
+        "//comp/metadata/host/impl/hosttags",
+        "//comp/remote-config/rcservice/def",
+        "//comp/remote-config/rctelemetryreporter/def",
+        "//pkg/config/remote/flare",
+        "//pkg/config/remote/service",
+        "//pkg/config/utils",
+        "//pkg/util/option",
+        "//pkg/version",
+    ],
+)

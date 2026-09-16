@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -92,11 +92,11 @@ func TestNewFactoryForAgent_InvalidConfigErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid configuration")
 }
 
-// TestNewExtension_FX_InvalidConfig verifies the FX constructor (NewExtension)
+// TestNewComponent_FX_InvalidConfig verifies the FX constructor (NewComponent)
 // rejects an invalid default config.
-func TestNewExtension_FX_DefaultSucceeds(t *testing.T) {
+func TestNewComponent_FX_DefaultSucceeds(t *testing.T) {
 	hostname, _ := hostnameinterface.NewMock("test-host")
-	ext, err := NewExtension(Requires{
+	ext, err := NewComponent(Requires{
 		Config:     configmock.NewMockWithOverrides(t, nil),
 		Log:        logmock.New(t),
 		Serializer: serializermock.NewMetricSerializer(t),

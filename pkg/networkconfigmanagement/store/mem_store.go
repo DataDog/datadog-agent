@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build ncm
-
 package store
 
 import (
 	"context"
-	"fmt"
+	"sort"
 	"sync"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
@@ -23,16 +21,39 @@ type memConfigStore struct {
 	lock       sync.RWMutex
 	rawConfigs map[string]string
 	metadata   map[string]types.ConfigMetadata
+	clock      clock.Clock
+	uuidGen    func() string
 }
 
 var _ ConfigStore = (*memConfigStore)(nil)
 
+// MemStoreOption configures the memstore at construction.
+type MemStoreOption func(*memConfigStore)
+
+// WithClock overrides the clock used to stamp CapturedAt / LastAccessedAt.
+// Useful in tests that need deterministic timestamps.
+func WithClock(c clock.Clock) MemStoreOption {
+	return func(m *memConfigStore) { m.clock = c }
+}
+
+// WithUUIDGenerator overrides the UUID source for new entries. Useful in tests
+// that need deterministic ConfigUUIDs.
+func WithUUIDGenerator(gen func() string) MemStoreOption {
+	return func(m *memConfigStore) { m.uuidGen = gen }
+}
+
 // NewMemStore creates a ConfigStore backed by in-memory maps (for use in tests).
-func NewMemStore() ConfigStore {
-	return &memConfigStore{
+func NewMemStore(opts ...MemStoreOption) ConfigStore {
+	m := &memConfigStore{
 		rawConfigs: make(map[string]string),
 		metadata:   make(map[string]types.ConfigMetadata),
+		clock:      clock.New(),
+		uuidGen:    func() string { return uuid.New().String() },
 	}
+	for _, o := range opts {
+		o(m)
+	}
+	return m
 }
 
 // Close is a no-op for the in-memory store.
@@ -41,18 +62,24 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
-	rawHash := hashConfig(rawConfig)
-	now := time.Now().Unix()
+// Returns the config UUID, the SHA-256 hash of the raw config, and whether a new entry was written (false for duplicates).
+func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, string, bool, error) {
+	rawHash := HashConfig(rawConfig)
+	now := m.clock.Now().Unix()
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	if existingID := m.findLatestMatch(deviceID, configType, rawHash); existingID != "" {
-		return existingID, nil
+		existing := m.metadata[existingID]
+		// Clamp rather than overwrite: `now` was captured before acquiring the lock,
+		// so a concurrent GetConfig could have set a newer value in the meantime.
+		existing.LastAccessedAt = max(now, existing.LastAccessedAt)
+		m.metadata[existingID] = existing
+		return existingID, rawHash, false, nil
 	}
 
-	configUUID := uuid.New().String()
+	configUUID := m.uuidGen()
 	m.rawConfigs[configUUID] = rawConfig
 
 	m.metadata[configUUID] = types.ConfigMetadata{
@@ -65,7 +92,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 		AgentVersion:   version.AgentVersion,
 	}
 
-	return configUUID, nil
+	return configUUID, rawHash, true, nil
 }
 
 // findLatestMatch returns the UUID of the latest stored config for the given device+type if its hash matches.
@@ -93,17 +120,43 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.Config
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
 }
 
-// GetConfig retrieves all data for a config by UUID.
+// GetConfig retrieves all data for a config by UUID, and refreshes its LastAccessedAt
+// so actively-retrieved configs aren't treated as stale by LRU eviction.
 func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
-		return "", nil, fmt.Errorf("raw config not found for UUID: %s", configUUID)
+		return "", nil, &ConfigNotFoundError{configUUID}
 	}
 
 	meta := m.metadata[configUUID]
+	meta.LastAccessedAt = m.clock.Now().Unix()
+	m.metadata[configUUID] = meta
 
 	return rawConfig, &meta, nil
+}
+
+// UpdateStoreConfig is a no-op for the in-memory store (eviction is not enforced in tests).
+func (m *memConfigStore) UpdateStoreConfig(_ int, _ int, _ int64) {}
+
+// EvictConfigs is a no-op for the in-memory store.
+func (m *memConfigStore) EvictConfigs() ([]string, error) { return nil, nil }
+
+// GetAllConfigMetadata returns metadata for every stored config across all devices,
+// sorted by ConfigUUID for deterministic ordering.
+func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	configMeta := make([]*types.ConfigMetadata, 0, len(m.metadata))
+	for _, value := range m.metadata {
+		v := value
+		configMeta = append(configMeta, &v)
+	}
+	sort.Slice(configMeta, func(i, j int) bool {
+		return configMeta[i].ConfigUUID < configMeta[j].ConfigUUID
+	})
+	return configMeta, nil
 }

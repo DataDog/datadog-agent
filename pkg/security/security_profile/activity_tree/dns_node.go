@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -20,18 +21,30 @@ type DNSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-	Requests       []model.DNSEvent
+	Requests       []model.DNSQuestion
+}
+
+// size approximates this node's heap footprint
+func (dn *DNSNode) size() int64 {
+	s := int64(unsafe.Sizeof(*dn))
+	s += seenBytes(dn.NodeBase)
+	s += sliceBackingBytes(cap(dn.Requests), unsafe.Sizeof(model.DNSQuestion{}))
+	s += sliceBackingBytes(cap(dn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	for _, req := range dn.Requests {
+		s += int64(len(req.Name))
+	}
+	return s
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64) *DNSNode {
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
-		Requests:       []model.DNSEvent{*event},
+		Requests:       []model.DNSQuestion{event.Question},
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, evt.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 	return node
 }
 
@@ -50,14 +63,14 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 	return result
 }
 
-func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
-	IsNodeEmpty := dn.EvictImageTag(imageTag)
+func (dn *DNSNode) evictImageTag(imageTagID uint64, DNSNames *utils.StringKeys) bool {
+	IsNodeEmpty := dn.EvictImageTag(imageTagID)
 	if IsNodeEmpty {
 		return true
 	}
 	// reconstruct the list of all DNS requests
 	if len(dn.Requests) > 0 {
-		DNSNames.Insert(dn.Requests[0].Question.Name)
+		DNSNames.Insert(dn.Requests[0].Name)
 	}
 	return false
 }

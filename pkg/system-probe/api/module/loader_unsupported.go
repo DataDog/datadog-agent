@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf && !windows
+//go:build (!linux || !bpf) && !windows
 
 package module
 
 import (
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-func preRegister(_ *sysconfigtypes.Config, _ rcclient.Component, _ []*Factory) error {
+func preRegister(_ *sysconfigtypes.Config, _ rcclient.Component, _ telemetry.Component, _ []*Factory) error {
 	return nil
 }
 

@@ -56,7 +56,6 @@ func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostN
 			return err
 		}
 
-		// install docker.io
 		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
@@ -92,8 +91,6 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
-
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)
 }
@@ -122,7 +119,7 @@ func (v *ec2VMContainerizedSuite) AfterTest(suiteName, testName string) {
 //
 // The test start by 00 to validate the agent/system-probe is up and running
 func (v *ec2VMContainerizedSuite) Test00FakeIntakeNPM_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
 	v.Env().RemoteHost.MustExecute("curl " + testURL)
@@ -135,7 +132,7 @@ func (v *ec2VMContainerizedSuite) Test00FakeIntakeNPM_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
@@ -148,7 +145,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_DockerRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
@@ -161,7 +158,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
@@ -172,7 +169,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests()
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("curl " + testURL)
@@ -184,7 +181,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)

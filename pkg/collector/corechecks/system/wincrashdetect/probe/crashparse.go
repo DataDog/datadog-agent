@@ -9,7 +9,7 @@
 package probe
 
 /*
-#cgo LDFLAGS: -l dbgeng -static
+#cgo LDFLAGS: -l dbgeng -static -lstdc++
 #include "crashdump.h"
 */
 import "C"

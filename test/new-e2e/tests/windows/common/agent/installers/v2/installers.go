@@ -7,11 +7,14 @@
 package installers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/cenkalti/backoff/v7"
 )
 
 // Arch is the architecture-specific URL for an installer
@@ -59,6 +62,9 @@ func readURL(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d fetching %s", resp.StatusCode, url)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -66,21 +72,21 @@ func readURL(url string) ([]byte, error) {
 	return body, nil
 }
 
-// ListVersions returns a list of available product versions from a installers_v2.json URL
+// ListVersions returns a list of available product versions from a installers_v2.json URL.
+// It retries on network errors, non-2xx responses, and JSON parse failures (e.g. truncated body).
 func ListVersions(url string) (*Installers, error) {
-	body, err := readURL(url)
-	if err != nil {
-		return nil, err
-	}
-
-	var installers Installers
-	installers.URL = url
-	err = json.Unmarshal(body, &installers)
-	if err != nil {
-		return nil, err
-	}
-
-	return &installers, nil
+	return backoff.Retry(context.Background(), func() (*Installers, error) {
+		body, err := readURL(url)
+		if err != nil {
+			return nil, err
+		}
+		var installers Installers
+		installers.URL = url
+		if err := json.Unmarshal(body, &installers); err != nil {
+			return nil, err
+		}
+		return &installers, nil
+	}, backoff.WithBackOff(backoff.NewExponentialBackOff()), backoff.WithMaxTries(3))
 }
 
 // GetProductURL returns the URL for a product/version/arch pair from a installers_v2.json URL.

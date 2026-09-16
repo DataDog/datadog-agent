@@ -28,7 +28,7 @@ const CollectorTypeNetworkPathCollector NetworkPathCollectorType = "network_path
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
 func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
 	var pathSource NetworkPathCollectorType
-	if path.Origin == payload.PathOriginNetworkTraffic {
+	if path.Origin == payload.PathOriginNetworkTraffic || path.Origin == payload.PathOriginNetflow {
 		pathSource = CollectorTypeNetworkPathCollector
 	} else {
 		pathSource = CollectorTypeNetworkPathIntegration

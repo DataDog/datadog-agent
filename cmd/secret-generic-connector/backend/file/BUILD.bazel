@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "file",
@@ -12,11 +15,11 @@ go_library(
     deps = [
         "//cmd/secret-generic-connector/secret",
         "@com_github_mitchellh_mapstructure//:mapstructure",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "file_test",
     srcs = [
         "json_test.go",
@@ -24,7 +27,6 @@ go_test(
         "yaml_test.go",
     ],
     embed = [":file"],
-    gotags = ["test"],
     deps = [
         "//cmd/secret-generic-connector/secret",
         "@com_github_stretchr_testify//assert",

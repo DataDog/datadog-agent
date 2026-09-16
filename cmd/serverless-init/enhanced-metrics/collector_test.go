@@ -307,3 +307,41 @@ func TestCollectorSendsUsageMetricOnCgroupFailure(t *testing.T) {
 		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, mock.Anything)
 	mockAgent.AssertNotCalled(t, "AddEnhancedMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestNewCollectorNilMetricAgent(t *testing.T) {
+	// Untyped nil interface.
+	c, err := NewCollector(nil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	assert.Nil(t, c)
+	assert.Error(t, err)
+
+	// Typed nil implementing EnhancedMetricSender, which is what main.go passes
+	// when metricAgent is a nil *ServerlessMetricAgent (use_dogstatsd disabled).
+	var typedNil *mockEnhancedMetricSender
+	c, err = NewCollector(typedNil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
+	assert.Nil(t, c)
+	assert.Error(t, err)
+}
+
+// TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags verifies that the usage
+// metric is sent without any extra tags — pinning today's behavior.
+func TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	mockReader := &mockCgroupReader{refreshErr: errors.New("cgroup failure"), version: 1}
+
+	c := &Collector{
+		metricAgent:       mockAgent,
+		metricSource:      metrics.MetricSourceGoogleCloudRunEnhanced,
+		cgroupReader:      mockReader,
+		metricPrefix:      "gcp.run.container.enhanced.",
+		usageMetricSuffix: "instance",
+		previousRateStats: NullServerlessRateStats,
+	}
+
+	c.collect()
+
+	mockAgent.AssertCalled(t, "AddEnhancedUsageMetric",
+		"gcp.run.container.enhanced.instance", float64(1),
+		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, []string(nil))
+}

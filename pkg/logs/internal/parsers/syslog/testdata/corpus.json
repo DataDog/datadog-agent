@@ -1,0 +1,1304 @@
+{
+  "origins": {
+    "cisco-nx-os-docs": {
+      "kind": "documentation",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/106x/config-guides/sys-mgmt/cisco-nexus-9000-series-nx-os-system-management-configuration-guide-release-106x/m-configuring-system-message-logging-10x.html"
+    },
+    "integrations-core": {
+      "kind": "repository",
+      "url": "https://github.com/DataDog/integrations-core",
+      "commit": "5c206d587e49acfcab604c994e3fe33abc0d088a"
+    },
+    "integrations-extras": {
+      "kind": "repository",
+      "url": "https://github.com/DataDog/integrations-extras",
+      "commit": "9c197fe2c9ff8864d1fe84274298818aac67853f"
+    },
+    "synthesized": {
+      "kind": "synthesized"
+    }
+  },
+  "messages": [
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access.yaml:67",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c133\u003eDec 24 00:14:20 pf60fc91 BG[51036] 1427:01:02:site=pf60fc91.beyondtrustcloud.com;when=1766556860;who=John Carter (john.carter@test.com);who_ip=64.252.100.129;event=jump_policy_added;authorization:allowed_approvers=0;authorization:allowed_to=1;authorization:approver_name=;authorization:email_addresses=;authorization:enabled=0",
+      "want": {
+        "pri": 133,
+        "timestamp": "Dec 24 00:14:20",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "51036",
+        "msgid": "-",
+        "msg": "1427:01:02:site=pf60fc91.beyondtrustcloud.com;when=1766556860;who=John Carter (john.carter@test.com);who_ip=64.252.100.129;event=jump_policy_added;authorization:allowed_approvers=0;authorization:allowed_to=1;authorization:approver_name=;authorization:email_addresses=;authorization:enabled=0"
+      }
+    },
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c133\u003eJan 9 03:47:40 pf60fc91 BG[81869] 1427:01:01:event=fido2_credential_added;credential_owner_id=123;name=credential_name;roaming=1;registration_date=09-01-2026;last_used_date=09-01-2026;last_signature_count=1;when=1767953860;who=Sam5 Carter5 (sam.carter@test.ai) using oidc;who_ip=64.252.101.204;site=pf60fc91.beyondtrustcloud.com",
+      "want": {
+        "pri": 133,
+        "timestamp": "Jan 9 03:47:40",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "81869",
+        "msgid": "-",
+        "msg": "1427:01:01:event=fido2_credential_added;credential_owner_id=123;name=credential_name;roaming=1;registration_date=09-01-2026;last_used_date=09-01-2026;last_signature_count=1;when=1767953860;who=Sam5 Carter5 (sam.carter@test.ai) using oidc;who_ip=64.252.101.204;site=pf60fc91.beyondtrustcloud.com"
+      }
+    },
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access_tests.yaml:99",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c133\u003eJan 9 03:47:40 pf60fc91 BG[81869] 1427:01:01:event=session_policy_added;when=1767953860;who=Sam5 Carter5 (sam.carter@test.ai) using oidc;who_ip=64.252.101.204;site=pf60fc91.beyondtrustcloud.com;automatic_privacy_screen=1;code_name=code_name;description=description;id=1;name=test",
+      "want": {
+        "pri": 133,
+        "timestamp": "Jan 9 03:47:40",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "81869",
+        "msgid": "-",
+        "msg": "1427:01:01:event=session_policy_added;when=1767953860;who=Sam5 Carter5 (sam.carter@test.ai) using oidc;who_ip=64.252.101.204;site=pf60fc91.beyondtrustcloud.com;automatic_privacy_screen=1;code_name=code_name;description=description;id=1;name=test"
+      }
+    },
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access.yaml:70",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Jan  5 01:17:57 pf60fc91 BG[70499] 1427:01:02:site=pf60fc91.beyondtrustcloud.com;when=1767597477;who=Sam Carter (sam.carter@test.com);who_ip=64.252.100.129;event=jump_policy_changed;old_authorization:allowed_approvers=0;old_authorization:allowed_to=1;old_authorization:approver_name=;old_authorization:email_addresses=;old_authorization:enabled=0;old_authorization:locale_code=en-us;old_authorization:max_duration=28800;old_authorization:approver_teams=;old_authorization:approvers=;old_code_name=jump_policy_3;old_description=;old_display_name=test73;new_display_name=test75;old_external_tools_rdp_allowed=0;old_external_tools_shell_allowed=0;old_id=8;old_notification:email_addresses=;old_notification:locale_code=en-us;old_notification:recipient_name=;old_notify_on_customer_leave=0;old_notify_on_session_start=0;old_schedule:enabled=1;old_schedule:force_end=1;old_session_recordings_disabled=0;old_simultaneous_jump_behavior_applies_to_copies=0;old_simultaneous_jumps=0;old_simultaneous_rdp_jumps=0;old_authorization:ticket_system_enabled=0;old_two_factor_challenge_required=0",
+      "want": {
+        "pri": -1,
+        "timestamp": "Jan  5 01:17:57",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "70499",
+        "msgid": "-",
+        "msg": "1427:01:02:site=pf60fc91.beyondtrustcloud.com;when=1767597477;who=Sam Carter (sam.carter@test.com);who_ip=64.252.100.129;event=jump_policy_changed;old_authorization:allowed_approvers=0;old_authorization:allowed_to=1;old_authorization:approver_name=;old_authorization:email_addresses=;old_authorization:enabled=0;old_authorization:locale_code=en-us;old_authorization:max_duration=28800;old_authorization:approver_teams=;old_authorization:approvers=;old_code_name=jump_policy_3;old_description=;old_display_name=test73;new_display_name=test75;old_external_tools_rdp_allowed=0;old_external_tools_shell_allowed=0;old_id=8;old_notification:email_addresses=;old_notification:locale_code=en-us;old_notification:recipient_name=;old_notify_on_customer_leave=0;old_notify_on_session_start=0;old_schedule:enabled=1;old_schedule:force_end=1;old_session_recordings_disabled=0;old_simultaneous_jump_behavior_applies_to_copies=0;old_simultaneous_jumps=0;old_simultaneous_rdp_jumps=0;old_authorization:ticket_system_enabled=0;old_two_factor_challenge_required=0"
+      }
+    },
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access_tests.yaml:38",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Dec 28 23:45:21 pf60fc91 BG[65890] 1427:01:09:site=pf60fc91.beyondtrustcloud.com;when=1766987121;who=John Carter IT (john.carter@test.ai);who_ip=64.252.101.204;event=group_policy_added;account:disabled=0;allow_override=0;login_code:enabled=1",
+      "want": {
+        "pri": -1,
+        "timestamp": "Dec 28 23:45:21",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "65890",
+        "msgid": "-",
+        "msg": "1427:01:09:site=pf60fc91.beyondtrustcloud.com;when=1766987121;who=John Carter IT (john.carter@test.ai);who_ip=64.252.101.204;event=group_policy_added;account:disabled=0;allow_override=0;login_code:enabled=1"
+      }
+    },
+    {
+      "integration": "beyondtrust_privileged_remote_access",
+      "source": "beyondtrust_privileged_remote_access/assets/logs/beyondtrust-privileged-remote-access_tests.yaml:70",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Jan  7 03:39:48 pf60fc91 BG[58918] 1427:01:04:site=pf60fc91.beyondtrustcloud.com;when=1767778788;who=John Carter IT (john.carter@test.ai);who_ip=64.252.100.19;event=user_added;account:disabled=0;login_code:enabled=0",
+      "want": {
+        "pri": -1,
+        "timestamp": "Jan  7 03:39:48",
+        "hostname": "pf60fc91",
+        "appname": "BG",
+        "procid": "58918",
+        "msgid": "-",
+        "msg": "1427:01:04:site=pf60fc91.beyondtrustcloud.com;when=1767778788;who=John Carter IT (john.carter@test.ai);who_ip=64.252.100.19;event=user_added;account:disabled=0;login_code:enabled=0"
+      }
+    },
+    {
+      "integration": "bind9",
+      "source": "bind9/assets/logs/bind9.yaml:93",
+      "origin": "integrations-extras",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c158\u003eSep 20 15:50:26 bindserver named[1630972]: 2024-09-20T10:20:26.751Z queries: info: client @0x7f264c465b08 10.10.10.10#56256 (google.com): query: google.com IN A + (10.10.10.10)",
+      "want": {
+        "pri": 158,
+        "timestamp": "Sep 20 15:50:26",
+        "hostname": "bindserver",
+        "appname": "named",
+        "procid": "1630972",
+        "msgid": "-",
+        "msg": "2024-09-20T10:20:26.751Z queries: info: client @0x7f264c465b08 10.10.10.10#56256 (google.com): query: google.com IN A + (10.10.10.10)"
+      }
+    },
+    {
+      "integration": "bind9",
+      "source": "bind9/assets/logs/bind9.yaml:90",
+      "origin": "integrations-extras",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2024-09-20T10:20:26.751Z network: info: no longer listening on 10.10.10.10#50",
+      "want": {
+        "pri": -1,
+        "timestamp": "2024-09-20T10:20:26.751Z",
+        "hostname": "-",
+        "appname": "network",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "info: no longer listening on 10.10.10.10#50"
+      }
+    },
+    {
+      "integration": "cisco_asa",
+      "source": "cisco_asa/assets/logs/cisco-asa.yaml:119",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-11-20T07:37:58Z: %ASA-6-302014: Teardown TCP connection 134712 for inside:10.10.10.10/5014 to identity:10.10.10.10/45544 duration 0:00:21 bytes 0 No valid adjacency",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-11-20T07:37:58Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%ASA-6-302014: Teardown TCP connection 134712 for inside:10.10.10.10/5014 to identity:10.10.10.10/45544 duration 0:00:21 bytes 0 No valid adjacency"
+      }
+    },
+    {
+      "integration": "cisco_asa",
+      "source": "cisco_asa/assets/logs/cisco-asa_tests.yaml:3",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-11-25T07:19:40Z: %ASA-4-733100: [ Scanning] drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 33; Current average rate is 50 per second, max configured rate is 33; Cumulative total count is 44",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-11-25T07:19:40Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%ASA-4-733100: [ Scanning] drop rate-1 exceeded. Current burst rate is 19 per second, max configured rate is 33; Current average rate is 50 per second, max configured rate is 33; Cumulative total count is 44"
+      }
+    },
+    {
+      "integration": "cisco_asa",
+      "source": "cisco_asa/assets/logs/cisco-asa_tests.yaml:23",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-11-25T07:17:18Z: %ASA-4-733102: Threat-detection adds host 192.0.2.3 to shun list",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-11-25T07:17:18Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%ASA-4-733102: Threat-detection adds host 192.0.2.3 to shun list"
+      }
+    },
+    {
+      "integration": "cisco_secure_client",
+      "source": "cisco_secure_client/assets/logs/cisco-secure-client.yaml:157",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-11-20T07:37:58Z: %FTD-6-113039: Group group User test-user IP 10.10.10.10 AnyConnect_parent session started.",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-11-20T07:37:58Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-6-113039: Group group User test-user IP 10.10.10.10 AnyConnect_parent session started."
+      }
+    },
+    {
+      "integration": "cisco_secure_client",
+      "source": "cisco_secure_client/assets/logs/cisco-secure-client_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-12-05T10:51:16Z: %FTD-4-113035: Group Employee-Access User evelyn.baker IP 4.2.2.1 Session terminated: AnyConnect not enabled or invalid AnyConnect image on the device_123",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-12-05T10:51:16Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-4-113035: Group Employee-Access User evelyn.baker IP 4.2.2.1 Session terminated: AnyConnect not enabled or invalid AnyConnect image on the device_123"
+      }
+    },
+    {
+      "integration": "cisco_secure_client",
+      "source": "cisco_secure_client/assets/logs/cisco-secure-client_tests.yaml:26",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2025-12-05T10:53:52Z: %FTD-4-113038: Group Mobility-Users User ava.clark IP 8.8.8.8 Unable to create AnyConnect_parent session.",
+      "want": {
+        "pri": 190,
+        "timestamp": "2025-12-05T10:53:52Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-4-113038: Group Mobility-Users User ava.clark IP 8.8.8.8 Unable to create AnyConnect_parent session."
+      }
+    },
+    {
+      "integration": "cisco_secure_firewall",
+      "source": "cisco_secure_firewall/assets/logs/cisco-secure-firewall.yaml:141",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2024-01-17T09:07:34Z: %FTD-6-110002: Failed to locate egress interface for UDP from diagnostic:10.50.5.157/137 to 10.50.15.255/137",
+      "want": {
+        "pri": 190,
+        "timestamp": "2024-01-17T09:07:34Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-6-110002: Failed to locate egress interface for UDP from diagnostic:10.50.5.157/137 to 10.50.15.255/137"
+      }
+    },
+    {
+      "integration": "cisco_secure_firewall",
+      "source": "cisco_secure_firewall/assets/logs/cisco-secure-firewall.yaml:159",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c190\u003e2024-01-23T07:00:00Z: %FTD-1-735002: Cooling Fan DS-X97-SF1-K9 : Failure Detected",
+      "want": {
+        "pri": 190,
+        "timestamp": "2024-01-23T07:00:00Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-1-735002: Cooling Fan DS-X97-SF1-K9 : Failure Detected"
+      }
+    },
+    {
+      "integration": "cisco_secure_firewall",
+      "source": "cisco_secure_firewall/assets/logs/cisco-secure-firewall.yaml:161",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "iso_pri",
+      "line": "\u003c181\u003e2024-01-05T05:45:16Z %FTD-1-111111 system or infrastructure error message",
+      "want": {
+        "pri": 181,
+        "timestamp": "2024-01-05T05:45:16Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-1-111111 system or infrastructure error message"
+      }
+    },
+    {
+      "integration": "cisco_secure_firewall",
+      "source": "cisco_secure_firewall/assets/logs/cisco-secure-firewall.yaml:143",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2024-01-05T05:45:16Z   %FTD-1-430003: EventPriority: Low, DeviceUUID: fbf9ef28-9b2a-11ee-805f-e9384ce3a258, InstanceID: 1, FirstPacketSecond: 2024-01-05T05:43:14Z, ConnectionID: 38902, AccessControlRuleAction: Allow, SrcIP: 10.40.1.16, DstIP: 142.250.182.194, SrcPort: 50689, DstPort: 443, Protocol: tcp, IngressInterface: LAN, EgressInterface: WAN, IngressZone: LAN, EgressZone: WAN, IngressVRF: Global, EgressVRF: Global, ACPolicy: default, AccessControlRuleName: New-rule, Prefilter Policy: Default Prefilter Policy, User: TEST-AD\\\\nilay.modi, Client: SSL client, ApplicationProtocol: HTTPS, WebApplication: Google, ConnectionDuration: 122, InitiatorPackets: 14, ResponderPackets: 15, InitiatorBytes: 636, ResponderBytes: 4167, NAPPolicy: Balanced Security and Connectivity, URLCategory: Advertisements, URLReputation: Trusted, URL: https://adservice.google.com, NAT_InitiatorPort: 50689, NAT_ResponderPort: 443, NAT_InitiatorIP: 10.50.9.175, NAT_ResponderIP: 142.250.182.194",
+      "want": {
+        "pri": -1,
+        "timestamp": "2024-01-05T05:45:16Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-1-430003: EventPriority: Low, DeviceUUID: fbf9ef28-9b2a-11ee-805f-e9384ce3a258, InstanceID: 1, FirstPacketSecond: 2024-01-05T05:43:14Z, ConnectionID: 38902, AccessControlRuleAction: Allow, SrcIP: 10.40.1.16, DstIP: 142.250.182.194, SrcPort: 50689, DstPort: 443, Protocol: tcp, IngressInterface: LAN, EgressInterface: WAN, IngressZone: LAN, EgressZone: WAN, IngressVRF: Global, EgressVRF: Global, ACPolicy: default, AccessControlRuleName: New-rule, Prefilter Policy: Default Prefilter Policy, User: TEST-AD\\\\nilay.modi, Client: SSL client, ApplicationProtocol: HTTPS, WebApplication: Google, ConnectionDuration: 122, InitiatorPackets: 14, ResponderPackets: 15, InitiatorBytes: 636, ResponderBytes: 4167, NAPPolicy: Balanced Security and Connectivity, URLCategory: Advertisements, URLReputation: Trusted, URL: https://adservice.google.com, NAT_InitiatorPort: 50689, NAT_ResponderPort: 443, NAT_InitiatorIP: 10.50.9.175, NAT_ResponderIP: 142.250.182.194"
+      }
+    },
+    {
+      "integration": "cisco_secure_firewall",
+      "source": "cisco_secure_firewall/assets/logs/cisco-secure-firewall_tests.yaml:18",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2024-01-04T05:49:44Z   %FTD-1-430001: DeviceUUID: fbf9ef28-9b2a-51ur-495e-e9384ce3a258, InstanceID: 1, FirstPacketSecond: 2024-01-04T05:49:44Z, ConnectionID: 39298, SrcIP: 185.64.148.0, DstIP: 185.64.148.0, SrcPort: 53, DstPort: 61550, Protocol: udp, IngressInterface: WAN, EgressInterface: LAN, IngressZone: WAN, EgressZone: LAN, Priority: 2, GID: 1, SID: 254, Revision: 17, Message: PROTOCOL-DNS SPOOF query response with TTL of 1 min. and no authority, Classification: Potentially Bad Traffic, Client: DNS, ApplicationProtocol: DNS, IntrusionPolicy: ABC-IPS, ACPolicy: default, AccessControlRuleName: New-rule, NAPPolicy: Balanced Security and Connectivity, InlineResult: Dropped, IngressVRF: Global, EgressVRF: Global",
+      "want": {
+        "pri": -1,
+        "timestamp": "2024-01-04T05:49:44Z",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%FTD-1-430001: DeviceUUID: fbf9ef28-9b2a-51ur-495e-e9384ce3a258, InstanceID: 1, FirstPacketSecond: 2024-01-04T05:49:44Z, ConnectionID: 39298, SrcIP: 185.64.148.0, DstIP: 185.64.148.0, SrcPort: 53, DstPort: 61550, Protocol: udp, IngressInterface: WAN, EgressInterface: LAN, IngressZone: WAN, EgressZone: LAN, Priority: 2, GID: 1, SID: 254, Revision: 17, Message: PROTOCOL-DNS SPOOF query response with TTL of 1 min. and no authority, Classification: Potentially Bad Traffic, Client: DNS, ApplicationProtocol: DNS, IntrusionPolicy: ABC-IPS, ACPolicy: default, AccessControlRuleName: New-rule, NAPPolicy: Balanced Security and Connectivity, InlineResult: Dropped, IngressVRF: Global, EgressVRF: Global"
+      }
+    },
+    {
+      "integration": "cisco_secure_web_appliance",
+      "source": "cisco_secure_web_appliance/assets/logs/cisco-secure-web-appliance.yaml:144",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c38\u003eSep 23 11:14:10 Crest.CSWA accesslogs: Info: 1727070241.436 866 10.10.10.10 TCP_MISS/200 4394 CONNECT tunnel://v10.events.data.microsoft.com:443/ - DIRECT/v10.events.data.microsoft.com application/octet-stream DEFAULT_CASE_12-DefaultGroup-match_network-NONE-NONE-NONE-DefaultGroup-NONE \u003c\"IW_comp\",9.0,1,\"-\",-,-,-,1,\"-\",-,-,-,\"-\",1,-,\"-\",\"-\",-,-,\"IW_comp\",-,\"-\",\"Computers and Internet\",\"-\",\"Microsoft Dynamics CRM\",\"Enterprise Applications\",\"Encrypted\",\"-\",40.59,0,-,\"-\",\"-\",1,\"-\",-,-,\"-\",\"-\",-,1,\"-\",-,-\u003e - -",
+      "want": {
+        "pri": 38,
+        "timestamp": "Sep 23 11:14:10",
+        "hostname": "Crest.CSWA",
+        "appname": "accesslogs",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "Info: 1727070241.436 866 10.10.10.10 TCP_MISS/200 4394 CONNECT tunnel://v10.events.data.microsoft.com:443/ - DIRECT/v10.events.data.microsoft.com application/octet-stream DEFAULT_CASE_12-DefaultGroup-match_network-NONE-NONE-NONE-DefaultGroup-NONE \u003c\"IW_comp\",9.0,1,\"-\",-,-,-,1,\"-\",-,-,-,\"-\",1,-,\"-\",\"-\",-,-,\"IW_comp\",-,\"-\",\"Computers and Internet\",\"-\",\"Microsoft Dynamics CRM\",\"Enterprise Applications\",\"Encrypted\",\"-\",40.59,0,-,\"-\",\"-\",1,\"-\",-,-,\"-\",\"-\",-,1,\"-\",-,-\u003e - -"
+      }
+    },
+    {
+      "integration": "cisco_secure_web_appliance",
+      "source": "cisco_secure_web_appliance/assets/logs/cisco-secure-web-appliance.yaml:158",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c38\u003eSep 24 16:22:24 Crest.CSWA accesslogs: Info: 1727175142.338 98 10.10.10.10 TCP_DENIED_SSL/403 0 GET https://www.virustotal.com:443/favicon.ico - NONE/- - BLOCK_CUSTOMCAT_12-DefaultGroup-10.50.6.5-NONE-NONE-NONE-NONE-NONE \u003c\"C_viru\",-,-,\"-\",-,-,-,-,\"-\",-,-,-,\"-\",-,-,\"-\",\"-\",-,-,\"-\",-,\"-\",\"-\",\"-\",\"-\",\"-\",\"-\",\"-\",0.00,0,-,\"-\",\"-\",-,\"-\",-,-,\"-\",\"-\",-,-,\"-\",-,-\u003e - -",
+      "want": {
+        "pri": 38,
+        "timestamp": "Sep 24 16:22:24",
+        "hostname": "Crest.CSWA",
+        "appname": "accesslogs",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "Info: 1727175142.338 98 10.10.10.10 TCP_DENIED_SSL/403 0 GET https://www.virustotal.com:443/favicon.ico - NONE/- - BLOCK_CUSTOMCAT_12-DefaultGroup-10.50.6.5-NONE-NONE-NONE-NONE-NONE \u003c\"C_viru\",-,-,\"-\",-,-,-,-,\"-\",-,-,-,\"-\",-,-,\"-\",\"-\",-,-,\"-\",-,\"-\",\"-\",\"-\",\"-\",\"-\",\"-\",\"-\",0.00,0,-,\"-\",\"-\",-,\"-\",-,-,\"-\",\"-\",-,-,\"-\",-,-\u003e - -"
+      }
+    },
+    {
+      "integration": "cisco_secure_web_appliance",
+      "source": "cisco_secure_web_appliance/assets/logs/cisco-secure-web-appliance.yaml:164",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c38\u003eSep 25 12:13:55 Crest.CSWA accesslogs: Info: 1727246631.866 93971 10.xx.xx.xx TCP_MISS/200 8560 CONNECT tunnel://csp.withgoogle.com:443/ - DIRECT/csp.withgoogle.com application/octet-stream DEFAULT_CASE_12-DefaultGroup-match_network-NONE-NONE-NONE-DefaultGroup-NONE \u003c\"IW_comp\",3.0,1,\"-\",-,-,-,1,\"-\",-,-,-,\"-\",1,-,\"-\",\"-\",-,-,\"IW_comp,IW_csec\",-,\"-\",\"Computers and Internet\",\"-\",\"Unknown\",\"Unknown\",\"-\",\"-\",0.73,0,-,\"-\",\"-\",1,\"-\",-,-,\"-\",\"-\",-,1,\"-\",-,-\u003e - -",
+      "want": {
+        "pri": 38,
+        "timestamp": "Sep 25 12:13:55",
+        "hostname": "Crest.CSWA",
+        "appname": "accesslogs",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "Info: 1727246631.866 93971 10.xx.xx.xx TCP_MISS/200 8560 CONNECT tunnel://csp.withgoogle.com:443/ - DIRECT/csp.withgoogle.com application/octet-stream DEFAULT_CASE_12-DefaultGroup-match_network-NONE-NONE-NONE-DefaultGroup-NONE \u003c\"IW_comp\",3.0,1,\"-\",-,-,-,1,\"-\",-,-,-,\"-\",1,-,\"-\",\"-\",-,-,\"IW_comp,IW_csec\",-,\"-\",\"Computers and Internet\",\"-\",\"Unknown\",\"Unknown\",\"-\",\"-\",0.73,0,-,\"-\",\"-\",1,\"-\",-,-,\"-\",\"-\",-,1,\"-\",-,-\u003e - -"
+      }
+    },
+    {
+      "integration": "delinea_privilege_manager",
+      "source": "delinea_privilege_manager/assets/logs/delinea-privilege-manager.yaml:85",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc5424",
+      "line": "\u003c5\u003e1 2024-11-20T10:28:08.736000+00:00 demo 1 demo 1 - 4eb4ec69d7a94797972a41855d3e7799 - CEF:0|Thycotic|Application Control Solution|8|4eb4ec69d7a94797972a41855d3e7799|Application Control Policy Feedback|5|externalId=191 PolicyName=MAC OS Monitor Policy UserName=root FileName=wall FilePath=/usr/bin/wall EventReceivedByServer=11/20/2024 10:33:37 AM _FileId=d25f2fe0-7f22-5046-a6b1-78c8b5f51cd6 _ComputerId=2386a2ac-807a-5682-a261-d0f4e85baa7c ComputerName=demo 1",
+      "want": {
+        "pri": 5,
+        "version": "1",
+        "timestamp": "2024-11-20T10:28:08.736000+00:00",
+        "hostname": "demo",
+        "appname": "1",
+        "procid": "demo",
+        "msgid": "1",
+        "msg": "4eb4ec69d7a94797972a41855d3e7799 - CEF:0|Thycotic|Application Control Solution|8|4eb4ec69d7a94797972a41855d3e7799|Application Control Policy Feedback|5|externalId=191 PolicyName=MAC OS Monitor Policy UserName=root FileName=wall FilePath=/usr/bin/wall EventReceivedByServer=11/20/2024 10:33:37 AM _FileId=d25f2fe0-7f22-5046-a6b1-78c8b5f51cd6 _ComputerId=2386a2ac-807a-5682-a261-d0f4e85baa7c ComputerName=demo 1"
+      }
+    },
+    {
+      "integration": "delinea_privilege_manager",
+      "source": "delinea_privilege_manager/assets/logs/delinea-privilege-manager_tests.yaml:34",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc5424",
+      "line": "\u003c5\u003e1 2020-02-28T22:25:56.567000+00:00 demo user demo user - 67aa593adaf942b0933e24f60239bcc9 - CEF:0|Thycotic|Local Security Solution|8|67aa593adaf942b0933e24f60239bcc9|Password Disclosure Events|5|externalId=1 EventOccuredOnServer=2/28/2020 10:25:56 PM _DisclosedByUserId=fc580694-32fd-4dc1-ae8b-80eae7553109 Requesting User=No name for disclosed by user id 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB RemoteIpAddress=10.10.10.10 _ManagedUserId=2db8d3f9-e11e-4924-a19f-ab4fe5ab34eb ManagedUserName=demo user ComputerDomain=No computer domain for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB ComputerName=No computer name for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB",
+      "want": {
+        "pri": 5,
+        "version": "1",
+        "timestamp": "2020-02-28T22:25:56.567000+00:00",
+        "hostname": "demo",
+        "appname": "user",
+        "procid": "demo",
+        "msgid": "user",
+        "msg": "67aa593adaf942b0933e24f60239bcc9 - CEF:0|Thycotic|Local Security Solution|8|67aa593adaf942b0933e24f60239bcc9|Password Disclosure Events|5|externalId=1 EventOccuredOnServer=2/28/2020 10:25:56 PM _DisclosedByUserId=fc580694-32fd-4dc1-ae8b-80eae7553109 Requesting User=No name for disclosed by user id 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB RemoteIpAddress=10.10.10.10 _ManagedUserId=2db8d3f9-e11e-4924-a19f-ab4fe5ab34eb ManagedUserName=demo user ComputerDomain=No computer domain for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB ComputerName=No computer name for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB"
+      }
+    },
+    {
+      "integration": "delinea_privilege_manager",
+      "source": "delinea_privilege_manager/assets/logs/delinea-privilege-manager_tests.yaml:64",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc5424",
+      "line": "\u003c5\u003e1 2020-02-28T22:25:56.567000+00:00 demo demo - 67aa593adaf942b0933e24f60239bcc9 - CEF:0|Thycotic|Local Security Solution|8|67aa593adaf942b0933e24f60239bcc9|Password Disclosure Events|5|externalId=1 EventOccuredOnServer=2/28/2020 10:25:56 PM _DisclosedByUserId=fc580694-32fd-4dc1-ae8b-80eae7553109 Requesting User=No name for disclosed by user id 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB RemoteIpAddress=10.10.10.10 _ManagedUserId=2db8d3f9-e11e-4924-a19f-ab4fe5ab34eb ManagedUserName=demo user ComputerDomain=No computer domain for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB ComputerName=No computer name for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB",
+      "want": {
+        "pri": 5,
+        "version": "1",
+        "timestamp": "2020-02-28T22:25:56.567000+00:00",
+        "hostname": "demo",
+        "appname": "demo",
+        "procid": "-",
+        "msgid": "67aa593adaf942b0933e24f60239bcc9",
+        "msg": "CEF:0|Thycotic|Local Security Solution|8|67aa593adaf942b0933e24f60239bcc9|Password Disclosure Events|5|externalId=1 EventOccuredOnServer=2/28/2020 10:25:56 PM _DisclosedByUserId=fc580694-32fd-4dc1-ae8b-80eae7553109 Requesting User=No name for disclosed by user id 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB RemoteIpAddress=10.10.10.10 _ManagedUserId=2db8d3f9-e11e-4924-a19f-ab4fe5ab34eb ManagedUserName=demo user ComputerDomain=No computer domain for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB ComputerName=No computer name for user 2DB8D3F9-E11E-4924-A19F-AB4FE5AB34EB"
+      }
+    },
+    {
+      "integration": "delinea_secret_server",
+      "source": "delinea_secret_server/assets/logs/delinea-secret-server.yaml:68",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2025-02-27T10:00:27.461Z DSS-01 CEF:0|Thycotic Software|Secret Server|11.7.000061|10004|SECRET - VIEW|2|msg=[[SecretServer]] Event: [Secret] Action: [View] By User: admin Item name: Test SSH KeyTemplate (Item Id: 9) Container name: admin (Container Id: 2)  suid=2 suser=admin cs4=admin cs4Label=suser Display Name src=10.10.10.10 rt=Feb 27 2025 10:00:26 fname=Test SSH KeyTemplate fileType=Secret fileId=9 cs3Label=Folder cs3=admin",
+      "want": {
+        "pri": -1,
+        "timestamp": "2025-02-27T10:00:27.461Z",
+        "hostname": "DSS-01",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "CEF:0|Thycotic Software|Secret Server|11.7.000061|10004|SECRET - VIEW|2|msg=[[SecretServer]] Event: [Secret] Action: [View] By User: admin Item name: Test SSH KeyTemplate (Item Id: 9) Container name: admin (Container Id: 2)  suid=2 suser=admin cs4=admin cs4Label=suser Display Name src=10.10.10.10 rt=Feb 27 2025 10:00:26 fname=Test SSH KeyTemplate fileType=Secret fileId=9 cs3Label=Folder cs3=admin"
+      }
+    },
+    {
+      "integration": "delinea_secret_server",
+      "source": "delinea_secret_server/assets/logs/delinea-secret-server.yaml:75",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2025-02-25T07:19:03.058Z DSS-01 CEF:0|Thycotic Software|Secret Server|11.7.000061|10140|GROUP - CREATE|2|msg=[[SecretServer]] Event: [Group] Action: [Create] By User: admin Item name: Dev-Team (Item Id: 5)  suid=2 suser=admin cs4=admin cs4Label=suser Display Name src=10.10.10.10 rt=Feb 25 2025 07:19:01",
+      "want": {
+        "pri": -1,
+        "timestamp": "2025-02-25T07:19:03.058Z",
+        "hostname": "DSS-01",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "CEF:0|Thycotic Software|Secret Server|11.7.000061|10140|GROUP - CREATE|2|msg=[[SecretServer]] Event: [Group] Action: [Create] By User: admin Item name: Dev-Team (Item Id: 5)  suid=2 suser=admin cs4=admin cs4Label=suser Display Name src=10.10.10.10 rt=Feb 25 2025 07:19:01"
+      }
+    },
+    {
+      "integration": "delinea_secret_server",
+      "source": "delinea_secret_server/assets/logs/delinea-secret-server.yaml:80",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "iso_nopri",
+      "line": "2025-02-26T06:46:47.420Z DSS-01 CEF:0|Thycotic Software|Secret Server|11.7.000061|19|USER - PASSWORDCHANGE|2|msg=[[SecretServer]] Event: [User] Action: [Password change] By User: john Item name: john (Item Id: 4)  suid=4 suser=john cs4=john cs4Label=suser Display Name duser=john duid=4 fname=john fileType=User fileId=4 src=10.10.10.10 rt=Feb 26 2025 06:46:37",
+      "want": {
+        "pri": -1,
+        "timestamp": "2025-02-26T06:46:47.420Z",
+        "hostname": "DSS-01",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "CEF:0|Thycotic Software|Secret Server|11.7.000061|19|USER - PASSWORDCHANGE|2|msg=[[SecretServer]] Event: [User] Action: [Password change] By User: john Item name: john (Item Id: 4)  suid=4 suser=john cs4=john cs4Label=suser Display Name duser=john duid=4 fname=john fileType=User fileId=4 src=10.10.10.10 rt=Feb 26 2025 06:46:37"
+      }
+    },
+    {
+      "integration": "forescout",
+      "source": "forescout/assets/logs/forescout.yaml:103",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c165\u003eSep 2 11:44:01 ddsfs forescout-syslog[2895]: NAC Policy Log: Source: 10.50.15.114, Rule: Policy \"Primary Classification\" , Match: \"Windows:Match\", Category: Classifier, Details: Host evaluation changed from \"CounterACT Devices:Pending\" to \"Windows:Match\" due to condition . Reason: Property update: Operating System \"Windows\" learned (first time), Function \"Workstation\" learned (first time), Vendor and Model \"VMware\" learned (first time). Duration: less than a second",
+      "want": {
+        "pri": 165,
+        "timestamp": "Sep 2 11:44:01",
+        "hostname": "ddsfs",
+        "appname": "forescout-syslog",
+        "procid": "2895",
+        "msgid": "-",
+        "msg": "NAC Policy Log: Source: 10.50.15.114, Rule: Policy \"Primary Classification\" , Match: \"Windows:Match\", Category: Classifier, Details: Host evaluation changed from \"CounterACT Devices:Pending\" to \"Windows:Match\" due to condition . Reason: Property update: Operating System \"Windows\" learned (first time), Function \"Workstation\" learned (first time), Vendor and Model \"VMware\" learned (first time). Duration: less than a second"
+      }
+    },
+    {
+      "integration": "forescout",
+      "source": "forescout/assets/logs/forescout.yaml:111",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c165\u003eSep 23 17:53:27 ddsfs forescout-syslog[2992]: Log: Login success by admin@10.50.13.83. Details: User admin logged in from 10.50.13.83. Severity: 6",
+      "want": {
+        "pri": 165,
+        "timestamp": "Sep 23 17:53:27",
+        "hostname": "ddsfs",
+        "appname": "forescout-syslog",
+        "procid": "2992",
+        "msgid": "-",
+        "msg": "Log: Login success by admin@10.50.13.83. Details: User admin logged in from 10.50.13.83. Severity: 6"
+      }
+    },
+    {
+      "integration": "forescout",
+      "source": "forescout/assets/logs/forescout_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c165\u003eSep 22 11:44:01 ddsfs forescout-syslog[2895]: Port bite. Source: 10.10.10.10. Destination: 20.20.20.20:139",
+      "want": {
+        "pri": 165,
+        "timestamp": "Sep 22 11:44:01",
+        "hostname": "ddsfs",
+        "appname": "forescout-syslog",
+        "procid": "2895",
+        "msgid": "-",
+        "msg": "Port bite. Source: 10.10.10.10. Destination: 20.20.20.20:139"
+      }
+    },
+    {
+      "integration": "haproxy",
+      "source": "haproxy/assets/logs/haproxy_tests.yaml:203",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Feb  1 18:34:10 localhost haproxy[42471]: 73.18.215.121:50886 [01/Feb/2018:18:34:10.200] fr_proxy.lirn.net-HTTP bk_UnivOfThePeople-9797/bk_mp01-UnivOfThePeople-9797 0/0/0/121/122 200 938 - - --VN 4/4/3/3/0 0/0 \"GET /MuseProxyID=mp01/MuseSessionID=0000fx7/MuseProtocol=http/MuseHost=go.galegroup.com/MusePath/ps/browseIndex?inPS=true\u0026prodId=PPCA\u0026userGroupName=lirn17237\u0026tabID=T003\u0026topicId=\u0026searchId=R3\u0026searchType=AdvancedSearchForm\u0026searchResultsType=SingleTab\u0026sort=\u0026browseIndex=TY\u0026browsePagination=50\u0026displayFormat=LIST\u0026isMultiSelect=false\u0026initPageSize=3\u0026buildLimiterValues=true\u0026userGroupName=lirn17237\u0026prodId=PPCA HTTP/1.1\"",
+      "want": {
+        "pri": -1,
+        "timestamp": "Feb  1 18:34:10",
+        "hostname": "localhost",
+        "appname": "haproxy",
+        "procid": "42471",
+        "msgid": "-",
+        "msg": "73.18.215.121:50886 [01/Feb/2018:18:34:10.200] fr_proxy.lirn.net-HTTP bk_UnivOfThePeople-9797/bk_mp01-UnivOfThePeople-9797 0/0/0/121/122 200 938 - - --VN 4/4/3/3/0 0/0 \"GET /MuseProxyID=mp01/MuseSessionID=0000fx7/MuseProtocol=http/MuseHost=go.galegroup.com/MusePath/ps/browseIndex?inPS=true\u0026prodId=PPCA\u0026userGroupName=lirn17237\u0026tabID=T003\u0026topicId=\u0026searchId=R3\u0026searchType=AdvancedSearchForm\u0026searchResultsType=SingleTab\u0026sort=\u0026browseIndex=TY\u0026browsePagination=50\u0026displayFormat=LIST\u0026isMultiSelect=false\u0026initPageSize=3\u0026buildLimiterValues=true\u0026userGroupName=lirn17237\u0026prodId=PPCA HTTP/1.1\""
+      }
+    },
+    {
+      "integration": "haproxy",
+      "source": "haproxy/assets/logs/haproxy_tests.yaml:313",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Feb 01 18:34:10 - haproxy[42471]: 73.18.215.121:50886 [01/Feb/2018:18:34:10.200] fr_proxy.lirn.net-HTTP bk_UnivOfThePeople-9797/bk_mp01-UnivOfThePeople-9797 0/0/0/121/122 200 938 - - --VN 4/4/3/3/0 0/0 \"GET /MuseProxyID=mp01/MuseSessionID=0000fx7/MuseProtocol=http/MuseHost=go.galegroup.com/MusePath/ps/browseIndex?inPS=true\u0026prodId=PPCA\u0026userGroupName=lirn17237\u0026tabID=T003\u0026topicId=\u0026searchId=R3\u0026searchType=AdvancedSearchForm\u0026searchResultsType=SingleTab\u0026sort=\u0026browseIndex=TY\u0026browsePagination=50\u0026displayFormat=LIST\u0026isMultiSelect=false\u0026initPageSize=3\u0026buildLimiterValues=true\u0026userGroupName=lirn17237\u0026prodId=PPCA HTTP/1.1\"",
+      "want": {
+        "pri": -1,
+        "timestamp": "Feb 01 18:34:10",
+        "hostname": "-",
+        "appname": "haproxy",
+        "procid": "42471",
+        "msgid": "-",
+        "msg": "73.18.215.121:50886 [01/Feb/2018:18:34:10.200] fr_proxy.lirn.net-HTTP bk_UnivOfThePeople-9797/bk_mp01-UnivOfThePeople-9797 0/0/0/121/122 200 938 - - --VN 4/4/3/3/0 0/0 \"GET /MuseProxyID=mp01/MuseSessionID=0000fx7/MuseProtocol=http/MuseHost=go.galegroup.com/MusePath/ps/browseIndex?inPS=true\u0026prodId=PPCA\u0026userGroupName=lirn17237\u0026tabID=T003\u0026topicId=\u0026searchId=R3\u0026searchType=AdvancedSearchForm\u0026searchResultsType=SingleTab\u0026sort=\u0026browseIndex=TY\u0026browsePagination=50\u0026displayFormat=LIST\u0026isMultiSelect=false\u0026initPageSize=3\u0026buildLimiterValues=true\u0026userGroupName=lirn17237\u0026prodId=PPCA HTTP/1.1\""
+      }
+    },
+    {
+      "integration": "haproxy",
+      "source": "haproxy/assets/logs/haproxy_tests.yaml:423",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Apr 16 13:37:08 haproxy-test-fri4 haproxy[4720]: 127.0.0.1:34902 [16/Apr/2018:13:37:08.576] stats stats/\u003cSTATS\u003e 0/0/0/0/0 200 1316 - - LR-- 1/1/0/0/0 0/0 \"GET /haproxy_stats/;csv;norefresh HTTP/1.1\"",
+      "want": {
+        "pri": -1,
+        "timestamp": "Apr 16 13:37:08",
+        "hostname": "haproxy-test-fri4",
+        "appname": "haproxy",
+        "procid": "4720",
+        "msgid": "-",
+        "msg": "127.0.0.1:34902 [16/Apr/2018:13:37:08.576] stats stats/\u003cSTATS\u003e 0/0/0/0/0 200 1316 - - LR-- 1/1/0/0/0 0/0 \"GET /haproxy_stats/;csv;norefresh HTTP/1.1\""
+      }
+    },
+    {
+      "integration": "iboss",
+      "source": "iboss/assets/logs/iboss_tests.yaml:4",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c46\u003eMay  6 06:14:53 test.ibosscloud.com {\"exception\":\"-\",\"totalByteUsage\":\"2903\",\"policyLayers\":\"Bitdefender|DLP Test|Gmail|Github|dd-test-resource|Non Enterprise Owned|Microsoft CASB Unsanctioned Applications\",\"sourcePort\":\"4890\",\"resourceId\":\"-\",\"contentTypeHeader\":\"-\",\"callout\":\"0\",\"privateIp\":\"10.20.10.20\",\"sAction\":\"Soft-blocked\",\"sourceIpAddress\":\"10.20.10.20\",\"subjectId\":\"example\",\"responseCode\":\"302\",\"proxyTimeSinceEpoch\":\"41\",\"authStepUp\":\"false\",\"productVersion\":\"10.3.3.125\",\"ztScore\":\"0\",\"proxyRule\":\"DLP Rule Settings\",\"clientPeerTime\":\"41\",\"totalByteCount\":\"2903\",\"host\":\"example.com\",\"stealth\":\"0\",\"action\":\"Soft-blocked\",\"uriPath\":\"/search\",\"computerMacAddress\":\"00:00:00:00:00:00\",\"iboss\":\"example.ibosscloud.com\",\"ztPolicyName\":\"Non Enterprise Owned\",\"proxyPeerResponseTime\":\"-\",\"tlsVersion\":\"-\",\"ipAddress\":\"10.20.10.30\",\"resourceName\":\"-\",\"localProxyPort\":\"80\",\"logSubType\":\"-\",\"ibossIpAddress\":\"10.20.20.20\",\"mde\":\"-\",\"lastname\":\"-\",\"macAddress\":\"00:00:00:00:00:00\",\"ztPolicyId\":\"test-id-1\",\"filename\":\"-\",\"filteringGroupName\":\"Default\",\"cncFlag\":\"0\",\"proxyDnsLookupTime\":\"-\",\"identityProviderName\":\"-\",\"proxyTotalTime\":\"-\",\"destinationPort\":\"443\",\"logType\":\"WEB_LOG\",\"extension\":\"com\",\"firstname\":\"-\",\"scheme\":\"https\",\"reportingGroup\":\"0\",\"requestMethod\":\"GET\",\"description\":\"Website is part of Microsoft CASB Unsanctioned Applications blocklist. ZeroTrust Policy: Non Enterprise Owned\",\"policyTrace\":\"-\",\"categoryName\":\"Search Engines;Social Media\",\"directionName\":\"outbound\",\"sandBoxDecoded\":\"-\",\"urlLogId\":\"4028\",\"computerName\":\"TEST-COMPUTER\",\"assetId\":\"test-asset-id\",\"audit\":\"0\",\"useTime\":\"6\",\"identityProviderUUID\":\"auto-login\",\"upstreamByteUsage\":\"1250\",\"proxyResponseTime\":\"6\",\"applicationName\":\"C\\\\\\\\chrome.exe\",\"direction\":\"2\",\"malware\":\"0\",\"chatGPTMessage\":\"-\",\"proxyTransactionStartTime\":\"1748240093.321\",\"userAgent\":\"Edg/136.0.0.0\",\"publicIp\":\"10.20.30.20\",\"url\":\"https://example.com/search?locale=en-US\u0026q=test\",\"logTime\":\"2025-05-26\",\"referrerUrl\":\"test.com\",\"sha256Sum\":\"-\",\"uriQuery\":\"locale=en-US\u0026q=test\",\"serverPeerTime\":\"-\",\"downstreamByteUsage\":\"1653\",\"dlpKeywords\":\"-\",\"location\":\"us-central\",\"time\":\"06:14:53\",\"vendorAccountId\":\"313117\",\"username\":\"test-user\",\"heuristicScore\":\"0\"}",
+      "want": {
+        "pri": 46,
+        "timestamp": "May  6 06:14:53",
+        "hostname": "test.ibosscloud.com",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"exception\":\"-\",\"totalByteUsage\":\"2903\",\"policyLayers\":\"Bitdefender|DLP Test|Gmail|Github|dd-test-resource|Non Enterprise Owned|Microsoft CASB Unsanctioned Applications\",\"sourcePort\":\"4890\",\"resourceId\":\"-\",\"contentTypeHeader\":\"-\",\"callout\":\"0\",\"privateIp\":\"10.20.10.20\",\"sAction\":\"Soft-blocked\",\"sourceIpAddress\":\"10.20.10.20\",\"subjectId\":\"example\",\"responseCode\":\"302\",\"proxyTimeSinceEpoch\":\"41\",\"authStepUp\":\"false\",\"productVersion\":\"10.3.3.125\",\"ztScore\":\"0\",\"proxyRule\":\"DLP Rule Settings\",\"clientPeerTime\":\"41\",\"totalByteCount\":\"2903\",\"host\":\"example.com\",\"stealth\":\"0\",\"action\":\"Soft-blocked\",\"uriPath\":\"/search\",\"computerMacAddress\":\"00:00:00:00:00:00\",\"iboss\":\"example.ibosscloud.com\",\"ztPolicyName\":\"Non Enterprise Owned\",\"proxyPeerResponseTime\":\"-\",\"tlsVersion\":\"-\",\"ipAddress\":\"10.20.10.30\",\"resourceName\":\"-\",\"localProxyPort\":\"80\",\"logSubType\":\"-\",\"ibossIpAddress\":\"10.20.20.20\",\"mde\":\"-\",\"lastname\":\"-\",\"macAddress\":\"00:00:00:00:00:00\",\"ztPolicyId\":\"test-id-1\",\"filename\":\"-\",\"filteringGroupName\":\"Default\",\"cncFlag\":\"0\",\"proxyDnsLookupTime\":\"-\",\"identityProviderName\":\"-\",\"proxyTotalTime\":\"-\",\"destinationPort\":\"443\",\"logType\":\"WEB_LOG\",\"extension\":\"com\",\"firstname\":\"-\",\"scheme\":\"https\",\"reportingGroup\":\"0\",\"requestMethod\":\"GET\",\"description\":\"Website is part of Microsoft CASB Unsanctioned Applications blocklist. ZeroTrust Policy: Non Enterprise Owned\",\"policyTrace\":\"-\",\"categoryName\":\"Search Engines;Social Media\",\"directionName\":\"outbound\",\"sandBoxDecoded\":\"-\",\"urlLogId\":\"4028\",\"computerName\":\"TEST-COMPUTER\",\"assetId\":\"test-asset-id\",\"audit\":\"0\",\"useTime\":\"6\",\"identityProviderUUID\":\"auto-login\",\"upstreamByteUsage\":\"1250\",\"proxyResponseTime\":\"6\",\"applicationName\":\"C\\\\\\\\chrome.exe\",\"direction\":\"2\",\"malware\":\"0\",\"chatGPTMessage\":\"-\",\"proxyTransactionStartTime\":\"1748240093.321\",\"userAgent\":\"Edg/136.0.0.0\",\"publicIp\":\"10.20.30.20\",\"url\":\"https://example.com/search?locale=en-US\u0026q=test\",\"logTime\":\"2025-05-26\",\"referrerUrl\":\"test.com\",\"sha256Sum\":\"-\",\"uriQuery\":\"locale=en-US\u0026q=test\",\"serverPeerTime\":\"-\",\"downstreamByteUsage\":\"1653\",\"dlpKeywords\":\"-\",\"location\":\"us-central\",\"time\":\"06:14:53\",\"vendorAccountId\":\"313117\",\"username\":\"test-user\",\"heuristicScore\":\"0\"}"
+      }
+    },
+    {
+      "integration": "iboss",
+      "source": "iboss/assets/logs/iboss_tests.yaml:123",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c46\u003eMay 29 11:58:19 test.ibosscloud.com {\"exception\":\"-\",\"totalByteUsage\":\"17179\",\"policyLayers\":\"-\",\"sourcePort\":\"4890\",\"resourceId\":\"resource-id\",\"contentTypeHeader\":\"application\\/vnd.openxmlformats-officedocument\",\"callout\":\"0\",\"privateIp\":\"10.20.10.20\",\"sAction\":\"Blocked\",\"sourceIpAddress\":\"10.20.20.20\",\"subjectId\":\"example\",\"responseCode\":\"0\",\"proxyTimeSinceEpoch\":\"-\",\"authStepUp\":\"false\",\"productVersion\":\"10.3.3.125\",\"ztScore\":\"0\",\"proxyRule\":\"DLP Test\",\"clientPeerTime\":\"-\",\"totalByteCount\":\"17179\",\"host\":\"dlptest.com\",\"stealth\":\"0\",\"action\":\"Blocked\",\"uriPath\":\"\\/example-path\",\"computerMacAddress\":\"00:00:00:00:00:00\",\"iboss\":\"test.ibosscloud.com\",\"ztPolicyName\":\"DLP Test\",\"proxyPeerResponseTime\":\"-\",\"tlsVersion\":\"-\",\"ipAddress\":\"35.209.95.242\",\"resourceName\":\"DLP Test\",\"localProxyPort\":\"80\",\"logSubType\":\"DLP\",\"ibossIpAddress\":\"10.20.20.20\",\"mde\":\"-\",\"lastname\":\"-\",\"macAddress\":\"00:00:00:00:00:00\",\"ztPolicyId\":\"zt-policy-id\",\"filename\":\"sample-data_2024_test_file_2.xlsx\",\"filteringGroupName\":\"Default\",\"cncFlag\":\"0\",\"proxyDnsLookupTime\":\"-\",\"identityProviderName\":\"-\",\"proxyTotalTime\":\"-\",\"destinationPort\":\"443\",\"logType\":\"DLP\",\"extension\":\"com\",\"firstname\":\"-\",\"scheme\":\"https\",\"reportingGroup\":\"0\",\"requestMethod\":\"POST\",\"description\":\"DLP\",\"policyTrace\":\"-\",\"categoryName\":\"Technology\",\"directionName\":\"outbound\",\"sandBoxDecoded\":\"DLP Content Analysis Rule\",\"urlLogId\":\"17223\",\"computerName\":\"TEST-COMPUTER\",\"assetId\":\"asset-id\",\"audit\":\"0\",\"useTime\":\"0\",\"identityProviderUUID\":\"auto-login\",\"upstreamByteUsage\":\"32918\",\"proxyResponseTime\":\"-\",\"applicationName\":\"C:\\\\\\\\chrome.exe\",\"direction\":\"2\",\"malware\":\"0\",\"chatGPTMessage\":\"-\",\"proxyTransactionStartTime\":\"-\",\"userAgent\":\"Safari\\/537.36\",\"publicIp\":\"42.105.34.8\",\"url\":\"https:\\/\\/dlptest.com\\/example-path\",\"logTime\":\"2025-05-29\",\"referrerUrl\":\"dlptest.com\",\"sha256Sum\":\"123456789\",\"uriQuery\":\"-\",\"serverPeerTime\":\"-\",\"downstreamByteUsage\":\"0\",\"dlpKeywords\":\"-\",\"location\":\"us-central\",\"time\":\"11:58:18\",\"vendorAccountId\":\"313117\",\"username\":\"test-user\",\"heuristicScore\":\"0\"}",
+      "want": {
+        "pri": 46,
+        "timestamp": "May 29 11:58:19",
+        "hostname": "test.ibosscloud.com",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"exception\":\"-\",\"totalByteUsage\":\"17179\",\"policyLayers\":\"-\",\"sourcePort\":\"4890\",\"resourceId\":\"resource-id\",\"contentTypeHeader\":\"application\\/vnd.openxmlformats-officedocument\",\"callout\":\"0\",\"privateIp\":\"10.20.10.20\",\"sAction\":\"Blocked\",\"sourceIpAddress\":\"10.20.20.20\",\"subjectId\":\"example\",\"responseCode\":\"0\",\"proxyTimeSinceEpoch\":\"-\",\"authStepUp\":\"false\",\"productVersion\":\"10.3.3.125\",\"ztScore\":\"0\",\"proxyRule\":\"DLP Test\",\"clientPeerTime\":\"-\",\"totalByteCount\":\"17179\",\"host\":\"dlptest.com\",\"stealth\":\"0\",\"action\":\"Blocked\",\"uriPath\":\"\\/example-path\",\"computerMacAddress\":\"00:00:00:00:00:00\",\"iboss\":\"test.ibosscloud.com\",\"ztPolicyName\":\"DLP Test\",\"proxyPeerResponseTime\":\"-\",\"tlsVersion\":\"-\",\"ipAddress\":\"35.209.95.242\",\"resourceName\":\"DLP Test\",\"localProxyPort\":\"80\",\"logSubType\":\"DLP\",\"ibossIpAddress\":\"10.20.20.20\",\"mde\":\"-\",\"lastname\":\"-\",\"macAddress\":\"00:00:00:00:00:00\",\"ztPolicyId\":\"zt-policy-id\",\"filename\":\"sample-data_2024_test_file_2.xlsx\",\"filteringGroupName\":\"Default\",\"cncFlag\":\"0\",\"proxyDnsLookupTime\":\"-\",\"identityProviderName\":\"-\",\"proxyTotalTime\":\"-\",\"destinationPort\":\"443\",\"logType\":\"DLP\",\"extension\":\"com\",\"firstname\":\"-\",\"scheme\":\"https\",\"reportingGroup\":\"0\",\"requestMethod\":\"POST\",\"description\":\"DLP\",\"policyTrace\":\"-\",\"categoryName\":\"Technology\",\"directionName\":\"outbound\",\"sandBoxDecoded\":\"DLP Content Analysis Rule\",\"urlLogId\":\"17223\",\"computerName\":\"TEST-COMPUTER\",\"assetId\":\"asset-id\",\"audit\":\"0\",\"useTime\":\"0\",\"identityProviderUUID\":\"auto-login\",\"upstreamByteUsage\":\"32918\",\"proxyResponseTime\":\"-\",\"applicationName\":\"C:\\\\\\\\chrome.exe\",\"direction\":\"2\",\"malware\":\"0\",\"chatGPTMessage\":\"-\",\"proxyTransactionStartTime\":\"-\",\"userAgent\":\"Safari\\/537.36\",\"publicIp\":\"42.105.34.8\",\"url\":\"https:\\/\\/dlptest.com\\/example-path\",\"logTime\":\"2025-05-29\",\"referrerUrl\":\"dlptest.com\",\"sha256Sum\":\"123456789\",\"uriQuery\":\"-\",\"serverPeerTime\":\"-\",\"downstreamByteUsage\":\"0\",\"dlpKeywords\":\"-\",\"location\":\"us-central\",\"time\":\"11:58:18\",\"vendorAccountId\":\"313117\",\"username\":\"test-user\",\"heuristicScore\":\"0\"}"
+      }
+    },
+    {
+      "integration": "ivanti_connect_secure",
+      "source": "ivanti_connect_secure/assets/logs/ivanti-connect-secure.yaml:158",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "octet_counted",
+      "line": "\u003c134\u003e1 2024-11-22T00:20:11-05:00 test.com PulseSecure: - - - {\"message_id\":\"WEB20174\",\"date\":\"2024-11-22\",\"timestamp\":\"1732252811\",\"us_timestamp\":\"1732252811.910431\",\"opaque_id\":\"640\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid__1732252811_4979_82\",\"sev_num\":\"1\",\"sev_string\":\"info\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user1@test.com\",\"realm_name\":\"test-realm\",\"roles\":\"kit-common, kit-desktops, kit-automation\",\"session_id\":\"12ab34cd56\",\"useragent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\",\"device_id\":\"\",\"browser_id\":\"12ab34cd565533110bd94b7d656715d7\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"WebRequest completed, GET to [http://10.0.0.0:8080//api/session/data/noauth/users/1a1a1a1a-1111-11aa-1a11-1111111111a111?token=ABC] from [10.0.0.0] result=[200] sent=[151] received=[67] in [0] seconds\"}",
+      "want": {
+        "pri": 134,
+        "version": "1",
+        "timestamp": "2024-11-22T00:20:11-05:00",
+        "hostname": "test.com",
+        "appname": "PulseSecure:",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"message_id\":\"WEB20174\",\"date\":\"2024-11-22\",\"timestamp\":\"1732252811\",\"us_timestamp\":\"1732252811.910431\",\"opaque_id\":\"640\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid__1732252811_4979_82\",\"sev_num\":\"1\",\"sev_string\":\"info\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user1@test.com\",\"realm_name\":\"test-realm\",\"roles\":\"kit-common, kit-desktops, kit-automation\",\"session_id\":\"12ab34cd56\",\"useragent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\",\"device_id\":\"\",\"browser_id\":\"12ab34cd565533110bd94b7d656715d7\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"WebRequest completed, GET to [http://10.0.0.0:8080//api/session/data/noauth/users/1a1a1a1a-1111-11aa-1a11-1111111111a111?token=ABC] from [10.0.0.0] result=[200] sent=[151] received=[67] in [0] seconds\"}"
+      }
+    },
+    {
+      "integration": "ivanti_connect_secure",
+      "source": "ivanti_connect_secure/assets/logs/ivanti-connect-secure_tests.yaml:193",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "octet_counted",
+      "line": "\u003c134\u003e1 2024-12-04T01:18:24-05:00 test.com PulseSecure: - - - {\"message_id\":\"AUT31556\",\"date\":\"2024-12-04\",\"timestamp\":\"1733293104\",\"us_timestamp\":\"1733293104.48858\",\"opaque_id\":\"2304\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid_1234\",\"sev_num\":\"5\",\"sev_string\":\"minor\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user@test.com\",\"realm_name\":\"\",\"roles\":\"\",\"session_id\":\"\",\"useragent\":\"\",\"device_id\":\"\",\"browser_id\":\"\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"Unauthenticated request url /test came from IP 10.10.10.10.\"}",
+      "want": {
+        "pri": 134,
+        "version": "1",
+        "timestamp": "2024-12-04T01:18:24-05:00",
+        "hostname": "test.com",
+        "appname": "PulseSecure:",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"message_id\":\"AUT31556\",\"date\":\"2024-12-04\",\"timestamp\":\"1733293104\",\"us_timestamp\":\"1733293104.48858\",\"opaque_id\":\"2304\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid_1234\",\"sev_num\":\"5\",\"sev_string\":\"minor\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user@test.com\",\"realm_name\":\"\",\"roles\":\"\",\"session_id\":\"\",\"useragent\":\"\",\"device_id\":\"\",\"browser_id\":\"\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"Unauthenticated request url /test came from IP 10.10.10.10.\"}"
+      }
+    },
+    {
+      "integration": "ivanti_connect_secure",
+      "source": "ivanti_connect_secure/assets/logs/ivanti-connect-secure_tests.yaml:429",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "octet_counted",
+      "line": "\u003c134\u003e1 2024-12-04T01:18:24-05:00 test.com PulseSecure: - - - {\"message_id\":\"JAV20023\",\"date\":\"2024-12-04\",\"timestamp\":\"1733293104\",\"us_timestamp\":\"1733293104.48858\",\"opaque_id\":\"2304\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid_1234\",\"sev_num\":\"9\",\"sev_string\":\"major\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user@test.com\",\"realm_name\":\"\",\"roles\":\"\",\"session_id\":\"\",\"useragent\":\"\",\"device_id\":\"\",\"browser_id\":\"\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"Closed connection to test.com port 3389 after 7 seconds, with 1286 bytes read (in 5 chunks) and 1364 bytes written (in 5 chunks)\"}",
+      "want": {
+        "pri": 134,
+        "version": "1",
+        "timestamp": "2024-12-04T01:18:24-05:00",
+        "hostname": "test.com",
+        "appname": "PulseSecure:",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"message_id\":\"JAV20023\",\"date\":\"2024-12-04\",\"timestamp\":\"1733293104\",\"us_timestamp\":\"1733293104.48858\",\"opaque_id\":\"2304\",\"gateway_id\":\"\",\"gateway_name\":\"\",\"unique_id\":\"uid_1234\",\"sev_num\":\"9\",\"sev_string\":\"major\",\"source_ip\":\"10.10.10.10\", \"macaddr\":\"\", \"user\":\"user@test.com\",\"realm_name\":\"\",\"roles\":\"\",\"session_id\":\"\",\"useragent\":\"\",\"device_id\":\"\",\"browser_id\":\"\",\"tenant_id\":\"\",\"cert_hash\":\"\",\"additional_details\":[],\"raw_message\":\"Closed connection to test.com port 3389 after 7 seconds, with 1286 bytes read (in 5 chunks) and 1364 bytes written (in 5 chunks)\"}"
+      }
+    },
+    {
+      "integration": "openvpn",
+      "source": "openvpn/assets/logs/openvpn.yaml:69",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c14\u003eFeb 20 12:15:47 openvpnas2 openvpnas: [-] VPN Auth Failed: 'local auth failed: password verification failed' [None]",
+      "want": {
+        "pri": 14,
+        "timestamp": "Feb 20 12:15:47",
+        "hostname": "openvpnas2",
+        "appname": "openvpnas",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "[-] VPN Auth Failed: 'local auth failed: password verification failed' [None]"
+      }
+    },
+    {
+      "integration": "openvpn",
+      "source": "openvpn/assets/logs/openvpn.yaml:80",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c14\u003eFeb 20 12:48:43 openvpnas2 openvpnas:[-] AUTH ERROR: DENY: user in deny list. user=test",
+      "want": {
+        "pri": 14,
+        "timestamp": "Feb 20 12:48:43",
+        "hostname": "openvpnas2",
+        "appname": "openvpnas",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "[-] AUTH ERROR: DENY: user in deny list. user=test"
+      }
+    },
+    {
+      "integration": "openvpn",
+      "source": "openvpn/assets/logs/openvpn_tests.yaml:4",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c14\u003eFeb 24 05:11:20 openvpnas2 openvpnas: [-] [OVPN 2] OUT: '2025-02-24 05:11:20 10.10.10.10:50540 [openvpn] Peer Connection Initiated with [AF_INET]10.10.10.10:50546 (via [AF_INET]198.51.100.20%ens32)'",
+      "want": {
+        "pri": 14,
+        "timestamp": "Feb 24 05:11:20",
+        "hostname": "openvpnas2",
+        "appname": "openvpnas",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "[-] [OVPN 2] OUT: '2025-02-24 05:11:20 10.10.10.10:50540 [openvpn] Peer Connection Initiated with [AF_INET]10.10.10.10:50546 (via [AF_INET]198.51.100.20%ens32)'"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security.yaml:153",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eJun  4 09:52:29 10.10.10.10 ossec: {\"crit\":2,\"id\":1002,\"component\":\"ub20-\u003e/var/log/syslog\",\"classification\":\" syslog,errors,\",\"description\":\"Unknown problem somewhere in the system.\",\"message\":\"Jun  4 09:52:29 ub20 multipathd[740]: sda: failed to get sgio uid: No such file or directory\"}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Jun  4 09:52:29",
+        "hostname": "10.10.10.10",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"crit\":2,\"id\":1002,\"component\":\"ub20-\u003e/var/log/syslog\",\"classification\":\" syslog,errors,\",\"description\":\"Unknown problem somewhere in the system.\",\"message\":\"Jun  4 09:52:29 ub20 multipathd[740]: sda: failed to get sgio uid: No such file or directory\"}"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security.yaml:158",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eJun 11 14:59:35 ub20 ossec: {\"crit\":5,\"id\":4101,\"component\":\"ub20-\u003e/root/test.log\",\"classification\":\" firewall,firewall_drop,\",\"description\":\"Firewall drop event.\",\"message\":\"2006-09-19 03:31:15 DROP UDP 10.10.10.10 10.10.10.10 1000 1000 310 - - - - - - - RECEIVE\",\"src_ip\":\"10.10.10.10\",\"src_port\":1000,\"dst_ip\":\"10.10.10.10\",\"dst_port\":1000}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Jun 11 14:59:35",
+        "hostname": "ub20",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"crit\":5,\"id\":4101,\"component\":\"ub20-\u003e/root/test.log\",\"classification\":\" firewall,firewall_drop,\",\"description\":\"Firewall drop event.\",\"message\":\"2006-09-19 03:31:15 DROP UDP 10.10.10.10 10.10.10.10 1000 1000 310 - - - - - - - RECEIVE\",\"src_ip\":\"10.10.10.10\",\"src_port\":1000,\"dst_ip\":\"10.10.10.10\",\"dst_port\":1000}"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eJun 19 11:56:43 ub20 ossec: {\"crit\":2,\"id\":1002,\"component\":\"ub20-\u003e/var/log/syslog\",\"classification\":\" syslog,errors,\",\"description\":\"Unknown problem somewhere in the system.\",\"message\":\"Jun 19 11:56:42 ub20 multipathd[740]: sda: failed to get sysfs uid: Invalid argument\"}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Jun 19 11:56:43",
+        "hostname": "ub20",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"crit\":2,\"id\":1002,\"component\":\"ub20-\u003e/var/log/syslog\",\"classification\":\" syslog,errors,\",\"description\":\"Unknown problem somewhere in the system.\",\"message\":\"Jun 19 11:56:42 ub20 multipathd[740]: sda: failed to get sysfs uid: Invalid argument\"}"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security.yaml:164",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Jun 11 14:59:35 10.10.10.10 ossec: {\"crit\":5,\"id\":4101,\"component\":\"ub20-\u003e/root/test.log\",\"classification\":\" firewall,firewall_drop,\",\"description\":\"Firewall drop event.\",\"message\":\"2006-09-19 03:31:15 DROP UDP 10.10.10.10 10.10.10.10 1000 1000 310 - - - - - - - RECEIVE\",\"src_ip\":\"10.10.10.10\",\"src_port\":1000,\"dst_ip\":\"10.10.10.10\",\"dst_port\":1000}",
+      "want": {
+        "pri": -1,
+        "timestamp": "Jun 11 14:59:35",
+        "hostname": "10.10.10.10",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"crit\":5,\"id\":4101,\"component\":\"ub20-\u003e/root/test.log\",\"classification\":\" firewall,firewall_drop,\",\"description\":\"Firewall drop event.\",\"message\":\"2006-09-19 03:31:15 DROP UDP 10.10.10.10 10.10.10.10 1000 1000 310 - - - - - - - RECEIVE\",\"src_ip\":\"10.10.10.10\",\"src_port\":1000,\"dst_ip\":\"10.10.10.10\",\"dst_port\":1000}"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security.yaml:379",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "May 31 10:44:02 ub20 useradd[669813]: new user: name=dummy_ossec_user, UID=1002, GID=1007, home=/home/dummy_ossec_user, shell=/bin/sh, from=/dev/pts/0",
+      "want": {
+        "pri": -1,
+        "timestamp": "May 31 10:44:02",
+        "hostname": "ub20",
+        "appname": "useradd",
+        "procid": "669813",
+        "msgid": "-",
+        "msg": "new user: name=dummy_ossec_user, UID=1002, GID=1007, home=/home/dummy_ossec_user, shell=/bin/sh, from=/dev/pts/0"
+      }
+    },
+    {
+      "integration": "ossec_security",
+      "source": "ossec_security/assets/logs/ossec-security.yaml:382",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "May 27 12:08:23 ub20 groupadd[6134]: new group: name=dd-agent, GID=120",
+      "want": {
+        "pri": -1,
+        "timestamp": "May 27 12:08:23",
+        "hostname": "ub20",
+        "appname": "groupadd",
+        "procid": "6134",
+        "msgid": "-",
+        "msg": "new group: name=dd-agent, GID=120"
+      }
+    },
+    {
+      "integration": "palo_alto_panorama",
+      "source": "palo_alto_panorama/assets/logs/palo-alto-panorama.yaml:351",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c190\u003eJan 16 14:15:24 PA-VM receive_time=2023/11/24 15:38:21|serial=42808DUMMY733|type=CONFIG|subtype=1|time_generated=Jan 25 2024 11:02:57 GMT|host=8.8.8.8|vsys=test1|cmd=audit-commit|admin=admin|client=Web|result=Succeeded|path=vsys vsys1 rulebase nat rules LAN-WAN|before-change-detail=d3669n472-xxyy-4d21-bf0f-ed099ecfbaad|after-change-detail=d3669472-xxyy-4d21-bf0f-ed099ecfbaad|seqno=7304913645853474846|actionflags=0x0|dg_hier_level_1=0|dg_hier_level_2=0|dg_hier_level_3=0|dg_hier_level_4=0|vsys_name=|device_name=PA-VM|dg_id=0|comment=LAN-WAN|high_res_timestamp=2024-01-16T14:15:34.518+05:30",
+      "want": {
+        "pri": 190,
+        "timestamp": "Jan 16 14:15:24",
+        "hostname": "PA-VM",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "receive_time=2023/11/24 15:38:21|serial=42808DUMMY733|type=CONFIG|subtype=1|time_generated=Jan 25 2024 11:02:57 GMT|host=8.8.8.8|vsys=test1|cmd=audit-commit|admin=admin|client=Web|result=Succeeded|path=vsys vsys1 rulebase nat rules LAN-WAN|before-change-detail=d3669n472-xxyy-4d21-bf0f-ed099ecfbaad|after-change-detail=d3669472-xxyy-4d21-bf0f-ed099ecfbaad|seqno=7304913645853474846|actionflags=0x0|dg_hier_level_1=0|dg_hier_level_2=0|dg_hier_level_3=0|dg_hier_level_4=0|vsys_name=|device_name=PA-VM|dg_id=0|comment=LAN-WAN|high_res_timestamp=2024-01-16T14:15:34.518+05:30"
+      }
+    },
+    {
+      "integration": "palo_alto_panorama",
+      "source": "palo_alto_panorama/assets/logs/palo-alto-panorama.yaml:357",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c190\u003eJan 16 14:15:24 PA-VM receive_time=2024/01/16 14:15:34|serial=42808DUMMY733|type=START|subtype=Start|time_generated=Jan 25 2024 11:02:57 GMT|src=10.4.0.1|dst=8.8.8.8|natsrc=10.5.0.1|natdst=8.8.8.8|rule=RuleName|srcuser=DASH12|dstuser=SMT25|app=ssl|vsys=vsys2|from=LAN|to=WAN|inbound_if=ethernet1/2|outbound_if=ethernet1/1|logset=POC-Dash-DD-204-9099|sessionid=2298|repeatcnt=1|sport=53342|dport=443|natsport=53397|natdport=443|flags=0x02000000|proto=tcp|act=Allow|severity=informational|seqno=7324580429950879745|actionflags=0x0|srcloc=10.0.0.0-10.255.255.255|dstloc=United States|dg_hier_level_1=0|dg_hier_level_2=0|dg_hier_level_3=0|dg_hier_level_4=0|vsys_name=vsys2|device_name=PA-VM|tunnelid=0|monitortag=420420123|parent_session_id=0|parent_start_time=2024/01/01 12:15:30|tunnel=IPsec|bytes=847|bytes_sent=781|bytes_received=66|pkt=4|pkts_sent=3|pkts_received=1|max_encap=1|unknown_proto=2|strict_check=2|tunnel_fragment=3|sessions_created=2|sessions_closed=3|session_end_reason=threat|action_source=allow|start=2024/01/01 12:30:15|elapsed=0|tunnel_insp_rule=insepction_rule_1|remote_user_ip=10.1.2.3|remote_user_id=40201234567|rule_uuid=731925f6-8e55-xxyy-b82f-910b26004dfd|pcap_id=1223xa155545|dynusergroup_name=agnet145|src_edl=10.0.1.2|dst_edl=10.0.3.4|high_res_timestamp=2024-01-16T14:15:34.518+05:30|nssai_sd=|nssai_sst=|pdu_session_id=1234758662|subcategory_of_app=encrypted-tunnel|category_of_app=business-systems|technology_of_app=browser-based|risk_of_app=1|characteristic_of_app=used-by-malware,able-to-transfer-file|container_of_app=google|is_saas_of_app=1|sanctioned_state_of_app=0|cluster_name=test-nw-cluster",
+      "want": {
+        "pri": 190,
+        "timestamp": "Jan 16 14:15:24",
+        "hostname": "PA-VM",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "receive_time=2024/01/16 14:15:34|serial=42808DUMMY733|type=START|subtype=Start|time_generated=Jan 25 2024 11:02:57 GMT|src=10.4.0.1|dst=8.8.8.8|natsrc=10.5.0.1|natdst=8.8.8.8|rule=RuleName|srcuser=DASH12|dstuser=SMT25|app=ssl|vsys=vsys2|from=LAN|to=WAN|inbound_if=ethernet1/2|outbound_if=ethernet1/1|logset=POC-Dash-DD-204-9099|sessionid=2298|repeatcnt=1|sport=53342|dport=443|natsport=53397|natdport=443|flags=0x02000000|proto=tcp|act=Allow|severity=informational|seqno=7324580429950879745|actionflags=0x0|srcloc=10.0.0.0-10.255.255.255|dstloc=United States|dg_hier_level_1=0|dg_hier_level_2=0|dg_hier_level_3=0|dg_hier_level_4=0|vsys_name=vsys2|device_name=PA-VM|tunnelid=0|monitortag=420420123|parent_session_id=0|parent_start_time=2024/01/01 12:15:30|tunnel=IPsec|bytes=847|bytes_sent=781|bytes_received=66|pkt=4|pkts_sent=3|pkts_received=1|max_encap=1|unknown_proto=2|strict_check=2|tunnel_fragment=3|sessions_created=2|sessions_closed=3|session_end_reason=threat|action_source=allow|start=2024/01/01 12:30:15|elapsed=0|tunnel_insp_rule=insepction_rule_1|remote_user_ip=10.1.2.3|remote_user_id=40201234567|rule_uuid=731925f6-8e55-xxyy-b82f-910b26004dfd|pcap_id=1223xa155545|dynusergroup_name=agnet145|src_edl=10.0.1.2|dst_edl=10.0.3.4|high_res_timestamp=2024-01-16T14:15:34.518+05:30|nssai_sd=|nssai_sst=|pdu_session_id=1234758662|subcategory_of_app=encrypted-tunnel|category_of_app=business-systems|technology_of_app=browser-based|risk_of_app=1|characteristic_of_app=used-by-malware,able-to-transfer-file|container_of_app=google|is_saas_of_app=1|sanctioned_state_of_app=0|cluster_name=test-nw-cluster"
+      }
+    },
+    {
+      "integration": "palo_alto_panorama",
+      "source": "palo_alto_panorama/assets/logs/palo-alto-panorama_tests.yaml:4",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c190\u003eJan 18 12:46:54 PA-VM serial=42808DUMMY733|type=TRAFFIC|subtype=end|time_generated=Jan 25 2024 11:02:57 GMT|src=185.64.148.0|dst=185.64.148.0|natsrc=185.64.148.0|natdst=185.64.148.0|rule=LAN-WAN|suser=|duser=|app=incomplete|vsys=vsys1|from=LAN|to=WAN|inboundif=ethernet1/1|outboundif=ethernet1/2|logset=POC-Dash-DD-204-9099|sessionid=15281|repeatcnt=1|sport=42071|dport=233|natsport=46973|natdport=233|flags=0x40001b|proto=tcp|act=allow|bytes=134|bytes_sent=74|bytes_received=60|pkt=2|start=2024/01/18 12:46:45|elapsed=0|cat=any|seq=7288183648727243213|actflag=0x0|sloc=10.0.0.0-10.255.255.255|dloc=10.0.0.0-10.255.255.255|pktsent=1|pktrcvd=1|sessionendreason=tcp-rst-from-server|vsysname=|dvc=PA-VM|actsrc=from-policy|suuid=|duuid=|tunnelid=0|monitortag=|parentid=0|parentst=|tunnel=N/A|associd=0|chunk=0|chunksent=0|chunkrcvd=0|ruleuuid=9d526565-xxyy-4e35-9c2e-6f54430132ec|http2conn=0|appflap=0|policyid=|link=|dynusrgrp=|xffip=|scat=|sprofile=|smodel=|sven=|sosfam=|sosver=|shost=|smac=|dcat=|dprofile=|dmodel=|dven=|dosfam=|dosver=|dhost=|dmac=|contid=|podnamespace=|podname=|sedl=|dedl=|hostid=|srnum=|sdag=|ddag=|sessionown=|subcatapp=unknown|appcat=unknown|apptech=unknown|apprisk=1|appchar=|appcont=|tunneledapp=incomplete|appsaas=no|appstate=no|offloaded=0|flowtype=|cluster=",
+      "want": {
+        "pri": 190,
+        "timestamp": "Jan 18 12:46:54",
+        "hostname": "PA-VM",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "serial=42808DUMMY733|type=TRAFFIC|subtype=end|time_generated=Jan 25 2024 11:02:57 GMT|src=185.64.148.0|dst=185.64.148.0|natsrc=185.64.148.0|natdst=185.64.148.0|rule=LAN-WAN|suser=|duser=|app=incomplete|vsys=vsys1|from=LAN|to=WAN|inboundif=ethernet1/1|outboundif=ethernet1/2|logset=POC-Dash-DD-204-9099|sessionid=15281|repeatcnt=1|sport=42071|dport=233|natsport=46973|natdport=233|flags=0x40001b|proto=tcp|act=allow|bytes=134|bytes_sent=74|bytes_received=60|pkt=2|start=2024/01/18 12:46:45|elapsed=0|cat=any|seq=7288183648727243213|actflag=0x0|sloc=10.0.0.0-10.255.255.255|dloc=10.0.0.0-10.255.255.255|pktsent=1|pktrcvd=1|sessionendreason=tcp-rst-from-server|vsysname=|dvc=PA-VM|actsrc=from-policy|suuid=|duuid=|tunnelid=0|monitortag=|parentid=0|parentst=|tunnel=N/A|associd=0|chunk=0|chunksent=0|chunkrcvd=0|ruleuuid=9d526565-xxyy-4e35-9c2e-6f54430132ec|http2conn=0|appflap=0|policyid=|link=|dynusrgrp=|xffip=|scat=|sprofile=|smodel=|sven=|sosfam=|sosver=|shost=|smac=|dcat=|dprofile=|dmodel=|dven=|dosfam=|dosver=|dhost=|dmac=|contid=|podnamespace=|podname=|sedl=|dedl=|hostid=|srnum=|sdag=|ddag=|sessionown=|subcatapp=unknown|appcat=unknown|apptech=unknown|apprisk=1|appchar=|appcont=|tunneledapp=incomplete|appsaas=no|appstate=no|offloaded=0|flowtype=|cluster="
+      }
+    },
+    {
+      "integration": "pan_firewall",
+      "source": "pan_firewall/assets/logs/pan.firewall_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c14\u003eMay  4 04:24:38 PPCMOCK-PA820-A.corp.nuskin.net timestamp=2021/05/04 04:24:37, serial=012001018742, type=TRAFFIC, subtype=end, time_generated=2021/05/04 04:24:37, network.client.ip=10.70.255.70, network.destination.ip=35.184.126.116, natsrc=67.214.229.252, natdst=35.184.126.116, rule=Permit all outbound, usr.id=, dstuser=, app=paloalto-shared-services, vsys=vsys1, from=Management, to=Outside, inbound_if=ethernet1/1.16, outbound_if=ethernet1/1.1101, logset=Panorama, sessionid=92244, repeatcnt=1, network.client.port=42799, network.destination.port=443, natsport=24855 natdport=443, flags=0x40447a, proto=tcp, evt.name=allow, bytes=16680918, network.bytes_read=16415457, network.bytes_written=265461, start=2021/05/04 04:20:10, elapsed=250, category=low-risk, seqno=977161987, actionflags=0x8000000000000000, network.client.geoip.country.name=10.0.0.0-10.255.255.255, dstloc=United States, pkts_sent=11911, pkts_received=3644, session_end_reason=tcp-rst-from-client, device_name=PPCMOCK-PA820-A, action_source=from-policy, src_uuid=, dst_uuid=, tunnelid=0, imsi= 0, monitortag=, imei=0, parent_session_id=0, parent_start_time=, tunnel=N/A, assoc_id=0, chunks=0 chunks_sent=0 chunks_received=0",
+      "want": {
+        "pri": 14,
+        "timestamp": "May  4 04:24:38",
+        "hostname": "PPCMOCK-PA820-A.corp.nuskin.net",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "timestamp=2021/05/04 04:24:37, serial=012001018742, type=TRAFFIC, subtype=end, time_generated=2021/05/04 04:24:37, network.client.ip=10.70.255.70, network.destination.ip=35.184.126.116, natsrc=67.214.229.252, natdst=35.184.126.116, rule=Permit all outbound, usr.id=, dstuser=, app=paloalto-shared-services, vsys=vsys1, from=Management, to=Outside, inbound_if=ethernet1/1.16, outbound_if=ethernet1/1.1101, logset=Panorama, sessionid=92244, repeatcnt=1, network.client.port=42799, network.destination.port=443, natsport=24855 natdport=443, flags=0x40447a, proto=tcp, evt.name=allow, bytes=16680918, network.bytes_read=16415457, network.bytes_written=265461, start=2021/05/04 04:20:10, elapsed=250, category=low-risk, seqno=977161987, actionflags=0x8000000000000000, network.client.geoip.country.name=10.0.0.0-10.255.255.255, dstloc=United States, pkts_sent=11911, pkts_received=3644, session_end_reason=tcp-rst-from-client, device_name=PPCMOCK-PA820-A, action_source=from-policy, src_uuid=, dst_uuid=, tunnelid=0, imsi= 0, monitortag=, imei=0, parent_session_id=0, parent_start_time=, tunnel=N/A, assoc_id=0, chunks=0 chunks_sent=0 chunks_received=0"
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall.yaml:132",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c134\u003e  id=firewall sn=0040103D66B5 time=\"2024-09-23 05:38:11 UTC\" fw=10.10.10.10 pri=6 c=16 gcat=4 m=1334 usr=\"admin\" msg=\"User \"kavan\" is added into Group \"SonicWALL Administrators\"\" n=30 fw_action=\"NA\"",
+      "want": {
+        "pri": 134,
+        "timestamp": "-",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "  id=firewall sn=0040103D66B5 time=\"2024-09-23 05:38:11 UTC\" fw=10.10.10.10 pri=6 c=16 gcat=4 m=1334 usr=\"admin\" msg=\"User \"kavan\" is added into Group \"SonicWALL Administrators\"\" n=30 fw_action=\"NA\""
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall_tests.yaml:5",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c134\u003e  id=firewall sn=0040103060B5 time=\"2024-09-02 13:11:35 UTC\" fw=10.10.10.10 pri=6 c=16 gcat=2 m=1382 src=10.10.10.10:51692 dst=10.10.10.10:443:X1 usr=\"admin\" sess=\"API\" msg=\"Configuration succeeded:  'peActObjLogCustomRPObj' , User_Test, changed to [Global]\" n=207 fw_action=\"NA\" uuid=\"00000000-0000-0002-3200-0040103d66b5\" auditId=185 tranxId=29 userMode=\"Full\" auditTime=\"06:11:35 Sep 02 2024\" grpName=\"groupPeActionObject\" grpIndex=\"User_Test\" oldValue=\"\" newValue=\"Global\"",
+      "want": {
+        "pri": 134,
+        "timestamp": "-",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "  id=firewall sn=0040103060B5 time=\"2024-09-02 13:11:35 UTC\" fw=10.10.10.10 pri=6 c=16 gcat=2 m=1382 src=10.10.10.10:51692 dst=10.10.10.10:443:X1 usr=\"admin\" sess=\"API\" msg=\"Configuration succeeded:  'peActObjLogCustomRPObj' , User_Test, changed to [Global]\" n=207 fw_action=\"NA\" uuid=\"00000000-0000-0002-3200-0040103d66b5\" auditId=185 tranxId=29 userMode=\"Full\" auditTime=\"06:11:35 Sep 02 2024\" grpName=\"groupPeActionObject\" grpIndex=\"User_Test\" oldValue=\"\" newValue=\"Global\""
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall_tests.yaml:61",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c133\u003e  id=firewall sn=0019206645 time=\"2024-09-03 10:42:36 UTC\" fw=10.10.10.10 pri=5 c=4 gcat=3 m=16 srcMac=00:50:56:81:3c:9e src=10.40.1.245:65025:X0 natSrc=10.10.10.10:62448 dstMac=a8:46:9d:23:d2:7a dst=10.10.10.10:443:X1 natDst=10.10.10.10:443 proto=tcp/https sent=354 rcvd=52 rule=\"User_Securtiy_Profile\" app=11 dstname=settings-win.data.microsoft.com arg=/ code=15 Category=\"Business and Economy\" msg=\"Web site access allowed\" note=\"Host: settings-win.data.microsoft.com, Command: Other HTTP Command Policy: N/A, Info: 6404 \" n=40199 fw_action=\"forward\" dpi=0",
+      "want": {
+        "pri": 133,
+        "timestamp": "-",
+        "hostname": "-",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "  id=firewall sn=0019206645 time=\"2024-09-03 10:42:36 UTC\" fw=10.10.10.10 pri=5 c=4 gcat=3 m=16 srcMac=00:50:56:81:3c:9e src=10.40.1.245:65025:X0 natSrc=10.10.10.10:62448 dstMac=a8:46:9d:23:d2:7a dst=10.10.10.10:443:X1 natDst=10.10.10.10:443 proto=tcp/https sent=354 rcvd=52 rule=\"User_Securtiy_Profile\" app=11 dstname=settings-win.data.microsoft.com arg=/ code=15 Category=\"Business and Economy\" msg=\"Web site access allowed\" note=\"Host: settings-win.data.microsoft.com, Command: Other HTTP Command Policy: N/A, Info: 6404 \" n=40199 fw_action=\"forward\" dpi=0"
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall.yaml:103",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Apr 27 19:29:07 10.10.10.10 id=firewall sn=0000A0AAAA00 time=\"2022-04-27 19:29:40\" fw=10.10.10.10 pri=1 c=32 m=267 msg=\"TCP Xmas Tree dropped\" n=56 src=10.10.10.10:16345:X1 dst=10.10.10.10:81 srcMac=00:53:2a:7d:1d:35 dstMac=00:53:c5:ca:be:01 proto=tcp/81",
+      "want": {
+        "pri": -1,
+        "timestamp": "Apr 27 19:29:07",
+        "hostname": "10.10.10.10",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "id=firewall sn=0000A0AAAA00 time=\"2022-04-27 19:29:40\" fw=10.10.10.10 pri=1 c=32 m=267 msg=\"TCP Xmas Tree dropped\" n=56 src=10.10.10.10:16345:X1 dst=10.10.10.10:81 srcMac=00:53:2a:7d:1d:35 dstMac=00:53:c5:ca:be:01 proto=tcp/81"
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall_tests.yaml:273",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Jan  3 13:45:51 10.10.10.10 id=firewall sn=000SERIAL time=\"2007-01-03 14:48:22\" fw=10.10.10.10 pri=6 c=262144 m=98 msg=\"Connection Opened\" n=23427 src=:28503:WAN:SOURCEHOST srcV6=2a52:cf50:add:4002:91f2:a9b2:e09a:6fc6 dst=::LAN:DSTHOST proto=tcp/dns dstV6=::1",
+      "want": {
+        "pri": -1,
+        "timestamp": "Jan  3 13:45:51",
+        "hostname": "10.10.10.10",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "id=firewall sn=000SERIAL time=\"2007-01-03 14:48:22\" fw=10.10.10.10 pri=6 c=262144 m=98 msg=\"Connection Opened\" n=23427 src=:28503:WAN:SOURCEHOST srcV6=2a52:cf50:add:4002:91f2:a9b2:e09a:6fc6 dst=::LAN:DSTHOST proto=tcp/dns dstV6=::1"
+      }
+    },
+    {
+      "integration": "sonicwall_firewall",
+      "source": "sonicwall_firewall/assets/logs/sonicwall-firewall_tests.yaml:311",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Apr 27 10:32:18 10.10.10.10 id=firewall sn=0000TSAA00 time=\"2022-04-27 10:32:51\" fw=10.10.10.10 pri=6 c=16 m=998 msg=\"GUI administration session ended\" sess=\"Web\" dur=510 n=11 usr=\"admin\" src=10.10.10.10::X0 dst=10.10.10.10:4444:X0 proto=tcp/4444 note=\"admin\"",
+      "want": {
+        "pri": -1,
+        "timestamp": "Apr 27 10:32:18",
+        "hostname": "10.10.10.10",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "id=firewall sn=0000TSAA00 time=\"2022-04-27 10:32:51\" fw=10.10.10.10 pri=6 c=16 m=998 msg=\"GUI administration session ended\" sess=\"Web\" dur=510 n=11 usr=\"admin\" src=10.10.10.10::X0 dst=10.10.10.10:4444:X0 proto=tcp/4444 note=\"admin\""
+      }
+    },
+    {
+      "integration": "symantec_endpoint_protection",
+      "source": "symantec_endpoint_protection/assets/logs/symantec-endpoint-protection.yaml:59",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c54\u003eSep 13 08:21:26 WIN-RQBT7BNE363 SymantecServer: DESKTOP-CIK30CC,172.50.12.208,Continue,Application and Device Control is ready,System,Begin: 2024-09-13 08:20:13,End Time: 2024-09-13 08:20:13,Rule: Built-in rule,0,SysPlant,0,SysPlant,None,User Name: None,Domain Name: None,Action Type: ,File size (bytes): 0,Device ID:",
+      "want": {
+        "pri": 54,
+        "timestamp": "Sep 13 08:21:26",
+        "hostname": "WIN-RQBT7BNE363",
+        "appname": "SymantecServer",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "DESKTOP-CIK30CC,172.50.12.208,Continue,Application and Device Control is ready,System,Begin: 2024-09-13 08:20:13,End Time: 2024-09-13 08:20:13,Rule: Built-in rule,0,SysPlant,0,SysPlant,None,User Name: None,Domain Name: None,Action Type: ,File size (bytes): 0,Device ID:"
+      }
+    },
+    {
+      "integration": "symantec_endpoint_protection",
+      "source": "symantec_endpoint_protection/assets/logs/symantec-endpoint-protection.yaml:123",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c54\u003eSep 16 23:59:55 WIN-RQBT7BNE363 SymantecServer: WIN-4K914H0NBUP,Event Description: Host Integrity check passed ,Event Type: ,Local Host IP: 172.50.12.216,Local Host MAC: 0050569214AF,Remote Host Name: ,Remote Host IP: 172.50.12.216,Remote Host MAC: 000000000000,Unknown,OTHERS,,Begin: 2024-09-16 23:58:20,End Time: 2024-09-16 23:58:20,Occurrences: 1,Application: ,Location: Default,User Name: none,Domain Name: ,Local Port: 0,Remote Port: 0,CIDS Signature ID: 0,CIDS Signature string: ,CIDS Signature SubID: 0,Intrusion URL: ,Intrusion Payload URL: ,SHA-256: ,MD-5: ,Intensive Protection Level: N/A,URL Risk: N/A,URL Category: N/A,Correlation ID:",
+      "want": {
+        "pri": 54,
+        "timestamp": "Sep 16 23:59:55",
+        "hostname": "WIN-RQBT7BNE363",
+        "appname": "SymantecServer",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "WIN-4K914H0NBUP,Event Description: Host Integrity check passed ,Event Type: ,Local Host IP: 172.50.12.216,Local Host MAC: 0050569214AF,Remote Host Name: ,Remote Host IP: 172.50.12.216,Remote Host MAC: 000000000000,Unknown,OTHERS,,Begin: 2024-09-16 23:58:20,End Time: 2024-09-16 23:58:20,Occurrences: 1,Application: ,Location: Default,User Name: none,Domain Name: ,Local Port: 0,Remote Port: 0,CIDS Signature ID: 0,CIDS Signature string: ,CIDS Signature SubID: 0,Intrusion URL: ,Intrusion Payload URL: ,SHA-256: ,MD-5: ,Intensive Protection Level: N/A,URL Risk: N/A,URL Category: N/A,Correlation ID:"
+      }
+    },
+    {
+      "integration": "symantec_endpoint_protection",
+      "source": "symantec_endpoint_protection/assets/logs/symantec-endpoint-protection.yaml:134",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c51\u003eSep 12 00:11:39 WIN-RQBT7BNE363 SymantecServer: DESKTOP-CIK30CC,Event Description: Device Manager Message Disabled the device. [name]:VMware USB Pointing Device [class]:Mice and other pointing devices [guid]:4d36e96f-e325-11ce-bfc1-08002be10318 [deviceID]:HID\\VID_0E0F\u0026PID_0003\u0026MI_01\\8\u002695BC71C\u00260\u00260000,Event Type: ,Local Host IP: 172.50.12.208,Local Host MAC: 00505681213E,Remote Host Name: ,Remote Host IP: 0.0.0.0,Remote Host MAC: 000000000000,Unknown,Unknown,,Begin: 2024-09-12 00:10:39,End Time: 2024-09-12 00:10:39,Occurrences: 1,Application:  ,Location: Default,User Name: admin,Domain Name: DESKTOP-CIK30CC,Local Port: 0,Remote Port: 0,CIDS Signature ID: 0,CIDS Signature string: ,CIDS Signature SubID: 0,Intrusion URL: ,Intrusion Payload URL: ,SHA-256: ,MD-5: ,Intensive Protection Level: N/A,URL Risk: N/A,URL Category: N/A,Correlation ID:",
+      "want": {
+        "pri": 51,
+        "timestamp": "Sep 12 00:11:39",
+        "hostname": "WIN-RQBT7BNE363",
+        "appname": "SymantecServer",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "DESKTOP-CIK30CC,Event Description: Device Manager Message Disabled the device. [name]:VMware USB Pointing Device [class]:Mice and other pointing devices [guid]:4d36e96f-e325-11ce-bfc1-08002be10318 [deviceID]:HID\\VID_0E0F\u0026PID_0003\u0026MI_01\\8\u002695BC71C\u00260\u00260000,Event Type: ,Local Host IP: 172.50.12.208,Local Host MAC: 00505681213E,Remote Host Name: ,Remote Host IP: 0.0.0.0,Remote Host MAC: 000000000000,Unknown,Unknown,,Begin: 2024-09-12 00:10:39,End Time: 2024-09-12 00:10:39,Occurrences: 1,Application:  ,Location: Default,User Name: admin,Domain Name: DESKTOP-CIK30CC,Local Port: 0,Remote Port: 0,CIDS Signature ID: 0,CIDS Signature string: ,CIDS Signature SubID: 0,Intrusion URL: ,Intrusion Payload URL: ,SHA-256: ,MD-5: ,Intensive Protection Level: N/A,URL Risk: N/A,URL Category: N/A,Correlation ID:"
+      }
+    },
+    {
+      "integration": "watchguard_firebox",
+      "source": "watchguard_firebox/assets/logs/watchguard-firebox.yaml:99",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c142\u003eMar 28 11:21:56 WatchGuard-Firebox FVM (2025-03-28T05:51:56) firewall: msg_id=\"3000-0148\" Allow Trusted Firebox 60 icmp 20 128 10.10.10.10 10.10.10.10 8 0 id=1 seq=59033  (Ping-00)",
+      "want": {
+        "pri": 142,
+        "timestamp": "Mar 28 11:21:56",
+        "hostname": "WatchGuard-Firebox",
+        "appname": "FVM",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "(2025-03-28T05:51:56) firewall: msg_id=\"3000-0148\" Allow Trusted Firebox 60 icmp 20 128 10.10.10.10 10.10.10.10 8 0 id=1 seq=59033  (Ping-00)"
+      }
+    },
+    {
+      "integration": "watchguard_firebox",
+      "source": "watchguard_firebox/assets/logs/watchguard-firebox.yaml:102",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c142\u003eApr  4 10:35:35 WatchGuard-Firebox (2025-04-04T05:05:35) firewall: msg_id=\"3000-0151\" Allow Firebox Firebox tcp 10.10.10.10 127.0.0.1 57576 705 flags=\"SR\" duration=\"0\" sent_pkts=\"1\" rcvd_pkts=\"1\" sent_bytes=\"52\" rcvd_bytes=\"40\"  (Any From Firebox-00)",
+      "want": {
+        "pri": 142,
+        "timestamp": "Apr  4 10:35:35",
+        "hostname": "WatchGuard-Firebox",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "(2025-04-04T05:05:35) firewall: msg_id=\"3000-0151\" Allow Firebox Firebox tcp 10.10.10.10 127.0.0.1 57576 705 flags=\"SR\" duration=\"0\" sent_pkts=\"1\" rcvd_pkts=\"1\" sent_bytes=\"52\" rcvd_bytes=\"40\"  (Any From Firebox-00)"
+      }
+    },
+    {
+      "integration": "watchguard_firebox",
+      "source": "watchguard_firebox/assets/logs/watchguard-firebox.yaml:106",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c142\u003eApr  1 10:57:19 WatchGuard-Firebox FVM (2025-04-01T05:27:19) firewall: msg_id=\"3000-0151\" Allow Trusted Firebox icmp 10.10.10.10 10.10.10.10 echo-request duration=\"32\" sent_pkts=\"1\" rcvd_pkts=\"1\" sent_bytes=\"60\" rcvd_bytes=\"60\"  (Ping-00)",
+      "want": {
+        "pri": 142,
+        "timestamp": "Apr  1 10:57:19",
+        "hostname": "WatchGuard-Firebox",
+        "appname": "FVM",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "(2025-04-01T05:27:19) firewall: msg_id=\"3000-0151\" Allow Trusted Firebox icmp 10.10.10.10 10.10.10.10 echo-request duration=\"32\" sent_pkts=\"1\" rcvd_pkts=\"1\" sent_bytes=\"60\" rcvd_bytes=\"60\"  (Ping-00)"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh.yaml:148",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eSep 13 13:21:06 ub20-host ossec: {\"timestamp\":\"2024-09-13T13:21:06.262+0530\",\"rule\":{\"level\":3,\"description\":\"Successful sudo to ROOT executed.\",\"id\":\"5402\",\"mitre\":{\"id\":[\"T1548.003\"],\"tactic\":[\"Privilege Escalation\",\"Defense Evasion\"],\"technique\":[\"Sudo and Sudo Caching\"]},\"firedtimes\":3,\"mail\":false,\"groups\":[\"syslog\",\"sudo\"],\"pci_dss\":[\"10.2.5\",\"10.2.2\"],\"gpg13\":[\"7.6\",\"7.8\",\"7.13\"],\"gdpr\":[\"IV_32.2\"],\"hipaa\":[\"164.312.b\"],\"nist_800_53\":[\"AU.14\",\"AC.7\",\"AC.6\"],\"tsc\":[\"CC6.8\",\"CC7.2\",\"CC7.3\"]},\"agent\":{\"id\":\"000\",\"name\":\"ub20-host\"},\"manager\":{\"name\":\"ub20-host\"},\"id\":\"1726213866.2869025\",\"full_log\":\"Sep 13 13:21:04 ub20-host sudo:     root : TTY=pts/13 ; PWD=/home/devuser ; USER=root ; COMMAND=/usr/bin/nano /var/ossec/etc/ossec.conf\",\"predecoder\":{\"program_name\":\"sudo\",\"timestamp\":\"Sep 13 13:21:04\",\"hostname\":\"ub20-host\"},\"decoder\":{\"parent\":\"sudo\",\"name\":\"sudo\",\"ftscomment\":\"First time user executed the sudo command\"},\"data\":{\"srcuser\":\"root\",\"dstuser\":\"root\",\"tty\":\"pts/13\",\"pwd\":\"/home/devuser\",\"command\":\"/usr/bin/nano /var/ossec/etc/ossec.conf\"},\"location\":\"/var/log/auth.log\"}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Sep 13 13:21:06",
+        "hostname": "ub20-host",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"timestamp\":\"2024-09-13T13:21:06.262+0530\",\"rule\":{\"level\":3,\"description\":\"Successful sudo to ROOT executed.\",\"id\":\"5402\",\"mitre\":{\"id\":[\"T1548.003\"],\"tactic\":[\"Privilege Escalation\",\"Defense Evasion\"],\"technique\":[\"Sudo and Sudo Caching\"]},\"firedtimes\":3,\"mail\":false,\"groups\":[\"syslog\",\"sudo\"],\"pci_dss\":[\"10.2.5\",\"10.2.2\"],\"gpg13\":[\"7.6\",\"7.8\",\"7.13\"],\"gdpr\":[\"IV_32.2\"],\"hipaa\":[\"164.312.b\"],\"nist_800_53\":[\"AU.14\",\"AC.7\",\"AC.6\"],\"tsc\":[\"CC6.8\",\"CC7.2\",\"CC7.3\"]},\"agent\":{\"id\":\"000\",\"name\":\"ub20-host\"},\"manager\":{\"name\":\"ub20-host\"},\"id\":\"1726213866.2869025\",\"full_log\":\"Sep 13 13:21:04 ub20-host sudo:     root : TTY=pts/13 ; PWD=/home/devuser ; USER=root ; COMMAND=/usr/bin/nano /var/ossec/etc/ossec.conf\",\"predecoder\":{\"program_name\":\"sudo\",\"timestamp\":\"Sep 13 13:21:04\",\"hostname\":\"ub20-host\"},\"decoder\":{\"parent\":\"sudo\",\"name\":\"sudo\",\"ftscomment\":\"First time user executed the sudo command\"},\"data\":{\"srcuser\":\"root\",\"dstuser\":\"root\",\"tty\":\"pts/13\",\"pwd\":\"/home/devuser\",\"command\":\"/usr/bin/nano /var/ossec/etc/ossec.conf\"},\"location\":\"/var/log/auth.log\"}"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh_tests.yaml:118",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eSep 19 08:25:04 ub20 ossec: {\"timestamp\":\"2024-09-19T08:25:04.210+0530\",\"rule\":{\"level\":7,\"description\":\"Dpkg (Debian Package) half configured.\",\"id\":\"2904\",\"firedtimes\":7,\"mail\":false,\"groups\":[\"syslog\",\"dpkg\",\"config_changed\"],\"pci_dss\":[\"10.6.1\",\"10.2.7\"],\"gpg13\":[\"4.10\"],\"gdpr\":[\"IV_35.7.d\"],\"hipaa\":[\"164.312.b\"],\"nist_800_53\":[\"AU.6\",\"AU.14\"],\"tsc\":[\"CC7.2\",\"CC7.3\",\"CC6.8\",\"CC8.1\"]},\"agent\":{\"id\":\"000\",\"name\":\"ub20\"},\"manager\":{\"name\":\"ub20\"},\"id\":\"1726714504.1044193\",\"full_log\":\"2024-09-19 08:25:02 status half-configured linux-headers-5.15.0-119:all 5.15.0-119.129\",\"decoder\":{\"name\":\"dpkg-decoder\"},\"data\":{\"dpkg_status\":\"status half-configured\",\"package\":\"linux-headers-5.15.0-119\",\"arch\":\"all\",\"version\":\"5.15.0-119.129\"},\"location\":\"/var/log/dpkg.log\"}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Sep 19 08:25:04",
+        "hostname": "ub20",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"timestamp\":\"2024-09-19T08:25:04.210+0530\",\"rule\":{\"level\":7,\"description\":\"Dpkg (Debian Package) half configured.\",\"id\":\"2904\",\"firedtimes\":7,\"mail\":false,\"groups\":[\"syslog\",\"dpkg\",\"config_changed\"],\"pci_dss\":[\"10.6.1\",\"10.2.7\"],\"gpg13\":[\"4.10\"],\"gdpr\":[\"IV_35.7.d\"],\"hipaa\":[\"164.312.b\"],\"nist_800_53\":[\"AU.6\",\"AU.14\"],\"tsc\":[\"CC7.2\",\"CC7.3\",\"CC6.8\",\"CC8.1\"]},\"agent\":{\"id\":\"000\",\"name\":\"ub20\"},\"manager\":{\"name\":\"ub20\"},\"id\":\"1726714504.1044193\",\"full_log\":\"2024-09-19 08:25:02 status half-configured linux-headers-5.15.0-119:all 5.15.0-119.129\",\"decoder\":{\"name\":\"dpkg-decoder\"},\"data\":{\"dpkg_status\":\"status half-configured\",\"package\":\"linux-headers-5.15.0-119\",\"arch\":\"all\",\"version\":\"5.15.0-119.129\"},\"location\":\"/var/log/dpkg.log\"}"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh_tests.yaml:346",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c132\u003eSep 16 16:58:16 Debian ossec: {\"@sampledata\": true, \"timestamp\": \"2024-09-16T16:58:16.015398+05:30\", \"rule\": {\"firedtimes\": 27, \"mail\": false, \"level\": 3, \"description\": \"AWS GuardDuty: PORT_PROBE - Unprotected port on EC2 instance i-0b0b8b34a48c8f1c4 is being probed. [IP: 10.10.10.10] [Port: 80]\", \"groups\": [\"amazon\", \"aws\", \"aws_guardduty\"], \"id\": \"80305\"}, \"agent\": {\"id\": \"007\", \"name\": \"Debian\", \"ip\": \"10.10.10.10\"}, \"manager\": {\"name\": \"ub20\"}, \"cluster\": {\"name\": \"wazuh\"}, \"id\": \"1580123327.49031\", \"predecoder\": {}, \"decoder\": {\"name\": \"json\"}, \"data\": {\"aws\": {\"severity\": \"2\", \"schemaVersion\": \"2.0\", \"resource\": {\"resourceType\": \"Instance\", \"instanceDetails\": {\"launchTime\": \"2019-03-22T14:15:41Z\", \"instanceId\": \"i-0cab4a083d57dc400\", \"networkInterfaces\": {\"networkInterfaceId\": \"eni-0bb465b2d939dbda6\", \"subnetId\": \"subnet-6b1d6203\", \"vpcId\": \"vpc-921e61fa\", \"privateDnsName\": \"ip-10-0-0-1.ec2.internal\", \"publicIp\": \"10.10.10.10\", \"publicDnsName\": \"ec2-10.10.10.10.compute-1.amazonaws.com\", \"privateIpAddress\": \"10.0.0.1\"}, \"instanceState\": \"running\", \"imageId\": \"ami-09ae67bbfcd740875\", \"instanceType\": \"a1.medium\", \"imageDescription\": \"Canonical, Ubuntu, 18.04 LTS, UNSUPPORTED daily arm64 bionic image build on 2019-02-12\", \"productCodes\": {\"productCodeId\": \"zud1u4kjmxu2j2jf0n36bqa\", \"productCodeType\": \"marketplace\"}, \"iamInstanceProfile\": {\"id\": \"AIPAJGAZMFPZHKIBOUFGA\", \"arn\": \"arn:aws:iam::150447125201:instance-profile/opsworks-web-production\"}, \"availabilityZone\": \"us-east-1e\"}}, \"description\": \"EC2 instance has an unprotected port which is being probed by a known malicious host.\", \"source\": \"guardduty\", \"type\": \"Recon:EC2/PortProbeUnprotectedPort\", \"title\": \"Unprotected port on EC2 instance i-0cab4a083d57dc400 is being probed.\", \"partition\": \"aws\", \"service\": {\"archived\": \"false\", \"resourceRole\": \"TARGET\", \"detectorId\": \"cab38390b400c06fb2897dfcebffb80d\", \"additionalInfo\": {\"threatListName\": \"ProofPoint\", \"threatName\": \"Scanner\"}, \"count\": \"2115\", \"action\": {\"actionType\": \"PORT_PROBE\", \"portProbeAction\": {\"blocked\": \"false\", \"portProbeDetails\": {\"localPortDetails\": {\"port\": \"80\", \"portName\": \"HTTP\"}, \"remoteIpDetails\": {\"country\": {\"countryName\": \"Mexico\"}, \"city\": {\"cityName\": \"M\\u00e9rida\"}, \"geoLocation\": {\"lon\": \"-89.616700\", \"lat\": \"20.950000\"}, \"organization\": {\"asnOrg\": \"Internet Mexico Company\", \"org\": \"Internet Mexico Company\", \"isp\": \"Internet Mexico Company\", \"asn\": \"4257\"}, \"ipAddressV4\": \"10.10.10.10\"}}}}, \"serviceName\": \"guardduty\", \"eventFirstSeen\": \"2024-08-28T05:41:44.820Z\", \"eventLastSeen\": \"2024-08-31T05:41:44.820Z\"}, \"region\": \"eu-west-1\", \"accountId\": \"18773455640\", \"log_info\": {\"s3bucket\": \"aws-sample-bucket-2\", \"log_file\": \"guardduty/2024/08/31/05/firehose_guardduty-1-2024-08-31-05-41-44-820b5b9b-ec62-4a07-85d7-b1699b9c031e.zip\"}, \"createdAt\": \"2024-08-28T05:41:44.820Z\"}, \"integration\": \"aws\"}, \"location\": \"Wazuh-AWS\", \"input\": {\"type\": \"log\"}, \"GeoLocation\": {\"country_name\": \"Germany\", \"location\": {\"lat\": 52.524, \"lon\": 13.411}, \"region_name\": \"Berlin\", \"city_name\": \"Berlin\"}}",
+      "want": {
+        "pri": 132,
+        "timestamp": "Sep 16 16:58:16",
+        "hostname": "Debian",
+        "appname": "ossec",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"@sampledata\": true, \"timestamp\": \"2024-09-16T16:58:16.015398+05:30\", \"rule\": {\"firedtimes\": 27, \"mail\": false, \"level\": 3, \"description\": \"AWS GuardDuty: PORT_PROBE - Unprotected port on EC2 instance i-0b0b8b34a48c8f1c4 is being probed. [IP: 10.10.10.10] [Port: 80]\", \"groups\": [\"amazon\", \"aws\", \"aws_guardduty\"], \"id\": \"80305\"}, \"agent\": {\"id\": \"007\", \"name\": \"Debian\", \"ip\": \"10.10.10.10\"}, \"manager\": {\"name\": \"ub20\"}, \"cluster\": {\"name\": \"wazuh\"}, \"id\": \"1580123327.49031\", \"predecoder\": {}, \"decoder\": {\"name\": \"json\"}, \"data\": {\"aws\": {\"severity\": \"2\", \"schemaVersion\": \"2.0\", \"resource\": {\"resourceType\": \"Instance\", \"instanceDetails\": {\"launchTime\": \"2019-03-22T14:15:41Z\", \"instanceId\": \"i-0cab4a083d57dc400\", \"networkInterfaces\": {\"networkInterfaceId\": \"eni-0bb465b2d939dbda6\", \"subnetId\": \"subnet-6b1d6203\", \"vpcId\": \"vpc-921e61fa\", \"privateDnsName\": \"ip-10-0-0-1.ec2.internal\", \"publicIp\": \"10.10.10.10\", \"publicDnsName\": \"ec2-10.10.10.10.compute-1.amazonaws.com\", \"privateIpAddress\": \"10.0.0.1\"}, \"instanceState\": \"running\", \"imageId\": \"ami-09ae67bbfcd740875\", \"instanceType\": \"a1.medium\", \"imageDescription\": \"Canonical, Ubuntu, 18.04 LTS, UNSUPPORTED daily arm64 bionic image build on 2019-02-12\", \"productCodes\": {\"productCodeId\": \"zud1u4kjmxu2j2jf0n36bqa\", \"productCodeType\": \"marketplace\"}, \"iamInstanceProfile\": {\"id\": \"AIPAJGAZMFPZHKIBOUFGA\", \"arn\": \"arn:aws:iam::150447125201:instance-profile/opsworks-web-production\"}, \"availabilityZone\": \"us-east-1e\"}}, \"description\": \"EC2 instance has an unprotected port which is being probed by a known malicious host.\", \"source\": \"guardduty\", \"type\": \"Recon:EC2/PortProbeUnprotectedPort\", \"title\": \"Unprotected port on EC2 instance i-0cab4a083d57dc400 is being probed.\", \"partition\": \"aws\", \"service\": {\"archived\": \"false\", \"resourceRole\": \"TARGET\", \"detectorId\": \"cab38390b400c06fb2897dfcebffb80d\", \"additionalInfo\": {\"threatListName\": \"ProofPoint\", \"threatName\": \"Scanner\"}, \"count\": \"2115\", \"action\": {\"actionType\": \"PORT_PROBE\", \"portProbeAction\": {\"blocked\": \"false\", \"portProbeDetails\": {\"localPortDetails\": {\"port\": \"80\", \"portName\": \"HTTP\"}, \"remoteIpDetails\": {\"country\": {\"countryName\": \"Mexico\"}, \"city\": {\"cityName\": \"M\\u00e9rida\"}, \"geoLocation\": {\"lon\": \"-89.616700\", \"lat\": \"20.950000\"}, \"organization\": {\"asnOrg\": \"Internet Mexico Company\", \"org\": \"Internet Mexico Company\", \"isp\": \"Internet Mexico Company\", \"asn\": \"4257\"}, \"ipAddressV4\": \"10.10.10.10\"}}}}, \"serviceName\": \"guardduty\", \"eventFirstSeen\": \"2024-08-28T05:41:44.820Z\", \"eventLastSeen\": \"2024-08-31T05:41:44.820Z\"}, \"region\": \"eu-west-1\", \"accountId\": \"18773455640\", \"log_info\": {\"s3bucket\": \"aws-sample-bucket-2\", \"log_file\": \"guardduty/2024/08/31/05/firehose_guardduty-1-2024-08-31-05-41-44-820b5b9b-ec62-4a07-85d7-b1699b9c031e.zip\"}, \"createdAt\": \"2024-08-28T05:41:44.820Z\"}, \"integration\": \"aws\"}, \"location\": \"Wazuh-AWS\", \"input\": {\"type\": \"log\"}, \"GeoLocation\": {\"country_name\": \"Germany\", \"location\": {\"lat\": 52.524, \"lon\": 13.411}, \"region_name\": \"Berlin\", \"city_name\": \"Berlin\"}}"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh.yaml:454",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Dec 17 07:05:06 ax yum: Installed: libX11-devel - 1.0.3-9.el5.i386",
+      "want": {
+        "pri": -1,
+        "timestamp": "Dec 17 07:05:06",
+        "hostname": "ax",
+        "appname": "yum",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "Installed: libX11-devel - 1.0.3-9.el5.i386"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh.yaml:456",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Oct  8 07:17:27 ax yum[61038]: Erased: file-roller-3.28.1-2.el7.x86_64",
+      "want": {
+        "pri": -1,
+        "timestamp": "Oct  8 07:17:27",
+        "hostname": "ax",
+        "appname": "yum",
+        "procid": "61038",
+        "msgid": "-",
+        "msg": "Erased: file-roller-3.28.1-2.el7.x86_64"
+      }
+    },
+    {
+      "integration": "wazuh",
+      "source": "wazuh/assets/logs/wazuh.yaml:460",
+      "origin": "integrations-core",
+      "transport": "file",
+      "framing": "bsd_nopri",
+      "line": "Aug 20 12:51:21 Erased: libhugetlbfs-lib",
+      "want": {
+        "pri": -1,
+        "timestamp": "Aug 20 12:51:21",
+        "hostname": "-",
+        "appname": "Erased",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "libhugetlbfs-lib"
+      }
+    },
+    {
+      "integration": "zeek",
+      "source": "zeek/assets/logs/zeek.yaml:837",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c134\u003eDec 26 01:35:11 machine-name {\"_path\":\"capture_loss\",\"_write_ts\":\"2023-12-12T05:52:50.756358Z\",\"ts\":\"2023-12-12T05:52:32.763303Z\",\"ts_delta\":15.235642194747925,\"peer\":\"zeek\",\"gaps\":3,\"acks\":316,\"percent_lost\":0.9493670886075949}",
+      "want": {
+        "pri": 134,
+        "timestamp": "Dec 26 01:35:11",
+        "hostname": "machine-name",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"_path\":\"capture_loss\",\"_write_ts\":\"2023-12-12T05:52:50.756358Z\",\"ts\":\"2023-12-12T05:52:32.763303Z\",\"ts_delta\":15.235642194747925,\"peer\":\"zeek\",\"gaps\":3,\"acks\":316,\"percent_lost\":0.9493670886075949}"
+      }
+    },
+    {
+      "integration": "zeek",
+      "source": "zeek/assets/logs/zeek_tests.yaml:489",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c134\u003eJan 12 18:13:46 machine-name {\"_path\":\"datared\",\"_write_ts\":\"2024-01-13T00:13:42.817478Z\",\"ts\":\"2024-01-13T00:13:42.817478Z\",\"conn_red\":1310,\"conn_total\":18460,\"dns_red\":1141,\"dns_total\":1604,\"files_red\":313,\"files_total\":796,\"http_red\":140,\"http_total\":140,\"ssl_red\":215,\"ssl_total\":227,\"weird_red\":20,\"weird_total\":20}",
+      "want": {
+        "pri": 134,
+        "timestamp": "Jan 12 18:13:46",
+        "hostname": "machine-name",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"_path\":\"datared\",\"_write_ts\":\"2024-01-13T00:13:42.817478Z\",\"ts\":\"2024-01-13T00:13:42.817478Z\",\"conn_red\":1310,\"conn_total\":18460,\"dns_red\":1141,\"dns_total\":1604,\"files_red\":313,\"files_total\":796,\"http_red\":140,\"http_total\":140,\"ssl_red\":215,\"ssl_total\":227,\"weird_red\":20,\"weird_total\":20}"
+      }
+    },
+    {
+      "integration": "zeek",
+      "source": "zeek/assets/logs/zeek_tests.yaml:515",
+      "origin": "integrations-core",
+      "transport": "wire",
+      "framing": "rfc3164_pri",
+      "line": "\u003c134\u003eMar  6 22:39:30 machine-name {\"_path\":\"dns_red\",\"_write_ts\":\"2024-03-07T04:39:28.580374Z\",\"ts\":\"2024-03-07T04:38:40.085451Z\",\"uid\":\"CyArTY2KEgcygwMLi1\",\"id.orig_h\":\"10.10.10.10\",\"id.orig_p\":123,\"id.resp_h\":\"20.20.20.20\",\"id.resp_p\":321,\"query\":\"time.missouri.edu\",\"qtype_name\":\"A\",\"num\":4}",
+      "want": {
+        "pri": 134,
+        "timestamp": "Mar  6 22:39:30",
+        "hostname": "machine-name",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "{\"_path\":\"dns_red\",\"_write_ts\":\"2024-03-07T04:39:28.580374Z\",\"ts\":\"2024-03-07T04:38:40.085451Z\",\"uid\":\"CyArTY2KEgcygwMLi1\",\"id.orig_h\":\"10.10.10.10\",\"id.orig_p\":123,\"id.resp_h\":\"20.20.20.20\",\"id.resp_p\":321,\"query\":\"time.missouri.edu\",\"qtype_name\":\"A\",\"num\":4}"
+      }
+    },
+    {
+      "integration": "cisco_nx_os",
+      "source": "system-message-logging#repeated-system-messages",
+      "origin": "cisco-nx-os-docs",
+      "transport": "file",
+      "framing": "yearfirst_nopri",
+      "line": "2019 Mar 11 13:42:44 Cisco-customer %PTP-2-PTP_INCORRECT_PACKET_ON_SLAVE: Incorrect delay response packet received on slave interface Eth1/48 by 2c:5a:0f:ff:fe:51:e9:9f. Source Port Identity is 08:00:11:ff:fe:22:3e:4e. Requesting Port Identity is 00:1c:73:ff:ff:ee:f6:e5",
+      "want": {
+        "pri": -1,
+        "timestamp": "2019 Mar 11 13:42:44",
+        "hostname": "Cisco-customer",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "%PTP-2-PTP_INCORRECT_PACKET_ON_SLAVE: Incorrect delay response packet received on slave interface Eth1/48 by 2c:5a:0f:ff:fe:51:e9:9f. Source Port Identity is 08:00:11:ff:fe:22:3e:4e. Requesting Port Identity is 00:1c:73:ff:ff:ee:f6:e5"
+      }
+    },
+    {
+      "integration": "cisco_nx_os",
+      "source": "relay prepending its header to the NX-OS logfile form",
+      "origin": "synthesized",
+      "transport": "file",
+      "framing": "yearfirst_nopri",
+      "line": "2019 Mar 11 13:42:44 Cisco-customer Mar 11 13:42:44 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48",
+      "want": {
+        "pri": -1,
+        "timestamp": "2019 Mar 11 13:42:44",
+        "hostname": "Cisco-customer",
+        "appname": "-",
+        "procid": "-",
+        "msgid": "-",
+        "msg": "Mar 11 13:42:44 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48"
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "validatepodannotation",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/validatepodannotation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core/autodiscovery/common/utils",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

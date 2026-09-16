@@ -1,0 +1,9 @@
+load("@py_dev_requirements//:requirements.bzl", "requirement")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "patch",
+    srcs = ["patch.py"],
+    visibility = ["//visibility:public"],
+    deps = [requirement("patch-ng")],
+)

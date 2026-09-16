@@ -24,14 +24,11 @@ else
   COMPRESSION_LEVEL = 5
 end
 
+install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
+
 if ohai['platform'] == "windows"
-  # Note: this is the path used by Omnibus to build the agent, the final install
-  # dir will be determined by the Windows installer. This path must not contain
-  # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir "C:/opt/datadog-dogstatsd/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-dogstatsd'
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
@@ -95,15 +92,6 @@ else
 
   # Dogstatsd
   dependency 'datadog-dogstatsd'
-
-  # this dependency puts few files out of the omnibus install dir and move them
-  # in the final destination. This way such files will be listed in the packages
-  # manifest and owned by the package manager. This is the only point in the build
-  # process where we operate outside the omnibus install dir, thus the need of
-  # the `extra_package_file` directive.
-  # This must be the last dependency in the project.
-
-  dependency 'datadog-dogstatsd-finalize'
 end
 
 

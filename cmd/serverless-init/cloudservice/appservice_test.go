@@ -7,8 +7,12 @@ package cloudservice
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestGetLinuxAppServiceTags(t *testing.T) {
@@ -69,4 +73,32 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
 	}, tags)
+}
+
+func TestAppServiceShutdownEmitsMetrics(t *testing.T) {
+	skipOnWindows(t)
+	demux := createDemultiplexer(t)
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+
+	service := &AppService{}
+	service.Shutdown(agent, true, nil)
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Empty(t, timedMetrics)
+	assert.Len(t, generatedMetrics, 2)
+
+	foundShutdown := false
+	for _, sample := range generatedMetrics {
+		if sample.Name == appServiceShutdownMetricName {
+			foundShutdown = true
+		}
+	}
+	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestAppServiceShutdownNilMetricAgent(t *testing.T) {
+	service := &AppService{}
+	require.NotPanics(t, func() {
+		service.Shutdown(nil, true, nil)
+	})
 }

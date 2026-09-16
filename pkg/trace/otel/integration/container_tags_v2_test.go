@@ -12,22 +12,24 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/processor/processortest"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	otlptestutil "github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/processor/processortest"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 )
 
 type otlpConsumer struct {
@@ -68,9 +70,6 @@ func TestContainerTagsV2(t *testing.T) {
 	cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
 		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}
-
-	// Enable feature gate
-	cfg.Features["enable_otlp_container_tags_v2"] = struct{}{}
 
 	// Set up pipeline with the Infra Attributes Processor + Trace Agent OTLP Receiver
 	out := make(chan *api.Payload, 1)

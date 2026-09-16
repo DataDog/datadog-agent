@@ -25,7 +25,7 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// by default, we don't enable telemetry for every checks stats
-	if cfg.IsSet("telemetry.checks") {
+	if cfg.IsConfigured("telemetry.checks") {
 		for _, check := range cfg.GetStringSlice("telemetry.checks") {
 			if check == "*" {
 				return true
@@ -39,8 +39,7 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 // IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	return cfg.IsSet("telemetry.enabled") && cfg.GetBool("telemetry.enabled") ||
-		(IsAgentTelemetryEnabled(cfg))
+	return cfg.GetBool("telemetry.enabled") || IsAgentTelemetryEnabled(cfg)
 }
 
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
@@ -51,4 +50,11 @@ func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 		return false
 	}
 	return cfg.GetBool("agent_telemetry.enabled")
+}
+
+// IsErrorTrackingEnabled returns true when both the parent agent-telemetry gate
+// and the errortracking feature flag are enabled. The gov/FIPS exclusion from
+// IsAgentTelemetryEnabled applies automatically.
+func IsErrorTrackingEnabled(cfg pkgconfigmodel.Reader) bool {
+	return IsAgentTelemetryEnabled(cfg) && cfg.GetBool("agent_telemetry.errortracking.enabled")
 }

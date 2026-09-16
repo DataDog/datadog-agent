@@ -57,14 +57,14 @@
       }
       for ARCH in "amd64" "arm64"; do
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-          # For main agent, exclude DDOT files since DDOT will be bundled as an extension
+          # For the main agent, exclude DDOT files since DDOT is bundled as an extension
           INPUT_FILE=$(resolve_artifact "agent" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz" "ddot") || exit 1
         else
           # For other products (like datadog-agent-ddot), don't filter
           INPUT_FILE=$(resolve_artifact "${OCI_PRODUCT}" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz") || exit 1
         fi
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
-        MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
+        MERGED_FILE=$(basename "${INPUT_FILE}" | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
         INPUT_DIR="/tmp/input_${ARCH}"
         mkdir -p ${INPUT_DIR}
@@ -80,29 +80,21 @@
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
 
           # Extract DDOT
-          if DDOT_INPUT_FILE=$(resolve_artifact "DDOT" "${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz"); then
-            DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
-            mkdir -p "${DDOT_EXTENSION_DIR}/etc"
-            echo "Extracting DDOT ${DDOT_INPUT_FILE} -> ${DDOT_EXTENSION_DIR}"
-            tar xJf "${DDOT_INPUT_FILE}" --strip-components=2 -C "${DDOT_EXTENSION_DIR}" opt/
-            tar xJf "${DDOT_INPUT_FILE}" --strip-components=1 -C "${DDOT_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
-            EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_EXTENSION_DIR}"
-          else
-            echo "DDOT artifact not found, skipping DDOT extension"
-            EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
-          fi
+          DDOT_INPUT_FILE=$(resolve_artifact "DDOT" "${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz") || exit 1
+          DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
+          mkdir -p "${DDOT_EXTENSION_DIR}/etc"
+          echo "Extracting DDOT ${DDOT_INPUT_FILE} -> ${DDOT_EXTENSION_DIR}"
+          tar xJf "${DDOT_INPUT_FILE}" --strip-components=2 -C "${DDOT_EXTENSION_DIR}" opt/
+          tar xJf "${DDOT_INPUT_FILE}" --strip-components=1 -C "${DDOT_EXTENSION_DIR}/etc" etc/
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_EXTENSION_DIR}"
 
-          # Extract DDOT FIPS
-          if DDOT_FIPS_INPUT_FILE=$(resolve_artifact "DDOT FIPS" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-*${ARCH}.tar.xz"); then
-            DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
-            mkdir -p "${DDOT_FIPS_EXTENSION_DIR}/etc"
-            echo "Extracting DDOT FIPS ${DDOT_FIPS_INPUT_FILE} -> ${DDOT_FIPS_EXTENSION_DIR}"
-            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=2 -C "${DDOT_FIPS_EXTENSION_DIR}" opt/
-            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=1 -C "${DDOT_FIPS_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
-            EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
-          else
-            echo "DDOT FIPS artifact not found, skipping DDOT FIPS extension"
-          fi
+          # Extract DDOT FIPS — only bundled into the FIPS variant manifest, not the base manifest
+          DDOT_FIPS_INPUT_FILE=$(resolve_artifact "DDOT FIPS" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-*${ARCH}.tar.xz") || exit 1
+          DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
+          mkdir -p "${DDOT_FIPS_EXTENSION_DIR}/etc"
+          echo "Extracting DDOT FIPS ${DDOT_FIPS_INPUT_FILE} -> ${DDOT_FIPS_EXTENSION_DIR}"
+          tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=2 -C "${DDOT_FIPS_EXTENSION_DIR}" opt/
+          tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=1 -C "${DDOT_FIPS_EXTENSION_DIR}/etc" etc/
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
@@ -118,9 +110,40 @@
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
+
+        # Build the FIPS-flavored variant (Platform.Variant="fips") into the same OCI index.
+        # The installer selects this variant when DD_FIPS_MODE=true.
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          FIPS_INPUT_FILE=$(resolve_artifact "FIPS agent" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-*${ARCH}.tar.xz" "ddot") || exit 1
+          FIPS_INPUT_DIR="/tmp/input_fips_${ARCH}"
+          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
+        fi
+        if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
+          FIPS_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
+          FIPS_INPUT_DIR="/tmp/input_fips_installer_${ARCH}"
+          FIPS_EXTRA_FLAGS="--installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+        fi
+        if [ -n "${FIPS_INPUT_FILE:-}" ]; then
+          FIPS_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INPUT_FILE})"
+          mkdir -p ${FIPS_INPUT_DIR}
+          echo "Extracting FIPS ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
+          tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
+          echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
+          datadog-package create \
+            --version ${PACKAGE_VERSION} \
+            --package ${OCI_PRODUCT} \
+            --os linux \
+            --arch ${ARCH} \
+            --variant fips \
+            --archive --archive-path "${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}" \
+            ${FIPS_EXTRA_FLAGS} \
+            ${FIPS_INPUT_DIR}/${INSTALL_DIR}/
+          rm -f ${FIPS_INPUT_FILE}
+        fi
+
         rm -f ${INPUT_FILE}
-        if [ "${OCI_PRODUCT}" = "datadog-agent" ] && [ -n "$DDOT_INPUT_FILE" ]; then
-          rm -f ${DDOT_INPUT_FILE}
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          rm -f ${INSTALLER_INPUT_FILE} ${DDOT_INPUT_FILE} ${DDOT_FIPS_INPUT_FILE}
         fi
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
@@ -137,6 +160,8 @@ agent_oci:
   needs:
     - "datadog-agent-oci-x64-a7"
     - "datadog-agent-oci-arm64-a7"
+    - "datadog-agent-oci-x64-a7-fips"
+    - "datadog-agent-oci-arm64-a7-fips"
     - "go_tools_deps"
     - "installer-arm64-oci"
     - "installer-amd64-oci"
@@ -155,6 +180,8 @@ installer_oci:
     [
       "installer-arm64-oci",
       "installer-amd64-oci",
+      "installer-fips-arm64-oci",
+      "installer-fips-amd64-oci",
       "go_tools_deps",
     ]
   variables:

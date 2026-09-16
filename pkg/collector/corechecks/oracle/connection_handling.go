@@ -55,10 +55,6 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
-	if oracleDriver == common.Godror && c.config.InstanceConfig.OracleClientLibDir != "" {
-		connStr = fmt.Sprintf(`%s libDir="%s"`, connStr, c.config.InstanceConfig.OracleClientLibDir)
-	}
-
 	c.driver = oracleDriver
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)

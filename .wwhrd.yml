@@ -17,6 +17,9 @@ allowlist:
   - FreeBSD
 
 overrides:
+  # libcap/psx is dual-licensed under BSD-3-Clause OR GPL-2.0-only. Select the
+  # permissive option; automatic detection otherwise prefers the GPL text.
+  "kernel.org/pub/linux/libs/security/libcap/psx": BSD-3-Clause
   # https://github.com/bmizerany/pat/blob/master/LICENSE
   "github.com/bmizerany/pat": MIT
   # https://github.com/xi2/xz/blob/master/LICENSE
@@ -34,12 +37,14 @@ overrides:
   "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
   # https://github.com/bhmj/xpression/blob/master/LICENCE
   "github.com/bhmj/xpression": MIT
+  # nexus-proto-annotations has no LICENSE, so take it from siblings:
+  # https://github.com/nexus-rpc/api/blob/main/LICENSE
+  # https://github.com/nexus-rpc/sdk-go/blob/main/LICENSE
+  "github.com/nexus-rpc/nexus-proto-annotations/go/nexusannotations/v1": MIT
 
 exceptions:
-  - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."
   - "golang.org/x/mod/..."
-  - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
   # Build tools, not embedded in the software
   - "github.com/goware/modvendor"
@@ -48,4 +53,4 @@ exceptions:
 
 additional:
   # list here paths to additional licenses
-  golang/go: "raw.githubusercontent.com/golang/go/go1.25.10/LICENSE"
+  golang/go: "raw.githubusercontent.com/golang/go/go1.26.7/LICENSE"

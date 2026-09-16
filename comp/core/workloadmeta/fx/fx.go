@@ -31,7 +31,7 @@ func ModuleWithProvider[T any](paramsProvider func(T) wmdef.Params) fxutil.Modul
 func module(options ...fx.Option) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			workloadmeta.NewWorkloadMeta,
+			workloadmeta.NewComponent,
 		),
 		fx.Provide(func(wmeta wmdef.Component) option.Option[wmdef.Component] {
 			return option.New(wmeta)

@@ -11,13 +11,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"go.uber.org/fx"
-
-	"github.com/gorilla/mux"
 
 	"github.com/stretchr/testify/require"
 
@@ -61,13 +58,11 @@ func getTestComp(t *testing.T, withError bool) provides {
 func TestStatusAPIEndpoints(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	// Create a new instance of the statusImplementation struct
@@ -213,8 +208,8 @@ func TestStatusAPIEndpoints(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s - %s [%s]", test.routerPath, test.method, test.testDesc), func(t *testing.T) {
-			r := mux.NewRouter()
-			r.HandleFunc(test.routerPath, test.httpHandler)
+			r := http.NewServeMux()
+			r.HandleFunc(test.method+" "+test.routerPath, test.httpHandler)
 
 			// Create a new HTTP request
 			req, err := http.NewRequest(test.method, test.testedPath, nil)

@@ -1,46 +1,66 @@
-import getpass
 import json
 import os
+import secrets
 from pathlib import Path
 
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import KeyInfo
-from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
+from tasks.e2e_framework.setup.ssh_keys import (
+    KeyInfo,
+    add_key_to_ssh_agent,
+    default_key_paths,
+)
+from tasks.e2e_framework.tool import (
+    ask,
+    ask_yesno,
+    error,
+    get_aws_cmd,
+    get_resource_owner_id,
+    info,
+    warn,
+    write_secret_file,
+)
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
+# Every resource the E2E framework relies on -- AMIs, subnets, ECR registries, KMS keys,
+# the fakeintake ECS cluster -- is pinned to this region.
+DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_KEY_TYPE = "rsa"
+# Accounts not listed here default to 'account-admin'. Keep in sync with the
+# `profile:` entries in test/e2e-framework/resources/aws/environmentDefaults.go.
+ACCOUNT_ADMIN_ROLE_BY_ACCOUNT = {"agent-sandbox": "account-admin-8h"}
+# The pull-through cache lives in agent-qa, so the ECR credential handed to container
+# runtimes is minted there whichever account the test itself deploys into. agent-dev is
+# the permission set that can populate the cache, and it grants no push actions: the
+# token is copied into every provisioned cluster, so it must not be able to reach the
+# repositories CI publishes to.
+AGENT_QA_ACCOUNT_ID = 669783387624
+AGENT_QA_ECR_SSO_ROLE = 'agent-dev'
+ECR_CACHE_PROFILE = f'sso-agent-qa-{AGENT_QA_ECR_SSO_ROLE}'
 
 
 def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
 
 
-def _default_key_paths(account: str, user: str, key_type: str = DEFAULT_KEY_TYPE) -> tuple[Path, Path]:
-    account_part = account.replace("-", "_")
-    private_path = Path.home().joinpath(".ssh", f"id_{key_type}_e2e_{account_part}_{user}.pem")
-    # Match the convention used by aws_resolve_keypair_opts: <stem>.pub alongside the .pem.
-    public_path = private_path.with_name(f"{private_path.stem}.pub")
-    return private_path, public_path
-
-
-def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
+def setup_aws_config(ctx: Context, config: Config, account: str | None = None, team: str | None = None):
     """
     Configure AWS keypair, SSO profile and team tag with computed defaults.
 
     Idempotent: re-running on a fully configured machine prints "✓ already configured"
     lines and exits without prompts. The only interactive step is the team tag, asked
-    once on first setup.
+    once on first setup — and skipped entirely when `team` is passed explicitly
+    (e.g. `dda inv e2e.setup --team=agent-platform` for non-interactive runs).
     """
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
     aws = config.configParams.aws
-    user = getpass.getuser()
+    user = get_resource_owner_id()
 
     # Account
     if account:
@@ -54,25 +74,32 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     # Keypair name & paths — derived from username, no prompt.
     if not aws.keyPairName:
         aws.keyPairName = _default_keypair_name(aws.account, user)
-    default_priv, default_pub = _default_key_paths(aws.account, user)
+    default_priv, default_pub = default_key_paths(aws.account, user)
     if not aws.privateKeyPath:
         aws.privateKeyPath = str(default_priv)
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
+    # The wizard path never prompts: the profile is a pure default, safe to append
+    # unconditionally. The interactive yes/no confirmations only live in the
+    # standalone `e2e.setup.aws-sso` task.
+    setup_aws_sso_config(config, interactive=False)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
     # output if the session is not valid.
     _ensure_aws_keypair(ctx, config)
 
-    # Team tag — single prompt, only on first setup.
+    # Team tag — passed explicitly via --team (non-interactive), else asked once on
+    # first setup only. Falls back to 'unspecified' when the user just hits enter.
+    if team:
+        aws.teamTag = team.strip()
     if not aws.teamTag:
-        team = ask(
+        team_answer = ask(
             "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
             color="cyan",
         ).strip()
-        aws.teamTag = team or "unspecified"
+        aws.teamTag = team_answer or "unspecified"
         if aws.teamTag == "unspecified":
             warn(
                 "Team tag set to 'unspecified' — update aws.teamTag in ~/.test_infra_config.yaml later for cost attribution"
@@ -164,12 +191,61 @@ def _aws_keypair_exists(ctx: Context, keypair_name: str, aws_account: str | None
     return out is not None and out.exited == 0
 
 
+def _sso_profile_block(profile_name: str, account_id: int, role: str) -> str:
+    # https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-manual
+    return f"""
+[profile {profile_name}]
+sso_session = {profile_name}
+sso_account_id = {account_id}
+sso_role_name = {role}
+region = {DEFAULT_AWS_REGION}
+sso_region = {DEFAULT_AWS_REGION}
+sso_start_url = https://d-906757b57c.awsapps.com/start/#
+
+[profile exec-{profile_name}]
+credential_process = aws-vault exec {profile_name} --json
+"""
+
+
+def _append_aws_profile(profile_name: str, body: str, interactive: bool, prompt: str) -> None:
+    """
+    Append a block to ~/.aws/config, unless a profile of that name is already there.
+
+    When interactive is False no prompts are shown and the block is added
+    unconditionally; when True the user is asked to confirm.
+    """
+    aws_conf_path = Path.home().joinpath(".aws", "config")
+
+    if os.path.isfile(aws_conf_path):
+        with open(aws_conf_path) as f:
+            if profile_name in f.read():
+                info(f"✓ AWS profile '{profile_name}' already in {aws_conf_path}")
+                return
+
+    conf = f"\n# BEGIN Automatically added by e2e setup script\n{body}\n# END Automatically added by e2e setup script\n"
+
+    if interactive:
+        info(conf)
+        if not ask_yesno(f"Add the above config to {aws_conf_path}"):
+            return
+        if not ask_yesno(prompt):
+            return
+
+    aws_conf_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(aws_conf_path, "a") as f:
+        f.write(conf)
+    info(f"✓ Wrote AWS profile '{profile_name}' to {aws_conf_path}")
+
+
 def setup_aws_sso_config(config: Config, interactive: bool = True):
     """
-    Append the agent-sandbox SSO profile to ~/.aws/config if it isn't already there.
+    Append the SSO profiles the E2E framework needs to ~/.aws/config.
+
+    Two are written: one for the account tests deploy into, and one for agent-qa, which
+    hosts the ECR pull-through cache every account pulls images from.
 
     When interactive=False (called from the wizard), no yes/no prompts are shown — the
-    profile is added unconditionally. When interactive=True (used by the standalone
+    profiles are added unconditionally. When interactive=True (used by the standalone
     e2e.setup.aws-sso task), the user is asked to confirm.
     """
     if not config.configParams.aws:
@@ -177,56 +253,22 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
 
     aws = config.configParams.aws
 
-    # agent-sandbox
-    role = 'account-admin'
-    acct_id = 376334461865
-    start_url = 'https://d-906757b57c.awsapps.com/start/#'
-    region = 'us-east-1'
-
-    aws_conf_path = Path.home().joinpath(".aws", "config")
+    role = ACCOUNT_ADMIN_ROLE_BY_ACCOUNT.get(aws.account, 'account-admin')
     profile_name = f'sso-{aws.account}-{role}'
-    sso_session_name = profile_name
 
-    # skip if profile already exists
-    if os.path.isfile(aws_conf_path):
-        with open(aws_conf_path) as f:
-            conf = f.read()
-            if profile_name in conf:
-                info(f"✓ AWS SSO profile '{profile_name}' already in {aws_conf_path}")
-                return
+    _append_aws_profile(
+        profile_name,
+        _sso_profile_block(profile_name, 376334461865, role),
+        interactive,
+        f"Do you want to setup AWS SSO profile for {aws.account}?",
+    )
 
-    # https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-manual
-    conf = f"""
-# BEGIN Automatically added by e2e setup script
-
-[profile {profile_name}]
-sso_session = {sso_session_name}
-sso_account_id = {acct_id}
-sso_role_name = {role}
-region = {region}
-
-[sso-session {sso_session_name}]
-sso_start_url = {start_url}
-sso_region = {region}
-sso_registration_scopes = sso:account:access
-
-[profile exec-{profile_name}]
-credential_process = aws-vault exec {profile_name} --json
-
-# END Automatically added by e2e setup script
-"""
-
-    if interactive:
-        info(conf)
-        if not ask_yesno(f"Add the above config to {aws_conf_path}"):
-            return
-        if not ask_yesno(f"Do you want to setup AWS SSO profile for {aws.account}?"):
-            return
-
-    aws_conf_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(aws_conf_path, "a") as f:
-        f.write(conf)
-    info(f"✓ Wrote AWS SSO profile '{profile_name}' to {aws_conf_path}")
+    _append_aws_profile(
+        ECR_CACHE_PROFILE,
+        _sso_profile_block(ECR_CACHE_PROFILE, AGENT_QA_ACCOUNT_ID, AGENT_QA_ECR_SSO_ROLE),
+        interactive,
+        "Do you want to setup the agent-qa profile used to pull cached images?",
+    )
 
 
 def _aws_create_keypair(
@@ -261,7 +303,10 @@ def _aws_create_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
     if Path(private_key_path).exists():
@@ -277,23 +322,41 @@ def _aws_create_keypair(
     if out is None:
         raise Exit(f"Failed to create key pair {keypair_name}")
     key_material = out.stdout.strip()
-    # write private key to disk
-    os.makedirs(Path(private_key_path).parent, exist_ok=True)
-    with open(private_key_path, "w") as f:
-        f.write(key_material)
-    if not is_windows():
-        os.chmod(private_key_path, 0o600)
-        # Windows permissions should be fine as is via inheritance
 
-    # generate public key from private key
-    cmd = f'ssh-keygen -f "{private_key_path}" -y'
-    out = ctx.run(cmd, hide=True)
-    if out is None:
-        raise Exit(f"Failed to generate public key from private key {private_key_path}")
-    public_key = out.stdout.strip()
-    # write public key to disk
-    with open(public_key_path, "w") as f:
-        f.write(public_key)
+    # The remote keypair is useless without the local files built below, and every step that
+    # builds them can fail. A remote half left behind cannot be repaired by a later run, which
+    # can only refuse to continue and print a manual delete command. Files that already
+    # existed are not ours to remove.
+    ours = [p for p in (private_key_path, public_key_path) if not Path(p).exists()]
+    try:
+        os.makedirs(Path(private_key_path).parent, exist_ok=True)
+        write_secret_file(private_key_path, key_material)
+
+        # generate public key from private key
+        cmd = f'ssh-keygen -f "{private_key_path}" -y'
+        out = ctx.run(cmd, hide=True)
+        if out is None:
+            raise Exit(f"Failed to generate public key from private key {private_key_path}")
+        public_key = out.stdout.strip()
+        # write public key to disk
+        with open(public_key_path, "w") as f:
+            f.write(public_key)
+
+        # encrypt the private key with a random passphrase (matches token_urlsafe length used for Pulumi)
+        passphrase = secrets.token_urlsafe(32)
+        ctx.run(f'ssh-keygen -p -P "" -N "{passphrase}" -f "{private_key_path}"', hide=True)
+        info("✓ Private key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+        add_key_to_ssh_agent(ctx, private_key_path, passphrase)
+    except BaseException:
+        # BaseException is caught so that interrupting a prompt also rolls back.
+        _rollback_created_keypair(
+            ctx,
+            keypair_name,
+            ours,
+            use_aws_vault=use_aws_vault,
+            aws_account_name=aws_account_name,
+        )
+        raise
 
     # update config object
     awsConf = config.configParams.aws
@@ -303,6 +366,50 @@ def _aws_create_keypair(
         awsConf.publicKeyPath = public_key_path
     if private_key_path:
         awsConf.privateKeyPath = private_key_path
+    awsConf.privateKeyPassword = passphrase
+
+
+def _rollback_created_keypair(
+    ctx: Context,
+    keypair_name: str,
+    local_paths: list[str],
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
+) -> None:
+    """
+    Drop a keypair that was created remotely but never finished setting up locally.
+
+    Nothing here raises, because the caller is already unwinding the failure that matters
+    and replacing it with a cleanup error would hide the real diagnosis.
+    """
+    delete_cmd = get_aws_cmd(
+        f'ec2 delete-key-pair --key-name "{keypair_name}"',
+        use_aws_vault=use_aws_vault,
+        aws_account=aws_account_name,
+    )
+    try:
+        out = ctx.run(delete_cmd, hide=True, warn=True)
+        deleted = out is not None and out.exited == 0
+    except BaseException:
+        deleted = False
+
+    if not deleted:
+        # The remote key outlived the failure, so the local files are still its counterpart
+        # and are left in place for the user to salvage.
+        warn(
+            f"Setup failed after creating AWS keypair '{keypair_name}', and it could not be "
+            f"deleted automatically. Remove it before retrying:\n  {delete_cmd}"
+        )
+        return
+
+    for path in local_paths:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            warn(f"Could not remove {path} left behind by the failed keypair setup: {e}")
+    info(f"↩ Rolled back partially created keypair '{keypair_name}'")
 
 
 def aws_resolve_keypair_opts(
@@ -331,7 +438,7 @@ def aws_resolve_keypair_opts(
     if awsConf.keyPairName:
         default_keypair_name = awsConf.keyPairName
     else:
-        default_keypair_name = getpass.getuser()
+        default_keypair_name = get_resource_owner_id()
     if awsConf.privateKeyPath:
         default_private_key_path = awsConf.privateKeyPath
     else:
@@ -366,7 +473,8 @@ def aws_resolve_keypair_opts(
             account_part = f"{awsConf.account}_" if awsConf.account else ""
             account_part = account_part.replace("-", "_")
             default_private_key_path = Path.home().joinpath(
-                ".ssh", f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}'
+                ".ssh",
+                f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}',
             )
         while True:
             private_key_path = ask(f"🔑 Private key path (default: {default_private_key_path}): ")
@@ -500,7 +608,10 @@ def _aws_import_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
 

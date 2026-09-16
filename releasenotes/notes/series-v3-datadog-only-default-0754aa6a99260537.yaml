@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    Metrics now use the Datadog v3 intake by default for Datadog
+    destinations.
+
+    Metric destinations configured with non-Datadog-looking URLs, such as
+    custom ``additional_endpoints`` and reverse proxies, continue to use the
+    v2 intake by default. To enable v3 for every destination, set
+    ``use_v3_api.series.enabled: "true"``. To keep using v2 intake, set
+    ``use_v3_api.series.enabled: "false"`` (global) or
+    ``use_v3_api.series.endpoints: { "<url>": "false" }`` (per-endpoint).

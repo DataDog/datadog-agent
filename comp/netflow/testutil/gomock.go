@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 // MatchEVPFlow is a gomock matcher for Flow events sent to the EP Forwarder. It allows for

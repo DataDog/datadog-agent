@@ -9,12 +9,13 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -24,35 +25,37 @@ import (
 )
 
 func TestSramEccErrorStatusSample(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
-		}
-		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
-			return nvml.EccSramErrorStatus{
-				AggregateCor:            11,
-				AggregateUncParity:      13,
-				AggregateUncSecDed:      17,
-				AggregateUncBucketL2:    19,
-				AggregateUncBucketSm:    23,
-				AggregateUncBucketPcie:  29,
-				AggregateUncBucketMcu:   31,
-				AggregateUncBucketOther: 37,
-				BThresholdExceeded:      1,
-			}, nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t,
+		testutil.WithArchitecture("ampere"),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+				return nvml.EccSramErrorStatus{
+					AggregateCor:            11,
+					VolatileCor:             12,
+					AggregateUncParity:      13,
+					VolatileUncParity:       14,
+					AggregateUncSecDed:      17,
+					VolatileUncSecDed:       18,
+					AggregateUncBucketL2:    19,
+					AggregateUncBucketSm:    23,
+					AggregateUncBucketPcie:  29,
+					AggregateUncBucketMcu:   31,
+					AggregateUncBucketOther: 37,
+					BThresholdExceeded:      1,
+				}, nvml.SUCCESS
+			}
+		}),
+	)
 
-	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
+	samplesOut, _, err := sramEccErrorStatusSample(mockDevice)
 	require.NoError(t, err)
-	require.Len(t, metricsOut, 9)
+	require.Len(t, samplesOut, 12)
+	metricsOut := requireMetrics(t, samplesOut)
 
 	assertMetric := func(name string, value float64, tags ...string) {
 		t.Helper()
 		for _, metric := range metricsOut {
-			if metric.Name == name && slices.Equal(metric.Tags, tags) {
+			if metric.Name == name && slices.Equal(metric.Tags(), tags) {
 				require.Equal(t, value, metric.Value)
 				require.Equal(t, metrics.GaugeType, metric.Type)
 				return
@@ -62,8 +65,11 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 	}
 
 	assertMetric("errors.ecc.corrected.total", 11, "memory_location:sram")
+	assertMetric("errors.ecc.corrected.volatile", 12, "memory_location:sram")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 13, "memory_location:sram", "error_subtype:parity")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 14, "memory_location:sram", "error_subtype:parity")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 17, "memory_location:sram", "error_subtype:secded")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 18, "memory_location:sram", "error_subtype:secded")
 	assertMetric("errors.ecc.uncorrected.total", 19, "memory_location:l2_cache")
 	assertMetric("errors.ecc.uncorrected.total", 23, "memory_location:sm")
 	assertMetric("errors.ecc.uncorrected.total", 29, "memory_location:pcie")
@@ -73,13 +79,7 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 }
 
 func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
-	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
-		}
-		return device
-	})
+	device := setupMockDevice(t, testutil.WithArchitecture("turing"))
 
 	metricsOut, _, err := sramEccErrorStatusSample(device)
 	require.Error(t, err)
@@ -88,35 +88,161 @@ func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
 }
 
 func TestLegacyEccMetricOverlapRules(t *testing.T) {
-	ampereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
+	ampereDevice := setupMockDevice(t, testutil.WithArchitecture("ampere"))
+
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+
+	preAmpereDevice := setupMockDevice(t, testutil.WithArchitecture("turing"))
+
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+}
+
+func TestAllECCAPIHandlers(t *testing.T) {
+	sramStatus := nvml.EccSramErrorStatus{
+		AggregateCor:            101,
+		VolatileCor:             102,
+		AggregateUncParity:      103,
+		VolatileUncParity:       104,
+		AggregateUncSecDed:      105,
+		VolatileUncSecDed:       106,
+		AggregateUncBucketL2:    107,
+		AggregateUncBucketSm:    108,
+		AggregateUncBucketPcie:  109,
+		AggregateUncBucketMcu:   110,
+		AggregateUncBucketOther: 111,
+		BThresholdExceeded:      112,
+	}
+	sramExpectedMetrics := []Metric{
+		{baseSample: baseSample{tags: []string{"memory_location:sram"}}, Name: "errors.ecc.corrected.total", Value: 101, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram"}}, Name: "errors.ecc.corrected.volatile", Value: 102, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 103, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 104, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 105, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}}, Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 106, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:l2_cache"}}, Name: "errors.ecc.uncorrected.total", Value: 107, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:sm"}}, Name: "errors.ecc.uncorrected.total", Value: 108, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:pcie"}}, Name: "errors.ecc.uncorrected.total", Value: 109, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:microcontroller"}}, Name: "errors.ecc.uncorrected.total", Value: 110, Type: metrics.GaugeType},
+		{baseSample: baseSample{tags: []string{"memory_location:other"}}, Name: "errors.ecc.uncorrected.total", Value: 111, Type: metrics.GaugeType},
+		{Name: "errors.ecc.sram.threshold_exceeded", Value: 1, Type: metrics.GaugeType},
+	}
+
+	legacyCounterValue := func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) uint64 {
+		return uint64(errorType)*100 + uint64(counterType)*10 + uint64(memoryLocation) + 1
+	}
+	legacyMetric := func(errorType, counterType, memoryLocation string, value uint64) Metric {
+		return Metric{
+			baseSample: baseSample{tags: []string{"memory_location:" + memoryLocation}},
+			Name:       fmt.Sprintf("errors.ecc.%s.%s", errorType, counterType),
+			Value:      float64(value),
+			Type:       metrics.GaugeType,
 		}
-		return device
-	})
+	}
 
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
-
-	preAmpereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
+	legacyMetrics := make([]Metric, 0, 32)
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			for counterType, counterTypeName := range eccCounterTypeToName {
+				legacyMetrics = append(legacyMetrics, legacyMetric(
+					errorTypeName,
+					counterTypeName,
+					memoryLocationName,
+					legacyCounterValue(errorType, counterType, memoryLocation),
+				))
+			}
 		}
-		return device
-	})
+	}
+	ampereExpectedMetrics := append(slices.Clone(sramExpectedMetrics),
+		legacyMetric("corrected", "volatile", "l1_cache", 1),
+		legacyMetric("corrected", "volatile", "l2_cache", 2),
+		legacyMetric("corrected", "volatile", "device_memory", 3),
+		legacyMetric("corrected", "volatile", "register_file", 4),
+		legacyMetric("corrected", "volatile", "texture_memory", 5),
+		legacyMetric("corrected", "volatile", "texture_shm", 6),
+		legacyMetric("corrected", "volatile", "cbu", 7),
+		legacyMetric("corrected", "total", "l1_cache", 11),
+		legacyMetric("corrected", "total", "l2_cache", 12),
+		legacyMetric("corrected", "total", "device_memory", 13),
+		legacyMetric("corrected", "total", "register_file", 14),
+		legacyMetric("corrected", "total", "texture_memory", 15),
+		legacyMetric("corrected", "total", "texture_shm", 16),
+		legacyMetric("corrected", "total", "cbu", 17),
+		legacyMetric("uncorrected", "volatile", "l1_cache", 101),
+		legacyMetric("uncorrected", "volatile", "l2_cache", 102),
+		legacyMetric("uncorrected", "volatile", "device_memory", 103),
+		legacyMetric("uncorrected", "volatile", "register_file", 104),
+		legacyMetric("uncorrected", "volatile", "texture_memory", 105),
+		legacyMetric("uncorrected", "volatile", "texture_shm", 106),
+		legacyMetric("uncorrected", "volatile", "cbu", 107),
+		legacyMetric("uncorrected", "volatile", "sram", 108),
+		legacyMetric("uncorrected", "total", "l1_cache", 111),
+		legacyMetric("uncorrected", "total", "device_memory", 113),
+		legacyMetric("uncorrected", "total", "register_file", 114),
+		legacyMetric("uncorrected", "total", "texture_memory", 115),
+		legacyMetric("uncorrected", "total", "texture_shm", 116),
+		legacyMetric("uncorrected", "total", "cbu", 117),
+	)
+	configureEccAPIs := func(device *testutil.MockDevice) {
+		device.GetMemoryErrorCounterFunc = func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
+			return legacyCounterValue(errorType, counterType, memoryLocation), nvml.SUCCESS
+		}
+		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+			return sramStatus, nvml.SUCCESS
+		}
+	}
 
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	for _, tt := range []struct {
+		name         string
+		architecture string
+		expected     []Metric
+	}{
+		{name: "turing", architecture: "turing", expected: legacyMetrics},
+		{name: "ampere", architecture: "ampere", expected: ampereExpectedMetrics},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t,
+				testutil.WithArchitecture(tt.architecture),
+				testutil.WithCustomHook(configureEccAPIs),
+			)
+
+			apis := createStatelessAPIs(&CollectorDependencies{})
+			var samplesOut []Sample
+			for _, api := range apis {
+				if api.Name != "sram_ecc_error_status" && !strings.HasPrefix(api.Name, "ecc_errors.") {
+					continue
+				}
+
+				samples, _, err := api.Handler(device, 0)
+				if err != nil {
+					require.Empty(t, samples)
+					require.True(t, safenvml.IsUnsupported(err))
+					continue
+				}
+				samplesOut = append(samplesOut, samples...)
+			}
+
+			actualMetrics := requireMetrics(t, samplesOut)
+			actualMetricValues := make([]Metric, 0, len(actualMetrics))
+			for _, metric := range actualMetrics {
+				actualMetricValues = append(actualMetricValues, *metric)
+			}
+			require.ElementsMatch(t, tt.expected, actualMetricValues)
+		})
+	}
 }
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t, testutil.WithMockAllFunctions())
 
 	// Test that the stateless collector creates the expected dynamic API set
 	collector, err := newStatelessCollector(device, &CollectorDependencies{Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)})
@@ -134,28 +260,68 @@ func TestNewStatelessCollector(t *testing.T) {
 	require.NotEmpty(t, metrics) // Should have some metrics
 }
 
+func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
+	var maxClockInfoCalls, virtualizationModeCalls int
+	device := setupMockDevice(t,
+		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+		testutil.WithMockAllFunctions(),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				virtualizationModeCalls++
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
+			}
+			device.GetMaxClockInfoFunc = func(nvml.ClockType) (uint32, nvml.Return) {
+				maxClockInfoCalls++
+				return 0, nvml.ERROR_UNKNOWN
+			}
+		}),
+	)
+	require.Equal(t, 1, virtualizationModeCalls, "virtualization mode should be cached during device initialization")
+	require.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, device.GetDeviceInfo().VirtualizationMode)
+
+	collector, err := newStatelessCollector(device, &CollectorDependencies{})
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not probe max clock info")
+
+	baseCollector := collector.(*baseCollector)
+	for _, apiName := range []string{
+		"max_clock_speed_sm",
+		"max_clock_speed_memory",
+		"max_clock_speed_graphics",
+		"max_clock_speed_video",
+	} {
+		for _, api := range baseCollector.supportedAPIs {
+			require.NotEqual(t, apiName, api.Name, "vGPU collector should not include %s", apiName)
+		}
+	}
+
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not collect max clock info")
+}
+
 // TestCollectProcessMemory tests the process memory collection with different process scenarios
 func TestCollectProcessMemory(t *testing.T) {
 	tests := []struct {
 		name          string
-		processes     []nvml.ProcessInfo
+		processes     testutil.MockProcessInfoList
 		expectedCount int
 	}{
 		{
 			name:          "NoProcesses",
-			processes:     []nvml.ProcessInfo{},
+			processes:     testutil.MockProcessInfoList{},
 			expectedCount: 1, // Only memory.limit
 		},
 		{
 			name: "SingleProcess",
-			processes: []nvml.ProcessInfo{
+			processes: testutil.MockProcessInfoList{
 				{Pid: 1234, UsedGpuMemory: 536870912}, // 512MB
 			},
 			expectedCount: 2, // process.memory.usage + memory.limit
 		},
 		{
 			name: "MultipleProcesses",
-			processes: []nvml.ProcessInfo{
+			processes: testutil.MockProcessInfoList{
 				{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 				{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 				{Pid: 1003, UsedGpuMemory: 536870912},  // 512MB
@@ -174,19 +340,14 @@ func TestCollectProcessMemory(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processMemorySample(device)
 						},
 					},
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-					return tt.processes, nvml.SUCCESS
-				}
-				return device
-			})
+			mockDevice := setupMockDevice(t, testutil.WithProcessData(tt.processes, nvml.SUCCESS))
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -208,19 +369,14 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
 		}
 	}
 
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-			return nil, nvml.ERROR_UNKNOWN
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithProcessData(nil, nvml.ERROR_UNKNOWN))
 
 	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
@@ -242,24 +398,18 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
-				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+				Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 					return processMemorySample(device)
 				},
 			},
 		}
 	}
 
-	processes := []nvml.ProcessInfo{
+	processes := testutil.MockProcessInfoList{
 		{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 		{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 	}
-
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-			return processes, nvml.SUCCESS
-		}
-		return device
-	})
+	mockDevice := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
 
 	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
@@ -272,16 +422,16 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 
 	// Check process.memory.usage metrics have associated workloads
 	processMemoryMetrics := 0
-	for _, metric := range processMetrics {
+	for _, metric := range requireMetrics(t, processMetrics) {
 		if metric.Name == "process.memory.usage" {
 			processMemoryMetrics++
-			require.Len(t, metric.AssociatedWorkloads, 1, "process.memory.usage should have exactly one workload")
-			require.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind), "process.memory.usage workload should be of kind process")
-			require.Equal(t, Medium, metric.Priority, "process.memory.usage should have High priority")
+			require.Len(t, metric.AssociatedWorkloads(), 1, "process.memory.usage should have exactly one workload")
+			require.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind), "process.memory.usage workload should be of kind process")
+			require.Equal(t, Medium, metric.Priority(), "process.memory.usage should have High priority")
 		}
 		if metric.Name == "memory.limit" {
-			require.Len(t, metric.AssociatedWorkloads, 2, "memory.limit should have workloads for all processes")
-			require.Equal(t, Medium, metric.Priority, "memory.limit should have High priority")
+			require.Len(t, metric.AssociatedWorkloads(), 2, "memory.limit should have workloads for all processes")
+			require.Equal(t, Medium, metric.Priority(), "memory.limit should have High priority")
 		}
 	}
 	require.Equal(t, 2, processMemoryMetrics, "Should have process.memory.usage for each process")
@@ -290,53 +440,32 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 // TestNVLinkCollector_Initialization tests NVLink collector initialization (migrated from nvlink_test.go)
 func TestNVLinkCollector_Initialization(t *testing.T) {
 	tests := []struct {
-		name        string
-		customSetup func(*mock.Device) *mock.Device
-		wantError   bool
-		wantLinks   int
+		name      string
+		mockOpts  []testutil.NvmlMockOption
+		wantError bool
+		wantLinks int
 	}{
 		{
-			name: "Unsupported device",
-			customSetup: func(device *mock.Device) *mock.Device {
-				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-					return nvml.ERROR_NOT_SUPPORTED
-				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
-			},
+			name:      "Unsupported device",
+			mockOpts:  []testutil.NvmlMockOption{testutil.WithFieldValuesReturn(nvml.ERROR_NOT_SUPPORTED)},
 			wantError: true,
 		},
 		{
-			name: "Unknown error",
-			customSetup: func(device *mock.Device) *mock.Device {
-				device.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
-					return nvml.ERROR_UNKNOWN
-				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
-			},
+			name:      "Unknown error",
+			mockOpts:  []testutil.NvmlMockOption{testutil.WithFieldValuesReturn(nvml.ERROR_UNKNOWN)},
 			wantError: false,
 		},
 		{
 			name: "Success with 4 links",
-			customSetup: func(device *mock.Device) *mock.Device {
+			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
 					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
-					values[0].ValueType = uint32(nvml.VALUE_TYPE_SIGNED_INT)
-					values[0].Value = [8]byte{4, 0, 0, 0, 0, 0, 0, 0} // 4 links
+					testutil.ApplyMockFieldValue(&values[0], testutil.NewFieldValue(4))
 					return nvml.SUCCESS
 				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
-			},
+			})},
 			wantError: false,
 			wantLinks: 4,
 		},
@@ -352,7 +481,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							// Test the API first (like the original TestFunc)
 							fields := []nvml.FieldValue{
 								{
@@ -364,13 +493,13 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 								return nil, 0, err
 							}
 							// If test passes, return empty metrics for this test
-							return []Metric{}, 0, nil
+							return []Sample{}, 0, nil
 						},
 					},
 				}
 			}
 
-			mockDevice := setupMockDevice(t, tt.customSetup)
+			mockDevice := setupMockDevice(t, tt.mockOpts...)
 			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
@@ -442,7 +571,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return nvlinkSample(device)
 						},
 					},
@@ -450,26 +579,16 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			}
 
 			// Create collector with mock device
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-					values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-					values[0].Value = [8]byte{byte(len(tt.nvlinkStates)), 0, 0, 0, 0, 0, 0, 0}
-					return nvml.SUCCESS
+			stateErrors := make(map[int]nvml.Return)
+			for link, linkErr := range tt.nvlinkErrors {
+				if linkErr != nil {
+					stateErrors[link] = nvml.ERROR_UNKNOWN
 				}
-				device.GetNvLinkStateFunc = func(link int) (nvml.EnableState, nvml.Return) {
-					if link >= len(tt.nvlinkStates) {
-						return 0, nvml.ERROR_INVALID_ARGUMENT
-					}
-					if tt.nvlinkErrors[link] != nil {
-						return 0, nvml.ERROR_UNKNOWN
-					}
-					return tt.nvlinkStates[link], nvml.SUCCESS
-				}
-				device.GetUUIDFunc = func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				}
-				return device
-			})
+			}
+			mockDevice := setupMockDevice(t,
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
+				testutil.WithNVLinkStates(tt.nvlinkStates, stateErrors),
+			)
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -485,18 +604,19 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 
 			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
 			require.Len(t, allMetrics, 3)
+			collectedMetrics := requireMetrics(t, allMetrics)
 
 			// Check total links metric
-			require.Equal(t, float64(len(tt.nvlinkStates)), allMetrics[0].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[0].Type)
+			require.Equal(t, float64(len(tt.nvlinkStates)), collectedMetrics[0].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[0].Type)
 
 			// Check active links metric
-			require.Equal(t, float64(tt.expectedActive), allMetrics[1].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[1].Type)
+			require.Equal(t, float64(tt.expectedActive), collectedMetrics[1].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[1].Type)
 
 			// Check inactive links metric
-			require.Equal(t, float64(tt.expectedInactive), allMetrics[2].Value)
-			require.Equal(t, metrics.GaugeType, allMetrics[2].Type)
+			require.Equal(t, float64(tt.expectedInactive), collectedMetrics[2].Value)
+			require.Equal(t, metrics.GaugeType, collectedMetrics[2].Type)
 		})
 	}
 }
@@ -513,8 +633,6 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 		detailPid    = uint32(2002)
 		detailMemory = uint64(200)
-
-		totalMemory = uint64(1024 * 1024 * 1024) // 1 GiB
 	)
 
 	detailProc := nvml.ProcessDetail_v1{
@@ -524,7 +642,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		architecture     nvml.DeviceArchitecture
+		architecture     string
 		detailListErr    nvml.Return
 		expectPid        uint32
 		expectMemory     float64
@@ -532,21 +650,21 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 	}{
 		{
 			name:          "PreHopper uses GetComputeRunningProcesses",
-			architecture:  nvml.DEVICE_ARCH_AMPERE,
+			architecture:  "ampere",
 			detailListErr: nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
 			expectPid:     legacyPid,
 			expectMemory:  float64(legacyMemory),
 		},
 		{
 			name:          "Hopper uses GetRunningProcessDetailList",
-			architecture:  nvml.DEVICE_ARCH_HOPPER,
+			architecture:  "hopper",
 			detailListErr: nvml.SUCCESS,
 			expectPid:     detailPid,
 			expectMemory:  float64(detailMemory),
 		},
 		{
 			name:             "Hopper fallback on detail list error",
-			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			architecture:     "hopper",
 			detailListErr:    nvml.ERROR_UNKNOWN,
 			expectPid:        legacyPid,
 			expectMemory:     float64(legacyMemory),
@@ -554,7 +672,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 		},
 		{
 			name:             "Hopper fallback on detail list insufficient size",
-			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			architecture:     "hopper",
 			detailListErr:    nvml.ERROR_INSUFFICIENT_SIZE,
 			expectPid:        legacyPid,
 			expectMemory:     float64(legacyMemory),
@@ -571,41 +689,26 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processMemorySample(device)
 						},
 					},
 					{
 						Name: "process_detail_list",
-						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, _ uint64) ([]Sample, uint64, error) {
 							return processDetailListSample(device)
 						},
 					},
 				}
 			}
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-
-				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-					return tt.architecture, nvml.SUCCESS
-				}
-				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
-					return []nvml.ProcessInfo{
-						{Pid: legacyPid, UsedGpuMemory: legacyMemory},
-					}, nvml.SUCCESS
-				}
-				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-					if tt.detailListErr != nvml.SUCCESS {
-						return nvml.ProcessDetailList{}, tt.detailListErr
-					}
-					return nvml.ProcessDetailList{
-						NumProcArrayEntries: 1,
-						ProcArray:           &detailProc,
-					}, nvml.SUCCESS
-				}
-				return device
-			})
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture(tt.architecture),
+				testutil.WithProcessData(testutil.MockProcessInfoList{
+					{Pid: legacyPid, UsedGpuMemory: legacyMemory},
+				}, nvml.SUCCESS),
+				testutil.WithProcessDetailList([]nvml.ProcessDetail_v1{detailProc}, tt.detailListErr),
+			)
 
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
@@ -616,11 +719,10 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-
 			// Deduplicate across the two API handlers, just like the real collector pipeline does
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
+			deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
 				collector.Name(): allMetrics,
-			})
+			}))
 
 			// Find the process.memory.usage metric and verify its value
 			var foundProcessMemory bool
@@ -630,14 +732,14 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 				case "process.memory.usage":
 					foundProcessMemory = true
 					require.Equal(t, tt.expectMemory, m.Value, "process.memory.usage value mismatch")
-					require.Len(t, m.AssociatedWorkloads, 1)
-					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID)
+					require.Len(t, m.AssociatedWorkloads(), 1)
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads()[0].ID)
 				case "memory.limit":
 					require.False(t, foundMemoryLimit, "memory.limit should be emitted only once")
 					foundMemoryLimit = true
-					require.Equal(t, float64(totalMemory), m.Value, "memory.limit should equal total device memory")
-					require.Len(t, m.AssociatedWorkloads, 1, "memory.limit should have one associated workload")
-					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID, "memory.limit workload should match the winning process source")
+					require.Equal(t, float64(testutil.DefaultTotalMemory), m.Value, "memory.limit should equal total device memory")
+					require.Len(t, m.AssociatedWorkloads(), 1, "memory.limit should have one associated workload")
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads()[0].ID, "memory.limit workload should match the winning process source")
 				}
 			}
 
@@ -649,44 +751,34 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 
 func TestProcessDetailListArchitectureSupport(t *testing.T) {
 	tests := []struct {
-		name         string
-		architecture nvml.DeviceArchitecture
-		supported    bool
+		name      string
+		supported bool
 	}{
 		{
-			name:         "Hopper",
-			architecture: nvml.DEVICE_ARCH_HOPPER,
-			supported:    true,
+			name:      "hopper",
+			supported: true,
 		},
 		{
-			name:         "Blackwell",
-			architecture: 10,
-			supported:    true,
+			name:      "blackwell",
+			supported: true,
 		},
 		{
-			name:         "Ampere",
-			architecture: nvml.DEVICE_ARCH_AMPERE,
-			supported:    false,
+			name:      "ampere",
+			supported: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-				testutil.WithMockAllDeviceFunctions()(device)
-
-				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-					return tt.architecture, nvml.SUCCESS
-				}
-				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
-					if tt.supported {
-						return nvml.ProcessDetailList{}, nvml.SUCCESS
-					}
-					return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
-				}
-				return device
-			})
+			detailListRet := nvml.ERROR_ARGUMENT_VERSION_MISMATCH
+			if tt.supported {
+				detailListRet = nvml.SUCCESS
+			}
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture(tt.name),
+				testutil.WithMockAllFunctions(),
+				testutil.WithProcessDetailList(nil, detailListRet))
 
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
 			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})
@@ -728,12 +820,12 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			env.SetFeatures(t, tt.features...)
 
-			device := setupMockDevice(t, nil)
+			device := setupMockDevice(t)
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
 			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
 
-			gotMetrics, _, err := deviceUnhealthyAPI.Handler(device, 0)
+			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
@@ -741,13 +833,346 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 			}
 
 			if tt.expectMetrics {
+				gotMetrics := requireMetrics(t, gotSamples)
 				require.Len(t, gotMetrics, 1)
 				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
 			} else {
-				require.Empty(t, gotMetrics)
+				require.Empty(t, gotSamples)
 			}
 		})
 	}
+}
+
+func TestPCIELinkBytesPerSecond(t *testing.T) {
+	// This table was generated from https://en.wikipedia.org/wiki/PCI_Express#Hardware_protocol_summary:~:text=and%20other%20features.-,Comparison%20table,-%5Bedit%5D
+	tests := map[string]struct {
+		gen      int
+		width    int
+		wantErr  bool
+		expected float64
+	}{
+		// PCIe 1.0 — 2.5 GT/s, 8b/10b
+		"gen1 x1":  {gen: 1, width: 1, expected: 0.25e9},
+		"gen1 x2":  {gen: 1, width: 2, expected: 0.5e9},
+		"gen1 x4":  {gen: 1, width: 4, expected: 1e9},
+		"gen1 x8":  {gen: 1, width: 8, expected: 2e9},
+		"gen1 x16": {gen: 1, width: 16, expected: 4e9},
+
+		// PCIe 2.0 — 5.0 GT/s, 8b/10b
+		"gen2 x1":  {gen: 2, width: 1, expected: 0.5e9},
+		"gen2 x2":  {gen: 2, width: 2, expected: 1e9},
+		"gen2 x4":  {gen: 2, width: 4, expected: 2e9},
+		"gen2 x8":  {gen: 2, width: 8, expected: 4e9},
+		"gen2 x16": {gen: 2, width: 16, expected: 8e9},
+
+		// PCIe 3.0 — 8.0 GT/s, 128b/130b
+		"gen3 x1":  {gen: 3, width: 1, expected: 0.985e9},
+		"gen3 x2":  {gen: 3, width: 2, expected: 1.969e9},
+		"gen3 x4":  {gen: 3, width: 4, expected: 3.938e9},
+		"gen3 x8":  {gen: 3, width: 8, expected: 7.877e9},
+		"gen3 x16": {gen: 3, width: 16, expected: 15.754e9},
+
+		// PCIe 4.0 — 16.0 GT/s, 128b/130b
+		"gen4 x1":  {gen: 4, width: 1, expected: 1.969e9},
+		"gen4 x2":  {gen: 4, width: 2, expected: 3.938e9},
+		"gen4 x4":  {gen: 4, width: 4, expected: 7.877e9},
+		"gen4 x8":  {gen: 4, width: 8, expected: 15.754e9},
+		"gen4 x16": {gen: 4, width: 16, expected: 31.508e9},
+
+		// PCIe 5.0 — 32.0 GT/s, 128b/130b
+		"gen5 x1":  {gen: 5, width: 1, expected: 3.938e9},
+		"gen5 x2":  {gen: 5, width: 2, expected: 7.877e9},
+		"gen5 x4":  {gen: 5, width: 4, expected: 15.754e9},
+		"gen5 x8":  {gen: 5, width: 8, expected: 31.508e9},
+		"gen5 x16": {gen: 5, width: 16, expected: 63.015e9},
+
+		// PCIe 6.0 — 64.0 GT/s, PAM4 + 242B/256B FLIT
+		"gen6 x1":  {gen: 6, width: 1, expected: 7.563e9},
+		"gen6 x2":  {gen: 6, width: 2, expected: 15.125e9},
+		"gen6 x4":  {gen: 6, width: 4, expected: 30.25e9},
+		"gen6 x8":  {gen: 6, width: 8, expected: 60.5e9},
+		"gen6 x16": {gen: 6, width: 16, expected: 121e9},
+
+		// Error cases
+		"unknown gen 0":  {gen: 0, width: 16, wantErr: true},
+		"unknown gen 7":  {gen: 7, width: 16, wantErr: true},
+		"negative gen":   {gen: -1, width: 16, wantErr: true},
+		"zero width":     {gen: 4, width: 0, wantErr: true},
+		"negative width": {gen: 4, width: -1, wantErr: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual, err := pcieLinkBytesPerSecond(test.gen, test.width)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.InDelta(t, test.expected, actual, 1e6) // tolerate 1 MB/s drift
+		})
+	}
+}
+
+func TestPCIELinkMetrics(t *testing.T) {
+	tests := map[string]struct {
+		currentWidth       int
+		maxWidth           int
+		currentGeneration  int
+		maxGeneration      int
+		expectedMetricVals map[string]float64
+		expectedErr        string
+	}{
+		"matching link": {
+			currentWidth:      16,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  16,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 0,
+				"pci.link.speed.current":  31.50769230769231e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 0,
+			},
+		},
+		"degraded link": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 1,
+			},
+		},
+		"current width error": {
+			currentWidth:      -1,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedErr:       "get current PCIe link width",
+		},
+		"max width error emits current width": {
+			currentWidth:      16,
+			maxWidth:          -1,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current": 16,
+			},
+			expectedErr: "get max PCIe link width",
+		},
+		"current generation error emits width metrics": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: -1,
+			maxGeneration:     4,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+			},
+			expectedErr: "get current PCIe link generation",
+		},
+		"max generation error emits current speed": {
+			currentWidth:      8,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     -1,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  8,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 1,
+				"pci.link.speed.current":  15.753846153846155e9,
+			},
+			expectedErr: "get max PCIe link generation",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.currentWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.currentWidth, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkWidthFunc = func() (int, nvml.Return) {
+					if test.maxWidth == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.maxWidth, nvml.SUCCESS
+				}
+				device.GetCurrPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.currentGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.currentGeneration, nvml.SUCCESS
+				}
+				device.GetMaxPcieLinkGenerationFunc = func() (int, nvml.Return) {
+					if test.maxGeneration == -1 {
+						return 0, nvml.ERROR_UNKNOWN
+					}
+					return test.maxGeneration, nvml.SUCCESS
+				}
+			}))
+
+			metricsOut, _, err := pcieLinkMetrics(device)
+			if test.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.expectedErr)
+			}
+			require.Len(t, metricsOut, len(test.expectedMetricVals))
+			for metricName, expectedValue := range test.expectedMetricVals {
+				metric := findMetric(metricsOut, metricName)
+				require.NotNil(t, metric, "expected metric %s", metricName)
+				require.InDelta(t, expectedValue, metric.Value, 1e6)
+				require.Equal(t, metrics.GaugeType, metric.Type)
+			}
+		})
+	}
+}
+
+func TestClockThrottleReasonMetrics(t *testing.T) {
+	tests := map[string]struct {
+		reasons                      uint64
+		expectedReason               string
+		expectedThrottledWhileActive float64
+	}{
+		"none": {
+			reasons:                      nvml.ClocksEventReasonNone,
+			expectedReason:               "none",
+			expectedThrottledWhileActive: 0,
+		},
+		"gpu idle": {
+			reasons:                      nvml.ClocksEventReasonGpuIdle,
+			expectedReason:               "gpu_idle",
+			expectedThrottledWhileActive: 0,
+		},
+		"applications clocks setting": {
+			reasons:                      nvml.ClocksEventReasonApplicationsClocksSetting,
+			expectedReason:               "applications_clocks_setting",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw power cap": {
+			reasons:                      nvml.ClocksEventReasonSwPowerCap,
+			expectedReason:               "sw_power_cap",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwSlowdown,
+			expectedReason:               "hw_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"sync boost": {
+			reasons:                      nvml.ClocksEventReasonSyncBoost,
+			expectedReason:               "sync_boost",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw thermal slowdown": {
+			reasons:                      nvml.ClocksEventReasonSwThermalSlowdown,
+			expectedReason:               "sw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw thermal slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwThermalSlowdown,
+			expectedReason:               "hw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw power brake slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwPowerBrakeSlowdown,
+			expectedReason:               "hw_power_brake_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"display clock setting": {
+			reasons:                      nvml.ClocksEventReasonDisplayClockSetting,
+			expectedReason:               "display_clock_setting",
+			expectedThrottledWhileActive: 1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			metricsOut := requireMetrics(t, clockThrottleReasonMetrics(test.reasons))
+
+			for _, metric := range metricsOut {
+				if strings.HasPrefix(metric.Name, "clock.throttle_reasons.") {
+					metricReason := strings.TrimPrefix(metric.Name, "clock.throttle_reasons.")
+
+					if metricReason == test.expectedReason {
+						require.Equal(t, 1.0, metric.Value, "expected metric %s to be 1.0", metric.Name)
+					} else {
+						require.Equal(t, 0.0, metric.Value, "expected metric %s to be 0.0", metric.Name)
+					}
+
+				} else if metric.Name == "clock.throttled_while_active" {
+					require.Equal(t, test.expectedThrottledWhileActive, metric.Value, "expected metric %s to be %f", metric.Name, test.expectedThrottledWhileActive)
+
+					expectedTag := throttleReasonTag + ":" + notThrottledReason
+					if test.expectedThrottledWhileActive > 0 {
+						expectedTag = throttleReasonTag + ":" + test.expectedReason
+					}
+
+					metricTags := metric.Tags()
+					require.Len(t, metricTags, 1)
+					require.Equal(t, expectedTag, metricTags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
+				} else {
+					require.Failf(t, "unexpected metric", "received unknown metric %s", metric.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestNeedsRecoverySample(t *testing.T) {
+	tests := []struct {
+		name          string
+		action        nvml.DeviceGpuRecoveryAction
+		expectedValue float64
+		expectedTag   string
+	}{
+		{name: "none", action: nvml.GPU_RECOVERY_ACTION_NONE, expectedValue: 0, expectedTag: "recovery_action:none"},
+		{name: "reset", action: nvml.GPU_RECOVERY_ACTION_GPU_RESET, expectedValue: 1, expectedTag: "recovery_action:reset"},
+		{name: "reboot", action: nvml.GPU_RECOVERY_ACTION_NODE_REBOOT, expectedValue: 1, expectedTag: "recovery_action:reboot"},
+		{name: "drain", action: nvml.GPU_RECOVERY_ACTION_DRAIN_P2P, expectedValue: 1, expectedTag: "recovery_action:drain"},
+		{name: "drain_and_reset", action: nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET, expectedValue: 1, expectedTag: "recovery_action:drain_and_reset"},
+		{name: "unknown_future_action", action: nvml.DeviceGpuRecoveryAction(99), expectedValue: 1, expectedTag: "recovery_action:unknown_99"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithFieldValuesPartialOverride(map[uint32]testutil.MockFieldValue{
+				nvml.FI_DEV_GET_GPU_RECOVERY_ACTION: testutil.NewFieldValue(uint64(tt.action)),
+			}))
+
+			samplesOut, _, err := needsRecoverySample(device)
+			require.NoError(t, err)
+			require.Len(t, samplesOut, 1)
+
+			metric := requireMetrics(t, samplesOut)[0]
+			require.Equal(t, "device.needs_recovery", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{tt.expectedTag}, metric.Tags())
+
+		})
+	}
+}
+
+func TestNeedsRecoverySampleUnsupported(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+
+	_, _, err := needsRecoverySample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {

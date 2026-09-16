@@ -27,7 +27,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -79,7 +79,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}

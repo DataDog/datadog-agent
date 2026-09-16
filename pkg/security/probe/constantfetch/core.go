@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package constantfetch holds constantfetch related files
 package constantfetch
@@ -15,7 +15,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 )
 
 // BTFConstantFetcher is a constant fetcher based on BTF data (from file or current kernel)
@@ -44,7 +44,7 @@ func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher
 
 // NewBTFConstantFetcherFromCurrentKernel creates a BTFConstantFetcher, reading BTF from current kernel
 func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
-	spec, err := ebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}

@@ -51,7 +51,7 @@ func (*lang) Kinds() map[string]rule.KindInfo {
 }
 
 func (*lang) KnownDirectives() []string {
-	return []string{name}
+	return []string{name, name + "_src"}
 }
 
 func (*lang) Loads() []rule.LoadInfo {
@@ -62,10 +62,18 @@ func (*lang) Loads() []rule.LoadInfo {
 }
 
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+	// srcOverrides maps output filename -> override src filename, populated by
+	// # gazelle:go_stringer_src <output>=<src> directives in the BUILD file.
+	srcOverrides := map[string]string{}
 	if args.File != nil {
 		for _, d := range args.File.Directives {
 			if d.Key == name && d.Value == "off" {
 				return language.GenerateResult{}
+			}
+			if d.Key == name+"_src" {
+				if output, src, ok := strings.Cut(d.Value, "="); ok {
+					srcOverrides[strings.TrimSpace(output)] = strings.TrimSpace(src)
+				}
 			}
 		}
 	}
@@ -79,6 +87,11 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 			continue
 		}
 		liveRules = append(liveRules, directives...)
+	}
+	for _, r := range liveRules {
+		if override, ok := srcOverrides[r.AttrString("output")]; ok {
+			r.SetAttr("src", override)
+		}
 	}
 	liveOutputs := make(map[string]bool, len(liveRules))
 	for _, r := range liveRules {

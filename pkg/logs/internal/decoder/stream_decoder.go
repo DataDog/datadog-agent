@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	syslogparser "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -26,14 +27,17 @@ import (
 // produces StateStructured messages; a NoopLineHandler is used to prevent
 // truncation logic from corrupting them.
 //
-// For unstructured format, it uses UTF-8 newline framing with a noop parser.
+// For unstructured format, it uses UTF-8 newline framing (with end-of-stream
+// flush) and a noop parser. The end-of-stream flush is required for
+// forwarders that use connection close as the message boundary — sending a
+// single message per TCP connection without a trailing newline.
 func NewStreamDecoder(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) Decoder {
 	format := source.Config().Format
 	switch format {
 	case config.SyslogFormat:
 		return newSyslogStreamDecoder(source, tailerInfo)
 	default:
-		return InitializeDecoder(source, noop.New(), tailerInfo)
+		return NewDecoderWithFraming(source, noop.New(), framer.UTF8NewlineStream, nil, tailerInfo)
 	}
 }
 
@@ -44,8 +48,14 @@ func newSyslogStreamDecoder(source *sources.ReplaceableSource, tailerInfo *statu
 	detectedPattern := &DetectedPattern{}
 
 	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewParser(source.Config().IsSIEMParsingEnabled()))
-	f := framer.NewFramer(lineParser.process, framer.SyslogFraming, maxMessageSize)
+	var p parsers.Parser
+	if source.Config().IsAttributeParsingEnabled(pkgconfigsetup.Datadog()) {
+		p = syslogparser.NewParser(source.Config().IsDebugAttrParsingEnabled())
+	} else {
+		p = noop.New()
+	}
+	lineParser := NewSingleLineParser(lineHandler, p)
+	f := framer.NewSyslogFramer(lineParser.process, maxMessageSize, tailerInfo)
 
 	formatInfo := status.NewMappedInfo("Format")
 	formatInfo.SetMessage("Format", config.SyslogFormat)

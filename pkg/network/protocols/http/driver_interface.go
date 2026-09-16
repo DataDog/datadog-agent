@@ -7,21 +7,17 @@
 
 package http
 
-/*
-#include <stdlib.h>
-#include <memory.h>
-*/
-import "C"
 import (
 	"runtime"
 	"sync"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
-	"golang.org/x/sys/windows"
 )
 
 ///const (
@@ -48,8 +44,9 @@ type WinHttpTransaction struct {
 	SiteName string
 	// HeaderLength  uint32
 	// ContentLength uint32
-	TagsFromJson   iisconfig.APMTags
-	TagsFromConfig iisconfig.APMTags
+	TagsFromJson    iisconfig.APMTags
+	TagsFromConfig  iisconfig.APMTags
+	TagsFromAppHost iisconfig.APMTags
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -102,12 +99,12 @@ func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 		EnableAutoETWExclusion: uint16(1),
 	}
 
-	err := dh.DeviceIoControl(
+	_, err := dh.SynchronousDeviceIoControl(
 		driver.EnableHttpIOCTL,
 		(*byte)(unsafe.Pointer(&settings)),
 		uint32(driver.HttpSettingsTypeSize),
 		nil,
-		uint32(0), nil, nil)
+		uint32(0))
 	if err != nil {
 		log.Warnf("Failed to enable http in driver %v", err)
 		return err
@@ -165,17 +162,12 @@ func (di *HttpDriverInterface) StartReadingBuffers() {
 
 // func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
 func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
-	var (
-		bytesRead uint32
-		buf       = make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
-	)
+	buf := make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
 
-	err := di.driverHTTPHandle.DeviceIoControl(
+	bytesRead, err := di.driverHTTPHandle.SynchronousDeviceIoControl(
 		driver.FlushPendingHttpTxnsIOCTL,
 		&driver.DdAPIVersionBuf[0], uint32(len(driver.DdAPIVersionBuf)),
-		&buf[0], uint32(len(buf)),
-		&bytesRead,
-		nil)
+		&buf[0], uint32(len(buf)))
 
 	if err != nil {
 		log.Infof("http flushPendingTransactions error %v", err)

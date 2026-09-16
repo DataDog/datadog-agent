@@ -8,10 +8,10 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
@@ -31,8 +31,8 @@ type nvlinkPLRCollector struct {
 }
 
 func newNVLinkPLRCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	if deps == nil || deps.PRMCache == nil {
-		return nil, fmt.Errorf("%w: PRM cache is required for NVLink PLR collector", errUnsupportedDevice)
+	if deps.PRMCache == nil {
+		return nil, errors.New("PRM cache is required for NVLink PLR collector")
 	}
 
 	c := &nvlinkPLRCollector{
@@ -61,60 +61,61 @@ func newNVLinkPLRCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	return c, nil
 }
 
-func (c *nvlinkPLRCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkPLRCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkPLRCollector) Name() CollectorName {
 	return nvlinkPLR
 }
 
-func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
+func (c *nvlinkPLRCollector) Collect() ([]Sample, error) {
 	var (
-		allMetrics []*Metric
-		multiErr   error
+		allSamples []Sample
+		multiErr   []error
 	)
 
 	for _, port := range c.ports {
-		metrics, err := c.getPortMetrics(port)
+		samples, err := c.getPortMetrics(port)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, err)
+			multiErr = append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
+			continue
 		}
-		allMetrics = append(allMetrics, metrics...)
+		allSamples = append(allSamples, samples...)
 	}
 
-	if len(allMetrics) == 0 && multiErr != nil {
-		return nil, multiErr
+	if len(allSamples) == 0 && len(multiErr) > 0 {
+		return nil, errors.Join(multiErr...)
 	}
 
-	return allMetrics, multiErr
+	return allSamples, errors.Join(multiErr...)
 }
 
-func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
-	var allMetrics []*Metric
+func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]Sample, error) {
+	var samples []Sample
 
-	counters, err := c.prmCache.GetCounters(c.DeviceUUID(), port)
+	counters, err := c.prmCache.GetCounters(c.Device().GetDeviceInfo().UUID, port)
 	if err != nil {
 		return nil, fmt.Errorf("get port metrics for port %d: %w", port, err)
 	}
 
-	var multiErr error
+	var multiErr []error
 
 	for _, field := range prm.PLRCounterFields {
 		value, found := counters[field]
 		if !found {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
+			multiErr = append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
 			continue
 		}
 
-		allMetrics = append(allMetrics, &Metric{
-			Name:     field,
-			Value:    float64(value),
-			Type:     metrics.GaugeType,
-			Tags:     []string{nvlinkPortTag(port)},
-			Priority: Medium,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
+			Name:       field,
+			Value:      float64(value),
+			Type:       metrics.GaugeType,
 		})
 	}
 
-	return allMetrics, multiErr
+	return samples, errors.Join(multiErr...)
 }

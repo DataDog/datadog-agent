@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -189,7 +189,7 @@ func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized())
+	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized(), h.config.GetString("kubernetes_kubelet_host"))
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)

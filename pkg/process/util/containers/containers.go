@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=mock_containers -destination=mocks/containers.go -build_constraint test
+
 //nolint:revive // TODO(PROC) Fix revive linter
 package containers
 
@@ -17,6 +19,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -132,7 +135,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		entityID := types.NewEntityID(types.ContainerID, container.ID)
 		tags, err := p.tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
-			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
+			log.Debugf("Could not collect tags for container %q, err: %v", containerutilPkg.ShortContainerID(container.ID), err)
 		}
 		tags = append(tags, container.CollectorTags...)
 

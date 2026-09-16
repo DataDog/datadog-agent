@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -27,7 +27,7 @@ func getTestHostSystemInfo(t *testing.T, overrides map[string]any) *hostSystemIn
 	// Use mock hostname service to avoid network timeouts
 	hostname, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("test-hostname"))
 
-	p := NewSystemInfoProvider(Requires{
+	p := NewComponent(Requires{
 		Log:        logmock.New(t),
 		Config:     config.NewMockWithOverrides(t, overrides),
 		Serializer: serializermock.NewMetricSerializer(t),

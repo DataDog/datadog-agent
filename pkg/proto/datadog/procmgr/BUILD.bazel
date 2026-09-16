@@ -1,0 +1,36 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
+
+exports_files(["process_manager.proto"])
+
+proto_library(
+    name = "procmgr_proto",
+    srcs = ["process_manager.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "procmgr_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr",
+    proto = ":procmgr_proto",
+    visibility = ["//visibility:public"],
+)
+
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+rust_prost_library(
+    name = "procmgr_rust_proto",
+    proto = ":procmgr_proto",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    visibility = ["//visibility:public"],
+)

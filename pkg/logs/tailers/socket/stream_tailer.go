@@ -72,7 +72,7 @@ func NewStreamTailer(source *sources.LogSource, conn net.Conn, outputChan chan *
 
 // Start begins reading and decoding data from the connection.
 func (t *StreamTailer) Start() {
-	t.source.Status.Success()
+	t.source.Status().Success()
 	log.Infof("Start tailing stream from %s (format=%q)", t.Conn.RemoteAddr(), t.source.Config.Format)
 
 	go t.forwardMessages()

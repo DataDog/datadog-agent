@@ -59,6 +59,7 @@ golang.org/x/*: "Copyright (c) 2009 The Go Authors. All rights reserved"
 gopkg.in/DataDog/*: Copyright 2016-Present Datadog, Inc.
 gopkg.in/yaml.v2: "Copyright 2011-2016 Canonical Ltd"
 k8s.io/*: Copyright 2014 The Kubernetes Authors.
+kernel.org/pub/linux/libs/security/libcap/psx: Copyright (c) 2019,20,24 Andrew G. Morgan <morgan@kernel.org>
 sigs.k8s.io/*: Copyright 2017 The Kubernetes Authors.
 contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors
 go.opencensus.io: Copyright 2018, OpenCensus Authors
@@ -245,7 +246,6 @@ github.com/dgraph-io/badger:
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
 github.com/minio/sha256-simd: ["Copyright 2016 Minio, Inc.", "Copyright 2018 Kristofer Peterson"]
-github.com/stormcat24/protodep: "Copyright Akinori Yamada"
 go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
@@ -305,7 +305,7 @@ github.com/antchfx/htmlquery: Copyright (c) 2016 Zheng Chun
 github.com/antchfx/xmlquery: Copyright (c) 2016 Zheng Chun
 github.com/antchfx/xpath: Copyright (c) 2016 Zheng Chun
 github.com/kouhin/envflag: Copyright (c) 2015 kouhin
-
+github.com/nexus-rpc/nexus-proto-annotations/*: Copyright (c) 2024 Temporal Technologies Inc. All Rights Reserved
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:

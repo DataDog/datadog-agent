@@ -1,0 +1,4 @@
+exports_files(
+    glob(["*.patch"]),
+    visibility = ["//pkg/proto/pbgo/trace:__pkg__"],
+)

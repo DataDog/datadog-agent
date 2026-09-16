@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The OTel Agent ``--sync-delay`` flag (env ``DD_SYNC_DELAY``) now defaults to
+    ``30s`` instead of ``0``. The OTel Agent will retry synchronizing its
+    configuration from the core Agent for up to 30 seconds at startup before
+    failing, which makes startup more resilient when the core Agent is not yet
+    ready. This default can still be overridden via the flag or environment
+    variable.

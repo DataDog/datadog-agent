@@ -17,8 +17,17 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 	return &SystemdServiceManager{}
 }
 
+// InstallerPath returns "" on non-Linux platforms.
+func (s *SystemdServiceManager) InstallerPath() string { return "" }
+
+// TmpfsCompatible always returns false on non-Linux platforms.
+func (s *SystemdServiceManager) TmpfsCompatible() bool { return false }
+
 // Setup is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Setup(_ context.Context) error { return nil }
 
 // Uninstall is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Uninstall(_ context.Context) error { return nil }
+
+// ServiceFileExists always returns false on non-Linux platforms.
+func (s *SystemdServiceManager) ServiceFileExists() bool { return false }

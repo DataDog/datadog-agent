@@ -14,8 +14,6 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/hashicorp/go-multierror"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +29,7 @@ type gpmCollector struct {
 	samples              [sampleBufferSize]nvml.GpmSample
 	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
 	nextSampleToCollect  int
+	emitLegacySMActive   bool
 }
 
 type gpmMetric struct {
@@ -75,7 +74,11 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
+func newGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
+	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), deps)
+}
+
+func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, deps *CollectorDependencies) (c Collector, err error) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	if isMig && migDevice.Parent == nil {
 		return nil, errors.New("MIG device has no parent physical device")
@@ -83,12 +86,15 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 
 	// We don't query for device support because the API is broken in go-nvml 0.13.0
 
-	// Clone the global allGpmMetrics map to avoid mutating global state
-	clonedMetrics := maps.Clone(allGpmMetrics)
+	// Clone the metrics map to avoid mutating the state
+	clonedMetrics := maps.Clone(metricsToCollect)
 
 	collector := &gpmCollector{
 		device:           device,
 		metricsToCollect: clonedMetrics,
+	}
+	if deps != nil {
+		collector.emitLegacySMActive = deps.Config.LegacySMActive
 	}
 
 	if isMig {
@@ -204,30 +210,45 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	}
 
 	metricIndex := 0
+	var errs []error
 	for metricID := range c.metricsToCollect {
-		metricsGet.Metrics[metricIndex] = nvml.GpmMetric{
-			MetricId: uint32(metricID),
+		// WORKAROUND: go-nvml's GpmMetricsGetType.Metrics array has a memory-layout
+		// mismatch that corrupts elements past index 0 when NumMetrics > 1. Query each
+		// metric in its own call via Metrics[0] until the upstream fix lands.
+		singleMetricGet := &nvml.GpmMetricsGetType{
+			NumMetrics: 1,
+			Version:    nvml.GPM_METRICS_GET_VERSION,
+			Sample1:    secondToLastSample,
+			Sample2:    lastSample,
 		}
+		singleMetricGet.Metrics[0] = nvml.GpmMetric{
+			MetricId:   uint32(metricID),
+			NvmlReturn: uint32(nvml.ERROR_UNKNOWN), // initialize to a sentinel value to ensure NVML has actually modified the value
+		}
+
+		err := c.lib.GpmMetricsGet(singleMetricGet)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err))
+			continue
+		}
+
+		metricsGet.Metrics[metricIndex] = singleMetricGet.Metrics[0]
 		metricIndex++
 	}
 
-	err := c.lib.GpmMetricsGet(metricsGet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GPM metrics: %w", err)
-	}
-
-	return metricsGet, nil
+	return metricsGet, errors.Join(errs...)
 }
 
-func (c *gpmCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *gpmCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]*Metric, error) {
+func (c *gpmCollector) Collect() ([]Sample, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -238,27 +259,40 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 		return nil, fmt.Errorf("failed to get GPM metrics: %w", err)
 	}
 
-	metrics := make([]Metric, 0, len(c.metricsToCollect))
+	metricCapacity := len(c.metricsToCollect)
+	if c.emitLegacySMActive {
+		metricCapacity++
+	}
+	samples := make([]Sample, 0, metricCapacity)
+	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
 		if metric.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
 		metricData, ok := c.metricsToCollect[nvml.GpmMetricId(metric.MetricId)]
 		if !ok {
-			err = multierror.Append(err, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("unknown metric ID %d: %s", metric.MetricId, nvml.ErrorString(nvml.Return(metric.NvmlReturn))))
 			continue
 		}
 
-		metrics = append(metrics, Metric{
-			Name:     metricData.name,
-			Value:    metric.Value,
-			Type:     metricData.metricType,
-			Priority: High, // All GPM metrics have priority over other collectors
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: High}, // All GPM metrics have priority over other collectors
+			Name:       metricData.name,
+			Value:      metric.Value,
+			Type:       metricData.metricType,
 		})
+		if c.emitLegacySMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_SM_UTIL {
+			samples = append(samples, &Metric{
+				baseSample: baseSample{priority: High},
+				Name:       "sm_active",
+				Value:      metric.Value,
+				Type:       metricData.metricType,
+			})
+		}
 	}
 
-	return metricValuesToPointers(metrics), err
+	return samples, errors.Join(errs...)
 }

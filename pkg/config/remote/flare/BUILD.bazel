@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "flare",
+    srcs = ["flare.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/flare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/types",
+        "//pkg/util/filesystem",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)

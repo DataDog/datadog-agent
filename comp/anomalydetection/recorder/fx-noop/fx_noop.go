@@ -5,7 +5,7 @@
 
 // Package fx provides the fx module for the recorder component.
 // This no-op variant provides an empty option so the observer starts
-// without recording. Wire recorder/fx instead when recording is needed.
+// without recording. Wire the full recorder implementation when recording is needed.
 package fx
 
 import (

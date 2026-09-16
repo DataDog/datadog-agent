@@ -42,13 +42,12 @@ github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
 
-[teams."Agent Health"]
-jira_project = "AGTHEAL"
+[teams."Fleet Remediation"]
+jira_project = "FLREM"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-health"
-github_labels = ["team/agent-health"]
-exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
+github_team = "fleet-remediation"
+github_labels = ["team/fleet-remediation"]
 
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"
@@ -205,10 +204,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
-exclude_members = [
-  "jinroh",
-  "0intro",
-]
+exclude_members = ["jinroh", "0intro"]
 
 [teams."CSPM Agent"]
 jira_project = "SEC"
@@ -289,3 +285,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "profiling-full-host"
 github_labels = ["team/profiling-full-host"]
+
+[teams."GPU Monitoring Agent"]
+jira_project = "EBPF"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "gpu-monitoring-agent"
+github_labels = ["team/gpu-monitoring-agent"]

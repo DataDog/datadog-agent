@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -260,6 +260,117 @@ func cancelFakeCheck() error {
 	runtime.UnlockOSThread()
 
 	return fetchError()
+}
+
+func discoverFakeConfig(serviceJSON string) (string, error) {
+	var module *C.rtloader_pyobject_t
+	var class *C.rtloader_pyobject_t
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
+
+	classStr := helpers.TrackedCString("fake_check")
+	defer C.call_free(classStr)
+
+	ret := C.get_class(rtloader, (*C.char)(classStr), &module, &class)
+	if ret != 1 || module == nil || class == nil {
+		return "", errors.New(C.GoString(C.get_error(rtloader)))
+	}
+	defer C.rtloader_decref(rtloader, module)
+	defer C.rtloader_decref(rtloader, class)
+
+	serviceJSONStr := helpers.TrackedCString(serviceJSON)
+	defer C.call_free(serviceJSONStr)
+
+	discoveryResultStr := C.discover_config(rtloader, class, (*C.char)(serviceJSONStr))
+	if discoveryResultStr == nil {
+		if err := fetchError(); err != nil {
+			return "", err
+		}
+		return "", errors.New("discover_config returned NULL")
+	}
+	defer C.call_free(unsafe.Pointer(discoveryResultStr))
+
+	return C.GoString(discoveryResultStr), fetchError()
+}
+
+func getFakeDiscoverConfigServiceJSON() (string, error) {
+	code := fmt.Sprintf(`
+import fake_check
+with open(r'%s', 'w') as f:
+	f.write(fake_check.discover_config_service_json or '')`, tmpfile.Name())
+
+	return runString(code)
+}
+
+func resetFakeDiscoverConfig() error {
+	code := `import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigReturn(value string) error {
+	code := fmt.Sprintf(`import fake_check
+fake_check.discover_config_return = %q
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`, value)
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigReturnNonString() error {
+	code := `import fake_check
+fake_check.discover_config_return = {"unexpected": "dict"}
+fake_check.discover_config_exception = None
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigException(message string) error {
+	code := fmt.Sprintf(`import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = %q
+fake_check.discover_config_service_json = None`, message)
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeDiscoverConfigExceptionLoneSurrogate() error {
+	// Python source escape, not a Go UTF-8 string: a lone surrogate is not valid UTF-8.
+	code := `import fake_check
+fake_check.discover_config_return = "[]"
+fake_check.discover_config_exception = "bad \ud800 data"
+fake_check.discover_config_service_json = None`
+
+	_, err := runString(code)
+	return err
+}
+
+func setFakeRunExceptionLoneSurrogate() error {
+	code := `import fake_check
+fake_check.run_exception = "\ud800"`
+
+	_, err := runString(code)
+	return err
+}
+
+func resetFakeRunException() error {
+	code := `import fake_check
+fake_check.run_exception = None`
+
+	_, err := runString(code)
+	return err
 }
 
 func runFakeGetWarnings() ([]string, error) {

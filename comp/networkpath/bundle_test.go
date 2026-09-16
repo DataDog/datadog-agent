@@ -13,11 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	traceroutemock "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/mock"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,9 +24,8 @@ func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		eventplatformimpl.MockModule(),
+		eventplatformmock.MockModule(),
 		rdnsquerier.MockModule(),
-		logscompression.MockModule(),
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}
 		}),

@@ -1,0 +1,144 @@
+"""IoT agent product files for the omnibus migration.
+
+Analogous to //packages/agent/product for the standard agent.
+Replaces the explicit mkdirs/moves/copies in omnibus/config/software/datadog-iot-agent.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# systemd.service.in is shared between the debian/ and redhat/ subpackages.
+# Debian installs it to lib/systemd/system/; RedHat/SUSE to usr/lib/systemd/system/.
+exports_files(
+    ["systemd.service.in"],
+    visibility = ["//packages/agent/iot:__subpackages__"],
+)
+
+# IoT agent binary, built natively by Bazel from //cmd/iot-agent.
+# Installed at bin/agent/agent (same path as the standard agent binary).
+# In the rb file this was: copy 'bin/agent', "#{install_dir}/bin/"
+pkg_files(
+    name = "iot_agent_binary",
+    srcs = ["//cmd/iot-agent"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent",
+    renames = {"//cmd/iot-agent": "agent"},
+)
+
+# Everything that lands under /opt/datadog-agent (consumed by //packages/iot).
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":dirs",
+        ":iot_agent_binary",
+    ] + select({
+        # When we can build the iot-agent binary with bazel, replace that
+        # target with this.
+        "@platforms//os:linux": [
+            "@systemd//:all_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# This is an intermediate node so that have a place to collect all
+# the dependencies so we can walk the aspect to gather the OSS
+# licenses.  This is close to "everything except for licenses"
+# Do not include things that vary per build, like symlinks using
+# the pipeline name.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":all_files",
+    ],
+)
+
+# Gather licenses for all the pieces of the distribuion
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+# Blend the dependencies, the license files and things that vary
+# at build time into the distribution.
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+)
+
+# Called from omnibus datadog-iot-agent.rb (Linux only) after dda builds the binary:
+#
+#   command "bazel run //packages/agent/iot:install \
+#     --//:install_dir=#{install_dir} \
+#     --//packages/agent:flavor=iot \
+#     -- --destdir=#{install_dir}"
+#
+# This replaces the following explicit steps in datadog-iot-agent.rb:
+#   mkdir "#{install_dir}/bin"
+#   mkdir "#{install_dir}/run/"
+#
+# The binary and example config are still copied into install_dir by hand in the
+# rb file (see the "Next steps" comment there), so this stays scoped to :dirs
+# until that transitional step is dropped.
+pkg_install(
+    name = "install",
+    srcs = [":dirs"],
+    destdir_flag = "//:install_dir",
+)
+
+# Directories required under {install_dir}.
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "bin",
+        "embedded/bin",
+        "embedded/lib",
+        "run",
+    ],
+)
+
+# IoT agent example config installed as datadog.yaml.example.
+#
+# Source: //pkg/config:iot_agent_config builds iot-agent.yaml from the schema
+# (build_type = "iot-agent").  The corresponding dda step is:
+#   generate_template(CORE_SCHEMA_FILE, "bin/agent/dist/datadog.yaml", "iot-agent", ...)
+# which is part of: dda inv agent.build --flavor iot --no-development
+#
+# In the rb file this was:
+#   move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
+pkg_files(
+    name = "example_config",
+    srcs = ["//pkg/config:iot_agent_config"],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = select(ETC_DIR_SELECTOR),
+    renames = {"//pkg/config:iot_agent_config": "datadog.yaml.example"},
+)
+
+pkg_install(
+    name = "install_example_config",
+    srcs = [
+        ":example_config",
+        "//cmd/agent/dist/conf.d:iot_files",
+    ],
+)
+
+# System directories required by the iot-agent but outside the install prefix.
+pkg_mkdirs(
+    name = "system_dirs",
+    attributes = pkg_attributes(mode = "0775"),
+    dirs = ["var/log/datadog"],
+)

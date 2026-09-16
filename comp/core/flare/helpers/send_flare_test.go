@@ -9,8 +9,10 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -88,7 +90,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 			ddURL := ts.URL
 
-			archivePath := "./test/blank.zip"
+			archivePath := "./testdata/blank.zip"
 			caseID := "12345"
 			email := "dev@datadoghq.com"
 			apiKey := "abcdef"
@@ -286,39 +288,25 @@ func TestSendToRetryLogic(t *testing.T) {
 			expectSuccess:    true,
 		},
 		{
-			name: "success on second attempt after 500 error",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
-				if attempt == 1 {
-					return 500, "Internal Server Error", 0
-				}
-				return 200, `{"case_id": 1234, "message": "Your logs were successfully uploaded"}`, 0
-			},
-			expectedAttempts: 2,
-			expectSuccess:    true,
-		},
-		{
-			name: "success on third attempt after 502 and 503 errors",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
-				switch attempt {
-				case 1:
-					return 502, "Bad Gateway", 0
-				case 2:
-					return 503, "Service Unavailable", 0
-				default:
-					return 200, `{"case_id": 1234, "message": "Your logs were successfully uploaded"}`, 0
-				}
-			},
-			expectedAttempts: 3,
-			expectSuccess:    true,
-		},
-		{
-			name: "exhausted retries with 5xx errors",
+			// A 5xx means the server received the request and may already have created a
+			// ticket; the flare POST is not idempotent, so it must not be retried.
+			name: "no retry on 500 error (non-idempotent create)",
 			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 500, "Internal Server Error", 0
 			},
-			expectedAttempts: 3,
+			expectedAttempts: 1,
 			expectSuccess:    false,
-			expectedError:    "failed to send flare after 3 attempts",
+			expectedError:    "HTTP 500",
+		},
+		{
+			// A 5xx body embedding a dial error must not be treated as a transport failure.
+			name: "no retry on 5xx whose body mentions a dial error",
+			serverBehavior: func(_ int) (int, string, time.Duration) {
+				return 503, "upstream connect error or disconnect/reset before headers: connection refused", 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    false,
+			expectedError:    "HTTP 503",
 		},
 		{
 			name: "non-retryable 400 error",
@@ -388,7 +376,7 @@ func TestSendToRetryLogic(t *testing.T) {
 				io.WriteString(w, "Not Found")
 			}))
 			defer server.Close()
-			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+			result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 			assert.Equal(t, tc.expectedAttempts, attemptCount, "Unexpected number of attempts")
 
@@ -415,70 +403,75 @@ func TestSendToRetryLogic(t *testing.T) {
 }
 func TestIsRetryableFlareError(t *testing.T) {
 	testCases := []struct {
-		name      string
-		err       error
-		errorCode int
-		expected  bool
+		name     string
+		err      error
+		expected bool
 	}{
 		{
-			name:      "nil error",
-			err:       nil,
-			errorCode: 200,
-			expected:  false,
+			name:     "nil error",
+			err:      nil,
+			expected: false,
 		},
 		{
-			name:      "timeout error",
-			err:       errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"),
-			errorCode: 408,
-			expected:  true,
+			// url.Error wrapping, as http.Client returns it.
+			name:     "dial connection refused",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}},
+			expected: true,
 		},
 		{
-			name:      "connection refused error",
-			err:       errors.New("dial tcp 127.0.0.1:8080: connection refused"),
-			errorCode: 503,
-			expected:  true,
+			name:     "dial network unreachable",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("network unreachable")},
+			expected: true,
 		},
 		{
-			name:      "connection reset error",
-			err:       errors.New("read tcp 127.0.0.1:8080: connection reset by peer"),
-			errorCode: 500,
-			expected:  true,
+			// Connect-phase timeout: connection never established.
+			name:     "dial timeout",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("i/o timeout")},
+			expected: true,
 		},
 		{
-			name:      "network unreachable error",
-			err:       errors.New("dial tcp 192.168.1.1:8080: network unreachable"),
-			errorCode: 504,
-			expected:  true,
+			name:     "dns i/o timeout",
+			err:      &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true},
+			expected: true,
 		},
 		{
-			name:      "temporary failure error",
-			err:       errors.New("temporary failure in name resolution"),
-			errorCode: 500,
-			expected:  true,
+			name:     "dns server misbehaving",
+			err:      &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true},
+			expected: true,
 		},
 		{
-			name:      "non-retryable error",
-			err:       errors.New("invalid request format"),
-			errorCode: 400,
-			expected:  false,
+			name:     "dns no such host",
+			err:      &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
+			expected: true,
 		},
 		{
-			name:      "authentication error",
-			err:       errors.New("authentication failed"),
-			errorCode: 401,
-			expected:  false,
+			// TLS handshake failed after dial succeeded; no request bytes were written.
+			name:     "tls handshake timeout",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("net/http: TLS handshake timeout")},
+			expected: true,
 		},
 		{
-			name:      "validation error",
-			err:       errors.New("validation failed"),
-			errorCode: 422,
-			expected:  false,
+			// Request was sent, so it may have been processed.
+			name:     "read connection reset not retryable",
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")},
+			expected: false,
+		},
+		{
+			// Can fire after the request was sent.
+			name:     "client timeout not retryable",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)")},
+			expected: false,
+		},
+		{
+			name:     "generic error not retryable",
+			err:      errors.New("invalid request format"),
+			expected: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := isRetryableFlareError(tc.err, tc.errorCode)
+			result := isRetryableFlareError(tc.err)
 			assert.Equal(t, tc.expected, result, "isRetryableFlareError result mismatch")
 		})
 	}
@@ -487,43 +480,7 @@ func TestIsRetryableFlareError(t *testing.T) {
 func TestSendToWithNetworkErrors(t *testing.T) {
 	cfg := config.NewMock(t)
 
-	t.Run("retry on 500 errors then succeed", func(t *testing.T) {
-		attemptCount := 0
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "HEAD" && r.URL.Path == "/support/flare/12345" {
-				w.Header().Set("Location", "/post-target")
-				w.WriteHeader(307)
-				return
-			}
-			if r.Method == "HEAD" && r.URL.Path == "/post-target" {
-				w.WriteHeader(200)
-				return
-			}
-			if r.Method == "POST" && r.URL.Path == "/post-target" {
-				attemptCount++
-
-				if attemptCount <= 2 {
-					w.WriteHeader(500)
-					w.Write([]byte("Internal Server Error"))
-					return
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(200)
-				w.Write([]byte(`{"case_id": 12345, "message": "Your logs were successfully uploaded"}`))
-			}
-		}))
-		defer server.Close()
-
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
-
-		assert.NoError(t, err, "Expected success after retries")
-		assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
-		assert.Equal(t, 3, attemptCount, "Expected 3 attempts before success")
-	})
-
-	t.Run("retry exhausted after max attempts", func(t *testing.T) {
+	t.Run("no retry on 500 error (non-idempotent create)", func(t *testing.T) {
 		attemptCount := 0
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -544,11 +501,11 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
-		assert.Error(t, err, "Expected error after exhausting retries")
-		assert.Contains(t, err.Error(), "failed to send flare after", "Expected retry exhaustion error")
-		assert.Equal(t, 3, attemptCount, "Expected 3 attempts (maxTries)")
+		assert.Error(t, err, "Expected error")
+		assert.Contains(t, err.Error(), "HTTP 500", "Expected the 500 to surface directly, not a retry-exhaustion error")
+		assert.Equal(t, 1, attemptCount, "A 5xx must not be retried: the ticket may already have been created")
 		assert.Empty(t, result, "Expected empty result on error")
 	})
 
@@ -574,7 +531,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 		assert.Error(t, err, "Expected error")
 		assert.Equal(t, 1, attemptCount, "Expected only 1 attempt (no retries)")

@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Private Action Runner: add the ``com.datadoghq.remoteaction.rshell.runRemediationCommand``
+    action. It behaves like ``runCommand`` but runs the restricted shell in
+    remediation mode, which additionally permits file-target output
+    redirections (``>``, ``>>``, ``2>``, ``&>``, ``&>>``) and write-oriented
+    builtins such as ``truncate``, all confined to the configured allowed
+    paths. The action is not enabled by default and must be explicitly added to
+    the runner's actions allowlist.

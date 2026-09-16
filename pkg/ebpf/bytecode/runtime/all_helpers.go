@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package runtime is for runtime compilation related types and functions
 package runtime

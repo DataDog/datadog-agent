@@ -48,7 +48,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 		defaultChannelBuckets)
 
 	demux := deps.Demultiplexer
-	defer demux.Stop(false)
+	defer demux.Stop()
 
 	done := make(chan struct{})
 	go func() {

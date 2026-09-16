@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed an issue in the algorithm used to rebalance cluster checks
+    that could cause unnecessary check moves between runners.

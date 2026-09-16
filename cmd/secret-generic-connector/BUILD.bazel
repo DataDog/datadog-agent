@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+
+go_library(
+    name = "secret-generic-connector_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/secret-generic-connector/backend",
+        "//cmd/secret-generic-connector/secret",
+        "//pkg/fips",
+    ],
+)
+
+dd_agent_go_binary(
+    name = "secret-generic-connector",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
+    # FIPS mode needs cgo for the OpenSSL/systemcrypto bindings; Windows cgo is
+    # provided by dd_agent_go_binary's default for the .syso resource file.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
+    embed = [":secret-generic-connector_lib"],
+    visibility = ["//visibility:public"],
+    x_defs = {"github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion": "{agent_version}"},
+)

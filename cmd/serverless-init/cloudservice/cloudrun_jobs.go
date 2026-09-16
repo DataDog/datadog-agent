@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -133,6 +135,11 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
+// Run uses the default run behaviour for CloudRunJobs.
+func (c *CloudRunJobs) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 // Init records the start time for CloudRunJobs and initializes the job span
 func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 	c.startTime = time.Now()
@@ -149,8 +156,8 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
-	if enhancedMetricsEnabled {
+func (c *CloudRunJobs) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, runErr error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		duration := float64(time.Since(c.startTime).Milliseconds())
 		metricAgent.AddEnhancedMetric(cloudRunJobsDurationMetricName, duration, c.GetSource(), 0)
 
@@ -167,11 +174,6 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(cloudRunJobsStartMetricName, 1.0, c.GetSource(), 0)
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
-func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return true
 }
 
 func isCloudRunJob() bool {

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -139,13 +140,38 @@ var seclRuleFilterError error
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
 func MakeDefaultRuleFilter(hostname string) RuleFilter {
-	isK8s := env.IsKubernetes()
+	hostroot := os.Getenv("HOST_ROOT")
+	return makeDefaultRuleFilter(hostname, env.IsKubernetes, func() string {
+		return getKubeletCRIRuntime(context.Background(), hostroot)
+	})
+}
+
+// makeDefaultRuleFilter is the testable inner helper; injected functions let
+// tests drive isK8s and the CRI runtime without touching the host.
+func makeDefaultRuleFilter(hostname string, isK8sFn func() bool, kubeletCRIFn func() string) RuleFilter {
+	isK8s := isK8sFn()
 	xccdfEnabled := xccdfEnabled()
+
+	var kubeletCRIOnce sync.Once
+	var kubeletCRI string
+	resolveCRI := func() string {
+		kubeletCRIOnce.Do(func() {
+			kubeletCRI = kubeletCRIFn()
+		})
+		return kubeletCRI
+	}
 
 	return func(r *Rule) bool {
 		if isK8s {
 			if r.SkipOnK8s {
 				return false
+			}
+			// GKE COS ships dockerd alongside containerd; CIS Docker doesn't
+			// apply when the kubelet's CRI is not Docker. Unknown => fail open.
+			if r.HasScope(DockerScope) {
+				if cri := resolveCRI(); cri != "" && cri != criRuntimeDocker {
+					return false
+				}
 			}
 		} else {
 			if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
@@ -549,18 +575,21 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
+		// Mutate event fully before updateEvent() publishes it into a.statuses.
+		if event.Result != CheckSkipped {
+			if a.wmeta != nil && event.Container != nil {
+				if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
+					event.Container.ImageID = ctnr.Image.ID
+					event.Container.ImageName = ctnr.Image.Name
+					event.Container.ImageTag = ctnr.Image.Tag
+				}
+			}
+			event.K8SManaged = a.k8sManaged
+		}
 		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if a.wmeta != nil && event.Container != nil {
-			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
-				event.Container.ImageID = ctnr.Image.ID
-				event.Container.ImageName = ctnr.Image.Name
-				event.Container.ImageTag = ctnr.Image.Tag
-			}
-		}
-		event.K8SManaged = a.k8sManaged
 		a.opts.Reporter.ReportEvent(event)
 	}
 }
@@ -587,7 +616,9 @@ func (a *Agent) getChecksStatus() []*CheckStatus {
 	defer a.statusesMu.RUnlock()
 	statuses := make([]*CheckStatus, 0, len(a.statuses))
 	for _, status := range a.statuses {
-		statuses = append(statuses, status)
+		// Copy under the lock: callers marshal the result without holding it.
+		statusCopy := *status
+		statuses = append(statuses, &statusCopy)
 	}
 	return statuses
 }
@@ -631,7 +662,9 @@ func (a *Agent) updateEvent(event *CheckEvent) {
 	if !ok || status == nil {
 		log.Errorf("check for rule=%s was not registered in checks monitor statuses", event.RuleID)
 	} else {
-		status.LastEvent = event
+		// Publish a copy: callers must not be able to mutate it afterwards.
+		eventCopy := *event
+		status.LastEvent = &eventCopy
 	}
 }
 

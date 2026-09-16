@@ -8,12 +8,11 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -41,8 +40,9 @@ func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collect
 	return c, nil
 }
 
-func (c *fieldsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *fieldsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *fieldsCollector) removeUnsupportedMetrics() {
@@ -50,7 +50,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
 		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
-			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.DeviceUUID())
+			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.Device().GetDeviceInfo().UUID)
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -66,7 +66,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 			if fieldValueIdx == -1 {
 				log.Warnf("Unexpected field ID %d returned for device %s (scope_id=%d): return value is %s",
 					val.FieldId,
-					c.DeviceUUID(),
+					c.Device().GetDeviceInfo().UUID,
 					val.ScopeId,
 					nvml.ErrorString(nvml.Return(val.NvmlReturn)),
 				)
@@ -80,7 +80,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 
 			log.Debugf("GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
 				fieldMetric.name,
-				c.DeviceUUID(),
+				c.Device().GetDeviceInfo().UUID,
 				fieldMetric.fieldValueID,
 				fieldMetric.scopeID,
 			)
@@ -105,36 +105,37 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	return fields, nil
 }
 
-// Collect collects all the metrics from the given NVML device.
-func (c *fieldsCollector) Collect() ([]*Metric, error) {
+// Collect collects all samples from the given NVML device.
+func (c *fieldsCollector) Collect() ([]Sample, error) {
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
 	}
 
-	metrics := make([]Metric, 0, len(c.fieldMetrics))
+	samples := make([]Sample, 0, len(c.fieldMetrics))
+	var errs []error
 	for i, val := range fields {
 		name := c.fieldMetrics[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
 			continue
 		}
 
 		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
-			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
+			errs = append(errs, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		metrics = append(metrics, Metric{
+		samples = append(samples, &Metric{
+			baseSample:          baseSample{priority: c.fieldMetrics[i].priority},
 			Name:                name,
 			Value:               value,
 			Type:                c.fieldMetrics[i].metricType,
-			Priority:            c.fieldMetrics[i].priority,
 			RateCalculationMode: c.fieldMetrics[i].rateCalculationMode,
 		})
 	}
 
-	return metricValuesToPointers(metrics), err
+	return samples, errors.Join(errs...)
 }
 
 // Name returns the name of the collector.
@@ -146,7 +147,7 @@ func (c *fieldsCollector) Name() CollectorName {
 // FieldValues API, and associates a name for that metric.
 // When multiple field IDs can emit the same metric name, priority determines
 // which one is preferred: higher priority wins. Duplicate resolution is handled
-// by RemoveDuplicateMetrics at collection time.
+// by RemoveDuplicateSamples at collection time.
 type fieldValueMetric struct {
 	name         string
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
@@ -164,7 +165,7 @@ type fieldValueMetric struct {
 
 // allFieldMetrics lists all candidate field-value metrics. When multiple entries
 // share the same metric name, they are alternatives for the same logical metric;
-// the highest-priority one is selected by RemoveDuplicateMetrics at collection time.
+// the highest-priority one is selected by RemoveDuplicateSamples at collection time.
 //
 // Low (default) = legacy fields (pre-NVLink5), MediumLow = newer per-link fields
 // introduced with NVLink5/Blackwell (field IDs 164+). The newer fields use
@@ -175,48 +176,11 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "pci.replay_counter", fieldValueID: nvml.FI_DEV_PCIE_REPLAY_COUNTER, metricType: metrics.GaugeType},
 	{name: "slowdown_temperature", fieldValueID: nvml.FI_DEV_PERF_POLICY_THERMAL, metricType: metrics.GaugeType},
 
-	// -- NVLink throughput --
-	// Despite NVIDIA calling these "throughput", they report cumulative bytes transferred,
-	// so we compute the rate ourselves.
-	// scopeId=MaxUint32 aggregates across all links (see nvml.h L2175-L2177).
-	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
-	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
-	{name: "nvlink.throughput.raw.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
-	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
-
-	// -- NVLink speed --
-	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed. As we do not report per-link speeds, we assume all links are at the same speed.
-	// Low (default): legacy SPEED_MBPS_COMMON (90), returns common speed across all active links.
-	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
-	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType},
-
-	// -- NVLink connection info --
-	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
-
-	// -- NVLink error counters --
-	{name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.ecc", fieldValueID: nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
-	{name: "nvlink.rx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS, metricType: metrics.GaugeType},
-	{name: "nvlink.tx.packets", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS, metricType: metrics.GaugeType},
-	{name: "nvlink.tx.discards", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.malformed.packet", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.buffer.overrun", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx.remote", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.rx.general", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.local.link.integrity", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.recovery.events.successful", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS, metricType: metrics.GaugeType},
-	{name: "nvlink.recovery.events.failed", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.ber.effective", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER, metricType: metrics.GaugeType},
-	{name: "nvlink.errors.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS, metricType: metrics.GaugeType},
-	{name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType},
-
 	// -- C2C link error counters --
 	{name: "c2c.errors.interrupt", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_INTR, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 	{name: "c2c.errors.replay.b2b", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
+
+	// -- NVSwitch connection --
+	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
 }

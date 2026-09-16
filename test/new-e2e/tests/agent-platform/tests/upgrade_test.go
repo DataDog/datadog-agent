@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -35,6 +36,15 @@ type upgradeSuite struct {
 	testingKeysURL string
 }
 
+func (is *upgradeSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	defer is.CleanupOnSetupFailure()
+
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
+}
+
 func TestUpgradeScript(t *testing.T) {
 	osDescriptorsList, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
@@ -44,7 +54,7 @@ func TestUpgradeScript(t *testing.T) {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
-	vmOpts := []ec2.VMOption{}
+	vmOpts := []ec2.VMOption{ec2.WithInternetAccess()}
 	if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 		vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 	}

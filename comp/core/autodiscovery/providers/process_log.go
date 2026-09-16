@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package providers
 
 import (
@@ -33,6 +35,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
@@ -146,7 +149,7 @@ func discoverIntegrationSources() map[string]bool {
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err

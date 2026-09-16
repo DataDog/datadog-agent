@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -59,7 +59,7 @@ type depsWithoutFilterList struct {
 func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 	cfg := map[string]interface{}{
 		"dogstatsd_port":    listeners.RandomPortName,
-		"metric_filterlist": []string{"filtered.metric"},
+		"metric_filterlist": []string{"filtered.metric", "filtered.prefix.*"},
 	}
 
 	deps := fxutil.Test[depsWithoutFilterList](t, fx.Options(
@@ -90,5 +90,9 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 			"worker %d should filter 'filtered.metric' from local config", i)
 		assert.False(t, worker.filterList.Test("unfiltered.metric"),
 			"worker %d should not filter 'unfiltered.metric'", i)
+		assert.True(t, worker.filterList.Test("filtered.prefix.anything"),
+			"worker %d should filter the 'filtered.prefix.*' prefix from local config", i)
+		assert.False(t, worker.filterList.Test("filtered.prefix"),
+			"worker %d should not filter a name shorter than the configured prefix", i)
 	}
 }

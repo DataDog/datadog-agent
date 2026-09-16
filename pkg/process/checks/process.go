@@ -57,7 +57,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		config:              config,
 		sysConfig:           sysprobeYamlConfig,
 		scrubber:            procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:       NewLookupIDProbe(config),
+		lookupIDProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:               wmeta,
 		gpuSubscriber:       gpuSubscriber,
@@ -122,8 +122,7 @@ type ProcessCheck struct {
 	checkCount uint32
 	skipAmount uint32
 
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe
+	lookupIDProbe *LookupIDProbe
 
 	extractors []metadata.Extractor
 
@@ -218,8 +217,20 @@ func (p *ProcessCheck) SupportsRunOptions() bool {
 	return true
 }
 
-// Name returns the name of the ProcessCheck.
+// Name returns the operational name of the ProcessCheck.
 func (p *ProcessCheck) Name() string { return ProcessCheckName }
+
+// StatusNames returns the user-facing names of the features using the ProcessCheck for Agent status.
+func (p *ProcessCheck) StatusNames() []string {
+	names := make([]string, 0, 2)
+	if p.config.GetBool("process_config.process_collection.enabled") {
+		names = append(names, ProcessCheckName)
+	}
+	if p.sysConfig.GetBool("discovery.enabled") {
+		names = append(names, ServiceDiscoveryCheckName)
+	}
+	return names
+}
 
 // Realtime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) Realtime() bool { return false }
@@ -311,7 +322,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -478,8 +489,7 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe,
+	lookupIDProbe *LookupIDProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
@@ -504,7 +514,7 @@ func fmtProcesses(
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp, lookupIdProbe),
+			User:                   formatUser(fp, lookupIDProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,

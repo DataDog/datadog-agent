@@ -74,7 +74,7 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(factory1)
 	RegisterLoader(factory2)
 	RegisterLoader(factory3)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)

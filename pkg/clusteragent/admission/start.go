@@ -12,21 +12,22 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -47,10 +48,12 @@ type ControllerContext struct {
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
+	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
+	RcClient                     *rcclient.Client
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, healthPlatform option.Option[healthplatformdef.Component]) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, healthPlatform healthplatformdef.Component) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
@@ -107,10 +110,12 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		pp,
 		sh,
 		datadogConfig,
+		ctx.RcClient,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
 		ctx.DynamicInformer,
+		ctx.CSIDriverWatcher,
 	)
 
 	go secretController.Run(ctx.StopCh)

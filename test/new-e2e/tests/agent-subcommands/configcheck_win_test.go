@@ -25,7 +25,7 @@ type windowsConfigCheckSuite struct {
 
 func TestWindowsConfigCheckSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
+	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
 }
 
 // cpu, disk, file_handle, io, memory, network, ntp, uptime, winproc

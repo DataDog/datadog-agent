@@ -1,10 +1,13 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "httphelpers",
     srcs = [
         "client.go",
         "middleware.go",
+        "vsock_dial_linux.go",
+        "vsock_dial_other.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers",
     visibility = ["//visibility:public"],
@@ -14,15 +17,65 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/system",
         "//pkg/util/system/socket",
-        "@com_github_mdlayher_vsock//:vsock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_mdlayher_socket//:socket",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_mdlayher_socket//:socket",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_mdlayher_vsock//:vsock",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "httphelpers_test",
     srcs = ["client_test.go"],
     embed = [":httphelpers"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",

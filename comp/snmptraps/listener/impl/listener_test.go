@@ -236,6 +236,52 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "device_namespace:totoro", "snmp_version:1"})
 }
 
+func TestListenerCustomTagsOnReceivedMetric(t *testing.T) {
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	cfg := &config.TrapsConfig{
+		Port:             port,
+		BindHost:         "127.0.0.1",
+		CommunityStrings: []string{"public"},
+		Namespace:        "totoro",
+		Tags:             []string{"application:my-app", "team:netops"},
+	}
+	s := listenerTestSetup(t, cfg)
+
+	sendTestV1GenericTrap(t, cfg, "public")
+	_, err := receivePacket(s, defaultTimeout)
+	require.NoError(t, err)
+	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{
+		"snmp_version:1",
+		"device_namespace:totoro",
+		"snmp_device:127.0.0.1",
+		"application:my-app",
+		"team:netops",
+	})
+}
+
+func TestListenerCustomTagsOnInvalidPacketMetric(t *testing.T) {
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	cfg := &config.TrapsConfig{
+		Port:             port,
+		BindHost:         "127.0.0.1",
+		CommunityStrings: []string{"public"},
+		Namespace:        "totoro",
+		Tags:             []string{"application:my-app"},
+	}
+	s := listenerTestSetup(t, cfg)
+
+	sendTestV2Trap(t, cfg, "wrong-community")
+	_, err := receivePacket(s, defaultTimeout)
+	require.EqualError(t, err, "invalid packet")
+	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.invalid_packet", 1, "", []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:127.0.0.1",
+		"application:my-app",
+		"reason:unknown_community_string",
+	})
+}
+
 func receivePacket(s *services, timeoutDuration time.Duration) (*packetModule.SnmpPacket, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(20 * time.Millisecond)

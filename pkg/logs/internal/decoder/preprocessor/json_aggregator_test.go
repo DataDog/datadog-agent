@@ -79,16 +79,19 @@ func TestJSONAggregatorProcess_MultiPart_RawDataLen(t *testing.T) {
 
 	// First part of a JSON message
 	msg1 := newTestMessage(part1)
+	msg1.SetRawDataLenForCheckpoint(0)
 	result := aggregator.Process(msg1)
 	assert.Equal(t, 0, len(result), "Expected no messages for first incomplete part")
 
 	// Second part completes the JSON
 	msg2 := newTestMessage(part2)
+	msg2.SetRawDataLenForCheckpoint(expectedRawDataLen)
 	result = aggregator.Process(msg2)
 
 	assert.Equal(t, 1, len(result), "Expected one message after completion")
 	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compact JSON")
 	assert.Equal(t, expectedRawDataLen, result[0].RawDataLen, "Expected raw data length to be the sum of the two parts")
+	assert.Equal(t, expectedRawDataLen, result[0].RawDataLenForCheckpoint(), "Expected safe checkpoint length to be preserved")
 }
 
 func TestJSONAggregatorProcess_MultiPart_RawDataLen_original_size_differs(t *testing.T) {
@@ -352,6 +355,106 @@ func TestJSONAggregatorFastPathWithTrailingWhitespace(t *testing.T) {
 
 	assert.Equal(t, 1, len(result), "Expected one message to be returned")
 	assert.True(t, aggregator.IsEmpty(), "Aggregator buffer should be empty after fast path")
+}
+
+// TestJSONAggregator_TopLevelArraySplitNotAggregated anchors the
+// "TopLevelArrayNotAggregated" behavioural limitation captured in
+// json_aggregator.allium: when a top-level JSON array spans more
+// than one Process call, the aggregator does NOT combine the parts
+// into a single emitted message. The IncrementalJSONValidator is
+// object-only, so the opening "[" trips is_invalid_object on the
+// first Process call (FlushOnInvalid in the spec) and each part is
+// emitted unmodified.
+//
+// If this test ever starts failing, the matching limitation note
+// in json_aggregator.allium must be updated to match the new
+// behaviour.
+func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Top-level array split across three messages: opening bracket,
+	// two element objects, closing bracket.
+	parts := []string{
+		`[`,
+		`{"a":1},`,
+		`{"b":2}`,
+		`]`,
+	}
+
+	var emitted []*message.Message
+	for _, p := range parts {
+		emitted = append(emitted, aggregator.Process(newTestMessage(p))...)
+	}
+	emitted = append(emitted, aggregator.Flush()...)
+
+	// Behavioural assertion: the four parts are NOT collapsed into a
+	// single aggregated emission. We do not assert an exact emission
+	// count (the implementation is free to flush at any point along
+	// the way) — we assert that combination did not happen.
+	combined := `[{"a":1},{"b":2}]`
+	for _, m := range emitted {
+		assert.NotEqual(t, combined, string(m.GetContent()),
+			"top-level array split across messages must not be aggregated; "+
+				"see TopLevelArrayNotAggregated in json_aggregator.allium")
+		assert.NotContains(t, m.ParsingExtra.Tags, message.AggregatedJSONTag,
+			"no emission from a split top-level array should carry the aggregated JSON tag")
+	}
+
+	// The original part bytes must all appear somewhere in the
+	// emitted stream — nothing is silently dropped.
+	var emittedJoined strings.Builder
+	for _, m := range emitted {
+		emittedJoined.Write(m.GetContent())
+	}
+	joined := emittedJoined.String()
+	for _, p := range parts {
+		assert.Contains(t, joined, p,
+			"every input part must survive somewhere in the emitted output")
+	}
+}
+
+// TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid anchors the
+// "MidTokenSplitNotAggregated" behavioural limitation captured at the
+// bottom of json_aggregator.allium: when an incoming chunk's boundary
+// with a previously buffered chunk falls mid-token, the
+// IncrementalJSONValidator cannot resume token reads cleanly, returns
+// Invalid, and the aggregator takes the FlushOnInvalid path.
+//
+// The test uses a fixed pretty-printed JSON object split mid-string at
+// the opening quote of the key — discovered via property test fuzzing
+// (see TestAggregator_EmitAggregatedPreservesContent docstring). The
+// contract is satisfied by line-based log framing in production; this
+// test demonstrates the graceful fallback for the degenerate case.
+//
+// If this test ever starts failing, the spec's MidTokenSplitNotAggregated
+// limitation note must be updated to match the new behaviour.
+func TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Valid pretty-printed JSON object: `{\n  "a": null\n}`. Splitting
+	// at byte 5 cuts the input mid-string, just past the opening quote
+	// of the key "a".
+	full := []byte("{\n  \"a\": null\n}")
+	chunk1 := full[:5]
+	chunk2 := full[5:]
+
+	emitted1 := aggregator.Process(newTestMessage(string(chunk1)))
+	assert.Empty(t, emitted1, "chunk1 alone is an incomplete prefix and should buffer")
+
+	emitted2 := aggregator.Process(newTestMessage(string(chunk2)))
+
+	// Per MidTokenSplitNotAggregated: the validator returns Invalid on
+	// the second write because the json.Decoder cannot resume reading
+	// the partially-consumed key string. The aggregator falls back to
+	// FlushOnInvalid: both buffered messages are emitted unmodified in
+	// arrival order, no compaction, no tag.
+	assert.Len(t, emitted2, 2, "mid-token split must fall back to FlushOnInvalid (2 unmodified messages, not 1 aggregated)")
+	assert.Equal(t, string(chunk1), string(emitted2[0].GetContent()), "first emission preserves chunk1 bytes")
+	assert.Equal(t, string(chunk2), string(emitted2[1].GetContent()), "second emission preserves chunk2 bytes")
+	assert.NotContains(t, emitted2[0].ParsingExtra.Tags, message.AggregatedJSONTag,
+		"FlushOnInvalid emissions must not carry the aggregated JSON tag")
+	assert.NotContains(t, emitted2[1].ParsingExtra.Tags, message.AggregatedJSONTag,
+		"FlushOnInvalid emissions must not carry the aggregated JSON tag")
 }
 
 func TestJSONAggregatorMultilineStillWorks(t *testing.T) {

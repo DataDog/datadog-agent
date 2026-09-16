@@ -10,7 +10,20 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".ctags.d/**",
+            "doc/**",
+            "test/recipes/**",
+            "VMS/**",
+            "*.md",
+            "funding.json",
+        ],
+    ) + glob([
+        "doc/**/build.info",
+    ]),
 )
 
 config_setting(
@@ -44,11 +57,13 @@ DEFAULT_CONFIG = [
 WIN_LIBSSL = "libssl-3-x64.dll"
 WIN_LIBCRYPTO = "libcrypto-3-x64.dll"
 
-LINUX_LIBSSL = "libssl.so"
-LINUX_LIBCRYPTO = "libcrypto.so"
+# We want the filenames matching the library SONAMEs here such that we can run targets from the bazel tree
+# Hence the inclusion of the major version
+LINUX_LIBSSL = "libssl.so.3"
+LINUX_LIBCRYPTO = "libcrypto.so.3"
 
-MACOS_LIBSSL = "libssl.dylib"
-MACOS_LIBCRYPTO = "libcrypto.dylib"
+MACOS_LIBSSL = "libssl.3.dylib"
+MACOS_LIBCRYPTO = "libcrypto.3.dylib"
 
 configure_make(
     name = "openssl",
@@ -95,17 +110,27 @@ configure_make(
         ],
         "//conditions:default": [],
     }) + select({
-        # Set OPENSSLDIR and ENGINESDIR/MODULESDIR (via --runtime-dir) to their
-        # actual runtime locations at configure time, so no binary patching is
-        # needed after the build.  $(INSTALL_DIR) is provided by //:install_dir
-        # via the toolchains attribute below.
+        # Bake OPENSSLDIR/MODULESDIR to their real runtime locations via
+        # --prefix. It wins over the --prefix=$$BUILD_TMPDIR$$/... that
+        # rules_foreign_cc injects earlier (later --prefix wins). Since it now
+        # points outside the sandbox, `make install` is redirected with DESTDIR
+        # (see `args`) and flattened into $INSTALLDIR (see `postfix_script`).
         "@platforms//os:windows": [],
-        "//conditions:default": [
-            "--runtime-openssldir=$(INSTALL_DIR)/embedded/ssl",
-            "--runtime-dir=$(INSTALL_DIR)/embedded",
-        ],
+        "//conditions:default": ["--prefix=$(INSTALL_DIR)/embedded"],
+    }),
+    args = select({
+        # Stage `make install` under the sandbox instead of the absolute
+        # --prefix. DESTDIR is prepended to INSTALLTOP, so files land at
+        # $BUILD_TMPDIR/dest/$(INSTALL_DIR)/embedded/...; postfix_script flattens
+        # them into $INSTALLDIR. Wrapped $$BUILD_TMPDIR$$ is required: make `args`
+        # skip make-variable expansion, so only the $$..$$ placeholder resolves.
+        "@platforms//os:windows": [],
+        "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
     }),
     build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
         "@platforms//os:macos": [
             # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
             "@llvm_toolchain_llvm//:ar",
@@ -113,6 +138,12 @@ configure_make(
         "//conditions:default": [],
     }),
     env = select({
+        "@platforms//os:windows": {
+            # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
+            # Keep both for clarity and to avoid tool lookup through PATH.
+            "RC": "$(execpath @winlibs_mingw64//:windres)",
+            "WINDRES": "$(execpath @winlibs_mingw64//:windres)",
+        },
         "@platforms//os:macos": {
             # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the incremental
             # build of static archives that the openssl build system relies upon
@@ -181,7 +212,9 @@ configure_make(
         mv $$INSTALLDIR/lib/libcrypto.dll.a $$INSTALLDIR/lib/libcrypto.lib
         mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
         """,
-        "//conditions:default": "",
+        # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
+        # flat layout rules_foreign_cc collects outputs from.
+        "//conditions:default": 'cp -a "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
     }),
 )
 
@@ -292,8 +325,8 @@ dd_cc_packaged(
         # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
         # do not exist there; non-FIPS non-Windows builds don't need them either.
         "@@//packages/agent:fips_flavor": {
-            ":_engines": "lib/engines-3",
-            ":_ossl_modules": "lib/ossl-modules",
+            ":_engines": "lib",
+            ":_ossl_modules": "lib",
             "@openssl_fips//:fips_provider": "lib/ossl-modules",
         },
         "//conditions:default": {},

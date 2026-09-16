@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly install_dir="/opt/datadog-agent"
+readonly par="${install_dir}/embedded/bin/privateactionrunner"
+readonly procmgrd="${install_dir}/embedded/bin/dd-procmgrd"
+readonly processes_dir="${DD_PM_CONFIG_DIR:-${install_dir}/processes.d}"
+readonly config_file="/etc/datadog-agent/datadog.yaml"
+readonly inherited_env_names="DOCKER_DD_AGENT,HTTP_PROXY,HTTPS_PROXY,NO_PROXY,http_proxy,https_proxy,no_proxy"
+
+if [[ ! -x "${par}" ]]; then
+    exit 0
+fi
+
+case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
+    false)
+        exec "${par}" run --cfgpath="${config_file}"
+        ;;
+    true)
+        export DD_PM_CONFIG_DIR="${processes_dir}"
+        export DD_PM_INHERIT_ENV_PREFIXES="DD_${DD_PM_INHERIT_ENV_PREFIXES:+,${DD_PM_INHERIT_ENV_PREFIXES}}"
+        export DD_PM_INHERIT_ENV_NAMES="${inherited_env_names}${DD_PM_INHERIT_ENV_NAMES:+,${DD_PM_INHERIT_ENV_NAMES}}"
+        exec "${procmgrd}"
+        ;;
+    *)
+        printf 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED must be true or false\n' >&2
+        exit 1
+        ;;
+esac

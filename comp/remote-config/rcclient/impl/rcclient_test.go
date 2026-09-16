@@ -17,10 +17,12 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -74,11 +76,11 @@ type testDeps struct {
 func TestRCClientCreate(t *testing.T) {
 	// Test missing params — expect the fx app to fail to build
 	_, _, err := fxutil.TestApp[testDeps](
-		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return configmock.New(t) }),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		sysprobeconfig.NoneModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
@@ -87,7 +89,7 @@ func TestRCClientCreate(t *testing.T) {
 
 	// Test success case
 	app, deps, err := fxutil.TestApp[testDeps](
-		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return configmock.New(t) }),
@@ -98,7 +100,7 @@ func TestRCClientCreate(t *testing.T) {
 				AgentVersion: "7.0.0",
 			},
 		),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 	assert.NoError(t, err)
@@ -116,7 +118,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			fxutil.Component(
-				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fxutil.ProvideOptional[rcclient.Component](),
 			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -136,7 +138,7 @@ func TestAgentConfigCallback(t *testing.T) {
 					Config: cfg,
 				},
 			),
-			settingsimpl.Module(),
+			settingsfx.Module(),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
 		),
@@ -148,12 +150,12 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	rc := rcComponent.(*rcClient)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
 	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipcComp.GetAuthToken(),
 		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
@@ -223,7 +225,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			fxutil.Component(
-				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fxutil.ProvideOptional[rcclient.Component](),
 			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -235,7 +237,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 					AgentVersion: "7.0.0",
 				},
 			),
-			settingsimpl.MockModule(),
+			settingsmock.MockModule(),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
 			fx.Populate(&settingsComp),
@@ -252,12 +254,12 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	rc := rcComponent.(*rcClient)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
 	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipcComp.GetAuthToken(),
 		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
@@ -297,7 +299,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	// Should not set an allowlist (nil means not configured, so we fallback)
 	// First, let's set a new mock to verify allowlist is not set
-	settingsComp2 := fxutil.Test[settings.Component](t, settingsimpl.MockModule())
+	settingsComp2 := fxutil.Test[settings.Component](t, settingsmock.MockModule())
 	rc.settingsComponent = settingsComp2
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/emptyallowlist/configname": nilAllowlist,

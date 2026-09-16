@@ -33,8 +33,8 @@ func TestPreparePeerTags(t *testing.T) {
 			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
 		},
 		{
-			input:  append([]string{"zz_tag"}, basePeerTags()...),
-			output: append(basePeerTags(), "zz_tag"),
+			input:  append([]string{"zz_tag"}, basePeerTags(semantics.DefaultRegistry())...),
+			output: append(basePeerTags(semantics.DefaultRegistry()), "zz_tag"),
 		},
 	} {
 		sort.Strings(tc.output)
@@ -43,8 +43,8 @@ func TestPreparePeerTags(t *testing.T) {
 }
 
 func TestDefaultPeerTags(t *testing.T) {
-	assert.Contains(t, basePeerTags(), "db.name")
-	assert.Contains(t, basePeerTags(), "_dd.base_service")
+	assert.Contains(t, basePeerTags(semantics.DefaultRegistry()), "db.name")
+	assert.Contains(t, basePeerTags(semantics.DefaultRegistry()), "_dd.base_service")
 }
 
 func TestPeerTagConceptsHaveMappings(t *testing.T) {
@@ -85,6 +85,39 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 		assert.Contains(t, names, "mongodb.db")
 		assert.Contains(t, names, "db.instance")
 		assert.Contains(t, names, "cassandra.keyspace")
+	})
+}
+
+func TestPeerTagsAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTagsAggregation = false
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Empty(t, cfg.PeerTags)
+		assert.Empty(t, cfg.ConfiguredPeerTags())
+	})
+
+	t.Run("default-enabled", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.PeerTags)
+		assert.Equal(t, basePeerTags(semantics.DefaultRegistry()), cfg.ConfiguredPeerTags())
+	})
+	t.Run("disabled-user-tags", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTagsAggregation = false
+		cfg.PeerTags = []string{"user_peer_tag"}
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Empty(t, cfg.ConfiguredPeerTags())
+	})
+	t.Run("enabled-user-tags", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTags = []string{"user_peer_tag"}
+		assert.Equal(t, append(basePeerTags(semantics.DefaultRegistry()), "user_peer_tag"), cfg.ConfiguredPeerTags())
+	})
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTags = basePeerTags(semantics.DefaultRegistry())[:2]
+		assert.Equal(t, basePeerTags(semantics.DefaultRegistry()), cfg.ConfiguredPeerTags())
 	})
 }
 
@@ -139,6 +172,6 @@ func TestBasePeerTagsMatchINISource(t *testing.T) {
 	}
 
 	for _, key := range expectedFromINI {
-		assert.Contains(t, basePeerTags(), key, "basePeerTags is missing key %q that was present in peer_tags.ini", key)
+		assert.Contains(t, basePeerTags(semantics.DefaultRegistry()), key, "basePeerTags is missing key %q that was present in peer_tags.ini", key)
 	}
 }

@@ -11,8 +11,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )

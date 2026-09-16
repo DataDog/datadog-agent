@@ -10,9 +10,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +22,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // newTestKey generates a throwaway ECDSA key for unit tests.
 func newTestKey(t *testing.T) *ecdsa.PrivateKey {
@@ -33,20 +41,57 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// It sets DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION so endpointURL uses plain HTTP.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL, // "http://127.0.0.1:PORT"
+			DDHost:             srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",
 			PrivateKey:         newTestKey(t),
 		},
 		runnerStartedAt: time.Now().UTC(),
+	}
+}
+
+func TestEndpointURL(t *testing.T) {
+	cfg := &config.Config{
+		DDHost:    "http://fakeintake.test:8080",
+		DDApiHost: "api.datadoghq.com",
+	}
+	client := &client{config: cfg}
+
+	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
+
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+	for _, test := range []struct {
+		name     string
+		ddHost   string
+		expected string
+	}{
+		{
+			name:     "HTTP URL",
+			ddHost:   "http://fakeintake.test:8080",
+			expected: "http://fakeintake.test:8080/task",
+		},
+		{
+			name:     "HTTPS URL",
+			ddHost:   "https://fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+		{
+			name:     "normalized HTTPS URL",
+			ddHost:   "fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client.config.DDHost = test.ddHost
+			assert.Equal(t, test.expected, client.endpointURL("/task"))
+		})
 	}
 }
 
@@ -253,4 +298,92 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, 3000*time.Millisecond, data.RetryAfter)
+}
+
+// ---------- proxy transport wiring ----------
+
+func TestNewClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+	parCfg := &config.Config{OpmsRequestTimeout: 5000}
+
+	c := NewClient(cfg, parCfg).(*client)
+
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
+}
+
+func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+
+	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
+
+	transport, ok := pc.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/unstable/on_prem_runners", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
+	var transportCalled bool
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				transportCalled = true
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			}),
+		},
+	}
+
+	_, _, err := p.doEnrollRequest(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
+
+	require.NoError(t, err)
+	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
+}
+
+func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errors":["job info not found"]}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrJobNotFound), "expected ErrJobNotFound, got %v", err)
+}
+
+func TestHeartbeat_OtherErrorIsNotJobNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrJobNotFound), "500 must not be treated as job-not-found")
 }

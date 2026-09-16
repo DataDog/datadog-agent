@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "impl",
+    srcs = ["flare.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/flare/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/host-profiler/collector/impl/extensions/hpflareextension",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["flare_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "@com_github_stretchr_testify//require",
+    ],
+)

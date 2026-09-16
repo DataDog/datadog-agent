@@ -60,12 +60,15 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
+	pkgtoken.PersistAuthTokenFilepath(reqs.Conf)
+	cert.PersistCertFilepath(reqs.Conf)
+
 	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
-// NewReadWriteComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
+// NewComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
 // and if they are not found, it will create them.
-func NewReadWriteComponent(reqs Requires) (Provides, error) {
+func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Debug("Loading or creating IPC artifacts")
 	authTimeout := reqs.Conf.GetDuration("auth_init_timeout")
 	ctx, cancel := context.WithTimeout(context.Background(), authTimeout)
@@ -83,6 +86,9 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
+	pkgtoken.PersistAuthTokenFilepath(reqs.Conf)
+	cert.PersistCertFilepath(reqs.Conf)
+
 	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
@@ -90,7 +96,7 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 // (like 'flare' or 'diagnose') that must function even when the main Agent isn't running
 // or IPC artifacts (like auth tokens) are missing or invalid.
 //
-// This constructor *always* succeeds, unlike NewReadWriteComponent or NewReadOnlyComponent
+// This constructor *always* succeeds, unlike NewComponent or NewReadOnlyComponent
 // which might fail if artifacts are absent or incorrect.
 // However, the resulting IPC component instance might be non-functional or only partially
 // functional, potentially leading to failures later, such as rejected connections during

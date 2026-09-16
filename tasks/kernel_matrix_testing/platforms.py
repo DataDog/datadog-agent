@@ -35,7 +35,8 @@ class KMTTestJob:
         self.kernels = kernels
 
 
-def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[str, Platforms]:
+def get_ci_test_jobs(component: Component) -> list[KMTTestJob]:
+    """Return the KMT test jobs declared in the gitlab CI config for the given component."""
     job_arch_mapping: dict[KMTArchName, str] = {
         "x86_64": "x64",
         "arm64": "arm64",
@@ -60,7 +61,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
     for arch in KMT_SUPPORTED_ARCHS:
         job_prefixes.append(f"kmt_run_{job_component_mapping[component]}_tests_{job_arch_mapping[arch]}")
 
-    test_jobs = []
+    test_jobs: list[KMTTestJob] = []
     for job in ci_config:
         for prefix in job_prefixes:
             if not job.startswith(prefix):
@@ -72,28 +73,36 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
 
             test_jobs.append(KMTTestJob(job, Arch.from_str(arch).kmt_arch, sets, set(kernels)))
 
-    new_platforms_by_set = {}
+    return test_jobs
+
+
+def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[str, Platforms]:
+    test_jobs = get_ci_test_jobs(component)
+
+    new_platforms_by_set: dict[str, Platforms] = {}
     for job in test_jobs:
+        # we need to index `new_platforms_by_set` by a literal to
+        # avoid mypy errors, which is why assign arch to `cur_arch`
+        cur_arch = None
+        for arch in KMT_SUPPORTED_ARCHS:
+            if job.arch == arch:
+                cur_arch = arch
+
+        if cur_arch is None:
+            raise Exit(f"Unsupported architecture {job.arch} detected for job {job.name}")
+
+        missing_kernels = job.kernels - set(platforms[cur_arch].keys())
+        if missing_kernels:
+            raise Exit(f"Kernels {missing_kernels} not found in {platforms_file} for {job.arch}")
+
         for s in job.test_set:
             if s not in new_platforms_by_set:
-                new_platforms_by_set[s] = platforms.copy()
+                # Every architecture starts empty: a test set only gets microVMs on the
+                # architectures that actually have a CI job running it. Seeding with the
+                # full platform list would provision VMs for architectures with no job
+                # (e.g. `cws_req`, which only runs on x86_64) that nothing ever uses.
+                new_platforms_by_set[s] = cast("Platforms", {**platforms, **{arch: {} for arch in KMT_SUPPORTED_ARCHS}})
 
-            # we need to index `new_platforms_by_set` by a literal to
-            # avoid mypy errors, which is why assign arch to `cur_arch`
-            cur_arch = None
-            for arch in KMT_SUPPORTED_ARCHS:
-                if job.arch == arch:
-                    cur_arch = arch
-
-            if cur_arch is None:
-                raise Exit(f"Unsupported architecture {job.arch} detected for job {job.name}")
-
-            new_platforms_by_set[s][cur_arch] = {
-                k: v for k, v in new_platforms_by_set[s][cur_arch].items() if k in job.kernels
-            }
-
-            missing_kernels = job.kernels - set(new_platforms_by_set[s][cur_arch].keys())
-            if missing_kernels:
-                raise Exit(f"Kernels {missing_kernels} not found in {platforms_file} for {job.arch}")
+            new_platforms_by_set[s][cur_arch].update({k: v for k, v in platforms[cur_arch].items() if k in job.kernels})
 
     return new_platforms_by_set

@@ -208,12 +208,12 @@ func (di *DriverInterface) setupClassification() error {
 	log.Infof("Enabling traffic classification")
 	var settings driver.ClassificationSettings
 	settings.Enabled = 1
-	err := di.driverFlowHandle.DeviceIoControl(
+	_, err := di.driverFlowHandle.SynchronousDeviceIoControl(
 		driver.EnableClassifyIOCTL,
 		(*byte)(unsafe.Pointer(&settings)),
 		uint32(driver.ClassificationSettingsTypeSize),
 		nil,
-		uint32(0), nil, nil)
+		uint32(0))
 	if err != nil {
 		log.Warnf("Error enabling classification %v", err)
 	}
@@ -224,12 +224,12 @@ func (di *DriverInterface) setupClassification() error {
 func (di *DriverInterface) SetFlowFilters(filters []driver.FilterDefinition) error {
 	var id int64
 	for _, filter := range filters {
-		err := di.driverFlowHandle.DeviceIoControl(
+		_, err := di.driverFlowHandle.SynchronousDeviceIoControl(
 			driver.SetFlowFilterIOCTL,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),
-			uint32(unsafe.Sizeof(id)), nil, nil)
+			uint32(unsafe.Sizeof(id)))
 		if err != nil {
 			return fmt.Errorf("failed to set filter: %v", err)
 		}
@@ -259,7 +259,7 @@ func (di *DriverInterface) RefreshStats() {
 	}
 }
 
-//nolint:deadcode,unused // debugging helper normally commented out
+//nolint:unused // debugging helper normally commented out
 func printClassification(fd *driver.PerFlowData) {
 	if fd.ClassificationStatus != driver.ClassificationUnclassified {
 		if fd.ClassifyRequest == driver.ClassificationRequestTLS || fd.ClassifyResponse == driver.ClassificationResponseTLS {
@@ -286,10 +286,9 @@ func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driv
 
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
-		err = di.driverFlowHandle.DeviceIoControl(ioctl, nil, 0,
+		bytesRead, err = di.driverFlowHandle.SynchronousDeviceIoControl(ioctl, nil, 0,
 			(*byte)(unsafe.Pointer(&((*connbuffer)[0]))),
-			uint32(len(*connbuffer)),
-			&bytesRead, nil)
+			uint32(len(*connbuffer)))
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break
@@ -406,21 +405,21 @@ func (di *DriverInterface) setFlowParams() error {
 	maxOpenFlows := min(defaultMaxOpenFlows, di.maxOpenFlows)
 	maxClosedFlows := min(defaultMaxClosedFlows, di.maxClosedFlows)
 
-	err := di.driverFlowHandle.DeviceIoControl(
+	_, err := di.driverFlowHandle.SynchronousDeviceIoControl(
 		driver.SetMaxOpenFlowsIOCTL,
 		(*byte)(unsafe.Pointer(&maxOpenFlows)),
 		uint32(unsafe.Sizeof(maxOpenFlows)),
 		nil,
-		uint32(0), nil, nil)
+		uint32(0))
 	if err != nil {
 		log.Warnf("Failed to set max number of open flows to %v %v", maxOpenFlows, err)
 	}
-	err = di.driverFlowHandle.DeviceIoControl(
+	_, err = di.driverFlowHandle.SynchronousDeviceIoControl(
 		driver.SetMaxClosedFlowsIOCTL,
 		(*byte)(unsafe.Pointer(&maxClosedFlows)),
 		uint32(unsafe.Sizeof(maxClosedFlows)),
 		nil,
-		uint32(0), nil, nil)
+		uint32(0))
 	if err != nil {
 		log.Warnf("Failed to set max number of closed flows to %v %v", maxClosedFlows, err)
 	}
@@ -429,12 +428,12 @@ func (di *DriverInterface) setFlowParams() error {
 	if threshold == 0 {
 		threshold = maxClosedFlows / 2
 	}
-	err = di.driverFlowHandle.DeviceIoControl(
+	_, err = di.driverFlowHandle.SynchronousDeviceIoControl(
 		driver.SetClosedFlowsLimitIOCTL,
 		(*byte)(unsafe.Pointer(&threshold)),
 		uint32(unsafe.Sizeof(threshold)),
 		nil,
-		uint32(0), nil, nil)
+		uint32(0))
 	if err != nil {
 		log.Warnf("Failed to set closed flows threshold to %v %v", maxClosedFlows, err)
 	}

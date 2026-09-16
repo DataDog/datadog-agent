@@ -1,4 +1,26 @@
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_mockgen:defs.bzl", "go_mockgen")
+
+filegroup(
+    name = "v1_go_proto_srcs",
+    srcs = ["//pkg/proto/datadog/api/v1:v1_go_proto"],
+    output_group = "go_generated_srcs",
+)
+
+select_file(
+    name = "api_grpc_pb_go",
+    srcs = ":v1_go_proto_srcs",
+    subpath = "api_grpc.pb.go",
+)
+
+go_mockgen(
+    name = "api_mockgen",
+    src = ":api_grpc_pb_go",
+    out = "api_mockgen.pb.go",
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+    prefix = "github.com/DataDog/datadog-agent",
+)
 
 go_library(
     name = "core",
@@ -7,8 +29,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/core",
-        "@com_github_golang_mock//gomock",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_uber_go_mock//gomock",
     ],
 )

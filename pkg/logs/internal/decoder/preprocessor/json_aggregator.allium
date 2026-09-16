@@ -1,0 +1,158 @@
+-- allium: 3
+-- json_aggregator.allium
+
+-- Scope: Contract layer for the JSON-aggregation stage in the
+--   Datadog Agent's logs preprocessor pipeline. Defines the
+--   Message value (one log line crossing the JSON-aggregator
+--   boundary) and the JSONAggregator contract (the abstract
+--   interface for any strategy that combines messages forming a
+--   JSON object into one).
+--
+--   The JSON-aggregation stage runs UPSTREAM of tokenization,
+--   labelling and per-strategy aggregation — its Message value
+--   and contract are intentionally narrower than the downstream
+--   Aggregator contract (no tokens, no label, no is_truncated
+--   flag). A JSONAggregator receives one raw log line per call
+--   and decides whether to buffer it (potentially in service of
+--   a multi-line JSON object), emit it directly, or flush an
+--   accumulating buffer alongside it.
+--
+--   This module describes only the abstract contract every
+--   JSONAggregator must honour; specific strategies live in
+--   their own modules.
+-- Includes: Message value, JSONAggregator contract.
+-- Excludes:
+--   - Specific JSONAggregator implementations. The multi-line
+--     accumulating implementation lives in
+--     multiline_json_aggregator.allium and declares fulfils
+--     JSONAggregator against this contract. The trivial
+--     pass-through NoopJSONAggregator is either inlined into a
+--     composing spec or specified separately as a one-line
+--     module.
+--   - The downstream Aggregator and Sampler contracts. Those
+--     stages run after tokenization / labelling and have their
+--     own Message value shape (with tokens, labels and
+--     truncation flags).
+--   - The IncrementalJSONValidator sub-contract. It is an
+--     implementation detail of the multi-line accumulating
+--     JSONAggregator and lives alongside that implementation,
+--     not in the abstract contract.
+--   - The pipeline orchestration that wires the JSONAggregator
+--     into the preprocessor pipeline.
+--   - Caller-side selection of which JSONAggregator
+--     implementation a particular log source uses. That is a
+--     preprocessor configuration concern, not part of the
+--     contract.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value Message {
+    -- A single log line crossing the JSON-aggregator boundary.
+    -- The aggregator observes only the byte content, the raw byte
+    -- size of the original framing (which can differ from
+    -- length(content) when framing characters were stripped
+    -- upstream) and the set of tags attached by the pipeline.
+    -- No tokens, no label, no truncation flag — those are
+    -- introduced by stages further downstream.
+    content: String
+    raw_data_len: Integer
+    tags: Set<String>
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract JSONAggregator {
+    -- A pre-tokenization strategy that combines log lines whose
+    -- bytes form a complete JSON object into a single emission,
+    -- while emitting non-JSON or non-combinable lines unchanged.
+    -- The JSONAggregator receives one line per call to process
+    -- and returns zero or more completed messages; an explicit
+    -- flush drains whatever remains buffered.
+    --
+    -- JSONAggregators may be stateless (NoopJSONAggregator) or
+    -- stateful (the multi-line accumulating implementation
+    -- buffers fragments). The contract's invariants describe the
+    -- relationship between sequential operations on a single
+    -- JSONAggregator instance, not pure-function behaviour.
+    process: (msg: Message) -> Sequence<Message>
+
+    -- flush and is_empty take no arguments in the Go
+    -- implementation. Allium 3 does not support zero-argument
+    -- function signatures (`name: () -> Type` is a parse error),
+    -- so they are declared here as properties. Their operational
+    -- semantics — that flush mutates buffer state and that both
+    -- produce a fresh observation on every read — are carried by
+    -- the @invariants below.
+    flush: Sequence<Message>
+
+    is_empty: Boolean
+
+    @invariant Determinism
+        -- For a given JSONAggregator instance in a given internal
+        -- state, equal msg inputs to process produce equal output
+        -- sequences, and equivalently for flush and is_empty.
+        -- JSONAggregators may not branch on randomness or external
+        -- state. This is the stateful analogue of pure-function
+        -- determinism: pure given state.
+
+    @invariant Totality
+        -- Every call to process returns a Sequence<Message> (which
+        -- may be empty when the input was buffered). flush returns
+        -- a Sequence<Message> on every read; is_empty returns a
+        -- Boolean on every read. There is no undefined output for
+        -- any well-formed input.
+
+    @invariant ByteConservation
+        -- Each emitted Message's content is derived from one or
+        -- more input Messages' content via a deterministic
+        -- transformation. JSONAggregators never invent content
+        -- from external sources. The exact transformation depends
+        -- on the strategy: a pass-through implementation emits
+        -- bytes byte-identically; an accumulating implementation
+        -- may concatenate-and-compact when forming a combined
+        -- JSON object. Per-strategy specs refine this invariant
+        -- with the concrete transformations they apply.
+
+    @invariant FlushDrainsBuffer
+        -- After flush returns, is_empty returns true. Calling
+        -- flush on an already-empty JSONAggregator returns an
+        -- empty sequence and leaves observable state unchanged.
+
+    @invariant IsEmptyConsistency
+        -- is_empty returns true at construction and after every
+        -- flush. It returns false while the JSONAggregator holds
+        -- buffered content whose emission has not yet occurred.
+        -- The pairing is symmetric: is_empty = true iff flush
+        -- would return an empty sequence.
+
+    @invariant ResultLifetime
+        -- The sequences returned by process and flush are valid
+        -- only until the next call to process or flush on the
+        -- same JSONAggregator instance. Implementations are
+        -- permitted to reuse the backing storage between calls;
+        -- callers that need to retain a returned sequence beyond
+        -- the next operation must copy it. This is a usage
+        -- contract — a caller obligation, not a property the
+        -- JSONAggregator verifies.
+
+    @guidance
+        -- The JSONAggregator sits BEFORE tokenization in the
+        -- pipeline. Its input is raw byte content as framed by
+        -- the decoder; its output is the same shape, fed to the
+        -- tokenizer next. The contract does not constrain how
+        -- the JSONAggregator decides what constitutes "JSON
+        -- combinable" content — pass-through implementations
+        -- never combine, regex-style implementations could
+        -- combine by pattern, the multi-line accumulating
+        -- implementation uses an IncrementalJSONValidator.
+        --
+        -- JSONAggregator instances are not safe for concurrent
+        -- use. A single instance serves one log source's
+        -- sequential preprocessor pipeline; callers must not
+        -- invoke process, flush or is_empty concurrently on the
+        -- same instance.
+}

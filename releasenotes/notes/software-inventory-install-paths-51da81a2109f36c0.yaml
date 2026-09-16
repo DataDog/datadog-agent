@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The host Software Inventory metadata now reports the ``install_paths`` of
+    each detected application, i.e. the filesystem location(s) where the
+    software is installed, on macOS and Windows.

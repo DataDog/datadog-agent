@@ -23,6 +23,10 @@ import (
 
 const systemdSystemDir = "/usr/lib/systemd/system"
 
+// defaultWorkloadsWithoutTagsQueueSize is the fallback queue size used when the
+// configured value is not set (or invalid)
+const defaultWorkloadsWithoutTagsQueueSize = 1000
+
 // Workload represents a workload along with its tags
 type Workload struct {
 	sync.RWMutex
@@ -182,11 +186,14 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver, versionResolver func(servicePath string) string) *LinuxResolver {
+func NewResolver(queueSize int, tagger Tagger, cgroupsResolver *cgroup.Resolver, versionResolver func(servicePath string) string) *LinuxResolver {
+	if queueSize <= 0 {
+		queueSize = defaultWorkloadsWithoutTagsQueueSize
+	}
 	resolver := &LinuxResolver{
 		Notifier:             utils.NewNotifier[Event, *Workload](),
 		DefaultResolver:      NewDefaultResolver(tagger),
-		workloadsWithoutTags: make(chan *Workload, 100),
+		workloadsWithoutTags: make(chan *Workload, queueSize),
 		cgroupResolver:       cgroupsResolver,
 		versionResolver:      versionResolver,
 		workloads:            make(map[containerutils.CGroupID]*Workload),

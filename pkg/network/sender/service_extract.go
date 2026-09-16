@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || (windows && npm)
 
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"

@@ -31,6 +31,23 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 	assert.Empty(t, result.Anomalies, "should not fire with fewer than MinPoints")
 }
 
+func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
+	d := testScanWelchDetector()
+	d.MinPoints = 4
+	d.MinSegment = 12
+	d.MaxPoints = 24
+	storage := newTimeSeriesStorage()
+
+	for timestamp := int64(1); timestamp <= int64(d.MinSegment); timestamp++ {
+		storage.Add("ns", "metric", 100, timestamp, nil)
+	}
+
+	require.NotPanics(t, func() {
+		result := d.Detect(storage, int64(d.MinSegment))
+		assert.Empty(t, result.Anomalies)
+	})
+}
+
 func TestScanWelch_DetectsStepChange(t *testing.T) {
 	d := testScanWelchDetector()
 	storage := newTimeSeriesStorage()
@@ -149,4 +166,36 @@ func TestScanWelch_Reset(t *testing.T) {
 	d.Reset()
 	assert.Empty(t, d.series, "reset should clear all state")
 	assert.Nil(t, d.cachedRefs, "reset should clear cached refs")
+}
+
+// TestScanWelch_PreloadedReplayFiresAsDataTimeAdvances reproduces the testbench
+// replay path: all points are written to storage up front (so WriteGeneration
+// reaches its final value immediately), then Detect is called repeatedly with
+// an advancing dataTime that gradually exposes the history. A WriteGeneration-
+// only skip gate suppresses every scan after the first call here and detects
+// nothing; gating on visible point count keeps the detector scanning as the
+// data becomes visible. This is distinct from TestScanWelch_IncrementalAdvance,
+// where each new point bumps WriteGeneration between Detect calls (the live
+// path).
+func TestScanWelch_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
+	d := testScanWelchDetector()
+	storage := newTimeSeriesStorage()
+
+	// Preload the entire series before any Detect call.
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "metric", 50, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "metric", 200, int64(i+1), nil)
+	}
+
+	// Replay: advance dataTime one bucket at a time over preloaded storage.
+	var fired bool
+	for dataTime := int64(1); dataTime <= 40; dataTime++ {
+		if len(d.Detect(storage, dataTime).Anomalies) > 0 {
+			fired = true
+		}
+	}
+
+	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
 }

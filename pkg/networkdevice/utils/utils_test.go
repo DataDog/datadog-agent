@@ -30,7 +30,7 @@ func Test_BoolToFloat64(t *testing.T) {
 
 func Test_getAgentTags(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("hostname", "my-host")
+	mockConfig.SetInTest("hostname", "my-host")
 
 	assert.Equal(t, []string{
 		"agent_host:my-host",

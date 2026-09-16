@@ -8,12 +8,15 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from pathlib import Path
 
 import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.build_tags import UNIT_TEST_TAGS, compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
+from tasks.flavor import AgentFlavor
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
@@ -92,14 +95,27 @@ def go(
     Args:
         timeout: Number of minutes after which the linter should time out.
         headless_mode: Allows you to output the result in a single json file.
-        debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
+        debug: prints the go version to help debugging lint discrepancies between versions.
 
     Example invokation:
         $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ dda inv linter.go --module=.
     """
 
-    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+    check_tools_version(ctx, ['go'], debug=debug)
+
+    # Compute the tags golangci-lint will run with once, and hand them to package
+    # discovery too: a modified package whose files are all excluded by them has
+    # to be skipped, or it reaches golangci-lint as an explicit target and fails
+    # with "build constraints exclude all Go files".
+    linter_tags = build_tags or compute_build_tags_for_flavor(
+        flavor=AgentFlavor[flavor] if flavor else AgentFlavor.base,
+        build=build,
+        build_include=build_include,
+        build_exclude=build_exclude,
+    )
+    if isinstance(linter_tags, str):  # --build-tags is a comma-separated CLI string
+        linter_tags = linter_tags.split(",")
 
     modules, flavor = process_input_args(
         ctx,
@@ -107,7 +123,7 @@ def go(
         targets,
         flavor,
         headless_mode,
-        build_tags=build_tags,
+        build_tags=linter_tags + list(UNIT_TEST_TAGS),
         only_modified_packages=only_modified_packages,
         lint=True,
     )
@@ -116,16 +132,12 @@ def go(
         print(color_message("No modules to lint", "yellow"))
         return
 
-    # Detect cross-OS linting from environment variables
-    goos = os.getenv("GOOS")
-    goarch = os.getenv("GOARCH")
-
     lint_result, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
         flavor=flavor,
         build=build,
-        build_tags=build_tags,
+        build_tags=linter_tags,
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,
@@ -135,8 +147,6 @@ def go(
         headless_mode=headless_mode,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
-        goos=goos,
-        goarch=goarch,
     )
 
     if not headless_mode:
@@ -222,6 +232,92 @@ def releasenote(ctx):
             ctx.run("reno lint")
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def releasenote_unique_ids(ctx, files=None):
+    """Check that release note UIDs are unique across the corpus.
+
+    Each reno filename ends with a 16-char hex UID (e.g. my-fix-aabbccdd11223344.yaml).
+    Two files sharing the same UID suffix break the changelog build and cause MQ conflicts.
+
+    When --files is given (comma-separated), only those files are checked against the
+    full corpus — intended for pre-commit and CI use. Without --files the full corpus
+    is scanned for any existing duplicates.
+    """
+    hex_digits = set('0123456789abcdefABCDEF')
+
+    def path_key(path):
+        return Path(str(path).replace('\\', '/')).as_posix()
+
+    def uid_of(path: Path):
+        if path.suffix != '.yaml':
+            return None
+        uid = path.stem[-16:]
+        return uid.lower() if len(uid) == 16 and all(c in hex_digits for c in uid) else None
+
+    def release_note_dir(path: Path):
+        """Return the top-level releasenotes* directory for a given path."""
+        for part in path.parts:
+            if part.startswith('releasenotes'):
+                return part
+        return ''
+
+    def release_note_paths():
+        note_paths = []
+        for root in sorted(Path('.').iterdir()):
+            if not root.is_dir() or not root.name.startswith('releasenotes'):
+                continue
+            notes_dir = root / 'notes'
+            if not notes_dir.is_dir():
+                continue
+            for dirpath, dirnames, filenames in os.walk(notes_dir):
+                dirnames.sort()
+                note_paths.extend(
+                    Path(dirpath) / filename for filename in sorted(filenames) if filename.endswith('.yaml')
+                )
+        return note_paths
+
+    # Each top-level releasenotes* directory is a separate reno tree; UIDs only
+    # need to be unique within one tree.
+    all_notes = release_note_paths()
+    targets = [Path(f.strip()) for f in files.split(',') if f.strip()] if files else all_notes
+    target_keys = {path_key(path) for path in targets} if files else None
+
+    seen: dict[tuple[str, str], Path] = {}
+    duplicate_groups: dict[tuple[str, str], list[Path]] = {}
+    for path in all_notes:
+        uid = uid_of(path)
+        if not uid:
+            continue
+        key = (release_note_dir(path), uid)
+        if key in seen:
+            duplicate_groups.setdefault(key, [seen[key]]).append(path)
+        else:
+            seen[key] = path
+
+    errors = []
+    for (_, uid), paths in duplicate_groups.items():
+        if target_keys is None:
+            errors.append((paths[0], uid, paths[1:]))
+            continue
+        for path in paths:
+            if path_key(path) in target_keys:
+                errors.append((path, uid, [other for other in paths if other != path]))
+
+    if errors:
+        print(color_message("Duplicate release note UIDs detected:", "red"), file=sys.stderr)
+        for new, uid, dupes in errors:
+            print(f"  {new} (UID: {uid}) collides with:", file=sys.stderr)
+            for d in dupes:
+                print(f"    - {d}", file=sys.stderr)
+        print(
+            "\nFix: regenerate your note with `reno new <slug>` to get a fresh unique UID.",
+            file=sys.stderr,
+        )
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(targets)} release note(s) have unique UIDs", "green"))
 
 
 @task
@@ -776,6 +872,38 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
     except LintFailure:
         # the linter prints useful messages on its own, so no need to print the exception
         sys.exit(1)
+
+
+@task
+def docs_links(ctx):
+    """Checks that the developer documentation links to this repository through the `repo` macro.
+
+    A hand-written link is unchecked, because the link checker skips this repository on the grounds
+    that the macro resolves every path it renders against the working tree.
+    """
+    # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
+    # In a pathspec `*` spans directories, so this reaches every nested page.
+    result = ctx.run(
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        warn=True,
+        hide=True,
+    )
+
+    # Finding nothing is what we want; anything beyond that is Git itself failing.
+    if result.exited == 1:
+        print(color_message("The documentation references this repository properly", Color.GREEN))
+        return
+    if result.exited > 1:
+        raise Exit(code=result.exited)
+
+    print(
+        color_message("Use the `repo` macro rather than a hand-written link to this repository:", Color.RED),
+        file=sys.stderr,
+    )
+    for match in result.stdout.splitlines():
+        page, number, _ = match.split(":", 2)
+        print(f"  {page}:{number}", file=sys.stderr)
+    raise Exit(code=1)
 
 
 @task

@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,29 +26,30 @@ import (
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	datadogclientmodule "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -61,19 +63,24 @@ import (
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	kubeactionsbundle "github.com/DataDog/datadog-agent/comp/kubeactions"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactionscomp "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 
+	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
@@ -85,10 +92,13 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -108,6 +118,7 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -121,7 +132,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
@@ -163,15 +174,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultDCALogFile()),
 				}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
+				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
@@ -179,6 +190,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(autoscalinggate.New()),
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
@@ -207,7 +219,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[serializer.MetricSerializer] {
 					return option.None[serializer.MetricSerializer]()
 				}),
-				autodiscoveryimpl.Module(),
+				adfx.Module(),
+				// both concrete and interface typs of service store are needed.
+				fx.Provide(instrumentationhandlers.NewServiceCheckTemplateStore),
+				fx.Provide(func(s *instrumentationhandlers.ServiceCheckTemplateStore) adtypes.ServiceTracker { return s }),
 				rcservicefx.Module(),
 				rcstatusfx.Module(),
 				rctelemetryreporterfx.Module(),
@@ -225,12 +240,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 							"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 							"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
 							"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+							"internal_profiling_period":      commonsettings.NewProfilingPeriod(),
 							"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
 						},
 						Config: c,
 					}
 				}),
-				settingsimpl.Module(),
+				settingsfx.Module(),
 				datadogclientmodule.Module(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -253,6 +269,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remotetraceroutefx.Module(),
+				kubeactionsbundle.Bundle(),
 			)
 		},
 	}
@@ -283,17 +300,23 @@ func start(log log.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 	hostnameGetter hostnameinterface.Component,
-
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	healthPlatform option.Option[healthplatformdef.Component],
+	healthPlatform healthplatformdef.Component,
+	autoscalingGate *autoscalinggate.Gate,
+	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	refreshTaggerGlobalTags option.Option[func(context.Context)],
+	helmactions helmactions.Component,
+	kubeActions kubeactionscomp.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
 
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	// The leader engine can be created while registering other subcommands, so use the
+	// process-wide context shared by those commands.
+	mainCtx, mainCtxCancel := pkgcommon.GetMainCtxCancel()
 	defer mainCtxCancel()
 
 	signalCh := make(chan os.Signal, 1)
@@ -309,16 +332,23 @@ func start(log log.Component,
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		return errors.New("no API key configured, exiting")
 	}
 
-	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", telemetry.Handler())
+	// Expose the registered metrics via HTTP. /metrics must stay reachable on
+	// all interfaces so the node agent can scrape cluster-agent telemetry, but
+	// the pprof/expvar handlers that main.go registers on http.DefaultServeMux
+	// must not: gate everything under /debug/ to loopback callers only.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", telemetry.Handler())
+	debugHandler := loopbackOnly(http.DefaultServeMux)
+	metricsMux.Handle("/debug", debugHandler)
+	metricsMux.Handle("/debug/", debugHandler)
 	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Handler: http.DefaultServeMux,
+		Handler: metricsMux,
 	}
 
 	go func() {
@@ -385,15 +415,13 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	checkStore := instrumentationhandlers.NewCheckStore()
-	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
-		IsLeader:   le.IsLeader,
-		CheckStore: checkStore,
-	})
-
-	api.ModifyAPIRouter(func(r *mux.Router) {
-		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
-	})
+	apmTargetStore := instrumentationhandlers.NewAPMTargetStore()
+	var instrHandlers []instrumentation.Handler
+	if config.GetBool("instrumentation_crd_controller.enabled") {
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, apmTargetStore)
+	} else {
+		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
+	}
 
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
@@ -408,6 +436,7 @@ func start(log log.Component,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
 		InstrumentationHandlers:     instrHandlers,
+		Telemetry:                   telemetry,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -423,6 +452,12 @@ func start(log log.Component,
 	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
+	}
+	if clusterID != "" {
+		// Tagger may have computed static global tags before the cluster ID was available.
+		if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
+			refreshTags(mainCtx)
+		}
 	}
 	if clusterName == "" {
 		if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
@@ -468,7 +503,10 @@ func start(log log.Component,
 	rcserv, isSet := rcService.Get()
 	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
 	if rcEnabled && isSet {
-		var products []string
+		// We explicitly don't add the `ProductActionPlatformRunnerKeys` here as it will be added automatically from the subscribe call.
+		// Adding it here will create a race condition where the notification can be fired before the subscription
+		// preventing the PAR component to finish its startup.
+		products := []string{state.ProductAgentConfig}
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
@@ -484,8 +522,8 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
-		if config.GetBool("private_action_runner.enabled") {
-			products = append(products, state.ProductActionPlatformRunnerKeys)
+		if config.GetBool("apm_config.instrumentation.on_demand") {
+			products = append(products, state.ProductApmPolicies)
 		}
 
 		var err error
@@ -493,6 +531,7 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {
@@ -507,7 +546,7 @@ func start(log log.Component,
 	// create and setup the autoconfig instance
 	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config)
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
@@ -520,7 +559,7 @@ func start(log log.Component,
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
-			api.ModifyAPIRouter(func(r *mux.Router) {
+			api.ModifyAPIRouter(func(r *http.ServeMux) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
 			// Set cluster checks handler in clusterchecks component
@@ -558,7 +597,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -577,7 +616,7 @@ func start(log log.Component,
 
 	var sh clusterspot.PodHandler
 	if config.GetBool("autoscaling.cluster.spot.enabled") {
-		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
+		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, clusterID, wmeta, apiCl, le.IsLeader, demultiplexer, taggerComp); err == nil {
 			sh = scheduler
 		} else {
 			return fmt.Errorf("Error while starting spot scheduling: %w", err)
@@ -592,7 +631,7 @@ func start(log log.Component,
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
-		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, apiCl.DynamicCl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")
@@ -626,7 +665,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -652,6 +691,12 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
+		var csiDriverWatcher libraryinjection.CSIDriverWatcher
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
+			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -664,6 +709,8 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
+			CSIDriverWatcher:             csiDriverWatcher,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
@@ -701,17 +748,6 @@ func start(log log.Component,
 		pkglog.Info("Admission controller is disabled")
 	}
 
-	if config.GetBool("cluster_agent.mcp.enabled") {
-		// Get MCP configured endpoint
-		mcpEndpoint := config.GetString("cluster_agent.mcp.endpoint")
-		// Register MCP handler on the HTTP metrics server via HTTP
-		mcpHandler := mcp.CreateMCPHandler()
-		http.Handle(mcpEndpoint, mcpHandler)
-		pkglog.Infof("MCP endpoint registered with HTTP metrics server on port %d: %s", metricsPort, mcpEndpoint)
-	} else {
-		pkglog.Debug("MCP server is disabled")
-	}
-
 	pkglog.Infof("All components started. Cluster Agent now running.")
 
 	// Block here until we receive the interrupt signal
@@ -728,6 +764,7 @@ func start(log log.Component,
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+	le.WaitForLeaderElection()
 
 	// If kubeactions are enabled, stop the config retriever
 	if kubeactionsRetriever != nil {
@@ -753,6 +790,49 @@ func start(log log.Component,
 	return nil
 }
 
+// loopbackOnly serves h only for requests originating from a loopback address;
+// any other client receives a 404. The check uses the transport-level
+// RemoteAddr, not forwardable headers, so it cannot be spoofed by an off-host
+// caller. This keeps the pprof/expvar debug handlers reachable for local
+// tooling (e.g. the cluster-agent flare) while hiding them on the network.
+func loopbackOnly(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}
+}
+
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, apmStore *instrumentationhandlers.APMTargetStore) []instrumentation.Handler {
+	checkStore := instrumentationhandlers.NewCheckStore()
+	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
+		IsLeader:                  le.IsLeader,
+		CheckStore:                checkStore,
+		ServiceCheckTemplateStore: serviceTemplateStore,
+		APMTargetStore:            apmStore,
+	})
+
+	api.ModifyAPIRouter(func(r *http.ServeMux) {
+		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
+	})
+
+	if apiserver.UseEndpointSlices() {
+		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
+		if err != nil {
+			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
+		} else {
+			ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
+		}
+	}
+	return instrHandlers
+}
+
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {
 	handler, err := pkgclusterchecks.NewHandler(ac, tagger)
 	if err != nil {
@@ -774,6 +854,10 @@ func startPrivateActionRunner(
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipc ipc.Component,
+	demux demultiplexer.Component,
+	ha helmactions.Component,
+	ka kubeactionscomp.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -782,7 +866,16 @@ func startPrivateActionRunner(
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
 	le.StartLeaderElectionRun()
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
+
+	// The Cluster Agent has no local DogStatsD server, so submit PAR metrics
+	// in-process directly to the demultiplexer.
+	metricsClient, err := aggregator.NewStatsdDirect(demux, hostnameGetter)
+	if err != nil {
+		log.Warnf("Private action runner: failed to create in-process metrics client, metrics disabled: %v", err)
+		metricsClient = &ddgostatsd.NoOpClient{}
+	}
+
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}

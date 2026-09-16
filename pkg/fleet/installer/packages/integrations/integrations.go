@@ -24,6 +24,11 @@ var (
 	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
+const (
+	baselineFileName = ".post_python_installed_packages.txt"
+	diffFileName     = ".diff_python_installed_packages.txt"
+)
+
 // executePythonScript executes a Python script with the given arguments
 func executePythonScript(ctx context.Context, installPath, scriptName string, args ...string) error {
 	pythonPath := filepath.Join(installPath, "embedded/bin/python")
@@ -48,15 +53,129 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	return nil
 }
 
+// integrationStoragePath returns the directory that holds the integration
+// save/restore files for installPath. OCI packages keep them in the persistent
+// RunPath (the install dir is immutable and versioned); deb/rpm keep them in the
+// install dir itself (== /opt/datadog-agent).
+func integrationStoragePath(installPath string) string {
+	if strings.HasPrefix(installPath, paths.PackagesPath) {
+		return paths.RunPath
+	}
+	return installPath
+}
+
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
-func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath string) (err error) {
+func SaveCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "save_custom_integrations")
 	defer func() {
 		span.Finish(err)
 	}()
-	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
+	storagePath := integrationStoragePath(installPath)
+	if storagePath == paths.RunPath {
+		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, baselineFileName); err != nil {
+			return err
+		}
+	}
+	if err := executePythonScript(ctx, installPath, "pre.py", installPath, storagePath); err != nil {
+		return err
+	}
+	if storagePath == paths.RunPath {
+		// An OCI package released before the move to RunPath restores the diff from
+		// RootTmpDir, so mirror it there for such experiments.
+		if err := mirrorOCIFile(storagePath, paths.RootTmpDir, diffFileName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateLegacyOCIFile seeds storageDir with a save/restore file an OCI package before
+// this change wrote to the legacy RootTmpDir (the storage location used since 7.67.0,
+// #36084), so an upgrade to a RunPath-based version still finds it. It copies the legacy
+// file when the destination is missing, older than the legacy copy, or shares the legacy
+// mtime but differs in content; a strictly newer destination is left untouched. No-op if
+// the legacy file does not exist.
+func migrateLegacyOCIFile(legacyDir, storageDir, fileName string) error {
+	legacyPath := filepath.Join(legacyDir, fileName)
+	storagePath := filepath.Join(storageDir, fileName)
+	legacyInfo, err := os.Stat(legacyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to stat %s: %w", legacyPath, err)
+	}
+	storageInfo, err := os.Stat(storagePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat %s: %w", storagePath, err)
+	}
+	if err == nil {
+		// A strictly newer destination is authoritative, so keep it. Equal mtimes are
+		// ambiguous (e.g. both stamped within the same operation), so fall back to a
+		// content comparison and only refresh when the bytes actually differ.
+		if legacyInfo.ModTime().Before(storageInfo.ModTime()) {
+			return nil
+		}
+		if legacyInfo.ModTime().Equal(storageInfo.ModTime()) {
+			same, err := sameFileContents(legacyPath, storagePath)
+			if err != nil {
+				return err
+			}
+			if same {
+				return nil
+			}
+		}
+	}
+	return copyOCIFile(legacyDir, storageDir, fileName)
+}
+
+// sameFileContents reports whether the files at the two paths have identical contents.
+func sameFileContents(a, b string) (bool, error) {
+	dataA, err := os.ReadFile(a)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", a, err)
+	}
+	dataB, err := os.ReadFile(b)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", b, err)
+	}
+	return string(dataA) == string(dataB), nil
+}
+
+// copyOCIFile copies fileName from srcDir to dstDir, overwriting any existing
+// dstDir copy and creating dstDir if needed. No-op if the source file does not
+// exist.
+func copyOCIFile(srcDir, dstDir, fileName string) error {
+	srcPath := filepath.Join(srcDir, fileName)
+	dstPath := filepath.Join(dstDir, fileName)
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", srcPath, err)
+	}
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", dstDir, err)
+	}
+	if err := os.WriteFile(dstPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dstPath, err)
+	}
+	return nil
+}
+
+// mirrorOCIFile copies fileName into dstDir only when dstDir already exists, so a
+// reaped RootTmpDir is not recreated (which would break experiment temp dirs).
+func mirrorOCIFile(srcDir, dstDir, fileName string) error {
+	if _, err := os.Stat(dstDir); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to stat %s: %w", dstDir, err)
+	}
+	return copyOCIFile(srcDir, dstDir, fileName)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
@@ -68,9 +187,14 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		span.Finish(err)
 	}()
 
-	storagePath := installPath
-	if strings.HasPrefix(installPath, paths.PackagesPath) {
-		storagePath = paths.RootTmpDir
+	storagePath := integrationStoragePath(installPath)
+
+	// An older package's pre.py wrote the diff to RootTmpDir; this restore reads RunPath.
+	// Seed it so the first upgrade to this version restores instead of dropping integrations.
+	if storagePath == paths.RunPath {
+		if err := migrateLegacyOCIFile(paths.RootTmpDir, storagePath, diffFileName); err != nil {
+			return err
+		}
 	}
 
 	return executePythonScript(ctx, installPath, "post.py", installPath, storagePath)
@@ -147,30 +271,12 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	return nil
 }
 
-// RemoveCompiledFiles removes compiled Python files (.pyc, .pyo) and __pycache__ directories
+// RemoveCompiledFiles removes compiled Python files (__pycache__ folders)
 func RemoveCompiledFiles(installPath string) error {
-	// Remove files in in "{installPath}/embedded/.py_compiled_files.txt"
-	_, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check if compiled files list exists: %w", err)
-	}
-	if !os.IsNotExist(err) {
-		compiledFiles, err := os.ReadFile(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
+	// Remove files in {installPath}/embedded
+	err := filepath.WalkDir(filepath.Join(installPath, "embedded"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("failed to read compiled files list: %w", err)
-		}
-		for file := range strings.SplitSeq(string(compiledFiles), "\n") {
-			if strings.HasPrefix(file, installPath) {
-				if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
-					return fmt.Errorf("failed to remove compiled file %s: %w", file, err)
-				}
-			}
-		}
-	}
-	// Remove files in {installPath}/bin/agent/dist
-	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			if !os.IsNotExist(err) {
+			if os.IsNotExist(err) {
 				return nil
 			}
 			return err
@@ -179,10 +285,26 @@ func RemoveCompiledFiles(installPath string) error {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove compiled files: %w", err)
+	}
+	// Remove files in {installPath}/bin/agent/dist
+	err = filepath.WalkDir(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() && d.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
+			return filepath.SkipDir
 		}
 		return nil
 	})
@@ -192,7 +314,7 @@ func RemoveCompiledFiles(installPath string) error {
 	// Remove files in {installPath}/python-scripts
 	err = filepath.WalkDir(filepath.Join(installPath, "python-scripts"), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			if !os.IsNotExist(err) {
+			if os.IsNotExist(err) {
 				return nil
 			}
 			return err
@@ -201,10 +323,7 @@ func RemoveCompiledFiles(installPath string) error {
 			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-		} else if strings.HasSuffix(d.Name(), ".pyc") || strings.HasSuffix(d.Name(), ".pyo") {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return err
-			}
+			return filepath.SkipDir
 		}
 		return nil
 	})

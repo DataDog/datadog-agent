@@ -41,6 +41,12 @@ message FilterPod {
   string name = 2;
   string namespace = 3;
   map<string, string> annotations = 4;
+  FilterRootOwner rootowner = 5;
+}
+
+message FilterRootOwner {
+  string kind = 1;
+  string name = 2;
 }
 
 message FilterProcess {

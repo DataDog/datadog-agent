@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the forwarder component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(forwarderimpl.New),
+		fxutil.ProvideComponentConstructor(forwarderimpl.NewComponent),
 	)
 }

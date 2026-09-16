@@ -17,6 +17,8 @@
       docker run --rm
       -v "$(Get-Location):c:\mnt"
       -e CI
+      -e GITLAB_CI
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e CI_PROJECT_NAME
       -e CI_PIPELINE_ID

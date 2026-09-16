@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    APM stats now mask additional metric tag values that exceed the value
+    length or per-bucket cardinality limits.

@@ -30,6 +30,18 @@ func getUnlinkProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_do_unlinkat",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_unlinkat",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_unlinkat",
+			},
+		},
 	}
 
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{

@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
@@ -46,8 +46,8 @@ type Provides struct {
 	Component processcheck.Component
 }
 
-// NewCheck creates a new processcheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new processcheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig(), deps.Tagger),
 	}

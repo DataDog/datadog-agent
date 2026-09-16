@@ -27,7 +27,7 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 	if cfg.SBOMResolverEnabled {
 		ruleDefinitions = append(ruleDefinitions, &rules.RuleDefinition{
 			ID:         NeedRefreshSBOMRuleID,
-			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0`,
+			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/db/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0`,
 			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  needRefreshSBOMVariableName,

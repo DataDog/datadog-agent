@@ -15,11 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 )
 
@@ -124,8 +122,9 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 	return os.NewFile(uintptr(dup), nn.handle.Name()), nil
 }
 
-// dequeueNetworkDevices dequeues the devices in the current network devices queue.
-func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manager *manager.Manager) {
+// dequeueNetworkDevices dequeues the devices in the current network devices queue. Never take the
+// resolver lock from here: everywhere else it is acquired before the namespace lock.
+func (nn *NetworkNamespace) dequeueNetworkDevices(nr *Resolver) {
 	nn.Lock()
 	defer nn.Unlock()
 
@@ -147,8 +146,8 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	}()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		if err = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager); err != nil {
-			seclog.Errorf("error setting up new tc classifier on queued Device: %v", err)
+		if err = nr.tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, nr.manager); err != nil {
+			nr.reportTCClassifierError(err, queuedDevice)
 		}
 	}
 	nn.flushNetworkDevicesQueue()

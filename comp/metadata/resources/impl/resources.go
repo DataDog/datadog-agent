@@ -15,7 +15,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"

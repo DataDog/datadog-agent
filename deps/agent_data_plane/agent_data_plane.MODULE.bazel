@@ -1,0 +1,85 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "1.6.1"
+
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/saluki"
+
+HASHES = {
+    "linux-amd64": "4fd3ceb150c5a3157a2c8ee9aa7acc61b0e289bb66fd02ebb531ba01c5a48455",
+    "linux-arm64": "ef8e252cd2c5f74d078897bae495bbf57f3b5e82d6d050ebec6046e3cced4e73",
+    "fips-linux-amd64": "5f367127e49bfafc761fdb7e76f1f24717eed29fc8004c3e1a15ef6c3a26cc95",
+    "fips-linux-arm64": "e527d33d412d6db453def1a81b2b066fc9570da66c31e01c44837600fbbde84f",
+    "darwin-amd64": "b265951912a7040df21a54f2bde69b378e6238bbd2e54746c040ba9890a6ea93",
+    "darwin-arm64": "88571a3ecca720f3503ae097ccd6ea54b3219a2b055b3e3a7412b141aa186e98",
+    "windows-amd64": "0bb70f2c883dce45893c7ba21cc5127332e194aeb497c61b2443e40eb6770cb6",
+    "windows-amd64-fips": "ced633510f76fb018d0d961d04572374e714ba7eac58a969070ff7c07b095140",
+}
+
+_BUILD_FILE_CONTENT = """\
+filegroup(
+    name = "binary",
+    srcs = glob(["**/{binary_name}"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_3rdparty",
+    srcs = glob(["**/LICENSE-3rdparty.csv"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_files",
+    srcs = glob(["**/LICENSES/**"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
+# The Windows zip's entries use a literal "\" in the filename rather than "/"
+# as a path separator (e.g. "bin\agent-data-plane.exe" is one flat file, not
+# a "bin" directory). Bazel's label syntax forbids "\" outright, so no
+# glob()/filegroup can ever reference it as-is: convert those into real
+# nested paths before _BUILD_FILE_CONTENT's glob patterns see them.
+# FIXME(agent-build) remove this once https://github.com/DataDog/saluki/pull/2122
+# is part of a release
+_WINDOWS_PATCH_CMDS = ["""\
+for f in *; do
+  case "$f" in
+    *\\\\*)
+      new=$(printf '%s' "$f" | tr '\\\\' '/')
+      mkdir -p "$(dirname "$new")"
+      mv -- "$f" "$new"
+      ;;
+  esac
+done
+"""]
+
+# hash key -> os; the repo name suffix is the hash key with "-" replaced by "_"
+_ARTIFACTS = {
+    "linux-amd64": "linux",
+    "linux-arm64": "linux",
+    "fips-linux-amd64": "linux",
+    "fips-linux-arm64": "linux",
+    "darwin-amd64": "darwin",
+    "darwin-arm64": "darwin",
+    "windows-amd64": "windows",
+    "windows-amd64-fips": "windows",
+}
+
+[
+    http_archive(
+        name = "agent_data_plane_{}".format(hash_key.replace("-", "_")),
+        build_file_content = _BUILD_FILE_CONTENT.format(
+            binary_name = "agent-data-plane.exe" if os == "windows" else "agent-data-plane",
+        ),
+        patch_cmds = _WINDOWS_PATCH_CMDS if os == "windows" else [],
+        sha256 = HASHES[hash_key],
+        url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
+            base = SOURCE_URL_BASE,
+            ext = "zip" if os == "windows" else "tar.gz",
+            target = hash_key,
+            version = VERSION,
+        ),
+    )
+    for hash_key, os in _ARTIFACTS.items()
+]

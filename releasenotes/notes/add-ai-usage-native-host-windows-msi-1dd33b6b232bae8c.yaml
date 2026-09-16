@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The Windows MSI installer now includes the AI Usage Chrome Native Messaging
+    Host, which is intended to work with a companion Chrome extension to power
+    EUDM AI usage features. The host is currently dormant because the Chrome
+    extension is not yet enabled, so no AI usage host process runs on the system.

@@ -32,11 +32,30 @@ var flavors = map[string]flavor{
 	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
 }
 
+// envFromVersionHandoff is the recursion guard: set on a child installer
+// spawned by runAgentInstaller so the child skips its own version handoff.
+const envFromVersionHandoff = "DD_INSTALLER_FROM_VERSION_HANDOFF"
+
 // Setup installs Datadog.
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	f, ok := flavors[flavor]
 	if !ok {
 		return fmt.Errorf("unknown flavor \"%s\"", flavor)
+	}
+	// If the user has requested a specific Agent version and we are not
+	// ourselves the result of a prior handoff, fetch the matching
+	// installer.exe and re-exec from it.
+	if os.Getenv(envFromVersionHandoff) != "true" {
+		if err := applyAgentDistOptions(env); err != nil {
+			return err
+		}
+		tag, err := requestedAgentVersion(env)
+		if err != nil {
+			return err
+		}
+		if tag != "" {
+			return runAgentInstaller(ctx, env, flavor, tag)
+		}
 	}
 	s, err := common.NewSetup(ctx, env, flavor, f.path, os.Stdout)
 	if err != nil {

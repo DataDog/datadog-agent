@@ -52,9 +52,9 @@ func (f *factory) resolveHost(ctx context.Context, set processor.Settings) strin
 		source, err := pkghostname.Get(ctx)
 		if err != nil {
 			if hostnameMap := expvar.Get("hostname"); hostnameMap != nil {
-				set.Logger.Warn("hostname expvar dump", zap.String("details", hostnameMap.String()))
+				set.Logger.Debug("hostname expvar dump", zap.String("details", hostnameMap.String()))
 			}
-			set.Logger.Warn("Could not resolve host for standalone mode")
+			set.Logger.Warn("Could not resolve host for standalone mode. Is K8S_NODE_IP env var set?")
 		} else {
 			f.host = source
 			set.Logger.Info("Resolved host for standalone mode", zap.String("hostname", f.host))

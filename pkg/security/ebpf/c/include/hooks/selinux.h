@@ -4,6 +4,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/selinux.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
@@ -59,12 +60,14 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
     syscall.resolver.key = syscall.selinux.file.path_key;
     syscall.resolver.dentry = syscall.selinux.dentry;
-    syscall.resolver.discarder_event_type = dentry_resolver_discarder_event_type(&syscall);
+    syscall.resolver.event_type = syscall.type;
+    syscall.resolver.flags = get_resolver_flags(&syscall, 1);
     syscall.resolver.callback = DR_SELINUX_CALLBACK_KPROBE_KEY;
     syscall.resolver.iteration = 0;
     syscall.resolver.ret = 0;
 
-    cache_syscall(&syscall);
+    cache_syscall(ctx, &syscall);
+    update_proc_cache_cgroup();
 
     // tail call
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
@@ -81,25 +84,30 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_SELINUX);
-        return 0;
-    }
-
     if (syscall->resolver.ret == DENTRY_INVALID) {
         return 0;
     }
 
-    struct selinux_event_t event = {};
-    event.event_kind = syscall->selinux.event_kind;
-    event.file = syscall->selinux.file;
-    event.payload = syscall->selinux.payload;
+    apply_dentry_resolution_outcome(syscall, EVENT_SELINUX);
+    if (syscall->state == DISCARDED) {
+        return 0;
+    }
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct selinux_event_t *event = SPAN_FILL_EVENT(struct selinux_event_t, EVENT_SELINUX);
+    if (!event) {
+        return 0;
+    }
+    event->event_kind = syscall->selinux.event_kind;
+    event->file = syscall->selinux.file;
+    event->payload = syscall->selinux.payload;
 
-    send_event(ctx, EVENT_SELINUX, event);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
+
+    // Snapshot the Go pprof labels and emit the event from the shared tail-call
+    // target. Everything above must be built into the event before this point,
+    // because the tail call never returns here.
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
     return 0;
 }
 

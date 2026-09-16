@@ -8,8 +8,10 @@ package suite
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -38,22 +40,45 @@ var (
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{
-		e2eos.WindowsServer2016,
-		e2eos.WindowsServer2019,
-		e2eos.WindowsServer2022,
-		e2eos.WindowsServer2025,
+		e2eos.WindowsServer2016E2E,
+		e2eos.WindowsServer2019E2E,
+		e2eos.WindowsServer2022E2E,
+		e2eos.WindowsServer2025E2E,
 	}
 	// AllPlatforms is the list of all supported platforms.
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
 )
 
-// Platforms returns the list of platforms to test, excluding Windows platforms
-// when the E2E_SKIP_WINDOWS parameter is set to "true".
+// platformGroupEnvVar selects a subset of platforms to run the fleet tests
+// against ("linux" or "windows"). It is used to split the fleet e2e jobs
+// across multiple parallel CI jobs so each platform group runs independently.
+const platformGroupEnvVar = "E2E_FLEET_PLATFORM_GROUP"
+
+// Platforms returns the list of platforms to test.
+//
+// The set of platforms can be narrowed down with the E2E_FLEET_PLATFORM_GROUP
+// environment variable ("linux" or "windows"), which is used to split the
+// fleet e2e jobs across multiple parallel CI jobs. When it is unset, all
+// platforms are returned.
+//
+// Windows platforms are always excluded when the E2E_SKIP_WINDOWS parameter is
+// set to "true".
 func Platforms() []e2eos.Descriptor {
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
 	if err != nil {
 		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.SkipWindows, err))
 	}
+
+	switch strings.ToLower(os.Getenv(platformGroupEnvVar)) {
+	case "linux":
+		return LinuxPlatforms
+	case "windows":
+		if skipWindows {
+			return nil
+		}
+		return WindowsPlatforms
+	}
+
 	if skipWindows {
 		return LinuxPlatforms
 	}
@@ -90,7 +115,7 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 			t.Parallel()
 			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
 			// clone opts and shadow it to avoid race condition when running in parallel
-			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform)), ec2.WithoutAgent()))
+			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform), ec2.WithInternetAccess()), ec2.WithoutAgent()))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}

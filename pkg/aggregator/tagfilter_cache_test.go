@@ -380,8 +380,11 @@ func FuzzTagFilterCacheHighChurn(f *testing.F) {
 		sc := newTagFilterCache(defaultReverseCacheCapacity)
 		postKey := ckey.ContextKey(999)
 
-		for i := start; i < start+count; i++ {
-			sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey, removedTags: int(i)})
+		// Widen to int to avoid uint16 overflow: start+count could wrap around
+		// to a value smaller than start, making the loop body never execute.
+		end := int(start) + int(count)
+		for i := int(start); i < end; i++ {
+			sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey, removedTags: i})
 			assertTagFilterCacheConsistent(t, sc)
 		}
 

@@ -143,6 +143,7 @@ func PodSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 		// Take max(initContainer resource)
 		maxInitContainerLimit := resource.Quantity{}
 		maxInitContainerRequest := resource.Quantity{}
+		hasExplicitLimit := false
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
 			if InitContainerIsSidecar(c) {
@@ -150,6 +151,7 @@ func PodSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				continue
 			}
 			if limit, ok := c.Resources.Limits[k]; ok {
+				hasExplicitLimit = true
 				if limit.Cmp(maxInitContainerLimit) == 1 {
 					maxInitContainerLimit = limit
 				}
@@ -167,6 +169,7 @@ func PodSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 		for i := range pod.Spec.Containers {
 			c := &pod.Spec.Containers[i]
 			if l, ok := c.Resources.Limits[k]; ok {
+				hasExplicitLimit = true
 				limitSum.Add(l)
 			}
 			if l, ok := c.Resources.Requests[k]; ok {
@@ -179,6 +182,7 @@ func PodSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				continue
 			}
 			if l, ok := c.Resources.Limits[k]; ok {
+				hasExplicitLimit = true
 				limitSum.Add(l)
 			}
 			if l, ok := c.Resources.Requests[k]; ok {
@@ -194,13 +198,15 @@ func PodSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 			maxInitContainerRequest = reqSum
 		}
 
-		// Ensure that the limit is greater or equal to the request
-		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = maxInitContainerRequest
-		}
+		// Only enforce limit >= request when a limit was explicitly set.
+		if hasExplicitLimit {
+			if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
+				maxInitContainerLimit = maxInitContainerRequest
+			}
 
-		if maxInitContainerLimit.CmpInt64(0) == 1 {
-			requirements.Limits[k] = maxInitContainerLimit
+			if maxInitContainerLimit.CmpInt64(0) == 1 {
+				requirements.Limits[k] = maxInitContainerLimit
+			}
 		}
 		if maxInitContainerRequest.CmpInt64(0) == 1 {
 			requirements.Requests[k] = maxInitContainerRequest

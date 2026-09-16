@@ -396,7 +396,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	s.onInvokeNameOfStartingService = s.dep1Svc.Name
 
 	// Call stop service with dependencies
-	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s)
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s, DefaultServiceCommandTimeout*time.Second)
 	assert.Nil(s.T(), err, "Main service should restart successfully: %v", err)
 
 	s.validateAllServicesStopped()
@@ -424,7 +424,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	s.onInvokeNameOfStoppingService = s.dep1Svc.Name
 	s.onInvokeNameOfStartingService = s.dep1Svc.Name
 
-	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s)
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s, DefaultServiceCommandTimeout*time.Second)
 	assert.Nil(s.T(), err, "Main service should restart successfully: %v", err)
 
 	s.validateAllServicesStopped()
@@ -444,7 +444,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	s.onInvokeNameOfStoppingService = s.mainSvcName
 	s.onInvokeNameOfStartingService = s.dep1SvcName
 
-	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s, DefaultServiceCommandTimeout*time.Second)
 	assert.Nil(s.T(), err, "Main service stop should succeed")
 	assert.Equal(s.T(), 2, s.onInvokeCount, "Should have 2 iteration, first failed second succeeded")
 
@@ -467,7 +467,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	s.onInvokeNameOfStoppingService = s.mainSvcName
 	s.onInvokeNameOfStartingService = s.dep1SvcName
 
-	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s, DefaultServiceCommandTimeout*time.Second)
 	assert.Nil(s.T(), err, "Main service stop should succeed")
 	assert.Equal(s.T(), 3, s.onInvokeCount, "Should have 2 iteration, first failed second succeeded")
 
@@ -499,7 +499,7 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	s.onInvokeNameOfStoppingService = s.dep1Svc.Name
 	s.onInvokeNameOfStartingService = s.dep1Svc.Name
 
-	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s, DefaultServiceCommandTimeout*time.Second)
 	assert.NotNil(s.T(), err, "Main service stop should fail")
 	assert.ErrorIs(s.T(), errors.Unwrap(err), error(windows.ERROR_DEPENDENT_SERVICES_RUNNING),
 		"Main service stop should fail because of dependent services running")

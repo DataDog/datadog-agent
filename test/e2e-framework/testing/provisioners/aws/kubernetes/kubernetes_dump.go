@@ -213,3 +213,104 @@ func DumpKindClusterState(ctx context.Context, name string) (ret string, err err
 
 	return ret, nil
 }
+
+// DumpKubeadmClusterState dumps the state of a kubeadm-on-VM cluster by reading
+// the admin kubeconfig from the VM over SSH and dumping the cluster resources.
+func DumpKubeadmClusterState(ctx context.Context, name string) (ret string, err error) {
+	var out strings.Builder
+	defer func() { ret = out.String() }()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load AWS config: %v", err)
+	}
+	ec2Client := awsec2.NewFromConfig(cfg)
+
+	currentUser, _ := user.Current()
+	instanceName := name + "-aws-kubeadm"
+	instancesDescription, err := ec2Client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
+		Filters: []awsec2types.Filter{
+			{Name: pointer.Ptr("tag:managed-by"), Values: []string{"pulumi"}},
+			{Name: pointer.Ptr("tag:username"), Values: []string{currentUser.Username}},
+			{Name: pointer.Ptr("tag:Name"), Values: []string{instanceName}},
+		},
+	})
+	if err != nil {
+		return ret, fmt.Errorf("failed to describe instances: %v", err)
+	}
+	if instancesDescription == nil || len(instancesDescription.Reservations) == 0 || len(instancesDescription.Reservations[0].Instances) != 1 {
+		return ret, fmt.Errorf("did not find exactly one instance for %s", instanceName)
+	}
+	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
+	if instanceIP == nil {
+		return ret, errors.New("failed to get private IP of instance")
+	}
+
+	sshClient, err := sshutils.SshConnectToInstance(*instanceIP, "22", "ec2-user")
+	if err != nil {
+		return ret, fmt.Errorf("failed to dial SSH server %s: %v", *instanceIP, err)
+	}
+	defer sshClient.Close()
+
+	sshSession, err := sshClient.NewSession()
+	if err != nil {
+		return ret, fmt.Errorf("failed to create SSH session: %v", err)
+	}
+	defer sshSession.Close()
+
+	stdout, err := sshSession.StdoutPipe()
+	if err != nil {
+		return ret, fmt.Errorf("failed to create stdout pipe: %v", err)
+	}
+	stderr, err := sshSession.StderrPipe()
+	if err != nil {
+		return ret, fmt.Errorf("failed to create stderr pipe: %v", err)
+	}
+
+	if err := sshSession.Start("sudo cat /etc/kubernetes/admin.conf"); err != nil {
+		return ret, fmt.Errorf("failed to start remote command: %v", err)
+	}
+
+	var stdoutBuf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(2)
+	errChannel := make(chan error, 2)
+	go func() {
+		if _, err := io.Copy(&stdoutBuf, stdout); err != nil {
+			errChannel <- fmt.Errorf("failed to read stdout: %v", err)
+		}
+		wg.Done()
+	}()
+	go func() {
+		if _, err := io.Copy(&out, stderr); err != nil {
+			errChannel <- fmt.Errorf("failed to read stderr: %v", err)
+		}
+		wg.Done()
+	}()
+	waitErr := sshSession.Wait()
+	wg.Wait()
+	close(errChannel)
+	for e := range errChannel {
+		if e != nil {
+			return ret, e
+		}
+	}
+	if waitErr != nil {
+		return ret, fmt.Errorf("remote command exited with error: %v", waitErr)
+	}
+
+	kubeconfig, err := clientcmd.Load(stdoutBuf.Bytes())
+	if err != nil {
+		return ret, fmt.Errorf("failed to parse kubeconfig: %v", err)
+	}
+	for _, cluster := range kubeconfig.Clusters {
+		cluster.Server = "https://" + *instanceIP + ":6443"
+		cluster.CertificateAuthorityData = nil
+		cluster.InsecureSkipTLSVerify = true
+	}
+
+	if err := k8sutils.DumpK8sClusterState(ctx, kubeconfig, &out); err != nil {
+		return ret, fmt.Errorf("failed to dump cluster state: %v", err)
+	}
+	return ret, nil
+}

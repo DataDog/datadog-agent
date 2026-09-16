@@ -955,9 +955,15 @@ func (s *CoreAgentService) flushCacheResponseLocked() (*pbgo.ClientGetConfigsRes
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
-func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// The caller may have already given up waiting for a response,
+	// we should early return if the ctx has an error.
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 
 	err := validateRequest(request)
 	if err != nil {
@@ -1168,8 +1174,8 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 	return cachedTargetsMap, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
-	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
+func (s *CoreAgentService) apiKeyUpdateCallback() model.NotificationReceiver {
+	return func(setting string, _ model.Source, _, newvalue any, _ uint64, _ model.Source) {
 		if setting != "api_key" {
 			return
 		}

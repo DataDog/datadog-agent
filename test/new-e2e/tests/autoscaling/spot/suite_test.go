@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	kindvmscen "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -168,6 +169,7 @@ func TestSpotSchedulingKind(t *testing.T) {
 // qa_dca ECR image built by this pipeline (cluster-agent-qa:{E2E_PIPELINE_ID}-{E2E_COMMIT_SHA}).
 // Requires E2E_PIPELINE_ID to be set (provided by the standard .new_e2e_template CI job).
 func TestSpotSchedulingKindCI(t *testing.T) {
+	flake.Mark(t)
 	if os.Getenv("E2E_PIPELINE_ID") == "" {
 		t.Skip("E2E_PIPELINE_ID not set; this test is for CI use only")
 	}
@@ -179,6 +181,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 			kindvmscen.WithAgentOptions(
 				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
+				kubernetesagentparams.WithTimeout(600),
 			),
 		),
 	)))

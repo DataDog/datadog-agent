@@ -18,12 +18,12 @@
           {
             "function": "main.testSingleUint64",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go",
-            "lineNumber": 59
+            "lineNumber": 65
           },
           {
             "function": "main.executeBasicFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go",
-            "lineNumber": 85
+            "lineNumber": 94
           },
           {
             "function": "main.runAll",
@@ -33,7 +33,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

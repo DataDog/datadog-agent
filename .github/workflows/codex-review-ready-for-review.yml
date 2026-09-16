@@ -1,0 +1,298 @@
+---
+name: "Cleanup Codex reviews when PR is ready"
+
+on:
+  pull_request:
+    types: [ready_for_review]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
+
+jobs:
+  cleanup-codex-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Cleanup Codex draft review artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.event.repository.name }}
+          REPOSITORY: ${{ github.repository }}
+          CHATGPT_CODEX_GRAPHQL_BOT: chatgpt-codex-connector
+          CHATGPT_CODEX_REST_BOT: chatgpt-codex-connector[bot]
+          GITHUB_ACTIONS_BOT: github-actions
+          GITHUB_ACTIONS_BOT_ALT: github-actions[bot]
+          LEGACY_GITHUB_ACTIONS_BOT: github_actions
+          LEGACY_GITHUB_ACTIONS_BOT_ALT: github_actions[bot]
+          CODEX_REVIEW_BODY: "@codex review"
+        run: |
+          set -euo pipefail
+
+          # For issue comments, the REST endpoint does not include a reactions object in the default list response schema,
+          # so the expression falls back to 0 even when someone has reacted with 👍. In PRs where a maintainer thumbs-up'd
+          # a Codex issue comment to keep it, the ready_for_review cleanup still deletes it; use the reactions endpoint
+          # or a GraphQL query if thumbs-up is meant to be an opt-out for issue comments.
+          comments_query="$(cat <<'GRAPHQL'
+          query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                comments(first: 100, after: $cursor) {
+                  nodes {
+                    id
+                    body
+                    author {
+                      login
+                    }
+                    reactionGroups {
+                      content
+                      users {
+                        totalCount
+                      }
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          delete_comment_mutation="$(cat <<'GRAPHQL'
+          mutation($id: ID!) {
+            deleteIssueComment(input: {id: $id}) {
+              clientMutationId
+            }
+          }
+          GRAPHQL
+          )"
+
+          echo "Deleting matching Codex issue comments from PR ${PR_NUMBER}"
+          cursor=""
+          while true; do
+            cursor_arg=(-F "cursor=null")
+            if [ -n "${cursor}" ]; then
+              cursor_arg=(-f "cursor=${cursor}")
+            fi
+
+            response="$(
+              gh api graphql \
+                -f "owner=${OWNER}" \
+                -f "repo=${REPO}" \
+                -F "pr=${PR_NUMBER}" \
+                "${cursor_arg[@]}" \
+                -f "query=${comments_query}"
+            )"
+
+            comment_ids_output="$(
+              jq -r '
+                def thumbs_up_count:
+                  ([
+                    .reactionGroups[]?
+                    | select(.content == "THUMBS_UP")
+                    | .users.totalCount
+                  ] | add // 0);
+
+                def is_github_actions_bot:
+                  .author.login == env.GITHUB_ACTIONS_BOT
+                  or .author.login == env.GITHUB_ACTIONS_BOT_ALT
+                  or .author.login == env.LEGACY_GITHUB_ACTIONS_BOT
+                  or .author.login == env.LEGACY_GITHUB_ACTIONS_BOT_ALT;
+
+                def is_codex_bot:
+                  .author.login == env.CHATGPT_CODEX_GRAPHQL_BOT
+                  or .author.login == env.CHATGPT_CODEX_REST_BOT;
+
+                .data.repository.pullRequest.comments.nodes[]
+                | select(
+                    (thumbs_up_count == 0)
+                    and (
+                      (is_github_actions_bot and .body == env.CODEX_REVIEW_BODY)
+                      or is_codex_bot
+                    )
+                  )
+                | .id
+              ' <<< "${response}"
+            )"
+
+            comment_ids=()
+            if [ -n "${comment_ids_output}" ]; then
+              mapfile -t comment_ids <<< "${comment_ids_output}"
+            fi
+
+            for comment_id in "${comment_ids[@]}"; do
+              echo "Deleting issue comment ${comment_id}"
+              gh api graphql \
+                -f "query=${delete_comment_mutation}" \
+                -f "id=${comment_id}" \
+                > /dev/null
+            done
+
+            has_next_page="$(
+              jq -r '
+                .data.repository.pullRequest.comments.pageInfo.hasNextPage
+              ' <<< "${response}"
+            )"
+            if [ "${has_next_page}" != "true" ]; then
+              break
+            fi
+
+            cursor="$(
+              jq -r '
+                .data.repository.pullRequest.comments.pageInfo.endCursor
+              ' <<< "${response}"
+            )"
+          done
+
+          reviews_query="$(cat <<'GRAPHQL'
+          query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                reviews(first: 50, after: $cursor) {
+                  nodes {
+                    id
+                    isMinimized
+                    body
+                    reactionGroups {
+                      content
+                      users {
+                        totalCount
+                      }
+                    }
+                    comments(first: 100) {
+                      nodes {
+                        id
+                        isMinimized
+                        reactionGroups {
+                          content
+                          users {
+                            totalCount
+                          }
+                        }
+                        author {
+                          login
+                        }
+                      }
+                    }
+                    author {
+                      login
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          minimize_mutation="$(cat <<'GRAPHQL'
+          mutation($subjectId: ID!) {
+            minimizeComment(
+              input: {subjectId: $subjectId, classifier: OUTDATED}
+            ) {
+              minimizedComment {
+                isMinimized
+              }
+            }
+          }
+          GRAPHQL
+          )"
+
+          echo "Minimizing matching Codex reviews from PR ${PR_NUMBER}"
+          cursor=""
+          while true; do
+            cursor_arg=(-F "cursor=null")
+            if [ -n "${cursor}" ]; then
+              cursor_arg=(-f "cursor=${cursor}")
+            fi
+
+            response="$(
+              gh api graphql \
+                -f "owner=${OWNER}" \
+                -f "repo=${REPO}" \
+                -F "pr=${PR_NUMBER}" \
+                "${cursor_arg[@]}" \
+                -f "query=${reviews_query}"
+            )"
+
+            review_comment_ids_output="$(
+              jq -r '
+                def thumbs_up_count:
+                  ([
+                    .reactionGroups[]?
+                    | select(.content == "THUMBS_UP")
+                    | .users.totalCount
+                  ] | add // 0);
+
+                def is_codex_bot:
+                  .author.login == env.CHATGPT_CODEX_GRAPHQL_BOT
+                  or .author.login == env.CHATGPT_CODEX_REST_BOT;
+
+                .data.repository.pullRequest.reviews.nodes[] as $review
+                | (
+                    # Collect comment IDs to minimize
+                    $review.comments.nodes[]
+                    | select(
+                        is_codex_bot
+                        and (.isMinimized | not)
+                        and (thumbs_up_count == 0)
+                        and ($review | thumbs_up_count == 0)
+                      )
+                    | .id
+                  ),
+                  (
+                    # Collect review ID to minimize
+                    $review
+                    | select(
+                        is_codex_bot
+                        and (.isMinimized | not)
+                        and (.body | length > 0)
+                        and (thumbs_up_count == 0)
+                        and ([$review.comments.nodes[] | thumbs_up_count] | add == 0)
+                      )
+                    | .id
+                  )
+              ' <<< "${response}"
+            )"
+            review_comment_ids=()
+            if [ -n "${review_comment_ids_output}" ]; then
+              mapfile -t review_comment_ids <<< "${review_comment_ids_output}"
+            fi
+
+            for review_comment_id in "${review_comment_ids[@]}"; do
+              echo "Minimizing pull request review artifact ${review_comment_id}"
+              gh api graphql \
+                -f "query=${minimize_mutation}" \
+                -f "subjectId=${review_comment_id}" \
+                > /dev/null
+            done
+
+            has_next_page="$(
+              jq -r '
+                .data.repository.pullRequest.reviews.pageInfo.hasNextPage
+              ' <<< "${response}"
+            )"
+            if [ "${has_next_page}" != "true" ]; then
+              break
+            fi
+
+            cursor="$(
+              jq -r '
+                .data.repository.pullRequest.reviews.pageInfo.endCursor
+              ' <<< "${response}"
+            )"
+          done

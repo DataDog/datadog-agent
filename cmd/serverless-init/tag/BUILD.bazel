@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "tag",
+    srcs = ["tag.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/tag",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/serverless/tags"],
+)
+
+dd_agent_go_test(
+    name = "tag_test",
+    srcs = ["tag_test.go"],
+    embed = [":tag"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/utils",
+        "//pkg/serverless/tags",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

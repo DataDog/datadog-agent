@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "report",
+    srcs = [
+        "metadata.go",
+        "sender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/sender",
+        "//pkg/util/log",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)
+
+dd_agent_go_test(
+    name = "report_test",
+    srcs = ["sender_test.go"],
+    embed = [":report"],
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

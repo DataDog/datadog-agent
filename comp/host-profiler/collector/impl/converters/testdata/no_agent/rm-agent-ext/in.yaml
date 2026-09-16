@@ -3,10 +3,9 @@ service:
     profiles:
       receivers: [profiling]
       processors: [batch]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
   extensions:
     - ddprofiling
-    - ddprofiling/custom
     - hpflare
     - hpflare/prod
     - custom
@@ -15,8 +14,6 @@ service:
 extensions:
   ddprofiling:
     config: value
-  ddprofiling/custom:
-    config: custom
   hpflare:
     config: value
   hpflare/prod:
@@ -36,7 +33,7 @@ receivers:
       enabled: false
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: http://localhost:4318
     headers:
       dd-api-key: test-key

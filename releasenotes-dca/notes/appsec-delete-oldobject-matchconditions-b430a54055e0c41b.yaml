@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Cluster Agent: Evaluate AppSec sidecar admission webhook match conditions
+    against the deleted object for pod deletion requests.

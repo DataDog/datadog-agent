@@ -5,7 +5,7 @@
 
 // Package testutil contains helpers to build sample C binaries for testing.
 
-//go:build linux_bpf && test
+//go:build linux && bpf && test
 
 package testutil
 
@@ -30,9 +30,11 @@ func buildCBinary(srcDir, outPath string) (string, error) {
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
-	if _, err := os.Stat(cachedServerBinaryPath); err == nil {
-		log.Debugf("Using cached test binary: %s", cachedServerBinaryPath)
-		return cachedServerBinaryPath, nil
+	if _, ok := os.LookupEnv("GITLAB_CI"); ok {
+		if _, err := os.Stat(cachedServerBinaryPath); err == nil {
+			log.Debugf("Using cached test binary: %s", cachedServerBinaryPath)
+			return cachedServerBinaryPath, nil
+		}
 	}
 
 	// Build statically to avoid issues with shared libraries (specially libc if we run in alpine)

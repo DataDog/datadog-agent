@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    This change adds two new metric points for the GPU Monitoring product:
+      * ``gpu.pci.link.speed.current``: Current usable bandwidth for the PCI link in bytes per second
+      * ``gpu.pci.link.speed.max``: Max usable bandwidth for the PCI link in bytes per second

@@ -1,0 +1,79 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "controlsvc",
+    srcs = [
+        "command.go",
+        "command_nix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/otel-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/otel-agent/subcommands",
+            "//cmd/otel-agent/windows/controlsvc",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)

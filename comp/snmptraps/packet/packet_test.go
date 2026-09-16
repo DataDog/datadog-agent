@@ -38,3 +38,15 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 		"snmp_device:127.0.0.1",
 	})
 }
+
+func TestGetTagsAppendsCustomTagsAfterBuiltins(t *testing.T) {
+	packet := CreateTestPacket(NetSNMPExampleHeartbeatNotification)
+	packet.Tags = []string{"application:my-app", "team:netops"}
+	assert.Equal(t, []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:127.0.0.1",
+		"application:my-app",
+		"team:netops",
+	}, packet.GetTags())
+}

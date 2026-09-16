@@ -142,55 +142,26 @@ class TestCheckNodeTypesPresent(unittest.TestCase):
 
 class TestCheckSettingsHaveDefault(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
-        errors = errors_for(lint.check_settings_have_default, "valid.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "valid.yaml")
         self.assertEqual(errors, [])
 
     def test_setting_without_default(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml")
         self.assertTrue(any("no_default" in e for e in errors), f"Expected error for no_default, got: {errors}")
 
-    def test_excepted_setting_with_tag_passes(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", {"excepted_no_default"})
-        self.assertFalse(
-            any("excepted_no_default" in e for e in errors),
-            f"Excepted setting should not produce an error, got: {errors}",
-        )
-
-    def test_excepted_setting_without_tag_is_still_an_error(self):
-        # A setting in the exception list but without the required tag is an error
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", {"no_default"})
-        self.assertTrue(
-            any("no_default" in e and "TODO:fix-no-default" in e for e in errors),
-            f"Expected tag-enforcement error for no_default, got: {errors}",
-        )
-
     def test_setting_with_platform_default_passes(self):
-        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml", set())
+        errors = errors_for(lint.check_settings_have_default, "missing_default.yaml")
         self.assertFalse(any("with_platform_default" in e for e in errors))
 
 
 class TestCheckSettingsHaveType(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
-        errors = errors_for(lint.check_settings_have_type, "valid.yaml", set())
+        errors = errors_for(lint.check_settings_have_type, "valid.yaml")
         self.assertEqual(errors, [])
 
     def test_setting_without_type(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", set())
+        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml")
         self.assertTrue(any("no_type" in e for e in errors), f"Expected error for no_type, got: {errors}")
-
-    def test_excepted_setting_with_tag_passes(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", {"excepted_no_type"})
-        self.assertFalse(
-            any("excepted_no_type" in e for e in errors),
-            f"Excepted setting should not produce an error, got: {errors}",
-        )
-
-    def test_excepted_setting_without_tag_is_still_an_error(self):
-        errors = errors_for(lint.check_settings_have_type, "missing_type.yaml", {"no_type"})
-        self.assertTrue(
-            any("no_type" in e and "TODO:fix-missing-type" in e for e in errors),
-            f"Expected tag-enforcement error for no_type, got: {errors}",
-        )
 
 
 class TestCheckPlatformDefaultKeys(unittest.TestCase):
@@ -203,6 +174,10 @@ class TestCheckPlatformDefaultKeys(unittest.TestCase):
         self.assertTrue(
             any("missing_windows" in e for e in errors), f"Expected error for missing_windows, got: {errors}"
         )
+
+    def test_missing_aix_platform_key(self):
+        errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")
+        self.assertTrue(any("missing_aix" in e for e in errors), f"Expected error for missing_aix, got: {errors}")
 
     def test_unknown_platform_key(self):
         errors = errors_for(lint.check_platform_default_keys, "bad_platform_default.yaml")
@@ -372,6 +347,81 @@ class TestCheckEnvParser(unittest.TestCase):
             any("env_parser_on_section.child" in e for e in errors),
             f"Child setting of bad section should not be flagged, got: {errors}",
         )
+
+
+class TestCheckRenamedFrom(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_renamed_from, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_list_value_is_error(self):
+        # The former format, a plain list of names, no longer carries the deprecation version.
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("not_a_mapping" in e and "must be a mapping" in e for e in errors),
+            f"Expected error for not_a_mapping, got: {errors}",
+        )
+
+    def test_empty_mapping_is_error(self):
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("empty_mapping" in e for e in errors),
+            f"Expected error for empty_mapping, got: {errors}",
+        )
+
+    def test_blank_former_name_is_error(self):
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("blank_name" in e for e in errors),
+            f"Expected error for blank_name, got: {errors}",
+        )
+
+    def test_unquoted_version_is_error(self):
+        # An unquoted '7.71' is a YAML float, which would lose the trailing zero of '7.70'.
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("unquoted_version" in e and "quote the Agent version" in e for e in errors),
+            f"Expected error for unquoted_version, got: {errors}",
+        )
+
+    def test_partial_version_is_error(self):
+        # Versions must be fully semantic: 'MAJOR.MINOR' is not enough.
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("partial_version" in e and "invalid version" in e for e in errors),
+            f"Expected error for partial_version, got: {errors}",
+        )
+
+    def test_malformed_version_is_error(self):
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("malformed_version" in e and "invalid version" in e for e in errors),
+            f"Expected error for malformed_version, got: {errors}",
+        )
+
+    def test_duplicate_version_is_error(self):
+        # Versions order the renames, so a setting cannot be renamed twice in the same version.
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        duplicates = [e for e in errors if "duplicate_version" in e]
+        self.assertEqual(len(duplicates), 1, f"Expected one error for duplicate_version, got: {errors}")
+        self.assertIn("reuses version '7.71.0' for 'old_one', 'old_two'", duplicates[0])
+        # The third name has its own version and must not be dragged into the error.
+        self.assertNotIn("old_three", duplicates[0])
+
+    def test_renamed_from_on_section_is_error(self):
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        self.assertTrue(
+            any("section_with_renamed_from" in e and "only allowed on setting nodes" in e for e in errors),
+            f"Expected error for section_with_renamed_from, got: {errors}",
+        )
+
+    def test_valid_setting_and_section_pass(self):
+        errors = errors_for(lint.check_renamed_from, "bad_renamed_from.yaml")
+        for key in ("valid_setting", "valid_section"):
+            self.assertFalse(
+                any(key in e for e in errors),
+                f"Valid node '{key}' should not produce an error, got: {errors}",
+            )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package usm
 
@@ -233,7 +233,9 @@ func (m *Monitor) Stop() {
 
 	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 
-	m.ebpfProgram.Close()
+	if err := m.ebpfProgram.Close(); err != nil {
+		log.Errorf("error during USM shutdown: %v", err)
+	}
 	m.closeFilterFn()
 	usmstate.Set(usmstate.Stopped)
 }

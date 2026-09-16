@@ -40,7 +40,7 @@ func GetPackagePath(localPath string, flavor tifos.Flavor, agentFlavor string, a
 	var wantedExt string
 	var subFolder string
 	switch flavor {
-	case tifos.AmazonLinux, tifos.CentOS, tifos.RedHat, tifos.AmazonLinuxECS, tifos.Fedora, tifos.RockyLinux:
+	case tifos.AmazonLinux, tifos.CentOS, tifos.RedHat, tifos.AmazonLinuxECS, tifos.Fedora, tifos.RockyLinux, tifos.AlmaLinux:
 		wantedExt = ".rpm"
 	case tifos.Suse:
 		wantedExt = ".rpm"

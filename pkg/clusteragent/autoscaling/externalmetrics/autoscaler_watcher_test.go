@@ -16,7 +16,9 @@ import (
 	autoscaler "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	kube_informer "k8s.io/client-go/informers"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
 const (
@@ -60,7 +63,7 @@ func newAutoscalerFixture(t *testing.T) *autoscalerFixture {
 	}
 }
 
-func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
+func (f *autoscalerFixture) newAutoscalerWatcher(selector labels.Selector) (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
 	for _, hpa := range f.hpaLister {
 		f.kubeObjects = append(f.kubeObjects, hpa)
 	}
@@ -79,13 +82,18 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	}
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 
+	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(kubeClient)
+	if err != nil {
+		return nil, nil, nil
+	}
+
 	for _, wpa := range f.wpaLister {
 		f.wpaObjects = append(f.wpaObjects, wpa)
 	}
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, hpaGVR, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -104,7 +112,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 }
 
 func (f *autoscalerFixture) runWatcherUpdate() {
-	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher()
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(nil)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	kubeInformer.Start(stopCh)
@@ -114,10 +122,15 @@ func (f *autoscalerFixture) runWatcherUpdate() {
 }
 
 func newFakeHorizontalPodAutoscaler(ns, name string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
+	return newFakeHorizontalPodAutoscalerWithLabels(ns, name, nil, metrics)
+}
+
+func newFakeHorizontalPodAutoscalerWithLabels(ns, name string, hpaLabels map[string]string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
 	return &autoscaler.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      name,
+			Labels:    hpaLabels,
 		},
 		Spec: autoscaler.HorizontalPodAutoscalerSpec{
 			Metrics: metrics,
@@ -126,6 +139,14 @@ func newFakeHorizontalPodAutoscaler(ns, name string, metrics []autoscaler.Metric
 }
 
 func newFakeWatermarkPodAutoscaler(ns, name string, metrics []interface{}) *unstructured.Unstructured {
+	return newFakeWatermarkPodAutoscalerWithLabels(ns, name, nil, metrics)
+}
+
+func newFakeWatermarkPodAutoscalerWithLabels(ns, name string, wpaLabels map[string]string, metrics []interface{}) *unstructured.Unstructured {
+	labelsMap := map[string]interface{}{}
+	for k, v := range wpaLabels {
+		labelsMap[k] = v
+	}
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "datadoghq.com/v1alpha1",
@@ -133,6 +154,7 @@ func newFakeWatermarkPodAutoscaler(ns, name string, metrics []interface{}) *unst
 			"metadata": map[string]interface{}{
 				"name":      name,
 				"namespace": ns,
+				"labels":    labelsMap,
 			},
 			"spec": map[string]interface{}{
 				"metrics": metrics,
@@ -150,7 +172,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 			{
 				Type: autoscaler.ExternalMetricSourceType,
 				External: &autoscaler.ExternalMetricSource{
-					MetricName: "datadogmetric@default:dd-metric-0",
+					MetricName: "datadogmetric@dd-metric-0",
 				},
 			},
 		}),
@@ -165,7 +187,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		newFakeWatermarkPodAutoscaler("ns0", "wpa0", []interface{}{
 			map[string]interface{}{
 				"external": map[string]interface{}{
-					"metricName": "datadogmetric@default:dd-metric-1",
+					"metricName": "datadogmetric@dd-metric-1",
 				},
 				"type": "External",
 			},
@@ -173,7 +195,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	}
 
 	ddm := model.DatadogMetricInternal{
-		ID:         "default/dd-metric-0",
+		ID:         "ns0/dd-metric-0",
 		Active:     false,
 		Valid:      true,
 		Value:      10.0,
@@ -181,10 +203,10 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
-	f.store.Set("default/dd-metric-0", ddm, "utest")
+	f.store.Set("ns0/dd-metric-0", ddm, "utest")
 
 	ddm = model.DatadogMetricInternal{
-		ID:         "default/dd-metric-1",
+		ID:         "ns0/dd-metric-1",
 		Active:     true,
 		Valid:      true,
 		Value:      11.0,
@@ -192,7 +214,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
-	f.store.Set("default/dd-metric-1", ddm, "utest")
+	f.store.Set("ns0/dd-metric-1", ddm, "utest")
 
 	ddm = model.DatadogMetricInternal{
 		ID:                   "default/dd-metric-2",
@@ -211,7 +233,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	// Check internal store content
 	assert.Equal(t, 3, f.store.Count())
 	ddm = model.DatadogMetricInternal{
-		ID:                   "default/dd-metric-0",
+		ID:                   "ns0/dd-metric-0",
 		Active:               true,
 		Valid:                true,
 		Value:                10.0,
@@ -220,10 +242,10 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		AutoscalerReferences: "hpa:ns0/hpa0",
 	}
 	ddm.SetQueries("metric query0")
-	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-0"))
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("ns0/dd-metric-0"))
 
 	ddm = model.DatadogMetricInternal{
-		ID:                   "default/dd-metric-1",
+		ID:                   "ns0/dd-metric-1",
 		Active:               true,
 		Valid:                true,
 		Value:                11.0,
@@ -232,7 +254,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		AutoscalerReferences: "wpa:ns0/wpa0",
 	}
 	ddm.SetQueries("metric query1")
-	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-1"))
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("ns0/dd-metric-1"))
 
 	ddm = model.DatadogMetricInternal{
 		ID:                   "default/dd-metric-2",
@@ -245,6 +267,62 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	}
 	ddm.SetQueries("metric query2")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-2"))
+}
+
+// The namespace part of a `datadogmetric@<namespace>:<name>` reference is ignored, the DatadogMetric
+// is always resolved in the namespace of the autoscaler, so a reference to another namespace never
+// activates the DatadogMetric it points to.
+func TestAutoscalerWatcherIgnoresDatadogMetricReferenceNamespace(t *testing.T) {
+	f := newAutoscalerFixture(t)
+	updateTime := time.Now()
+
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		newFakeHorizontalPodAutoscaler("tenant-a", "hpa0", []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@shared:dd-metric-0",
+				},
+			},
+		}),
+	}
+
+	f.wpaLister = []*unstructured.Unstructured{
+		newFakeWatermarkPodAutoscaler("tenant-b", "wpa0", []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "datadogmetric@shared:dd-metric-0",
+				},
+				"type": "External",
+			},
+		}),
+	}
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "shared/dd-metric-0",
+		Active:     false,
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("shared/dd-metric-0", ddm, "utest")
+
+	f.runWatcherUpdate()
+
+	assert.Equal(t, 1, f.store.Count())
+	ddm = model.DatadogMetricInternal{
+		ID:                   "shared/dd-metric-0",
+		Active:               false,
+		Valid:                true,
+		Value:                10.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "",
+	}
+	ddm.SetQueries("metric query0")
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("shared/dd-metric-0"))
 }
 
 func TestCreateAutogenDatadogMetrics(t *testing.T) {
@@ -381,7 +459,7 @@ func TestDisableDatadogMetricAutogen(t *testing.T) {
 		}),
 	}
 
-	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher()
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(nil)
 	autoscalerWatcher.autogenEnabled = false
 
 	stopCh := make(chan struct{})
@@ -487,4 +565,145 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 	}
 	ddm.SetQueries("avg:docker.cpu.usage{bar:foo}.rollup(30)")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
+}
+
+func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		// hpa0 matches label selector, no datadogmetric@ reference — included via label match
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa0", map[string]string{"team": "infra"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName:     "requests_per_s",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kube_container_name": "app"}},
+				},
+			},
+		}),
+		// hpa1 does NOT match label selector, but has datadogmetric@ reference — included via direct reference
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@ns0:dd-metric-ref",
+				},
+			},
+		}),
+		// hpa2 does NOT match label selector and has no datadogmetric@ reference — excluded
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa2", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName:     "keda_metric",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"queue": "jobs"}},
+				},
+			},
+		}),
+	}
+
+	f.wpaLister = []*unstructured.Unstructured{
+		// wpa0 matches label selector, no datadogmetric@ reference — included via label match
+		newFakeWatermarkPodAutoscalerWithLabels("ns0", "wpa0", map[string]string{"team": "infra"}, []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "docker.cpu.usage",
+					"metricSelector": map[string]interface{}{
+						"matchLabels": map[string]interface{}{
+							"bar": "foo",
+						},
+					},
+				},
+				"type": "External",
+			},
+		}),
+		// wpa1 does NOT match label selector and has no datadogmetric@ reference — excluded
+		newFakeWatermarkPodAutoscalerWithLabels("ns0", "wpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "keda_wpa_metric",
+					"metricSelector": map[string]interface{}{
+						"matchLabels": map[string]interface{}{
+							"queue": "jobs",
+						},
+					},
+				},
+				"type": "External",
+			},
+		}),
+	}
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "ns0/dd-metric-ref",
+		Active:     false,
+		Valid:      true,
+		Value:      20.0,
+		UpdateTime: time.Now(),
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query ref")
+	f.store.Set("ns0/dd-metric-ref", ddm, "utest")
+
+	// Parse a selector that excludes autoscalers with app.kubernetes.io/managed-by=keda-operator
+	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
+	assert.NoError(t, err)
+
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(selector)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	kubeInformer.Start(stopCh)
+	wpaInformer.Start(stopCh)
+
+	autoscalerWatcher.processAutoscalers()
+
+	// Check all store entries for autoscaler references
+	foundHpa0Ref := false
+	foundHpa2Ref := false
+	foundWpa0Ref := false
+	foundWpa1Ref := false
+	for _, m := range f.store.GetAll() {
+		if m.AutoscalerReferences == "hpa:ns0/hpa0" {
+			foundHpa0Ref = true
+		}
+		if m.AutoscalerReferences == "hpa:ns0/hpa2" {
+			foundHpa2Ref = true
+		}
+		if m.AutoscalerReferences == "wpa:ns0/wpa0" {
+			foundWpa0Ref = true
+		}
+		if m.AutoscalerReferences == "wpa:ns0/wpa1" {
+			foundWpa1Ref = true
+		}
+	}
+
+	// hpa0 matched label selector — should be included and create autogen metric
+	assert.True(t, foundHpa0Ref, "hpa0 should be included (matches label selector)")
+
+	// hpa1 has datadogmetric@ reference — dd-metric-ref should be active despite failing label selector
+	refMetric := f.store.Get("ns0/dd-metric-ref")
+	assert.NotNil(t, refMetric)
+	assert.True(t, refMetric.Active)
+	assert.Equal(t, "hpa:ns0/hpa1", refMetric.AutoscalerReferences)
+
+	// hpa2 should be excluded — no label match, no datadogmetric@ reference
+	assert.False(t, foundHpa2Ref, "hpa2 should be excluded (no label match and no datadogmetric@ reference)")
+
+	// wpa0 matched label selector — should be included and create autogen metric
+	assert.True(t, foundWpa0Ref, "wpa0 should be included (matches label selector)")
+
+	// wpa1 should be excluded — no label match, no datadogmetric@ reference
+	assert.False(t, foundWpa1Ref, "wpa1 should be excluded (no label match and no datadogmetric@ reference)")
+}
+
+// TestNewAutoscalerWatcherDoesNotDiscoverHPA verifies the watcher does not perform live HPA discovery.
+func TestNewAutoscalerWatcherDoesNotDiscoverHPA(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	kubeClient := kube_fake.NewSimpleClientset()
+	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
+
+	hpaGVR := schema.GroupVersionResource{Group: "autoscaling", Version: "v2beta1", Resource: "horizontalpodautoscalers"}
+
+	_, err := NewAutoscalerWatcher(0, true, 1, "default", labels.Everything(), hpaGVR, kubeInformer, nil, getIsLeaderFunction(true), &f.store)
+	assert.NoError(t, err)
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -141,6 +143,12 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
+		}
+	}
+
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
 	// - OCI: done at the end of setup script (setup.go)
@@ -175,6 +183,47 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
+	}
+	return nil
+}
+
+func resolveDatadogProgramFilesInstallRoot() (string, error) {
+	installRoot := paths.ResolveDatadogProgramFilesDir()
+	if installRoot == "" {
+		return "", errors.New("cannot resolve Datadog Agent install path for processes.d")
+	}
+	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
+		installRoot = resolved
+	}
+	paths.DatadogProgramFilesDir = installRoot
+	return installRoot, nil
+}
+
+// procmgrConfig is a processes.d definition managed at install time.
+type procmgrConfig struct {
+	label  string
+	write  func(installRoot string) error
+	remove func(installRoot string) error
+}
+
+var procmgrConfigs = []procmgrConfig{
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+}
+
+func ensureProcmgrConfig(cfg procmgrConfig) error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return cfg.write(installRoot)
+	}
+	if err := cfg.remove(installRoot); err != nil {
+		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
 }
@@ -475,11 +524,18 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
-	if env.MsiParams.AgentUserName != "" {
+	// msi.Cmd() places typed properties after raw args on the command line regardless of
+	// option order, so a getenv() fallback (AgentUserName, AgentUserKeepRights) would
+	// silently win over an explicit value already in args. Guard against that.
+	// AgentUserPassword has no fallback, so it's not at risk.
+	if env.MsiParams.AgentUserName != "" && !argsHaveProperty(args, "DDAGENTUSER_NAME") {
 		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
+	}
+	if env.MsiParams.AgentUserKeepRights != "" && !argsHaveProperty(args, "DDAGENTUSER_KEEP_RIGHTS") {
+		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence
@@ -499,6 +555,18 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		return err
 	}
 	return nil
+}
+
+// argsHaveProperty returns true if args already contains an explicit "property=value" entry
+// for the given MSI property.
+func argsHaveProperty(args []string, property string) bool {
+	prefix := property + "="
+	for _, arg := range args {
+		if strings.HasPrefix(arg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
@@ -621,6 +689,10 @@ func getWatchdogTimeout() time.Duration {
 	return time.Duration(val) * time.Minute
 }
 
+// getAgentUserKeepRightsFromRegistry is a package-level var so tests can override it without
+// touching the real registry.
+var getAgentUserKeepRightsFromRegistry = windowsuser.GetAgentUserKeepRightsFromRegistry
+
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
@@ -629,6 +701,7 @@ func getWatchdogTimeout() time.Duration {
 //   - Agent user name
 //   - Project location
 //   - Application data directory
+//   - Agent user keep-rights opt-out
 //
 // This accomplishes the following:
 //   - ensures setup carries over settings from previous installs (i.e. before remote updates)
@@ -640,6 +713,7 @@ func getenv() *env.Env {
 	//   - Agent user name (fallback to service user)
 	//   - Project location
 	//   - Application data directory
+	//   - Agent user keep-rights opt-out (fallback to registry)
 	//
 	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
@@ -659,6 +733,18 @@ func getenv() *env.Env {
 	}
 	if env.MsiParams.ApplicationDataDirectory == "" {
 		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
+	}
+
+	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out. Fleet upgrades uninstall
+	// then reinstall the MSI as two transactions, wiping the registry copy in between, so we
+	// read it here - before the uninstall - to carry it forward.
+	if env.MsiParams.AgentUserKeepRights == "" {
+		keepRights, err := getAgentUserKeepRightsFromRegistry()
+		if err != nil {
+			log.Warnf("Could not read DDAGENTUSER_KEEP_RIGHTS from registry: %v", err)
+		} else if keepRights != "" {
+			env.MsiParams.AgentUserKeepRights = keepRights
+		}
 	}
 
 	return env
@@ -944,6 +1030,8 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preInstallDDOTExtension(ctx)
+	case "eudm":
+		return preInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -954,6 +1042,8 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
+	case "eudm":
+		return postInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -964,6 +1054,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preRemoveDDOTExtension(ctx)
+	case "eudm":
+		return preRemoveEUDMExtension(ctx)
 	default:
 		return nil
 	}

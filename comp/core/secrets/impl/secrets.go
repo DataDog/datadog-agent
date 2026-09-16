@@ -28,18 +28,19 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -333,6 +334,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 				defaultpaths.GetEmbeddedBinPath(),
 				"secret-generic-connector.exe",
 			)
+		} else if flavor.GetFlavor() == flavor.ClusterAgent {
+			// The cluster-agent image isn't built via omnibus and has no "embedded/"
+			// tree; the connector ships next to the binary under GetInstallPath()/bin.
+			r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector")
 		} else {
 			r.backendCommand = filepath.Join(
 				defaultpaths.GetEmbeddedBinPath(),
@@ -523,6 +528,29 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 	return true
 }
 
+func (r *secretResolver) registerError(origin string, err error) {
+	// Unwrap per-handle errors from errors.Join so each appears as its own
+	// bullet in the 'agent secret' status output.
+	type multiErr interface{ Unwrap() []error }
+
+	msg := []string{}
+	if joined, ok := err.(multiErr); ok {
+		for _, e := range joined.Unwrap() {
+			msg = append(msg, fmt.Sprintf("'%s' %s", origin, e))
+		}
+	} else {
+		msg = append(msg, fmt.Sprintf("from '%s': %s", origin, err))
+	}
+
+	for _, m := range msg {
+		if _, ok := r.unresolvedSecrets[m]; !ok {
+			r.unresolvedSecrets[m] = struct{}{}
+			log.Error(m)
+		}
+		log.Flush()
+	}
+}
+
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
 func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error) {
@@ -549,12 +577,13 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 				if !r.shouldResolvedSecret(handle, origin, imageName, kubeNamespace) {
 					return value, nil
 				}
+				// Track the origin before resolving the handle so periodic refreshes
+				// can retry handles that have never been successfully fetched.
+				r.registerSecretOrigin(handle, origin, path)
 
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
-					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, path)
 
 					if notify {
 						for _, sub := range r.subscriptions {
@@ -595,20 +624,11 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 			secretResponse, fetchErr = r.fetchSecret(newHandles)
 		}
 		if fetchErr != nil {
-			// Unwrap per-handle errors from errors.Join so each appears as its own
-			// bullet in the 'agent secret' status output.
-			type multiErr interface{ Unwrap() []error }
-			if joined, ok := fetchErr.(multiErr); ok {
-				for _, e := range joined.Unwrap() {
-					r.unresolvedSecrets[fmt.Sprintf("'%s' %s", origin, e)] = struct{}{}
-				}
-			} else {
-				r.unresolvedSecrets[fmt.Sprintf("from %s: %s", origin, fetchErr)] = struct{}{}
-			}
+			r.registerError(origin, fetchErr)
 			resolveErr = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
 		}
 
-		w.Resolver = func(path []string, value string) (string, error) {
+		w.Resolver = func(_ []string, value string) (string, error) {
 			if ok, handle := utils.IsEnc(value); ok {
 				if !r.shouldResolvedSecret(handle, origin, imageName, kubeNamespace) {
 					return value, nil
@@ -616,8 +636,6 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 
 				if secretValue, ok := secretResponse[handle]; ok {
 					log.Debugf("Secret '%s' was successfully resolved", handle)
-					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, path)
 					return secretValue, nil
 				}
 
@@ -808,8 +826,9 @@ func (r *secretResolver) performRefresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// get handles from the cache that match the allowlist
-	newHandles := slices.Collect(stdmaps.Keys(r.cache))
+	// Refresh every handle that still has an active origin. This includes
+	// unresolved handles that have not been added to the cache yet.
+	newHandles := slices.Collect(stdmaps.Keys(r.origin))
 	filteredHandles := make([]string, 0, len(newHandles))
 	for _, handle := range newHandles {
 		if r.matchesAllowlist(handle) {

@@ -17,13 +17,13 @@ jobs:
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
           policy: self.stale.manage-stale
 
-      - uses: actions/stale@b5d41d4e1d5dceea10e7104786b73624c18a190f # v10.2.0
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           repo-token: ${{ steps.octo-sts.outputs.token }}
 

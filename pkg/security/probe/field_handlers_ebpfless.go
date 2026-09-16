@@ -437,13 +437,18 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process 
 }
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
-func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) []model.AWSSecurityCredentials {
+func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event, _ *model.Process) []model.AWSSecurityCredentials {
 	return nil
 }
 
 // ResolveSyscallCtxArgs resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
 	e.Resolved = false
+}
+
+// ResolveSpanContext resolves the span context of the event.
+func (fh *EBPFLessFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	return &ev.SpanContext
 }
 
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx

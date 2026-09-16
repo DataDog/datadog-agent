@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tests
 
@@ -27,7 +27,6 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	gorilla "github.com/gorilla/mux"
 	redis2 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
@@ -245,7 +243,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 		require.NoError(t, tr.RegisterClient(clientID))
 		require.NoError(t, tr.Resume())
 
-		mux := gorilla.NewRouter()
+		mux := nethttp.NewServeMux()
 		mux.Handle("/test", nethttp.DefaultServeMux)
 		grpcHandler := grpc.NewServerWithoutBind()
 
@@ -1947,11 +1945,14 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 	http2Server := &nethttp.Server{
 		Addr: ":" + http2Port,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
-		}), &http2.Server{}),
+		}),
+		Protocols: new(nethttp.Protocols),
 	}
+	http2Server.Protocols.SetHTTP1(true)
+	http2Server.Protocols.SetUnencryptedHTTP2(true)
 
 	go func() {
 		if err := http2Server.ListenAndServe(); err != nethttp.ErrServerClosed {
@@ -1987,12 +1988,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				resp, err := client.Post("http://"+ctx.targetAddress, "application/json", bytes.NewReader([]byte("test")))
@@ -2043,12 +2043,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
@@ -2391,12 +2390,11 @@ func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
 	t.Cleanup(srvDoneFn)
 
 	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
+		Transport: func() *nethttp.Transport {
+			protocols := new(nethttp.Protocols)
+			protocols.SetUnencryptedHTTP2(true)
+			return &nethttp.Transport{Protocols: protocols}
+		}(),
 	}
 
 	testHTTPLikeSketches(t, tr, client, httpURL, true)

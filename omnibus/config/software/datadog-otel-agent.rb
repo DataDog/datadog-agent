@@ -15,6 +15,7 @@ source path: '..',
          exclude: [
            "**/.cache/**/*",
            "**/testdata/**/*",
+           "**/.git/fsmonitor--daemon.ipc",
          ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -38,7 +39,7 @@ build do
         'GOPATH' => gopath.to_path,
         'PATH' => [gopath / 'bin', env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-        "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
+        "CGO_CFLAGS" => "#{linux_target? ? '-D_GNU_SOURCE ' : ''}-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
 
@@ -68,6 +69,7 @@ build do
     command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
     copy File.join('bin', 'otel-agent', binary_name), embedded_bin_dir
+    copy File.join('bin', 'otel-agent', "#{binary_name}.pdb"), embedded_bin_dir if windows_target?
     move 'bin/otel-agent/dist/otel-config.yaml', File.join(conf_dir, 'otel-config.yaml.example')
 
     if fips_mode?

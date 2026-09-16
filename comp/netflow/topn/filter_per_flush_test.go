@@ -85,7 +85,7 @@ func TestPerFlushFilter(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			metrics := mocksender.NewMockSender("")
+			metrics := mocksender.NewMockSender(t, "")
 			metrics.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			metrics.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			metrics.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

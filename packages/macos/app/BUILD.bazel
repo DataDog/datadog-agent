@@ -68,6 +68,13 @@ dd_agent_expand_template(
 )
 
 dd_agent_expand_template(
+    name = "launchd_data_plane_plist_example",
+    out = "etc/com.datadoghq.data-plane.plist.example",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "launchd.data-plane.plist.example.in",
+)
+
+dd_agent_expand_template(
     name = "launchd_gui_plist_example",
     out = "etc/com.datadoghq.gui.plist.example",
     attributes = pkg_attributes(mode = "0644"),
@@ -78,6 +85,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":info_plist",
+        ":launchd_data_plane_plist_example",
         ":launchd_gui_plist_example",
         ":launchd_plist_example",
         ":launchd_sysprobe_plist_example",

@@ -9,5 +9,10 @@ package setup
 
 func initConfig() {
 	ddcfg := GlobalConfigBuilder()
-	initCommonConfigComponents(ddcfg)
+	initCommonBase(ddcfg)
+}
+
+func fixupInitConfig() {
+	ddcfg := Datadog()
+	fixupInitCommonConfigComponents(ddcfg)
 }

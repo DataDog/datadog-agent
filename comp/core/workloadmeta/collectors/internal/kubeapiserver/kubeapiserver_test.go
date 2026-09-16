@@ -8,101 +8,222 @@
 package kubeapiserver
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStoreGenerators(t *testing.T) {
-	// Define tests
+func TestShouldHaveDeploymentStore(t *testing.T) {
 	tests := []struct {
-		name                    string
-		cfg                     map[string]interface{}
-		expectedStoresGenerator []storeGenerator
+		name     string
+		cfg      map[string]interface{}
+		expected bool
 	}{
 		{
-			name: "All configurations disabled",
+			name: "language detection disabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.reporting.enabled":  false,
-				"language_detection.enabled":            false,
+				"language_detection.enabled": false,
 			},
-			expectedStoresGenerator: []storeGenerator{},
+			expected: false,
 		},
 		{
-			name: "All configurations disabled",
+			name: "language detection enabled but reporting disabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.reporting.enabled":  false,
-				"language_detection.enabled":            true,
+				"language_detection.enabled":           true,
+				"language_detection.reporting.enabled": false,
 			},
-			expectedStoresGenerator: []storeGenerator{},
+			expected: false,
 		},
 		{
-			name: "Kubernetes tags enabled",
+			name: "language detection and reporting enabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.reporting.enabled":  false,
-				"language_detection.enabled":            true,
+				"language_detection.reporting.enabled": true,
+				"language_detection.enabled":           true,
 			},
-			expectedStoresGenerator: []storeGenerator{newPodStore},
-		},
-		{
-			name: "Language detection enabled",
-			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.reporting.enabled":  true,
-				"language_detection.enabled":            true,
-			},
-			expectedStoresGenerator: []storeGenerator{newDeploymentStore},
-		},
-		{
-			name: "Language detection enabled",
-			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.reporting.enabled":  true,
-				"language_detection.enabled":            false,
-			},
-			expectedStoresGenerator: []storeGenerator{},
-		},
-		{
-			name: "All configurations enabled",
-			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.reporting.enabled":  true,
-				"language_detection.enabled":            true,
-			},
-			expectedStoresGenerator: []storeGenerator{newPodStore, newDeploymentStore},
+			expected: true,
 		},
 	}
 
-	// Run test for each testcase
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMockWithOverrides(t, tt.cfg)
-			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
-			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
-
-			assert.Equal(t, expectedStores, stores)
+			assert.Equal(t, tt.expected, shouldHaveDeploymentStore(cfg))
 		})
 	}
 }
 
-func collectResultStoreGenerator(funcs []storeGenerator, config config.Reader) []*reflectorStore {
-	var stores []*reflectorStore
-	client := fakeclientset.NewClientset()
-	for _, f := range funcs {
-		_, s := f(nil, nil, config, client)
-		stores = append(stores, s)
+func TestShouldHavePodStore(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "no triggers",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kubernetes tags collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+			},
+			expected: true,
+		},
+		{
+			name: "spot scheduling",
+			cfg: map[string]interface{}{
+				"autoscaling.cluster.spot.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "pod labels as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_pod_labels_as_tags": map[string]string{"app": "kube_app"},
+			},
+			expected: true,
+		},
+		{
+			name: "pod annotations as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_pod_annotations_as_tags": map[string]string{"team": "kube_team"},
+			},
+			expected: true,
+		},
+		{
+			name: "workload autoscaling enabled",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled": true,
+			},
+			expected: true,
+		},
 	}
-	return stores
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			assert.Equal(t, test.expected, shouldHavePodStore(cfg))
+		})
+	}
+}
+
+func TestShouldHaveKueueMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "kueue disabled",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kueue enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "kubernetes tags collection does not enable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+				"cluster_agent.kueue.enabled":           false,
+			},
+			expected: false,
+		},
+		{
+			name: "metadata collection disabled does not disable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled": false,
+				"cluster_agent.kueue.enabled":                    true,
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			assert.Equal(t, test.expected, shouldHaveKueueMetadata(cfg))
+		})
+	}
+}
+
+func TestPodsRequiredAtStartup(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "no triggers",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kubernetes tags collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+			},
+			expected: true,
+		},
+		{
+			name: "spot scheduling",
+			cfg: map[string]interface{}{
+				"autoscaling.cluster.spot.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "pod labels as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_pod_labels_as_tags": map[string]string{"app": "kube_app"},
+			},
+			expected: true,
+		},
+		{
+			name: "pod annotations as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_pod_annotations_as_tags": map[string]string{"team": "kube_team"},
+			},
+			expected: true,
+		},
+		{
+			name: "workload autoscaling alone is not a startup-time requirement",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled": true,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, tt.cfg)
+			assert.Equal(t, tt.expected, podsRequiredAtStartup(cfg))
+		})
+	}
 }
 
 func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
@@ -413,6 +534,71 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/statefulsetsy",
 			},
 		},
+		{
+			name: "resource served only on a non-preferred group version is discovered",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogslos",
+							Kind:       "DatadogSLO",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+				{Resource: "datadogslos", Group: "datadoghq.com", Version: "v1alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents datadoghq.com/datadogslos",
+			},
+		},
+		{
+			name: "resource served on both preferred and non-preferred versions resolves to preferred",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -445,7 +631,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "",
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "duplicate versions for the same group/resource should not be allowed",
@@ -453,7 +639,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets apps//deployments apps/v1/statefulsets apps/v1/daemonsets",
 			},
-			expectedResources: []string{"//nodes", "apps/v1/daemonsets"},
+			expectedResources: []string{"apps/v1/daemonsets"},
 		},
 		{
 			name: "with generic resource tagging based on annotations and/or labels configured",
@@ -465,7 +651,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}, "custom.example.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"namespaces": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces", "example.com//custom"},
+			expectedResources: []string{"//namespaces", "example.com//custom"},
 		},
 		{
 			name: "generic resources tagging should be exclude invalid resources",
@@ -477,7 +663,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"-invalid": {"x-team": "team"}, "invalid.exa_mple.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"in valid.example.com": {"x-team": "team"}, "invalid.example.com-": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "deployments should be excluded from metadata collection",
@@ -487,7 +673,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/deployments",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "pods should be excluded from metadata collection",
@@ -496,7 +682,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -504,7 +690,27 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets example.com/custom",
 			},
-			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
+			expectedResources: []string{"apps//statefulsets", "example.com//custom"},
+		},
+		{
+			name: "non-core resources whose name merely ends in nodes should not be excluded",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "storage.k8s.io/csinodes metrics.k8s.io/nodes",
+			},
+			expectedResources: []string{"storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
+		},
+		{
+			name: "core nodes are excluded from metadata collection even with node labels/annotations as tags configured",
+			cfg: map[string]interface{}{
+				"kubernetes_node_labels_as_tags": map[string]string{
+					"label1": "tag1",
+				},
+				"kubernetes_node_annotations_as_tags": map[string]string{
+					"annotation1": "tag1",
+				},
+			},
+			expectedResources: nil,
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -513,7 +719,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace annotations as tags",
@@ -522,7 +728,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
@@ -530,7 +736,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_namespace_labels_as_tags":      `{"label1": "tag1"}`,
 				"kubernetes_namespace_annotations_as_tags": `{"annotation1": "tag2"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "resources explicitly requested and also needed for namespace labels as tags",
@@ -539,7 +745,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tags":              `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "resources explicitly requested with apm enabled and also needed for namespace labels as tags",
@@ -549,14 +755,14 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources":                       "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tagkubernetes_namespace_labels_as_tagss": `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "apm enabled enables namespace collection",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled": true,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 	}
 
@@ -566,4 +772,60 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}
+}
+
+func TestStartPodStoreOnGate(t *testing.T) {
+	testPodUID := "test-pod-uid"
+
+	client := fakeclientset.NewClientset(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+			UID:       types.UID(testPodUID),
+		},
+	})
+
+	gate := autoscalinggate.New()
+
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	testCollector := &collector{
+		id:              collectorID,
+		catalog:         workloadmeta.ClusterAgent,
+		config:          wmeta.GetConfig(),
+		autoscalingGate: gate,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		testCollector.startPodStoreOnGate(ctx, wmeta, client, newPodStoreWithTypedClient)
+		close(done)
+	}()
+
+	// Before enabling the gate, no pod should appear in workloadmeta.
+	assert.Never(t, func() bool {
+		_, err := wmeta.GetKubernetesPod(testPodUID)
+		return err == nil
+	}, 100*time.Millisecond, 20*time.Millisecond)
+
+	gate.Enable()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("startPodStoreOnGate did not return after gate enabled")
+	}
+
+	// The pod reflector should eventually populate workloadmeta after enabling
+	// the gate.
+	require.Eventually(t, func() bool {
+		_, err := wmeta.GetKubernetesPod(testPodUID)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond)
 }

@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -31,11 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/windows/registry"
+	yy "sigs.k8s.io/yaml"
 )
 
 const (

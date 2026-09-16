@@ -154,7 +154,7 @@ func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmR
 		log.Errorf("Error while trying to create a web request for a remote config event: %v", err)
 		return
 	}
-	if !pkgconfigsetup.Datadog().IsSet("api_key") {
+	if !pkgconfigsetup.Datadog().IsConfigured("api_key") {
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")

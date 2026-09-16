@@ -48,7 +48,7 @@ var (
 					ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-							StabilizationWindowSeconds: 300,
+							StabilizationWindowSeconds: 190,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -101,7 +101,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 600,
+							StabilizationWindowSeconds: 130,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -154,7 +154,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 900,
+							StabilizationWindowSeconds: 70,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},

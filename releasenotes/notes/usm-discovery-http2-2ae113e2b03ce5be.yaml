@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    The discovery service map (``discovery.service_map.enabled``) now captures
+    HTTP/2 traffic in addition to HTTP and TLS, so gRPC and other HTTP/2
+    service-to-service calls appear in the service map.
+fixes:
+  - |
+    Fix a potential panic and loss of latency data when discovery service map
+    HTTP or HTTP/2 statistics are merged across collection cycles (for example
+    when a client misses a cycle or multiple clients are registered).

@@ -8,8 +8,9 @@
 package dockerpermissions
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -17,14 +18,16 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for Docker permission issues
-	IssueID = "docker-file-tailing-disabled"
+	// IssueName is the identifier for the Docker socket permission issue,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "Docker Socket Permission"
 
-	// CheckID is the unique identifier for the built-in health check
-	CheckID = "docker-socket-permissions"
+	// IssueType is the snake_case type key for the Docker socket permission
+	// issue: IssueName lowercased with spaces replaced by underscores.
+	IssueType = "docker_socket_permission"
 
-	// CheckName is the human-readable name for the health check
-	CheckName = "Docker Socket Permissions"
+	// IssueID is the unique instance id used when reporting this issue
+	IssueID = "docker-socket-permissions"
 )
 
 // dockerPermissionsModule implements issues.Module
@@ -33,28 +36,36 @@ type dockerPermissionsModule struct {
 }
 
 // NewModule creates a new Docker permissions issue module
-func NewModule(config.Component) issues.Module {
+func NewModule(issues.ModuleDeps) issues.Module {
 	return &dockerPermissionsModule{
 		template: NewDockerPermissionIssue(),
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *dockerPermissionsModule) IssueID() string {
-	return IssueID
+func (m *dockerPermissionsModule) IssueName() string {
+	return IssueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *dockerPermissionsModule) IssueType() string {
+	return IssueType
 }
 
-// BuiltInHealthCheck returns the built-in health check configuration
-// Interval is 0 to use the default (15 minutes)
-func (m *dockerPermissionsModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
-	return &issues.BuiltInHealthCheck{
-		ID:      CheckID,
-		Name:    CheckName,
-		CheckFn: Check,
+func (m *dockerPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
+}
+
+// BuiltInPeriodicHealthCheck returns the periodic health check configuration.
+// Interval is 0 to use the default (15 minutes).
+func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return &runnerdef.BuiltInPeriodicHealthCheck{
+		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+			Source: "docker",
+			Fn:     Check,
+		},
 	}
+}
+
+// BuiltInStartupHealthCheck returns nil — docker permission checks run periodically.
+func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return nil
 }

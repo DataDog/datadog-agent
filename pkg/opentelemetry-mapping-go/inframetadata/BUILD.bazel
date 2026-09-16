@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "inframetadata",
@@ -20,16 +21,16 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "inframetadata_test",
     srcs = ["reporter_test.go"],
     embed = [":inframetadata"],
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
         "//pkg/opentelemetry-mapping-go/inframetadata/payload",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
         "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
         "@org_uber_go_zap//:zap",
         "@org_uber_go_zap//zapcore",

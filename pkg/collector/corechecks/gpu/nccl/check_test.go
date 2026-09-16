@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 func TestProcessEventCreatesCorrectTags(t *testing.T) {
@@ -248,4 +250,45 @@ func TestParseEventWithoutExtraTags(t *testing.T) {
 
 	assert.Nil(t, event.ExtraTags)
 	assert.Equal(t, 0, event.Rank)
+}
+
+func TestProcessEventUsesDistribution(t *testing.T) {
+	// Collective perf metrics must be submitted as Distribution (DDSketch), not
+	// Gauge. Gauge collapses 570 events/s to last-write-wins, losing straggler
+	// signal. Distribution preserves min/max/p95/p99 across all events in the
+	// flush window. Hang-detection staleness stays as Gauge (point-in-time).
+	snd := new(mocksender.MockSender)
+	snd.On("Distribution", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	c := &Check{
+		checkTelemetry: newCheckTelemetry(telemetryimpl.NewMockComponent()),
+	}
+	parsed := ParsedEvent{
+		Event: NCCLInspectorEvent{
+			Rank:   0,
+			PID:    42,
+			NRanks: 2,
+			CollPerf: &CollectivePerf{
+				Collective:      "AllReduce",
+				ExecTimeUS:      4438.0,
+				AlgoBandwidthGB: 189.2,
+				BusBandwidthGB:  94.6,
+				MsgSizeBytes:    4194304,
+			},
+		},
+	}
+
+	err := c.processEvent(snd, parsed)
+	require.NoError(t, err)
+
+	snd.AssertMetricTaggedWith(t, "Distribution", ncclMetricsNs+"collective.exec_time_us",
+		[]string{"rank:0", "collective:AllReduce"})
+	snd.AssertMetricTaggedWith(t, "Distribution", ncclMetricsNs+"collective.algo_bandwidth_gbps",
+		[]string{"rank:0", "collective:AllReduce"})
+	snd.AssertMetricTaggedWith(t, "Distribution", ncclMetricsNs+"collective.bus_bandwidth_gbps",
+		[]string{"rank:0", "collective:AllReduce"})
+	snd.AssertMetricTaggedWith(t, "Distribution", ncclMetricsNs+"collective.msg_size_bytes",
+		[]string{"rank:0", "collective:AllReduce"})
+	snd.AssertNotCalled(t, "Gauge", ncclMetricsNs+"collective.exec_time_us",
+		mock.Anything, mock.Anything, mock.Anything)
 }

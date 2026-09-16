@@ -296,3 +296,32 @@ func IsIdentityLocalSystem(i Identity) bool {
 	// We don't need to fetch a full identity with name from the host, we can just compare the SIDs
 	return SecurityIdentifierEqual(i, GetIdentityForSID(LocalSystemSID))
 }
+
+// RemoveUserFromRight strips a user from a single user-rights assignment by
+// exporting the local security policy, removing the entry, and re-importing it.
+// Accepts both the plain username and its SID form in the policy file.
+func RemoveUserFromRight(host *components.RemoteHost, user, right string) error {
+	sid, err := GetSIDForUser(host, user)
+	if err != nil {
+		return fmt.Errorf("resolving SID for %s: %w", user, err)
+	}
+	script := fmt.Sprintf(`
+$ErrorActionPreference = "Stop"
+$cfg = "$env:TEMP\dd-remove-right.cfg"
+$sdb = "$env:TEMP\dd-remove-right.sdb"
+secedit /export /areas USER_RIGHTS /cfg $cfg | Out-Null
+$contents = Get-Content $cfg
+$updated = foreach ($line in $contents) {
+    if ($line -match '^%s\s*=\s*(.*)$') {
+        $kept = ($matches[1] -split ',') | Where-Object {
+            $t = $_.Trim(); $t -ne '%s' -and $t -ne '*%s'
+        }
+        '%s = ' + ($kept -join ',')
+    } else { $line }
+}
+Set-Content -Path $cfg -Value $updated -Encoding Unicode
+secedit /configure /db $sdb /cfg $cfg /areas USER_RIGHTS /quiet
+`, right, user, sid, right)
+	_, err = host.Execute(script)
+	return err
+}

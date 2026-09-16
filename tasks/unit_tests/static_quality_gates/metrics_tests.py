@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
 from tasks.static_quality_gates.metrics import (
     GateMetricsData,
     _extract_gate_name_from_scope,
@@ -8,6 +9,7 @@ from tasks.static_quality_gates.metrics import (
     fetch_main_headroom,
     fetch_pr_metrics,
 )
+from tasks.static_quality_gates.thresholds import BUFFER_SIZE
 
 
 class MockPoint:
@@ -248,8 +250,8 @@ class TestFetchMainHeadroom(unittest.TestCase):
         self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
 
     @patch("tasks.static_quality_gates.metrics.query_metrics")
-    def test_headroom_never_negative(self, mock_query):
-        """Headroom should never be negative (clamped to 0)."""
+    def test_headroom_floored_when_main_over_its_own_limit(self, mock_query):
+        """Headroom should floor at BUFFER_SIZE, not 0-, when main is over its own limit."""
         # Single API call with current > max
         mock_query.return_value = [
             {
@@ -277,8 +279,8 @@ class TestFetchMainHeadroom(unittest.TestCase):
         result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
 
         headroom = result["static_quality_gate_agent_deb_amd64"]
-        # disk_headroom = max(0, 150 - 200) = 0
-        self.assertEqual(headroom["disk_headroom"], 0)
+        # disk_headroom = max(BUFFER_SIZE, 150 - 200) = BUFFER_SIZE
+        self.assertEqual(headroom["disk_headroom"], BUFFER_SIZE)
 
     def test_returns_empty_for_no_gates(self):
         """Should return empty dict when no gates provided."""
@@ -315,6 +317,27 @@ class TestGateMetricsData(unittest.TestCase):
         self.assertEqual(metrics.max_on_wire_size, 75)
         self.assertEqual(metrics.relative_on_disk_size, 10)
         self.assertEqual(metrics.relative_on_wire_size, 5)
+
+
+class TestQueryGateMetricsForCommit(unittest.TestCase):
+    """Test the query_gate_metrics_for_commit function."""
+
+    @patch("tasks.libs.common.datadog_api.query_metrics")
+    def test_keeps_the_largest_measurement(self, mock_query):
+        """Should not average the series of the pipelines having built the commit."""
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "max:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 188744948]]),
+            },
+        ]
+
+        result = query_gate_metrics_for_commit("abc123def456")
+
+        for call in mock_query.call_args_list:
+            self.assertTrue(call.args[0].startswith("max:"), call.args[0])
+        self.assertEqual(result["static_quality_gate_agent_deb_amd64"]["current_on_wire_size"], 188744948)
 
 
 if __name__ == '__main__':

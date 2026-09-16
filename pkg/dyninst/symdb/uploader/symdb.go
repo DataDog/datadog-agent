@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package uploader deals with uploading SymDB data in the JSON format expected
 // by the debugger backend.
@@ -398,10 +398,10 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 		Language       string    `json:"language"`
 		RuntimeID      string    `json:"runtimeId"`
 		Type           string    `json:"type"`
-		UploadID       uuid.UUID `json:"upload_id"`
-		BatchNum       int       `json:"batch_num"`
+		UploadID       uuid.UUID `json:"uploadId"`
+		BatchNum       int       `json:"batchNum"`
 		Final          bool      `json:"final"`
-		AttachmentSize int64     `json:"attachment_size"`
+		AttachmentSize int64     `json:"attachmentSize"`
 	}{
 		DDSource:       "dd_debugger",
 		Service:        b.up.service,

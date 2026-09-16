@@ -3,13 +3,16 @@ static_quality_gates:
     default: false
   stage: functional_test
   rules:
+    - !reference [.except_release_branch]
+    - !reference [.except_pr_targeting_release_branch]
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
-    - !reference [.on_main_or_release_branch]
+    - !reference [.on_main]
     - !reference [.on_mergequeue]
     - !reference [.on_dev_branches_with_artifact_changes]
     - changes:
         paths:
           - test/static/static_quality_gates.yml
+          - test/static/static_quality_gates_cluster_agent.yml
         compare_to: $COMPARE_TO_BRANCH
     - when: manual
       allow_failure: true
@@ -52,7 +55,7 @@ static_quality_gates:
     - job: windows_msi_and_bosh_zip_x64-a7
       optional: true
   before_script:
-    - !reference [.setup_github_token_comment_pr]
+    - !reference [.setup_github_token_static_quality_gates]
   script:
     - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
@@ -81,13 +84,15 @@ static_quality_gates:
       - static_gate_report.json
     expire_in: 1 week
   variables:
-    GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
+    GIT_DEPTH: 0  # Full history: quality-gates.parse-and-trigger-gates uses git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses git merge-base
     KUBERNETES_CPU_REQUEST: 8
 
 manual_gate_threshold_update:
   stage: functional_test
   rules:
+    - !reference [.except_release_branch]
+    - !reference [.except_pr_targeting_release_branch]
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
     - !reference [.on_dev_branches_with_artifact_changes_manual]

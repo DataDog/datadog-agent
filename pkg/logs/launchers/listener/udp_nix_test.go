@@ -30,7 +30,7 @@ func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -66,7 +66,7 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -98,7 +98,7 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message

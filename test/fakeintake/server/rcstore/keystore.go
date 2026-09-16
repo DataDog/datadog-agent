@@ -8,6 +8,7 @@ package rcstore
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -22,6 +23,19 @@ func DefaultKeyPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".fakeintake", "signing.key"), nil
+}
+
+// KeyFromHexSeed derives an ed25519 private key from a 64-character hex-encoded
+// 32-byte seed. Returns an error when hexSeed is malformed.
+func KeyFromHexSeed(hexSeed string) (ed25519.PrivateKey, error) {
+	seed, err := hex.DecodeString(hexSeed)
+	if err != nil {
+		return nil, fmt.Errorf("decode seed: %w", err)
+	}
+	if len(seed) != ed25519.SeedSize {
+		return nil, fmt.Errorf("expected %d-byte seed, got %d", ed25519.SeedSize, len(seed))
+	}
+	return ed25519.NewKeyFromSeed(seed), nil
 }
 
 // LoadOrCreateSigningKey reads a 32-byte ed25519 seed from path. If path is

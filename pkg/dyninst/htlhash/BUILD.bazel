@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "htlhash",
+    srcs = ["htlhash.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/htlhash",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/sync"],
+)
+
+dd_agent_go_test(
+    name = "htlhash_test",
+    srcs = ["htlhash_test.go"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            ":htlhash",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            ":htlhash",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

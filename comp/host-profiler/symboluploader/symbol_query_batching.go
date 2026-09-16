@@ -112,7 +112,7 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 		return nil
 	}
 
-	slog.Info("Querying symbols for executables", slog.Int("count", len(batch)))
+	slog.Debug("Querying symbols for executables", slog.Int("count", len(batch)))
 	buildIDToResult := make(map[string][]*ElfWithBackendSources)
 
 	// All the elfs in the batch are expected to have the same arch

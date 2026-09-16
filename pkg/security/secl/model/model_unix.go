@@ -20,10 +20,8 @@ import (
 
 	"github.com/google/gopacket"
 
-	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -88,8 +86,9 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
+	SpanContext    SpanContext     `field:"-"`
+	GoLabels       GoLabelsContext `field:"-"`
+	NetworkContext NetworkContext  `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -125,6 +124,7 @@ type Event struct {
 	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
 	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
 	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
+	Socket     SocketEvent     `field:"socket" event:"socket"`         // [7.81] [Network] A socket was created
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -136,6 +136,7 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
+	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -164,6 +165,12 @@ func NewEventZeroer() func(*Event) {
 	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
+		e.Signature = eventZero.Signature
+		e.Async = eventZero.Async
+		e.SpanContext = eventZero.SpanContext
+		e.GoLabels = eventZero.GoLabels
+		e.NetworkContext = eventZero.NetworkContext
+
 		switch e.GetEventType() {
 		case PrCtlEventType:
 
@@ -294,6 +301,14 @@ type SyscallContext struct {
 	Resolved bool `field:"-"`
 }
 
+// GoLabelsContext is a handle to a set of Go pprof labels captured at syscall
+// entry and stored in the go_labels_ctx ring. The raw labels are parsed
+// in user space to resolve span/trace ids (see the golabelsctx resolver).
+type GoLabelsContext struct {
+	ID       uint32 `field:"-"`
+	Resolved bool   `field:"-"`
+}
+
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
@@ -394,17 +409,20 @@ type Process struct {
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
-
 	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	// ExitTime is set only when the process exits (do_exit).
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	// StopExecutionTime is set when this process cache entry stops being the
+	// currently executing image, either because it was replaced by a later exec
+	// or because the process exited. Unlike ExitTime, it is intentionally not
+	// exposed as a SECL field and must not be used as proof of a final process exit.
+	StopExecutionTime time.Time `field:"-"`
 
 	ForkFlags uint64 `field:"-"`
 
@@ -421,9 +439,9 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"aws_security_credentials,iterator:AWSSecurityCredentialsIterator,opts:exposed_at_event_root_only"` // AWS security credentials this process resolved from IMDS; only exposed at the root of a process context, the accessors generator keeps a single iterator per field so it cannot be nested under the ancestors one
 
-	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
+	Tracer Tracer `field:"-"`
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -631,6 +649,12 @@ type UnshareMountNSEvent struct {
 	Mount
 }
 
+// UnshareEvent represents a namespace creation via the unshare syscall
+type UnshareEvent struct {
+	SyscallEvent
+	Flags uint64 `field:"flags"` // SECLDoc[flags] Definition:`Namespace flags requested by the unshare call` Constants:`Clone flags`
+}
+
 // ChdirEvent represents a chdir event
 type ChdirEvent struct {
 	SyscallEvent
@@ -648,6 +672,8 @@ type OpenEvent struct {
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
+
+	SampleCookie uint32 `field:"-"`
 
 	// Syscall context aliases
 	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
@@ -876,19 +902,32 @@ type NetworkDeviceContext struct {
 type BindEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Bound address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`        // Bound address
+	AddrFamily   uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
 }
 
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                                          // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`                                                                          // Connection address
+	Hostnames    []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily   uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
+}
+
+// SampleRefreshEvent is a lightweight internal event sent when a dedup map
+// detects a duplicate and wants to refresh the cookie timestamp in userspace.
+type SampleRefreshEvent struct {
+	Cookie uint32
+}
+
+// OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
+type OTelProcessCtxEvent struct {
+	Pid uint32
 }
 
 // AcceptEvent represents an accept event
@@ -1022,6 +1061,54 @@ type NetworkFlowMonitorEvent struct {
 	Flows      []Flow               `field:"flows,iterator:FlowsIterator"` // list of captured flows
 }
 
+// AWSSecurityCredentialsIterator defines an iterator of the AWS security credentials of a process
+type AWSSecurityCredentialsIterator struct {
+	Root []AWSSecurityCredentials
+	prev int
+}
+
+// Front returns the first element
+func (it *AWSSecurityCredentialsIterator) Front(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) == 0 {
+		return nil
+	}
+
+	it.prev = 0
+	return &it.Root[0]
+}
+
+// Next returns the next element
+func (it *AWSSecurityCredentialsIterator) Next(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) > it.prev+1 {
+		it.prev++
+		return &it.Root[it.prev]
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *AWSSecurityCredentialsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *AWSSecurityCredentials {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*AWSSecurityCredentials)
+	}
+
+	if len(it.Root) > pos {
+		creds := &it.Root[pos]
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: creds,
+		}
+		return creds
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *AWSSecurityCredentialsIterator) Len(_ *eval.Context) int {
+	return len(it.Root)
+}
+
 // FlowsIterator defines an iterator of flows
 type FlowsIterator struct {
 	Root interface{} // not used, direct access from the event
@@ -1110,10 +1197,23 @@ type SetSockOptEvent struct {
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 }
 
+// SocketEvent represents a socket event
+type SocketEvent struct {
+	SyscallEvent
+	Domain   uint16 `field:"domain"`   // SECLDoc[domain] Definition:`Socket domain`
+	Type     uint16 `field:"type"`     // SECLDoc[type] Definition:`Socket type`
+	Protocol uint16 `field:"protocol"` // SECLDoc[protocol] Definition:`Socket protocol`
+}
+
 // CapabilitiesEvent is used to report capabilities usage
 type CapabilitiesEvent struct {
 	Attempted uint64 `field:"attempted,handler:ResolveCapabilitiesAttempted"` // SECLDoc[attempted] Definition:`Bitmask of the capabilities that the process attempted to use since it started running` Constants:`Kernel Capability constants`
 	Used      uint64 `field:"used,handler:ResolveCapabilitiesUsed"`           // SECLDoc[used] Definition:`Bitmask of the capabilities that the process successfully used since it started running` Constants:`Kernel Capability constants`
+
+	// Cookie identifies the program the usage was aggregated for. It is matched against the
+	// resolved process cache entry, which is the wrong one whenever the exec or fork event
+	// that introduced that program was missed.
+	Cookie uint64 `field:"-"`
 }
 
 // PrCtlEvent represents a prctl event

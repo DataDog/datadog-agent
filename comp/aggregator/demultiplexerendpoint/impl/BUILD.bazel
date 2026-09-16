@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["endpoint.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/dogstatsd/config",
+        "//pkg/util/http",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["endpoint_test.go"],
+    embed = [":impl"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

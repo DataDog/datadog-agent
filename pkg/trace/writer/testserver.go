@@ -151,7 +151,8 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	statusCode := ts.getNextCode(slurp)
 	w.WriteHeader(statusCode)
 	switch {
-	case isRetriable(statusCode):
+	// count a served 403 as retriable-category for the test server's accounting
+	case isRetriable(statusCode) || statusCode == http.StatusForbidden:
 		ts.retried.Inc()
 	case statusCode/100 == 2: // 2xx
 		ts.accepted.Inc()

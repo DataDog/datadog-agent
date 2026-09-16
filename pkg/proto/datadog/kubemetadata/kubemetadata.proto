@@ -9,6 +9,11 @@ enum KubeMetadataEventType {
   UNSET = 1;
 }
 
+enum KueueQueueType {
+  LOCAL_QUEUE = 0;
+  CLUSTER_QUEUE = 1;
+}
+
 message KubeMetadataStreamRequest {
   string node_name = 1;
 }
@@ -27,8 +32,48 @@ message NamespaceMetadata {
   KubeMetadataEventType type = 4;
 }
 
+message KueueQueue {
+  string namespace = 1;
+  string name = 2;
+  KueueQueueType queue_type = 3;
+  string cluster_queue = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+  string uid = 7;
+  KubeMetadataEventType type = 8;
+}
+
+message KueueResourceFlavor {
+  string name = 1;
+  map<string, string> labels = 2;
+  map<string, string> annotations = 3;
+  string uid = 4;
+  map<string, string> node_affinity_labels = 5;
+  KubeMetadataEventType type = 6;
+}
+
+message KueuePodSetAssignment {
+  string name = 1;
+  map<string, string> flavors = 2;
+}
+
+message KueueWorkload {
+  string namespace = 1;
+  string name = 2;
+  string queue = 3;
+  string cluster_queue = 4;
+  map<string, string> labels = 5;
+  map<string, string> annotations = 6;
+  string uid = 7;
+  repeated KueuePodSetAssignment pod_set_assignments = 8;
+  KubeMetadataEventType type = 9;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;
+  repeated KueueQueue kueue_queues = 4;
+  repeated KueueResourceFlavor kueue_resource_flavors = 5;
+  repeated KueueWorkload kueue_workloads = 6;
 }

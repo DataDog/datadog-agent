@@ -58,7 +58,7 @@ type psinfo struct {
 	Flag2  uint32
 	Nlwp   uint32 // number of threads
 	_      uint32
-	Uid    uint64
+	UID    uint64
 	Euid   uint64
 	Gid    uint64
 	Egid   uint64
@@ -145,7 +145,7 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 		Ppid:    int32(psi.Ppid),
 		Name:    name,
 		Cmdline: cmdline,
-		Uids:    []int32{int32(psi.Uid), int32(psi.Euid), int32(psi.Uid), int32(psi.Euid)},
+		Uids:    []int32{int32(psi.UID), int32(psi.Euid), int32(psi.UID), int32(psi.Euid)},
 		Gids:    []int32{int32(psi.Gid), int32(psi.Egid), int32(psi.Gid), int32(psi.Egid)},
 		Stats: &Stats{
 			CreateTime: psi.Start.Sec * 1000, // milliseconds since epoch
@@ -178,6 +178,15 @@ func NewProcessProbe(options ...Option) Probe {
 type probe struct{}
 
 func (p *probe) Close() {}
+
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	psi, err := readPsinfo(pid)
+	if err != nil {
+		return nil, err
+	}
+	proc := psinfoToProcess(psi, pid)
+	return proc, nil
+}
 
 func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	pids, err := listPIDs()

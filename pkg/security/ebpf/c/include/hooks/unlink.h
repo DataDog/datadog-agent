@@ -6,9 +6,10 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(void *ctx, u8 async, int dirfd, const char *filename, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -21,26 +22,34 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const 
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_INT(0) | SYSCALL_CTX_ARG_STR(1) | SYSCALL_CTX_ARG_INT(2), (void *)&dirfd, (void *)filename, (void *)&flags);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY1(unlink, const char *, filename) {
     int dirfd = AT_FDCWD;
     int flags = 0;
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char *, filename, int, flags) {
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_ENTRY("do_unlinkat")
 int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
-        return trace__sys_unlink(ASYNC_SYSCALL, 0, NULL, 0);
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
+    }
+    return 0;
+}
+
+HOOK_ENTRY("filename_unlinkat")
+int hook_filename_unlinkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
     }
     return 0;
 }
@@ -77,18 +86,21 @@ int hook_vfs_unlink(ctx_t *ctx) {
         expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
     }
 
-    if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
+    approve_syscall(syscall, unlink_approvers);
+
+    u8 is_cgroupfs = is_cgroup2fs(dentry) && !is_runtime_request();
+
+    if (syscall->state != ACCEPTED && is_cgroupfs) {
+        syscall->state = INTERNAL;
     }
-    if (is_auid_discarder(EVENT_UNLINK)) {
-        syscall->state = DISCARDED;
-        return 0;
-    }
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
+    // to track cgroup lifecycle, and a discarder match here would drop them.
+    syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroupfs);
     syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -107,16 +119,12 @@ TAIL_CALL_FNC(dr_unlink_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_UNLINK);
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        syscall->state = DISCARDED;
-    }
+    apply_dentry_resolution_outcome(syscall, EVENT_UNLINK);
 
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -126,53 +134,75 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->state != DISCARDED) {
-        if (syscall->unlink.flags & AT_REMOVEDIR) {
-            struct rmdir_event_t event = {
-                .syscall.retval = retval,
-                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
-                .file = syscall->unlink.file,
-            };
-
-            struct proc_cache_t *entry = fill_process_context(&event.process);
-            fill_cgroup_context(entry, &event.cgroup);
-            fill_span_context(&event.span);
-
-            send_event(ctx, EVENT_RMDIR, event);
-        } else {
-            struct unlink_event_t event = {
-                .syscall.retval = retval,
-                .syscall_ctx.id = syscall->ctx_id,
-                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
-                .file = syscall->unlink.file,
-                .flags = syscall->unlink.flags,
-            };
-
-            struct proc_cache_t *entry = fill_process_context(&event.process);
-            fill_cgroup_context(entry, &event.cgroup);
-            fill_span_context(&event.span);
-
-            send_event(ctx, EVENT_UNLINK, event);
-        }
-    } else {
-        if (syscall->unlink.flags & AT_REMOVEDIR) {
-            monitor_discarded(EVENT_RMDIR);
-        } else {
-            monitor_discarded(EVENT_UNLINK);
-        }
-    }
-
     if (retval >= 0) {
         expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+    }
+
+    if (syscall->state != DISCARDED) {
+        if (syscall->unlink.flags & AT_REMOVEDIR) {
+            if (is_auid_discarder(EVENT_RMDIR)) {
+                monitor_discarded(EVENT_RMDIR);
+                return 0;
+            }
+
+            struct rmdir_event_t *event = SPAN_FILL_EVENT(struct rmdir_event_t, EVENT_RMDIR);
+            if (!event) {
+                return 0;
+            }
+            event->syscall.retval = retval;
+            event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                                 (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
+            event->file = syscall->unlink.file;
+
+            struct proc_cache_t *entry = fill_process_context(&event->process);
+            fill_cgroup_context(entry, &event->cgroup);
+
+            span_fill_tail_call(ctx, prog_type);
+        } else {
+            // INTERNAL here means a cgroupfs unlink on a non-directory; the userspace
+            // cgroup resolver only consumes directory events, so drop these.
+            if (syscall->state == INTERNAL) {
+                return 0;
+            }
+
+            if (is_auid_discarder(EVENT_UNLINK)) {
+                monitor_discarded(EVENT_UNLINK);
+                return 0;
+            }
+
+            struct unlink_event_t *event = SPAN_FILL_EVENT(struct unlink_event_t, EVENT_UNLINK);
+            if (!event) {
+                return 0;
+            }
+            event->syscall.retval = retval;
+            event->syscall_ctx.id = syscall->ctx_id;
+            event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                                 (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
+            event->file = syscall->unlink.file;
+            event->flags = syscall->unlink.flags;
+
+            struct proc_cache_t *entry = fill_process_context(&event->process);
+            fill_cgroup_context(entry, &event->cgroup);
+
+            span_fill_tail_call(ctx, prog_type);
+        }
     }
 
     return 0;
 }
 
+int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
+    return sys_unlink_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
 HOOK_EXIT("do_unlinkat")
 int rethook_do_unlinkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
+}
+
+HOOK_EXIT("filename_unlinkat")
+int rethook_filename_unlinkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }
@@ -188,7 +218,7 @@ HOOK_SYSCALL_EXIT(unlinkat) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_unlink_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_unlink_ret(args, args->ret);
+    return sys_unlink_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

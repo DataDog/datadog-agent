@@ -206,7 +206,8 @@ func (pc *PatternClusterer) Process(message string, unixSec int64) (*Cluster, bo
 	return pc.ProcessTokens(tokens, message, unixSec)
 }
 
-// ProcessTokens records unixSec on new clusters; see ProcessAt.
+// ProcessTokens records unixSec on new clusters and returns the matched or
+// newly created cluster.
 func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSec int64) (*Cluster, bool) {
 	sig := TokenListSignature(tokens)
 

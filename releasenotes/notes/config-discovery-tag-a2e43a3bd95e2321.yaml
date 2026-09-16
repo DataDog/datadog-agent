@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Check instances scheduled via configuration discovery now carry the
+    ``dd_config_discovery:true`` tag. This can be used to identify,
+    and if needed exclude, metrics submitted by an autodiscovered check that
+    duplicates a check configured manually elsewhere for the same service.

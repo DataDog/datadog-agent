@@ -859,6 +859,25 @@ var (
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
 
+	// CloneFlagsConstants are the clone flags accepted by the unshare syscall
+	// generate_constants:Clone flags,Clone flags are the supported namespace flags for the unshare syscall.
+	CloneFlagsConstants = map[string]uint64{
+		"CLONE_NEWNS":     unix.CLONE_NEWNS,
+		"CLONE_NEWCGROUP": unix.CLONE_NEWCGROUP,
+		"CLONE_NEWUTS":    unix.CLONE_NEWUTS,
+		"CLONE_NEWIPC":    unix.CLONE_NEWIPC,
+		"CLONE_NEWUSER":   unix.CLONE_NEWUSER,
+		"CLONE_NEWPID":    unix.CLONE_NEWPID,
+		"CLONE_NEWNET":    unix.CLONE_NEWNET,
+		"CLONE_NEWTIME":   unix.CLONE_NEWTIME,
+		"CLONE_FILES":     unix.CLONE_FILES,
+		"CLONE_FS":        unix.CLONE_FS,
+		"CLONE_SYSVSEM":   unix.CLONE_SYSVSEM,
+		"CLONE_THREAD":    unix.CLONE_THREAD,
+		"CLONE_SIGHAND":   unix.CLONE_SIGHAND,
+		"CLONE_VM":        unix.CLONE_VM,
+	}
+
 	// RlimitConstants are the supported resource limit types for setrlimit
 	// generate_constants:Resource limit types,Resource limit types are the supported resource types for setrlimit syscall.
 	RlimitConstants = map[string]int{
@@ -880,6 +899,15 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// SocketDomainConstants is the list of socket domains
+	// generate_constants:Socket domains,Socket domains are the supported socket domains.
+	SocketDomainConstants = map[string]int{
+		"AF_UNSPEC": syscall.AF_UNSPEC,
+		"AF_INET":   syscall.AF_INET,
+		"AF_INET6":  syscall.AF_INET6,
+		"AF_UNIX":   syscall.AF_UNIX,
+	}
+
 	// SocketTypeConstants is the list of socket types
 	// generate_constants:Socket types,Socket types are the supported socket types.
 	SocketTypeConstants = map[string]int{
@@ -890,6 +918,17 @@ var (
 		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
 		"SOCK_DCCP":      syscall.SOCK_DCCP,
 		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
+
+	// SocketProtocolConstants is the list of socket protocols
+	// generate_constants:Socket protocols,Socket protocols are the supported socket protocols.
+	SocketProtocolConstants = map[string]int{
+		"IPPROTO_IP":     syscall.IPPROTO_IP,
+		"IPPROTO_TCP":    syscall.IPPROTO_TCP,
+		"IPPROTO_UDP":    syscall.IPPROTO_UDP,
+		"IPPROTO_ICMP":   syscall.IPPROTO_ICMP,
+		"IPPROTO_IPV6":   syscall.IPPROTO_IPV6,
+		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
 	}
 
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
@@ -1401,6 +1440,13 @@ func initSetSockOptOptNameConstantsIPv6() {
 		setsockoptOptNameStringsIPv6[v] = k
 	}
 }
+func initSocketDomainConstants() {
+	for k, v := range SocketDomainConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		socketDomainStrings[v] = k
+	}
+}
+
 func initSocketTypeConstants() {
 	for k, v := range SocketTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -1415,7 +1461,8 @@ func initSocketFamilyConstants() {
 }
 
 func initSocketProtocolConstants() {
-	for k, v := range SetSockoptLevelConstants {
+	for k, v := range SocketProtocolConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		socketProtocolStrings[v] = k
 	}
 }
@@ -1432,6 +1479,15 @@ func initRlimitConstants() {
 	for k, v := range RlimitConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		rlimitStrings[v] = k
+	}
+}
+
+func initCloneFlagsConstants() {
+	for k, v := range CloneFlagsConstants {
+		if bits.UintSize == 64 || v < math.MaxInt32 {
+			seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		}
+		cloneFlagsStrings[v] = k
 	}
 }
 
@@ -1570,6 +1626,18 @@ func (kc KernelCapability) StringArray() []string {
 	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
 	capsStringArrayCache.Add(kc, computed)
 	return computed
+}
+
+// CloneFlags represents a clone flags bitmask value, as passed to unshare
+type CloneFlags uint64
+
+func (cf CloneFlags) String() string {
+	return bitmaskU64ToString(uint64(cf), cloneFlagsStrings)
+}
+
+// StringArray returns the clone flags as an array of strings
+func (cf CloneFlags) StringArray() []string {
+	return bitmaskU64ToStringArray(uint64(cf), cloneFlagsStrings)
 }
 
 // BPFCmd represents a BPF command
@@ -2324,12 +2392,14 @@ var (
 	pipeBufFlagStrings                = map[int]string{}
 	sysctlActionStrings               = map[uint32]string{}
 	rlimitStrings                     = map[int]string{}
+	cloneFlagsStrings                 = map[uint64]string{}
 	setsockoptOptNameStringsIP        = map[int]string{}
 	setsockoptOptNameStringsSolSocket = map[int]string{}
 	setsockoptOptNameStringsTCP       = map[int]string{}
 	setsockoptOptNameStringsIPv6      = map[int]string{}
 
 	setsockoptLevelStrings = map[int]string{}
+	socketDomainStrings    = map[int]string{}
 	socketTypeStrings      = map[int]string{}
 	socketFamilyStrings    = map[uint16]string{}
 	socketProtocolStrings  = map[int]string{}
@@ -2385,6 +2455,13 @@ type SetSockOptLevel int
 
 func (s SetSockOptLevel) String() string {
 	return setsockoptLevelStrings[int(s)]
+}
+
+// SocketDomain is used to define the domain of a socket
+type SocketDomain int
+
+func (s SocketDomain) String() string {
+	return socketDomainStrings[int(s)]
 }
 
 // SocketType is used to define the type of a socket in setsockopt

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
@@ -48,7 +47,7 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.interrupt", 0.1, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.idle", 80.1, "", []string(nil)).Return().Times(1)
@@ -68,7 +67,7 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 
 func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
 
 	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "provider")
 
@@ -82,7 +81,7 @@ func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
 		}
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
 
 	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -100,7 +99,7 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 		return nil, createPdhQueryError
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
 
 	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
@@ -133,7 +132,7 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 	pdhQueryMock.On("AddCounter", mock.Anything).Return()
 	pdhQueryMock.On("CollectQueryData").Return(errors.New("collectQueryData error")).Times(1)
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0, "", []string(nil)).Return().Times(1)
@@ -148,18 +147,16 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 }
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
-	stoppedSenderError := errors.New("demultiplexer is stopped")
 	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(cpuCheck.ID())
+	senderManager := mocksender.NewStoppedSenderManager()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
+	cpuCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := cpuCheck.Run()
 
-	assert.Equal(t, stoppedSenderError, err)
+	assert.ErrorIs(t, err, mocksender.ErrStoppedSenderManager)
 }

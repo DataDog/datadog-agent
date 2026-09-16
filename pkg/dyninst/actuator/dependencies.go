@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package actuator
 
@@ -18,6 +18,12 @@ type LoadOptions struct {
 	// discovered at runtime (e.g. from interface decoding) that should be
 	// included in the IR program's type registry.
 	AdditionalTypes []string
+
+	// SkipRuntimeRecoveryProbe suppresses the synthetic runtime.recovery
+	// probe for this load. Set when the recovery probe has been circuit-
+	// broken on this process: irgen would otherwise splice it back in
+	// on every recompile, defeating the breaker.
+	SkipRuntimeRecoveryProbe bool
 }
 
 // Runtime abstracts the creation, attachment, and cleanup of a program.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix error raising ``could not set '*.use_http' unknown key`` raised by the Fips proxy.

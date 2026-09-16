@@ -112,7 +112,7 @@ func TestScrapeSandbox_MetricCollection(t *testing.T) {
 	go server.Serve(listener) //nolint:errcheck
 	defer server.Close()
 
-	ms := mocksender.NewMockSender("kata_containers")
+	ms := mocksender.NewMockSender(t, "kata_containers")
 	ms.SetupAcceptAll()
 
 	c := &KataCheck{
@@ -138,7 +138,7 @@ func TestScrapeSandbox_MetricCollection(t *testing.T) {
 }
 
 func TestScrapeSandbox_ConnectionFailure(t *testing.T) {
-	ms := mocksender.NewMockSender("kata_containers")
+	ms := mocksender.NewMockSender(t, "kata_containers")
 	ms.SetupAcceptAll()
 
 	c := &KataCheck{
@@ -264,7 +264,7 @@ func TestProcessContainerEvents_MultiContainerPodAndUnset(t *testing.T) {
 }
 
 func TestAssertServiceCheck_MessageContains(t *testing.T) {
-	ms := mocksender.NewMockSender("kata_containers")
+	ms := mocksender.NewMockSender(t, "kata_containers")
 	ms.SetupAcceptAll()
 
 	c := &KataCheck{

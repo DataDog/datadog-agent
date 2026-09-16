@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -143,8 +143,8 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	return nil
 }
 
-// NewExtension creates a new instance of the extension.
-func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, ipcComp option.Option[ipc.Component], providedConfigSupported bool, byoc bool) (extensionDef.Component, error) {
+// NewComponent creates a new instance of the extension.
+func NewComponent(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, ipcComp option.Option[ipc.Component], providedConfigSupported bool, byoc bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,

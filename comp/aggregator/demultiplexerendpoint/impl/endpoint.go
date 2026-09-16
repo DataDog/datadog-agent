@@ -9,18 +9,22 @@ package demultiplexerendpointimpl
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path"
 
 	"github.com/DataDog/zstd"
 
-	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	dogstatsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+var errDogstatsdOnDataPlane = errors.New("DogStatsD traffic is being served by the Agent Data Plane; run DogStatsD diagnostic commands against the agent-data-plane process instead")
 
 // Requires defines the dependencies for the demultiplexerendpoint component
 type Requires struct {
@@ -30,9 +34,10 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux  demultiplexerComp.Component
-	config config.Component
-	log    log.Component
+	demux                demultiplexerComp.Component
+	config               config.Component
+	dogstatsdOnDataPlane bool
+	log                  log.Component
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -43,9 +48,10 @@ type Provides struct {
 // NewComponent creates a new demultiplexerendpoint component
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
-		demux:  reqs.Demultiplexer,
-		config: reqs.Config,
-		log:    reqs.Log,
+		demux:                reqs.Demultiplexer,
+		config:               reqs.Config,
+		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
+		log:                  reqs.Log,
 	}
 
 	return Provides{
@@ -54,6 +60,11 @@ func NewComponent(reqs Requires) Provides {
 }
 
 func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+	if demuxendpoint.dogstatsdOnDataPlane {
+		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusNotFound)
+		return
+	}
+
 	path, err := demuxendpoint.writeDogstatsdContexts()
 	if err != nil {
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)

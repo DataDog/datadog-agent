@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    The anomaly detection observer component no longer allocates memory or starts
+    background goroutines when anomaly detection is disabled (the default). This
+    reduces idle Agent PSS.

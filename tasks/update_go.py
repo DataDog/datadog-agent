@@ -31,8 +31,8 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./tools/host-profiler/Dockerfile", "FROM golang:", "-trixie", True),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./renovate.json", '"go": "', '"', True),
     ("./go.work", "go ", "", True),
+    ("./Dockerfiles/agent-ddot/Dockerfile.agent-otel", "ARG GO_VERSION=", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -69,7 +69,7 @@ def update_go(
     """
     import semver
 
-    if not semver.VersionInfo.isvalid(version):
+    if not semver.VersionInfo.isvalid(version):  # type: ignore[attr-defined]
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
@@ -90,8 +90,9 @@ def update_go(
                 raise
 
     _update_references(warn, version)
+    _bump_fakeintake_version()
     _update_go_mods(warn, version, include_otel_modules)
-    bazel(ctx, "run", "//pkg/template:generate")
+    bazel("run", "//pkg/template:generate")
     tidy(ctx)
 
     if release_note:
@@ -159,6 +160,15 @@ def _get_pattern(pre_pattern: str, post_pattern: str, is_bugfix: bool) -> str:
     version_pattern = PATTERN_MAJOR_MINOR_BUGFIX if is_bugfix else PATTERN_MAJOR_MINOR
     pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
     return pattern
+
+
+def _bump_fakeintake_version() -> None:
+    from tasks.fakeintake import VERSION_FILE
+
+    with open(VERSION_FILE) as f:
+        current = int(f.read().strip()[1:])
+    with open(VERSION_FILE, "w") as f:
+        f.write(f"v{current + 1}\n")
 
 
 def _update_references(warn: bool, version: str, dry_run: bool = False):

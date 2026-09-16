@@ -1,8 +1,11 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Include zlib && zstd tags so the config-driven metrics compressor
+// resolves to real compresor. Without them the selector links its noop
+// variant and metrics ship uncompressed ("identity") instead of zstd.
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && test && !race
+//go:build otlp && zlib && zstd && test && !race && !aix
 
 package integrationtest
 
@@ -35,12 +38,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	zstd "github.com/DataDog/zstd"
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -48,7 +53,7 @@ import (
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	fxnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -56,8 +61,8 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
@@ -73,19 +78,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -115,6 +120,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 				return nil, err
 			}
 			c.Set("otelcollector.enabled", true, pkgconfigmodel.SourceFile)
+			c.Set("hostname", "otel-integration-test", pkgconfigmodel.SourceFile)
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
@@ -125,17 +131,23 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(h hostnameinterface.Component) serializerexporter.SourceProviderFunc {
 			return h.Get
 		}),
-		hostnameinterface.MockModule(),
+		hostnamemock.MockModule(),
 		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
-			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return logdef.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
 		}),
 		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
+		// Use the config-driven metrics compressor (comp/serializer/metricscompression/fx),
+		// exactly as production DDOT wires it in cmd/otel-agent/subcommands/run/command.go.
+		// The harness config comes from agentConfig.NewConfigComponent, which sets
+		// serializer_compressor_kind=zstd, so metrics are compressed with zstd here too —
+		// keeping the in-process metrics path faithful to production and exercising the
+		// /api/v2/series zstd path per-PR (asserted below), not just in the e2e suite.
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
 		// implemented by the metricsCompression.Component
@@ -149,9 +161,9 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		}),
 		fx.Supply("test-host"),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return defaultforwarder.Forwarder(c), nil
+			return c, nil
 		}),
-		orchestratorimpl.MockModule(),
+		orchestratormock.MockModule(),
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(pidfilePath)),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
@@ -161,7 +173,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		gzipfx.Module(),
+		zstdfx.Module(),
 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
@@ -185,13 +197,35 @@ func TestIntegration(t *testing.T) {
 	// See also https://github.com/DataDog/datadog-agent/blob/49c16e0d4deab396626238fa1d572b684475a53f/cmd/trace-agent/test/backend.go
 	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
 	tracesRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.TraceEndpoint, ReqChan: make(chan []byte)}
-	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
+	// Metrics from the datadog/connector flow through the serializer's compressor to
+	// /api/v2/series and /api/beta/sketches; capture their Content-Encoding. These
+	// handlers respond 200 immediately (unlike the blocking channel recorder used
+	// for traces/stats) so the metrics forwarder doesn't pile up retries or stall
+	// server.Close() while the traces/stats loop below is running.
+	metricEncodings := make(chan string, 16)
+	metricHandler := func(pattern string) testutil.OverwriteHandleFunc {
+		return func() (string, http.HandlerFunc) {
+			return pattern, func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case metricEncodings <- r.Header.Get("Content-Encoding"):
+				default:
+				}
+				w.WriteHeader(http.StatusOK)
+			}
+		}
+	}
+	server := testutil.DatadogServerMock(
+		apmstatsRec.HandlerFunc,
+		tracesRec.HandlerFunc,
+		metricHandler(testutil.MetricV2Endpoint),
+		metricHandler(testutil.SketchesMetricEndpoint),
+	)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
-		ConfPaths:  []string{"integration_test_config.yaml"},
+		ConfPaths:  []string{"testdata/integration_test_config.yaml"},
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}
@@ -201,7 +235,7 @@ func TestIntegration(t *testing.T) {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
-	waitForReadiness()
+	waitForReadiness(t)
 
 	// 3. Validate that pid file was created
 	_, err = os.Stat(pidfilePath)
@@ -214,13 +248,22 @@ func TestIntegration(t *testing.T) {
 	var spans []*pb.Span
 	var stats []*pb.ClientGroupedStats
 
-	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter
+	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter.
+	// Bail out rather than block forever: without a deadline a missing payload
+	// turns a test failure into a CI job timeout.
+	deadline := time.After(3 * time.Minute)
 	for len(spans) < 5 || len(stats) < 10 {
 		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for payloads: got %d/5 spans and %d/10 stats", len(spans), len(stats))
 		case tracesBytes := <-tracesRec.ReqChan:
-			gz := getGzipReader(t, tracesBytes)
-			slurp, err := io.ReadAll(gz)
+			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
+			zr := getZstdReader(tracesBytes)
+			slurp, err := io.ReadAll(zr)
 			require.NoError(t, err)
+			// Close immediately (not via defer): this runs once per loop iteration and
+			// the reader is cgo-backed — deferring would pile up C allocations.
+			require.NoError(t, zr.Close())
 			var traces pb.AgentPayload
 			require.NoError(t, proto.Unmarshal(slurp, &traces))
 			for _, tps := range traces.TracerPayloads {
@@ -252,26 +295,45 @@ func TestIntegration(t *testing.T) {
 	assert.Len(t, spans, 5)
 	assert.Len(t, stats, 10)
 
+	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
+	// received spans into metrics that flow through the serializer's config-driven
+	// compressor (zstd, wired via metricscompression/fx above, mirroring production)
+	// to /api/v2/series or /api/beta/sketches. Both endpoints share the one
+	// serializer compressor, so the Content-Encoding of whichever arrives first
+	// proves it — it would be "deflate" (zlib) under the previous hardcoded default,
+	// which is the regression this guards.
+	select {
+	case enc := <-metricEncodings:
+		assert.Equal(t, "zstd", enc, "metric payloads (series/sketches) must be zstd-compressed on the wire")
+	case <-time.After(90 * time.Second):
+		t.Fatal("timed out waiting for a metric payload (series or sketches) from the datadog connector")
+	}
+
 	// Verify that DDOT stops gracefully
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	require.NoError(t, app.Stop(stopCtx))
 }
 
-func waitForReadiness() {
+func waitForReadiness(t *testing.T) {
+	// Cap both the per-attempt backoff and the total wait: the exponential
+	// backoff alone reaches 34 minutes by attempt 11, which burns a CI runner
+	// instead of failing the test.
+	deadline := time.Now().Add(2 * time.Minute)
 	for i := 0; ; i++ {
 		resp, err := http.Get("http://localhost:13133") // default addr of the OTel collector health check extension
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
 		if err == nil && resp.StatusCode == 200 {
 			return
 		}
 		log.Print("health check failed, retrying ", i, err, resp)
-		t := time.Duration(math.Pow(2, float64(i)))
-		time.Sleep(t * time.Second)
+		if time.Now().After(deadline) {
+			t.Fatalf("collector never became ready: %v", err)
+		}
+		backoff := time.Duration(math.Min(math.Pow(2, float64(i)), 10)) * time.Second
+		time.Sleep(backoff)
 	}
 }
 
@@ -326,4 +388,16 @@ func getGzipReader(t *testing.T, reqBytes []byte) io.Reader {
 	reader, err := gzip.NewReader(buf)
 	require.NoError(t, err)
 	return reader
+}
+
+// getZstdReader decodes a zstd-compressed payload. DDOT compresses traces with
+// zstd (comp/trace/compression/fx-zstd), so trace payloads must be read with this
+// reader rather than getGzipReader. APM stats remain gzip-compressed.
+//
+// The returned io.ReadCloser is cgo-backed (a ZSTD_DStream* plus a buffer borrowed
+// from a package-level sync.Pool); callers MUST Close() it once done reading, or
+// each call leaks the C allocation and permanently drains a pooled buffer (the GC
+// does not see the C memory, and the finalizer fallback does not return the buffer).
+func getZstdReader(reqBytes []byte) io.ReadCloser {
+	return zstd.NewReader(bytes.NewBuffer(reqBytes))
 }

@@ -68,7 +68,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
+	mockSender, processor, _ := generic.CreateTestProcessor(t, containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger, false)
 	processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 
 	// Mock the containerd endpoint

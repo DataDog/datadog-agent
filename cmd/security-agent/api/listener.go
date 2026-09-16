@@ -6,6 +6,7 @@
 package api
 
 import (
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"net"
 	"strconv"
 
@@ -14,7 +15,7 @@ import (
 
 // newListener creates a listening connection
 func newListener() (net.Listener, error) {
-	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	address, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}

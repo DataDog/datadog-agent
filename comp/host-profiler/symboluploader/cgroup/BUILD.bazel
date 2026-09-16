@@ -4,15 +4,21 @@ go_library(
     name = "cgroup",
     srcs = [
         "cgroup.go",
+        "containerid.go",
+        "containerid_other.go",
         "helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],

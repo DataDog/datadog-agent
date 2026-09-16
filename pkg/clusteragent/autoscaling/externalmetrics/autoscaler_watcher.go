@@ -22,24 +22,22 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	autoscalerWatcherStoreID    autoscaling.SenderID = "aw"
-	autoscalerReferencesSep     string               = ", "
-	autoscalerReferencesKindSep string               = ":"
-	autoscalerWPAKindKey        string               = "wpa"
-	autoscalerHPAKindKey        string               = "hpa"
+	autoscalerWatcherStoreID    autoscalingstore.SenderID = "aw"
+	autoscalerReferencesSep     string                    = ", "
+	autoscalerReferencesKindSep string                    = ":"
+	autoscalerWPAKindKey        string                    = "wpa"
+	autoscalerHPAKindKey        string                    = "hpa"
 )
 
 // AutoscalerWatcher watches autoscaling objects and reconciles the corresponding external metrics
@@ -48,6 +46,7 @@ type AutoscalerWatcher struct {
 	autogenEnabled          bool
 	autogenExpirationPeriod time.Duration
 	autogenNamespace        string
+	autogenLabelSelector    labels.Selector
 	autoscalerLister        cache.GenericLister
 	autoscalerListerSynced  cache.InformerSynced
 	wpaLister               cache.GenericLister
@@ -69,13 +68,13 @@ var gvr = schema.GroupVersionResource{
 }
 
 // NewAutoscalerWatcher returns a new AutoscalerWatcher, giving nil `autoscalerInformer` or nil `wpaInformer` disables watching HPA or WPA
-// We need at least one of them
 func NewAutoscalerWatcher(
 	refreshPeriod int64,
 	autogenEnabled bool,
 	autogenExpirationPeriodHours int64,
 	autogenNamespace string,
-	client kubernetes.Interface,
+	autogenLabelSelector labels.Selector,
+	hpaGVR schema.GroupVersionResource,
 	informer informers.SharedInformerFactory,
 	wpaInformer dynamic_informer.DynamicSharedInformerFactory,
 	isLeader func() bool,
@@ -94,11 +93,6 @@ func NewAutoscalerWatcher(
 	var autoscalerLister cache.GenericLister
 	var autoscalerListerSynced cache.InformerSynced
 	if informer != nil {
-		hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
-		if err != nil {
-			return nil, fmt.Errorf("unable to discover HPA GroupVersionResource: %s", err)
-		}
-
 		genericInformerFactory, err := informer.ForResource(hpaGVR)
 		if err != nil {
 			return nil, fmt.Errorf("error creating generic informer: %s", err)
@@ -117,11 +111,16 @@ func NewAutoscalerWatcher(
 		wpaListerSynced = wpaInformer.ForResource(gvr).Informer().HasSynced
 	}
 
+	if autogenLabelSelector == nil {
+		autogenLabelSelector = labels.Everything()
+	}
+
 	autoscalerWatcher := &AutoscalerWatcher{
 		refreshPeriod:           refreshPeriod,
 		autogenEnabled:          autogenEnabled,
 		autogenExpirationPeriod: time.Duration(autogenExpirationPeriodHours) * time.Hour,
 		autogenNamespace:        autogenNamespace,
+		autogenLabelSelector:    autogenLabelSelector,
 		autoscalerLister:        autoscalerLister,
 		autoscalerListerSynced:  autoscalerListerSynced,
 		wpaLister:               wpaLister,
@@ -285,6 +284,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 				continue
 			}
 
+			allowAutogen := w.autogenLabelSelector.Matches(labels.Set(wpa.Labels))
 			for _, metric := range wpa.Spec.Metrics {
 				if metric.External == nil {
 					continue
@@ -292,9 +292,9 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 
 				external := metric.External
 				ref := buildAutoscalerReference(autoscalerWPAKindKey, wpa.ObjectMeta)
-				ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector)
+				ddMetricID, metricName, metricLabels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, wpa.Namespace, allowAutogen)
 				if ok {
-					addAutoscalerReference(ddMetricID, ref, metricName, labels)
+					addAutoscalerReference(ddMetricID, ref, metricName, metricLabels)
 				}
 			}
 		}
@@ -324,18 +324,15 @@ func (w *AutoscalerWatcher) processHPAReference(addAutoscalerReference addAutosc
 }
 
 func (w *AutoscalerWatcher) processHPAv2beta1Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2beta1.HorizontalPodAutoscaler) {
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
+	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
-		if metric.Type != autoscalingv2beta1.ExternalMetricSourceType {
-			continue
-		}
-
-		if metric.External == nil {
+		if metric.Type != autoscalingv2beta1.ExternalMetricSourceType || metric.External == nil {
 			continue
 		}
 
 		external := metric.External
-		ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -343,18 +340,15 @@ func (w *AutoscalerWatcher) processHPAv2beta1Reference(addAutoscalerReference ad
 }
 
 func (w *AutoscalerWatcher) processHPAv2beta2Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2beta2.HorizontalPodAutoscaler) {
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
+	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
-		if metric.Type != autoscalingv2beta2.ExternalMetricSourceType {
-			continue
-		}
-
-		if metric.External == nil {
+		if metric.Type != autoscalingv2beta2.ExternalMetricSourceType || metric.External == nil {
 			continue
 		}
 
 		external := metric.External
-		ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -362,18 +356,15 @@ func (w *AutoscalerWatcher) processHPAv2beta2Reference(addAutoscalerReference ad
 }
 
 func (w *AutoscalerWatcher) processHPAv2Reference(addAutoscalerReference addAutoscalerReferenceFn, hpa *autoscalingv2.HorizontalPodAutoscaler) {
+	allowAutogen := w.autogenLabelSelector.Matches(labels.Set(hpa.Labels))
+	ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
 	for _, metric := range hpa.Spec.Metrics {
-		if metric.Type != autoscalingv2.ExternalMetricSourceType {
-			continue
-		}
-
-		if metric.External == nil {
+		if metric.Type != autoscalingv2.ExternalMetricSourceType || metric.External == nil {
 			continue
 		}
 
 		external := metric.External
-		ref := buildAutoscalerReference(autoscalerHPAKindKey, hpa.ObjectMeta)
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -383,16 +374,19 @@ func (w *AutoscalerWatcher) processHPAv2Reference(addAutoscalerReference addAuto
 func (w *AutoscalerWatcher) extractAutoscalerReference(
 	externalMetricName string,
 	externalMetricSelector *metav1.LabelSelector,
+	autoscalerNamespace string,
+	allowAutogen bool,
 ) (
 	ddMetricID string,
 	metricName string,
 	labels map[string]string,
 	ok bool,
 ) {
-	ddMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(externalMetricName)
+	ddMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(externalMetricName, autoscalerNamespace)
 	if parsed {
+		// datadogmetric@ references are always tracked regardless of hpaLabelSelector — the selector controls autogen only.
 		return ddMetricID, "", nil, true
-	} else if !hasPrefix && w.autogenEnabled {
+	} else if !hasPrefix && w.autogenEnabled && allowAutogen {
 		// We were not able to parse name as DatadogMetric ID.
 		// It will be considered as a normal metricName +
 		// labels

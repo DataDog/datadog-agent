@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "dd-api": {
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all"
+    },
+    "dd-ci": {
+      "url": "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp"
+    },
+    "dd-google-workspace": {
+      "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
+    },
+    "dd-atlassian": {
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    },
+    "dd-slack": {
+      "url": "https://mcp.slack.com/mcp",
+      "auth": {
+        "CLIENT_ID": "3660753192626.8903469228982"
+      }
+    }
+  }
+}

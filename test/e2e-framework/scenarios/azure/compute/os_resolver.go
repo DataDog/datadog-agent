@@ -8,6 +8,7 @@ package compute
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
@@ -54,12 +55,16 @@ func resolveWindowsURN(_ azure.Environment, osInfo os.Descriptor) (string, error
 		osInfo.Version = os.WindowsServerDefault.Version
 	}
 
-	if osInfo.Version == "2016" || osInfo.Version == "2019" {
+	// The "-e2e" suffix selects a prebaked AMI on AWS; Azure has no equivalent
+	// image, so fall back to the same Marketplace image as the plain version.
+	version := strings.TrimSuffix(osInfo.Version, "-e2e")
+
+	if version == "2016" || version == "2019" {
 		// 2016 and 2019 uses a different URN format
-		return fmt.Sprintf("MicrosoftWindowsServer:WindowsServer:%s-datacenter-gensecond:latest", osInfo.Version), nil
+		return fmt.Sprintf("MicrosoftWindowsServer:WindowsServer:%s-datacenter-gensecond:latest", version), nil
 	}
 
-	return fmt.Sprintf("MicrosoftWindowsServer:WindowsServer:%s-datacenter-azure-edition-core:latest", osInfo.Version), nil
+	return fmt.Sprintf("MicrosoftWindowsServer:WindowsServer:%s-datacenter-azure-edition-core:latest", version), nil
 }
 
 func resolveWindowsClientURN(_ azure.Environment, osInfo os.Descriptor) (string, error) {
@@ -79,7 +84,7 @@ func resolveUbuntuURN(_ azure.Environment, osInfo os.Descriptor) (string, error)
 	}
 
 	switch osInfo.Version {
-	case os.Ubuntu2204.Version:
+	case os.Ubuntu2204.Version, os.Ubuntu2204E2E.Version:
 		return "canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest", nil
 	default:
 		return "", fmt.Errorf("unsupported Ubuntu version %s", osInfo.Version)

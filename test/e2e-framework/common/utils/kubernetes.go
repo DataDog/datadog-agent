@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
-const imagePullSecretName = "registry-credentials"
+// DefaultImagePullSecretName is the Kubernetes name used by NewImagePullSecret.
+const DefaultImagePullSecretName = "registry-credentials"
 
 // KubeConfigYAMLToJSON safely converts a yaml kubeconfig to a json string.
 func KubeConfigYAMLToJSON(kubeConfig pulumi.StringOutput) pulumi.StringInput {
@@ -40,6 +41,11 @@ func KubeConfigYAMLToJSON(kubeConfig pulumi.StringOutput) pulumi.StringInput {
 
 // NewImagePullSecret creates an image pull secret based on environment
 func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceOption) (*corev1.Secret, error) {
+	return NewImagePullSecretWithName(e, namespace, DefaultImagePullSecretName, opts...)
+}
+
+// NewImagePullSecretWithName creates a named image pull secret based on environment.
+func NewImagePullSecretWithName(e config.Env, namespace, name string, opts ...pulumi.ResourceOption) (*corev1.Secret, error) {
 	registries := strings.Split(e.ImagePullRegistry(), ",")
 	usernames := strings.Split(e.ImagePullUsername(), ",")
 
@@ -72,14 +78,14 @@ func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceO
 	}).(pulumi.StringOutput)
 
 	// Pulumi resource name must be unique per namespace to avoid duplicate URNs.
-	pulumiName := fmt.Sprintf("%s-%s", imagePullSecretName, namespace)
+	pulumiName := fmt.Sprintf("%s-%s", name, namespace)
 	return corev1.NewSecret(
 		e.Ctx(),
 		pulumiName,
 		&corev1.SecretArgs{
 			Metadata: metav1.ObjectMetaArgs{
 				Namespace: pulumi.StringPtr(namespace),
-				Name:      pulumi.StringPtr(imagePullSecretName),
+				Name:      pulumi.StringPtr(name),
 			},
 			StringData: pulumi.StringMap{
 				".dockerconfigjson": dockerConfigJSON,

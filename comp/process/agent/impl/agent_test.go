@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
@@ -75,7 +76,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-				sysprobeconfigimpl.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				hostnameimpl.MockModule(),
 			}
 

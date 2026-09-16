@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -65,4 +66,45 @@ func TestBucket_RemoveJob(t *testing.T) {
 
 	// use the bucket, just to keep it alive during the earlier GC run
 	bucket.addJob(&TestJobCheck{id: "here so the GC doesn't GC the entire bucket"})
+}
+
+func TestJobQueueDispatchesShadowChecksToShadowPipe(t *testing.T) {
+	normalPipe := make(chan check.Check, 1)
+	shadowPipe := make(chan check.Check, 1)
+	s := NewScheduler(normalPipe, shadowPipe)
+
+	source := &TestJobCheck{id: "cpu:abc123"}
+	shadow := check.NewShadowCheck(source, time.Second)
+	s.checkToQueue[shadow.ID()] = &jobQueue{}
+
+	queue := newJobQueue(time.Second, true)
+	require.True(t, queue.dispatchJobs(s, []check.Check{shadow}))
+
+	require.Empty(t, normalPipe)
+	require.Same(t, shadow, <-shadowPipe)
+}
+
+func TestShadowQueueBackpressureDoesNotBlockNormalQueue(t *testing.T) {
+	normalPipe := make(chan check.Check, 1)
+	shadowPipe := make(chan check.Check)
+	s := NewScheduler(normalPipe, shadowPipe)
+
+	normal := &TestJobCheck{id: "cpu:normal"}
+	source := &TestJobCheck{id: "cpu:shadow-source"}
+	shadow := check.NewShadowCheck(source, time.Second)
+	s.checkToQueue[normal.ID()] = &jobQueue{}
+	s.checkToQueue[shadow.ID()] = &jobQueue{}
+
+	shadowQueue := newJobQueue(time.Second, true)
+	shadowDone := make(chan bool, 1)
+	go func() {
+		shadowDone <- shadowQueue.dispatchJobs(s, []check.Check{shadow})
+	}()
+
+	normalQueue := newJobQueue(time.Second, false)
+	require.True(t, normalQueue.dispatchJobs(s, []check.Check{normal}))
+	require.Same(t, normal, <-normalPipe)
+
+	require.Same(t, shadow, <-shadowPipe)
+	require.True(t, <-shadowDone)
 }

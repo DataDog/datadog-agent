@@ -15,11 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -78,6 +79,10 @@ const defaultTimeoutScale = 1
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
+
+// Driver Verifier adds substantial kernel-mode overhead; use a 4-vCPU VM so
+// user-mode services aren't starved for CPU and can still make SCM deadlines.
+const driverVerifierInstanceType = "t3.xlarge"
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
 
@@ -442,18 +447,20 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithRunOptions(
-			scenwindows.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSystemProbeConfig(systemProbeConfig),
-				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			),
-			scenwindows.WithAgentClientOptions(
-				agentclientparams.WithSkipWaitForAgentReady(),
-			),
+func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string, extraRunOpts ...scenwindows.RunOption) {
+	runOpts := []scenwindows.RunOption{
+		scenwindows.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithSystemProbeConfig(systemProbeConfig),
+			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 		),
+		scenwindows.WithAgentClientOptions(
+			agentclientparams.WithSkipWaitForAgentReady(),
+		),
+	}
+	runOpts = append(runOpts, extraRunOpts...)
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
+		awsHostWindows.WithRunOptions(runOpts...),
 	))}
 	e2e.Run(t, s, opts...)
 }
@@ -551,6 +558,12 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
+	// Preserve timeout scales explicitly configured by specialized suites, such as
+	// the Driver Verifier suites. The zero value means no scale was configured.
+	if s.timeoutScale == 0 {
+		s.timeoutScale = defaultTimeoutScale
+	}
+
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
@@ -579,6 +592,14 @@ func (s *baseStartStopSuite) SetupSuite() {
 			s.T().Logf("Driver verifier output:\n%s", out)
 		}
 
+		// Driver Verifier adds system-wide kernel overhead that slows Go runtime and
+		// package init, causing user-mode services to exceed the default 30s SCM
+		// startup timeout (ServicesPipeTimeout) before reaching StartServiceCtrlDispatcher.
+		// Raise the timeout to 120s so security-agent and installer survive the extra load.
+		cmd = `Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name ServicesPipeTimeout -Value 120000 -Type DWORD`
+		_, err = host.Execute(cmd)
+		s.Require().NoError(err, "should increase SCM ServicesPipeTimeout for driver verifier")
+
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
 
@@ -597,6 +618,13 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
+		// Force a crash dump (via WER) on hard stop timeout so we capture goroutine
+		// state when a service hangs during shutdown. See servicemain.EnvCrashOnHardStopTimeout.
+		"DD_CRASH_ON_HARDSTOP_TIMEOUT": "1",
+		// Capture a Go execution trace of each service's startup into the logs folder,
+		// which collectAgentLogs() uploads as a CI artifact on failure. See
+		// servicemain.EnvStartupTraceDir.
+		"DD_STARTUP_TRACE_DIR": `C:\ProgramData\Datadog\logs`,
 	}
 	for _, svc := range s.getInstalledUserServices() {
 		err := windowsCommon.SetServiceEnvironment(host, svc, env)
@@ -624,10 +652,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 		}
 		return services
 	}
-
-	// By default driver verifier is disabled.
-	s.enableDriverVerifier = false
-	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {
@@ -666,10 +690,81 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	s.T().Logf("Clearing dump folder")
 	err = windowsCommon.CleanDirectory(host, s.dumpFolder)
 	s.Require().NoError(err, "should clean dump folder")
+
+	// Start xperf tracing to capture service start/stop timing under Driver Verifier.
+	// Two ETW sessions run concurrently (circular buffers, merged on stop):
+	//   - NT Kernel Logger: scheduler, loader, CPU profile, context switch with stacks
+	//   - scm-trace: Microsoft-Windows-Services SCM events (SetServiceStatus transitions)
+	// The merged .etl is only downloaded on test failure. See AfterTest -> collectXperf.
+	s.startXperf(host)
+}
+
+// xperfSCMSessionName is the user-mode ETW session name that captures Microsoft-Windows-Services
+// SCM events (matches the name in the MS-published TSS xperf recipe).
+const xperfSCMSessionName = "scm-trace"
+
+// startXperf starts xperf tracing on the remote host with two concurrent sessions
+// (NT Kernel Logger + scm-trace user session for the SCM provider). Both use circular
+// FileMode so that for tests with multiple start/stop iterations the trace captures
+// the tail of activity around whichever iteration fails.
+func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
+	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+		return
+	}
+
+	// Extract if C:/xperf dir does not exist.
+	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	if !s.Assert().NoError(err, "should expand xperf archive") {
+		return
+	}
+
+	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
+	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
+	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
+	xperfPath := "C:/xperf/xperf.exe"
+	cmd := fmt.Sprintf(
+		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
+		xperfPath, xperfSCMSessionName,
+	)
+	_, err = host.Execute(cmd)
+	s.Assert().NoError(err, "should start xperf tracing (kernel + scm-trace)")
+}
+
+// collectXperf stops both xperf sessions, merges them, and downloads the resulting
+// .etl to the session output dir if the test failed.
+func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	// Stop kernel logger (-stop) and the named SCM user session (-stop scm-trace), then -d
+	// merges both into outputPath. Matches the MS TSS recipe.
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -stop %s -d %s`, xperfPath, xperfSCMSessionName, outputPath))
+	if !s.Assert().NoError(err, "should stop and merge xperf trace") {
+		return
+	}
+
+	// Only collect the trace artifact if the test failed. Use a tempfile pattern in the
+	// session output dir so multiple failing tests in the same suite don't overwrite each
+	// other's traces.
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		f, err := os.CreateTemp(outDir, "xperf-*.etl")
+		if !s.Assert().NoError(err, "should create local xperf trace file") {
+			return
+		}
+		localPath := f.Name()
+		_ = f.Close()
+		err = host.GetFile(outputPath, localPath)
+		s.Assert().NoError(err, "should download xperf trace")
+	}
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	s.BaseSuite.AfterTest(suiteName, testName)
+	// Stop xperf and merge to .etl as early as possible after the test body, so the
+	// circular trace is preserved before any subsequent diagnostic collection further
+	// perturbs system state. .etl is only downloaded if the test failed.
+	s.collectXperf(s.Env().RemoteHost)
 
 	// look for and download crashdumps. Dumps from processes in
 	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
@@ -727,6 +822,11 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 	// check if the host crashed.
 	s.Require().False(s.collectSystemCrashDump(), "should not have system crash dump")
+
+	// Run BaseSuite.AfterTest last: on failure it invokes environment diagnose,
+	// which may call require (aborting anything after it) and perturbs system
+	// state. Our collection above must complete first.
+	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {
@@ -1025,7 +1125,8 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
@@ -1034,7 +1135,8 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
@@ -1049,7 +1151,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
+	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
@@ -1065,7 +1168,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
+	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
@@ -1077,7 +1181,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
@@ -1089,7 +1194,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // Driver verifier tests end

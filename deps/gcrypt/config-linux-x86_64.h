@@ -12,8 +12,11 @@
 /* Defined if --disable-asm was used to configure */
 /* #undef ASM_DISABLED */
 
-/* GIT commit id revision used to build this package */
-#define BUILD_REVISION "737cc636"
+/* Git full commit id used to build this package */
+#define BUILD_COMMITID ""
+
+/* GIT shortened commit id used to build this package */
+#define BUILD_REVISION "efc34643"
 
 /* The time this package was configured for a build */
 #define BUILD_TIMESTAMP "<none>"
@@ -97,6 +100,12 @@
 /* Defined if the mlock() call does not work */
 /* #undef HAVE_BROKEN_MLOCK */
 
+/* Define to 1 if __riscv_vaes*_vs intrinsics are broken */
+/* #undef HAVE_BROKEN_VAES_VS_INTRINSIC */
+
+/* Define to 1 if __riscv_vsha2cl intrinsics are broken */
+/* #undef HAVE_BROKEN_VSHA2CL_INTRINSIC */
+
 /* Defined if compiler has '__builtin_bswap32' intrinsic */
 #define HAVE_BUILTIN_BSWAP32 1
 
@@ -138,6 +147,15 @@
 /* Defined if underlying compiler supports PowerPC AltiVec/VSX/crypto
    intrinsics with extra GCC flags */
 /* #undef HAVE_COMPATIBLE_CC_PPC_ALTIVEC_WITH_CFLAGS */
+
+/* Defined if underlying compiler supports RISC-V vector intrinsics */
+/* Defined if underlying compiler supports RISC-V vector cryptography
+   intrinsics */
+/* #undef HAVE_COMPATIBLE_CC_RISCV_VECTOR_CRYPTO_INTRINSICS */
+
+/* Defined if underlying compiler supports RISC-V vector cryptography
+   intrinsics with extra GCC flags */
+/* #undef HAVE_COMPATIBLE_CC_RISCV_VECTOR_CRYPTO_INTRINSICS_WITH_CFLAGS */
 
 /* Defined if underlying compiler supports RISC-V vector intrinsics */
 /* #undef HAVE_COMPATIBLE_CC_RISCV_VECTOR_INTRINSICS */
@@ -538,7 +556,7 @@
 #define PACKAGE_NAME "libgcrypt"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libgcrypt 1.11.2"
+#define PACKAGE_STRING "libgcrypt 1.12.2"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libgcrypt"
@@ -547,7 +565,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.11.2"
+#define PACKAGE_VERSION "1.12.2"
 
 /* A human readable text with the name of the OS */
 #define PRINTABLE_OS_NAME "GNU/Linux"
@@ -610,6 +628,9 @@
 
 /* Defined if this module should be included */
 #define USE_DES 1
+
+/* Defined if this module should be included */
+/* #undef USE_DILITHIUM */
 
 /* Defined if this module should be included */
 #define USE_DSA 1
@@ -802,7 +823,7 @@
 #define USE_WHIRLPOOL 1
 
 /* Version number of package */
-#define VERSION "1.11.2"
+#define VERSION "1.12.2"
 
 /* Defined if compiled symbols have a leading underscore */
 /* #undef WITH_SYMBOL_UNDERSCORE */

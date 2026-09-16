@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package ebpf
 
@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -57,9 +58,10 @@ func TestRemoteConfigBTFTimeout(t *testing.T) {
 	mockRC := &mockRCClient{t: t, sub: func(product data.Product, _ func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 		require.Equal(t, string(product), state.ProductBTFDD)
 	}}
-	loader := initBTFLoader(cfg, mockRC)
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
+	require.NoError(t, err)
 
-	_, err := loader.loadRemoteConfig(t.Context())
+	_, err = loader.loadRemoteConfig(t.Context())
 	assert.True(t, errors.Is(err, context.DeadlineExceeded))
 }
 
@@ -182,7 +184,8 @@ func TestRemoteConfigBTFFoundEntry(t *testing.T) {
 			}()
 		},
 	}
-	loader := initBTFLoader(cfg, mockRC)
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
+	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, ret.vmlinux)
@@ -211,7 +214,8 @@ func TestRemoteConfigBTFHashMismatch(t *testing.T) {
 			}()
 		},
 	}
-	loader := initBTFLoader(cfg, mockRC)
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
+	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.Error(t, err)
 	require.Nil(t, ret)
@@ -240,7 +244,8 @@ func TestRemoteConfigBTFMissingEntry(t *testing.T) {
 			}()
 		},
 	}
-	loader := initBTFLoader(cfg, mockRC)
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
+	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.Error(t, err)
 	require.Nil(t, ret)

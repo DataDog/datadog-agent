@@ -42,7 +42,7 @@ days_warning: 10
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -69,7 +69,7 @@ days_warning: 10
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
@@ -164,7 +164,7 @@ days_warning: 10
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
 
@@ -187,7 +187,7 @@ func TestWindowsCertificateWithInvalidStore(t *testing.T) {
 certificate_store: INVALID`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
@@ -212,7 +212,7 @@ days_warning: 10
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
@@ -234,7 +234,7 @@ days_warning: 10
 days_critical: 500000`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -260,7 +260,7 @@ days_warning: 500000
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -285,7 +285,7 @@ days_warning: -1
 days_critical: -1`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
@@ -306,7 +306,7 @@ certificate_subjects:
 enable_crl_monitoring: true`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -335,7 +335,7 @@ enable_crl_monitoring: true
 crl_days_warning: -1`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
@@ -356,7 +356,7 @@ certificate_subjects:
 enable_crl_monitoring: true`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
@@ -381,7 +381,7 @@ cert_chain_validation:
 `)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -420,7 +420,7 @@ cert_chain_validation:
 `)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -451,7 +451,7 @@ cert_chain_validation:
 `)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -481,7 +481,7 @@ cert_chain_validation:
 `)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
@@ -526,7 +526,7 @@ enable_crl_monitoring: true
 `)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
@@ -635,6 +635,77 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	}
 }
 
+func TestConfigureWithValidFilters(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^abc"
+  exclude:
+    subject_CN: "internal"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	require.Len(t, certCheck.certFilters.include, 1)
+	require.Len(t, certCheck.certFilters.exclude, 1)
+}
+
+func TestConfigureWithInvalidFilterRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "["
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.Error(t, err)
+}
+
+func TestConfigureWithFilterOnDisabledOptInTagIsPruned(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_template_tag: false
+filters:
+  include:
+    certificate_template_name: "WebServer"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
+	require.NoError(t, err)
+	// The rule references a tag that certificate_template_tag: false never
+	// collects, so it is pruned rather than rejecting every certificate.
+	require.Empty(t, certCheck.certFilters.include)
+}
+
+func TestConfigureWithFiltersExcludesNonMatchingCerts(t *testing.T) {
+	certCheck := new(WinCertChk)
+	instanceConfig := []byte(`
+certificate_store: ROOT
+filters:
+  include:
+    certificate_thumbprint: "^THISDOESNOTMATCH99999$"
+`)
+	m := mocksender.NewMockSender(t, certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	m.On("Commit").Return()
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+	require.NoError(t, certCheck.Run())
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
 func TestRun_WithSubjectFilters_EmitsThumbprintTag(t *testing.T) {
 	t.Parallel()
 
@@ -647,7 +718,7 @@ days_warning: 10
 days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
 

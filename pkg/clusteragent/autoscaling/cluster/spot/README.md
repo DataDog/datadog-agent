@@ -97,8 +97,6 @@ Rebalancing handles the following cases:
 
 - [ ] Implement Argo Rollout support
 - [ ] Implement CronJob support (needs patch permission)
-- [ ] Emit Kubernetes events
-- [ ] Add metrics and observability
 - [ ] Add spot-related labels to the agent's out-of-the-box Kubernetes tag extraction so they are automatically collected as tags on all telemetry.
   See [out-of-the-box tags documentation](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags)
   and the corresponding configuration in this repository.
@@ -192,7 +190,7 @@ nginx-6f8f465d8c-sn6dw   1/1     Running   0          5m29s
 ## Scheduler components
 
 - `scheduler` — admission decisions, fallback, rebalancing
-- `workloadController` — watches workloads, syncs config and pods
+- `workloadController` — watches workloads, syncs config and pods (once)
 - `podTracker` — counts spot / on-demand pods per workload
 - `spotConfigStore` — per-workload spot config key-value store
 - `podLister` — lists pods from workloadmeta store
@@ -216,7 +214,7 @@ graph TD
     end
 
     Webhook -->|"CREATE / DELETE Pod"| S
-    WLM -->|"Pod set / unset events"| PT
+    WLM -->|"addedOrUpdated, deleted"| PT
 
     S -->|"getConfig, disable"| CS
     S -->|"admitNewPod, deletePod"| PT
@@ -228,7 +226,7 @@ graph TD
     K8sAPI -->|"WATCH workloads"| WC
 
     WC -->|"setConfig, deleteConfig"| CS
-    WC -->|"addedOrUpdated, untrack"| PT
+    WC -->|"untrack, addedOrUpdated (once)"| PT
     WC -->|"listPods"| PL
 
     PL -->|"ListKubernetesPods"| WLM

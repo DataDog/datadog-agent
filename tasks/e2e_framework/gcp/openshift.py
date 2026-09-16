@@ -13,6 +13,7 @@ scenario_name = "gcp/openshiftvm"
     help={
         "config_path": doc.config_path,
         "stack_name": doc.stack_name,
+        "pipeline_id": doc.pipeline_id,
         "pull_secret_path": doc.pull_secret_path,
         "install_agent": doc.install_agent,
         "install_workload": doc.install_workload,
@@ -29,8 +30,8 @@ def create_openshift(
     ctx: Context,
     config_path: str | None = None,
     stack_name: str | None = None,
+    pipeline_id: str | None = None,
     pull_secret_path: str | None = None,
-    use_nested_virtualization: bool | None = True,
     install_agent: bool | None = True,
     install_workload: bool | None = True,
     use_fakeintake: bool | None = False,
@@ -52,7 +53,7 @@ def create_openshift(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     # Use parameter if provided during invoke setup, otherwise use config
     if not pull_secret_path:
@@ -65,9 +66,8 @@ def create_openshift(
     extra_flags = {
         "scenario": scenario_name,
         "ddinfra:env": f"gcp/{cfg.get_gcp().account}",
-        "ddinfra:gcp/defaultPublicKeyPath": cfg.get_gcp().publicKeyPath,
         "ddinfra:gcp/openshift/pullSecretPath": pull_secret_path,
-        "ddinfra:gcp/enableNestedVirtualization": use_nested_virtualization,
+        "ddinfra:gcp/enableNestedVirtualization": True,
         "ddinfra:gcp/defaultInstanceType": "n2-standard-8",
         "ddinfra:gcp/fakeintakeWithLB": use_loadBalancer,
     }
@@ -77,6 +77,7 @@ def create_openshift(
         scenario_name,
         config_path,
         stack_name=stack_name,
+        pipeline_id=pipeline_id,
         install_agent=install_agent,
         install_workload=install_workload,
         use_fakeintake=use_fakeintake,

@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/rawpacketdrop"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/spanctxevent"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -29,13 +31,15 @@ import (
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
-	eventStreamMonitor *eventstream.Monitor
-	discarderMonitor   *discarder.Monitor
-	cgroupsMonitor     *cgroups.Monitor
-	approverMonitor    *approver.Monitor
-	syscallsMonitor    *syscalls.Monitor
-	dnsMonitor         *dns.Monitor
-	eventSampleMonitor *eventsample.Monitor
+	eventStreamMonitor   *eventstream.Monitor
+	discarderMonitor     *discarder.Monitor
+	cgroupsMonitor       *cgroups.Monitor
+	approverMonitor      *approver.Monitor
+	syscallsMonitor      *syscalls.Monitor
+	dnsMonitor           *dns.Monitor
+	eventSampleMonitor   *eventsample.Monitor
+	rawPacketDropMonitor *rawpacketdrop.Monitor
+	spanCtxEventMonitor  *spanctxevent.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -51,22 +55,22 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager.Get(), p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.statsdClient)
+	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager.Get(), p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
-	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager, p.statsdClient)
+	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager.Get(), p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
 	if p.opts.SyscallsMonitorEnabled {
-		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.statsdClient)
+		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager.Get(), p.statsdClient)
 		if err != nil {
 			return fmt.Errorf("couldn't create the approver monitor: %w", err)
 		}
@@ -75,15 +79,29 @@ func (m *EBPFMonitors) Init() error {
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.Resolvers.CGroupResolver)
 
 	if p.config.Probe.DNSResolutionEnabled {
-		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager, p.statsdClient)
+		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager.Get(), p.statsdClient)
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
 	}
 
-	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager, p.statsdClient)
+	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager.Get(), p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the event sample monitor: %w", err)
+	}
+
+	if p.probe.IsNetworkRawPacketEnabled() {
+		m.rawPacketDropMonitor, err = rawpacketdrop.NewMonitor(p.Manager.Get(), p.statsdClient, p.getDropActionRuleIDs)
+		if err != nil {
+			return fmt.Errorf("couldn't create the raw packet drop monitor: %w", err)
+		}
+	}
+
+	if p.config.Probe.SpanTrackingEnabled {
+		m.spanCtxEventMonitor, err = spanctxevent.NewMonitor(p.Manager.Get(), p.statsdClient)
+		if err != nil {
+			return fmt.Errorf("couldn't create the span context event monitor: %w", err)
+		}
 	}
 
 	return nil
@@ -172,7 +190,34 @@ func (m *EBPFMonitors) SendStats() error {
 		return fmt.Errorf("failed to send event sample stats: %w", err)
 	}
 
+	if m.rawPacketDropMonitor != nil {
+		if err := m.rawPacketDropMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send raw packet drop stats: %w", err)
+		}
+	}
+
+	if m.spanCtxEventMonitor != nil {
+		if err := m.spanCtxEventMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send span context event stats: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// ResetRawPacketDropCounters clears user-space drop counters after a kernel map reset.
+func (m *EBPFMonitors) ResetRawPacketDropCounters() {
+	if m.rawPacketDropMonitor != nil {
+		m.rawPacketDropMonitor.ResetCounters()
+	}
+}
+
+// FlushRawPacketDropStats emits pending drop deltas before the kernel map is reset.
+func (m *EBPFMonitors) FlushRawPacketDropStats() error {
+	if m.rawPacketDropMonitor == nil {
+		return nil
+	}
+	return m.rawPacketDropMonitor.SendStats()
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe

@@ -24,7 +24,7 @@ import (
 
 func TestFromConfig(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname", "test-hostname")
+	cfg.SetInTest("hostname", "test-hostname")
 
 	hostname, err := fromConfig(context.TODO(), "")
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestFromConfig(t *testing.T) {
 
 func TestFromConfigInvalid(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname", "hostname_with_underscore")
+	cfg.SetInTest("hostname", "hostname_with_underscore")
 
 	_, err := fromConfig(context.TODO(), "")
 	assert.Error(t, err)
@@ -50,7 +50,7 @@ func setupHostnameFile(t *testing.T, content string) {
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname_file", destFile.Name())
+	cfg.SetInTest("hostname_file", destFile.Name())
 
 	destFile.Close()
 }
@@ -73,7 +73,7 @@ func TestFromHostnameFileWhitespaceTrim(t *testing.T) {
 
 func TestFromHostnameFileNoFileName(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname_file", "")
+	cfg.SetInTest("hostname_file", "")
 
 	_, err := fromHostnameFile(context.TODO(), "")
 	assert.NotNil(t, err)
@@ -113,12 +113,12 @@ func TestFromFQDN(t *testing.T) {
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("hostname_fqdn", false)
+	cfg.SetInTest("hostname_fqdn", false)
 
 	_, err := fromFQDN(context.TODO(), "")
 	assert.Error(t, err)
 
-	cfg.SetWithoutSource("hostname_fqdn", true)
+	cfg.SetInTest("hostname_fqdn", true)
 
 	hostname, err := fromFQDN(context.TODO(), "")
 	assert.NoError(t, err)
@@ -167,7 +167,7 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// to true we use the instance ID
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
+	cfg.SetInTest("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("some error") }
@@ -191,7 +191,7 @@ func TestFromEc2ECSManagedInstancesDaemon(t *testing.T) {
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") // so IsECSSidecarMode reads config
 	env.SetFeatures(t, env.ECSManagedInstances)
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("ecs_deployment_mode", "daemon")
+	cfg.SetInTest("ecs_deployment_mode", "daemon")
 
 	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("imds error") }
 	_, err := fromEC2(context.Background(), "")
@@ -211,7 +211,7 @@ func TestFromEc2ECSManagedInstancesSidecarSkipsIMDS(t *testing.T) {
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") // so IsECSSidecarMode reads config
 	env.SetFeatures(t, env.ECSManagedInstances)
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("ecs_deployment_mode", "sidecar")
+	cfg.SetInTest("ecs_deployment_mode", "sidecar")
 
 	called := false
 	ec2GetInstanceID = func(context.Context) (string, error) {

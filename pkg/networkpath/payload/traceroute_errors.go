@@ -31,6 +31,8 @@ const (
 	TracerouteErrCodeFailedEncoding TracerouteErrorCode = "FAILED_ENCODING"
 	// TracerouteErrCodeUnknown is the catch-all for unclassified errors.
 	TracerouteErrCodeUnknown TracerouteErrorCode = "UNKNOWN"
+	// TracerouteErrCodeSACKNotSupported indicates that SACK is not supported for the target/source.
+	TracerouteErrCodeSACKNotSupported TracerouteErrorCode = "SACK_NOT_SUPPORTED"
 )
 
 // TracerouteError is a classified error returned from the system-probe

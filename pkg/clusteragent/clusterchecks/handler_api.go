@@ -45,10 +45,14 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 // GetState returns the state of the dispatching, for the clusterchecks cmd
 func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	h.m.RLock()
-	defer h.m.RUnlock()
+	currentState := h.state
+	h.m.RUnlock()
 
-	switch h.state {
+	switch currentState {
 	case leader:
+		// dispatcher.getState can be slow when scrub is true, so call it
+		// after releasing h.m to avoid starving h.m.Lock() callers like
+		// updateLeaderIP. The dispatcher guards its own state with d.store.
 		return h.dispatcher.getState(scrub)
 	case follower:
 		return types.StateResponse{NotRunning: "currently follower"}, nil
@@ -112,7 +116,7 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 
 	for _, decision := range rebalancingDecisions {
 		response = append(response, types.RebalanceResponse{
-			CheckID:        decision.CheckID,
+			Digest:         decision.Digest,
 			CheckWeight:    decision.CheckWeight,
 			SourceNodeName: decision.SourceNodeName,
 			SourceDiff:     decision.SourceDiff,

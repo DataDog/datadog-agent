@@ -34,7 +34,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-inject-package:latest",
 		"oci://install.datadoghq.com/apm-library-java-package:1",
 		"oci://install.datadoghq.com/apm-library-ruby-package:2",
-		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-js-package:6",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
@@ -51,7 +51,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
 			"java":    "1",
 			"python":  "4",
-			"js":      "5",
+			"js":      "6",
 			"php":     "1",
 			"dotnet":  "3",
 			"ruby":    "2",
@@ -59,6 +59,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 			"httpd":   "1",
 			"iis-rum": "1",
 			"iis":     "1",
+			"c":       "1",
 		},
 	}
 	packages := DefaultPackages(env)
@@ -67,7 +68,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		"oci://install.datadoghq.com/apm-inject-package:latest",
 		"oci://install.datadoghq.com/apm-library-java-package:1",
 		"oci://install.datadoghq.com/apm-library-ruby-package:2",
-		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-js-package:6",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
@@ -76,6 +77,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-iis-package:1",
 		"oci://install.datadoghq.com/apm-library-iis-rum-package:1",
 		"oci://install.datadoghq.com/apm-library-httpd-package:1",
+		"oci://install.datadoghq.com/apm-library-c-package:1",
 	}, packages)
 }
 
@@ -99,6 +101,7 @@ func TestPreRegisteredPackagesNotSelectedByDefault(t *testing.T) {
 				assert.NotContains(t, url, "apm-library-iis-package")
 				assert.NotContains(t, url, "apm-library-iis-rum-package")
 				assert.NotContains(t, url, "apm-library-httpd-package")
+				assert.NotContains(t, url, "apm-library-c-package")
 			}
 		})
 	}
@@ -117,7 +120,7 @@ func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-inject-package:0.30.0-1",
 		"oci://install.datadoghq.com/apm-library-java-package:1.45.2-1",
 		"oci://install.datadoghq.com/apm-library-ruby-package:2",
-		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-js-package:6",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
@@ -265,7 +268,7 @@ func TestDefaultPackages(t *testing.T) {
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1"},
 				{n: "datadog-apm-library-ruby", v: "2"},
-				{n: "datadog-apm-library-js", v: "5"},
+				{n: "datadog-apm-library-js", v: "6"},
 			},
 		},
 		{

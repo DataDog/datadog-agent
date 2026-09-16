@@ -1,10 +1,11 @@
+import os
 import sys
 import unittest
 from unittest.mock import MagicMock, call, patch
 
 from invoke import Result
 
-from tasks.libs.common.go import go_build
+from tasks.libs.common.go import _with_pdb_extldflag, go_build
 
 
 class TestGoBuild(unittest.TestCase):
@@ -95,3 +96,44 @@ class TestGoBuild(unittest.TestCase):
         self.assertEqual(result.exited, 1)
         mock_exists.assert_not_called()
         mock_chown.assert_not_called()
+
+
+class TestWithPDBExtldflag(unittest.TestCase):
+    """
+    The helper splices `-Wl,--pdb=...` into the existing
+    `'-extldflags=...'` group emitted by ``get_build_flags`` — Go's linker
+    honors only the last `-extldflags=`, so a clean append would silently
+    drop other flags in that group.
+    """
+
+    def test_no_existing_ldflags(self):
+        out = _with_pdb_extldflag("", "bin/agent/agent.exe")
+        self.assertTrue(out.startswith("'-extldflags="))
+        self.assertIn(os.path.abspath("bin/agent/agent.exe.pdb"), out)
+        self.assertEqual(out.count("-extldflags="), 1)
+
+    def test_existing_ldflags_no_extldflags(self):
+        out = _with_pdb_extldflag("-X main.foo=bar", "bin/agent/agent.exe")
+        self.assertIn("-X main.foo=bar", out)
+        self.assertEqual(out.count("-extldflags="), 1)
+        self.assertIn("-Wl,--pdb=", out)
+
+    def test_splices_into_single_quoted_extldflags(self):
+        ld = "-X main.foo=bar '-extldflags=-Wl,--version-script=foo.map -Wl,-z,lazy ' "
+        out = _with_pdb_extldflag(ld, "bin/agent/agent.exe")
+        # Must still have exactly one -extldflags= (Go honors the last).
+        self.assertEqual(out.count("-extldflags="), 1)
+        # Prior flags preserved inside the group.
+        self.assertIn("-Wl,--version-script=foo.map", out)
+        self.assertIn("-Wl,-z,lazy", out)
+        # Our flag inserted before the closing quote.
+        self.assertIn("-Wl,--pdb=", out)
+        # Closing quote still present after the splice.
+        self.assertIn("' ", out[out.index("-extldflags=") :])
+
+    def test_uses_absolute_path(self):
+        # Linker writes the PDB during link, before `go build` copies the
+        # .exe to its final location — an absolute path means we don't
+        # depend on the linker's CWD.
+        out = _with_pdb_extldflag("", "bin/agent/agent.exe")
+        self.assertIn(os.path.abspath("bin/agent/agent.exe.pdb"), out)

@@ -2,19 +2,20 @@
 #define _HOOKS_COMMIT_CREDS_H_
 
 #include "constants/syscall_macro.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/events_predicates.h"
 
-int __attribute__((always_inline)) credentials_update(u64 type) {
+int __attribute__((always_inline)) credentials_update(void *ctx, u64 type) {
     struct syscall_cache_t syscall = {
         .type = type,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
-int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) credentials_update_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
     if (!syscall) {
         return 0;
@@ -32,38 +33,44 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
 
     switch (syscall->type) {
     case EVENT_SETUID: {
-        struct setuid_event_t event = {};
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        struct setuid_event_t *event = SPAN_FILL_EVENT(struct setuid_event_t, EVENT_SETUID);
+        if (!event) {
+            return 0;
+        }
+        struct proc_cache_t *entry = fill_process_context(&event->process);
+        fill_cgroup_context(entry, &event->cgroup);
 
-        event.uid = pid_entry->credentials.uid;
-        event.euid = pid_entry->credentials.euid;
-        event.fsuid = pid_entry->credentials.fsuid;
-        send_event(ctx, EVENT_SETUID, event);
+        event->uid = pid_entry->credentials.uid;
+        event->euid = pid_entry->credentials.euid;
+        event->fsuid = pid_entry->credentials.fsuid;
+        span_fill_tail_call(ctx, prog_type);
         break;
     }
     case EVENT_SETGID: {
-        struct setgid_event_t event = {};
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        struct setgid_event_t *event = SPAN_FILL_EVENT(struct setgid_event_t, EVENT_SETGID);
+        if (!event) {
+            return 0;
+        }
+        struct proc_cache_t *entry = fill_process_context(&event->process);
+        fill_cgroup_context(entry, &event->cgroup);
 
-        event.gid = pid_entry->credentials.gid;
-        event.egid = pid_entry->credentials.egid;
-        event.fsgid = pid_entry->credentials.fsgid;
-        send_event(ctx, EVENT_SETGID, event);
+        event->gid = pid_entry->credentials.gid;
+        event->egid = pid_entry->credentials.egid;
+        event->fsgid = pid_entry->credentials.fsgid;
+        span_fill_tail_call(ctx, prog_type);
         break;
     }
     case EVENT_CAPSET: {
-        struct capset_event_t event = {};
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
+        struct capset_event_t *event = SPAN_FILL_EVENT(struct capset_event_t, EVENT_CAPSET);
+        if (!event) {
+            return 0;
+        }
+        struct proc_cache_t *entry = fill_process_context(&event->process);
+        fill_cgroup_context(entry, &event->cgroup);
 
-        event.cap_effective = pid_entry->credentials.cap_effective;
-        event.cap_permitted = pid_entry->credentials.cap_permitted;
-        send_event(ctx, EVENT_CAPSET, event);
+        event->cap_effective = pid_entry->credentials.cap_effective;
+        event->cap_permitted = pid_entry->credentials.cap_permitted;
+        span_fill_tail_call(ctx, prog_type);
         break;
     }
     }
@@ -71,8 +78,12 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
     return 0;
 }
 
+int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
+    return credentials_update_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
 HOOK_SYSCALL_ENTRY0(setuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setuid) {
@@ -81,7 +92,7 @@ HOOK_SYSCALL_EXIT(setuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setfsuid) {
@@ -90,7 +101,7 @@ HOOK_SYSCALL_EXIT(setfsuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setreuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setreuid) {
@@ -99,7 +110,7 @@ HOOK_SYSCALL_EXIT(setreuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setresuid) {
@@ -108,7 +119,7 @@ HOOK_SYSCALL_EXIT(setresuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setuid16) {
@@ -117,7 +128,7 @@ HOOK_SYSCALL_EXIT(setuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setfsuid16) {
@@ -126,7 +137,7 @@ HOOK_SYSCALL_EXIT(setfsuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setreuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setreuid16) {
@@ -135,7 +146,7 @@ HOOK_SYSCALL_EXIT(setreuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setresuid16) {
@@ -144,7 +155,7 @@ HOOK_SYSCALL_EXIT(setresuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setgid) {
@@ -153,7 +164,7 @@ HOOK_SYSCALL_EXIT(setgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setfsgid) {
@@ -162,7 +173,7 @@ HOOK_SYSCALL_EXIT(setfsgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setregid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setregid) {
@@ -171,7 +182,7 @@ HOOK_SYSCALL_EXIT(setregid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setresgid) {
@@ -180,7 +191,7 @@ HOOK_SYSCALL_EXIT(setresgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setgid16) {
@@ -189,7 +200,7 @@ HOOK_SYSCALL_EXIT(setgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setfsgid16) {
@@ -198,7 +209,7 @@ HOOK_SYSCALL_EXIT(setfsgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setregid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setregid16) {
@@ -207,7 +218,7 @@ HOOK_SYSCALL_EXIT(setregid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setresgid16) {
@@ -216,7 +227,7 @@ HOOK_SYSCALL_EXIT(setresgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(capset) {
-    return credentials_update(EVENT_CAPSET);
+    return credentials_update(ctx, EVENT_CAPSET);
 }
 
 HOOK_SYSCALL_EXIT(capset) {
@@ -225,7 +236,7 @@ HOOK_SYSCALL_EXIT(capset) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_commit_creds_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return credentials_update_ret(args, args->ret);
+    return credentials_update_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 struct __attribute__((__packed__)) cred_ids {

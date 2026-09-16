@@ -171,6 +171,21 @@ var (
 	// Tags: map, cause
 	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
+	// Ring buffer user space dispatcher queue metrics
+
+	// MetricEventStreamDispatcherQueueUsage is the number of events currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueUsage = newRuntimeMetric(".event_stream.dispatcher_queue.usage")
+	// MetricEventStreamDispatcherQueueCapacity is the dispatcher queue capacity in bytes
+	// Tags: -
+	MetricEventStreamDispatcherQueueCapacity = newRuntimeMetric(".event_stream.dispatcher_queue.capacity")
+	// MetricEventStreamDispatcherQueueBytes is the number of bytes currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueBytes = newRuntimeMetric(".event_stream.dispatcher_queue.bytes")
+	// MetricEventStreamDispatcherQueueEnqueued is the number of events pushed onto the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueEnqueued = newRuntimeMetric(".event_stream.dispatcher_queue.enqueued")
+
 	// Process Resolver metrics
 
 	// MetricProcessResolverCacheSize is the name of the metric used to report the size of the user space
@@ -225,6 +240,39 @@ var (
 	// MetricProcessResolverProcFallbackLimiterDrop counts procfs fallback resolutions dropped by the rate limiter
 	// Tags: -
 	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
+
+	// Span context metrics
+
+	// MetricSpanContextProcessCtxFailed is the counter of OTel process context read failures
+	// Tags: status:queue_full, status:no_process_entry, status:unpublished, status:torn, status:unsupported,
+	//       status:malformed, status:gone, status:unreadable, status:unknown
+	MetricSpanContextProcessCtxFailed = newRuntimeMetric(".span_context.process_ctx.failed")
+	// MetricSpanContextProcessCtxSuccess is the counter of OTel process context read successes
+	// Tags: status:ok
+	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:not_applicable, status:unsupported, status:malformed, status:map_error, status:gone,
+	//       status:unreadable, status:unknown
+	MetricSpanContextResolutionFailed = newRuntimeMetric(".span_context.resolution.failed")
+	// MetricSpanContextResolutionSuccess is the counter of per-process span context reader install successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextEventFailed is the counter of per-event span context fill failures
+	// Tags: reader:otel_tls, reader:go_labels, reader:fill
+	//
+	//       status:no_thread_pointer, status:read_fault, status:torn, status:attrs_read_fault,
+	//       status:map_error, status:stale_id, status:malformed,status:g_not_found, status:map_error,
+	//       status:malformed
+	MetricSpanContextEventFailed = newRuntimeMetric(".span_context.event.failed")
+	// MetricSpanContextEventSuccess is the counter of per-event span context fill successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextEventSuccess = newRuntimeMetric(".span_context.event.success")
 
 	// Mount resolver metrics
 
@@ -417,6 +465,11 @@ var (
 	// lonely network namespaces.
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
+	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
+	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
+	// Tags: error_type ('link_not_found', 'no_such_device', 'filter_not_found', 'classifier_exists',
+	// 'queue_full', 'netlink_socket', 'link_list', 'unknown')
+	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
 
@@ -509,17 +562,29 @@ var (
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
 
+	// Capabilities monitoring metrics
+
+	// MetricCapabilitiesExecutableMismatch is the name of the metric used to report capabilities usage
+	// events dropped because they couldn't be attributed to the program/executable that used the capabilities
+	// Tags: -
+	MetricCapabilitiesExecutableMismatch = newRuntimeMetric(".capabilities.executable_mismatch")
+
 	// Security Profile V2 metrics
 
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2EventsReceived is the name of the metric used to report events received by ProcessEvent (after filters)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsReceived = newRuntimeMetric(".security_profile_v2.events.received")
 
 	// MetricSecurityProfileV2EventsImmediate is the name of the metric used to report events processed immediately (tags already resolved)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
+
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
+	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
+	// Tags: event_type, error_type
+	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics
 
@@ -549,9 +614,9 @@ var (
 
 	// Event Processing metrics
 
-	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
-	// Tags: -
-	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
+	// Tags: profile_image_name, profile_image_tag
+	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
 
@@ -579,6 +644,26 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
+	// Sample refresh metrics (cookie-based dedup refresh)
+
+	// MetricSecurityProfileV2SampleRefreshReceived counts HandleSampleRefresh calls
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshReceived = newRuntimeMetric(".security_profile_v2.sample_refresh.received")
+
+	// MetricSecurityProfileV2SampleRefreshHits counts refresh events where the cookie was found in the LRU
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshHits = newRuntimeMetric(".security_profile_v2.sample_refresh.hits")
+
+	// MetricSecurityProfileV2SampleRefreshMisses counts refresh events where the cookie was not found (LRU evicted)
+	// Tags: -
+	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
+
+	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
+	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
+
 	// Event sampling metrics (kernel-side)
 
 	// MetricEventSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel
@@ -588,6 +673,14 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
+	// Tags: -
+	MetricSamplingPressureLevel = newRuntimeMetric(".event_sample.pressure_level")
+
+	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
+	// Tags: rule_id
+	MetricRawPacketDropped = newRuntimeMetric(".network.raw_packet.dropped")
 )
 
 var (
@@ -626,8 +719,10 @@ var (
 	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
 	// ReparentCallpathRelatedEvent tags a reparent from the related event dispatch path
 	ReparentCallpathRelatedEvent = "callpath:related_event"
+	// ReparentCallpathTargetProcess tags a reparent from target process resolution paths (ptrace tracee, signal/setrlimit target, scoped PID lookup)
+	ReparentCallpathTargetProcess = "callpath:target_process"
 	// AllReparentCallpathTags is the list of all reparent callpath tags
-	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent}
+	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent, ReparentCallpathTargetProcess}
 )
 
 func newRuntimeMetric(name string) string {

@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	maxRetry             int                  = 3
-	requeueDelaySeconds  int                  = 2
-	ddmControllerStoreID autoscaling.SenderID = "ddmc"
+	maxRetry             int                       = 3
+	requeueDelaySeconds  int                       = 2
+	ddmControllerStoreID autoscalingstore.SenderID = "ddmc"
 )
 
 type controllerOperation string
@@ -147,7 +147,7 @@ func (c *DatadogMetricController) enqueue(obj interface{}) {
 	c.workqueue.AddRateLimited(key)
 }
 
-func (c *DatadogMetricController) enqueueID(id string, sender autoscaling.SenderID, _ interface{}) {
+func (c *DatadogMetricController) enqueueID(id string, sender autoscalingstore.SenderID, _ interface{}) {
 	// Avoid re-enqueuing events triggered by this controller's own store updates
 	if sender != ddmControllerStoreID {
 		c.workqueue.AddRateLimited(id)
@@ -353,7 +353,7 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	return nil
 }
 
-func (c *DatadogMetricController) deleteTelemetry(id string, _ autoscaling.SenderID, _ interface{}) {
+func (c *DatadogMetricController) deleteTelemetry(id string, _ autoscalingstore.SenderID, _ interface{}) {
 	ns, name, err := cache.SplitMetaNamespaceKey(id)
 	if err != nil {
 		log.Debugf("Unable to split meta namespace key to delete telemetry: %v", err)

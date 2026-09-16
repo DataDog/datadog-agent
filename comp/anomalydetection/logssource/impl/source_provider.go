@@ -10,18 +10,26 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterutil "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// wmetaStore is the subset of workloadmeta.Component used by sourceProvider.
+// Keeping the dependency narrow makes the type testable with a simple stub.
+type wmetaStore interface {
+	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle
+	Unsubscribe(ch chan workloadmeta.EventBundle)
+	GetContainer(id string) (*workloadmeta.Container, error)
+}
 
 // sourceProvider translates workloadmeta container events into LogSources,
 // publishing them to the provided LogSources instance.
 type sourceProvider struct {
-	wmeta       workloadmeta.Component
+	wmeta       wmetaStore
 	logSources  *sources.LogSources
 	pauseFilter workloadfilter.FilterBundle
 
@@ -32,7 +40,7 @@ type sourceProvider struct {
 	stopped sync.WaitGroup
 }
 
-func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
+func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
 	return &sourceProvider{
 		wmeta:         wmeta,
 		logSources:    logSources,
@@ -102,6 +110,9 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 			return
 		}
 	}
+
+	runtimeSource := string(c.Runtime)
+
 	sp.mu.Lock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
 		sp.mu.Unlock()
@@ -113,6 +124,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
+		Source:     runtimeSource, // enables msg.Origin.Source() for log filter matching
 		Identifier: c.EntityID.ID,
 	})
 	sp.activeSources[c.EntityID.ID] = src
@@ -131,7 +143,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		return
 	}
 
-	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
+	logging.Infof("logssource added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {
@@ -168,6 +180,20 @@ func isAgentContainer(c *workloadmeta.Container) bool {
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
 }
 
+// isAgentContainerID returns true when workloadmeta identifies containerID as
+// an Agent container. Lookup failures are treated as non-Agent so AD collection
+// is not accidentally disabled while workloadmeta is still catching up.
+func (sp *sourceProvider) isAgentContainerID(containerID string) bool {
+	if sp == nil || sp.wmeta == nil || containerID == "" {
+		return false
+	}
+	container, err := sp.wmeta.GetContainer(containerID)
+	if err != nil {
+		return false
+	}
+	return isAgentContainer(container)
+}
+
 // suppressIdentifier marks containerID as owned by an AD source.
 // If a generic source for that container is already active, it is removed so
 // the AD source becomes the sole collector for this container.
@@ -183,7 +209,7 @@ func (sp *sourceProvider) suppressIdentifier(containerID string) {
 
 	if exists {
 		sp.logSources.RemoveSource(evicted)
-		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
+		logging.Debugf("logssource removed generic container source %s: AD source takes priority", containerID)
 	}
 }
 

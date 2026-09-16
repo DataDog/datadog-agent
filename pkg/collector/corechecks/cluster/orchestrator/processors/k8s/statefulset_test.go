@@ -48,7 +48,7 @@ func TestStatefulSetHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewStatefulSetHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -122,16 +122,16 @@ func TestStatefulSetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.StatefulSet)
 	assert.True(t, ok)
 	assert.Equal(t, "test-statefulset", resource1.Name)
-	assert.NotSame(t, statefulSet1, resource1) // Should be a copy
+	assert.Same(t, statefulSet1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.StatefulSet)
 	assert.True(t, ok)
 	assert.Equal(t, "statefulset2", resource2.Name)
-	assert.NotSame(t, statefulSet2, resource2) // Should be a copy
+	assert.Same(t, statefulSet2, resource2) // ResourceList returns raw informer references
 }
 
 func TestStatefulSetHandlers_ResourceUID(t *testing.T) {
@@ -451,4 +451,14 @@ func createTestStatefulSet() *appsv1.StatefulSet {
 			},
 		},
 	}
+}
+
+func TestStatefulSetHandlers_CloneResource(t *testing.T) {
+	handlers := &StatefulSetHandlers{}
+	original := createTestStatefulSet()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.StatefulSet)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

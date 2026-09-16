@@ -14,6 +14,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -25,10 +26,11 @@ var checkContextMutex = sync.Mutex{}
 // Doing so allow to have a single global state instead of having one
 // per dependency used inside SubmitMetric like methods.
 type CheckContext struct {
-	senderManager sender.SenderManager
-	logReceiver   option.Option[integrations.Component]
-	tagger        tagger.Component
-	filter        workloadfilter.FilterBundle
+	senderManager          sender.SenderManager
+	senderManagerOverrides map[checkid.ID]sender.SenderManager
+	logReceiver            option.Option[integrations.Component]
+	tagger                 tagger.Component
+	filter                 workloadfilter.FilterBundle
 }
 
 func (cc *CheckContext) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
@@ -41,6 +43,20 @@ func (cc *CheckContext) GetLogReceiver() (integrations.Component, bool) {
 
 func (cc *CheckContext) IsExcluded(container *workloadfilter.Container) bool {
 	return cc.filter.IsExcluded(container)
+}
+
+func (cc *CheckContext) senderManagerForCheck(id checkid.ID) sender.SenderManager {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if override, found := cc.senderManagerOverrides[id]; found {
+		return override
+	}
+	return cc.senderManager
+}
+
+func (cc *CheckContext) GetSender(id checkid.ID) (sender.Sender, error) {
+	return cc.senderManagerForCheck(id).GetSender(id)
 }
 
 // GetCheckContext retrives the current context
@@ -59,10 +75,11 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	checkContextMutex.Lock()
 	if checkCtx == nil {
 		checkCtx = &CheckContext{
-			senderManager: senderManager,
-			logReceiver:   logReceiver,
-			tagger:        tagger,
-			filter:        filterStore.GetContainerSharedMetricFilters(),
+			senderManager:          senderManager,
+			senderManagerOverrides: make(map[checkid.ID]sender.SenderManager),
+			logReceiver:            logReceiver,
+			tagger:                 tagger,
+			filter:                 filterStore.GetContainerSharedMetricFilters(),
 		}
 
 		if _, ok := logReceiver.Get(); !ok {
@@ -71,4 +88,37 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	}
 
 	checkContextMutex.Unlock()
+}
+
+// RegisterCheckSenderManager routes rtloader callbacks for id through senderManager
+// and returns an idempotent unregister function for the route.
+func RegisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) (func(), bool) {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if checkCtx == nil {
+		log.Debugf("Unable to register rtloader sender manager override for check %s: check context is not initialized", id)
+		return nil, false
+	}
+	checkCtx.senderManagerOverrides[id] = senderManager
+
+	var unregisterOnce sync.Once
+	return func() {
+		unregisterOnce.Do(func() {
+			unregisterCheckSenderManager(id, senderManager)
+		})
+	}, true
+}
+
+func unregisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if checkCtx == nil {
+		return
+	}
+	if checkCtx.senderManagerOverrides[id] != senderManager {
+		return
+	}
+	delete(checkCtx.senderManagerOverrides, id)
 }

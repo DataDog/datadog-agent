@@ -20,7 +20,7 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 
 	truncateTag := message.TruncatedReasonTag("single_line")
 	tagTrunLogsFlag := mockConfig.GetBool("logs_config.tag_truncated_logs")
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", tagTrunLogsFlag)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", tagTrunLogsFlag)
 
 	scenarios := []struct {
 		name             string
@@ -85,7 +85,7 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			var processedMessage *message.Message
-			mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", scenario.tagTruncatedLogs)
+			mockConfig.SetInTest("logs_config.tag_truncated_logs", scenario.tagTruncatedLogs)
 			h := NewSingleLineHandler(func(m *message.Message) { processedMessage = m }, 20)
 
 			for idx, input := range scenario.input {
@@ -145,8 +145,8 @@ func TestSingleLineHandlerFramerIntegration(t *testing.T) {
 	mockConfig := configmock.New(t)
 	truncateTag := message.TruncatedReasonTag("single_line")
 	tagTrunLogsFlag := mockConfig.GetBool("logs_config.tag_truncated_logs")
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", tagTrunLogsFlag)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", tagTrunLogsFlag)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 
 	t.Run("Frame 2 should get tag even though framer sets IsTruncated=false", func(t *testing.T) {
 		// This simulates what the framer actually does for a 21-byte log (one over limit of 20):

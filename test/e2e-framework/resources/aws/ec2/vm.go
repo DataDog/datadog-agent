@@ -6,6 +6,8 @@
 package ec2
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -26,10 +28,12 @@ type InstanceArgs struct {
 	InstanceProfile string
 
 	// Optional
-	UserData           string
-	HTTPTokensRequired bool
-	HostID             pulumi.StringInput // For dedicated host tenancy
-	VolumeThroughput   int                // GP3 volume throughput in MiB/s (125-1000)
+	UserData              string
+	HTTPTokensRequired    bool
+	HostID                pulumi.StringInput // For dedicated host tenancy
+	SubnetID              pulumi.StringInput // Pins the subnet instead of picking one at random
+	VolumeThroughput      int                // GP3 volume throughput in MiB/s (125-1000)
+	WithoutInternetAccess bool               // Replaces the account's default security groups with groups resolved from e.NoInternetSecurityGroupNames()
 }
 
 func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulumi.ResourceOption) (*ec2.Instance, error) {
@@ -43,12 +47,35 @@ func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulu
 		rootBlockDevice.VolumeType = pulumi.String("gp3")
 		rootBlockDevice.Throughput = pulumi.Int(args.VolumeThroughput)
 	}
+	subnetID := pulumi.StringInput(e.RandomSubnets().Index(pulumi.Int(0)))
+	if args.SubnetID != nil {
+		subnetID = args.SubnetID
+	}
+	var securityGroups []string
+	if args.WithoutInternetAccess {
+		sgNames := e.NoInternetSecurityGroupNames()
+		if len(sgNames) == 0 {
+			return nil, fmt.Errorf("no security groups configured to block internet access, set the %s config parameter", aws.DDInfraNoInternetSecurityGroupNamesParamName)
+		}
+		for _, sgName := range sgNames {
+			sg, err := ec2.LookupSecurityGroup(e.Ctx(), &ec2.LookupSecurityGroupArgs{
+				Name:  pulumi.StringRef(sgName),
+				VpcId: pulumi.StringRef(e.DefaultVPCID()),
+			}, e.WithProvider(config.ProviderAWS))
+			if err != nil {
+				return nil, fmt.Errorf("failed to lookup no-internet security group %q: %w", sgName, err)
+			}
+			securityGroups = append(securityGroups, sg.Id)
+		}
+	} else {
+		securityGroups = e.DefaultSecurityGroups()
+	}
 	instanceArgs := &ec2.InstanceArgs{
 		Ami:                     pulumi.StringPtr(args.AMI),
-		SubnetId:                e.RandomSubnets().Index(pulumi.Int(0)),
+		SubnetId:                subnetID,
 		IamInstanceProfile:      pulumi.StringPtr(args.InstanceProfile),
 		InstanceType:            pulumi.StringPtr(args.InstanceType),
-		VpcSecurityGroupIds:     pulumi.ToStringArray(e.DefaultSecurityGroups()),
+		VpcSecurityGroupIds:     pulumi.ToStringArray(securityGroups),
 		KeyName:                 pulumi.StringPtr(args.KeyPairName),
 		UserData:                pulumi.StringPtr(args.UserData),
 		UserDataReplaceOnChange: pulumi.BoolPtr(true),

@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
-//go:generate go run github.com/golang/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go -build_constraint "ec2 && test"
 
 // RdsClient is the interface for describing cluster and instance endpoints
 type RdsClient interface {

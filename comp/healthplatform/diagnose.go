@@ -14,7 +14,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// team: agent-health
+// team: fleet-remediation
 
 // Diagnose converts health platform issues to diagnose format.
 // When diagCfg.Verbose is true, remediations are included in the output.
@@ -31,7 +31,7 @@ func Diagnose(hp healthplatformdef.Component, diagCfg diagnose.Config) []diagnos
 		}
 
 		status := diagnose.DiagnosisWarning
-		if issue.Severity == "critical" || issue.Severity == "high" {
+		if issue.Severity == healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH {
 			status = diagnose.DiagnosisFail
 		}
 

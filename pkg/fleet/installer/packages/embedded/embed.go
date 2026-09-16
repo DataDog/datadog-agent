@@ -8,7 +8,10 @@ package embedded
 
 import (
 	"embed"
-	"path/filepath"
+	"errors"
+	"io/fs"
+	"path"
+	"strings"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -26,30 +29,94 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed tmpl/gen/oci/*.service
-//go:embed tmpl/gen/debrpm/*.service
+// systemdUnits holds the unit set for the systemd service manager
+//
+//go:embed tmpl/gen/sd tmpl/gen/r
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
+// procmgrUnits holds the unit set for the procmgr service manager: the .service for systemd units
+// plus the .yaml processes.d entries it supervises.
 //
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-var DDOTProcessConfig string
+//go:embed tmpl/gen/pm
+var procmgrUnits embed.FS
 
-// SystemdUnitType is the type of systemd unit.
-type SystemdUnitType string
+// DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
+// (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-ddot.yaml
+var DDOTWindowsProcmgrConfig string
+
+// ADPWindowsProcmgrConfig is the codegen-rendered process manager config for ADP on Windows
+// (see embedded/tmpl/main.go). Install time replaces __ADP_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-data-plane.yaml
+var ADPWindowsProcmgrConfig string
+
+// PARWindowsProcmgrConfig is the codegen-rendered process manager config for PAR on Windows
+// (see embedded/tmpl/main.go). Install time replaces __PAR_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-action.yaml
+var PARWindowsProcmgrConfig string
+
+// PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// on-demand executor on Windows (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
+var PARExecutorWindowsProcmgrConfig string
+
+// PARControlWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// control plane on Windows (see embedded/tmpl/main.go). Installer replaces __PAR_*__
+// placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
+var PARControlWindowsProcmgrConfig string
+
+// UnitType is the type of systemd unit.
+type UnitType string
 
 const (
-	// SystemdUnitTypeOCI is the type of systemd unit for OCI.
-	SystemdUnitTypeOCI SystemdUnitType = "oci"
-	// SystemdUnitTypeDebRpm is the type of systemd unit for deb/rpm.
-	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
+	// UnitTypeOCI is the type of systemd unit for OCI.
+	UnitTypeOCI UnitType = "oci"
+	// UnitTypeDebRpm is the type of systemd unit for deb/rpm.
+	UnitTypeDebRpm UnitType = "debrpm"
 )
 
-// GetSystemdUnit returns the systemd unit for the given name.
-func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	dir := string(unitType)
-	if !ambiantCapabilitiesSupported {
-		dir += "-nocap"
+// GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
+func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	if strings.HasPrefix(name, "datadog-agent-rshell-privileged") {
+		return systemdUnits.ReadFile(path.Join("tmpl/gen/r", shortFlavorDir(unitType, ambiantCapabilitiesSupported), name))
 	}
-	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
+	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+}
+
+// GetProcmgrUnit returns the unit for the given name, for the procmgr service manager.
+func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	data, err := procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", flavorDir(unitType, ambiantCapabilitiesSupported), name))
+	if errors.Is(err, fs.ErrNotExist) {
+		return GetSystemdUnit(name, unitType, ambiantCapabilitiesSupported)
+	}
+	return data, err
+}
+
+// GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
+func GetProcmgrProcess(name string) ([]byte, error) {
+	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
+}
+
+func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
+	if ambiantCapabilitiesSupported {
+		return string(unitType)
+	}
+	return string(unitType) + "-nc"
+}
+
+func shortFlavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
+	dir := map[UnitType]string{
+		UnitTypeOCI:    "o",
+		UnitTypeDebRpm: "d",
+	}[unitType]
+	if !ambiantCapabilitiesSupported {
+		dir += "n"
+	}
+	return dir
 }

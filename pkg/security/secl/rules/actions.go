@@ -18,6 +18,7 @@ type Action struct {
 	InternalCallback    *InternalCallbackDefinition
 	FilterEvaluator     *eval.RuleEvaluator
 	ScopeFieldEvaluator eval.Evaluator
+	CaptureMatcher      *eval.CaptureStringMatcher
 }
 
 // CompileFilter compiles the filter expression
@@ -54,6 +55,21 @@ func (a *Action) CompileScopeField(model eval.Model) error {
 	}
 
 	a.ScopeFieldEvaluator = evaluator
+	return nil
+}
+
+// CompileCaptureMatcher compiles the capture pattern
+func (a *Action) CompileCaptureMatcher() error {
+	if a.Def.Set == nil || len(a.Def.Set.Capture) == 0 {
+		return nil
+	}
+
+	var matcher eval.CaptureStringMatcher
+	if err := matcher.Compile(a.Def.Set.Capture); err != nil {
+		return &ErrCapture{Pattern: a.Def.Set.Capture, Err: err}
+	}
+
+	a.CaptureMatcher = &matcher
 	return nil
 }
 

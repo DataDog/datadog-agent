@@ -63,7 +63,7 @@ func TestInsertFileEvent(t *testing.T) {
 				},
 			},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, "tag", Unknown, stats, false, nil, nil)
+		_, _ = pan.InsertFileEvent(&event.Open.File, event, uint64(666), Unknown, stats, false, nil, nil)
 	}
 
 	var builder strings.Builder
@@ -204,7 +204,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -236,7 +236,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -279,7 +279,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -311,7 +311,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -335,17 +335,19 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			Stats:     NewActivityTreeNodeStats(),
 		}
 
+		testTagID := tree.GetOrInsertImageTag("test-tag")
+
 		// Create a process node with an old "last seen" timestamp
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
 			},
 		}
-		processNode.AppendImageTag("test-tag", oldTime)
+		processNode.AppendImageTagID(testTagID, oldTime)
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (node should be evicted)
@@ -369,17 +371,20 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 			Stats:     NewActivityTreeNodeStats(),
 		}
 
+		testTagID := tree.GetOrInsertImageTag("test-tag")
+
 		// Create a process node with an old "last seen" timestamp
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
 			},
 		}
-		processNode.AppendImageTag("test-tag", oldTime)
+
+		processNode.AppendImageTagID(testTagID, oldTime)
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (node would normally be evicted)
@@ -398,8 +403,8 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes := processNode.Seen["test-tag"]
-		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		imageTagTimes, exists := processNode.GetSeenTimes(testTagID)
+		assert.True(t, exists, "Expected image tag to still exist")
 		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
 	})
 
@@ -413,25 +418,29 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		// Create process nodes with old timestamps
 		oldTime := time.Now().Add(-2 * time.Hour)
 
+		testTagID := tree.GetOrInsertImageTag("test-tag")
+
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
 			},
 		}
-		protectedNode.AppendImageTag("test-tag", oldTime)
+
+		protectedNode.AppendImageTagID(testTagID, oldTime)
 
 		expiredNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
 			},
 		}
-		expiredNode.AppendImageTag("test-tag", oldTime)
+
+		expiredNode.AppendImageTagID(testTagID, oldTime)
 
 		tree.ProcessNodes = []*ProcessNode{protectedNode, expiredNode}
 
@@ -452,8 +461,8 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes := tree.ProcessNodes[0].Seen["test-tag"]
-		assert.NotNil(t, imageTagTimes, "Expected image tag to still exist")
+		imageTagTimes, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
+		assert.True(t, exists, "Expected image tag to still exist")
 		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
 	})
 
@@ -469,18 +478,24 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		recentTime := time.Now().Add(-30 * time.Minute)
 
+		veryOldTagID := tree.GetOrInsertImageTag("very-old-tag")
+		oldTagID := tree.GetOrInsertImageTag("old-tag")
+		recentTagID := tree.GetOrInsertImageTag("recent-tag")
+		testTagID := tree.GetOrInsertImageTag("test-tag")
+
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/multi-tag",
 				},
 			},
 		}
-		processNode.AppendImageTag("very-old-tag", veryOldTime)
-		processNode.AppendImageTag("old-tag", oldTime)
-		processNode.AppendImageTag("recent-tag", recentTime)
-		processNode.AppendImageTag("test-tag", oldTime) // Add the profile tag that can be refreshed
+
+		processNode.AppendImageTagID(veryOldTagID, veryOldTime)
+		processNode.AppendImageTagID(oldTagID, oldTime)
+		processNode.AppendImageTagID(recentTagID, recentTime)
+		processNode.AppendImageTagID(testTagID, oldTime) // Add the profile tag that can be refreshed
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (very-old-tag and old-tag should be evicted)
@@ -500,16 +515,16 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		// Verify that only the profile's image tag was refreshed
 		node := tree.ProcessNodes[0]
-		veryOldTagTimes := node.Seen["very-old-tag"]
-		oldTagTimes := node.Seen["old-tag"]
-		recentTagTimes := node.Seen["recent-tag"]
-		testTagTimes := node.Seen["test-tag"]
+		veryOldTagTimes, _ := node.GetSeenTimes(veryOldTagID)
+		oldTagTimes, _ := node.GetSeenTimes(oldTagID)
+		recentTagTimes, _ := node.GetSeenTimes(recentTagID)
+		testTagTimes, _ := node.GetSeenTimes(testTagID)
 
 		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
-		assert.Nil(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
-		assert.Nil(t, oldTagTimes, "Expected old-tag to be evicted")
-		assert.NotNil(t, recentTagTimes, "Expected recent-tag to still exist")
-		assert.NotNil(t, testTagTimes, "Expected test-tag to still exist")
+		assert.Zero(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
+		assert.Zero(t, oldTagTimes, "Expected old-tag to be evicted")
+		assert.NotZero(t, recentTagTimes, "Expected recent-tag to still exist")
+		assert.NotZero(t, testTagTimes, "Expected test-tag to still exist")
 
 		// The test-tag should have been refreshed to current time (it's the profile tag)
 		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
@@ -529,23 +544,24 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node1 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node1",
 				},
 			},
 		}
-		node1.AppendImageTag("test-tag", oldTime)
+		testTagID := uint64(666)
+		node1.AppendImageTagID(testTagID, oldTime)
 
 		node2 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node2",
 				},
 			},
 		}
-		node2.AppendImageTag("test-tag", oldTime)
+		node2.AppendImageTagID(testTagID, oldTime)
 
 		tree.ProcessNodes = []*ProcessNode{node1, node2}
 
@@ -562,4 +578,50 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
 		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
+}
+
+func TestProcessInfoMatches(t *testing.T) {
+	node := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+			Argv0:     "curl",
+			Argv:      []string{"-s", "https://example.com"},
+		},
+	}
+
+	same := ProcessInfo{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.MatchesProcessInfo(&same, false, false))
+	assert.True(t, node.MatchesProcessInfo(&same, true, false))
+	assert.True(t, node.Process.Matches(&same, true, false))
+
+	differentPath := same
+	differentPath.FileEvent.PathnameStr = "/usr/bin/wget"
+	assert.False(t, node.MatchesProcessInfo(&differentPath, false, false))
+
+	differentArgs := same
+	differentArgs.Argv = []string{"-v", "https://example.com"}
+	assert.True(t, node.MatchesProcessInfo(&differentArgs, false, false))
+	assert.False(t, node.MatchesProcessInfo(&differentArgs, true, false))
+
+	busybox := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"},
+			Argv0:     "sh",
+		},
+	}
+	busyboxSame := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "sh"}
+	busyboxOther := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "ls"}
+	assert.True(t, busybox.MatchesProcessInfo(&busyboxSame, false, false))
+	assert.False(t, busybox.MatchesProcessInfo(&busyboxOther, false, false))
+
+	entry := &model.Process{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.Matches(entry, true, false))
 }

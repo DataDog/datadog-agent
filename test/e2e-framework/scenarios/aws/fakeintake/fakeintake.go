@@ -28,7 +28,7 @@ import (
 	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 )
 
 const (
@@ -66,6 +66,8 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 			map[string]awsxEcs.TaskDefinitionContainerDefinitionArgs{"fakeintake": *fargateLinuxContainerDefinition(apiKeyParam.Name, params)},
 			apiKeyParam.Name,
 			nil,
+			// Pulled by the ECS control plane along with the task definition, so the
+			// pull-through cache is unreachable here.
 			"public.ecr.aws/datadog/agent:latest",
 			opts...,
 		)
@@ -228,6 +230,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	if params.RetentionPeriod != "" {
 		command = append(command, "-retention-period="+params.RetentionPeriod)
 	}
+
+	// Always supply the global RC signing key so fakeintake's TUF root is
+	// deterministic and matches what the agent is configured with at provision time.
+	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
 		Name:        pulumi.String(containerName),

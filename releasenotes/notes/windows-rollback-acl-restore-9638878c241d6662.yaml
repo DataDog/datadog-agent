@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On Windows, fixed an issue where a failed Agent upgrade could leave some
+    files without their permissions restored after the MSI rolled back,
+    which could prevent the Agent from starting.

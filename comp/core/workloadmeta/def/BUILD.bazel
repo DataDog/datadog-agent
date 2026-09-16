@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "def",
@@ -20,9 +21,9 @@ go_library(
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/containers/image",
         "//pkg/util/scrubber",
+        "@cat_dario_mergo//:mergo",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_fatih_color//:color",
-        "@com_github_imdario_mergo//:mergo",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@io_k8s_apimachinery//pkg/runtime/schema",
@@ -31,7 +32,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "def_test",
     srcs = [
         "dump_test.go",
@@ -42,7 +43,6 @@ go_test(
         "types_test.go",
     ],
     embed = [":def"],
-    gotags = ["test"],
     deps = [
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",

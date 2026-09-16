@@ -35,7 +35,6 @@ def get_kmt_os():
 class Linux:
     kmt_dir = get_home_linux()
     name = "linux"
-    user_group = getpass.getuser()
     libvirt_group = "libvirt"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -47,6 +46,13 @@ class Linux:
     config_path = kmt_dir / "config.json"
 
     qemu_conf = Path("/etc/libvirt/qemu.conf")
+
+    # Deferred so importing this module doesn't fail on Windows, where
+    # getpass.getuser() can fall back to `import pwd` if no user env var
+    # (USER/USERNAME/...) is set in the subprocess.
+    @classmethod
+    def user_group(cls):
+        return getpass.getuser()
 
     @staticmethod
     def flare(ctx: Context, flare_folder: Path):
@@ -60,7 +66,6 @@ class Linux:
 class MacOS:
     kmt_dir = get_home_macos()
     name = "macos"
-    user_group = "staff"
     libvirt_group = "staff"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -73,6 +78,10 @@ class MacOS:
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
     config_path = kmt_dir / "config.json"
+
+    @classmethod
+    def user_group(cls):
+        return "staff"
 
     @staticmethod
     def flare(ctx: Context, flare_folder: Path):

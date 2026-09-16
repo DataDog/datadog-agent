@@ -34,6 +34,10 @@ var (
 	knownSafeEnvVars = map[string]struct{}{
 		"DD_AUTH_TOKEN_FILE_PATH": {},
 	}
+
+	// cmdlineTokenizer tokenizes by capturing non-whitespace terms as tokens EX: "agent --secret" > ["agent", "--secret"]
+	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
+	cmdlineTokenizer = regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
 )
 
 // DataScrubber allows the agent to block cmdline arguments that match
@@ -45,7 +49,6 @@ type DataScrubber struct {
 	// LiteralSensitivePatterns are custom words which use to match against
 	LiteralSensitivePatterns         []string
 	regexSensitiveWordsInAnnotations []*regexp.Regexp
-	scrubbedCmdLines                 map[string][]string
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
@@ -54,7 +57,6 @@ func NewDefaultDataScrubber() *DataScrubber {
 	newDataScrubber := &DataScrubber{
 		Enabled:                  true,
 		LiteralSensitivePatterns: defaultSensitiveWords,
-		scrubbedCmdLines:         make(map[string][]string),
 	}
 
 	newDataScrubber.setupAnnotationRegexps(defaultSensitiveWords)
@@ -118,10 +120,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		}
 	}
 
-	// Regex tokenizes by capturing non-whitespace terms as tokens EX: "agent --secret" > ["agent", "--secret"]
-	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
-	r := regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
-	newCmdline := r.FindAllString(rawCmdline, -1)
+	newCmdline := cmdlineTokenizer.FindAllString(rawCmdline, -1)
 
 	// remove the separator from the cmdline
 	cmIndex := 0
@@ -141,13 +140,14 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 	// the first index can be skipped because it should be the program name.
 	for index := 1; index < len(newCmdline); index++ {
 		cmd := newCmdline[index]
+		lowerCmd := strings.ToLower(cmd)
 		for _, pattern := range ds.LiteralSensitivePatterns {
 			// if we found a word from the list,
 			// it means either:
 			// - the current after a delimiter should be a password we want to replace e.g. "agent --secret=<replace-me>" (1)
 			// - the next word should be replaced.  e.g. "agent --secret <replace-me>" (1)
 			// - the word is part of a special list of words, contains multiple supportedEnds and can be ignored e.g. "agent > /secret/secret" should not match (3)
-			matchIndex := strings.Index(strings.ToLower(cmd), pattern)
+			matchIndex := strings.Index(lowerCmd, pattern)
 			// password<delimiter>1234 || password || (ignore<delimiter>me<delimiter>password e.g ignore:me:password ignore/me/password)
 			// agent --password======test
 			// agent > /password/secret ==> agent > /password/secret

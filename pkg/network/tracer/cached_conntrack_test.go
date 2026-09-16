@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -11,10 +11,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"

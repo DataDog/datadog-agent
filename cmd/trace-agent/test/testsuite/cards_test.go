@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -110,7 +110,9 @@ apm_config:
 			}
 			waitForTrace(t, &r, func(v *pb.AgentPayload) {
 				payloadsEqual(t, traces, v)
-				assert.Equal(t, tt.out, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"])
+				tp := v.IdxTracerPayloads[0]
+				cardNumber, _ := idxStrAttr(tp.Strings, tp.Chunks[0].Spans[0].Attributes, "credit_card_number")
+				assert.Equal(t, tt.out, cardNumber)
 			})
 		})
 	}

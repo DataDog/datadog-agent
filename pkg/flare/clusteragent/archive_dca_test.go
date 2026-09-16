@@ -190,7 +190,7 @@ func setupClusterAgentIPCAddress(t *testing.T, confMock model.Config, URL string
 	host, port, err := net.SplitHostPort(u.Host)
 	require.NoError(t, err)
 
-	confMock.SetWithoutSource("cmd_host", host)
-	confMock.SetWithoutSource("cmd_port", port)
-	confMock.SetWithoutSource("cluster_agent.cmd_port", port)
+	confMock.SetInTest("cmd_host", host)
+	confMock.SetInTest("cmd_port", port)
+	confMock.SetInTest("cluster_agent.cmd_port", port)
 }

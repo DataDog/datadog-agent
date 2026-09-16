@@ -36,6 +36,7 @@
 // Version Definitions
 //
 #define DRIVER_COUNTERS_VERSION_1 1
+#define DRIVER_COUNTERS_VERSION_2 2
 
 //
 // Structure Definitions
@@ -83,6 +84,17 @@ typedef struct _COUNTER_REQUEST {
     LONG64 PeInjectionContextAllocated; \
     LONG64 PeInjectionContextCleanedup;
 
+/**
+ * @brief V2 counter fields - Crash and boot-recovery telemetry.
+ * @warning These fields must NEVER be modified once released. Create V3 for new counters.
+ */
+#define DRIVER_COUNTERS_V2_FIELDS \
+    LONG64 CrashesDuringInjection; \
+    LONG64 CrashesPostInjection; \
+    LONG64 BootRecoveryCrashBootsDetected; \
+    LONG64 BootRecoveryDriverSelfDisabled; \
+    LONG64 BootRecoveryStabilityTimerFired;
+
 //
 // Counter Structure Definitions
 //
@@ -99,25 +111,22 @@ typedef struct _DRIVER_COUNTERS_V1 {
     DRIVER_COUNTERS_V1_FIELDS
 } DRIVER_COUNTERS_V1, *PDRIVER_COUNTERS_V1;
 
-/*
- * FUTURE VERSION EXTENSION EXAMPLE:
+/**
+ * @brief Driver performance and diagnostic counters (Version 2).
+ * @warning This structure must NEVER be modified. Create V3 for new counters.
  *
- * #define DRIVER_COUNTERS_VERSION_2 2
- *
- * #define DRIVER_COUNTERS_V2_FIELDS \
- *     LONG64 MemoryPoolAllocations; \
- *     LONG64 MemoryPoolFailures;
- *
- * typedef struct _DRIVER_COUNTERS_V2 {
- *     struct {
- *         DRIVER_COUNTERS_V1_FIELDS
- *     } v1;
- *     DRIVER_COUNTERS_V2_FIELDS
- * } DRIVER_COUNTERS_V2, *PDRIVER_COUNTERS_V2;
+ * @details
+ * V2 embeds the frozen V1 counters under a 'v1' namespace and appends the
+ * V2 fields. The embedded V1 struct occupies the head of the structure, so a
+ * V2 buffer can always be reinterpreted as a V1 buffer.
  *
  * Usage:
  *   counters.v1.ProcessesAddedToInjectionTracker  // V1 field
- *   counters.MemoryPoolAllocations                // V2 field
+ *   counters.CrashesDuringInjection               // V2 field
  */
+typedef struct _DRIVER_COUNTERS_V2 {
+    DRIVER_COUNTERS_V1 v1;
+    DRIVER_COUNTERS_V2_FIELDS
+} DRIVER_COUNTERS_V2, *PDRIVER_COUNTERS_V2;
 
 #endif // DDINJECTOR_PUBLIC_H

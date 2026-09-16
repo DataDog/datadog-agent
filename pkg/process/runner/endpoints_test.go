@@ -93,12 +93,12 @@ func TestGetAPIEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("api_key", tc.apiKey)
+			cfg.SetInTest("api_key", tc.apiKey)
 			if tc.ddURL != "" {
-				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
+				cfg.SetInTest("process_config.process_dd_url", tc.ddURL)
 			}
 			if tc.additionalEndpoints != nil {
-				cfg.SetWithoutSource("process_config.additional_endpoints", tc.additionalEndpoints)
+				cfg.SetInTest("process_config.additional_endpoints", tc.additionalEndpoints)
 			}
 
 			if eps, err := endpoint.GetAPIEndpoints(cfg); tc.error {
@@ -139,10 +139,10 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			if tc.site != "" {
-				cfg.SetWithoutSource("site", tc.site)
+				cfg.SetInTest("site", tc.site)
 			}
 			if tc.ddURL != "" {
-				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
+				cfg.SetInTest("process_config.process_dd_url", tc.ddURL)
 			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)
@@ -223,13 +223,13 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("api_key", tc.apiKey)
+			cfg.SetInTest("api_key", tc.apiKey)
 			if tc.ddURL != "" {
-				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
+				cfg.SetInTest("process_config.process_dd_url", tc.ddURL)
 			}
 
 			if tc.additionalEndpoints != nil {
-				cfg.SetWithoutSource("process_config.additional_endpoints", tc.additionalEndpoints)
+				cfg.SetInTest("process_config.additional_endpoints", tc.additionalEndpoints)
 			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)

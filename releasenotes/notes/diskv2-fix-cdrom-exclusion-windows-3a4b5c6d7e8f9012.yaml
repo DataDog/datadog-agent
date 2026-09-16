@@ -1,0 +1,7 @@
+fixes:
+  - |
+    Windows: Fix CD-ROM drives being monitored by the disk check since Agent 7.73.0.
+    The diskv2 check now uses the Windows ``GetDriveType()`` API to properly
+    detect and exclude CD-ROM drives, matching the behavior of the previous
+    Python disk check. This fixes false alerts on ``system.disk.in_use`` for
+    CD-ROM drives with inserted media.

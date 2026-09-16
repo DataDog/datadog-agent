@@ -16,7 +16,7 @@ import (
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -94,10 +94,10 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 	}
 	tailer.Start()
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
-		if source.Status.IsSuccess() {
+		if source.Status().IsSuccess() {
 			return nil, nil
-		} else if source.Status.IsError() {
-			return nil, errors.New(source.Status.GetError())
+		} else if source.Status().IsError() {
+			return nil, errors.New(source.Status().GetError())
 		}
 		return nil, errors.New("start pending")
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))
@@ -190,23 +190,23 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	// stop the EventLog service and assert the tailer detects the error
 	s.ti.KillEventLogService(s.T())
 	_, err = backoff.Retry(context.Background(), func() (any, error) {
-		if tailer.source.Status.IsSuccess() {
+		if tailer.source.Status().IsSuccess() {
 			return nil, errors.New("tailer is still running")
-		} else if tailer.source.Status.IsError() {
+		} else if tailer.source.Status().IsError() {
 			return nil, nil
 		}
 		return nil, errors.New("start pending")
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))
 	s.Require().NoError(err, "tailer should catch the error and update the source status")
-	fmt.Println(tailer.source.Status.GetError())
+	fmt.Println(tailer.source.Status().GetError())
 
 	// start the EventLog service and assert the tailer resumes from the previous error
 	s.ti.StartEventLogService(s.T())
 	_, err = backoff.Retry(context.Background(), func() (any, error) {
-		if tailer.source.Status.IsSuccess() {
+		if tailer.source.Status().IsSuccess() {
 			return nil, nil
-		} else if tailer.source.Status.IsError() {
-			return nil, errors.New(tailer.source.Status.GetError())
+		} else if tailer.source.Status().IsError() {
+			return nil, errors.New(tailer.source.Status().GetError())
 		}
 		return nil, errors.New("start pending")
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))

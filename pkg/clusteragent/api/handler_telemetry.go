@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -49,6 +50,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.api.request",
 		tracer.ResourceName(t.handlerName),
 		tracer.SpanType("web"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("http.method", r.Method),
 		tracer.Tag("http.url", r.URL.Path))
 	wrapper.setSpanTags = func(statusCode int) {
@@ -100,6 +102,17 @@ func SetSpanError(w http.ResponseWriter, err error) {
 	if tw, ok := w.(*telemetryWriterWrapper); ok {
 		tw.capturedErr = err
 	}
+}
+
+// Write implements http.ResponseWriter.Write. It routes through WriteHeader so that
+// the implicit http.StatusOK header write performed by the standard library (when a
+// handler calls Write before WriteHeader) is tracked by wroteHeader, preventing a
+// subsequent explicit WriteHeader call from writing the header twice.
+func (w *telemetryWriterWrapper) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {

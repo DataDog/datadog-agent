@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    gpu: add ``gpu_nvlink_capable`` and ``gpu_nvlink_version`` tags to GPU metrics, to allow filtering GPUs that have NVLink enabled and the version supported.

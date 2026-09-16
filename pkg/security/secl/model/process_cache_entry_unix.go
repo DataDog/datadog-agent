@@ -25,32 +25,13 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	// remove from old parent's children list
-	if pc.Ancestor != nil {
-		pc.Ancestor.RemoveChild(pc)
-	}
-
 	pc.Ancestor = parent
 
 	if parent != nil {
 		pc.Parent = &parent.Process
-		parent.Children = append(parent.Children, pc)
 		pc.copyProcessContextFrom(parent)
 	} else {
 		pc.Parent = nil
-	}
-}
-
-// RemoveChild removes a child from this entry's Children list.
-func (pc *ProcessCacheEntry) RemoveChild(child *ProcessCacheEntry) {
-	pc.Children = slices.DeleteFunc(pc.Children, func(c *ProcessCacheEntry) bool {
-		return c == child
-	})
-	// slices.DeleteFunc reduces len but not cap; nil the slice when empty so
-	// the backing array can be reclaimed by the GC (important for long-lived
-	// processes such as subreapers that accumulate many transient children).
-	if len(pc.Children) == 0 {
-		pc.Children = nil
 	}
 }
 
@@ -76,9 +57,20 @@ func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 }
 
-// Exit a process
+// StopExecution marks this process cache entry as no longer being the current
+// executing image. This happens both on exec replacement and on final exit.
+func (pc *ProcessCacheEntry) StopExecution(stopTime time.Time) {
+	pc.StopExecutionTime = stopTime
+}
+
+// Exit marks a process final exit. If this entry had already stopped executing
+// because it was replaced by a later exec, keep that StopExecutionTime and only
+// record the final process ExitTime.
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
+	if pc.StopExecutionTime.IsZero() {
+		pc.StopExecution(exitTime)
+	}
 }
 
 func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
@@ -122,8 +114,9 @@ func (pc *ProcessCacheEntry) SetAsExec() {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetExecParent(pc)
 
-	// use exec time as exit time
-	pc.Exit(entry.ExecTime)
+	// The previous cache entry stopped executing at this exec, but the process
+	// itself did not exit. Keep ExitTime reserved for the final do_exit event.
+	pc.StopExecution(entry.ExecTime)
 }
 
 // GetContainerPIDs return the pids
@@ -200,7 +193,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
-	child.TracerMetadata = pc.TracerMetadata
+	child.Tracer.Metadata = pc.Tracer.Metadata
 
 	child.SetForkParent(pc)
 }

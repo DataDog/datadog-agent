@@ -1,9 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hostinfo",
     srcs = [
         "hostinfo.go",
+        "hostinfo_aix.go",
         "hostinfo_nix.go",
         "hostinfo_windows.go",
     ],
@@ -13,6 +15,7 @@ go_library(
         "//pkg/util/cache",
     ] + select({
         "@rules_go//go/platform:aix": [
+            "//pkg/gohai/platform",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//host",
         ],
@@ -83,17 +86,18 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "hostinfo_test",
     srcs = [
+        "hostinfo_aix_test.go",
         "hostinfo_nix_test.go",
         "hostinfo_windows_test.go",
     ],
     embed = [":hostinfo"],
     env_inherit = ["PATH"],  # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
+            "//pkg/gohai/platform",
             "//pkg/util/cache",
             "@com_github_shirou_gopsutil_v4//host",
             "@com_github_stretchr_testify//assert",

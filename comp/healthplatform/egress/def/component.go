@@ -1,0 +1,45 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package egress defines the interface for the health platform egress component.
+package egress
+
+import "time"
+
+// team: fleet-remediation
+
+// SendStatus reports the health of the egress -> forwarder send pipeline,
+// for display in `agent status`.
+type SendStatus struct {
+	// Healthy is true if the most recent send attempt succeeded, or if no
+	// send has ever failed (including when no tick has happened yet, or a
+	// tick had nothing to report).
+	Healthy bool
+	// LastAttemptAt is the time of the most recent tick, whether or not a
+	// send was actually attempted: a tick with nothing to report still
+	// updates this. Zero if no tick has happened yet.
+	LastAttemptAt time.Time
+	// LastSuccessAt is the time of the most recent successful send, zero if none succeeded yet.
+	LastSuccessAt time.Time
+	// LastError is the error from the most recent failed send attempt, nil if
+	// the last attempt succeeded or no send has failed yet. A tick with
+	// nothing to report leaves this untouched, so a persistent failure stays
+	// reflected here until an actual retry succeeds.
+	LastError error
+	// BytesSentTotal is the cumulative number of payload bytes sent to the Datadog intake.
+	BytesSentTotal int64
+	// SendErrorsTotal is the cumulative number of failed send attempts.
+	SendErrorsTotal int64
+}
+
+// Component is the health platform egress component interface.
+// Egress drives the periodic outbound HTTP POST to the Datadog intake:
+// on each tick it calls store.GetAllIssues(), builds a HealthReport, and
+// forwards it via forwarder.Send. Behaviour is driven entirely by its fx
+// lifecycle hooks; Status exposes the outcome for display in `agent status`.
+type Component interface {
+	// Status returns the current health of the egress send pipeline.
+	Status() SendStatus
+}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && bpf && test
 
 package http2
 
@@ -16,8 +16,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -26,7 +24,7 @@ import (
 func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 	srv := &http.Server{
 		Addr: address,
-		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCode := testutil.StatusFromPath(r.URL.Path)
 			if statusCode == 0 {
 				w.WriteHeader(http.StatusOK)
@@ -35,11 +33,15 @@ func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 			}
 			defer func() { _ = r.Body.Close() }()
 			_, _ = io.Copy(w, r.Body)
-		}), &http2.Server{}),
+		}),
 		IdleTimeout: 2 * time.Second,
+		Protocols:   new(http.Protocols),
 	}
-
-	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
+	srv.Protocols.SetHTTP1(true)
+	srv.Protocols.SetUnencryptedHTTP2(true)
+	if isTLS {
+		srv.Protocols.SetHTTP2(true)
+	}
 
 	l, err := net.Listen("tcp", address)
 	require.NoError(t, err, "could not listen")

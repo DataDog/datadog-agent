@@ -12,7 +12,11 @@ import (
 )
 
 // On non-Linux, non-Windows, we don't support containers and will assume
-// os hostname is usable
+// os hostname is usable.
+//
+// NOTE: the trace-agent carries a copy of this logic in
+// comp/trace/config/impl/os_hostname_others.go (it cannot import this package directly
+// without pulling in heavy transitive dependencies). Keep the two in sync.
 func isOSHostnameUsable(_ context.Context) bool {
 	return true
 }

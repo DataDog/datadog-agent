@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,7 +31,6 @@ import (
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
@@ -38,9 +38,6 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
-	// https://datadoghq.atlassian.net/browse/CXP-2284
-	flake.Mark(t)
-
 	enableProcessAgent(t)
 
 	t.Run("rt allowed", func(t *testing.T) {
@@ -126,7 +123,7 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Options(options...),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 	))
 }
 

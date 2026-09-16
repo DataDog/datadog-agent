@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"os"
 	"os/exec"
 	"strconv"
@@ -29,6 +30,12 @@ import (
 // when it can not be obtained by any other means. It is replaced in tests.
 var fallbackHostnameFunc = os.Hostname
 
+// osHostnameUsableFunc reports whether os.Hostname() is trustworthy in the
+// current environment. It is replaced in tests.
+var osHostnameUsableFunc = func(_ context.Context) bool {
+	return isOsHostnameUsable()
+}
+
 func hostname(c *config.AgentConfig) error {
 	// no user-set hostname, try to acquire
 	if err := acquireHostname(c); err != nil {
@@ -43,7 +50,7 @@ func hostname(c *config.AgentConfig) error {
 // acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
 // gRPC endpoints. If it fails, it will return an error.
 func acquireHostname(c *config.AgentConfig) error {
-	ipcPortString := pkgconfigsetup.GetIPCPort()
+	ipcPortString := pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog())
 	ipcPort, err := strconv.Atoi(ipcPortString)
 	if err != nil || ipcPort <= 0 {
 		return fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", ipcPortString)
@@ -52,7 +59,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -90,6 +97,15 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		if !osHostnameUsableFunc(context.Background()) {
+			// In a container, os.Hostname() returns the container/pod name, not the
+			// node hostname. Fail so the orchestrator can restart and retry once the
+			// core agent is healthy.
+			if err != nil {
+				return fmt.Errorf("couldn't get hostname from core agent at %q: %v. Set DD_HOSTNAME or hostname in the agent config", c.DDAgentBin, err)
+			}
+			return errors.New("core agent returned empty hostname and os.Hostname() is not usable in this environment (container UTS namespace). Set DD_HOSTNAME or hostname in the agent config")
+		}
 		host, err2 := fallbackHostnameFunc()
 		if err2 != nil {
 			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/def"
@@ -184,6 +184,8 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
+	// Disable cloud provider metadata to avoid real HTTP calls
+	config.NewMock(t).SetInTest("cloud_provider_metadata", []string{})
 	ret := NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,

@@ -6,19 +6,8 @@
 pub mod server;
 pub mod service;
 
-#[cfg(not(bazel))]
 pub mod proto {
-    tonic::include_proto!("datadog.procmgr");
-
-    pub const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("process_manager_descriptor");
-}
-
-#[cfg(bazel)]
-pub mod proto {
-    pub use process_manager_proto::datadog::procmgr::*;
-    pub const FILE_DESCRIPTOR_SET: &[u8] =
-        process_manager_proto::datadog::procmgr::FILE_DESCRIPTOR_SET;
+    pub use dd_procmgr_client::proto::*;
 }
 
 #[cfg(all(test, unix))]
@@ -29,13 +18,11 @@ mod tests {
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::ProcessManager;
-    use hyper_util::rt::TokioIo;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnixListenerStream;
-    use tonic::transport::{Channel, Endpoint};
-    use tower::service_fn;
+    use tonic::transport::Channel;
 
     use crate::test_helpers;
 
@@ -85,7 +72,7 @@ mod tests {
             drop(dir);
         });
 
-        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
+        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::process::ExitEvent>(256);
         let mgr_loop = mgr.clone();
         let exit_tx_loop = exit_tx.clone();
         tokio::spawn(async move {
@@ -122,20 +109,17 @@ mod tests {
             }
         });
 
-        let channel = Endpoint::from_static(crate::transport::DUMMY_ENDPOINT)
-            .connect_with_connector(service_fn(move |_| {
-                let path = sock_path.clone();
-                async move {
-                    tokio::net::UnixStream::connect(path)
-                        .await
-                        .map(TokioIo::new)
-                }
-            }))
-            .await
-            .unwrap();
+        let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
 
         let client = ProcessManagerClient::new(channel);
         (client, shutdown_tx)
+    }
+
+    fn sleep_process_def(name: &str) -> ProcessDefinition {
+        ProcessDefinition {
+            name: name.to_string(),
+            config: test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
+        }
     }
 
     #[tokio::test]
@@ -445,18 +429,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_mixed_states() {
-        let (sleep_cmd, sleep_args) = test_helpers::sleep_cmd(60);
+        let sleep_cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         let (fail_cmd, fail_args) = test_helpers::exit_cmd(1);
         let (exit_cmd, exit_args) = test_helpers::exit_cmd(0);
         let (true_cmd, true_args) = test_helpers::true_cmd();
         let defs = vec![
             ProcessDefinition {
                 name: "running-svc".to_string(),
-                config: ProcessConfig {
-                    command: sleep_cmd.to_string(),
-                    args: sleep_args.clone(),
-                    ..Default::default()
-                },
+                config: sleep_cfg,
             },
             ProcessDefinition {
                 name: "failed-svc".to_string(),
@@ -468,11 +448,7 @@ mod tests {
             },
             ProcessDefinition {
                 name: "stopped-svc".to_string(),
-                config: ProcessConfig {
-                    command: sleep_cmd.to_string(),
-                    args: sleep_args,
-                    ..Default::default()
-                },
+                config: test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
             },
             ProcessDefinition {
                 name: "exited-svc".to_string(),
@@ -560,16 +536,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_shows_running_pid() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
-            name: "live-proc".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }])
-        .await;
+        let (mut client, _shutdown) = start_test_server(vec![sleep_process_def("live-proc")]).await;
 
         client
             .start(proto::StartRequest {
@@ -599,16 +566,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_success() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
-            name: "sleeper".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }])
-        .await;
+        let (mut client, _shutdown) = start_test_server(vec![sleep_process_def("sleeper")]).await;
 
         let start_resp = client
             .start(proto::StartRequest {
@@ -657,16 +615,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_already_running() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
-            name: "running".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }])
-        .await;
+        let (mut client, _shutdown) = start_test_server(vec![sleep_process_def("running")]).await;
 
         client
             .start(proto::StartRequest {
@@ -693,16 +642,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_rpc_success() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
-            name: "to-stop".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }])
-        .await;
+        let (mut client, _shutdown) = start_test_server(vec![sleep_process_def("to-stop")]).await;
 
         // Start via RPC so the watcher is wired
         client
@@ -781,16 +721,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
-            name: "lifecycle".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }])
-        .await;
+        let (mut client, _shutdown) = start_test_server(vec![sleep_process_def("lifecycle")]).await;
 
         // Start
         client
@@ -830,7 +761,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_then_start() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -872,7 +803,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_auto_start() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -1106,15 +1037,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop_by_uuid_prefix() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let defs = vec![ProcessDefinition {
-            name: "svc-b".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
-        }];
+        let defs = vec![sleep_process_def("svc-b")];
         let (mut client, _shutdown) = start_test_server(defs).await;
 
         let list = client

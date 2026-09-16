@@ -17,19 +17,19 @@ jobs:
     environment:
       name: main
     steps:
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
           policy: self.upgrade-python-version.create-pr
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
       - name: Install dda
@@ -73,9 +73,9 @@ jobs:
             Upgrades the Agent's embedded Python interpreter from **${{ steps.update.outputs.current_version }}** to **${{ steps.update.outputs.new_version }}** (patch version update).
             
             ### Changes
-            - Updated `omnibus/config/software/python3.rb` with new version and SHA256
             - Updated `deps/cpython/cpython.MODULE.bazel` with new version and SHA256
             - Updated `test/new-e2e/tests/agent-platform/common/agent_behaviour.go` with expected version
+            - Updated `packaging/aix/lib/env.sh` with new version
             - Created release note documenting the upgrade
             
             ### Motivation
@@ -89,4 +89,4 @@ jobs:
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
           team-reviewers: agent-integrations
-          labels: team/agent-integrations,changelog/no-changelog,ask-review
+          labels: team/agent-integrations,changelog/no-changelog

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "metric.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/metadata/host/impl/hosttags",
+        "//pkg/collector/corechecks/oracle/common",
+        "//pkg/config/setup",
+        "//pkg/obfuscate",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    gotags_sets = [["oracle"]],
+    include_default = False,
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

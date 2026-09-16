@@ -16,12 +16,12 @@ func TestIsEnabled(t *testing.T) {
 	cfg := config.NewMock(t)
 	assert.False(t, IsEnabled(cfg))
 
-	cfg.SetWithoutSource("ha_agent.enabled", true)
+	cfg.SetInTest("ha_agent.enabled", true)
 	assert.True(t, IsEnabled(cfg))
 }
 
 func TestGetConfigID(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("config_id", "my-config-id")
+	cfg.SetInTest("config_id", "my-config-id")
 	assert.Equal(t, "my-config-id", GetConfigID(cfg))
 }

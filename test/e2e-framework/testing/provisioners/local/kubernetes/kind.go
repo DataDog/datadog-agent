@@ -42,11 +42,16 @@ type ProvisionerParams struct {
 	extraConfigParams   runner.ConfigMap
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
-	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
-	// instead of the Datadog Helm chart. See StandaloneAgentDeployFunc.
-	standaloneAgentFunc StandaloneAgentDeployFunc
-	workerNodes         []kubeComp.KindWorkerNode
-	imagesToLoad        []string
+	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
+	// Distribution of OpenTelemetry) agent DaemonSet in addition to (or instead
+	// of) the Datadog Helm chart. See StandaloneDdotDeployFunc.
+	standaloneDdotFunc StandaloneDdotDeployFunc
+	// agentOptionsSet is true once WithAgentOptions or WithoutAgent has been called
+	// explicitly. It lets KindRunFunc distinguish "caller wants the Helm agent deployed
+	// alongside a standalone DDOT agent" from "agentOptions is just its non-nil zero value".
+	agentOptionsSet bool
+	workerNodes     []kubeComp.KindWorkerNode
+	imagesToLoad    []string
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -67,10 +72,11 @@ type ProvisionerOption func(*ProvisionerParams) error
 // (e.g. RBAC bindings) that must be created before the agent is deployed.
 type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
 
-// StandaloneAgentDeployFunc is a callback invoked by KindRunFunc to deploy a
-// standalone agent DaemonSet (e.g. otel-agent with DD_OTEL_STANDALONE=true)
-// after the cluster and fakeintake have been provisioned.
-type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
+// StandaloneDdotDeployFunc is a callback invoked by KindRunFunc to deploy a
+// standalone DDOT (Datadog Distribution of OpenTelemetry) agent DaemonSet
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) after the cluster and
+// fakeintake have been provisioned.
+type StandaloneDdotDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // WithName sets the name of the provisioner
 func WithName(name string) ProvisionerOption {
@@ -83,7 +89,9 @@ func WithName(name string) ProvisionerOption {
 // WithAgentOptions adds options to the agent
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.agentOptions = opts
+		// Ensure non-nil so calling WithAgentOptions() (with zero opts) never disables agent deployment.
+		params.agentOptions = append([]kubernetesagentparams.Option{}, opts...)
+		params.agentOptionsSet = true
 		return nil
 	}
 }
@@ -108,6 +116,7 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
+		params.agentOptionsSet = true
 		return nil
 	}
 }
@@ -137,11 +146,13 @@ func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFun
 }
 
 // WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
-// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources
-// instead of the Datadog Helm chart.
-func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) ProvisionerOption {
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources.
+// By default this replaces the Datadog Helm chart; combine with an explicit
+// WithAgentOptions call to deploy both side by side (e.g. to test that a standalone
+// otel-agent doesn't conflict with a co-located core Agent).
+func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.standaloneAgentFunc = fn
+		params.standaloneDdotFunc = fn
 		return nil
 	}
 }
@@ -273,15 +284,15 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	if params.standaloneAgentFunc != nil {
-		standaloneAgent, err := params.standaloneAgentFunc(&localEnv, kubeProvider, fakeIntake)
-		if err != nil {
-			return err
-		}
-		if err := standaloneAgent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
-			return err
-		}
-	} else if params.agentOptions != nil {
+	// deployHelmAgent decides whether the Datadog Helm chart is installed. It's always
+	// installed when the caller didn't request a standalone DDOT agent (preserving the
+	// pre-existing default). When a standalone DDOT agent is requested, the Helm chart is
+	// only installed on top of it if the caller explicitly opted in via WithAgentOptions
+	// (or WithoutAgent) - otherwise standaloneDdotFunc alone continues to mean
+	// "standalone DDOT agent only", matching prior behavior.
+	deployHelmAgent := params.agentOptions != nil && (params.standaloneDdotFunc == nil || params.agentOptionsSet)
+
+	if deployHelmAgent {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:
@@ -310,8 +321,21 @@ agents:
 				return err
 			}
 		}
-	} else {
+	} else if params.standaloneDdotFunc == nil {
 		env.Agent = nil
+	}
+
+	// The standalone DDOT agent is deployed after (and, when both are present, exported
+	// after) the Helm agent so env.Agent resolves to the standalone DDOT agent - mirroring
+	// scenarios/aws/kindvm/run.go's ordering for the AWS KinD scenario.
+	if params.standaloneDdotFunc != nil {
+		standaloneDdot, err := params.standaloneDdotFunc(&localEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneDdot.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {

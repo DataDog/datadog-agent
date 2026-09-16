@@ -43,12 +43,18 @@ Currently supported proxy types:
 
 - Envoy Gateway (ProxyTypeEnvoyGateway): Configures EnvoyExtensionPolicy resources
   - EXTERNAL mode: Routes to external processor service
-  - SIDECAR mode: Currently unsupported due to Kubernetes validation constraints on localhost references
+  - SIDECAR mode: Routes to localhost sidecar via Unix Domain Socket (UDS), injects processor container into gateway pods
 
 - ingress-nginx (ProxyTypeIngressNginx): Injects the nginx-datadog WAF module (.so) into controller pods
   - Pod mutation mode only (uses init container, not a running sidecar): Adds init container + emptyDir volume, redirects --configmap to DD-owned ConfigMap
   - Auto-detects via IngressClass with spec.controller == "k8s.io/ingress-nginx"
   - Version detection from controller image tag for matching init container image
+
+- GKE Gateway (ProxyTypeGKEGateway): Configures GCPTrafficExtension resources for external traffic routing
+  - EXTERNAL mode only: Managed GKE has no in-cluster data plane; SIDECAR mode is not supported
+  - Auto-detects via GatewayClass with external-managed controllers (gke-l7-global-external-managed, gke-l7-regional-external-managed); multi-cluster -mc variants are excluded by default (they require a ServiceImport backendRef; follow-up)
+  - Creates one GCPTrafficExtension (networking.gke.io/v1) per Gateway in the Gateway's own namespace
+  - Callout Deployment/Service/HealthCheckPolicy are user-deployed per public GKE docs
 
 Each proxy type implements the InjectionPattern interface, providing:
   - Resource detection (IsInjectionPossible)
@@ -59,7 +65,7 @@ Each proxy type implements the InjectionPattern interface, providing:
 In SIDECAR mode, proxy types additionally implement the SidecarInjectionPattern interface:
   - Pod selection (PodSelector)
   - Sidecar injection (InjectSidecar)
-  - Cleanup handling (SidecarDeleted)
+  - Pod deletion handling (usually no-op; Gateway informer drives proxy-resource cleanup)
 
 # Deployment Modes
 
@@ -147,6 +153,8 @@ The package is configured through the Datadog Cluster Agent configuration:
 	        image_tag: "latest"                 # Image tag (optional)
 	        port: 8080                          # Processor port (required)
 	        health_port: 8081                   # Health check port (required, must differ from port)
+	        uds_path: "/var/run/datadog/extproc.sock" # UDS socket path (optional, default: /var/run/datadog/extproc.sock)
+	        run_as_user: 65532                  # User ID for sidecar container (optional, default: 65532)
 	        body_parsing_size_limit: "10000000" # Body size limit in bytes (optional, default: 10MB)
 	        resources:
 	          requests:
@@ -180,7 +188,7 @@ gateway pods.
 
 The webhook is registered at the `/appsec-proxies` endpoint and handles:
   - Pod CREATE operations: Inject sidecar container if pod matches selection criteria
-  - Pod DELETE operations: Trigger cleanup of proxy configuration resources
+  - Pod DELETE operations: No-op for Istio and Envoy Gateway sidecar patterns
 
 Key features:
   - CEL-based filtering: Label selectors are compiled into Common Expression Language (CEL)
@@ -216,7 +224,7 @@ Multiple patterns are combined with OR logic to create a unified webhook that ha
 2. **Pattern Matching**: Webhook iterates through registered patterns to find matches
 3. **Already Injected Check**: Skip if sidecar container already exists
 4. **Container Injection**: Add AppSec processor container with configured resources
-5. **Lazy Config Creation**: On first injection, create proxy configuration (EnvoyFilter/EnvoyExtensionPolicy)
+5. **Lazy Config Creation**: On first injection, create proxy configuration (EnvoyFilter, or Envoy Gateway Backend + EnvoyExtensionPolicy)
 6. **Pod Admission**: Return modified pod spec to API server
 
 Example injected sidecar container:
@@ -255,7 +263,7 @@ uses lazy initialization:
 	# Lazy (SIDECAR mode)
 	Start() → Detect proxies → Register webhook → [Wait for pod]
 	                                             ↓
-	Pod created → InjectSidecar() → Create config (first time only)
+	Pod created → MutatePod() → Create config lazily (idempotent)
 	                               ↓
 	              Inject container → Return modified pod
 
@@ -271,18 +279,17 @@ Tradeoff:
 
 ## Cleanup Handling
 
-When a gateway pod with an injected sidecar is deleted:
+For Istio and Envoy Gateway sidecar mode, pod deletion is a no-op. Cleanup remains driven by the
+watched Gateway resources:
 
-1. **Pod Deletion Event**: API server invokes webhook for DELETE operation
-2. **Remaining Pod Count**: Check if other pods in namespace still have sidecars
-3. **Last Pod Logic**: If this is the last pod with sidecar in namespace:
-  - Delete proxy configuration resources (EnvoyFilter/EnvoyExtensionPolicy)
-  - Remove namespace from ReferenceGrant (if applicable)
+ 1. **Pod Deletion Event**: API server may invoke the webhook for DELETE operation
+ 2. **PodDeleted No-op**: Sidecar patterns do not remove proxy configuration from pod deletion
+ 3. **Gateway Deletion**: The Gateway informer deletes proxy configuration resources when the
+    last Gateway in the namespace is deleted
 
 4. **Resource Cleanup**: Kubernetes garbage collection handles pod-owned resources
 
-This ensures configuration is cleaned up when no longer needed while avoiding premature
-deletion when multiple gateway pods exist.
+This avoids removing proxy configuration while replacement gateway pods are still starting.
 
 ## Pattern Wrapper Architecture
 
@@ -298,8 +305,8 @@ The wrapper:
   - Embeds the EXTERNAL mode pattern for proxy configuration logic
   - Implements SidecarInjectionPattern interface for pod injection
   - Delegates Added() calls to no-op (lazy initialization)
-  - Creates config during InjectSidecar() by calling embedded pattern
-  - Handles cleanup via SidecarDeleted() when last pod is removed
+  - Creates config during MutatePod() by calling the embedded pattern
+  - Leaves PodDeleted() as a no-op; Gateway-informer Deleted() handles cleanup when the last Gateway in the namespace is removed
 
 This design maximizes code reuse while maintaining clear separation between deployment modes.
 
@@ -324,29 +331,46 @@ For Istio in SIDECAR mode:
  2. Injects sidecar container into pods with matching labels
  3. Creates EnvoyFilter on first pod injection (lazy initialization)
  4. Routes traffic to localhost:8080 (sidecar processor)
- 5. Cleans up EnvoyFilter when last pod in namespace is deleted
+ 5. Cleans up EnvoyFilter when the last Gateway in the namespace is deleted
 
 Pod selection criteria:
   - Pods must have label: gateway.networking.k8s.io/gateway-name (set by Istio gateway controller)
   - GatewayClass must have controller: istio.io/gateway-controller
 
-## Envoy Gateway Implementation (EXTERNAL Mode Only)
+## Envoy Gateway Implementation
+
+Envoy Gateway support is implemented via the envoygateway subpackage and works in both EXTERNAL and SIDECAR modes.
+
+### EXTERNAL Mode (envoyGatewayInjectionPattern)
 
 For Envoy Gateway in EXTERNAL mode:
  1. Watches Gateway resources (gateway.networking.k8s.io/v1)
  2. Creates EnvoyExtensionPolicy resources that configure External Processing
- 3. Manages ReferenceGrant resources for cross-namespace access
- 4. Handles cleanup when gateways are deleted
+ 3. EnvoyExtensionPolicy backendRefs point at a Kubernetes Service
+ 4. Manages ReferenceGrant resources for cross-namespace access
+ 5. Handles cleanup when gateways are deleted
 
-The implementation ensures that:
-  - Only one EnvoyExtensionPolicy is created per namespace
-  - ReferenceGrants are properly managed for cross-namespace service references
-  - Resources are labeled and annotated for tracking and management
-  - Kubernetes events are emitted for operational visibility
+### SIDECAR Mode (envoyGatewaySidecarPattern)
 
-SIDECAR mode for Envoy Gateway is currently blocked due to Kubernetes validation preventing
-localhost references in ExtProc BackendRef configuration. See pkg/clusteragent/appsec/envoygateway/envoy_sidecar.go
-for details.
+For Envoy Gateway in SIDECAR mode:
+ 1. Registers webhook with label selector for gateway pods
+ 2. Injects sidecar container into pods with matching labels
+ 3. Creates a Backend (UDS) and an EnvoyExtensionPolicy on first pod injection (lazy initialization)
+ 4. EnvoyExtensionPolicy backendRefs point to the UDS Backend in the same namespace
+ 5. Routes traffic to the sidecar processor via Unix Domain Socket at /var/run/datadog/extproc.sock
+ 6. Cleans up resources when the last Gateway in the namespace is deleted; PodDeleted is a no-op
+
+Sidecar Data Flow and Invariants:
+  - The webhook injects the sidecar container and a shared emptyDir volume (datadog-appsec-uds) mounted into both the injected sidecar and the envoy container.
+  - Pod fsGroup and sidecar runAsUser are set to 65532 to ensure shared-socket access.
+  - The Gateway informer does not eagerly create sidecar-mode resources on Gateway add; MutatePod lazily creates a Backend (UDS) and an EnvoyExtensionPolicy in the Gateway's namespace on first matching pod injection.
+  - Since the Backend is in the same namespace as the EnvoyExtensionPolicy, no ReferenceGrant is created (the no-ReferenceGrant invariant).
+  - The extensionApis.enableBackend Envoy Gateway prerequisite is detected and warned about if disabled (the cluster-agent does not modify Envoy Gateway config).
+  - The default injector mode is sidecar, so appsec-enabled Envoy Gateways default to sidecar injection.
+
+Pod selection criteria:
+  - Pods must have label: gateway.envoyproxy.io/owning-gateway-name
+  - Pods must have label: gateway.envoyproxy.io/owning-gateway-namespace
 
 ## ingress-nginx Implementation (SIDECAR Mode Only)
 
@@ -391,6 +415,173 @@ deleting DD ConfigMaps (cross-controller coordination, same pattern as Istio).
   - Version coupling: Init container image must match nginx version
   - Mode() always returns SIDECAR regardless of global config (no external mode)
 
+## GKE Gateway Implementation
+
+GKE Gateway support is implemented via the gke subpackage and works in EXTERNAL mode ONLY.
+Managed GKE has no in-cluster Envoy data plane, so SIDECAR mode is structurally impossible.
+
+### Detection and Eligibility
+
+Eligibility is decided in two separate stages; no GatewayClass object is ever fetched and
+spec.controllerName is never read (every GKE GatewayClass shares the controller
+networking.gke.io/gateway, so it could not discriminate between them anyway):
+
+ 1. Startup detection: Detect() checks only that the gcptrafficextensions.networking.gke.io CRD
+    exists. Note this runs once, during the auto-detection phase at startup.
+
+ 2. Per-Gateway matching: Added() compares the Gateway's own spec.gatewayClassName against the
+    allowlist in appsec.proxy.gke.gateway_classes, which defaults to:
+
+    - gke-l7-global-external-managed
+    - gke-l7-regional-external-managed
+
+That default is the external-managed single-cluster set Datadog has tested, not the full set GKE
+supports: gke-l7-rilb also supports GCPTrafficExtension callouts, whereas the classic gke-l7-gxlb
+classes do not. Operators can widen the tested set via the configuration key.
+
+Multi-cluster GatewayClasses (names ending in -mc) are the one exception the override cannot
+unlock: Added() rejects them unconditionally, with a warning and no resource created, even when
+present in the allowlist. Multi-cluster Gateways require the callout backendRef to be a
+ServiceImport (group net.gke.io), and this reconciler only emits a core Service backendRef, so the
+GCPTrafficExtension it would produce could not work.
+
+Independently of the above, the shared Gateway informer applies a field selector that excludes
+Gateway resources labelled appsec.datadoghq.com/enabled=false.
+
+When the globally configured injection mode is SIDECAR, IsInjectionPossible returns an error
+wrapping appsecconfig.ErrInjectionNotApplicable, and the injector logs a skip at Info rather than
+Error: detection registers this proxy type on any cluster carrying the CRD, so a sidecar-mode
+cluster would otherwise report a failure for something nobody requested. Genuine misconfiguration
+(missing Processor.ServiceName, a port outside 1..65535, a missing CRD) is still an Error.
+
+### Resource Lifecycle (CREATE-ONLY / Gateway-driven)
+
+The injector watches Gateway resources (not GCPTrafficExtensions) and reacts to Add and Delete events:
+
+ 1. On Gateway Add: creates one GCPTrafficExtension (networking.gke.io/v1) in the Gateway's own namespace
+ 2. On Gateway Delete: deletes the corresponding GCPTrafficExtension
+
+CRITICAL: The injector is CREATE-ONLY and has NO UpdateFunc, no GCPTrafficExtension watch, and no
+periodic resync. Consequences:
+
+  - A manually-edited or stale GCPTrafficExtension is NOT auto-reconciled.
+  - A GatewayClass change on a live Gateway is NOT detected.
+  - Deleting the GCPTrafficExtension alone does NOT recreate it — recreation requires a new Gateway
+    Add event (delete+recreate the Gateway, or restart the cluster-agent / trigger leader re-election
+    so the informer replays AddFunc for all existing Gateways).
+  - There is no drift reconciliation.
+
+### Ownership and Cleanup Model (Gateway-owned, UID-guarded)
+
+The GCPTrafficExtension carries a metadata.ownerReference pointing at its Gateway, built from the
+Gateway object's own apiVersion and kind plus its name and UID. The reference is always
+namespace-valid because the extension lives in the Gateway's namespace (see the same-namespace
+constraint below; cross-namespace ownerReferences would be invalid). Consequences:
+
+  - Kubernetes garbage-collects the extension even when the Gateway delete event is missed, for
+    example while the cluster-agent is down or not leader. Cleanup no longer depends solely on the
+    informer's DeleteFunc and the disable-time Cleanup pass.
+  - Controller and BlockOwnerDeletion are deliberately not set. BlockOwnerDeletion requires update
+    access on the owner's finalizers subresource, which this feature does not request.
+  - If the Gateway object carries no UID, no ownerReference is emitted, because an ownerReference
+    with a blank UID is invalid; cleanup then falls back to the managed-by label alone.
+
+Deleted() additionally guards against acting on the wrong object:
+
+  - If the existing extension has a Gateway-kind ownerReference whose UID differs from the incoming
+    Gateway's UID, the delete is skipped. This is what stops a delayed delete for an old Gateway
+    from removing the extension belonging to a recreated Gateway of the same name.
+  - Extensions created before this ownership model existed have no ownerReference and are still
+    deleted on the managed-by label alone, so pre-existing resources stay cleanable.
+  - The Delete call carries a Preconditions{UID} taken from the object just read, so a resource
+    recreated between that read and the delete is never removed. The API server reports such a
+    mismatch as a conflict, which is treated as "not ours" and returns without requeueing.
+
+### Same-Namespace Constraint (no cross-namespace, no ReferenceGrant)
+
+GCPTrafficExtension targetRefs and backendRef do not carry a namespace field — this is enforced by
+the CRD itself (verified empirically: applying either spec.targetRefs[].namespace or
+spec.extensionChains[].extensions[].backendRef.namespace is rejected with a strict-decoding
+"unknown field" error). Therefore:
+
+  - The GCPTrafficExtension MUST reside in the Gateway's own namespace (targetRefs is a local ref).
+  - The callout backend Service is always resolved in that same namespace (backendRef is local).
+  - Cross-namespace backends are structurally impossible, so NO Gateway API ReferenceGrant is needed
+    or even possible for the callout wiring.
+  - Consequently, Processor.Namespace is NOT used for GKE Gateway injection; the callout Deployment,
+    Service, and HealthCheckPolicy must be user-deployed in each Gateway's namespace per the public
+    GKE service-extensions documentation.
+
+### Teardown and Disabling (eventual GCP-resource garbage collection)
+
+Two paths remove a managed GCPTrafficExtension:
+
+ 1. Gateway deletion -> the informer DeleteFunc calls Deleted(), which deletes the CR.
+ 2. Disabling injection (appsec.proxy.enabled=false or cluster_agent.appsec.injector.enabled=false)
+    -> the start command runs appsec.Cleanup (leader-gated), which lists every Gateway and calls
+    Deleted() for each, removing all cluster-agent-managed GCPTrafficExtensions.
+
+CRITICAL teardown caveat: deleting the GCPTrafficExtension CR removes the Kubernetes object
+immediately, but the GKE Gateway controller garbage-collects the UNDERLYING GCP resource (a
+networkservices lbTrafficExtension) only EVENTUALLY. The GKE controller does not place a finalizer
+on the CR, so there is no synchronous teardown hook. Until that GCP resource disappears the callout
+remains programmed at the load balancer and traffic continues to be inspected/blocked. Operators
+disabling AppSec should expect blocking to persist for a period afterwards; it clears without
+manual intervention. The injector deliberately does NOT call the GCP networkservices API to
+force-delete the resource — it is a Kubernetes-only reconciler.
+
+### GCPTrafficExtension Shape
+
+One GCPTrafficExtension per Gateway is created with:
+
+  - metadata.namespace: the Gateway's own namespace (same-namespace constraint)
+  - metadata.labels: app.kubernetes.io/managed-by=datadog-cluster-agent
+  - metadata.ownerReferences: one reference to the owning Gateway (see the ownership model above)
+  - metadata.annotations: the configured common annotations MINUS
+    appsec.datadoghq.com/processor. That annotation advertises a processor endpoint derived from
+    Processor.Namespace (or localhost in sidecar mode), which does not describe where GKE actually
+    routes the callout, so it is omitted here rather than left misleading.
+  - spec.targetRefs: one entry pointing at the Gateway (no namespace field; local ref)
+  - spec.extensionChains: one chain with matchCondition.celExpressions: [{celMatcher: "1 == 1"}]
+    and one extension entry with failOpen: true, supportedEvents: [RequestHeaders, ResponseHeaders],
+    timeout: 1s, and a backendRef to the user-deployed callout Service (no namespace field)
+
+Body inspection note: supportedEvents intentionally lists only the header events. The Datadog
+callout still inspects request/response bodies when a rule needs them: the dd-trace-go ext_proc
+callout dynamically requests the body via the ext_proc mode-override (ModeOverride
+RequestBodyMode=STREAMED) after seeing the request headers, and GKE's managed data plane honors
+allow_mode_override. This was verified on a live GKE cluster: with supportedEvents restricted to
+header events, a WAF rule matching the parsed JSON request body still blocked the request (HTTP
+403). Statically adding RequestBody/ResponseBody here is therefore unnecessary and would defeat the
+callout's dynamic negotiation by forcing the data plane to stream every body unconditionally.
+
+Note the load balancer is programmed asynchronously: the callout does not take effect the instant
+the GCPTrafficExtension is created.
+
+### Error Handling and RBAC Requirements
+
+The cluster-agent requires the following RBAC. None of it ships in the default Datadog Helm chart
+or Operator ClusterRole today, so enabling the GKE Gateway injector is a packaging prerequisite:
+without these permissions every Gateway event fails with Forbidden and no extension is installed.
+
+  - gateways.gateway.networking.k8s.io: get, list, watch (the informer source).
+  - gcptrafficextensions.networking.gke.io: get, list, watch, create, delete (Get-before-Create
+    ownership guard, create, and teardown).
+  - customresourcedefinitions.apiextensions.k8s.io: get, list (Detect() checks for the
+    gcptrafficextensions CRD).
+  - events (core): create, patch in each Gateway's namespace (the injector records Gateway-scoped
+    events; note these are namespaced Roles in the Gateway namespaces, not the cluster-agent's own).
+
+Without the gcptrafficextensions permissions:
+
+  - Any non-NotFound error on Get/Create/Delete (e.g. Forbidden) causes the reconcile to fail.
+  - A WARN log is emitted and a Kubernetes event with reason GCPTrafficExtensionCreateFailed or
+    GCPTrafficExtensionDeleteFailed is recorded on the Gateway object.
+  - The work item is retried under the shared injector's requeue policy and then dropped. No
+    GCPTrafficExtension is installed.
+  - Customer traffic is unaffected (the missing extension is a silent pass-through at the LB layer).
+  - This is NOT a silent no-op: failures are observable via events and cluster-agent logs.
+
 # Event Recording
 
 The package records Kubernetes events for important operations:
@@ -419,6 +610,11 @@ The package emits telemetry metrics:
 
   - appsec_injector.watched_changes: Counter tracking add/modify/delete operations
     Tags: proxy_type, operation, success
+
+  - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
+    CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar
+    pattern. Not emitted on DELETE (pod deletion is a no-op).
+    Tags: proxy_type, outcome, reason
 
 # Configuration Validation
 
@@ -505,7 +701,7 @@ New proxy implementations should:
 
   - pkg/clusteragent/appsec/config: Configuration types, parsing, and validation
   - pkg/clusteragent/appsec/istio: Istio implementation (EXTERNAL and SIDECAR modes)
-  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL mode only)
+  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL and SIDECAR modes)
   - pkg/clusteragent/appsec/nginx: ingress-nginx implementation (SIDECAR mode only, native module injection)
   - pkg/clusteragent/appsec/sidecar: Sidecar container generation logic (ext_proc only, not used by nginx)
   - pkg/clusteragent/admission/mutate/appsec: SIDECAR mode admission webhook

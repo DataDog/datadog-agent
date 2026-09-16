@@ -9,5 +9,9 @@ prebuild-workspace-image-check:
         paths:
           - .devcontainer/datadog/default/**/*
         compare_to: $COMPARE_TO_BRANCH
+  variables:
+    GIT_DEPTH: 0  # Full history: three-dot diff is from merge-base to HEAD
   script:
+    - git fetch origin "$COMPARE_TO_BRANCH"
+    - export SOURCE_REF="origin/$COMPARE_TO_BRANCH"
     - bash tools/prebuild-devcontainer-check.sh

@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -43,6 +44,31 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	fmt.Fprint(conn, "hello world\n")
 	msg = <-msgChan
 	assert.Equal(t, "hello world", string(msg.GetContent()))
+
+	listener.Stop()
+}
+
+func TestUDPBindHost(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{
+		Port:     udpTestPort,
+		BindHost: "127.0.0.1",
+	}), 9000)
+	require.NoError(t, err)
+	listener.Start()
+	require.NotNil(t, listener.Conn)
+
+	addr := listener.Conn.LocalAddr().String()
+	assert.True(t, strings.HasPrefix(addr, "127.0.0.1:"), "expected 127.0.0.1 bind, got %s", addr)
+
+	conn, err := net.Dial("udp", addr)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "bound msg\n")
+	msg := <-msgChan
+	assert.Equal(t, "bound msg", string(msg.GetContent()))
 
 	listener.Stop()
 }
@@ -64,7 +90,7 @@ func TestUDPAllowedIPsAcceptsMatchingDatagram(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 
 	fmt.Fprint(conn, "allowed\n")
@@ -84,7 +110,7 @@ func TestUDPDeniedIPsDropsMatchingDatagram(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -110,7 +136,7 @@ func TestUDPDenyTakesPrecedenceOverAllow(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 	defer conn.Close()
 

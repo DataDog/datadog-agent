@@ -264,7 +264,7 @@ func newTestProvider(t *testing.T) (*Provider, *mocksender.MockSender) {
 		},
 	}
 
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	provider := &Provider{

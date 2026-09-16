@@ -36,8 +36,8 @@ func getTestOrgUUIDFromID(orgID int) string {
 
 func newTestConfig(t testing.TB, repo testRepositories) model.Config {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("remote_configuration.director_root", repo.directorRoot)
-	cfg.SetWithoutSource("remote_configuration.config_root", repo.configRoot)
+	cfg.SetInTest("remote_configuration.director_root", repo.directorRoot)
+	cfg.SetInTest("remote_configuration.config_root", repo.configRoot)
 	return cfg
 }
 

@@ -88,8 +88,9 @@ func TestParseComponentStatus(t *testing.T) {
 	// FIXME: use the factory instead
 	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 
-	mocked := mocksender.NewMockSender(kubeASCheck.ID())
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
+	mocked.On("Gauge", "datadog.cluster_agent.Zookeeper.component_status", 1.0, "", []string{"component:Zookeeper"})
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -100,11 +101,13 @@ func TestParseComponentStatus(t *testing.T) {
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
+	mocked.On("Gauge", "datadog.cluster_agent.ETCD.component_status", 0.0, "", []string{"component:ETCD"})
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", servicecheck.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
+	mocked.On("Gauge", "datadog.cluster_agent.DCA.component_status", 0.0, "", []string{"component:DCA"})
 	kubeASCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", servicecheck.ServiceCheckUnknown, "", []string{"component:DCA"}, "")

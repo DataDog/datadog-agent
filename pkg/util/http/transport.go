@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
-	"golang.org/x/net/http2"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,20 +90,12 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*ht
 	// consider the implication of the protocol switch for intakes and other http
 	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
 
-	var tlsHandshakeTimeout time.Duration
-	if cfg.IsSet("tls_handshake_timeout") {
-		tlsHandshakeTimeout = cfg.GetDuration("tls_handshake_timeout")
-	} else {
-		tlsHandshakeTimeout = 10 * time.Second
-	}
+	tlsHandshakeTimeout := cfg.GetDuration("tls_handshake_timeout")
 
 	// Control whether to disable RFC 6555 Fast Fallback ("Happy Eyeballs")
 	// By default this is disabled (set to a negative value).
 	// It can be set to 0 to use the default value, or an explicit duration.
-	fallbackDelay := -1 * time.Nanosecond
-	if cfg.IsSet("http_dial_fallback_delay") {
-		fallbackDelay = cfg.GetDuration("http_dial_fallback_delay")
-	}
+	fallbackDelay := cfg.GetDuration("http_dial_fallback_delay")
 
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
@@ -233,10 +224,9 @@ func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) f
 // WithHTTP2 returns a http2 as a transport option
 func WithHTTP2() func(*http.Transport) {
 	return func(transport *http.Transport) {
-		err := http2.ConfigureTransport(transport)
-		if err != nil {
-			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocol", err)
-		}
+		transport.Protocols = new(http.Protocols)
+		transport.Protocols.SetHTTP1(true)
+		transport.Protocols.SetHTTP2(true)
 	}
 }
 

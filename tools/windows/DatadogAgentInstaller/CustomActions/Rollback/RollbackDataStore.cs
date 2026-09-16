@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Newtonsoft.Json;
@@ -21,7 +19,9 @@ namespace Datadog.CustomActions.Rollback
 
         private List<IRollbackAction> RollbackActions { get; set; }
 
-        static string StorageRootPath() => Path.Combine(Path.GetTempPath(), "datadog-installer", "rollback");
+        static string StorageBasePath() => Path.Combine(Path.GetTempPath(), "datadog-installer");
+
+        static string StorageRootPath() => Path.Combine(StorageBasePath(), "rollback");
 
         // Used to safely bind serialized JSON to a .NET type
         // TypeNameHandling.Auto/All is unsafe by itself
@@ -64,42 +64,19 @@ namespace Datadog.CustomActions.Rollback
         }
 
         /// <summary>
-        /// Create, configure, and return the path to be used to store this rollback data
+        /// Create the directories used to store the rollback data, and return the path of the file
+        /// the data is stored in.
         /// </summary>
+        /// <remarks>
+        /// Done when the store is created, before the custom actions change anything, so a store we
+        /// could not write fails the action early.
+        /// </remarks>
         private string CreateStoragePath()
         {
-            var parent = StorageRootPath();
-            var path = Path.Combine(parent, $"{_storageName}.json");
+            SecureDirectory.CreateAndSecure(_session, StorageBasePath());
+            SecureDirectory.CreateAndSecure(_session, StorageRootPath());
 
-            CreateDirectory(parent);
-
-            return path;
-        }
-
-        /// <summary>
-        /// Create directory @path and secure it so only SYSTEM and Administrators have access
-        /// </summary>
-        /// <param name="path"></param>
-        private void CreateDirectory(string path)
-        {
-            // Create DACL for only SYSTEM and Administrators, disable inheritance
-            FileSystemSecurity security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            // Create the directory with the DACL
-            Directory.CreateDirectory(path, (DirectorySecurity)security);
+            return Path.Combine(StorageRootPath(), $"{_storageName}.json");
         }
 
         /// <summary>
@@ -137,7 +114,17 @@ namespace Datadog.CustomActions.Rollback
             Load();
             for (var i = RollbackActions.Count - 1; i >= 0; i--)
             {
-                RollbackActions[i].Restore(_session, _fileSystemServices, _serviceController);
+                // Restore is best-effort: a failure on one entry must not prevent the remaining
+                // entries from being restored. Log and continue so a single bad item cannot
+                // poison the rest of the rollback.
+                try
+                {
+                    RollbackActions[i].Restore(_session, _fileSystemServices, _serviceController);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Error restoring rollback action {RollbackActions[i].GetType().Name}: {e}");
+                }
             }
         }
 
@@ -158,6 +145,9 @@ namespace Datadog.CustomActions.Rollback
         {
             var jsonString = JsonConvert.SerializeObject(RollbackActions, Formatting.Indented, GetSerializerSettings());
             _session.Log($"Saving rollback info: {jsonString}");
+            // Delete rather than overwrite in place, so the file is created fresh and inherits the
+            // DACL of the parent directory.
+            File.Delete(_dataPath);
             File.WriteAllText(_dataPath, jsonString);
         }
     }

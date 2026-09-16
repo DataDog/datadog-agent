@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v2"
+	sdkazure "github.com/pulumi/pulumi-azure-native-sdk/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	config "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -85,6 +85,11 @@ func (e *Environment) InternalRegistry() string {
 
 func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
+}
+
+// DatadogPublicRegistry returns gcr.io/datadoghq: there is no Datadog-operated Azure registry, so use the GCP one as Azure customers do.
+func (e *Environment) DatadogPublicRegistry() string {
+	return "gcr.io/datadoghq"
 }
 
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {

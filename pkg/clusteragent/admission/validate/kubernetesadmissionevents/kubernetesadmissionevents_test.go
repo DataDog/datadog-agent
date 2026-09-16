@@ -23,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -53,7 +53,7 @@ func compareText(expected, actual event.Event) bool {
 func TestKubernetesAdmissionEvents(t *testing.T) {
 	// Mock Datadog Config
 	datadogConfigMock := config.NewMock(t)
-	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
+	datadogConfigMock.SetInTest("admission_controller.kubernetes_admission_events.enabled", true)
 
 	tests := []struct {
 		name                    string
@@ -262,7 +262,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			mockSender.On("Event", mock.AnythingOfType("event.Event")).Return().Once()
 			validated, err := kubernetesAuditWebhook.emitEvent(&tt.request, "", nil)
 			// Force flush to serializer to ensure the event is emitted and received.
-			demultiplexerMock.ForceFlushToSerializer(start, true)
+			demultiplexerMock.ForceFlushToSerializer(start, true, false)
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {

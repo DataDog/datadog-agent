@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf || (windows && npm)
+//go:build (linux && bpf) || (windows && npm)
 
 package tracer
 
@@ -67,9 +67,6 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
-		cfg.ProtocolClassificationEnabled = false
-	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 	if ebpftest.GetBuildMode() == ebpftest.SK {

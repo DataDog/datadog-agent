@@ -1,0 +1,15 @@
+---
+other:
+  - |
+    Added Cross-Org Agent Telemetry (COAT) metrics to track whether agent services are supervised by
+    ``dd-procmgrd`` or legacy supervisors (systemd on Linux, Windows Service Manager on Windows).
+    DDOT is the first tracked service. Metrics are reported under the ``procmgr`` COAT profile:
+
+    | Metric Name | Type | Description |
+    | --- | --- | --- |
+    | ``runtime.procmgr_daemon_reachable`` | Gauge | Whether the agent can reach ``dd-procmgrd`` |
+    | ``runtime.procmgr_daemon_ready`` | Gauge | Whether ``dd-procmgrd`` reports ready |
+    | ``runtime.procmgr_process_running`` | Gauge | Whether a procmgr-managed process is running (``process`` tag) |
+    | ``runtime.agent_service_installed`` | Gauge | Whether a migratable service is installed (``service`` tag) |
+    | ``runtime.agent_service_procmgr_configured`` | Gauge | Whether a ``processes.d`` config exists (``service`` tag) |
+    | ``runtime.agent_service_management_mode`` | Gauge | Active supervisor for a service (``service``, ``mode`` tags) |

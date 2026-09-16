@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a startup crash of the ``simple-all-in-one`` Docker image (used for
+    ECS Fargate sidecar deployments) caused by a missing entrypoint wrapper
+    for the Private Action Runner.

@@ -24,7 +24,7 @@
 use super::Error;
 use std::io::Read;
 use xml::attribute::OwnedAttribute;
-use xml::reader::{EventReader, ParserConfig2, XmlEvent};
+use xml::reader::{EventReader, ParserConfig, XmlEvent};
 
 /// Maximum nesting depth for XML elements.
 /// No legitimate JEE configuration file approaches this depth.
@@ -114,7 +114,7 @@ impl<R: Read> XmlParser<R> {
     /// Creates a new parser with security limits applied.
     pub fn new(reader: R) -> Self {
         Self {
-            reader: ParserConfig2::new()
+            reader: ParserConfig::new()
                 .max_attributes(MAX_ATTRS)
                 .create_reader(reader),
             depth: 0,

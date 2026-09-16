@@ -20,6 +20,7 @@ from tasks.static_quality_gates.experimental_gates import (
     InPlaceArtifactReport,
     InPlaceDockerMeasurer,
     InPlacePackageMeasurer,
+    MeasurementResult,
 )
 from tasks.static_quality_gates.gates import ArtifactMeasurement
 
@@ -195,6 +196,29 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         finally:
             os.unlink(invalid_config_file.name)
 
+    def test_init_finds_gate_defined_in_second_config_file(self):
+        """A gate only present in the second of several config files must still be found."""
+        cluster_agent_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+        yaml.dump(
+            {
+                "static_quality_gate_docker_cluster_agent_amd64": {
+                    "max_on_wire_size": "75 MiB",
+                    "max_on_disk_size": "214 MiB",
+                }
+            },
+            cluster_agent_config_file,
+        )
+        cluster_agent_config_file.close()
+
+        try:
+            measurer = InPlacePackageMeasurer(config_path=[self.temp_config_file.name, cluster_agent_config_file.name])
+            gate_config = measurer._measurer.config_manager.get_gate_config(
+                "static_quality_gate_docker_cluster_agent_amd64"
+            )
+            self.assertEqual(gate_config.gate_name, "static_quality_gate_docker_cluster_agent_amd64")
+        finally:
+            os.unlink(cluster_agent_config_file.name)
+
     @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def456"})
     @patch('os.path.exists')
     def test_measure_package_success(self, mock_exists):
@@ -203,7 +227,10 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         mock_exists.return_value = True
 
         # Mock the optimized extraction and analysis method
-        with patch.object(self.measurer._measurer.processor, 'measure_artifact') as mock_measure_artifact:
+        with (
+            patch.object(self.measurer._measurer.processor, 'measure_artifact') as mock_measure_artifact,
+            patch.object(self.measurer._measurer.processor, 'compute_wire_size') as mock_compute_wire_size,
+        ):
             # Create mock measurement
             _ = ArtifactMeasurement(artifact_path="/path/to/package.deb", on_wire_size=100000, on_disk_size=500000)
 
@@ -214,12 +241,11 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             ]
 
             # Configure the mock to return both measurement and file inventory
-            mock_measure_artifact.return_value = (
-                100000,  # wire_size
-                500000,  # disk_size
-                mock_file_inventory,  # file_inventory
-                None,  # artifact_metadata (for packages, this is usually None)
+            mock_measure_artifact.return_value = MeasurementResult(
+                disk_size=500000,
+                file_inventory=mock_file_inventory,
             )
+            mock_compute_wire_size.return_value = 100000
 
             # Mock context
             mock_ctx = Mock()
@@ -246,6 +272,7 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
 
         # Verify mocked processor was called
         mock_measure_artifact.assert_called_once()
+        mock_compute_wire_size.assert_called_once()
 
     def test_measure_package_missing_file(self):
         """Test measuring package with missing file."""
@@ -476,6 +503,7 @@ class TestInvokeTask(unittest.TestCase):
     def test_measure_package_local_success(self, mock_print, mock_exists, mock_measurer_class):
         """Test successful local package measurement task."""
         from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.thresholds import ALL_GATE_CONFIG_PATHS
 
         # Setup mocks
         mock_exists.return_value = True
@@ -514,7 +542,7 @@ class TestInvokeTask(unittest.TestCase):
         )
 
         # Verify measurer was initialized and called
-        mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
+        mock_measurer_class.assert_called_once_with(config_path=ALL_GATE_CONFIG_PATHS)
         mock_measurer.measure_package.assert_called_once()
         mock_measurer.save_report_to_yaml.assert_called_once()
 
@@ -776,12 +804,12 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         """Clean up temporary files."""
         os.unlink(self.temp_config_file.name)
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor.compute_wire_size')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
-    def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size):
+    def test_measure_image_success(self, mock_measure_disk, mock_compute_wire_size):
         """Test successful Docker image measurement."""
         # Setup mocks
-        mock_get_wire_size.return_value = 104857600  # 100 MiB
+        mock_compute_wire_size.return_value = 104857600  # 100 MiB
 
         # Mock file inventory
         mock_file_inventory = [
@@ -836,13 +864,13 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         self.assertEqual(report.docker_info.image_ref, "sha256:test123456789")
 
         # Verify mocks were called
-        mock_get_wire_size.assert_called_once()
+        mock_compute_wire_size.assert_called_once()
         mock_measure_disk.assert_called_once()
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
-    def test_measure_image_wire_size_failure(self, mock_get_wire_size):
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor.compute_wire_size')
+    def test_measure_image_wire_size_failure(self, mock_compute_wire_size):
         """Test Docker image measurement when wire size measurement fails."""
-        mock_get_wire_size.side_effect = RuntimeError("crane manifest failed")
+        mock_compute_wire_size.side_effect = RuntimeError("crane manifest failed")
         mock_ctx = Mock()
 
         with self.assertRaises(RuntimeError) as cm:
@@ -866,12 +894,12 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
         self.assertIn("Gate configuration not found: nonexistent_gate", str(cm.exception))
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
+    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor.compute_wire_size')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
-    def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_get_wire_size):
+    def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_compute_wire_size):
         """Test Docker image measurement without layer analysis."""
         # Setup mocks
-        mock_get_wire_size.return_value = 52428800  # 50 MiB
+        mock_compute_wire_size.return_value = 52428800  # 50 MiB
 
         mock_file_inventory = [FileInfo("app/main", 1048576, "sha256:test123")]
         # Mock minimal Docker metadata (no layers)

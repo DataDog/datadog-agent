@@ -117,7 +117,7 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 }
 
 // StartDiscovery starts the custom resource discovery and returns a discoverer instance
-func StartDiscovery() *discovery.CRDiscoverer {
+func StartDiscovery(ctx context.Context) *discovery.CRDiscoverer {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
 		CRDsUpdateEventsCounter: crdsUpdateEventsCounter,
@@ -130,7 +130,7 @@ func StartDiscovery() *discovery.CRDiscoverer {
 		panic(err)
 	}
 
-	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
+	if err := discovererInstance.StartDiscovery(ctx, clientConfig); err != nil {
 		log.Errorf("failed to start custom resource discovery: %v", err)
 	}
 
@@ -178,7 +178,13 @@ func GetCustomResourceClientsAndCollectors(factories []customresource.RegistryFa
 		}
 
 		cl := c.DynamicCl.Resource(gvr)
-		clients[factory.Name()] = cl
+		// Key the client by the fully-qualified GVR string rather than the
+		// bare resource (plural) name. Two CRDs can share the same Kind/plural
+		// across different API groups (e.g. Artifactory and SonarQube both
+		// exposing "projects"); keying by name alone would collide them onto a
+		// single client and cause "Unexpected watch event object gvk" errors
+		// and mixed counts. This matches the lookup key used by the builder.
+		clients[gvr.String()] = cl
 		collectors = append(collectors, gvr.String())
 	}
 

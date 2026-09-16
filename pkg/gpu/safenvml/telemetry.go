@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (
@@ -29,11 +29,14 @@ const (
 // and reports telemetry when it remains unavailable for extended periods.
 // Not thread-safe, should only be used from a single goroutine.
 type NvmlStateTelemetry struct {
-	firstCheckTime time.Time
+	firstCheckTime      time.Time
+	unavailable         bool
+	lastNvmlInitSuccess bool
 
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
 	unavailableGauge telemetry.Gauge
+	releasedGauge    telemetry.Gauge
 	checkInterval    time.Duration
 
 	// Goroutine lifecycle management
@@ -48,6 +51,7 @@ func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 	return &NvmlStateTelemetry{
 		errorCounter:     tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
 		unavailableGauge: tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
+		releasedGauge:    tm.NewGauge(subsystem, "released", nil, "Whether NVML is deliberately released for a GPU reset window (1=released, 0=acquired)"),
 		done:             make(chan struct{}),
 		checkInterval:    defaultCheckInterval,
 	}
@@ -57,7 +61,23 @@ func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 // If the library remains unavailable for more than nvmlUnavailableThreshold,
 // it sets the unavailable gauge to 1. Should only be called from a single goroutine.
 func (n *NvmlStateTelemetry) Check() {
-	_, err := GetSafeNvmlLib() // GetSafeNvmlLib is thread-safe
+	if IsNVMLReleased() {
+		// NVML is deliberately released for a GPU reset window: that is an
+		// operational choice, not an availability problem — don't count it
+		// toward the unavailable gauge. Track the released state on its own
+		// gauge instead, so the time spent released is observable.
+		n.unavailableGauge.Set(0)
+		n.releasedGauge.Set(1)
+		n.firstCheckTime = time.Time{}
+		n.unavailable = false
+		return
+	}
+	n.releasedGauge.Set(0)
+
+	err := BeginNVMLUse()
+	if err == nil {
+		defer EndNVMLUse()
+	}
 	if err != nil {
 		// Track the first check time
 		if n.firstCheckTime.IsZero() {
@@ -65,18 +85,33 @@ func (n *NvmlStateTelemetry) Check() {
 		}
 
 		n.errorCounter.Add(1)
+		n.lastNvmlInitSuccess = false
 
 		// Check if threshold has been exceeded
 		if time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
 			n.unavailableGauge.Set(1)
+			n.unavailable = true
 		} else {
 			n.unavailableGauge.Set(0)
+			n.unavailable = false
 		}
 	} else {
 		// Library is available - reset state and set gauge to 0 if it was previously set
 		n.unavailableGauge.Set(0)
 		n.firstCheckTime = time.Time{}
+		n.unavailable = false
+		n.lastNvmlInitSuccess = true
 	}
+}
+
+// Unavailable returns whether NVML has remained unavailable past the reporting threshold.
+func (n *NvmlStateTelemetry) Unavailable() bool {
+	return n.unavailable
+}
+
+// LastNvmlInitSuccess returns whether the last check was successful.
+func (n *NvmlStateTelemetry) LastNvmlInitSuccess() bool {
+	return n.lastNvmlInitSuccess
 }
 
 // Start begins periodic checking of the NVML library status in a background goroutine.

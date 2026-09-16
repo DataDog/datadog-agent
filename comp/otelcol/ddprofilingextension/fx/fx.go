@@ -17,7 +17,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(ddprofilingextensionimpl.NewExtension),
+		fxutil.ProvideComponentConstructor(ddprofilingextensionimpl.NewComponent),
 		fxutil.ProvideOptional[ddprofilingextension.Component](),
 	)
 }

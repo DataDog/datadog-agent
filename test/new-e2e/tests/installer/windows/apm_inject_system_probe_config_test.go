@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
-	"gopkg.in/yaml.v3"
+	"github.com/cenkalti/backoff/v7"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"

@@ -105,3 +105,5 @@ The NoAggregationStreamWorker runs an infinite loop in a goroutine. It receives 
 It runs only when `dogstatsd_no_aggregation_pipeline` is set to `true`.
 
 The payload being sent to the intake (through the normal `Serializer`/`Forwarder` pieces) contains, at maximum, `dogstatsd_no_aggregation_pipeline_batch_size` metrics. This value defaults to `2048`.
+
+By default, DogStatsD runs one no-aggregation pipeline worker. Set `dogstatsd_no_aggregation_pipeline_workers_count` to a value greater than `1` to let multiple independent workers pull batches from the shared no-aggregation queue.

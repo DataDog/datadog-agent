@@ -7,6 +7,7 @@ package kindvm
 
 import (
 	_ "embed"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -46,12 +47,13 @@ import (
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
-// StandaloneAgentDeployFunc is a callback invoked by RunWithEnv to deploy a
-// standalone agent (e.g. otel-agent in DD_OTEL_STANDALONE mode) after the
-// cluster and fakeintake have been provisioned. Using a callback keeps the
-// otelstandalone package out of the kindvm import graph, avoiding OOM-kills
-// in the e2e-framework unit-test CI job when compiling large cloud SDKs.
-type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
+// StandaloneDdotDeployFunc is a callback invoked by RunWithEnv to deploy a
+// standalone DDOT (Datadog Distribution of OpenTelemetry) agent (e.g. otel-agent
+// in DD_OTEL_STANDALONE mode) after the cluster and fakeintake have been
+// provisioned. Using a callback keeps the otelstandalone package out of the
+// kindvm import graph, avoiding OOM-kills in the e2e-framework unit-test CI
+// job when compiling large cloud SDKs.
+type StandaloneDdotDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // Run is the entry point for the scenario when run via pulumi.
 // It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
@@ -70,6 +72,9 @@ func Run(ctx *pulumi.Context) error {
 // RunWithEnv deploys a KIND-on-EC2 environment using a provided env and params.
 // It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
 func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
+	if len(params.preAgentWorkloadAppFuncs) > 0 && params.standaloneDdotFunc != nil {
+		return errors.New("pre-agent workloads are not supported with a standalone OTel Agent")
+	}
 
 	var err error
 	var fakeIntake *fakeintakeComp.Fakeintake
@@ -101,7 +106,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+	installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 	if err != nil {
 		return err
 	}
@@ -111,7 +116,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
 		kindCluster, err = kubeComp.NewKindClusterWithConfig(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(),
-			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes},
+			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes, MountDockerSocket: params.mountDockerSocket},
 			utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
@@ -176,6 +181,30 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
+	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs))
+	for _, appFunc := range params.preAgentWorkloadAppFuncs {
+		workload, err := appFunc(&awsEnv, kubeProvider)
+		if err != nil {
+			return err
+		}
+		preAgentWorkloads = append(preAgentWorkloads, workload)
+	}
+	if len(preAgentWorkloads) > 0 {
+		dependsOnPreAgentWorkloads := utils.PulumiDependsOn(preAgentWorkloads...)
+		if len(params.agentOptions) > 0 {
+			params.agentOptions = append(params.agentOptions,
+				kubernetesagentparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+		}
+		if params.deployOperator {
+			params.operatorOptions = append(params.operatorOptions,
+				operatorparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+			if params.operatorDDAOptions != nil {
+				params.operatorDDAOptions = append(params.operatorDDAOptions,
+					agentwithoperatorparams.WithPulumiResourceOptions(dependsOnPreAgentWorkloads))
+			}
+		}
+	}
+
 	var dependsOnDDAgent pulumi.ResourceOption
 	if len(params.agentOptions) > 0 && !params.deployOperator {
 		newOpts := []kubernetesagentparams.Option{
@@ -219,12 +248,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		}
 	}
 
-	if params.standaloneAgentFunc != nil {
-		standaloneAgent, err := params.standaloneAgentFunc(&awsEnv, kubeProvider, fakeIntake)
+	if params.standaloneDdotFunc != nil {
+		standaloneDdot, err := params.standaloneDdotFunc(&awsEnv, kubeProvider, fakeIntake)
 		if err != nil {
 			return err
 		}
-		if err := standaloneAgent.Export(ctx, env.KubernetesAgentOutput()); err != nil {
+		if err := standaloneDdot.Export(ctx, env.KubernetesAgentOutput()); err != nil {
 			return err
 		}
 	}
@@ -313,7 +342,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	}
 
-	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneAgentFunc == nil {
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneDdotFunc == nil {
 		env.DisableAgent()
 	}
 

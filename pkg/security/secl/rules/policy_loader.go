@@ -31,6 +31,7 @@ type PolicyLoaderOpts struct {
 	MacroFilters       []MacroFilter
 	RuleFilters        []RuleFilter
 	DisableEnforcement bool
+	ValidateBPFFilter  func(bpfFilter string) error
 }
 
 // PolicyReloadNotification contains information about a policy reload event

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,7 +86,7 @@ func newTestPodForGatewaySidecar(name, namespace string, labels map[string]strin
 	}
 }
 
-func TestGatewaySidecar_ShouldMutatePod_MatchingSelector(t *testing.T) {
+func TestGatewaySidecar_IsPodEligible_MatchingSelector(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
 	gateway := newTestIstioGateway("test-gw", "default", map[string]any{
@@ -106,11 +106,11 @@ func TestGatewaySidecar_ShouldMutatePod_MatchingSelector(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	result := pattern.ShouldMutatePod(pod)
+	result := pattern.IsPodEligible(pod, "default")
 	assert.True(t, result, "Should mutate pod when selector matches")
 }
 
-func TestGatewaySidecar_ShouldMutatePod_NoMatchingGateway(t *testing.T) {
+func TestGatewaySidecar_IsPodEligible_NoMatchingGateway(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
 	gateway := newTestIstioGateway("test-gw", "default", map[string]any{
@@ -128,12 +128,21 @@ func TestGatewaySidecar_ShouldMutatePod_NoMatchingGateway(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	result := pattern.ShouldMutatePod(pod)
+	result := pattern.IsPodEligible(pod, "default")
 	assert.False(t, result, "Should not mutate pod when no gateway selector matches")
 }
 
-func TestGatewaySidecar_ShouldMutatePod_AlreadyInjected(t *testing.T) {
+func TestGatewaySidecar_IsPodEligible_AlreadyInjected(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
+	gateway := newTestIstioGateway("test-gw", "default", map[string]any{
+		"app":   "istio-gateway",
+		"istio": "ingressgateway",
+	})
+	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{
+			Items: []unstructured.Unstructured{*gateway},
+		}, nil
+	})
 
 	pod := newTestPodForGatewaySidecar("test-pod", "default", map[string]string{
 		"app":   "istio-gateway",
@@ -145,15 +154,15 @@ func TestGatewaySidecar_ShouldMutatePod_AlreadyInjected(t *testing.T) {
 		Image: "datadog/appsec-processor:latest",
 	})
 
-	result := pattern.ShouldMutatePod(pod)
-	assert.False(t, result, "Should not mutate pod that already has sidecar")
+	result := pattern.IsPodEligible(pod, "default")
+	assert.True(t, result, "Already-sidecar pod should remain eligible when selector matches")
 }
 
-func TestGatewaySidecar_ShouldMutatePod_ListError(t *testing.T) {
+func TestGatewaySidecar_IsPodEligible_ListError(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.NewInternalError(assert.AnError)
+		return true, nil, k8serrors.NewInternalError(assert.AnError)
 	})
 
 	pod := newTestPodForGatewaySidecar("test-pod", "default", map[string]string{
@@ -161,7 +170,7 @@ func TestGatewaySidecar_ShouldMutatePod_ListError(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	result := pattern.ShouldMutatePod(pod)
+	result := pattern.IsPodEligible(pod, "default")
 	assert.False(t, result, "Should not mutate pod when listing gateways fails")
 }
 
@@ -191,13 +200,35 @@ func TestGatewaySidecar_MutatePod_Success(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	require.NoError(t, err)
-	assert.True(t, modified)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 	require.Len(t, pod.Spec.Containers, 2, "Should have original + sidecar container")
 	assert.Equal(t, sidecarContainerName, pod.Spec.Containers[1].Name)
 	assert.NotNil(t, createdFilter, "EnvoyFilter should be created")
+}
+
+func TestGatewaySidecar_MutatePod_AlreadyInjected(t *testing.T) {
+	pattern := newTestNativeGatewaySidecarPattern(t)
+
+	pod := newTestPodForGatewaySidecar("test-pod", "default", map[string]string{
+		"app":   "istio-gateway",
+		"istio": "ingressgateway",
+	})
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name:  sidecarContainerName,
+		Image: "datadog/appsec-processor:latest",
+	})
+
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
+
+	require.Error(t, err)
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
+	var skipReason *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skipReason)
+	assert.Equal(t, appsecconfig.SkipReasonAlreadySidecar, skipReason.Reason)
+	assert.Len(t, pod.Spec.Containers, 2, "Should not add another sidecar")
 }
 
 func TestGatewaySidecar_MutatePod_NoMatchingGateway(t *testing.T) {
@@ -215,10 +246,11 @@ func TestGatewaySidecar_MutatePod_NoMatchingGateway(t *testing.T) {
 		"istio": "ingressgateway",
 	})
 
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
-	require.NoError(t, err)
-	assert.False(t, modified)
+	require.Error(t, err)
+	assert.Equal(t, appsecconfig.MutationError, outcome)
+	assert.Contains(t, err.Error(), "no Istio gateway selector matched pod after eligibility check")
 	assert.Len(t, pod.Spec.Containers, 1, "Should not add sidecar when no gateway matches")
 }
 
@@ -236,17 +268,17 @@ func TestGatewaySidecar_MutatePod_EnvoyFilterCreationError(t *testing.T) {
 	})
 
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("create", "envoyfilters", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.NewInternalError(assert.AnError)
+		return true, nil, k8serrors.NewInternalError(assert.AnError)
 	})
 
 	pod := newTestPodForGatewaySidecar("test-pod", "default", map[string]string{
 		"app": "istio-gateway",
 	})
 
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	require.Error(t, err)
-	assert.False(t, modified)
+	assert.Equal(t, appsecconfig.MutationError, outcome)
 	assert.Contains(t, err.Error(), "could not create Envoy Filter")
 }
 
@@ -257,7 +289,7 @@ func TestGatewaySidecar_MatchCondition(t *testing.T) {
 
 	assert.NotEmpty(t, condition.Expression)
 	// Standard Istio gateway pods carry the "istio" label key (istio=ingressgateway etc.)
-	// This pre-filter passes those pods through to ShouldMutatePod for precise selector matching.
+	// This pre-filter passes those pods through to IsPodEligible for precise selector matching.
 	assert.Contains(t, condition.Expression, "istio")
 	assert.Contains(t, condition.Expression, "object.metadata.labels")
 
@@ -324,17 +356,6 @@ func TestGatewaySidecar_SelectorMatchesPod(t *testing.T) {
 	}
 }
 
-func TestGatewaySidecar_IsNamespaceEligible(t *testing.T) {
-	pattern := newTestNativeGatewaySidecarPattern(t)
-
-	for _, ns := range []string{"default", "kube-system", "istio-system", "datadog", ""} {
-		t.Run("namespace_"+ns, func(t *testing.T) {
-			result := pattern.IsNamespaceEligible(ns)
-			assert.True(t, result, "All namespaces should be eligible")
-		})
-	}
-}
-
 func TestGatewaySidecar_PodDeleted_IsNoOp(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
@@ -346,9 +367,10 @@ func TestGatewaySidecar_PodDeleted_IsNoOp(t *testing.T) {
 		return true, nil, nil
 	})
 
-	_, err := pattern.PodDeleted(pod, "default", pattern.client)
+	outcome, err := pattern.PodDeleted(pod, "default", pattern.client)
 
 	require.NoError(t, err)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 	assert.False(t, deleteCalled, "PodDeleted should be a no-op")
 }
 
@@ -367,17 +389,17 @@ func TestGatewaySidecar_MutatePod_ListGatewaysError(t *testing.T) {
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.NewInternalError(assert.AnError)
+		return true, nil, k8serrors.NewInternalError(assert.AnError)
 	})
 
 	pod := newTestPodForGatewaySidecar("test-pod", "default", map[string]string{
 		"app": "istio-gateway",
 	})
 
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	require.Error(t, err)
-	assert.False(t, modified)
+	assert.Equal(t, appsecconfig.MutationError, outcome)
 	assert.Contains(t, err.Error(), "error listing Istio gateways")
 }
 

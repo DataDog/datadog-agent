@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !linux_bpf
+//go:build linux && !bpf
 
 package config
 
@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+// eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
 	return false
 }
@@ -19,6 +19,11 @@ func eBPFMapPreallocationSupported() bool {
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return false
+}
+
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
+	return true
 }
 
 // RedisMonitoringSupported returns false on linux without BPF

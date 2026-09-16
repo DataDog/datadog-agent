@@ -12,16 +12,17 @@ import (
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 )
 
 func TestGetSystemStats(t *testing.T) {
 	defer cache.Cache.Delete(systemStatsCacheKey)
+	defer cache.Cache.Delete(cache.BuildAgentKey("host", "utils", "hostInfo"))
 
 	cpuInfo, err := cpu.Info()
 	require.NoError(t, err)
@@ -34,7 +35,7 @@ func TestGetSystemStats(t *testing.T) {
 	assert.Equal(t, cpuInfo[0].Cores, ss.CPUCores)
 	assert.Equal(t, python.GetPythonVersion(), ss.Pythonv)
 
-	hostInfo, _ := host.Info()
+	hostInfo := hostinfo.GetInformation()
 
 	if runtime.GOOS == "darwin" {
 		assert.Equal(t, osVersion{hostInfo.PlatformVersion, [3]string{"", "", ""}, runtime.GOARCH}, ss.Macver)

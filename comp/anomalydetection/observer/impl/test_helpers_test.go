@@ -9,7 +9,27 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+// sampleNoSource implements MetricView only — no sourceProvider.
+type sampleNoSource struct{ name string }
+
+func (s *sampleNoSource) GetName() string               { return s.name }
+func (s *sampleNoSource) GetValue() float64             { return 0 }
+func (s *sampleNoSource) GetTags() tagset.CompositeTags { return tagset.CompositeTags{} }
+func (s *sampleNoSource) GetHost() string               { return "" }
+func (s *sampleNoSource) GetTimestampUnix() int64       { return 0 }
+func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
+
+// countingHandle records how many MetricView and LogView observations it receives.
+type countingHandle struct {
+	received    int
+	logReceived int
+}
+
+func (h *countingHandle) ObserveMetric(_ observerdef.MetricView) { h.received++ }
+func (h *countingHandle) ObserveLog(_ observerdef.LogView)       { h.logReceived++ }
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
@@ -34,6 +54,7 @@ type dynamicAnomalyDetector struct {
 }
 
 func (d *dynamicAnomalyDetector) Name() string { return "dynamic_anomaly_detector" }
+func (*dynamicAnomalyDetector) Ready() bool    { return true }
 func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{
@@ -53,9 +74,10 @@ type dynamicCorrelator struct {
 	currentIndex int
 }
 
-func (c *dynamicCorrelator) Name() string                         { return "dynamic_correlator" }
-func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *dynamicCorrelator) Advance(_ int64)                      {}
+func (c *dynamicCorrelator) Name() string                                 { return "dynamic_correlator" }
+func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *dynamicCorrelator) Advance(_ int64)                              {}
+func (c *dynamicCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{
 		{
@@ -66,15 +88,6 @@ func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation
 	}
 }
 func (c *dynamicCorrelator) Reset() { c.currentIndex = 0 }
-
-// noopLogExtractor is a LogMetricsExtractor that returns no metrics.
-// This simulates a log at a timestamp that produces no virtual metrics.
-type noopLogExtractor struct{}
-
-func (e *noopLogExtractor) Name() string { return "noop_extractor" }
-func (e *noopLogExtractor) ProcessLog(_ observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	return observerdef.LogMetricsExtractorOutput{}
-}
 
 type sharedTagsExtractor struct{}
 

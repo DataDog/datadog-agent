@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "diagnose.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/log/def",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+    ],
+)
+
+dd_agent_go_test(
+    name = "def_test",
+    srcs = ["diagnose_test.go"],
+    embed = [":def"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/collector/check/stub",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

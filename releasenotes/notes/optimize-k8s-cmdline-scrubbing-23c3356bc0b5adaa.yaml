@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduced the CPU and memory overhead of sensitive-data scrubbing when
+    collecting Kubernetes resources for the Orchestrator Explorer. The
+    command-line tokenizer regular expression is now compiled once instead of on
+    every scrubbing call, and redundant per-token work was removed.

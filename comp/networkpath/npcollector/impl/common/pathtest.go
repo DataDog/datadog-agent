@@ -7,6 +7,7 @@ package common
 
 import (
 	"encoding/binary"
+	"hash"
 	"hash/fnv"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -25,19 +26,37 @@ type PathtestMetadata struct {
 
 // Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
-	Hostname          string
-	Port              uint16
-	Protocol          payload.Protocol
-	SourceContainerID string
-	Metadata          PathtestMetadata
+	Hostname           string
+	Port               uint16
+	Protocol           payload.Protocol
+	SourceContainerID  string
+	Namespace          string
+	Origin             payload.PathOrigin
+	TestConfigID       string
+	TestConfigName     string
+	TestConfigSource   payload.TestConfigSource
+	DynamicTestProfile payload.DynamicTestProfile
+	Tags               []string
+	Metadata           PathtestMetadata
+	// RunOnce removes this path from the store after its first flush attempt.
+	RunOnce bool
 }
 
 // GetHash returns the hash of the Pathtest
 func (p Pathtest) GetHash() uint64 {
 	h := fnv.New64()
-	_, _ = h.Write([]byte(p.Hostname))
+	writeHashString(h, string(p.Origin))
+	writeHashString(h, p.Namespace)
+	writeHashString(h, p.Hostname)
 	_ = binary.Write(h, binary.LittleEndian, p.Port)
-	_, _ = h.Write([]byte(p.Protocol))
-	_, _ = h.Write([]byte(p.SourceContainerID))
+	writeHashString(h, string(p.Protocol))
+	writeHashString(h, p.SourceContainerID)
 	return h.Sum64()
+}
+
+// writeHashString prefixes string fields with their length so adjacent fields
+// cannot collide when their concatenated bytes are identical.
+func writeHashString(h hash.Hash, value string) {
+	_ = binary.Write(h, binary.LittleEndian, uint64(len(value)))
+	_, _ = h.Write([]byte(value))
 }

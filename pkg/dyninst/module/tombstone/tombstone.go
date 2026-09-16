@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package tombstone implements a simple mechanism to protect against repeated
 // crashes when placing probes by writing a file to disk while loading a program
@@ -16,8 +16,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/statedir"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -50,7 +52,10 @@ func WriteTombstoneFile(filePath string, errorNumber int) error {
 		return err
 	}
 
-	return os.WriteFile(filePath, data, 0644)
+	if err := statedir.EnsureSecure(filepath.Dir(filePath)); err != nil {
+		return err
+	}
+	return statedir.WriteFile(filePath, data)
 }
 
 // ReadTombstoneFile reads and unmarshals the tombstone file at the specified path.

@@ -95,7 +95,7 @@ docker_build_agent7_windows:
         WITH_JMX: "true"
   tags: [$WINDOWS_RUNNER]
   variables:
-    OVERRIDE_GIT_STRATEGY: "clone"
+    GIT_STRATEGY: "clone"
 
 # FIPS builds: ltsc2022 only (with/without JMX)
 docker_build_fips_agent7_windows:
@@ -110,4 +110,4 @@ docker_build_fips_agent7_windows:
         WITH_JMX: "true"
   tags: [$WINDOWS_RUNNER]
   variables:
-    OVERRIDE_GIT_STRATEGY: "clone"
+    GIT_STRATEGY: "clone"

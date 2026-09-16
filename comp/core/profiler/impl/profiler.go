@@ -9,6 +9,7 @@ package profilerimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,15 +19,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
@@ -82,7 +81,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen)
+			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken)
 		}
 	}
 
@@ -179,14 +178,14 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
 	}
 
-	var errs error
+	var errs []error
 	for name, callback := range agentCollectors {
 		if err := callback(name); err != nil {
-			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
+			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
 		}
 	}
 
-	return pdata, errs
+	return pdata, errors.Join(errs...)
 }
 
 func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaretypes.FlareBuilder) func() {
@@ -224,7 +223,7 @@ func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error
 	// goroutines, and gracefully produces no file when the agent is unreachable
 	// (e.g. local flare mode) instead of capturing the CLI's own goroutines.
 	pprofURL := "http://127.0.0.1:" + strconv.Itoa(p.cfg.GetInt("expvar_port")) + "/debug/pprof/goroutine?debug=2"
-	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen); err == nil {
+	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken); err == nil {
 		fb.AddFile("go-routine-dump.log", data) //nolint:errcheck
 	}
 

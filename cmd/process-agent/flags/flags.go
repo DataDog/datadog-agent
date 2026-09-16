@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin
-
+//nolint:revive // TODO(PROC) Fix revive linter
 package flags
 
 const (
-	// DefaultConfPath points to the location of datadog.yaml
-	DefaultConfPath = "/etc/datadog-agent/datadog.yaml"
-	// DefaultSysProbeConfPath points to the location of system-probe.yaml
-	DefaultSysProbeConfPath = "/etc/datadog-agent/system-probe.yaml"
+	// CfgPath defines the cfgpath flag
+	CfgPath = "cfgpath"
+	// SysProbeConfig defines the sysprobe-config flag
+	SysProbeConfig = "sysprobe-config"
+	// FleetCfgPath defines the fleetcfgpath flag
+	FleetCfgPath = "fleetcfgpath"
 )

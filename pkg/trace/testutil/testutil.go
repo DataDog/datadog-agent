@@ -22,6 +22,12 @@ import (
 )
 
 // FindTCPPort finds a free TCP port and returns it. If it fails, error will be non-nil.
+//
+// Hazard: the port is closed before this function returns, leaving a window in
+// which another process can take it before the caller binds. Only use this
+// when a port number is needed before the listener can exist (e.g. writing it
+// into a subprocess's config). When the code under test is created in-process,
+// prefer TCPListener, which never releases the port.
 func FindTCPPort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
@@ -37,10 +43,26 @@ func FindTCPPort() (int, error) {
 
 // FreeTCPPort returns a free TCP port. Upon encountering an error, it uses t to fail
 // the test and report it.
+//
+// Hazard: see FindTCPPort. Prefer TCPListener when the server under test is
+// created in-process.
 func FreeTCPPort(t *testing.T) int {
 	p, err := FindTCPPort()
 	if err != nil {
 		t.Fatal(err)
 	}
 	return p
+}
+
+// TCPListener returns a listener bound to 127.0.0.1 on a free port, closed at
+// test cleanup. Prefer this over FreeTCPPort/FindTCPPort when the server under
+// test is created in-process: the port is never released, so nothing else can
+// take it before the code under test binds.
+func TCPListener(t *testing.T) net.Listener {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	return ln
 }

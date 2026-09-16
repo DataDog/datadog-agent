@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

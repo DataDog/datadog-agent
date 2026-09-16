@@ -102,5 +102,7 @@ check_pkg_size:
     - dogstatsd_deb-arm64
     - agent_rpm-arm64-a7
     - iot_agent_rpm-arm64
+  variables:
+    GIT_DEPTH: 0  # Full history: package.check-size uses git merge-base
   script:
     - dda inv -- package.check-size

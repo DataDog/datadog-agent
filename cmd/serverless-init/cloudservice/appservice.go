@@ -10,6 +10,8 @@ import (
 	"maps"
 	"os"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -102,9 +104,14 @@ func (a *AppService) Init(_ *TracingContext) error {
 	return nil
 }
 
+// Run uses the default run behaviour for AppService.
+func (a *AppService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (a *AppService) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(appServiceShutdownMetricName, 1.0, a.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(appServiceLegacyShutdownMetricName, 1.0, a.GetSource())
 	}
@@ -113,11 +120,6 @@ func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgen
 func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(appServiceStartMetricName, 1.0, a.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(appServiceLegacyStartMetricName, 1.0, a.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (a *AppService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isAppService() bool {

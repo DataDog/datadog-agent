@@ -6,32 +6,35 @@
 package opms
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/jsonapi"
 	"github.com/go-jose/go-jose/v4"
 )
 
 const (
-	createPARPath = "/api/unstable/on_prem_runners"
+	createPARPath           = "/api/unstable/on_prem_runners"
+	createPARApiKeyOnlyPath = "/api/unstable/on_prem_runners/api_key_only"
 
 	enrollmentInitialBackoff = 1 * time.Second
 	enrollmentMaxBackoff     = 30 * time.Second
 )
 
-// PublicClient exposes endpoint that don't require JWT authentication
+// PublicClient exposes endpoints that don't require JWT authentication
 type PublicClient interface {
 	EnrollWithApiKey(
 		ctx context.Context,
@@ -44,20 +47,31 @@ type PublicClient interface {
 		orchClusterID string,
 		agentFlavor string,
 	) (*par.CreateRunnerResponse, error)
+
+	EnrollWithApiKeyOnly(
+		ctx context.Context,
+		apiKey string,
+		runnerName string,
+		runnerModes []modes.Mode,
+		publicJwk *jose.JSONWebKey,
+		agentHostname string,
+		orchClusterID string,
+		agentFlavor string,
+	) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
-	ddApiHost    string
+	ddBaseURL    string
 	httpClient   *http.Client
 	extraHeaders map[string]string
 }
 
-func NewPublicClient(ddBaseURL string, extraHeaders map[string]string) PublicClient {
-	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
+func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	return &publicClient{
-		ddApiHost: apiHost,
+		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
 		httpClient: &http.Client{
-			Timeout: time.Millisecond * time.Duration(30_000),
+			Timeout:   30 * time.Second,
+			Transport: httputils.CreateHTTPTransport(cfg),
 		},
 		extraHeaders: extraHeaders,
 	}
@@ -74,16 +88,40 @@ func (p *publicClient) EnrollWithApiKey(
 	orchClusterID string,
 	agentFlavor string,
 ) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARPath, apiKey, appKey, runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) EnrollWithApiKeyOnly(
+	ctx context.Context,
+	apiKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARApiKeyOnlyPath, apiKey, "", runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) enroll(
+	ctx context.Context,
+	path string,
+	apiKey string,
+	appKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
-	createRunnerUrl := url.URL{
-		Host:   p.ddApiHost,
-		Scheme: "https",
-		Path:   createPARPath,
-	}
+	createRunnerURL := p.ddBaseURL + path
 
 	request := par.CreateRunnerRequest{
 		RunnerName:    runnerName,
@@ -99,7 +137,7 @@ func (p *publicClient) EnrollWithApiKey(
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerUrl.String(), requestBodyJSON, apiKey, appKey)
+	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerURL, requestBodyJSON, apiKey, appKey)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +170,7 @@ func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string,
 // success. On non-2xx responses, returns the status code so the caller can
 // decide whether to retry.
 func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
@@ -148,7 +186,7 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}

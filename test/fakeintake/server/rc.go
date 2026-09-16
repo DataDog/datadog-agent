@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
+	yaml "go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/proto"
-	yaml "gopkg.in/yaml.v3"
 
 	core "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -40,11 +40,13 @@ type rcServerState struct {
 	polls    uint64
 	lastPoll time.Time
 
-	signing  ed25519.PrivateKey
-	keyID    string
-	rootJSON []byte
+	signing   ed25519.PrivateKey
+	keyID     string
+	rootJSON  []byte
+	tufExpiry string
 
 	keyPath          string
+	keyData          string // hex-encoded seed; takes precedence over keyPath when non-empty
 	initialStatePath string
 }
 
@@ -72,29 +74,18 @@ func (s *rcServerState) deleteConfig(key string) bool {
 }
 
 func (s *rcServerState) snapshot() []rcstore.Config {
+	cfgs, _, _ := s.versionedSnapshot()
+	return cfgs
+}
+
+func (s *rcServerState) versionedSnapshot() ([]rcstore.Config, uint64, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]rcstore.Config, 0, len(s.configs))
 	for _, c := range s.configs {
 		out = append(out, c)
 	}
-	return out
-}
-
-func (s *rcServerState) configsForProducts(products []string) []rcstore.Config {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	wanted := make(map[string]struct{}, len(products))
-	for _, p := range products {
-		wanted[p] = struct{}{}
-	}
-	out := make([]rcstore.Config, 0, len(s.configs))
-	for _, c := range s.configs {
-		if _, ok := wanted[c.Product]; ok {
-			out = append(out, c)
-		}
-	}
-	return out
+	return out, s.version, s.tufExpiry
 }
 
 func (s *rcServerState) recordPoll(now time.Time) {
@@ -123,10 +114,11 @@ func WithRemoteConfig(orgUUID string) Option {
 			orgUUID = "42"
 		}
 		fi.rc = &rcServerState{
-			enabled: true,
-			orgUUID: orgUUID,
-			configs: make(map[string]rcstore.Config),
-			version: 1,
+			enabled:   true,
+			orgUUID:   orgUUID,
+			configs:   make(map[string]rcstore.Config),
+			version:   1,
+			tufExpiry: rcstore.TUFExpires,
 		}
 	}
 }
@@ -139,6 +131,20 @@ func WithRemoteConfigKeyPath(path string) Option {
 			return
 		}
 		fi.rc.keyPath = path
+	}
+}
+
+// WithRemoteConfigKeyData supplies the ed25519 signing key as a hex-encoded
+// 32-byte seed string. When set, the key is never written to disk and
+// WithRemoteConfigKeyPath is ignored. Use this for ephemeral environments
+// (e.g. ECS Fargate) where a fixed, pre-known key is required so the agent's
+// config_root/director_root can be set at provisioning time.
+func WithRemoteConfigKeyData(hexSeed string) Option {
+	return func(fi *Server) {
+		if fi.rc == nil {
+			return
+		}
+		fi.rc.keyData = hexSeed
 	}
 }
 
@@ -183,9 +189,25 @@ func (fi *Server) initRC() error {
 		return nil
 	}
 
-	priv, generated, err := rcstore.LoadOrCreateSigningKey(rc.keyPath)
-	if err != nil {
-		return fmt.Errorf("rc signing key: %w", err)
+	var (
+		priv ed25519.PrivateKey
+		err  error
+	)
+	if rc.keyData != "" {
+		priv, err = rcstore.KeyFromHexSeed(rc.keyData)
+		if err != nil {
+			return fmt.Errorf("rc signing key (from --rc-key-data): %w", err)
+		}
+		log.Println("Remote Config: loaded signing key from --rc-key-data")
+	} else {
+		var generated bool
+		priv, generated, err = rcstore.LoadOrCreateSigningKey(rc.keyPath)
+		if err != nil {
+			return fmt.Errorf("rc signing key: %w", err)
+		}
+		if generated {
+			log.Println("Remote Config: generated new signing key — agent's remote-config.db must be flushed")
+		}
 	}
 	rc.signing = priv
 
@@ -203,9 +225,6 @@ func (fi *Server) initRC() error {
 	rc.rootJSON = root
 
 	log.Printf("Remote Config: keyid=%s pubkey=%s", keyID, pubHex)
-	if generated {
-		log.Println("Remote Config: generated new signing key — agent's remote-config.db must be flushed")
-	}
 	log.Printf("Remote Config: paste into datadog.yaml:\n  remote_configuration.config_root: '%s'\n  remote_configuration.director_root: '%s'", root, root)
 
 	if rc.initialStatePath != "" {
@@ -264,19 +283,14 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 	}
 	rc.recordPoll(fi.clock.Now().UTC())
 
-	products := append(req.GetProducts(), req.GetNewProducts()...)
-	cfgs := rc.configsForProducts(products)
+	// Serve the complete repository.
+	cfgs, version, expires := rc.versionedSnapshot()
 	if len(cfgs) == 0 {
-		log.Printf("Remote Config: no configs for products %v", products)
-		http.Error(w, "no configurations available", http.StatusNotFound)
-		return
+		log.Printf("Remote Config: serving empty response for products %v",
+			append(req.GetProducts(), req.GetNewProducts()...))
 	}
 
-	rc.mu.Lock()
-	version := rc.version
-	rc.mu.Unlock()
-
-	metas, err := rcstore.GenerateTUFMetas(cfgs, rc.signing, rc.keyID, rc.rootJSON, version)
+	metas, err := rcstore.GenerateTUFMetasWithExpiration(cfgs, rc.signing, rc.keyID, rc.rootJSON, version, expires)
 	if err != nil {
 		http.Error(w, "build metas: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -396,6 +410,27 @@ func (fi *Server) handleRCAddConfig(w http.ResponseWriter, r *http.Request) {
 		Data:       dataBytes,
 	})
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (fi *Server) handleRCSetExpiration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if fi.rc == nil {
+		http.Error(w, "remote config not enabled", http.StatusNotFound)
+		return
+	}
+	var req api.RCSetExpirationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ExpiresAt.IsZero() {
+		http.Error(w, "valid expires_at is required", http.StatusBadRequest)
+		return
+	}
+	fi.rc.mu.Lock()
+	fi.rc.tufExpiry = req.ExpiresAt.UTC().Format(time.RFC3339)
+	fi.rc.version++
+	fi.rc.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (fi *Server) handleRCListConfigs(w http.ResponseWriter, r *http.Request) {

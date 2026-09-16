@@ -11,17 +11,89 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	listv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestKubeEndpointServiceFilterTemplatesOverriddenChecks(t *testing.T) {
+	endpointID := "kube_endpoint_uid://default/myservice/10.0.0.1"
+	annotationRedis := integration.Config{
+		Name:          "redisdb",
+		Provider:      names.KubeEndpointSlices,
+		Source:        "kube_endpoints:kube_endpoint_uid://default/myservice/",
+		ADIdentifiers: []string{endpointID},
+		Instances:     []integration.Data{integration.Data(`{"host":"%%host%%"}`)},
+	}
+	legacyAnnotationRedis := annotationRedis
+	legacyAnnotationRedis.Provider = names.KubeEndpoints
+	crRedis := annotationRedis
+	crRedis.Provider = names.KubeEndpointSlicesCR
+	crRedis.Source = "datadoginstrumentation:default/redis"
+	crRedis.Instances = []integration.Data{integration.Data(`{"host":"%%host%%","source":"cr"}`)}
+	crHTTP := crRedis
+	crHTTP.Name = "http_check"
+
+	tests := []struct {
+		name    string
+		configs []integration.Config
+		want    []string
+	}{
+		{
+			name:    "CR check without annotation is preserved",
+			configs: []integration.Config{crRedis},
+			want:    []string{names.KubeEndpointSlicesCR + "/redisdb"},
+		},
+		{
+			name:    "EndpointSlice annotation overrides same CR integration",
+			configs: []integration.Config{crRedis, annotationRedis},
+			want:    []string{names.KubeEndpointSlices + "/redisdb"},
+		},
+		{
+			name:    "legacy Endpoints annotation overrides same CR integration",
+			configs: []integration.Config{crRedis, legacyAnnotationRedis},
+			want:    []string{names.KubeEndpoints + "/redisdb"},
+		},
+		{
+			name:    "different integrations coexist",
+			configs: []integration.Config{crHTTP, annotationRedis},
+			want: []string{
+				names.KubeEndpointSlicesCR + "/http_check",
+				names.KubeEndpointSlices + "/redisdb",
+			},
+		},
+	}
+
+	service := &KubeEndpointService{entity: endpointID}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configs := make(map[string]integration.Config, len(tc.configs))
+			for _, config := range tc.configs {
+				configs[config.Digest()] = config
+			}
+
+			service.FilterTemplates(configs)
+
+			got := make([]string, 0, len(configs))
+			for _, config := range configs {
+				got = append(got, config.Provider+"/"+config.Name)
+			}
+			assert.ElementsMatch(t, tc.want, got)
+		})
+	}
+}
 
 func TestProcessEndpoints(t *testing.T) {
 	kep := &v1.Endpoints{
@@ -608,8 +680,8 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 
 func TestKubeEndpointsFiltering(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
-	mockConfig.SetWithoutSource("container_exclude", []string{"name:global-excluded"})
+	mockConfig.SetInTest("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
+	mockConfig.SetInTest("container_exclude", []string{"name:global-excluded"})
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	// Create test endpoints with different scenarios
@@ -754,4 +826,60 @@ func TestKubeEndpointsFiltering(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newEndpointsTestListener(t *testing.T, svc *v1.Service, kep *v1.Endpoints) (*KubeEndpointsListener, cache.Indexer, chan Service, chan Service) {
+	svcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	require.NoError(t, svcIndexer.Add(svc))
+	epIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	require.NoError(t, epIndexer.Add(kep))
+
+	newCh := make(chan Service, 10)
+	delCh := make(chan Service, 10)
+	l := &KubeEndpointsListener{
+		endpoints:       make(map[types.UID][]*KubeEndpointService),
+		endpointsLister: listv1.NewEndpointsLister(epIndexer),
+		serviceLister:   listv1.NewServiceLister(svcIndexer),
+		promInclAnnot:   getPrometheusIncludeAnnotations(),
+		filterStore:     workloadfilterfxmock.SetupMockFilter(t),
+		newService:      newCh,
+		delService:      delCh,
+	}
+	return l, svcIndexer, newCh, delCh
+}
+
+// TestEndpointsServiceUpdatedPrometheusAnnotations verifies that changes to prometheus
+// scrape annotations trigger endpoint service emission.
+func TestEndpointsServiceUpdatedPrometheusAnnotations(t *testing.T) {
+	kep := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: types.UID("ep-uid")},
+		Subsets: []v1.EndpointSubset{{
+			Addresses: []v1.EndpointAddress{{IP: "10.0.0.1"}, {IP: "10.0.0.2"}},
+			Ports:     []v1.EndpointPort{{Name: "metrics", Port: 9113}},
+		}},
+	}
+
+	t.Run("annotation added", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: "svc-uid"}}
+		l, svcIndexer, newCh, _ := newEndpointsTestListener(t, svcOld, kep)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations = map[string]string{"prometheus.io/scrape": "true"}
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when prometheus annotation is added")
+	})
+
+	t.Run("scrape annotation value changed", func(t *testing.T) {
+		svcOld := &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "nginx-svc", Namespace: "default", UID: "svc-uid", Annotations: map[string]string{"prometheus.io/scrape": "false"}}}
+		l, svcIndexer, newCh, _ := newEndpointsTestListener(t, svcOld, kep)
+
+		svcNew := svcOld.DeepCopy()
+		svcNew.Annotations["prometheus.io/scrape"] = "true"
+		require.NoError(t, svcIndexer.Update(svcNew))
+		l.serviceUpdated(svcOld, svcNew)
+
+		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
+	})
 }

@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/samuel/go-zookeeper/zk"
+	"github.com/go-zookeeper/zk"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,9 +42,9 @@ type ZookeeperConfigProvider struct {
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewZookeeperConfigProvider(providerConfig *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	if providerConfig == nil {
-		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
+		providerConfig = &constants.ConfigurationProviders{}
 	}
 
 	urls := strings.Split(providerConfig.TemplateURL, ",")

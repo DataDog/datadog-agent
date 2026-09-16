@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# Don't allow starting without an apikey set
-if [[ -z "${DD_API_KEY}" ]]; then
+# Do not allow starting without authentication configured.
+# Either DD_API_KEY or DD_DELEGATED_AUTH_ORG_UUID (Workload Identity Federation) must be set.
+if [[ -z "${DD_API_KEY}" ]] && [[ -z "${DD_DELEGATED_AUTH_ORG_UUID}" ]]; then
     echo ""
     echo "=================================================================================="
-    echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container"
+    echo "You must set either a DD_API_KEY or DD_DELEGATED_AUTH_ORG_UUID environment"
+    echo "variable to run the Datadog Agent container."
     echo "=================================================================================="
     echo ""
     exit 1

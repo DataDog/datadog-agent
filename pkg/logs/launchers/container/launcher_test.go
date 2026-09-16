@@ -108,7 +108,7 @@ func TestCannotMakeTailer(t *testing.T) {
 	addedSources <- source
 	require.True(t, l.loop(context.Background(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
-	require.Equal(t, "Error: uhoh", source.Status.GetError())
+	require.Equal(t, "Error: uhoh", source.Status().GetError())
 }
 
 func TestCannotStartTailer(t *testing.T) {
@@ -131,5 +131,5 @@ func TestCannotStartTailer(t *testing.T) {
 	addedSources <- source
 	require.True(t, l.loop(context.Background(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
-	require.Equal(t, "Error: uhoh", source.Status.GetError())
+	require.Equal(t, "Error: uhoh", source.Status().GetError())
 }

@@ -16,6 +16,19 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// CollectorBuilder creates a collector for a device. It is exposed only in test builds.
+type CollectorBuilder = subsystemBuilder
+
+// WithCollectorFactoryForTest temporarily replaces the collector factory.
+func WithCollectorFactoryForTest(t testing.TB, testFactory map[CollectorName]CollectorBuilder) {
+	t.Helper()
+	previousFactory := factory
+	factory = testFactory
+	t.Cleanup(func() {
+		factory = previousFactory
+	})
+}
+
 // SetStatsForTest replaces the cached stats. Intended for testing only.
 func (c *SystemProbeCache) SetStatsForTest(stats *model.GPUStats) {
 	c.stats = stats
@@ -50,11 +63,17 @@ func (c *DeviceEventsGatherer) InjectEventsForTest(deviceUUID string, events []d
 
 	for _, event := range events {
 		select {
-		case cache.pendingEvents <- event:
+		case cache.pendingEvents <- observedDeviceEvent{DeviceEventData: event, ObservedAt: time.Now()}:
 		default:
 			return fmt.Errorf("pending event queue is full for device %s", deviceUUID)
 		}
 	}
 
 	return nil
+}
+
+// NumCollectors returns the number of collectors that are present. Useful only in testing
+// for asserting that the collector creation process is correct.
+func NumCollectors() int {
+	return len(factory)
 }

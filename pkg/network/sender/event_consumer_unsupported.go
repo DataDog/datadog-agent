@@ -3,17 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && !(windows && npm)
 
 package sender
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 
 // NewDirectSenderConsumer is not supported on non-linux systems
 func NewDirectSenderConsumer(_ EventConsumerRegistry, _ log.Component, _ sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
 	return nil, nil
+}
+
+// NewDirectSenderPoller is not supported on non-linux systems
+func NewDirectSenderPoller(_ log.Component, _ sysprobeconfig.Component) error {
+	return nil
 }

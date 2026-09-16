@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	modelutils "github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -491,4 +492,50 @@ func TestProcessSerializer_IsExecFields_Ancestors(t *testing.T) {
 	data, err := json.Marshal(pcs.Ancestors[0])
 	require.NoError(t, err)
 	validateProcessSchemaFields(t, string(data))
+}
+
+func TestTraceSerializer_AbsentWithoutSpanContext(t *testing.T) {
+	// An event with no APM span context (the common case) must not emit the
+	// "trace" / "dd" keys at all, so consumers can rely on their presence as
+	// a signal that APM correlation data exists.
+	event := newAnomalyEvent()
+
+	s := NewEventSerializer(event, nil, newTestScrubber(t))
+	assert.Nil(t, s.Trace, "Trace serializer should be nil without a span context")
+	assert.Nil(t, s.DD, "DD serializer should be nil without a span context")
+
+	data, err := json.Marshal(s)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	_, hasTrace := raw["trace"]
+	assert.False(t, hasTrace, "trace key should be absent when there is no span context")
+	_, hasDD := raw["dd"]
+	assert.False(t, hasDD, "dd key should be absent when there is no span context")
+}
+
+func TestTraceSerializer_PresentWithSpanContext(t *testing.T) {
+	// When the event carries a span context, both the "trace" and "dd" keys
+	// must be present and populated.
+	event := newAnomalyEvent()
+	event.SpanContext.SpanID = 42
+	event.SpanContext.TraceID = modelutils.TraceID{Hi: 1, Lo: 2}
+
+	s := NewEventSerializer(event, nil, newTestScrubber(t))
+	require.NotNil(t, s.Trace, "Trace serializer should be set with a span context")
+	assert.Equal(t, "42", s.Trace.SpanID)
+	assert.Equal(t, event.SpanContext.TraceID.HexString(), s.Trace.TraceID)
+
+	data, err := json.Marshal(s)
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	_, hasTrace := raw["trace"]
+	assert.True(t, hasTrace, "trace key should be present when there is a span context")
+	_, hasDD := raw["dd"]
+	assert.True(t, hasDD, "dd key should be present when there is a span context")
 }

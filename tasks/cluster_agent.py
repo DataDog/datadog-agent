@@ -36,6 +36,7 @@ def build(
     skip_assets=False,
     policies_version=None,
     force_policies_clone=True,
+    enable_bazel=False,
 ):
     """
     Build Cluster Agent
@@ -43,6 +44,12 @@ def build(
      Example invokation:
         dda inv cluster-agent.build
     """
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+
     build_common(
         ctx,
         BIN_PATH,
@@ -55,6 +62,7 @@ def build(
         development,
         skip_assets,
         cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        enable_bazel=enable_bazel,
     )
 
     if policies_version is None:
@@ -203,7 +211,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the cluster-agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/cluster-agent/tags/list")
+        tags = requests.get("https://registry.datadoghq.com/v2/cluster-agent/tags/list")
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -212,7 +220,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/cluster-agent:{latest_release}"
+        base_image = f"registry.datadoghq.com/cluster-agent:{latest_release}"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(

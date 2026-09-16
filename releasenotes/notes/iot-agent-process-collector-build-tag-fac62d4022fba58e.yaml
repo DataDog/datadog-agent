@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Exclude the workloadmeta process collector from the IoT Agent binary using the ``systemprobechecks`` build tag, reducing binary size.

@@ -1,4 +1,23 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Opt-in for Bazel tests in this package that require an elevated Windows token.
+# This flag only selects targets into the configured build graph; tests should
+# still verify any required privileges at runtime and report a clear skip or
+# failure.
+bool_flag(
+    name = "windows_elevated_tests",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "windows_elevated_tests_disabled",
+    constraint_values = ["@platforms//os:windows"],
+    flag_values = {
+        "//pkg/inventory/software:windows_elevated_tests": "False",
+    },
+)
 
 go_library(
     name = "software",
@@ -9,15 +28,19 @@ go_library(
         "collector_darwin_homebrew.go",
         "collector_darwin_kext.go",
         "collector_darwin_macports.go",
+        "collector_darwin_os.go",
         "collector_darwin_pkg.go",
         "collector_darwin_pkg_helper.go",
         "collector_darwin_sysext.go",
         "collector_nix.go",
         "collector_windows.go",
+        "collector_windows_drivers.go",
+        "collector_windows_os.go",
         "msi_collector.go",
         "msstoreapps_collector.go",
         "registry_collector.go",
         "types.go",
+        "types_common.go",
         "win32.go",
         "wire.go",
     ],
@@ -42,17 +65,20 @@ go_library(
     }),
 )
 
-# TODO{agent-build}: re-enable once the DLL loading path under Bazel runfiles is fixed properly
-go_test(
+dd_agent_go_test(
     name = "software_test",
     srcs = [
+        "collector_darwin_os_test.go",
         "collector_darwin_pkg_helper_test.go",
         "collector_darwin_pkg_test.go",
         "collector_darwin_test.go",
         "collector_test.go",
+        "collector_windows_drivers_test.go",
+        "collector_windows_os_test.go",
         "collector_windows_test.go",
         "config_test.go",
         "integration_windows_test.go",
+        "main_windows_test.go",
         "wire_test.go",
     ],
     data = select({
@@ -68,20 +94,22 @@ go_test(
         },
         "//conditions:default": {},
     }),
-    gotags = ["test"],
-    tags = ["manual"],  # keep
+    # Windows MS Store / Appx collection needs an elevated token. Linux-safe
+    # tests still run in normal Bazel coverage; opt Windows in explicitly from
+    # an elevated prompt with:
+    #   bazel test --//pkg/inventory/software:windows_elevated_tests=True //pkg/inventory/software:software_test
+    target_compatible_with = select({
+        ":windows_elevated_tests_disabled": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),  # keep
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//require",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",
-            "@com_github_stretchr_testify//require",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

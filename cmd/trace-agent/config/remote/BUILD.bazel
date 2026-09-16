@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "remote",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/client",
+        "//pkg/proto/pbgo/core",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/timing",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/util/log",
+        "//pkg/util/sync",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remote_test",
+    srcs = ["config_test.go"],
+    embed = [":remote"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/sampler",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

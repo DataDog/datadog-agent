@@ -23,8 +23,8 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -69,7 +69,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
-		SysProbeConfig: fxutil.Test[option.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
+		SysProbeConfig: option.New[sysprobeconfig.Component](sysprobeconfigmock.NewMock(t)),
 		Hostname:       hostnameimpl.NewHostnameService(),
 	}
 

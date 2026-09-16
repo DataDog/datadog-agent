@@ -4,7 +4,6 @@ receivers:
       enabled: true
       symbol_endpoints:
       - api_key: 12345
-        app_key: test-app-key
 service:
   pipelines:
     profiles:
@@ -12,8 +11,8 @@ service:
       receivers:
       - profiling
       exporters:
-      - otlphttp
+      - otlp_http
 exporters:
-  otlphttp:
+  otlp_http:
     headers:
       dd-api-key: test-api-key

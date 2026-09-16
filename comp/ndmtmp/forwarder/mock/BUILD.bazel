@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/impl",
+        "//comp/ndmtmp/forwarder/def",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_mock//gomock",
+    ],
+)

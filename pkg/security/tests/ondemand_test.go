@@ -22,6 +22,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var _ = declare(TestOnDemandOpen, testOpts{disableOnDemandRateLimiter: true})
+
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -32,7 +34,7 @@ func TestOnDemandOpen(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

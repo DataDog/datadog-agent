@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "noop-impl",
@@ -14,13 +15,12 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "noop-impl_test",
     srcs = ["health_platform_noop_test.go"],
     embed = [":noop-impl"],
-    gotags = ["test"],
     deps = [
-        "//comp/healthplatform/store/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

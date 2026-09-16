@@ -166,6 +166,12 @@ func inflate(payload []byte, encoding string) (inflated []byte, err error) {
 	return inflated, nil
 }
 
+// Inflate decompresses a payload according to its encoding. It is exported for
+// callers that read raw payloads from routes without a typed aggregator.
+func Inflate(payload []byte, encoding string) ([]byte, error) {
+	return inflate(payload, encoding)
+}
+
 func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
 	switch encoding {
 	case encodingGzip:

@@ -4,10 +4,11 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
+int __attribute__((always_inline)) trace__sys_chown(void *ctx, const char *filename, uid_t user, gid_t group) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHOWN)) {
         return 0;
     }
@@ -22,40 +23,39 @@ int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t 
     };
 
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)filename, (void *)&user, (void *)&group);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY3(lchown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(NULL, user, group);
+    return trace__sys_chown(ctx, NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(lchown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown16, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(NULL, user, group);
+    return trace__sys_chown(ctx, NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(filename, user, group);
+    return trace__sys_chown(ctx, filename, user, group);
 }
 
-int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
     if (!syscall) {
         return 0;
@@ -67,23 +67,28 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
-    struct chown_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .file = syscall->setattr.file,
-        .uid = syscall->setattr.user,
-        .gid = syscall->setattr.group,
-    };
+    struct chown_event_t *event = SPAN_FILL_EVENT(struct chown_event_t, EVENT_CHOWN);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->file = syscall->setattr.file;
+    event->uid = syscall->setattr.user;
+    event->gid = syscall->setattr.group;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
     // dentry resolution in setattr.h
 
-    send_event(ctx, EVENT_CHOWN, event);
+    span_fill_tail_call(ctx, prog_type);
 
     return 0;
+}
+
+int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
+    return sys_chown_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(lchown) {
@@ -122,7 +127,7 @@ HOOK_SYSCALL_EXIT(fchownat) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_chown_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_chown_ret(args, args->ret);
+    return sys_chown_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

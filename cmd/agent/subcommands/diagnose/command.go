@@ -24,10 +24,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
@@ -42,7 +42,7 @@ import (
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
@@ -50,7 +50,9 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -119,7 +121,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(option.None[collector.Component]()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
-				autodiscoveryimpl.Module(),
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
+				}),
+				adfx.Module(),
 				haagentfx.Module(),
 				healthplatform.Bundle(),
 				hostnameimpl.Module(),
@@ -459,7 +464,7 @@ func cmdDiagnose(cliParams *cliParams,
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -476,12 +481,12 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 }
 
 func printHealthPlatformIssues(_ log.Component, config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
-	apiConfigURL := fmt.Sprintf("https://%s/health-platform/issues", addr)
+	apiConfigURL := fmt.Sprintf("https://%s/agent/health-platform/issues", addr)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -494,7 +499,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPClient) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
@@ -532,12 +537,12 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 
 // printAgentFullTelemetry gets the full telemetry payload exposed by the agent
 func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}
 	addr := net.JoinHostPort(ipcAddress, config.GetString("expvar_port"))
-	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr))
+	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return fmt.Errorf("error getting full telemetry payload: %w", err)
 	}

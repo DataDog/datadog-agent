@@ -1,2 +1,28 @@
-# gazelle:ignore
-# Stub: intermediate directory with unmigrated .go files.
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "forwarder",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "forwarder_test",
+    srcs = ["bundle_test.go"],
+    embed = [":forwarder"],
+    deps = [
+        "//comp/core",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/forwarder/defaultforwarder/def",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

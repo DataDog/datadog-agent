@@ -7,19 +7,22 @@ package netflowstate
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
+
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
+
 	// install the in-memory template manager
+	"net"
+	"testing"
+	"time"
+
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"net"
-	"testing"
-	"time"
 )
 
 type mockedFormatDriver struct{}
@@ -36,7 +39,7 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	require.NoError(t, err, "error with template")
 	defer templateSystem.Close(ctx)
 
-	state := NewStateNetFlow(nil)
+	state := NewStateNetFlow(nil, false)
 	state.Format = &mockedFormatDriver{}
 	state.Logger = logrusLogger
 	state.TemplateSystem = templateSystem

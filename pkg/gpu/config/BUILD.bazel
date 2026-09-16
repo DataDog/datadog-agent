@@ -1,1 +1,13 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/gpu/config/consts",
+        "//pkg/system-probe/config",
+    ],
+)

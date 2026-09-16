@@ -653,6 +653,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "process.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "process.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -2677,9 +2692,19 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.cnames",
+          "definition": "CNAME targets returned by the DNS response",
+          "property_doc_link": "dns-response-cnames-doc"
+        },
+        {
           "name": "dns.response.code",
           "definition": "Response code of the DNS response according to RFC 1035",
           "property_doc_link": "dns-response-code-doc"
+        },
+        {
+          "name": "dns.response.ips",
+          "definition": "IP addresses resolved by the DNS response",
+          "property_doc_link": "dns-response-ips-doc"
         },
         {
           "name": "network.destination.ip",
@@ -2789,6 +2814,21 @@
           "name": "exec.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "exec.cap_effective",
@@ -3405,6 +3445,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exit.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exit.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3954,14 +4009,24 @@
           "property_doc_link": "imds-aws-is_imds_v2-doc"
         },
         {
+          "name": "imds.aws.security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
           "name": "imds.aws.security_credentials.type",
-          "definition": "the security credentials type",
-          "property_doc_link": "imds-aws-security_credentials-type-doc"
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "imds.cloud_provider",
           "definition": "the intended cloud provider of the IMDS event",
           "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
         },
         {
           "name": "imds.host",
@@ -5986,6 +6051,21 @@
           "name": "ptrace.tracee.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "ptrace.tracee.cap_effective",
@@ -8377,6 +8457,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "setrlimit.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "setrlimit.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -10343,6 +10438,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "signal.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "signal.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -11435,6 +11545,35 @@
       ]
     },
     {
+      "name": "socket",
+      "definition": "A socket was created",
+      "type": "Network",
+      "from_agent_version": "7.81",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "socket.domain",
+          "definition": "Socket domain",
+          "property_doc_link": "socket-domain-doc"
+        },
+        {
+          "name": "socket.protocol",
+          "definition": "Socket protocol",
+          "property_doc_link": "socket-protocol-doc"
+        },
+        {
+          "name": "socket.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "socket.type",
+          "definition": "Socket type",
+          "property_doc_link": "socket-type-doc"
+        }
+      ]
+    },
+    {
       "name": "splice",
       "definition": "A splice command was executed",
       "type": "File",
@@ -11831,6 +11970,25 @@
       ]
     },
     {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
@@ -11986,6 +12144,24 @@
     }
   ],
   "properties_doc": [
+    {
+      "name": "*.access_key_id",
+      "link": "common-awssecuritycredentials-access_key_id-doc",
+      "type": "string",
+      "definition": "The access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
     {
       "name": "*.args",
       "link": "common-process-args-doc",
@@ -13591,10 +13767,12 @@
         "chown.file.path",
         "connect.addr.hostname",
         "dns.question.name",
+        "exec.aws_security_credentials",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
         "exec.interpreter.file.path",
+        "exit.aws_security_credentials",
         "exit.file.name",
         "exit.file.path",
         "exit.interpreter.file.name",
@@ -13617,6 +13795,7 @@
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
         "process.ancestors.interpreter.file.path",
+        "process.aws_security_credentials",
         "process.file.name",
         "process.file.path",
         "process.interpreter.file.name",
@@ -13630,6 +13809,7 @@
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
         "ptrace.tracee.ancestors.interpreter.file.path",
+        "ptrace.tracee.aws_security_credentials",
         "ptrace.tracee.file.name",
         "ptrace.tracee.file.path",
         "ptrace.tracee.interpreter.file.name",
@@ -13651,6 +13831,7 @@
         "setrlimit.target.ancestors.file.path",
         "setrlimit.target.ancestors.interpreter.file.name",
         "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.aws_security_credentials",
         "setrlimit.target.file.name",
         "setrlimit.target.file.path",
         "setrlimit.target.interpreter.file.name",
@@ -13666,6 +13847,7 @@
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
         "signal.target.ancestors.interpreter.file.path",
+        "signal.target.aws_security_credentials",
         "signal.target.file.name",
         "signal.target.file.path",
         "signal.target.interpreter.file.name",
@@ -14700,9 +14882,11 @@
         "setsockopt",
         "setxattr",
         "signal",
+        "socket",
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -15038,6 +15222,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-awssecuritycredentials-type-doc",
+      "type": "string",
+      "definition": "The security credentials type",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
       ],
       "constants": "",
       "constants_link": "",
@@ -15707,6 +15909,18 @@
       "examples": []
     },
     {
+      "name": "dns.response.cnames",
+      "link": "dns-response-cnames-doc",
+      "type": "string",
+      "definition": "CNAME targets returned by the DNS response",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "dns.response.code",
       "link": "dns-response-code-doc",
       "type": "int",
@@ -15716,6 +15930,18 @@
       ],
       "constants": "DNS Responses",
       "constants_link": "dns-responses",
+      "examples": []
+    },
+    {
+      "name": "dns.response.ips",
+      "link": "dns-response-ips-doc",
+      "type": "IP/CIDR",
+      "definition": "IP addresses resolved by the DNS response",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -15971,18 +16197,6 @@
       "examples": []
     },
     {
-      "name": "imds.aws.security_credentials.type",
-      "link": "imds-aws-security_credentials-type-doc",
-      "type": "string",
-      "definition": "the security credentials type",
-      "prefixes": [
-        "imds.aws.security_credentials"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "imds.cloud_provider",
       "link": "imds-cloud_provider-doc",
       "type": "string",
@@ -15992,6 +16206,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
       "examples": []
     },
     {
@@ -16907,6 +17133,42 @@
       "examples": []
     },
     {
+      "name": "socket.domain",
+      "link": "socket-domain-doc",
+      "type": "int",
+      "definition": "Socket domain",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.protocol",
+      "link": "socket-protocol-doc",
+      "type": "int",
+      "definition": "Socket protocol",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.type",
+      "link": "socket-type-doc",
+      "type": "int",
+      "definition": "Socket type",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "splice.pipe_entry_flag",
       "link": "splice-pipe_entry_flag-doc",
       "type": "int",
@@ -17084,6 +17346,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -18409,6 +18683,69 @@
       ]
     },
     {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "CompressionType",
       "link": "compressiontype",
       "description": "Compression algorithm.",
@@ -18439,6 +18776,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]
@@ -22590,6 +22946,60 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket domains",
+      "link": "socket-domains",
+      "description": "Socket domains are the supported socket domains.",
+      "all": [
+        {
+          "name": "AF_UNSPEC",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET6",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_UNIX",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket protocols",
+      "link": "socket-protocols",
+      "description": "Socket protocols are the supported socket protocols.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
           "architecture": "all"
         }
       ]

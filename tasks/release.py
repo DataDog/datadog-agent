@@ -6,7 +6,6 @@ Notes about Agent6:
     the task will be run in the agent6 branch.
 """
 
-import json
 import os
 import sys
 import tempfile
@@ -40,7 +39,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import running_in_ci, set_gitconfig_in_ci
+from tasks.libs.common.utils import join_command, running_in_ci, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -69,7 +68,6 @@ from tasks.libs.releasing.version import (
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
-    _create_version_from_match,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -82,25 +80,20 @@ from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 QUALIFICATION_TAG = "qualification"
 
 
-@task
-def list_major_change(_, milestone):
-    """List all PR labeled "major_changed" for this release."""
-
-    gh = GithubAPI()
-    pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
-    if pull_requests is None:
-        return
-    if len(pull_requests) == 0:
-        print(f"no major change for {milestone}")
-        return
-
-    for pr in pull_requests:
-        print(f"#{pr.number}: {pr.title} ({pr.html_url})")
+def _get_module_pseudo_version(ctx, module, commit):
+    """Resolve the canonical pseudo-version for a module at a commit."""
+    command = join_command(["go", "list", "-m", "-mod=mod", "-f={{.Version}}", f"{module.import_path}@{commit}"])
+    version = ctx.run(command, hide=True).stdout.strip()
+    if not version:
+        raise Exit(f"Could not resolve a pseudo-version for {module.import_path} at {commit}")
+    return version
 
 
 @task
 def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
+
+    Agent 6 release candidates use pseudo-versions because their nested modules are not tagged.
 
     Args:
         verify: Checks for correctness on the Agent Version (on by default).
@@ -113,8 +106,12 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
+    agent6_rc = RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6
+
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
+        commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip() if agent6_rc else None
+        pseudo_versions = {}
         for module in modules.values():
             for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
@@ -125,7 +122,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
                 ):
                     # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
                     continue
-                ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                if agent6_rc:
+                    if dependency not in pseudo_versions:
+                        pseudo_versions[dependency] = _get_module_pseudo_version(ctx, dependency_mod, commit)
+                    dependency_path = f"{dependency_mod.import_path}@{pseudo_versions[dependency]}"
+                else:
+                    dependency_path = dependency_mod.dependency_path(agent_version)
+                ctx.run(f"go mod edit -require={dependency_path} {module.go_mod_path()}")
 
 
 def __get_force_option(force: bool) -> str:
@@ -177,6 +180,8 @@ def tag_modules(
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
+    Agent 6 release candidates are skipped; their modules should use pseudo-versions.
+
     Args:
         commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
@@ -194,6 +199,12 @@ def tag_modules(
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
+
+    # Agent 6 consumers can use the global RC tag to find the commit for a pseudo-version.
+    # Final release module tags remain unaffected.
+    if RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6:
+        print(f"Skipping module tags for Agent 6 release candidate {agent_version}")
+        return
 
     def _tag_modules():
         tags = []
@@ -276,13 +287,6 @@ def tag_version(
     else:
         with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
             _tag_version()
-
-
-@task
-def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
-        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
-        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
 
 
 @task
@@ -437,7 +441,8 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
-        Updates internal module dependencies with the new RC.
+        Updates internal module dependencies with the new RC. Agent 6 RCs use
+        pseudo-versions because RC module tags are not created.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
@@ -729,71 +734,6 @@ def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, w
     print(release_json)
 
 
-def _update_last_stable(_, version, major_version: int = 7):
-    """
-    Updates the last_release field(s) of release.json and returns the current milestone
-    """
-    release_json = load_release_json()
-    # If the release isn't a RC, update the last stable release field
-    version.major = major_version
-    release_json['last_stable'][str(major_version)] = str(version)
-    _save_release_json(release_json)
-
-    return release_json["current_milestone"]
-
-
-@task
-def cleanup(ctx, release_branch):
-    """Perform the post release cleanup steps
-
-    Currently this:
-      - Updates the scheduled nightly pipeline to target the new stable branch
-      - Updates the release.json last_stable fields
-    """
-
-    # This task will create a PR to update the last_stable field in release.json
-    # It must create the PR against the default branch (6 or 7), so setting the context on it
-    main_branch = get_default_branch()
-    with agent_context(ctx, main_branch):
-        gh = GithubAPI()
-        major_version = get_version_major(release_branch)
-        latest_release = gh.latest_release(major_version)
-        match = VERSION_RE.search(latest_release)
-        if not match:
-            raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-
-        version = _create_version_from_match(match)
-        current_milestone = _update_last_stable(ctx, version, major_version=major_version)
-
-        # create pull request to update last stable version
-        cleanup_branch = f"release/{version}-cleanup"
-        ctx.run(f"git checkout -b {cleanup_branch}")
-        ctx.run("git add release.json")
-
-        commit_message = f"Update last_stable to {version}"
-        set_gitconfig_in_ci(ctx)
-        ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
-            raise Exit(
-                color_message(
-                    f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
-
-
 @task
 def check_omnibus_branches(ctx, release_branch=None, worktree=True):
     def _main():
@@ -828,39 +768,6 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
             return _main()
     else:
         return _main()
-
-
-@task
-def get_active_release_branch(ctx, release_branch):
-    """Determine what is the current active release branch for the Agent within the release worktree.
-
-    If release started and code freeze is in place - main branch is considered active.
-    If release started and code freeze is over - release branch is considered active.
-    """
-
-    with agent_context(ctx, branch=release_branch):
-        gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
-        release_branch = gh.get_branch(next_version.branch())
-        if release_branch:
-            print(f"{release_branch.name}")
-        else:
-            print(get_default_branch())
-
-
-@task
-def get_unreleased_release_branches(_):
-    """
-    Determine what are the current active release branches for the Agent.
-    """
-    gh = GithubAPI()
-    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
-
-
-def get_next_version(gh, latest_release=None):
-    latest_release = latest_release or gh.latest_release()
-    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
-    return current_version.next_version(bump_minor=True)
 
 
 @task

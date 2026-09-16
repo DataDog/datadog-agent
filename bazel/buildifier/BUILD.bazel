@@ -7,6 +7,7 @@ exclude_patterns = [
     # style as the upstream has it makes merging it back easier.
     "./third_party/*",
     "./deps/*/overlay/*",
+    "./vendor/*",
 ]
 
 buildifier(

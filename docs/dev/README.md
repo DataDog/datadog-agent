@@ -7,6 +7,7 @@ This guide will help you to develop and contribute code to the project.
 * [Custom checks developer guide](checks/README.md)
   * [Python builtin modules](checks/builtins)
 * [Agent IPC API](agent_api.md)
+* [Agent Data Plane — Flare Artifacts](agent-data-plane.md)
 * [How to build the Agent packages][agent-omnibus]
 * [Testing guide][testing]
 * [Troubleshooting Memory Guide][memory]

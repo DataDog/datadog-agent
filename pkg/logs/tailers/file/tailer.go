@@ -308,6 +308,9 @@ func (t *Tailer) Stop() {
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
+	// Resolved before the goroutine, which sleeps for closeTimeout first, to keep
+	// the source lock off that path.
+	missedSource, missedService := missedBytesIdentity(t.file.Source.Config())
 	go func() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
@@ -324,6 +327,7 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
+						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes)
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}
@@ -396,7 +400,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan() {
-		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
+		offset := t.decodedOffset.Load() + int64(output.RawDataLenForCheckpoint())
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 		identifier := t.Identifier()
@@ -411,25 +415,29 @@ func (t *Tailer) forwardMessages() {
 		origin.FilePath = t.file.Path
 		origin.Fingerprint = t.fingerprint
 
+		providerTags := t.tagProvider.GetTags()
+
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
-		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, providerTags...)
 		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
-		// Ignore empty lines once the registry offset is updated
-		if len(output.GetContent()) == 0 {
+		if !output.HasContent() {
 			continue
 		}
 
-		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+		// Enrich the decoder output with the file-tailer origin.
+		// This mutates in-place to preserve the message's content state
+		// (e.g. StateStructured from syslog parser, StateUnstructured from
+		// plain text) rather than destructively re-wrapping via NewMessage.
+		output.Origin = origin
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- msg:
-			t.CapacityMonitor.AddIngress(msg)
+		case t.outputChan <- output:
+			t.CapacityMonitor.AddIngress(output)
 		case <-t.forwardContext.Done():
 		}
 	}

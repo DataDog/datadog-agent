@@ -1,0 +1,12 @@
+# No injection expected: the metrics pipeline has no datadog exporter, and the
+# traces pipeline (which does) is not a metrics pipeline. This config is a no-op.
+processors:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]

@@ -1,0 +1,126 @@
+# Most Go processes on a host have no Datadog tracer and never will. They are
+# retried forever, but the delay doubles after every failure up to the cap, so
+# in the steady state they cost one cheap check per cap interval. There is no
+# state in which the scanner stops retrying a live process.
+#
+# The scans just before each due time show that the schedule is honoured to the
+# tick.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "no-tracer-here"}
+- !scan {}
+- !advance-time {to: 109}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+- !advance-time {to: 129}
+- !scan {}
+- !advance-time {to: 130}
+- !scan {}
+- !advance-time {to: 169}
+- !scan {}
+- !advance-time {to: 170}
+- !scan {}
+- !advance-time {to: 250}
+- !scan {}
+# The delay is capped here, so every further attempt is 100 ticks after the
+# previous one rather than 160, 320, and so on.
+- !advance-time {to: 350}
+- !scan {}
+- !advance-time {to: 450}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "no-tracer-here"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 109}
+---
+command: !scan {}
+state:
+  current_time: 109
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 129}
+---
+command: !scan {}
+state:
+  current_time: 129
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 169}
+---
+command: !scan {}
+state:
+  current_time: 169
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 170}
+---
+command: !scan {}
+state:
+  current_time: 170
+  candidates: [{pid: 1001, start_time: 50, attempts: 4, next_attempt: 250}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 250}
+---
+command: !scan {}
+state:
+  current_time: 250
+  candidates: [{pid: 1001, start_time: 50, attempts: 5, next_attempt: 350}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 350}
+---
+command: !scan {}
+state:
+  current_time: 350
+  candidates: [{pid: 1001, start_time: 50, attempts: 6, next_attempt: 450}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 450}
+---
+command: !scan {}
+state:
+  current_time: 450
+  candidates: [{pid: 1001, start_time: 50, attempts: 7, next_attempt: 550}]
+  processes_in_procfs: [1001]

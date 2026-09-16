@@ -6,8 +6,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 func testInlinedPrint(x int) {
@@ -94,7 +97,10 @@ func testFramelessArray(a [5]int) int {
 }
 
 //nolint:all
-func executeInlined() {
+func executeInlined(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.inlined")
+	defer span.Finish()
+
 	a := [5]int{1, 2, 3, 4, 5}
 	x := 10
 	y := testInlinedSumArray(a)

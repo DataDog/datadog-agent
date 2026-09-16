@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logssource provides a component that feeds container logs into the
-// observer without requiring the logs agent to be enabled.
+// Package logssource provides a component that feeds container and kubelet
+// journald logs into the observer without requiring the logs agent to be enabled.
 package logssource
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 // Component is the component type.
 type Component interface{}

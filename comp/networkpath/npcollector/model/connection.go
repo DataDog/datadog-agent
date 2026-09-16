@@ -18,10 +18,16 @@ type NetworkPathConnection struct {
 	Dest              netip.AddrPort
 	TranslatedDest    netip.AddrPort
 	SourceContainerID string
+	Namespace         string
 	Type              model.ConnectionType
 	Direction         model.ConnectionDirection
 	Family            model.ConnectionFamily
 	Domain            string
 	IntraHost         bool
 	SystemProbeConn   bool
+
+	// SentBytes and RecvBytes are traffic observed since the previous CNM
+	// snapshot, not lifetime counters.
+	SentBytes uint64
+	RecvBytes uint64
 }

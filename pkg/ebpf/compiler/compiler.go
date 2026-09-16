@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package compiler is the runtime compiler for eBPF
 package compiler
@@ -19,13 +19,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	datadogAgentEmbeddedPath = filepath.Join(setup.InstallPath, "embedded")
+	datadogAgentEmbeddedPath = filepath.Join(defaultpaths.GetInstallPath(), "embedded")
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 

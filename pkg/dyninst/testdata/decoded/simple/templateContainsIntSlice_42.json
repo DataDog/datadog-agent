@@ -1,0 +1,263 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=true tag=match",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=false tag=anymiss_allmatch",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=false tag=allmiss",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=false tag=empty",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=true tag=cap",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=true tag=capplus",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42={unavailable} tag=toolarge",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42=true tag=scany",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntSlice",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "templateContainsIntSlice_42",
+          "location": {
+            "method": "main.anyAllIntSlice"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "containsInt42={unavailable} tag=scall",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

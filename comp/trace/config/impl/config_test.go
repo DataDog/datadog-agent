@@ -20,15 +20,17 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -42,6 +44,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -52,6 +55,14 @@ import (
 )
 
 // team: agent-apm
+
+func TestMain(m *testing.M) {
+	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
+	// Default to true so all tests can fall back to os.Hostname() as expected.
+	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
+	osHostnameUsableFunc = func(_ context.Context) bool { return true }
+	os.Exit(m.Run())
+}
 
 // MockModule defines the fx options for the mock component for use in tests within this package.
 func MockModule() fxutil.Module {
@@ -158,6 +169,8 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 		assert.Nil(t, err)
+		previousLogger := log.Default()
+		t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -272,8 +285,8 @@ var stringCodeBody string
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -315,8 +328,8 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -356,7 +369,7 @@ func TestConfigHostname(t *testing.T) {
 
 	t.Run("serverless", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_default.yaml")
-		coreConfig.SetWithoutSource("serverless.enabled", true)
+		coreConfig.SetInTest("serverless.enabled", true)
 		config := buildComponent(t, false, coreConfig)
 		cfg := config.Object()
 
@@ -371,6 +384,25 @@ func TestConfigHostname(t *testing.T) {
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
+			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
+				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
+				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
+				src, err := runfiles.Rlocation(loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
+				// callers os.Remove the returned path.
+				dst := filepath.Join(t.TempDir(), filepath.Base(src))
+				data, err := os.ReadFile(src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dst, data, 0700); err != nil {
+					t.Fatal(err)
+				}
+				return dst
+			}
 			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
@@ -443,6 +475,25 @@ func TestConfigHostname(t *testing.T) {
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
+		t.Run("empty+disallowed+containerized", func(t *testing.T) {
+			bin := makeProgram(t, "", 0)
+			defer os.Remove(bin)
+
+			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
+			// then override to false so only acquireHostnameFallback sees it.
+			cfg := buildConfigComponent(t, false).Object()
+			require.NotNil(t, cfg)
+
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+			cfg.DDAgentBin = bin
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			err := acquireHostnameFallback(cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "container UTS namespace")
+		})
+
 		t.Run("fallback1", func(t *testing.T) {
 			bin := makeProgram(t, "", 1)
 			defer os.Remove(bin)
@@ -492,6 +543,219 @@ func TestSite(t *testing.T) {
 	}
 }
 
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://http-intake.logs.datadoghq.com./api/v2/logs",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://http-intake.logs.datadoghq.eu./api/v2/logs",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://http-intake.logs.example.com/api/v2/logs",
+		},
+		{
+			name: "explicit debugger URL",
+			settings: map[string]interface{}{
+				"site":                       "datadoghq.eu",
+				"apm_config.debugger_dd_url": "https://debugger.example.com/custom/path",
+			},
+			expected: "https://debugger.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerIntakeURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit debugger diagnostics URL",
+			settings: map[string]interface{}{
+				"site":                                   "datadoghq.eu",
+				"apm_config.debugger_diagnostics_dd_url": "https://debugger-diag.example.com/custom/path",
+			},
+			expected: "https://debugger-diag.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerIntakeProxy.DDURL)
+		})
+	}
+}
+
+func TestSymDBURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit symdb URL",
+			settings: map[string]interface{}{
+				"site":                    "datadoghq.eu",
+				"apm_config.symdb_dd_url": "https://symdb.example.com/custom/path",
+			},
+			expected: "https://symdb.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.SymDBProxy.DDURL)
+		})
+	}
+}
+
+func TestOpenLineageURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://data-obs-intake.datadoghq.com./api/v1/lineage",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://data-obs-intake.datadoghq.eu./api/v1/lineage",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://data-obs-intake.example.com/api/v1/lineage",
+		},
+		{
+			name: "explicit openlineage URL",
+			settings: map[string]interface{}{
+				"site":                   "datadoghq.eu",
+				"ol_proxy_config.dd_url": "https://ol.example.com/custom/path",
+			},
+			expected: "https://ol.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.OpenLineageProxy.DDURL)
+		})
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	config := buildConfigComponent(t, true)
 	cfg := config.Object()
@@ -527,6 +791,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
+}
+
 func TestDisableLoggingConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/disable_file_logging.yaml")
 	cfg := config.Object()
@@ -537,6 +816,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -699,6 +988,19 @@ func TestAcquireHostnameFallback(t *testing.T) {
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
+}
+
+func TestAcquireHostnameFallbackContainerized(t *testing.T) {
+	defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+	osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+	t.Run("binary_fails", func(t *testing.T) {
+		c := traceconfig.New()
+		c.DDAgentBin = "/not/exist"
+		err := acquireHostnameFallback(c)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "Set DD_HOSTNAME")
+	})
 }
 
 func TestNormalizeEnvFromDDEnv(t *testing.T) {
@@ -1768,6 +2070,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 30, coreConfig.GetInt("apm_config.profiling_receiver_timeout"))
 	})
 
+	env = "DD_APM_PROFILING_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, traceconfig.ProfilingMainEndpointSkip, cfg.ProfilingProxy.MainEndpointMode)
+		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
@@ -2271,7 +2585,7 @@ func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, s
 
 	coreConfig := configcomp.NewMock(t)
 	for k, v := range settings {
-		coreConfig.SetWithoutSource(k, v)
+		coreConfig.SetInTest(k, v)
 	}
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
@@ -2286,7 +2600,7 @@ func buildComponentWithLoggerComponent(t *testing.T, setHostnameInConfig bool, c
 	// set the hostname in the config to avoid trying to create a connection to the core agent
 	// (This can be slow and flaky in tests that don't need to run this logic)
 	if setHostnameInConfig {
-		coreConfig.SetWithoutSource("hostname", "testhostname")
+		coreConfig.SetInTest("hostname", "testhostname")
 	}
 
 	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
@@ -2413,6 +2727,87 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 	})
 }
 
+// TestRemoteConfigPerProductEnable covers the per-product RC enable flags and
+// the agent_config.enabled inheritance rule: agent_config.enabled inherits
+// apm_sampling.enabled when the user has explicitly set apm_sampling.enabled
+// but not agent_config.enabled, preserving the legacy bundled behavior.
+func TestRemoteConfigPerProductEnable(t *testing.T) {
+	t.Run("defaults: apm_sampling on, agent_config inherits true, semantics off", func(t *testing.T) {
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (true) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config inherits false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (false) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config explicitly true", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+			"remote_configuration.agent_config.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=true should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=true, agent_config explicitly false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": true,
+			"remote_configuration.agent_config.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=false should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_semantics enabled independently", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled":  false,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should NOT be pulled in by apm_semantics")
+		assert.True(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("remote_configuration.enabled=false zeros everything", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.enabled":               false,
+			"remote_configuration.apm_sampling.enabled":  true,
+			"remote_configuration.agent_config.enabled":  true,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled)
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+}
+
 // buildComponentWithBufferLogger builds a component using a logger that writes to a buffer
 func buildComponentWithBufferLogger(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component, logBuffer *bytes.Buffer) Component {
 	// Create a logger component that writes to the buffer instead of t.Log()
@@ -2515,6 +2910,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			name:     "logs_disabled_no_override",
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
+		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
 		},
 	}
 	for _, tt := range tests {

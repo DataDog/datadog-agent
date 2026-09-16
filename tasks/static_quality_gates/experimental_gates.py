@@ -19,11 +19,13 @@ import yaml
 from invoke import Context
 
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import extract_package, file_size
+from tasks.libs.package.size import extract_package
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
     create_quality_gate_config,
+    load_merged_gate_config,
 )
+from tasks.static_quality_gates.thresholds import ALL_GATE_CONFIG_PATHS
 
 
 class SizeMixin:
@@ -216,8 +218,25 @@ class InPlaceArtifactReport:
         return self.file_inventory[:10]
 
 
+@dataclass(frozen=True)
+class MeasurementResult:
+    """
+    On-disk measurement returned by an ArtifactProcessor.
+
+    Wire size is measured separately via ArtifactProcessor.compute_wire_size.
+    """
+
+    disk_size: int
+    file_inventory: list[FileInfo]
+    metadata: Any | None = None
+
+
 class ArtifactProcessor(Protocol):
     """Protocol for processing different types of artifacts (packages, docker images, etc.)"""
+
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        """Return the on-wire (compressed/transport) size of the artifact in bytes."""
+        ...
 
     def measure_artifact(
         self,
@@ -226,34 +245,28 @@ class ArtifactProcessor(Protocol):
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], Any]:
-        """
-        Measure an artifact and return wire size, disk size, file inventory, and optional metadata.
-
-        Returns:
-            Tuple of (wire_size, disk_size, file_inventory, artifact_specific_metadata)
-        """
+    ) -> MeasurementResult:
+        """Extract the artifact, walk it, return its on-disk size and file inventory."""
         ...
 
 
 class ConfigurationManager:
     """Shared configuration management for all artifact measurers."""
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize configuration manager.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self.config_path = config_path
         self.config = self._load_config()
 
     def _load_config(self) -> dict[str, Any]:
-        """Load quality gates configuration from YAML file."""
+        """Load quality gates configuration from one or more YAML files."""
         try:
-            with open(self.config_path) as f:
-                return yaml.safe_load(f)
+            return load_merged_gate_config(self.config_path)
         except FileNotFoundError:
             raise ValueError(f"Configuration file not found: {self.config_path}") from None
         except yaml.YAMLError as e:
@@ -589,13 +602,13 @@ class UniversalArtifactMeasurer:
     ArtifactProcessor implementations.
     """
 
-    def __init__(self, processor: ArtifactProcessor, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, processor: ArtifactProcessor, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the universal measurer with a specific artifact processor.
 
         Args:
             processor: Artifact processor implementation (package, Docker, etc.)
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self.processor = processor
         self.config_manager = ConfigurationManager(config_path)
@@ -630,19 +643,26 @@ class UniversalArtifactMeasurer:
         """
         gate_config = self.config_manager.get_gate_config(gate_name)
 
-        wire_size, disk_size, file_inventory, artifact_metadata = self.processor.measure_artifact(
-            ctx, artifact_ref, gate_config, debug, filter
-        )
+        # Fetch wire size first so a missing/broken manifest fails fast,
+        # before we spend time extracting the artifact.
+        wire_size = self.processor.compute_wire_size(ctx, artifact_ref)
+
+        result = self.processor.measure_artifact(ctx, artifact_ref, gate_config, debug, filter)
+
+        # Print the wire size after `measure_artifact` so it lands under the
+        # same "analysis completed" debug header.
+        if debug:
+            print(f"   • Wire size: {wire_size:,} bytes")
 
         return self.report_builder.create_report(
             artifact_ref=artifact_ref,
             gate_name=gate_name,
             gate_config=gate_config,
             wire_size=wire_size,
-            disk_size=disk_size,
-            file_inventory=file_inventory,
+            disk_size=result.disk_size,
+            file_inventory=result.file_inventory,
             build_job_name=build_job_name,
-            artifact_metadata=artifact_metadata,
+            artifact_metadata=result.metadata,
         )
 
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
@@ -653,6 +673,11 @@ class UniversalArtifactMeasurer:
 class PackageProcessor:
     """Package artifact processor implementing the ArtifactProcessor protocol."""
 
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        if not os.path.exists(artifact_ref):
+            raise ValueError(f"Package file not found: {artifact_ref}")
+        return os.path.getsize(artifact_ref)
+
     def measure_artifact(
         self,
         ctx: Context,
@@ -660,15 +685,13 @@ class PackageProcessor:
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], Any]:
+    ) -> MeasurementResult:
         """Measure package artifact using extraction and analysis."""
         if not os.path.exists(artifact_ref):
             raise ValueError(f"Package file not found: {artifact_ref}")
 
         if debug:
             print(f"📦 Measuring package: {artifact_ref}")
-
-        wire_size = file_size(artifact_ref)
 
         with tempfile.TemporaryDirectory() as extract_dir:
             if debug:
@@ -680,11 +703,10 @@ class PackageProcessor:
 
             if debug:
                 print("✅ Package analysis completed:")
-                print(f"   • Wire size: {wire_size:,} bytes")
                 print(f"   • Disk size: {disk_size:,} bytes")
                 print(f"   • Files inventoried: {len(file_inventory):,}")
 
-            return wire_size, disk_size, file_inventory, None
+            return MeasurementResult(disk_size=disk_size, file_inventory=file_inventory)
 
 
 class DockerProcessor:
@@ -695,6 +717,25 @@ class DockerProcessor:
     regardless of image layer structure while maintaining detailed file analysis.
     """
 
+    def compute_wire_size(self, ctx: Context, artifact_ref: str) -> int:
+        """Calculate Docker image compressed size using manifest inspection."""
+        try:
+            # Use jq to properly parse JSON and sum config size + all layer sizes
+            manifest_output = ctx.run(
+                f"crane manifest {artifact_ref} | jq '[.config.size, (.layers[].size)] | add'",
+                hide=True,
+            )
+
+            if manifest_output.exited != 0:
+                raise RuntimeError(f"crane manifest failed for {artifact_ref}")
+
+            return int(manifest_output.stdout.strip())
+
+        except ValueError as e:
+            raise RuntimeError(f"Failed to parse manifest size output for {artifact_ref}: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"Failed to calculate wire size from manifest for {artifact_ref}: {e}") from e
+
     def measure_artifact(
         self,
         ctx: Context,
@@ -702,16 +743,14 @@ class DockerProcessor:
         gate_config: QualityGateConfig,
         debug: bool,
         filter: Callable[[str], bool] = lambda _: True,
-    ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
-        """Measure Docker image using manifest inspection for wire size and crane pull for disk analysis."""
+    ) -> MeasurementResult:
+        """Measure Docker image using crane pull for disk analysis and file inventory."""
         if debug:
             print(f"🐳 Measuring Docker image: {artifact_ref}")
 
-        wire_size = self._get_wire_size(ctx, artifact_ref, debug)
-
         disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug, filter)
 
-        return wire_size, disk_size, file_inventory, docker_info
+        return MeasurementResult(disk_size=disk_size, file_inventory=file_inventory, metadata=docker_info)
 
     def _measure_on_disk_size(
         self,
@@ -747,33 +786,6 @@ class DockerProcessor:
 
         except Exception as e:
             raise RuntimeError(f"Failed to analyze image {image_ref}: {e}") from e
-
-    def _get_wire_size(self, ctx: Context, image_ref: str, debug: bool = False) -> int:
-        """Calculate Docker image compressed size using manifest inspection."""
-        try:
-            if debug:
-                print(f"📋 Calculating wire size from manifest for {image_ref}...")
-
-            # Use jq to properly parse JSON and sum config size + all layer sizes
-            manifest_output = ctx.run(
-                f"crane manifest {image_ref} | jq '[.config.size, (.layers[].size)] | add'",
-                hide=True,
-            )
-
-            if manifest_output.exited != 0:
-                raise RuntimeError(f"crane manifest failed for {image_ref}")
-
-            wire_size = int(manifest_output.stdout.strip())
-
-            if debug:
-                print(f"✅ Wire size from manifest: {wire_size:,} bytes ({wire_size / 1024 / 1024:.2f} MB)")
-
-            return wire_size
-
-        except ValueError as e:
-            raise RuntimeError(f"Failed to parse manifest size output for {image_ref}: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Failed to calculate wire size from manifest for {image_ref}: {e}") from e
 
     def _analyze_extracted_docker_layers(
         self,
@@ -1043,12 +1055,12 @@ class InPlacePackageMeasurer:
     Uses composition with UniversalArtifactMeasurer and PackageProcessor.
     """
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the measurer with configuration.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self._measurer = UniversalArtifactMeasurer(processor=PackageProcessor(), config_path=config_path)
 
@@ -1103,12 +1115,12 @@ class InPlaceDockerMeasurer:
     Uses composition with UniversalArtifactMeasurer and DockerProcessor.
     """
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the Docker image measurer with configuration.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self._measurer = UniversalArtifactMeasurer(processor=DockerProcessor(), config_path=config_path)
 
@@ -1158,7 +1170,7 @@ def measure_package_local(
     ctx,
     package_path,
     gate_name,
-    config_path="test/static/static_quality_gates.yml",
+    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
     output_path=None,
     build_job_name="local_test",
     debug=False,
@@ -1173,7 +1185,7 @@ def measure_package_local(
     Args:
         package_path: Path to the package file to measure
         gate_name: Quality gate name from the configuration file
-        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        config_path: Path (or list of paths) to quality gates configuration (default: all gate config files)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
         debug: Enable debug logging for troubleshooting (default: false)
@@ -1186,8 +1198,10 @@ def measure_package_local(
         print(color_message(f"❌ Package file not found: {package_path}", "red"))
         return
 
-    if not os.path.exists(config_path):
-        print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
+    config_paths = [config_path] if isinstance(config_path, str) else config_path
+    missing_config_paths = [path for path in config_paths if not os.path.exists(path)]
+    if missing_config_paths:
+        print(color_message(f"❌ Configuration file(s) not found: {missing_config_paths}", "red"))
         return
 
     if output_path is None:
@@ -1266,7 +1280,7 @@ def measure_image_local(
     ctx,
     image_ref,
     gate_name,
-    config_path="test/static/static_quality_gates.yml",
+    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
     output_path=None,
     build_job_name="local_test",
     include_layer_analysis=True,
@@ -1281,7 +1295,7 @@ def measure_image_local(
     Args:
         image_ref: Docker image reference (tag, digest, or image ID)
         gate_name: Quality gate name from the configuration file
-        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        config_path: Path (or list of paths) to quality gates configuration (default: all gate config files)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
         include_layer_analysis: Whether to analyze individual layers (default: true)
@@ -1291,8 +1305,10 @@ def measure_image_local(
         dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
 
-    if not os.path.exists(config_path):
-        print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
+    config_paths = [config_path] if isinstance(config_path, str) else config_path
+    missing_config_paths = [path for path in config_paths if not os.path.exists(path)]
+    if missing_config_paths:
+        print(color_message(f"❌ Configuration file(s) not found: {missing_config_paths}", "red"))
         return
 
     if output_path is None:

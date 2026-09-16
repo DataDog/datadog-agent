@@ -17,7 +17,7 @@ import (
 	"regexp"
 	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -87,8 +87,8 @@ func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 	}
 }
 
-// GetLogFiles copies log files to the flare archive.
-func GetLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
+// GetDefaultLogFiles copies log files to the flare archive.
+func GetDefaultLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	log.Flush()
 
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFileDir), "logs", func(path string) bool { //nolint:errcheck

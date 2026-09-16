@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remoteaction",
+    srcs = [
+        "entrypoint.go",
+        "test_connection.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/parversion",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/flavor",
+    ],
+)

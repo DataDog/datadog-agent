@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCollector implements Collector for testing
@@ -18,6 +20,28 @@ type MockCollector struct {
 	entries  map[string]*Entry
 	warnings []*Warning
 	err      error
+}
+
+// SlowCollector returns only after delay. It is a distinct type from MockCollector so a
+// test can pair a collector that misses its deadline with one that does not: the in-flight
+// guard keys on the collector's type.
+type SlowCollector struct {
+	delay time.Duration
+}
+
+func (s *SlowCollector) Collect() ([]*Entry, []*Warning, error) {
+	time.Sleep(s.delay)
+	return []*Entry{{DisplayName: "Slow App", Source: "desktop"}}, nil, nil
+}
+
+// BlockingCollector blocks until release is closed, modelling a native call that has hung.
+type BlockingCollector struct {
+	release chan struct{}
+}
+
+func (b *BlockingCollector) Collect() ([]*Entry, []*Warning, error) {
+	<-b.release
+	return []*Entry{{DisplayName: "Blocking App", Source: "desktop"}}, nil, nil
 }
 
 func (m *MockCollector) Collect() ([]*Entry, []*Warning, error) {
@@ -177,6 +201,90 @@ func TestCollectorOrchestration(t *testing.T) {
 	}
 }
 
+func TestCollectorDeadline(t *testing.T) {
+	const timeout = 50 * time.Millisecond
+
+	t.Run("Slow collector fails the snapshot but keeps other entries", func(t *testing.T) {
+		slow := &SlowCollector{delay: 10 * timeout}
+		fast := &MockCollector{
+			entries: map[string]*Entry{"fast": {DisplayName: "Fast App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{slow, fast}, timeout)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+		assert.Len(t, inventory, 1, "entries from collectors that finished should survive")
+		assert.Equal(t, "Fast App", inventory[0].DisplayName)
+	})
+
+	t.Run("Collector finishing within the deadline succeeds", func(t *testing.T) {
+		collector := &MockCollector{
+			entries: map[string]*Entry{"app": {DisplayName: "App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{collector}, timeout)
+
+		assert.NoError(t, err)
+		assert.Len(t, inventory, 1)
+	})
+
+	t.Run("Successful empty collector is not an error", func(t *testing.T) {
+		// An enumeration that legitimately finds nothing must not fail the
+		// snapshot; only failures and timeouts do.
+		inventory, _, err := getSoftwareInventory([]Collector{&MockCollector{}}, timeout)
+
+		assert.NoError(t, err)
+		assert.Empty(t, inventory)
+	})
+
+	t.Run("A timed-out collector is not started again while it is still running", func(t *testing.T) {
+		// A hung native call cannot be cancelled, so repeated collections must not stack
+		// up blocked goroutines holding OS handles.
+		blocking := &BlockingCollector{release: make(chan struct{})}
+
+		_, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+
+		_, _, err = getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "still running from a previous collection")
+
+		// Once the blocked call returns, the collector becomes usable again.
+		close(blocking.release)
+		assert.Eventually(t, func() bool {
+			inventory, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+			return err == nil && len(inventory) == 1
+		}, time.Second, 10*time.Millisecond)
+	})
+}
+
+func TestEntryIDsAreUniqueAcrossSources(t *testing.T) {
+	// os and driver entries share the snapshot with application entries;
+	// GetID must keep them distinct so the backend does not collapse them.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			"driver":   {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: softwareTypeDriver},
+			"os":       {DisplayName: osDisplayName, ProductCode: osProductCode, Source: softwareTypeOS},
+			"desktop":  {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: "desktop"},
+			"homebrew": {DisplayName: "git", ProductCode: "git", Source: "homebrew"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	seen := make(map[string]struct{}, len(inventory))
+	for _, entry := range inventory {
+		id := entry.GetID()
+		_, duplicate := seen[id]
+		assert.False(t, duplicate, "duplicate entry ID %q", id)
+		seen[id] = struct{}{}
+	}
+	assert.Len(t, seen, len(inventory))
+}
+
 func TestWarnings(t *testing.T) {
 	w := warnf("test %s %d", "warning", 123)
 	assert.Equal(t, "test warning 123", w.Message)
@@ -213,16 +321,44 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 
 	jsonStr := string(jsonData)
 
-	// Verify private fields are NOT in JSON
+	// Verify private fields are NOT in JSON. install_path is checked as a quoted
+	// key because it is a substring of the exposed install_paths.
 	assert.NotContains(t, jsonStr, "broken_reason")
 	assert.NotContains(t, jsonStr, "install_source")
 	assert.NotContains(t, jsonStr, "pkg_id")
-	assert.NotContains(t, jsonStr, "install_path")
-	assert.NotContains(t, jsonStr, "install_paths")
+	assert.NotContains(t, jsonStr, `"install_path"`)
 
 	// Verify public fields ARE in JSON
 	assert.Contains(t, jsonStr, "software_type")
 	assert.Contains(t, jsonStr, "name")
 	assert.Contains(t, jsonStr, "version")
 	assert.Contains(t, jsonStr, "product_code")
+	assert.Contains(t, jsonStr, `"install_paths"`)
+	assert.Contains(t, jsonStr, "/Applications")
+	assert.Contains(t, jsonStr, "/Library")
+}
+
+func TestInstallPathsMirrorsInstallPath(t *testing.T) {
+	// GetSoftwareInventoryWithCollectors mirrors the scalar InstallPath into
+	// InstallPaths for single-location collectors, while leaving collectors that
+	// already populate InstallPaths (e.g. macOS PKG receipts) untouched.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			"single": {DisplayName: "Single", Source: "app", InstallPath: "/Applications/Single.app"},
+			"multi":  {DisplayName: "Multi", Source: "pkg", InstallPath: "/usr/local", InstallPaths: []string{"/usr/local/bin", "/usr/local/lib"}},
+			"none":   {DisplayName: "None", Source: "app"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	byName := make(map[string]*Entry, len(inventory))
+	for _, e := range inventory {
+		byName[e.DisplayName] = e
+	}
+
+	assert.Equal(t, []string{"/Applications/Single.app"}, byName["Single"].InstallPaths)
+	assert.Equal(t, []string{"/usr/local/bin", "/usr/local/lib"}, byName["Multi"].InstallPaths)
+	assert.Empty(t, byName["None"].InstallPaths)
 }

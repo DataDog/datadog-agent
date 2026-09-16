@@ -136,14 +136,11 @@ func (wp *WinProcmon) sendStopIoctl() {
 	// since we're stopping, if for some reason this ioctl fails, there's nothing we can
 	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
 	// to happen.
-	_ = wp.reader.Ioctl(ProcmonStopIOCTL,
+	_, _ = wp.reader.SynchronousDeviceIoControl(ProcmonStopIOCTL,
 		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
 		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
-		0,
-		nil,
-		nil)
-
+		0)
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -154,13 +151,11 @@ func (wp *WinProcmon) Start() error {
 	}
 	// this will initiate the driver actually sending things up
 	// start grabbing notifications
-	err = wp.reader.Ioctl(ProcmonStartIOCTL,
+	_, err = wp.reader.SynchronousDeviceIoControl(ProcmonStartIOCTL,
 		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
 		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
-		0,
-		nil,
-		nil)
+		0)
 	if err != nil {
 		wp.reader.Stop()
 	}

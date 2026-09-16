@@ -14,33 +14,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
-func constructBothConfigs(content string, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
-	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_"))    // nolint: forbidigo // legit use case
-	ntmConf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+func constructNtmConfig(content string, setupFunc func(model.Setup)) model.BuildableConfig {
+	conf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	if setupFunc != nil {
-		setupFunc(viperConf)
-		setupFunc(ntmConf)
+		setupFunc(conf)
 	}
 
-	viperConf.BuildSchema()
-	ntmConf.BuildSchema()
+	conf.BuildSchema()
 
 	if len(content) > 0 {
-		viperConf.SetConfigType("yaml")
-		viperConf.ReadConfig(bytes.NewBuffer([]byte(content)))
-
-		ntmConf.SetConfigType("yaml")
-		ntmConf.ReadConfig(bytes.NewBuffer([]byte(content)))
+		conf.SetConfigType("yaml")
+		conf.ReadConfig(bytes.NewBuffer([]byte(content)))
 	} else {
-		viperConf.ReadInConfig()
-		ntmConf.ReadInConfig()
+		conf.ReadInConfig()
 	}
 
-	return viperConf, ntmConf
+	return conf
 }
 
 func TestSetTree(t *testing.T) {
@@ -50,24 +42,16 @@ func TestSetTree(t *testing.T) {
     input_chan_size: 23456
     workers: 8
 `
-	viperCfg, ntmCfg := constructBothConfigs(configData, func(cfg model.Setup) {
+	cfg := constructNtmConfig(configData, func(cfg model.Setup) {
 		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0)
 		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)
 	})
 
-	SetTree(viperCfg, "network_path.collector", map[string]interface{}{
+	SetTree(cfg, "network_path.collector", map[string]interface{}{
 		"input_chan_size": 65432,
 		"workers":         16,
 	}, model.SourceLocalConfigProcess)
 
-	assert.Equal(t, 65432, viperCfg.GetInt("network_path.collector.input_chan_size"))
-	assert.Equal(t, 16, viperCfg.GetInt("network_path.collector.workers"))
-
-	SetTree(ntmCfg, "network_path.collector", map[string]interface{}{
-		"input_chan_size": 65432,
-		"workers":         16,
-	}, model.SourceLocalConfigProcess)
-
-	assert.Equal(t, 65432, ntmCfg.GetInt("network_path.collector.input_chan_size"))
-	assert.Equal(t, 16, ntmCfg.GetInt("network_path.collector.workers"))
+	assert.Equal(t, 65432, cfg.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 16, cfg.GetInt("network_path.collector.workers"))
 }

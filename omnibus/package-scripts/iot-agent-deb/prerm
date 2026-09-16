@@ -60,6 +60,13 @@ remove_remote_config_db()
     fi
 }
 
+remove_health_platform_state()
+{
+    # Health Platform persists runtime state under the default run path.
+    # Remove it on uninstall so it does not keep the install directory around.
+    rm -rf "$INSTALL_DIR/run/health-platform" || true
+}
+
 stop_agent
 deregister_agent
 
@@ -68,6 +75,7 @@ case "$1" in
         # We're uninstalling.
         remove_version_history
         remove_remote_config_db
+        remove_health_platform_state
     ;;
     upgrade)
         # We're upgrading.

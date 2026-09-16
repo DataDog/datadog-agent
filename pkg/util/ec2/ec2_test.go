@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -40,6 +41,7 @@ func resetPackageVars() {
 	publicIPv4Fetcher.Reset()
 	hostnameFetcher.Reset()
 	networkIDFetcher.Reset()
+	instanceTypeFetcher.Reset()
 }
 
 func setupDMIForEC2(t *testing.T) {
@@ -107,11 +109,11 @@ func TestGetInstanceID(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	// Ensure failures if we fail to use the local mock metadata server
 	setupDMIForNotEC2(t)
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	// Ensure that the local server is up before checking values
 	assert.EventuallyWithT(
@@ -167,7 +169,7 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	// API errors out, should return error
 	responseCode = http.StatusInternalServerError
@@ -240,7 +242,7 @@ func TestGetHostAliases(t *testing.T) {
 				setupDMIForNotEC2(t)
 			}
 
-			conf.SetWithoutSource("ec2_use_dmi", !tc.disableDMI)
+			conf.SetInTest("ec2_use_dmi", !tc.disableDMI)
 
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
@@ -257,7 +259,7 @@ func TestGetHostAliases(t *testing.T) {
 			defer resetPackageVars()
 
 			ec2internal.MetadataURL = ts.URL
-			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+			conf.SetInTest("ec2_metadata_timeout", 1000)
 
 			ctx := context.Background()
 			aliases, err := GetHostAliases(ctx)
@@ -286,7 +288,7 @@ func TestGetHostname(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
 
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	// API errors out, should return error
 	responseCode = http.StatusInternalServerError
@@ -344,7 +346,7 @@ func TestGetToken(t *testing.T) {
 
 	defer ts.Close()
 	ec2internal.TokenURL = ts.URL
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	token, err := ec2internal.Token.Get(ctx)
 	require.NoError(t, err)
@@ -423,7 +425,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			// Set test-specific configuration
 			defer resetPackageVars()
 			conf.SetDefault(tc.configKey, tc.configValue)
-			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+			conf.SetInTest("ec2_metadata_timeout", 1000)
 
 			ips, err := GetPublicIPv4(ctx)
 			require.NoError(t, err)
@@ -493,7 +495,7 @@ func TestLegacyMetedataRequestWithoutToken(t *testing.T) {
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
 	ec2internal.TokenURL = ts.URL
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	ips, err := GetPublicIPv4(context.Background())
 	require.NoError(t, err)
@@ -520,7 +522,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 func TestGetNTPHostsDMI(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	setupDMIForEC2(t)
 	ec2internal.MetadataURL = ""
@@ -532,7 +534,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 func TestGetNTPHostsEC2UUID(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
 	ec2internal.MetadataURL = ""
@@ -544,7 +546,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 func TestGetNTPHostsDisabledDMI(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", false)
+	conf.SetInTest("ec2_use_dmi", false)
 
 	// DMI without EC2 UUID
 	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
@@ -587,25 +589,25 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-	conf.SetWithoutSource("ec2_prefer_imdsv2", true)
-	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_prefer_imdsv2", true)
+	conf.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, ec2internal.MetadataSourceIMDSv2, ec2internal.CurrentMetadataSource)
 
 	hostnameFetcher.Reset()
 	ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
-	conf.SetWithoutSource("ec2_prefer_imdsv2", false)
-	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", true)
+	conf.SetInTest("ec2_prefer_imdsv2", false)
+	conf.SetInTest("ec2_imdsv2_transition_payload_enabled", true)
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, ec2internal.MetadataSourceIMDSv2, ec2internal.CurrentMetadataSource)
 
 	// trying IMDSv1
 	hostnameFetcher.Reset()
 	ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
-	conf.SetWithoutSource("ec2_prefer_imdsv2", false)
-	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
+	conf.SetInTest("ec2_prefer_imdsv2", false)
+	conf.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, ec2internal.MetadataSourceIMDSv1, ec2internal.CurrentMetadataSource)
@@ -614,7 +616,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 func TestMetadataSourceUUID(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	ctx := context.Background()
 
@@ -636,7 +638,7 @@ func TestMetadataSourceUUID(t *testing.T) {
 func TestMetadataSourceDMI(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	ctx := context.Background()
 
@@ -650,7 +652,7 @@ func TestMetadataSourceDMI(t *testing.T) {
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_use_dmi", true)
+	conf.SetInTest("ec2_use_dmi", true)
 
 	ctx := context.Background()
 
@@ -662,4 +664,58 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, ec2internal.MetadataSourceDMI, ec2internal.CurrentMetadataSource)
+}
+
+func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
+	ctx := context.Background()
+	imdsCalled := make(chan struct{}, 1)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case imdsCalled <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	configmock.New(t)
+	defer resetPackageVars()
+	ec2internal.MetadataURL = ts.URL
+	env.SetFeatures(t, env.ECSFargate)
+
+	instanceType, err := GetInstanceType(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, instanceType)
+
+	select {
+	case <-imdsCalled:
+		t.Fatalf("GetInstanceType must not query EC2 IMDS on ECS Fargate")
+	default:
+	}
+}
+
+func TestGetInstanceTypeFromIMDS(t *testing.T) {
+	ctx := context.Background()
+	expected := "m5.large"
+	var lastRequest *http.Request
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, expected)
+	}))
+	defer ts.Close()
+
+	configmock.New(t)
+	defer resetPackageVars()
+	ec2internal.MetadataURL = ts.URL
+	env.ClearFeatures()
+
+	instanceType, err := GetInstanceType(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, expected, instanceType)
+	require.NotNil(t, lastRequest)
+	assert.Equal(t, "/instance-type", lastRequest.URL.Path)
 }

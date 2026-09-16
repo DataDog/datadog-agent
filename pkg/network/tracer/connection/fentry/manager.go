@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package fentry provides connection tracing for fentry
 package fentry
@@ -19,6 +19,7 @@ func initManager(mgr *ddebpf.Manager) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
+		{Name: probes.TCPRetransmitsMap},
 		{Name: probes.TCPOngoingConnectPid},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
@@ -26,7 +27,18 @@ func initManager(mgr *ddebpf.Manager) {
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
+		{Name: probes.ConnectionProtocolMap},
+		{Name: probes.ClassificationProgsMap},
+		{Name: probes.EnhancedTLSTagsMap},
+		{Name: probes.ConnectionTupleToSocketSKBConnMap},
+		{Name: probes.TCPFailureTelemetry},
+		// SSL cert maps
+		{Name: probes.SSLCertsStatemArgsMap},
+		{Name: probes.SSLCertsI2DX509ArgsMap},
+		{Name: probes.SSLHandshakeStateMap},
+		{Name: probes.SSLCertInfoMap},
 	}
+
 	for funcName := range programs {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -36,4 +48,9 @@ func initManager(mgr *ddebpf.Manager) {
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}
+
+	// Add the raw tracepoint probe with its special TracepointName/Category
+	mgr.Probes = append(mgr.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
+	)
 }

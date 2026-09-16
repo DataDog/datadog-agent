@@ -17,6 +17,7 @@ import (
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
@@ -50,7 +51,7 @@ var (
 )
 
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
-func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component) (provider.ExternalMetricsProvider, error) {
+func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component, hpaGVR schema.GroupVersionResource) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
@@ -86,6 +87,16 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	}
 	go metricsRetriever.Run(ctx.Done())
 
+	selectorStr := pkgconfigsetup.Datadog().GetString("external_metrics_provider.autoscaler_autogen_label_selector")
+	var autoscalerAutogenLabelSelector labels.Selector
+	autoscalerAutogenLabelSelector, err = labels.Parse(selectorStr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse external_metrics_provider.autoscaler_autogen_label_selector %q: %v", selectorStr, err)
+	}
+	if selectorStr != "" {
+		log.Infof("Autoscaler autogen label selector configured: %s", selectorStr)
+	}
+
 	var wpaInformer dynamicinformer.DynamicSharedInformerFactory
 	if wpaEnabled {
 		wpaInformer = apiCl.DynamicInformerFactory
@@ -98,7 +109,8 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autogenEnabled,
 		autogenExpirationPeriodHours,
 		autogenNamespace,
-		apiCl.Cl,
+		autoscalerAutogenLabelSelector,
+		hpaGVR,
 		apiCl.InformerFactory,
 		wpaInformer,
 		le.IsLeader,
@@ -146,7 +158,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 	info.Metric = strings.ToLower(info.Metric)
 
 	// If the metric name is already prefixed, we can directly look up metrics in store
-	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric)
+	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric, namespace)
 	if !hasPrefix {
 		datadogMetricID = p.autogenNamespace + kubernetesNamespaceSep + getAutogenDatadogMetricNameFromSelector(info.Metric, metricSelector)
 		parsed = true

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package dyninst_test
 
@@ -60,12 +60,11 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	// the throttling assertions below are not contaminated by the
 	// other probe's hits.
 	keepProbeWithID(&irp.Probes, "a")
+	require.Equal(t, 1, len(irp.Probes))
 
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
-	require.Equal(t, 1, len(irp.Probes))
 	expectedEvents := 7
-
 	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
 		ProbeDefinition: irp.Probes[0].ProbeDefinition,
 		periodMs:        1000 * 1000,

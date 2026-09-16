@@ -8,7 +8,12 @@
 // Package gpu provides utilities for interacting with GPU resources.
 package gpu
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // ArchToString converts a NVML device architecture to a string.
 func ArchToString(arch nvml.DeviceArchitecture) string {
@@ -39,4 +44,30 @@ func ArchToString(arch nvml.DeviceArchitecture) string {
 		// to add a new case for a new architecture.
 		return "invalid"
 	}
+}
+
+// VirtualizationModeToString converts an NVML GPU virtualization mode to a tag value.
+func VirtualizationModeToString(mode nvml.GpuVirtualizationMode) string {
+	switch mode {
+	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
+		return "none"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
+		return "host_vgpu"
+	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
+		return "passthrough"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
+		return "host_vsga"
+	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
+		return "vgpu"
+	default:
+		return "unknown"
+	}
+}
+
+// PCIInfoToBusID formats NVML PCI information as a normalized PCI BDF.
+// NVML exposes domain, bus, and device as numeric fields, but not the PCI
+// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
+// functions, when present, represent auxiliary devices such as audio.
+func PCIInfoToBusID(pciInfo nvml.PciInfo) string {
+	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
 }

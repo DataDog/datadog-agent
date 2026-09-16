@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package test provides test helpers for the privileged logs module.
 package test
@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -175,7 +174,7 @@ func setupTestServer(t *testing.T) *Handler {
 	}
 
 	// Set up HTTP router and register the module
-	httpMux := mux.NewRouter()
+	httpMux := http.NewServeMux()
 	router := module.NewRouter("privileged_logs", httpMux)
 	err = fdModule.Register(router)
 	if err != nil {
