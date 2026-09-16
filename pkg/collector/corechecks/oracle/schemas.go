@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+//nolint:unused // Declarations in this foundation are wired by later PRs in the stack.
 package oracle
 
 import (
