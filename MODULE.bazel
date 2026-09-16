@@ -45,7 +45,8 @@ release_json(name = "dd_release_json")
 # That will improve over the next year.
 bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "rules_license", version = "1.0.0")
-bazel_dep(name = "supply_chain_tools", version = "0.0.1")
+bazel_dep(name = "supply_chain_tools", version = "0.0.3")
+bazel_dep(name = "supply-chain-go", version = "0.0.7")
 
 # We are temporarily using a development fork which is ahead of the release.
 archive_override(
@@ -55,17 +56,26 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-# We are temporarily ahead of the release. The upstream team is using us as a test bed.
+# The BCR is currently behind the releases.
 archive_override(
     module_name = "supply_chain_tools",
-    sha256 = "9dd3a9b10b5bbf070ef177f71196c22800c28c01db019e21d3b95feff2ce38b4",
-    strip_prefix = "supply-chain-d88044594228c41619f4e31eda5ca88adf3c6026/tools",
-    urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
+    sha256 = "6293f766876344104a20083239785133218322ce28aac0b43040bc5479f5a513",
+    strip_prefix = "supply_chain_tools-0.0.3/tools",
+    url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply_chain_tools-0.0.3/supply_chain_tools-0.0.3.tar.gz",
 )
 
+# The BCR is currently behind the releases.
+archive_override(
+    module_name = "supply-chain-go",
+    sha256 = "894732fdd78ef741da586152e196acf8a72d9542e35dac1810f96a9d640ae6cd",
+    strip_prefix = "supply-chain-go-0.0.11/lib/supplychain-go",
+    url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
+)
+
+bazel_dep(name = "bazel_features", version = "1.50.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gawk", version = "5.4.0")
+bazel_dep(name = "gawk", version = "5.4.0.bcr.1")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
@@ -99,16 +109,16 @@ single_version_override(
 )
 
 # Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
-# (main module) and bazel-contrib/rules_go#4700 (checksum qualifiers)
+# (main module), bazel-contrib/rules_go#4700 (checksums), and bazel-contrib/rules_go#4709 (actually reachable deps)
 archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "7fc1406e690e6e434b91de9fc88832203dddc2f5d2615e616b9c9b960c95db55",
-    strip_prefix = "rules_go-7da903b60f6e97643166e56ecd15c46f9aa61a66",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/7da903b60f6e97643166e56ecd15c46f9aa61a66.tar.gz"],  # master as of September 10, 2026
+    sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
+    strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/18a6fbb9f4fa93331640efddf81271eb467710f4.tar.gz"],  # master as of September 14, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -132,9 +142,9 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
 )
 
-#################################
-## Tools that ship with the OS ##
-#################################
+##########################################
+## Tools that ship with the OS and we wrap
+##########################################
 
 find_macos_codesign = use_repo_rule("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign")
 
@@ -162,6 +172,12 @@ register_toolchains(
     "@macos_pkgbuild//:all",
     "@selinux_tools//:all",
     dev_dependency = True,
+)
+
+register_toolchains(
+    "//bazel/toolchains/dd_strip:linux_toolchain",
+    "//bazel/toolchains/dd_strip:macos_toolchain",
+    "//bazel/toolchains/dd_strip:windows_toolchain",
 )
 
 #########################
@@ -542,7 +558,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.8.2")
+bazel_dep(name = "apple_support", version = "2.8.3")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

@@ -27,6 +27,7 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // logDataView wraps a recorderdef.LogData and implements observerdef.LogView.
@@ -631,7 +632,7 @@ type parquetMetricView struct {
 }
 
 // newParquetMetricView resolves the recorder's legacy host:* tag into the
-// separate host dimension. The remaining tags stay raw for later tag resolution.
+// separate host dimension. The remaining tags are the final tags from the replay input.
 func newParquetMetricView(name string, value float64, tags []string, timestamp int64) parquetMetricView {
 	host, metricTags := resolveParquetMetricHostAndTags(tags)
 	return parquetMetricView{name: name, value: value, host: host, tags: metricTags, timestamp: timestamp}
@@ -680,9 +681,11 @@ func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 	return hash
 }
 
-func (m *parquetMetricView) GetName() string         { return m.name }
-func (m *parquetMetricView) GetValue() float64       { return m.value }
-func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
+func (m *parquetMetricView) GetName() string   { return m.name }
+func (m *parquetMetricView) GetValue() float64 { return m.value }
+func (m *parquetMetricView) GetTags() tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(m.tags)
+}
 func (m *parquetMetricView) GetHost() string         { return m.host }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }

@@ -15,7 +15,7 @@ func TestNewParquetMetricViewResolvesHostTag(t *testing.T) {
 	view := newParquetMetricView("system.cpu", 1, []string{"env:prod", "host:web-1", "service:api"}, 100)
 
 	assert.Equal(t, "web-1", view.GetHost())
-	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetRawTags())
+	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetTags().UnsafeToReadOnlySliceString())
 }
 
 func TestSeriesKeyRoundTripsHost(t *testing.T) {

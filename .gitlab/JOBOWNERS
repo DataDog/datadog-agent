@@ -240,6 +240,7 @@ new-e2e-apm*                            @DataDog/agent-apm
 new-e2e-cws*                            @DataDog/agent-security
 new-e2e-sbom*                           @DataDog/agent-security
 new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent
 # --- Fleet / installer (non-Windows) ---

@@ -144,28 +144,30 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
-# at a time and cap the heap to prevent swap thrash. Each compile process can
-# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
-# On larger hosts, the default parallelism is fine.
+# On hosts with at least 4 GiB of RAM, allow one Go package compilation per
+# 4 GiB of memory and cap each compiler's heap at 3 GiB, leaving 1GiB of margin for each.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
-if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
-    GOFLAGS="-p=1"
-    GOMEMLIMIT=2GiB
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -ge 4194304 ]; then
+    GOFLAGS="-p=$((_mem_kb / 4194304))"
+    GOMEMLIMIT=3GiB
     export GOFLAGS GOMEMLIMIT
 fi
 unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
+# Keep Cargo's registry and cache on the build volume. Some Python packages
+# build Rust extensions through Cargo, and its default root-owned location can
+# exhaust the smaller root filesystem.
+CARGO_HOME=$BUILD_DIR/cargo-home
 # Give the build its own temp dir instead of the shared /tmp, so it is not
 # affected by a full /tmp or by unrelated files other processes leave there
 # (which can, for example, confuse cargo's workspace-root lookup during
 # wheel builds).
 TMPDIR=/opt/dd-build/buildtmp
-mkdir -p "$GOCACHE" "$TMPDIR"
+mkdir -p "$GOCACHE" "$CARGO_HOME" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE CARGO_HOME TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
