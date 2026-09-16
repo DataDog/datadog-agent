@@ -5,11 +5,14 @@
 
 use anyhow::Result;
 use std::sync::Mutex;
-use std::time::Duration;
-use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, TRUE};
+use std::time::{Duration, Instant};
+use windows_sys::Win32::Foundation::{
+    GetLastError, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
+};
+use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_UNKNOWN, GetFileType};
 use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
-    STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
+    STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
 };
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
@@ -18,10 +21,19 @@ pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
     CONSOLE_LOCK.lock().expect("console lock poisoned")
 }
 
+/// True when the std handle is live enough for a child to inherit.
+///
+/// After `FreeConsole`, `GetStdHandle` can still return stale console handles.
 fn std_handle_inheritable(handle: u32) -> bool {
     unsafe {
         let h = GetStdHandle(handle);
-        !h.is_null() && h != INVALID_HANDLE_VALUE
+        if h.is_null() || h == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        // GetFileType reports UNKNOWN both for genuinely unknown types and for dead
+        // handles; only the last-error value tells the two apart.
+        SetLastError(NO_ERROR);
+        GetFileType(h) != FILE_TYPE_UNKNOWN || GetLastError() == NO_ERROR
     }
 }
 
@@ -33,19 +45,11 @@ pub fn stderr_inheritable() -> bool {
     std_handle_inheritable(STD_ERROR_HANDLE)
 }
 
-fn reset_std_handles() {
-    unsafe {
-        for std_handle in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
-            let _ = SetStdHandle(std_handle, std::ptr::null_mut());
-        }
-    }
-}
-
-fn detach_console() {
+/// Detach from the current console without clearing std handles.
+fn leave_console() {
     unsafe {
         let _ = FreeConsole();
     }
-    reset_std_handles();
 }
 
 unsafe extern "system" fn ignore_console_ctrl_events(ctrl: u32) -> i32 {
@@ -78,38 +82,62 @@ impl Drop for IgnoreCtrlGuard {
     }
 }
 
+const GRACEFUL_STOP_ATTACH_RETRY: Duration = Duration::from_millis(500);
+const GRACEFUL_STOP_ATTACH_INTERVAL: Duration = Duration::from_millis(10);
+const GRACEFUL_STOP_SETTLE: Duration = Duration::from_millis(200);
+
+/// Detaches from the caller console, attaches to the child's, and detaches again on drop.
+struct ChildConsoleGuard;
+
+impl ChildConsoleGuard {
+    fn attach(pid: u32) -> Result<Self> {
+        leave_console();
+
+        // A stop requested right after spawn can race the child's own console setup:
+        // until it has one, AttachConsole fails. Retry instead of falling through to
+        // the stop_timeout force-kill.
+        let deadline = Instant::now() + GRACEFUL_STOP_ATTACH_RETRY;
+        let mut last_err = None;
+        while Instant::now() < deadline {
+            // SAFETY: Win32 attach to the target process console for signaling.
+            if unsafe { AttachConsole(pid) != 0 } {
+                return Ok(Self);
+            }
+            last_err = Some(std::io::Error::last_os_error());
+            std::thread::sleep(GRACEFUL_STOP_ATTACH_INTERVAL);
+        }
+        anyhow::bail!(
+            "AttachConsole({pid}) failed: {}",
+            last_err.unwrap_or_else(std::io::Error::last_os_error)
+        );
+    }
+}
+
+impl Drop for ChildConsoleGuard {
+    fn drop(&mut self) {
+        leave_console();
+    }
+}
+
+/// Send `CTRL_BREAK` to a process group. Managed children use `CREATE_NEW_PROCESS_GROUP`, so
+/// `pgid` is the child pid.
+fn signal_ctrl_break(pgid: u32) -> Result<()> {
+    let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pgid) != 0 };
+    if !ok {
+        anyhow::bail!(
+            "GenerateConsoleCtrlEvent(CTRL_BREAK, {pgid}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    std::thread::sleep(GRACEFUL_STOP_SETTLE);
+    Ok(())
+}
+
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
-
-    unsafe {
-        detach_console();
-        if AttachConsole(pid) == 0 {
-            anyhow::bail!(
-                "AttachConsole({pid}) failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        struct DetachOnDrop;
-        impl Drop for DetachOnDrop {
-            fn drop(&mut self) {
-                detach_console();
-            }
-        }
-        // Keep the ignore handler until after detach: CTRL_BREAK delivery is async and
-        // pgid 0 broadcasts to every process on the attached console, including us.
-        let _ignore_ctrl = IgnoreCtrlGuard::install()?;
-        let _detach = DetachOnDrop;
-        // CREATE_NEW_PROCESS_GROUP is ignored with CREATE_NEW_CONSOLE, so child pid is not pgid.
-        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-        if ok == 0 {
-            anyhow::bail!(
-                "GenerateConsoleCtrlEvent(CTRL_BREAK, 0) for pid {pid} failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        std::thread::sleep(Duration::from_millis(200));
-    }
-    Ok(())
+    let _ignore_ctrl = IgnoreCtrlGuard::install()?;
+    let _child_console = ChildConsoleGuard::attach(pid)?;
+    signal_ctrl_break(pid)
 }
 
 pub fn send_force_kill(pid: u32) -> Result<()> {

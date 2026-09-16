@@ -10,8 +10,8 @@ use std::mem;
 use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, CreateProcessW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW,
+    CreateProcessW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
 };
 
 use crate::handle::ProcessHandle;
@@ -53,11 +53,11 @@ fn create_managed_child(
         job.raw_handle(),
     )?;
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
-    // Allocate a private console so `AttachConsole` + CTRL_BREAK graceful shutdown work.
-    // When both `CREATE_NEW_CONSOLE` and `CREATE_NO_WINDOW` are set, Windows keeps the
-    // console allocated but suppresses the visible window.
+    // Console child with a hidden window and its own process group so
+    // `GenerateConsoleCtrlEvent(CTRL_BREAK, pid)` reaches the child. Do not combine
+    // `CREATE_NEW_CONSOLE` here: it is incompatible with `CREATE_NEW_PROCESS_GROUP` and
+    // breaks graceful shutdown signaling.
     let creation_flags = CREATE_NEW_PROCESS_GROUP
-        | CREATE_NEW_CONSOLE
         | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT
         | EXTENDED_STARTUPINFO_PRESENT;

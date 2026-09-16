@@ -298,16 +298,11 @@ pub const TEST_SLEEP_SECS: u32 = 60;
 /// Alternate sleep duration for reload tests that need a different command line.
 pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
 
-/// Sleep duration for graceful-stop test children.
-///
-/// Intentionally long so the child outlives the test unless stopped gracefully.
-pub const GRACEFUL_STOP_SLEEP_SECS: u32 = 3600;
-
 /// Command for a long-running child that exits promptly on graceful stop
 /// (SIGTERM on Unix, CTRL_BREAK on Windows).
 #[cfg(unix)]
 pub fn graceful_stop_cmd() -> (String, Vec<String>) {
-    let (cmd, args) = sleep_cmd(GRACEFUL_STOP_SLEEP_SECS);
+    let (cmd, args) = sleep_cmd(TEST_SLEEP_SECS);
     (cmd.to_string(), args)
 }
 
@@ -430,7 +425,7 @@ fn materialize_windows_test_executable(src: &std::path::Path) -> std::path::Path
 }
 
 #[cfg(windows)]
-fn graceful_sleeper_exe() -> String {
+pub(crate) fn graceful_sleeper_exe() -> String {
     static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHED
         .get_or_init(|| {
