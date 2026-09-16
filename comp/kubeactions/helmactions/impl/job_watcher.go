@@ -79,6 +79,8 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 			log.Errorf("[HelmActions] error deleting job %s/%s: %v", job.Namespace, job.Name, err)
 		} else {
 			log.Infof("[HelmActions] deleted job %s/%s", job.Namespace, job.Name)
+			// Update message to report why the job has stuck
+			rec.Message = sampleMsg
 			w.reportFailed(rec)
 		}
 
