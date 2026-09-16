@@ -119,7 +119,7 @@ pkg_files(
     srcs = ["@gstatus_source//:LICENSE"],
     prefix = "LICENSES",
     renames = {
-        "LICENSE": "gstatus-GPL-3.0",
+        "@gstatus_source//:LICENSE": "gstatus-GPL-3.0",
     },
 )
 
