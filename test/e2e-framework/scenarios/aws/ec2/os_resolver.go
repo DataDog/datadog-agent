@@ -29,7 +29,6 @@ var defaultUsers = map[os.Flavor]string{
 	os.Debian:         "admin",
 	os.RedHat:         "ec2-user",
 	os.Suse:           "ec2-user",
-	os.Fedora:         "fedora",
 	os.CentOS:         "centos",
 	os.RockyLinux:     "cloud-user",
 	os.AlmaLinux:      "ec2-user",
@@ -46,7 +45,6 @@ var amiResolvers = map[os.Flavor]amiResolverFunc{
 	os.Debian:         resolveDebianAMI,
 	os.RedHat:         resolveRedHatAMI,
 	os.Suse:           resolveSuseAMI,
-	os.Fedora:         resolveFedoraAMI,
 	os.CentOS:         resolveCentOSAMI,
 	os.RockyLinux:     resolveRockyLinuxAMI,
 	os.AlmaLinux:      resolveAlmaLinuxAMI,
@@ -229,18 +227,6 @@ func resolveSuseAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
 	}
 
 	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/suse/sles/%s/%s/latest", osInfo.Version, osInfo.Architecture))
-}
-
-func resolveFedoraAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
-	if osInfo.Architecture == os.ARM64Arch {
-		return "", errors.New("ARM64 is not supported for Fedora")
-	}
-
-	if osInfo.Version == "" {
-		osInfo.Version = os.FedoraDefault.Version
-	}
-
-	return ec2.SearchAMI(e, "125523088429", fmt.Sprintf("Fedora-Cloud-Base*-%s-*", osInfo.Version), string(osInfo.Architecture))
 }
 
 func resolveCentOSAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {

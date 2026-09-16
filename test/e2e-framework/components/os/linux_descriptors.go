@@ -37,9 +37,6 @@ var (
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
 
-	FedoraDefault = Fedora40
-	Fedora40      = NewDescriptor(Fedora, "40")
-
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
 
@@ -55,6 +52,5 @@ var LinuxDescriptorsDefault = map[Flavor]Descriptor{
 	Debian:         DebianDefault,
 	RedHat:         RedHatDefault,
 	Suse:           SuseDefault,
-	Fedora:         FedoraDefault,
 	CentOS:         CentOSDefault,
 }
