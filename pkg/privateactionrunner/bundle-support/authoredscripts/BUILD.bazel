@@ -4,11 +4,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "authoredscripts",
     srcs = [
+        "cache.go",
         "catalog.go",
         "command.go",
         "environment.go",
         "execution.go",
-        "local_store.go",
         "manifest.go",
         "package.go",
         "remote_catalog.go",
@@ -25,76 +25,91 @@ go_library(
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
+            "//pkg/privateactionrunner/libs/artifactstore",
             "//pkg/privateactionrunner/util",
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
@@ -105,11 +120,11 @@ go_library(
 dd_agent_go_test(
     name = "authoredscripts_test",
     srcs = [
+        "cache_test.go",
         "catalog_test.go",
         "command_test.go",
         "environment_test.go",
         "execution_test.go",
-        "local_store_test.go",
         "manifest_test.go",
         "package_test.go",
         "remote_catalog_test.go",
