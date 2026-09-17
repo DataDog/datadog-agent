@@ -9,12 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
-	"github.com/twmb/murmur3"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
@@ -232,161 +230,6 @@ func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, 
 	}
 }
 
-// CreateClusterManifest creates a Cluster manifest to be sent after all nodes have been collected.
-// This is used to trigger cluster-level processing in the backend after node collection is complete.
-func CreateClusterManifest(clusterID string, nodes []*agentmodel.Manifest, logger *zap.Logger) *agentmodel.Manifest {
-	// Initialize aggregated data structures
-	kubeletVersions := make(map[string]int32)
-	var cpuAllocatable uint64
-	var cpuCapacity uint64
-	var memoryAllocatable uint64
-	var memoryCapacity uint64
-	var podAllocatable uint32
-	var podCapacity uint32
-	extendedResourcesCapacity := make(map[string]int64)
-	extendedResourcesAllocatable := make(map[string]int64)
-
-	// Extended resources blacklist (standard resources that shouldn't be counted as extended)
-	extendedResourcesBlacklist := map[string]struct{}{
-		"cpu":    {},
-		"memory": {},
-		"pods":   {},
-	}
-
-	nodeCount := int32(len(nodes))
-	nodesInfo := make([]*agentmodel.ClusterNodeInfo, 0, len(nodes))
-
-	// Parse and aggregate information from each node
-	for _, nodeManifest := range nodes {
-		// Unmarshal the node JSON content
-		var nodeMap map[string]interface{}
-		if err := json.Unmarshal(nodeManifest.Content, &nodeMap); err != nil {
-			logger.Warn("Failed to unmarshal node content", zap.Error(err), zap.String("uid", nodeManifest.Uid))
-			continue
-		}
-
-		// Extract status information
-		status, ok := nodeMap["status"].(map[string]interface{})
-		if !ok {
-			logger.Warn("Node missing status field", zap.String("uid", nodeManifest.Uid))
-			continue
-		}
-
-		// Extract node info
-		nodeInfo, ok := status["nodeInfo"].(map[string]interface{})
-		if ok {
-			if kubeletVersion, ok := nodeInfo["kubeletVersion"].(string); ok && kubeletVersion != "" {
-				kubeletVersions[kubeletVersion]++
-			}
-		}
-
-		// Extract allocatable resources
-		if allocatable, ok := status["allocatable"].(map[string]interface{}); ok {
-			// CPU allocatable (in millicores)
-			if cpuStr, ok := allocatable["cpu"].(string); ok {
-				if cpu := parseQuantity(cpuStr, true); cpu > 0 {
-					cpuAllocatable += cpu
-				}
-			}
-			// Memory allocatable (in bytes)
-			if memStr, ok := allocatable["memory"].(string); ok {
-				if mem := parseQuantity(memStr, false); mem > 0 {
-					memoryAllocatable += mem
-				}
-			}
-			// Pods allocatable
-			if podsStr, ok := allocatable["pods"].(string); ok {
-				if pods := parseQuantity(podsStr, false); pods > 0 {
-					podAllocatable += uint32(pods)
-				}
-			}
-			// Extended resources allocatable
-			for name, value := range allocatable {
-				if _, isBlacklisted := extendedResourcesBlacklist[name]; !isBlacklisted {
-					if valStr, ok := value.(string); ok {
-						if qty := parseQuantity(valStr, false); qty > 0 {
-							extendedResourcesAllocatable[name] += int64(qty)
-						}
-					}
-				}
-			}
-		}
-
-		// Extract capacity resources
-		if capacity, ok := status["capacity"].(map[string]interface{}); ok {
-			// CPU capacity (in millicores)
-			if cpuStr, ok := capacity["cpu"].(string); ok {
-				if cpu := parseQuantity(cpuStr, true); cpu > 0 {
-					cpuCapacity += cpu
-				}
-			}
-			// Memory capacity (in bytes)
-			if memStr, ok := capacity["memory"].(string); ok {
-				if mem := parseQuantity(memStr, false); mem > 0 {
-					memoryCapacity += mem
-				}
-			}
-			// Pods capacity
-			if podsStr, ok := capacity["pods"].(string); ok {
-				if pods := parseQuantity(podsStr, false); pods > 0 {
-					podCapacity += uint32(pods)
-				}
-			}
-			// Extended resources capacity
-			for name, value := range capacity {
-				if _, isBlacklisted := extendedResourcesBlacklist[name]; !isBlacklisted {
-					if valStr, ok := value.(string); ok {
-						if qty := parseQuantity(valStr, false); qty > 0 {
-							extendedResourcesCapacity[name] += int64(qty)
-						}
-					}
-				}
-			}
-		}
-
-		// Extract node info for ClusterNodeInfo
-		nodeInfoModel := extractClusterNodeInfo(nodeMap)
-		if nodeInfoModel != nil {
-			nodesInfo = append(nodesInfo, nodeInfoModel)
-		}
-	}
-
-	clusterModel := &agentmodel.Cluster{
-		CpuAllocatable:               cpuAllocatable,
-		CpuCapacity:                  cpuCapacity,
-		KubeletVersions:              kubeletVersions,
-		MemoryAllocatable:            memoryAllocatable,
-		MemoryCapacity:               memoryCapacity,
-		NodeCount:                    nodeCount,
-		PodAllocatable:               podAllocatable,
-		PodCapacity:                  podCapacity,
-		ExtendedResourcesCapacity:    extendedResourcesCapacity,
-		ExtendedResourcesAllocatable: extendedResourcesAllocatable,
-		NodesInfo:                    nodesInfo,
-	}
-
-	content, err := json.Marshal(clusterModel)
-	if err != nil {
-		logger.Error("Failed to marshal cluster manifest", zap.Error(err))
-		return nil
-	}
-
-	version := murmur3.Sum64(content)
-
-	return &agentmodel.Manifest{
-		Type:            int32(getManifestType("Cluster")),
-		ResourceVersion: strconv.FormatUint(version, 10),
-		Uid:             clusterID,
-		Content:         content,
-		ContentType:     "application/json",
-		Version:         "v1",
-		Tags:            buildCommonTags(),
-		IsTerminated:    false,
-		ApiVersion:      "virtual.datadoghq.com/v1",
-		Kind:            "Cluster",
-	}
-}
-
 // NewManifestCache creates a new manifest deduplication cache with the standard TTL and purge interval.
 // Callers are responsible for managing the cache lifetime (e.g., as a singleton).
 func NewManifestCache() *gocache.Cache {
@@ -395,9 +238,10 @@ func NewManifestCache() *gocache.Cache {
 
 // shouldSkipManifest reports whether the manifest should be suppressed because an identical
 // (same UID + resourceVersion) manifest was already sent within the cache TTL.
+// clusterID scopes the cache key so UIDs from different clusters never collide.
 // Watch events always bypass the cache so real-time updates are never dropped.
 // If cache is nil, deduplication is skipped.
-func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
+func shouldSkipManifest(manifest *agentmodel.Manifest, clusterID string, isWatchEvent bool, cache *gocache.Cache) bool {
 	if cache == nil || manifest == nil || manifest.Uid == "" {
 		return false
 	}
@@ -407,7 +251,7 @@ func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache 
 		return false
 	}
 
-	cacheKey := manifest.Uid
+	cacheKey := clusterID + "/" + manifest.Uid
 
 	// Check if we have this resource in cache
 	value, hit := cache.Get(cacheKey)
@@ -480,53 +324,78 @@ type K8sTranslationResult struct {
 	ClusterID string
 }
 
-// TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
-// It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
-// Set skipClusterManifest to true to skip automatic Cluster manifest creation from collected nodes.
+// clusterKey is the grouping key used to associate ResourceLogs with a cluster.
+type clusterKey struct{ id, name string }
+
+// TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads, grouped by cluster identity.
+// It handles deduplication via cache (pass nil to disable) and chunking.
 // Set maxChunkSize to value > 0 to override individual chunk weight. Otherwise, default value will be used.
 // Individual record errors are logged and skipped rather than aborting the batch.
-func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, skipClusterManifest bool, maxChunkSize int) *K8sTranslationResult {
-	var manifests []*agentmodel.Manifest
-	var nodes []*agentmodel.Manifest
-	var isWatchEvent bool
-	var clusterID, clusterName string
-
+func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, maxChunkSize int) []*K8sTranslationResult {
 	if maxChunkSize <= 0 {
 		maxChunkSize = MaxPayloadSizeBytes
 	}
 
+	groups, order := groupResourceLogsByCluster(ld, logger)
+	if len(order) == 0 {
+		return nil
+	}
+
+	results := make([]*K8sTranslationResult, 0, len(order))
+	for _, key := range order {
+		if result := translateClusterLogs(key, groups[key], cache, logger, maxChunkSize); result != nil {
+			results = append(results, result)
+		}
+	}
+	return results
+}
+
+// groupResourceLogsByCluster partitions ld into per-cluster buckets.
+// ResourceLogs missing k8s.cluster.uid or k8s.cluster.name are skipped with an error log.
+func groupResourceLogsByCluster(ld plog.Logs, logger *zap.Logger) (map[clusterKey][]plog.ResourceLogs, []clusterKey) {
+	groups := make(map[clusterKey][]plog.ResourceLogs)
+	var order []clusterKey
+
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		rl := ld.ResourceLogs().At(i)
+		attrs := rl.Resource().Attributes()
+
+		cid, ok := attrs.Get("k8s.cluster.uid")
+		if !ok {
+			logger.Error("Failed to get k8s cluster ID, skipping resource log")
+			continue
+		}
+		cname, ok := attrs.Get("k8s.cluster.name")
+		if !ok {
+			logger.Error("Failed to get k8s cluster name, skipping resource log")
+			continue
+		}
+
+		key := clusterKey{id: cid.AsString(), name: cname.AsString()}
+		if _, seen := groups[key]; !seen {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], rl)
+	}
+	return groups, order
+}
+
+// translateClusterLogs converts one cluster's ResourceLogs into a K8sTranslationResult.
+func translateClusterLogs(key clusterKey, rls []plog.ResourceLogs, cache *gocache.Cache, logger *zap.Logger, maxChunkSize int) *K8sTranslationResult {
+	var manifests []*agentmodel.Manifest
+
+	for _, rl := range rls {
 		resource := rl.Resource()
-
-		cid, ok := resource.Attributes().Get("k8s.cluster.uid")
-		if !ok {
-			logger.Error("Failed to get k8s cluster ID, skipping manifest payload")
-			continue
-		}
-		clusterID = cid.AsString()
-
-		cname, ok := resource.Attributes().Get("k8s.cluster.name")
-		if !ok {
-			logger.Error("Failed to get k8s cluster name, skipping manifest payload")
-			continue
-		}
-		clusterName = cname.AsString()
-
 		for j := 0; j < rl.ScopeLogs().Len(); j++ {
 			sl := rl.ScopeLogs().At(j)
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				lr := sl.LogRecords().At(k)
 				manifest, isWatch, err := ToManifest(lr, resource)
 				if err != nil {
-					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
+					logger.Error("Failed to convert to manifest", zap.Error(err))
 					continue
 				}
-				isWatchEvent = isWatch
-				if manifest.Kind == "Node" {
-					nodes = append(nodes, manifest)
-				}
-				if shouldSkipManifest(manifest, isWatch, cache) {
+				if shouldSkipManifest(manifest, key.id, isWatch, cache) {
 					logger.Debug("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
@@ -542,29 +411,22 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger,
 		}
 	}
 
-	if len(nodes) > 0 && !isWatchEvent && !skipClusterManifest {
-		logger.Debug("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", len(nodes)))
-		if clusterManifest := CreateClusterManifest(clusterID, nodes, logger); clusterManifest != nil {
-			if !shouldSkipManifest(clusterManifest, false, cache) {
-				manifests = append(manifests, clusterManifest)
-				logger.Debug("Added Cluster manifest to payload",
-					zap.String("uid", clusterManifest.Uid),
-					zap.Int("total_nodes", len(nodes)))
-			}
-		}
-	}
-
 	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxChunkSize)
 	logger.Debug("Sending manifests in chunks",
+		zap.String("k8s.cluster.uid", key.id),
+		zap.String("k8s.cluster.name", key.name),
 		zap.Int("total_manifests", len(manifests)),
 		zap.Int("chunk_count", len(chunks)),
 		zap.Int("max_manifests_per_chunk", maxManifestsPerPayload),
 		zap.Int("max_payload_size_bytes", maxChunkSize))
 
+	if len(chunks) == 0 {
+		return nil
+	}
 	return &K8sTranslationResult{
 		Chunks:      chunks,
-		ClusterName: clusterName,
-		ClusterID:   clusterID,
+		ClusterName: key.name,
+		ClusterID:   key.id,
 	}
 }
 
@@ -594,158 +456,4 @@ func shouldSkipResourceKind(kind string, group string) bool {
 	}
 
 	return false
-}
-
-// parseQuantity parses Kubernetes resource quantity strings (e.g., "4", "1000m", "2Gi")
-// and returns the value in the appropriate unit:
-// - For CPU (asMillis=true): returns milliCPU (e.g., "1" -> 1000, "500m" -> 500)
-// - For other resources (asMillis=false): returns the raw value in base unit
-func parseQuantity(quantityStr string, asMillis bool) uint64 {
-	if quantityStr == "" {
-		return 0
-	}
-
-	// Handle CPU millicores (e.g., "500m")
-	if before, ok := strings.CutSuffix(quantityStr, "m"); ok {
-		valueStr := before
-		if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
-			return value
-		}
-		return 0
-	}
-
-	// Handle binary suffixes (Ki, Mi, Gi, Ti, Pi, Ei)
-	binarySuffixes := map[string]uint64{
-		"Ki": 1024,
-		"Mi": 1024 * 1024,
-		"Gi": 1024 * 1024 * 1024,
-		"Ti": 1024 * 1024 * 1024 * 1024,
-		"Pi": 1024 * 1024 * 1024 * 1024 * 1024,
-		"Ei": 1024 * 1024 * 1024 * 1024 * 1024 * 1024,
-	}
-
-	for suffix, multiplier := range binarySuffixes {
-		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
-			valueStr := before
-			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
-				return value * multiplier
-			}
-			return 0
-		}
-	}
-
-	// Handle decimal suffixes (k, M, G, T, P, E)
-	decimalSuffixes := map[string]uint64{
-		"k": 1000,
-		"M": 1000 * 1000,
-		"G": 1000 * 1000 * 1000,
-		"T": 1000 * 1000 * 1000 * 1000,
-		"P": 1000 * 1000 * 1000 * 1000 * 1000,
-		"E": 1000 * 1000 * 1000 * 1000 * 1000 * 1000,
-	}
-
-	for suffix, multiplier := range decimalSuffixes {
-		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
-			valueStr := before
-			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
-				return value * multiplier
-			}
-			return 0
-		}
-	}
-
-	// Plain number without suffix
-	if value, err := strconv.ParseUint(quantityStr, 10, 64); err == nil {
-		// If this is a CPU value and we need millis, multiply by 1000
-		if asMillis {
-			return value * 1000
-		}
-		return value
-	}
-
-	return 0
-}
-
-// extractClusterNodeInfo extracts node information from a Kubernetes node resource
-// and returns a ClusterNodeInfo model for inclusion in the cluster model.
-func extractClusterNodeInfo(nodeMap map[string]interface{}) *agentmodel.ClusterNodeInfo {
-	nodeInfo := &agentmodel.ClusterNodeInfo{
-		ResourceAllocatable: make(map[string]string),
-		ResourceCapacity:    make(map[string]string),
-	}
-
-	// Extract metadata
-	metadata, ok := nodeMap["metadata"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	if name, ok := metadata["name"].(string); ok {
-		nodeInfo.Name = name
-	}
-
-	// Extract labels for instance type and region
-	if labels, ok := metadata["labels"].(map[string]interface{}); ok {
-		// Instance type
-		if instanceType, ok := labels["node.kubernetes.io/instance-type"].(string); ok {
-			nodeInfo.InstanceType = instanceType
-		} else if instanceType, ok := labels["beta.kubernetes.io/instance-type"].(string); ok {
-			nodeInfo.InstanceType = instanceType
-		}
-
-		// Region
-		if region, ok := labels["topology.kubernetes.io/region"].(string); ok {
-			nodeInfo.Region = region
-		} else if region, ok := labels["failure-domain.beta.kubernetes.io/region"].(string); ok {
-			nodeInfo.Region = region
-		}
-	}
-
-	// Extract status
-	status, ok := nodeMap["status"].(map[string]interface{})
-	if !ok {
-		return nodeInfo
-	}
-
-	// Extract node info (kubelet version, OS, architecture, etc.)
-	if statusNodeInfo, ok := status["nodeInfo"].(map[string]interface{}); ok {
-		if architecture, ok := statusNodeInfo["architecture"].(string); ok {
-			nodeInfo.Architecture = architecture
-		}
-		if containerRuntimeVersion, ok := statusNodeInfo["containerRuntimeVersion"].(string); ok {
-			nodeInfo.ContainerRuntimeVersion = containerRuntimeVersion
-		}
-		if kernelVersion, ok := statusNodeInfo["kernelVersion"].(string); ok {
-			nodeInfo.KernelVersion = kernelVersion
-		}
-		if kubeletVersion, ok := statusNodeInfo["kubeletVersion"].(string); ok {
-			nodeInfo.KubeletVersion = kubeletVersion
-		}
-		if operatingSystem, ok := statusNodeInfo["operatingSystem"].(string); ok {
-			nodeInfo.OperatingSystem = operatingSystem
-		}
-		if osImage, ok := statusNodeInfo["osImage"].(string); ok {
-			nodeInfo.OperatingSystemImage = osImage
-		}
-	}
-
-	// Extract allocatable resources
-	if allocatable, ok := status["allocatable"].(map[string]interface{}); ok {
-		for resourceName, resourceValue := range allocatable {
-			if valueStr, ok := resourceValue.(string); ok {
-				nodeInfo.ResourceAllocatable[resourceName] = valueStr
-			}
-		}
-	}
-
-	// Extract capacity resources
-	if capacity, ok := status["capacity"].(map[string]interface{}); ok {
-		for resourceName, resourceValue := range capacity {
-			if valueStr, ok := resourceValue.(string); ok {
-				nodeInfo.ResourceCapacity[resourceName] = valueStr
-			}
-		}
-	}
-
-	return nodeInfo
 }

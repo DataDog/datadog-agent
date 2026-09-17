@@ -6,7 +6,6 @@
 package logsagentexporter
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -47,12 +46,13 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-1", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		require.Len(t, first.Chunks, 1)
-		assert.Len(t, first.Chunks[0], 1)
+		first := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		assert.Len(t, first[0].Chunks[0], 1)
 
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		assert.Empty(t, second.Chunks, "duplicate pull manifest should be skipped")
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		assert.Empty(t, second, "duplicate pull manifest should produce no results")
 	})
 
 	t.Run("updated resourceVersion is not deduplicated", func(t *testing.T) {
@@ -60,29 +60,144 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		ld1 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v1", false)
 		ld2 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v2", false)
 
-		logsmapping.TranslateK8sObjects(ld1, cache, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, false, 0)
-		require.Len(t, second.Chunks, 1)
-		assert.Len(t, second.Chunks[0], 1, "updated resourceVersion should not be skipped")
+		logsmapping.TranslateK8sObjects(ld1, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1)
+		assert.Len(t, second[0].Chunks[0], 1, "updated resourceVersion should not be skipped")
 	})
 
 	t.Run("watch events bypass deduplication cache", func(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-3", "v1", true)
 
-		logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		require.Len(t, second.Chunks, 1, "watch events should always be forwarded")
+		logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "watch events should always be forwarded")
 	})
 
 	t.Run("nil cache disables deduplication", func(t *testing.T) {
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-4", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
-		require.Len(t, first.Chunks, 1)
-		require.Len(t, second.Chunks, 1, "nil cache should not deduplicate")
+		first := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "nil cache should not deduplicate")
 	})
+}
+
+// TestTranslateK8sObjects_MultiCluster verifies that ResourceLogs from different clusters
+// in a single plog.Logs are grouped into separate results, each attributed to the correct cluster.
+func TestTranslateK8sObjects_MultiCluster(t *testing.T) {
+	logger := zap.NewNop()
+
+	// Build one plog.Logs containing two ResourceLogs blocks, one per cluster.
+	ldA := buildK8sLogs("cluster-A-uid", "cluster-A", "pod-a", "v1", false)
+	ldB := buildK8sLogs("cluster-B-uid", "cluster-B", "pod-b", "v1", false)
+	// Merge ldB's ResourceLogs into ldA so we have a single mixed batch.
+	ldB.ResourceLogs().MoveAndAppendTo(ldA.ResourceLogs())
+	require.Equal(t, 2, ldA.ResourceLogs().Len(), "test setup: expected two ResourceLogs blocks")
+
+	results := logsmapping.TranslateK8sObjects(ldA, nil, logger, 0)
+	require.Len(t, results, 2, "each cluster should get its own result")
+
+	// Index results by cluster ID for stable assertions independent of ordering.
+	byID := make(map[string]*logsmapping.K8sTranslationResult, len(results))
+	for _, r := range results {
+		byID[r.ClusterID] = r
+	}
+	require.Contains(t, byID, "cluster-A-uid")
+	require.Contains(t, byID, "cluster-B-uid")
+
+	// Each cluster's result carries its own name.
+	assert.Equal(t, "cluster-A", byID["cluster-A-uid"].ClusterName)
+	assert.Equal(t, "cluster-B", byID["cluster-B-uid"].ClusterName)
+
+	// And each cluster's manifests were only counted under that cluster.
+	require.Len(t, byID["cluster-A-uid"].Chunks, 1)
+	require.Len(t, byID["cluster-A-uid"].Chunks[0], 1)
+	assert.Equal(t, "pod-a", byID["cluster-A-uid"].Chunks[0][0].Uid)
+
+	require.Len(t, byID["cluster-B-uid"].Chunks, 1)
+	require.Len(t, byID["cluster-B-uid"].Chunks[0], 1)
+	assert.Equal(t, "pod-b", byID["cluster-B-uid"].Chunks[0][0].Uid)
+}
+
+// TestTranslateK8sObjects_MissingClusterAttrs verifies that a ResourceLog missing cluster
+// identity is skipped without contaminating other ResourceLogs in the same batch.
+func TestTranslateK8sObjects_MissingClusterAttrs(t *testing.T) {
+	logger := zap.NewNop()
+
+	ldGood := buildK8sLogs("cluster-1-uid", "cluster-1", "pod-good", "v1", false)
+
+	// A second ResourceLog with a valid pod body but no cluster attributes.
+	ldMissing := plog.NewLogs()
+	rl := ldMissing.ResourceLogs().AppendEmpty()
+	sl := rl.ScopeLogs().AppendEmpty()
+	lr := sl.LogRecords().AppendEmpty()
+	lr.Body().SetStr(`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"pod-orphan","resourceVersion":"v1","name":"orphan"}}`)
+	ldMissing.ResourceLogs().MoveAndAppendTo(ldGood.ResourceLogs())
+	require.Equal(t, 2, ldGood.ResourceLogs().Len(), "test setup: expected two ResourceLogs blocks")
+
+	results := logsmapping.TranslateK8sObjects(ldGood, nil, logger, 0)
+	require.Len(t, results, 1, "only the ResourceLog with cluster identity should produce a result")
+	assert.Equal(t, "cluster-1-uid", results[0].ClusterID)
+	require.Len(t, results[0].Chunks, 1)
+	require.Len(t, results[0].Chunks[0], 1)
+	assert.Equal(t, "pod-good", results[0].Chunks[0][0].Uid)
+}
+
+// TestTranslateK8sObjects_MaxChunkSize verifies that a small maxChunkSize causes manifests to be
+// split across multiple chunks rather than collected into one.
+func TestTranslateK8sObjects_MaxChunkSize(t *testing.T) {
+	logger := zap.NewNop()
+
+	// Two different pods in the same cluster — each will be a separate manifest.
+	ld := plog.NewLogs()
+	rl := ld.ResourceLogs().AppendEmpty()
+	rl.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-chunk-uid")
+	rl.Resource().Attributes().PutStr("k8s.cluster.name", "chunk-cluster")
+	sl := rl.ScopeLogs().AppendEmpty()
+
+	for _, uid := range []string{"pod-chunk-1", "pod-chunk-2"} {
+		lr := sl.LogRecords().AppendEmpty()
+		lr.Body().SetStr(`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"` + uid + `","resourceVersion":"v1","name":"` + uid + `"}}`)
+	}
+
+	// maxChunkSize=1 forces one manifest per chunk.
+	results := logsmapping.TranslateK8sObjects(ld, nil, logger, 1)
+	require.Len(t, results, 1)
+	assert.Len(t, results[0].Chunks, 2, "each manifest should be in its own chunk when maxChunkSize=1")
+}
+
+// TestTranslateK8sObjects_CrossClusterCacheIsolation verifies that deduplication cache entries
+// are scoped per cluster, so the same manifest UID in two different clusters does not suppress
+// one another.
+func TestTranslateK8sObjects_CrossClusterCacheIsolation(t *testing.T) {
+	logger := zap.NewNop()
+	cache := logsmapping.NewManifestCache()
+
+	// Build two ResourceLogs blocks that share a manifest UID but belong to different clusters.
+	ldA := buildK8sLogs("cluster-A-uid", "cluster-A", "shared-uid", "v1", false)
+	ldB := buildK8sLogs("cluster-B-uid", "cluster-B", "shared-uid", "v1", false)
+
+	// Translate cluster A first so "shared-uid" is cached under cluster-A.
+	firstA := logsmapping.TranslateK8sObjects(ldA, cache, logger, 0)
+	require.Len(t, firstA, 1)
+	require.Len(t, firstA[0].Chunks, 1)
+
+	// Translate cluster B with the same UID — it must NOT be suppressed by cluster A's cache entry.
+	firstB := logsmapping.TranslateK8sObjects(ldB, cache, logger, 0)
+	require.Len(t, firstB, 1, "cluster B's manifest should not be suppressed by cluster A's cache entry")
+	require.Len(t, firstB[0].Chunks, 1)
+
+	// A second send to cluster A with the same UID+version should be deduplicated (same cluster).
+	ldA2 := buildK8sLogs("cluster-A-uid", "cluster-A", "shared-uid", "v1", false)
+	secondA := logsmapping.TranslateK8sObjects(ldA2, cache, logger, 0)
+	assert.Empty(t, secondA, "same UID+version within cluster A should be deduplicated")
 }
 
 // TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
@@ -488,33 +603,6 @@ func TestToManifest(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCreateClusterManifest(t *testing.T) {
-	logger := zap.NewNop()
-	clusterID := "test-cluster-123"
-	nodes := []*agentmodel.Manifest{
-		{
-			Uid:             "node-1",
-			ResourceVersion: "v1",
-			Kind:            "Node",
-		},
-	}
-
-	manifest := logsmapping.CreateClusterManifest(clusterID, nodes, logger)
-
-	require.NotNil(t, manifest)
-	assert.Equal(t, clusterID, manifest.Uid)
-	assert.Equal(t, "Cluster", manifest.Kind)
-	assert.Equal(t, "virtual.datadoghq.com/v1", manifest.ApiVersion)
-	assert.Equal(t, "application/json", manifest.ContentType)
-	assert.Equal(t, "v1", manifest.Version)
-	assert.False(t, manifest.IsTerminated)
-
-	// Verify content is valid JSON
-	var clusterData map[string]interface{}
-	err := json.Unmarshal(manifest.Content, &clusterData)
-	require.NoError(t, err)
 }
 
 func TestToManifestPayload(t *testing.T) {

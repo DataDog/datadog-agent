@@ -45,25 +45,29 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger, false /* skipClusterManifest */, logsmapping.MaxPayloadSizeBytes)
+	results := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger, logsmapping.MaxPayloadSizeBytes)
 
 	hostname, err := e.orchestratorExporter.config.Hostname.Get(ctx)
 	if err != nil || hostname == "" {
 		e.set.Logger.Error("Failed to get hostname from config", zap.Error(err))
 	}
 
-	for i, chunk := range result.Chunks {
-		e.set.Logger.Debug("Sending manifest chunk",
-			zap.Int("chunk_index", i),
-			zap.Int("chunk_size", len(chunk)))
-
-		payload := logsmapping.ToManifestPayload(chunk, hostname, result.ClusterName, result.ClusterID, agentmodel.OriginCollector_datadogExporter)
-
-		if err := sendManifestPayload(ctx, e.orchestratorExporter.config.Endpoint, e.orchestratorExporter.config.Key, payload, hostname, result.ClusterID, e.set.Logger); err != nil {
-			e.set.Logger.Error("Failed to send collector manifest chunk",
+	for _, result := range results {
+		for i, chunk := range result.Chunks {
+			e.set.Logger.Debug("Sending manifest chunk",
+				zap.String("k8s.cluster.uid", result.ClusterID),
 				zap.Int("chunk_index", i),
-				zap.Int("chunk_size", len(chunk)),
-				zap.Error(err))
+				zap.Int("chunk_size", len(chunk)))
+
+			payload := logsmapping.ToManifestPayload(chunk, hostname, result.ClusterName, result.ClusterID, agentmodel.OriginCollector_datadogExporter)
+
+			if err := sendManifestPayload(ctx, e.orchestratorExporter.config.Endpoint, e.orchestratorExporter.config.Key, payload, hostname, result.ClusterID, e.set.Logger); err != nil {
+				e.set.Logger.Error("Failed to send collector manifest chunk",
+					zap.String("k8s.cluster.uid", result.ClusterID),
+					zap.Int("chunk_index", i),
+					zap.Int("chunk_size", len(chunk)),
+					zap.Error(err))
+			}
 		}
 	}
 
