@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -565,7 +566,9 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 // InsertConnectEvent inserts a connect event in a process node. Returns whether a new entry was
 // added and the NodeBase of the matched or newly created ConnectNode.
 func (pn *ProcessNode) InsertConnectEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) (bool, *NodeBase) {
-	if evt.Connect.SyscallEvent.Retval != 0 {
+	if evt.Connect.SyscallEvent.Retval != 0 &&
+		evt.Connect.SyscallEvent.Retval != -int64(syscall.EINPROGRESS) &&
+		evt.Connect.SyscallEvent.Retval != -int64(syscall.EAGAIN) {
 		return false, nil
 	}
 	var newNode bool
