@@ -11,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -164,7 +165,7 @@ func renderInitConfig(ic initConfig) (integration.Data, error) {
 
 // renderInstance joins a document instance with its resolved credential into
 // one check instance.
-func renderInstance(in documentInstance, c credential) (integration.Data, error) {
+func renderInstance(in documentInstance, c credentials.Credential) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
 		SNMPVersion:           c.SNMPVersion,
