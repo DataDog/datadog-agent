@@ -21,7 +21,9 @@
 //! resolution lives in [`crate::config_gate`].
 
 use anyhow::{Context, Result, bail};
-use base64::prelude::{BASE64_STANDARD, Engine as _};
+use base64::alphabet;
+use base64::engine::Engine as _;
+use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
 use saphyr_parser::{Event, Parser, ScalarStyle, Tag};
 use serde_yaml::{Mapping, Sequence, Value};
 use std::collections::HashMap;
@@ -378,13 +380,25 @@ fn take_number(bytes: &[u8], min: usize, max: usize) -> Option<(u32, &[u8])> {
     Some((value, &bytes[width..]))
 }
 
+/// Go `base64.StdEncoding`, which is what yaml.v2 decodes a `!!binary` payload with.
+///
+/// `StdEncoding` is the non-`Strict` encoding, so it ignores nonzero bits left over in
+/// the unused tail of the final symbol: `dHJ1ZR==` decodes to `true` just as `dHJ1ZQ==`
+/// does. Rust's `BASE64_STANDARD` rejects those, which would fail a file the Agent reads
+/// without complaint. Padding is a separate question, and there Go is strict: an absent,
+/// short or excess `=` run is an error, which is the default `RequireCanonical`.
+const GO_STD_BASE64: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new().with_decode_allow_trailing_bits(true),
+);
+
 /// Decodes a `!!binary` payload, which yaml.v2 hands over as the decoded bytes rather
 /// than the base64 text, so a gate compares against the same string the Agent sees.
 fn decode_binary(text: &str) -> Result<Value> {
     // Go's `base64.StdEncoding` ignores line breaks, which the YAML spec allows inside a
     // binary payload, but no other whitespace.
     let payload: String = text.chars().filter(|c| *c != '\r' && *c != '\n').collect();
-    let bytes = BASE64_STANDARD
+    let bytes = GO_STD_BASE64
         .decode(payload)
         .context("!!binary value contains invalid base64 data")?;
     // Go keeps the raw bytes in a string. Rust cannot, and no config gate reads a
@@ -1430,13 +1444,34 @@ process_config:
         }
     }
 
+    /// yaml.v2 decodes with Go `base64.StdEncoding`, not its `Strict()` variant, so
+    /// leftover bits in the unused tail of the last symbol are ignored while padding
+    /// stays strict. Each row was run through gopkg.in/yaml.v2 v2.4.0.
     #[test]
     fn binary_scalars_are_base64_decoded() {
-        assert_eq!(
-            scalar("enabled: !!binary dHJ1ZQ==\n"),
-            Value::String("true".into())
-        );
-        assert!(load("enabled: !!binary \"not base64\"\n").is_err());
+        for (payload, expected) in [
+            ("dHJ1ZQ==", "true"),
+            // Nonzero trailing bits: same bytes as `dHJ1ZQ==` to Go.
+            ("dHJ1ZR==", "true"),
+            ("dHJ1ZR8=", "true\u{1f}"),
+            ("eXV=", "yu"),
+            ("eWVz", "yes"),
+            ("", ""),
+        ] {
+            assert_eq!(
+                scalar(&format!("enabled: !!binary {payload}\n")),
+                Value::String(expected.into()),
+                "{payload}"
+            );
+        }
+
+        // Padding is not forgiven: absent, short, and excess `=` all fail in Go too.
+        for payload in ["dHJ1ZQ", "dHJ1ZQ=", "dHJ1ZQ===", "\"not base64\""] {
+            assert!(
+                load(&format!("enabled: !!binary {payload}\n")).is_err(),
+                "{payload}"
+            );
+        }
     }
 
     #[test]
