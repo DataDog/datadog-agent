@@ -55,7 +55,7 @@ type ndmDiscovery struct {
 	sched    *scheduler
 	defaults rangeDefaults
 
-	checker connectivityChecker
+	probes  *probeSet
 	enabled bool
 }
 
@@ -87,8 +87,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	comp.enabled = true
-	comp.checker = reqs.NetworkDevices
 	comp.defaults = defaults
+	comp.probes = newProbeSet(reqs.Log,
+		newPingProbe(reqs.NetworkDevices, reqs.Log),
+		newSNMPProbe(credentials.NewStore(reqs.Config), reqs.Log),
+	)
 	comp.sched = newScheduler(
 		newSweeper(
 			reqs.NetworkDevices,
@@ -98,7 +101,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 			workers,
 			reqs.Log,
 		),
-		credentials.NewStore(reqs.Config),
 		reqs.Log,
 		schedulerOptions{Workers: workers, MaxAddresses: defaults.MaxAddresses, Defaults: defaults},
 	)
@@ -109,13 +111,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (d *ndmDiscovery) start(ctx context.Context) error {
-	// The connectivity engine reports a lack of privileges as unreachable, so
-	// probing once at start keeps ping status empty instead of wrong.
-	if probePing(ctx, d.checker) {
-		d.sched.setPingEnabled(true)
-	} else {
-		d.log.Warn("ndmdiscovery: this agent cannot send ICMP echo requests, so ping status will not be reported")
-	}
+	d.probes.detect(ctx)
 
 	// The scheduler outlives the start hook's context, which is cancelled once
 	// startup finishes.
@@ -142,7 +138,7 @@ func (d *ndmDiscovery) Schedule(ranges []ndmdiscovery.Range) map[string]error {
 
 	scheduled := make(map[string]struct{}, len(ranges))
 	for _, r := range ranges {
-		cfg, err := parseRange(r, d.defaults)
+		cfg, err := parseRange(r, d.defaults, d.probes)
 		if err != nil {
 			errs[r.ID] = err
 			continue

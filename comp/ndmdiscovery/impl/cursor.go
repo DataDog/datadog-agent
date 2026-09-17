@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 )
 
@@ -76,9 +75,9 @@ func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
 	return persistentcache.Write(cursorKey(autodiscoveryID), "")
 }
 
-// rangeDigest fingerprints the addresses probed and the credentials used, so
-// that a change to either invalidates a partial cycle.
-func rangeDigest(cfg rangeConfig, creds []connectivity.SNMPCredential) string {
+// rangeDigest fingerprints the addresses probed and each probe's configuration,
+// so that a change to either invalidates a partial cycle.
+func rangeDigest(cfg rangeConfig, fingerprints []string) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "cidr=%s\n", cfg.CIDR)
 
@@ -88,15 +87,10 @@ func rangeDigest(cfg rangeConfig, creds []connectivity.SNMPCredential) string {
 		fmt.Fprintf(h, "ignored=%s\n", ip)
 	}
 
-	fingerprints := make([]string, 0, len(creds))
-	for _, c := range creds {
-		fingerprints = append(fingerprints, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s",
-			c.ID, c.Version, c.Community, c.User, c.AuthProtocol, c.AuthKey,
-			c.PrivProtocol, c.PrivKey, c.ContextName, c.ContextEngineID))
-	}
-	sort.Strings(fingerprints)
-	for _, f := range fingerprints {
-		fmt.Fprintf(h, "cred=%s\n", f)
+	probes := append([]string(nil), fingerprints...)
+	sort.Strings(probes)
+	for _, f := range probes {
+		fmt.Fprintf(h, "probe=%s\n", f)
 	}
 
 	return hex.EncodeToString(h.Sum(nil))

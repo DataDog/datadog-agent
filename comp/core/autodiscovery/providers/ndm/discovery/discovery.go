@@ -77,31 +77,15 @@ type keyConfig struct {
 	Ranges []rangePayload `json:"ranges"`
 }
 
-// snmpOptionsPayload mirrors the snake_case Remote Configuration payload.
-type snmpOptionsPayload struct {
-	Port      int  `json:"port"`
-	TimeoutMs int  `json:"timeout_ms"`
-	Retries   *int `json:"retries"`
-}
-
-// pingOptionsPayload mirrors the snake_case Remote Configuration payload.
-type pingOptionsPayload struct {
-	Count      int `json:"count"`
-	IntervalMs int `json:"interval_ms"`
-	TimeoutMs  int `json:"timeout_ms"`
-}
-
 // rangePayload is the wire shape of one range to sweep.
 type rangePayload struct {
-	AutodiscoveryID    string              `json:"autodiscovery_id"`
-	Namespace          string              `json:"namespace"`
-	CIDR               string              `json:"cidr"`
-	CredentialIDs      []string            `json:"credential_ids"`
-	IntervalSec        int                 `json:"interval_sec"`
-	IgnoredIPAddresses []string            `json:"ignored_ip_addresses"`
-	Tags               []string            `json:"tags"`
-	SNMPOptions        *snmpOptionsPayload `json:"snmp_options"`
-	PingOptions        *pingOptionsPayload `json:"ping_options"`
+	AutodiscoveryID    string                     `json:"autodiscovery_id"`
+	Namespace          string                     `json:"namespace"`
+	CIDR               string                     `json:"cidr"`
+	IntervalSec        int                        `json:"interval_sec"`
+	IgnoredIPAddresses []string                   `json:"ignored_ip_addresses"`
+	Tags               []string                   `json:"tags"`
+	Probes             map[string]json.RawMessage `json:"probes"`
 }
 
 // decodeRanges turns one path's discovery key into component ranges. The
@@ -121,29 +105,13 @@ func decodeRanges(raw json.RawMessage) ([]ndmdiscovery.Range, error) {
 			ID:                 payload.AutodiscoveryID,
 			Namespace:          payload.Namespace,
 			CIDR:               payload.CIDR,
-			CredentialIDs:      payload.CredentialIDs,
 			IntervalSec:        payload.IntervalSec,
 			IgnoredIPAddresses: payload.IgnoredIPAddresses,
 			Tags:               payload.Tags,
-			SNMPOptions:        snmpOptions(payload.SNMPOptions),
-			PingOptions:        pingOptions(payload.PingOptions),
+			Probes:             payload.Probes,
 		})
 	}
 	return ranges, nil
-}
-
-func snmpOptions(p *snmpOptionsPayload) *ndmdiscovery.SNMPOptions {
-	if p == nil {
-		return nil
-	}
-	return &ndmdiscovery.SNMPOptions{Port: p.Port, TimeoutMs: p.TimeoutMs, Retries: p.Retries}
-}
-
-func pingOptions(p *pingOptionsPayload) *ndmdiscovery.PingOptions {
-	if p == nil {
-		return nil
-	}
-	return &ndmdiscovery.PingOptions{Count: p.Count, IntervalMs: p.IntervalMs, TimeoutMs: p.TimeoutMs}
 }
 
 // sortedPaths orders the paths so a range id claimed by two of them is always
