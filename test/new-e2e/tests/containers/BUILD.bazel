@@ -68,6 +68,7 @@ dd_agent_go_test(
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
         "@com_github_aws_aws_sdk_go_v2_service_ecs//types",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//sbom",
