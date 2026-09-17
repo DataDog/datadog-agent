@@ -145,11 +145,6 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 	if job == nil || job.UID == "" {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.jobs[job.UID]; exists {
-		return
-	}
 
 	now := time.Now().Unix()
 	rec := &JobRecord{
@@ -163,6 +158,16 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 		OrgID:            meta.OrgID,
 		Release:          in.Release,
 		ReleaseNamespace: in.ReleaseNamespace,
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if old, exists := s.jobs[job.UID]; exists {
+		log.Debugf("[HelmActions] Tracking Job that already exists: %s", job.UID)
+		// If job is already there it means tracking loop added it earlier than this call.
+		// Update all fields except time related
+		rec.CreatedAt = old.CreatedAt
+		rec.UpdatedAt = old.UpdatedAt
 	}
 
 	s.jobs[job.UID] = rec
@@ -225,18 +230,6 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 	defer s.mu.Unlock()
 	delete(s.jobs, uid)
 }
-
-// GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
-// label matches the given Job name.
-// func (s *ActionStore) GetPodsForJob(jobName string) []*PodRecord {
-// 	var out []*PodRecord
-// 	for _, p := range s.pods {
-// 		if p.JobName == jobName {
-// 			out = append(out, p)
-// 		}
-// 	}
-// 	return out
-// }
 
 // classifyJob derives a high-level phase + summary message from a Job's Status
 // conditions. Helm's Job is expected to either Complete or fail (Failed
