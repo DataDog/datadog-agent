@@ -14,21 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// Defaults applied when a range leaves a field unset.
-const (
-	defaultPingCount      = 1
-	defaultPingIntervalMs = 1000
-	defaultPingTimeoutMs  = 1000
-	minIntervalSec        = 60
-)
-
-// Upper bounds on the per-probe knobs, generous enough that only a
-// misconfigured range hits them.
-const (
-	maxPingCount      = 10
-	maxPingIntervalMs = 60_000
-	maxPingTimeoutMs  = 60_000
-)
+// minIntervalSec is the smallest interval a range is allowed to run at.
+const minIntervalSec = 60
 
 // autodiscoveryIDPattern is the character set the persistent cursor cache can
 // round-trip: persistentcache.GetFileForKey strips every other character
