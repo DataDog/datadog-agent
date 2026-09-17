@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -46,4 +47,41 @@ func TestCheck(t *testing.T) {
 
 	c.handleMetricFamilies(mfs, s)
 	s.AssertExpectations(t)
+}
+
+// TestRunSendsOnlyDefaultMetrics guards the premise of the single telemetry registry: the check sees
+// all of the Agent's internal telemetry, and must submit only what defaultMetrics lists.
+func TestRunSendsOnlyDefaultMetrics(t *testing.T) {
+	tel := telemetrymock.New(t)
+
+	pointSent := tel.NewGauge("point", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
+	pointSent.Set(7, "https://api.datadoghq.com")
+
+	pointDropped := tel.NewGauge("point", "dropped", []string{"domain"}, "Number of points dropped before reaching the intake")
+	pointDropped.Set(2, "https://api.datadoghq.com")
+
+	haAgentRuns := tel.NewCounter("ha_agent", "integration_runs", []string{"integration", "config_id"}, "Tracks number of HA integrations runs.")
+	haAgentRuns.Add(3, "snmp", "abc")
+
+	// Not in defaultMetrics: must stay on the /telemetry endpoint only.
+	notDefault := tel.NewGauge("checks", "execution_time", []string{"check_name"}, "Check execution time")
+	notDefault.Set(123, "cpu")
+
+	sm := mocksender.CreateDefaultDemultiplexer(t)
+
+	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName), telemetry: tel}
+	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider"))
+
+	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+	s.On("SetNoIndex", true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 7.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.dropped", 2.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.ha_agent.integration_runs", 3.0, "",
+		[]string{"config_id:abc", "integration:snmp"}, true).Return().Times(1)
+	s.On("Commit").Return().Times(1)
+
+	require.NoError(t, c.Run())
+
+	s.AssertExpectations(t)
+	s.AssertNotCalled(t, "Gauge", "datadog.agent.checks.execution_time", 123.0, "", []string{"check_name:cpu"})
 }
