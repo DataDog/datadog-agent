@@ -66,7 +66,7 @@ async fn run() -> Result<()> {
     par_control::tls::initialize_crypto_provider()?;
 
     let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
-    let config = config::resolve(&bootstrapped, &agent_config, dd_url_explicit).await;
+    let config = config::resolve(&bootstrapped, &agent_config, dd_url_explicit).await?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

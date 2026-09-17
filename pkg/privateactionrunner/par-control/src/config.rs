@@ -22,8 +22,8 @@ const MAX_BACKOFF: Duration = Duration::from_secs(180);
 const WAIT_BEFORE_RETRY: Duration = Duration::from_secs(300);
 const MAX_ATTEMPTS: u32 = 20;
 const CONFIG_RETRY_INTERVAL: Duration = Duration::from_secs(5);
-/// Retries tolerated quietly before a slow Core Agent starts looking like a stuck one.
-const CONFIG_RETRY_QUIET_ATTEMPTS: u32 = 6;
+/// Roughly two minutes of retries, which comfortably outlasts Core Agent startup.
+const CONFIG_RETRY_ATTEMPTS: u32 = 24;
 pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const INTERNAL_USE_DD_URL_FOR_OPMS: &str = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS";
 
@@ -221,29 +221,31 @@ impl BootstrapConfig {
 ///
 /// par-control starts alongside the Core Agent, so the first snapshots on the configuration
 /// stream can legitimately be incomplete. Exiting on one of those spends the supervisor's
-/// restart budget within seconds and takes the runner down for the rest of the boot, so wait
+/// restart burst within seconds and takes the runner down for the rest of the boot, so wait
 /// for a later snapshot instead. `agent` is backed by the live stream, so re-reading it here
 /// picks up whatever has arrived since.
+///
+/// The wait is bounded because not everything is re-read here: `dd_url` provenance is
+/// sampled once per process, so a snapshot that turns it explicit is only picked up by
+/// starting over. Giving up restores that path, and by then the attempts are minutes apart,
+/// far enough for the supervisor's burst window to have reset.
 pub async fn resolve(
     bootstrap: &BootstrapConfig,
     agent: &GenericConfiguration,
     dd_url_explicit: bool,
-) -> Config {
+) -> Result<Config> {
     let mut attempts: u32 = 0;
     loop {
         match bootstrap.clone().into_config(agent, dd_url_explicit) {
-            Ok(config) => return config,
+            Ok(config) => return Ok(config),
             Err(error) => {
                 attempts += 1;
-                // A configuration that never becomes usable is indistinguishable from a slow
-                // one to anything watching the process, so say so rather than waiting quietly.
-                if attempts > CONFIG_RETRY_QUIET_ATTEMPTS {
-                    log::error!(
-                        "still no usable Agent configuration after {attempts} attempts: {error:#}"
-                    );
-                } else {
-                    log::warn!("waiting for a usable Agent configuration: {error:#}");
+                if attempts >= CONFIG_RETRY_ATTEMPTS {
+                    return Err(error.context(format!(
+                        "no usable Agent configuration after {attempts} attempts"
+                    )));
                 }
+                log::warn!("waiting for a usable Agent configuration: {error:#}");
                 tokio::time::sleep(CONFIG_RETRY_INTERVAL).await;
             }
         }
