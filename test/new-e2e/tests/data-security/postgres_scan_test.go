@@ -11,16 +11,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
-// sdsResultEndpoint is the intake route the sds-result event platform track posts to.
-const sdsResultEndpoint = "/api/v2/sdsresult"
+// postgresAccountsSeedRows is the number of rows inserted into `accounts` by
+// postgres-init.sql. The workload generator updates balances but does not add
+// or delete account rows.
+const postgresAccountsSeedRows int64 = 200
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
 type postgresScanEnv struct {
@@ -51,25 +55,68 @@ func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
 	require.NotEmpty(s.T(), data, "empty check JSON: %s", out)
 	assert.Equal(s.T(), 0, data[0].Runner.TotalErrors, "datasecurity check reported errors")
 
-	// The scheduled check forwards an sds-result payload to the intake. Assert on
-	// the fakeintake payload rather than the check output.
+	// The scheduled check forwards one sds-result to fakeintake.
 	fakeintake := s.Env().FakeIntake.Client()
+	expected := expectedPostgresSDSResult()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		payloads, err := fakeintake.GetRawPayloads(sdsResultEndpoint)
+		payloads, err := fakeintake.GetSDSResults()
 		require.NoError(c, err)
 		// The check has a single sub task, so it emits exactly one sds-result.
-		require.Len(c, payloads, 1, "expected exactly one sds-result payload at %s", sdsResultEndpoint)
+		require.Len(c, payloads, 1, "expected exactly one sds-result payload")
 
-		raw, err := aggregator.Inflate(payloads[0].Data, payloads[0].Encoding)
-		require.NoError(c, err)
-		// TODO(DATASEC-316): decode the sds-result protobuf and compare the full
-		// payload
-		result := string(raw)
-		// The payload is an SdsResultPayload protobuf; its string fields are UTF-8,
-		// so match them directly on the wire bytes.
-		assert.Contains(c, result, "e2e-datasec-postgres", "sds-result payload missing task_id")
-		assert.Contains(c, result, "e2e-owner-pattern", "sds-result payload missing rule_id")
-		assert.Contains(c, result, "accounts", "sds-result payload missing scanned table")
-		assert.NotContains(c, result, "connecting to postgres", "scan failed to connect to postgres")
+		got := proto.Clone(&payloads[0].SdsResultPayload).(*sds.SdsResultPayload)
+		require.Greater(c, got.GetTimestamp(), int64(0), "timestamp should be populated")
+		got.Timestamp = 0
+		if !proto.Equal(expected, got) {
+			assert.Fail(c, "sds-result payload did not match",
+				"want:\n%s\ngot:\n%s", protojson.Format(expected), protojson.Format(got))
+		}
 	}, 2*time.Minute, 10*time.Second)
+}
+
+func expectedPostgresSDSResult() *sds.SdsResultPayload {
+	return &sds.SdsResultPayload{
+		Resource: &sds.SdsResultPayload_Resource{
+			Type: "postgres_table",
+			Name: "e2e-instance.labdb.public.accounts",
+		},
+		RuleIds: []string{"e2e-owner-pattern"},
+		ScanningSource: &sds.ScanningSource{
+			Source: &sds.ScanningSource_Agent_{
+				Agent: &sds.ScanningSource_Agent{},
+			},
+		},
+		ScanResults: []*sds.SdsResultPayload_ScanResult{{
+			TableMatches: []*sds.SdsResultPayload_TableMatch{{
+				RuleId:           "e2e-owner-pattern",
+				ColumnName:       "owner",
+				CountMatchedRows: postgresAccountsSeedRows,
+				CountMatches:     postgresAccountsSeedRows,
+			}},
+			Location: &sds.SdsResultPayload_ScanLocation{
+				ScanLocation: &sds.SdsResultPayload_ScanLocation_PostgresTable{
+					PostgresTable: &sds.SdsResultPayload_PostgresTable{
+						DatabaseClusterName:  "e2e-cluster",
+						DatabaseInstanceName: "e2e-instance",
+						DatabaseHostName:     "localhost",
+						DatabaseName:         "labdb",
+						SchemaName:           "public",
+						TableName:            "accounts",
+						ScannedRowCount:      postgresAccountsSeedRows,
+						ScannedColumns: []*sds.SdsResultPayload_PostgresTable_ScannedColumn{{
+							Name:     "owner",
+							DataType: "text",
+						}},
+					},
+				},
+			},
+			ScanMetadata: &sds.SdsResultPayload_ScanMetadata{
+				ScanTaskMetadata: &sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata{
+					TaskId:    "e2e-datasec-postgres",
+					SubTaskId: "e2e-accounts",
+					Status:    sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata_SUCCESS,
+				},
+			},
+		}},
+	}
 }

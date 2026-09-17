@@ -40,6 +40,7 @@
   parallel:
     matrix:
       - E2E_MSI_TEST: TestInstall
+      - E2E_MSI_TEST: TestProcmgrLocalSystem
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeFromLatest

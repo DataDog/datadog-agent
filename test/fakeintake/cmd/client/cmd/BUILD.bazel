@@ -36,6 +36,7 @@ go_library(
         "getprocesses.go",
         "getsbom.go",
         "getsbomids.go",
+        "getsdsresult.go",
         "getsketch.go",
         "getsketchnames.go",
         "gettraces.go",

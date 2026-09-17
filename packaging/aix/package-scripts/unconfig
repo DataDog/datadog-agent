@@ -18,6 +18,9 @@ done
 while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
+# Remove the boot-time auto-start entry added by postinst (mkitab). On
+# upgrades postinst re-adds it; on uninstall this is the reliable removal path.
+rmitab datadog-agent 2>/dev/null || true
 rmuser dd-agent 2>/dev/null || true
 rmgroup dd-agent 2>/dev/null || true
 rm -rf /var/run/datadog 2>/dev/null || true

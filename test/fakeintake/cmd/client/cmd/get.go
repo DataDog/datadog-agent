@@ -20,6 +20,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd.AddCommand(
 		NewGetAgentDiscoveryCommand(cl),
 		NewGetAPMStatsCommand(cl),
+		NewGetSDSResultCommand(cl),
 		NewGetCheckRunCommand(cl),
 		NewGetConnectionsCommand(cl),
 		NewGetContainerImageCommand(cl),

@@ -8,9 +8,11 @@
 package selfident
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -213,25 +215,57 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
+	clk := clock.NewMock()
 	s := New(nil)
+	s.clock = clk
 	s.resolveRetries = 3
 	s.resolveRetryDelay = 10 * time.Millisecond
 
-	start := time.Now()
-	first := s.ClusterID()
-	elapsed := time.Since(start)
+	firstCh := make(chan string, 1)
+	go func() { firstCh <- s.ClusterID() }()
+	var first string
+	advanceMockClockUntil(t, clk, func() bool {
+		select {
+		case first = <-firstCh:
+			return true
+		default:
+			return false
+		}
+	})
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
-	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 
-	// Cached from the settled resolution; must return immediately without
-	// re-running the resolution loop. A single before/after comparison is
-	// too sensitive to one-off scheduler/GC jitter under -race, so this
-	// amortizes across many calls: if caching were broken and each call
-	// re-ran the full retry loop, this would take ~50x the first call's
-	// elapsed time; if cached, it's ~50 atomic loads.
-	start = time.Now()
+	// The first call's own bounded wait is independent of the background
+	// resolver goroutine, so it can return before that goroutine has
+	// actually stored the settled result. Keep advancing until the
+	// resolver settles the cache too, rather than assuming the first
+	// call's return already implies it.
+	advanceMockClockUntil(t, clk, func() bool { return s.clusterID.Load() != nil })
+
+	// Cached calls must return without the mock clock advancing at all; a fallback to retrying would block on it forever and hit the guard below.
 	for i := 0; i < 50; i++ {
-		assert.Empty(t, s.ClusterID())
+		doneCh := make(chan string, 1)
+		go func() { doneCh <- s.ClusterID() }()
+		select {
+		case v := <-doneCh:
+			assert.Empty(t, v)
+		case <-time.After(time.Second):
+			t.Fatal("cached ClusterID() call blocked instead of returning immediately from cache")
+		}
 	}
-	assert.Less(t, time.Since(start), elapsed, "later calls must return immediately from cache, not re-run resolution")
+}
+
+// advanceMockClockUntil advances clk deterministically instead of sleeping on
+// the wall clock, until cond returns true. The real-time deadline here is
+// purely a deadlock guard, not a timing assertion: correct code never
+// approaches it, since every actual wait is driven by mock time.
+func advanceMockClockUntil(t *testing.T, clk *clock.Mock, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out advancing the mock clock waiting for a condition to become true")
+		}
+		runtime.Gosched()
+		clk.WaitForAllTimers()
+	}
 }

@@ -21,6 +21,7 @@ dd_agent_go_test(
     tags = ["manual"],
     # keep
     deps = [
+        "//pkg/proto/pbgo/sds",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
@@ -34,9 +35,10 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/testcommon/check",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
-        "//test/fakeintake/aggregator",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
     ],
 )
