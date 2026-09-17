@@ -1,4 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
+
+easyjson(
+    name = "event_easyjson",
+    src = "event.go",
+    output = "event_easyjson.go",
+    package = ":events",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/events",
+)
 
 go_library(
     name = "events",

@@ -1,5 +1,41 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+easyjson(
+    name = "actions_easyjson",
+    src = "actions.go",
+    output = "actions_easyjson.go",
+    package = ":probe",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+)
+
+easyjson(
+    name = "actions_linux_easyjson",
+    src = "actions_linux.go",
+    build_tags = "linux",
+    output = "actions_linux_easyjson.go",
+    package = ":probe",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+)
+
+easyjson(
+    name = "custom_events_easyjson",
+    src = "custom_events.go",
+    build_tags = "linux",
+    output = "custom_events_easyjson.go",
+    package = ":probe",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+)
+
+easyjson(
+    name = "remediations_linux_easyjson",
+    src = "remediations_linux.go",
+    build_tags = "linux",
+    output = "remediations_linux_easyjson.go",
+    package = ":probe",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+)
 
 go_library(
     name = "probe",

@@ -569,7 +569,6 @@ def cws_go_generate(ctx, verbose=False):
 
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
     # CWS codegens migrated to Bazel keep their //go:generate directives so a future
     # Gazelle extension can pick them up; we just skip them in `go generate` here.
     # See ABLD-420.
@@ -583,11 +582,27 @@ def cws_go_generate(ctx, verbose=False):
     bazel("run", "//docs/cloud-workload-security:secl_windows")
     bazel("run", "//pkg/security/secl/schemas:policy_schema")
     bazel("run", "//docs/cloud-workload-security:workload_protection_agent_config_schema")
+    bazel("run", "//pkg/security/events:event_easyjson")
+    bazel("run", "//pkg/security/probe:actions_easyjson")
+    bazel("run", "//pkg/security/rules/monitor:policy_monitor_easyjson")
     if sys.platform == "linux":
         bazel("run", "//docs/cloud-workload-security:backend_linux_schema")
+        # These marshalers are stamped //go:build linux, so they can only be
+        # generated from the Linux view of the annotated types. The equivalent
+        # `go generate` invocations could not run off Linux either.
+        #
+        # Do not pre-stub from serializers_linux_easyjson.mock: generating
+        # against the stubs inlines nested decoders, so the first pass diverges.
+        # It stays a manual hatch for when the package no longer compiles — copy
+        # it over the .go file, then run this task twice to converge.
+        bazel("run", "//pkg/security/probe:actions_linux_easyjson")
+        bazel("run", "//pkg/security/probe:custom_events_easyjson")
+        bazel("run", "//pkg/security/probe:remediations_linux_easyjson")
+        bazel("run", "//pkg/security/serializers:serializers_linux_easyjson")
+        bazel("run", "//pkg/security/serializers:serializers_base_linux_easyjson")
     elif is_windows:
         bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc|generators/backend_doc"
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc|generators/backend_doc|easyjson"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
             ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
@@ -598,14 +613,6 @@ def cws_go_generate(ctx, verbose=False):
             cmd += " -v"
         ctx.run(cmd + " ./...")
 
-    if sys.platform == "linux":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
-    ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
