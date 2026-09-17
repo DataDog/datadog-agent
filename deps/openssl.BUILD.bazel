@@ -1,5 +1,6 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
@@ -255,9 +256,15 @@ alias(
     }),
 )
 
+_EMBEDDED_ROOT = select({
+    "@platforms//os:windows": "embedded3",
+    "//conditions:default": "embedded",
+})
+
 dd_cc_packaged(
     name = "libssl_shared_pkg",
     input = ":_libssl_shared_input",
+    dest_dir = "embedded/lib",
     version = OPENSSL_VERSION,
     libname = "libssl",
 )
@@ -265,7 +272,7 @@ dd_cc_packaged(
 pkg_files(
     name = "_fips_openssl_cnf",
     srcs = ["@openssl_fips//:openssl_cnf_tmp"],
-    prefix = "ssl",
+    prefix = _EMBEDDED_ROOT + "/ssl",
     # Bazel genrule adds .out suffix; strip it so fipsinstall.sh finds openssl.cnf.tmp.
     renames = {"@openssl_fips//:openssl_cnf_tmp": "openssl.cnf.tmp"},
     attributes = pkg_attributes(mode = "0644"),
@@ -274,7 +281,7 @@ pkg_files(
 pkg_files(
     name = "_fips_fipsinstall_sh",
     srcs = ["@openssl_fips//:fipsinstall_sh"],
-    prefix = "bin",
+    prefix = "embedded/bin",
     # Bazel genrule adds .out suffix; strip it so the post-install hook finds fipsinstall.sh.
     renames = {"@openssl_fips//:fipsinstall_sh": "fipsinstall.sh"},
     attributes = pkg_attributes(mode = "0755"),
@@ -295,6 +302,7 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
     input = ":_libcrypto_shared_input",
+    dest_dir = "embedded/lib",
     version = OPENSSL_VERSION,
     libname = "libcrypto",
     installed_files = select({
@@ -309,15 +317,16 @@ dd_cc_packaged(
         "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
-    installed_executables = {
-        ":openssl_binary": "bin",
-    } | select({
+    installed_executables = select({
+        "@platforms//os:windows": {":openssl_binary": "embedded3/bin"},
+        "//conditions:default": {":openssl_binary": "embedded/bin"},
+    }) | select({
         # On FIPS Windows, DLLs are in out_binaries so LibraryToLink.dynamic_library is
         # None; supply them explicitly so _dd_packaged_files_rule installs them.
         # Non-FIPS Windows does not need the agent's OpenSSL DLLs at runtime.
         ":fips_windows": {
-            ":libcrypto_shared_file": "bin",
-            ":libssl_shared_file": "bin",
+            ":libcrypto_shared_file": "embedded3/bin",
+            ":libssl_shared_file": "embedded3/bin",
         },
         "//conditions:default": {},
     }) | select({
@@ -325,12 +334,35 @@ dd_cc_packaged(
         # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
         # do not exist there; non-FIPS non-Windows builds don't need them either.
         "@@//packages/agent:fips_flavor": {
-            ":_engines": "lib",
-            ":_ossl_modules": "lib",
-            "@openssl_fips//:fips_provider": "lib/ossl-modules",
+            ":_engines": "embedded/lib",
+            ":_ossl_modules": "embedded/lib",
+            "@openssl_fips//:fips_provider": "embedded/lib/ossl-modules",
+        },
+        "//conditions:default": {},
+    }) | select({
+        # fips_flavor above assumes the default (non-Windows) embedded root;
+        # override it with embedded3 when the FIPS build also targets Windows.
+        ":fips_windows": {
+            ":_engines": "embedded3/lib",
+            ":_ossl_modules": "embedded3/lib",
+            "@openssl_fips//:fips_provider": "embedded3/lib/ossl-modules",
         },
         "//conditions:default": {},
     }),
+)
+
+dd_collect_dependencies(
+    name = "_windows_pkg",
+    srcs = select({
+        "@platforms//os:windows": [":libcrypto_shared_pkg"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_filegroup(
+    name = "windows_pkg",
+    srcs = [":_windows_pkg"],
+    visibility = ["//visibility:public"],
 )
 
 # The dynamic library built with configure/make. Even though the name
@@ -412,5 +444,6 @@ copy_to_directory(
 pkg_files(
     name = "_openssl_files",
     srcs = [":_openssl_extra_files"],
+    prefix = _EMBEDDED_ROOT,
     strip_prefix = "openssl_extra",
 )
