@@ -101,3 +101,10 @@ func (s *probeSet) parse(rangeID string, probes map[string]json.RawMessage) []pr
 	}
 	return configs
 }
+
+func statusString(success bool) string {
+	if success {
+		return statusReachable
+	}
+	return statusUnreachable
+}

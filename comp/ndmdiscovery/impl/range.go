@@ -17,8 +17,7 @@ import (
 const minIntervalSec = 60
 
 // autodiscoveryIDPattern is the character set the persistent cursor cache can
-// round-trip: persistentcache.GetFileForKey strips every other character
-// instead of hashing, so two ids could share one cursor file.
+// round-trip without two ids colliding on one file.
 var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // rangeConfig is the validated, defaulted form of one range.

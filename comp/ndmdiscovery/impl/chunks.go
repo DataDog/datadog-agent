@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package ndmdiscoveryimpl implements the ndmdiscovery component.
 package ndmdiscoveryimpl
 
 import (
@@ -40,14 +39,14 @@ func newChunkPlan(cidr string, ignored []string, maxAddresses int) (*chunkPlan, 
 	}
 	prefix = prefix.Masked()
 
-	total := 1 << (32 - prefix.Bits())
-	if total > maxAddresses {
+	total := int64(1) << (32 - prefix.Bits())
+	if total > int64(maxAddresses) {
 		return nil, fmt.Errorf("range %q holds %d addresses, which exceeds the maximum of %d", cidr, total, maxAddresses)
 	}
 
 	p := &chunkPlan{
 		prefix:  prefix,
-		total:   total,
+		total:   int(total),
 		ignored: make(map[netip.Addr]struct{}, len(ignored)),
 	}
 	for _, raw := range ignored {
