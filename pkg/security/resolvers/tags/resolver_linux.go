@@ -175,6 +175,9 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 			workload.Selector.Tag = utils.GetTagValue("version", newTags)
 		}
 	}
+	if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 && workload.Type() != "unknown" {
+		seclog.Warnf("No version tag found for workload %v", workloadID)
+	}
 
 	return nil
 }
