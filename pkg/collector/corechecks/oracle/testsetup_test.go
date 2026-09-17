@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle_test
-
 package oracle
 
 import (
@@ -110,11 +108,26 @@ func TestInitializeTestDatabaseMissingScripts(t *testing.T) {
 	require.ErrorContains(t, err, "reading initialization scripts")
 }
 
-func TestSetupTestDatabaseInvalidTimeout(t *testing.T) {
+func TestDatabaseReadyTimeout(t *testing.T) {
+	for _, tt := range []struct {
+		raw  string
+		want time.Duration
+	}{
+		{"", 10 * time.Minute},
+		{"3m", 3 * time.Minute},
+	} {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Setenv("ORACLE_TEST_READY_TIMEOUT", tt.raw)
+			timeout, err := testDatabaseReadyTimeout()
+			require.NoError(t, err)
+			require.Equal(t, tt.want, timeout)
+		})
+	}
 	for _, timeout := range []string{"invalid", "0s", "-1s"} {
 		t.Run(timeout, func(t *testing.T) {
 			t.Setenv("ORACLE_TEST_READY_TIMEOUT", timeout)
-			require.ErrorContains(t, setupTestDatabase(), "must be a positive duration")
+			_, err := testDatabaseReadyTimeout()
+			require.ErrorContains(t, err, "must be a positive duration")
 		})
 	}
 }

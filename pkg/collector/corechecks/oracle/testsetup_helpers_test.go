@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle_test
-
 package oracle
 
 import (
@@ -15,42 +13,17 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	go_ora "github.com/sijms/go-ora/v2"
 )
 
-func setupTestDatabase() error {
-	timeout := 10 * time.Minute
+func testDatabaseReadyTimeout() (time.Duration, error) {
 	if raw := os.Getenv("ORACLE_TEST_READY_TIMEOUT"); raw != "" {
 		parsed, err := time.ParseDuration(raw)
 		if err != nil || parsed <= 0 {
-			return fmt.Errorf("ORACLE_TEST_READY_TIMEOUT must be a positive duration, got %q", raw)
+			return 0, fmt.Errorf("ORACLE_TEST_READY_TIMEOUT must be a positive duration, got %q", raw)
 		}
-		timeout = parsed
+		return parsed, nil
 	}
-	connection, err := getTestConnectionConfig(useSysUser)
-	if err != nil {
-		return err
-	}
-	databaseURL := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password,
-		map[string]string{"CONNECT TIMEOUT": "5", "TIMEOUT": "20"})
-	db, err := sql.Open("oracle", databaseURL)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	if err := waitForTestDatabase(ctx, db, ticker.C); err != nil {
-		return fmt.Errorf("waiting for %s:%d/%s: %w", connection.Server, connection.Port, connection.ServiceName, err)
-	}
-	initCtx, cancelInit := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancelInit()
-	return initializeTestDatabase(initCtx, db, os.DirFS("compose/initdb.d"))
+	return 10 * time.Minute, nil
 }
 
 const testDatabaseReadyQuery = `SELECT COUNT(*) FROM v$database
