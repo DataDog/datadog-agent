@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix Agent Health configuration validation to preserve invalid value types,
+    including for resolved secret-backed settings, while reporting only
+    value-free type diagnostics and scrubbed configuration paths.

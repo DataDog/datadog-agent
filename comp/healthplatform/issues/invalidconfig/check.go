@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 
+	"github.com/qri-io/jsonpointer"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -40,8 +42,9 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 }
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
-	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
-	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
+	// Validate effective customer settings, including locally resolved secrets.
+	// Only value-free diagnostics leave this checker.
+	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -49,12 +52,12 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
-	errs, schemaErr := schema.ValidateCoreConfig(normalized)
+	violations, schemaErr := schema.ValidateCoreConfigDetailed(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	if len(errs) == 0 {
+	if len(violations) == 0 {
 		return nil, nil
 	}
 	return []runnerdef.IssueReport{
@@ -62,18 +65,41 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "agent",
-			Context: func() map[string]string {
-				ctx := map[string]string{
-					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(errs)),
-				}
-				for i, e := range errs {
-					ctx[contextErrorKey(i)] = e
-				}
-				return ctx
-			}(),
+			Context:   buildIssueReportContext(c.cfg.ConfigFileUsed(), violations),
 		},
 	}, nil
+}
+
+func buildIssueReportContext(configPath string, violations []schema.Violation) map[string]string {
+	ctx := map[string]string{
+		contextKeyConfigPath: configPath,
+		contextKeyErrorCount: strconv.Itoa(len(violations)),
+	}
+	for i, violation := range violations {
+		path := scrubViolationPath(violation.Path)
+		// Never forward raw schema messages: non-type errors can quote values.
+		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
+		if violation.ActualType != "" && len(violation.ExpectedTypes) > 0 {
+			ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+		}
+	}
+	return ctx
+}
+
+func scrubViolationPath(path string) string {
+	pointer, err := jsonpointer.Parse(path)
+	if err != nil {
+		return ""
+	}
+	// Map keys can be URLs with credentials. Scrub before JSON-pointer escaping
+	// turns "://" into ":~1~1", which the existing URL scrubber cannot recognize.
+	for i, token := range pointer {
+		pointer[i], err = scrubber.ScrubString(token)
+		if err != nil {
+			return ""
+		}
+	}
+	return pointer.String()
 }
 
 // instanceIssueID scopes IssueID to this agent's discriminator and config
@@ -103,20 +129,16 @@ func (c *checker) instanceIssueID() string {
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types via
-// a YAML round-trip. ScrubYaml strips any accidental secret-like values
+// normalizeForSchema coerces a Go-native config map into JSON-native types.
+// Values stay local; only value-free diagnostics are included in the issue.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
-	scrubbed, err := scrubber.ScrubYaml(b)
-	if err != nil {
+	var normalized map[string]any
+	if err := yaml.Unmarshal(b, &normalized); err != nil {
 		return nil, err
 	}
-	var out map[string]any
-	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return normalized, nil
 }
