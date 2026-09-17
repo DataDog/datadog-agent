@@ -24,3 +24,27 @@ exports_files([
     "COPYING-GPLV2",
     "COPYING-LGPLV3",
 ])
+
+filegroup(
+    name = "all_files",
+    srcs = [
+        "glustercli/__init__.py",
+        "glustercli/cli/__init__.py",
+        "glustercli/cli/bitrot.py",
+        "glustercli/cli/bricks.py",
+        "glustercli/cli/georep.py",
+        "glustercli/cli/gluster_version.py",
+        "glustercli/cli/heal.py",
+        "glustercli/cli/nfs_ganesha.py",
+        "glustercli/cli/parsers.py",
+        "glustercli/cli/peer.py",
+        "glustercli/cli/quota.py",
+        "glustercli/cli/rebalance.py",
+        "glustercli/cli/snapshot.py",
+        "glustercli/cli/utils.py",
+        "glustercli/cli/volume.py",
+        "COPYING-GPLV2",
+        "COPYING-LGPLV3",
+    ],
+    visibility = ["//visibility:public"],
+)

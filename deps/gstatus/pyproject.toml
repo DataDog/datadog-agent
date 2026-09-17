@@ -13,4 +13,4 @@ requires-python = ">=3.8"
 # Only include the packages fetched from upstream — not the entire source tree.
 # glustercli is from gluster/glustercli-python (GPLv2/LGPLv3+).
 # gstatus/glusterlib is from gluster/gstatus (GPLv3).
-packages = ["glustercli", "gstatus/glusterlib"]
+packages = ["glustercli", "glusterlib"]

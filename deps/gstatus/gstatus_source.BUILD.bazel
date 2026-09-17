@@ -11,3 +11,14 @@ exports_files([
     "gstatus/glusterlib/display_status.py",
     "LICENSE",
 ])
+
+filegroup(
+    name = "all_files",
+    srcs = [
+        "gstatus/glusterlib/__init__.py",
+        "gstatus/glusterlib/cluster.py",
+        "gstatus/glusterlib/display_status.py",
+        "LICENSE",
+    ],
+    visibility = ["//visibility:public"],
+)

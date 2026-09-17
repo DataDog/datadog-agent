@@ -39,13 +39,18 @@ entrypoints_dirname = select({
 install_wheels(
     name = "integrations",
     srcs = [
-        "//deps/gstatus:gstatus_wheel",
         "@integration_source_packages//:all_wheels",
         "@pip//file",
     ] + select(
         {
-            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
-            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
+            "//:linux_x86_64": [
+                "//deps/gstatus:gstatus_wheel",
+                "@integration_dependency_wheels_linux_x86_64//:dependency_wheels",
+            ],
+            "//:linux_arm64": [
+                "//deps/gstatus:gstatus_wheel",
+                "@integration_dependency_wheels_linux_aarch64//:dependency_wheels",
+            ],
             "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
             "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
             "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
