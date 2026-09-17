@@ -15,6 +15,10 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
 
+# Interpreter matching the CPython version we build, used as
+# `--with-build-python` when cross-compiling. Registered in MODULE.bazel.
+BUILD_PYTHON = "@python_{}//:python3".format(PYTHON_MAJOR_MINOR.replace(".", "_"))
+
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
     "bzip2": "1.0.8",
@@ -213,6 +217,12 @@ python_dep_libs_explicit = {
     "liblzma": "$$EXT_BUILD_DEPS/lib/liblzma.dylib",
 }
 
+# We pass linker flags through `env` instead of `linkopts` because we don't want
+# these propagated to dependent targets, as `linkopts` would do. This is meant to
+# allow python to find its dependencies during its module import test; the
+# install_dir rpath is applied later on.
+PYTHON_LDFLAGS = "-Wl,-rpath,$$EXT_BUILD_DEPS/lib"
+
 configure_make(
     name = "python_unix",
     configure_options = [
@@ -227,6 +237,21 @@ configure_make(
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
+        "//conditions:default": [],
+    }) + select({
+        # macOS x86_64 is built on Apple Silicon runners (the Intel fleet is
+        # retired), so tell configure it is cross-compiling and hand it an
+        # exec-configuration interpreter to freeze modules with. Without this the
+        # build would compile x86_64 helper binaries and then run them, which only
+        # works under Rosetta -- and Rosetta is going away too. CPython's configure
+        # insists on an explicit `--build` alongside `--host`, so this pins the
+        # only host we build macOS x86_64 on; a native Intel build would need a
+        # different triple here.
+        "@@//:macos_x86_64": [
+            "--build=aarch64-apple-darwin",
+            "--host=x86_64-apple-darwin",
+            "--with-build-python=$(execpath {})".format(BUILD_PYTHON),
+        ],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:macos": [
@@ -248,15 +273,35 @@ configure_make(
         # It's important to pass this on the `env` and not on `configure_options` to avoid CPPFLAGS
         # populated by rules_foreign_cc from being overwritten
         "CPPFLAGS": "-include$(execpath :redacted_compat.h)",
-        # We need to pass linker flags here instead of `linkopts` because we don't want these to be
-        # propagated to dependent targets, as `linkopts` would do.
-        # This is meant to allow python to find its dependency during its modules import test.
-        # We will use the install_dir rpath later on
-        "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
+        "LDFLAGS": PYTHON_LDFLAGS,
     } | {
         dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
         for dep in python_dep_libs.keys()
     } | select({
+        # Cross-compiling for macOS x86_64: the hermetic toolchain's own
+        # compiler-rt has no x86_64 slice, so link the builtins archive from the
+        # x86_64 LLVM distribution explicitly. CPython reaches for
+        # `__builtin_available` in posixmodule.c, which needs
+        # `__isPlatformVersionAtLeast`. Named by full path rather than `-l` for
+        # the same reason as `python_dep_libs_explicit`.
+        "@@//:macos_x86_64": {
+            "LDFLAGS": PYTHON_LDFLAGS + " $$EXT_BUILD_DEPS/lib/libclang_rt.osx.a",
+            # Answers to probes configure cannot run when cross-compiling. It
+            # errors out on the /dev checks and silently picks a conservative
+            # (wrong) default for the rest, which diverges from a native build:
+            # no computed-goto dispatch, no tzset, and the FNV string hash via
+            # HAVE_ALIGNED_REQUIRED. The target OS is the same macOS we build
+            # on, so the host's answers hold. Verified by diffing the generated
+            # pyconfig.h against the native arm64 build.
+            "ac_cv_aligned_required": "no",
+            "ac_cv_computed_gotos": "yes",
+            "ac_cv_file__dev_ptc": "no",
+            "ac_cv_file__dev_ptmx": "yes",
+            "ac_cv_pthread_system_supported": "yes",
+            "ac_cv_working_tzset": "yes",
+        },
+        "//conditions:default": {},
+    }) | select({
         "@platforms//os:macos": {
             dep.upper() + "_LIBS": lib
             for dep, lib in python_dep_libs_explicit.items()
@@ -279,6 +324,9 @@ configure_make(
         "@@//deps/cpython:fix_sysconfigdata.py",
         DEFAULT_PYTHON,
     ] + select({
+        "@@//:macos_x86_64": [BUILD_PYTHON],
+        "//conditions:default": [],
+    }) + select({
         "@platforms//os:macos": [
             "@llvm_toolchain_llvm//:ar",
         ],
@@ -318,7 +366,12 @@ configure_make(
         "@sqlite3//:libsqlite3",
         "@xz//:liblzma",
         "@zlib//:zlib",
-    ],
+    ] + select({
+        # See the LDFLAGS comment above; this stages libclang_rt.osx.a into
+        # $EXT_BUILD_DEPS/lib.
+        "@@//:macos_x86_64": ["@llvm_darwin_x86_64//:clang_rt_osx"],
+        "//conditions:default": [],
+    }),
     dynamic_deps = [
         "@bzip2//:bz2_pkg",
         "@openssl//:libssl_shared_pkg",

@@ -79,9 +79,15 @@
     - bash .gitlab/build/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
 
+# Cross-compiled on Apple Silicon: Apple dropped Intel in macOS 27 and Homebrew
+# stopped supporting the architecture, so the macos:sonoma-amd64 runner fleet is
+# being retired. OMNIBUS_TARGET_ARCH is what makes this an x86_64 build; see
+# `target_machine` in omnibus/lib/ostools.rb.
 agent_dmg-x64-a7:
   extends: .agent_dmg
-  tags: ["macos:sonoma-amd64", "specific:true"]
+  tags: ["macos:sonoma-arm64", "specific:true"]
+  variables:
+    OMNIBUS_TARGET_ARCH: x86_64
 
 agent_dmg-arm64-a7:
   extends: .agent_dmg

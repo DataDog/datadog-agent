@@ -121,6 +121,7 @@ def get_omnibus_env(
     pip_config_file="pip.conf",
     custom_config_dir=None,
     fips_mode=False,
+    target_arch=None,
     *,
     install_dir,
 ):
@@ -153,6 +154,11 @@ def get_omnibus_env(
             sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
             print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
             env[key] = sha1
+
+    if target_arch:
+        # Read by `target_machine` in omnibus/lib/ostools.rb and by
+        # `_insert_omnibazel_flags` in tasks/libs/build/bazel.py.
+        env['OMNIBUS_TARGET_ARCH'] = target_arch
 
     if sys.platform == 'darwin':
         env['MACOSX_DEPLOYMENT_TARGET'] = '12.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
@@ -222,6 +228,7 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
         'cache-dir': "Omnibus cache directory (can also be set with OMNIBUS_CACHE_DIR).",
         'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
         'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
+        'target-arch': "Machine name of the architecture to build for, in ohai's spelling (e.g. 'x86_64', 'arm64'). Defaults to the host; set it to cross-compile.",
     }
 )
 def build(
@@ -242,6 +249,7 @@ def build(
     install_directory=None,
     config_directory=None,
     target_project=None,
+    target_arch=None,
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -253,6 +261,9 @@ def build(
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
             deps(ctx)
+
+    # CI selects the cross-compiled macOS x86_64 build through the environment.
+    target_arch = target_arch or os.environ.get("OMNIBUS_TARGET_ARCH")
 
     # Omnibus path overrides can be configured by env vars, but explicit task args take precedence.
     base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
@@ -277,6 +288,7 @@ def build(
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
         fips_mode=fips_mode,
+        target_arch=target_arch,
         install_dir=install_directory or install_dir_for_project(target_project),
     )
 
