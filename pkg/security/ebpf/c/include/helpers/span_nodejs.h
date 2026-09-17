@@ -24,6 +24,8 @@
 #define OTEL_V8_HEAP_OBJECT_TAG 1
 
 // Fields of an OrderedHashMap
+#define OTEL_V8_OHM_NUM_ELEMENTS_INDEX 0
+#define OTEL_V8_OHM_NUM_DELETED_INDEX 1
 #define OTEL_V8_OHM_NUM_BUCKETS_INDEX 2
 #define OTEL_V8_OHM_BUCKETS_INDEX 3
 #define OTEL_V8_OHM_ENTRY_WORDS 3
@@ -59,13 +61,13 @@ static int __attribute__((always_inline)) otel_v8_read_word(u64 addr, u64 *out) 
 // Walks the chain of one bucket looking for the entry keyed by the ALS instance,
 // and yields its value. Returns 1 once value holds it, 0 otherwise.
 static int __attribute__((always_inline)) otel_nodejs_lookup_als(
-        struct otel_v8_layout_t *v8, u64 entries, u64 capacity, s64 entry_index,
+        struct otel_v8_layout_t *v8, u64 entries, u64 entry_count, s64 entry_index,
         u64 als, u64 *value) {
     u64 entry[OTEL_V8_OHM_ENTRY_WORDS];
 
 #pragma unroll
     for (int i = 0; i < OTEL_NODEJS_MAX_CHAIN; i++) {
-        if (entry_index < 0 || (u64)entry_index >= capacity) {
+        if (entry_index < 0 || (u64)entry_index >= entry_count) {
             return 0;
         }
 
@@ -130,8 +132,26 @@ static int __attribute__((always_inline)) otel_nodejs_record_ptr(
     u64 entries = fields + (OTEL_V8_OHM_BUCKETS_INDEX + (u64)num_buckets) * v8->tagged_size;
     u64 capacity = (u64)num_buckets * OTEL_V8_OHM_LOAD_FACTOR;
 
+    // By construction every entry the table ever wrote lives in the first
+    // number_of_elements + number_of_deleted_elements slots.
+    u64 num_elements_word = 0;
+    u64 num_deleted_word = 0;
+    if (otel_v8_read_word(fields + OTEL_V8_OHM_NUM_ELEMENTS_INDEX * v8->tagged_size, &num_elements_word) ||
+        otel_v8_read_word(fields + OTEL_V8_OHM_NUM_DELETED_INDEX * v8->tagged_size, &num_deleted_word)) {
+        return 0;
+    }
+    s64 num_elements = otel_v8_smi(num_elements_word);
+    s64 num_deleted = otel_v8_smi(num_deleted_word);
+    if (num_elements < 0 || num_deleted < 0) {
+        return 0;
+    }
+    u64 entry_count = (u64)(num_elements + num_deleted);
+    if (entry_count > capacity) {
+        entry_count = capacity;
+    }
+
     u64 value = 0;
-    if (!otel_nodejs_lookup_als(v8, entries, capacity, otel_v8_smi(head_word), als, &value)) {
+    if (!otel_nodejs_lookup_als(v8, entries, entry_count, otel_v8_smi(head_word), als, &value)) {
         return 0;
     }
     if (value == nctx->undefined_addr || !otel_v8_is_heap_object(value)) {
