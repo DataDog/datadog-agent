@@ -60,7 +60,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "runtime_security_config.security_profile.v2.enabled", defaultValue: true},
 		{key: "runtime_security_config.security_profile.v2.max_dump_size", defaultValue: 2560},
 		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind"}},
-		{key: "runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based", defaultValue: false},
+		{key: "runtime_security_config.security_profile.v2.profile_reporting_delay.time_based", defaultValue: false},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -86,8 +86,8 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		})
 	}
 
-	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"))
-	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.startup_delay"))
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"))
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"))
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {

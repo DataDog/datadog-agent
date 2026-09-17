@@ -560,13 +560,13 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 	pm.persistedProfiles.Inc()
 }
 
-func (m *ManagerV2) withinStartupDelay(now time.Time) bool {
-	delay := m.config.RuntimeSecurity.SecurityProfileV2StartupDelay
+func (m *ManagerV2) withinProfilingStartupDelay(now time.Time) bool {
+	delay := m.config.RuntimeSecurity.SecurityProfileV2ProfilingStartupDelay
 	return delay > 0 && now.Sub(m.startTime) < delay
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-	if m.withinStartupDelay(time.Now()) {
+	if m.withinProfilingStartupDelay(time.Now()) {
 		return
 	}
 
@@ -711,7 +711,7 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 }
 
 func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time) bool {
-	if !m.config.RuntimeSecurity.SecurityProfileV2UseTimeBasedAnomalyStabilization {
+	if !m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayTimeBased {
 		return p.HasAlreadyBeenSent()
 	}
 
@@ -724,7 +724,7 @@ func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time
 	if elapsed < 0 {
 		elapsed = 0
 	}
-	return elapsed >= m.config.RuntimeSecurity.SecurityProfileV2AnomalyStabilizationPeriod
+	return elapsed >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
 }
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile

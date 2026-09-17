@@ -523,20 +523,20 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
-	// SecurityProfileV2UseTimeBasedAnomalyStabilization, when true, withholds anomaly
-	// detection events for SecurityProfileV2AnomalyStabilizationPeriod after a profile
-	// starts instead of waiting for the first persistence.
-	SecurityProfileV2UseTimeBasedAnomalyStabilization bool
-	// SecurityProfileV2AnomalyStabilizationPeriod is the delay after a profile starts
-	// before anomaly detection events are emitted, used only when
-	// SecurityProfileV2UseTimeBasedAnomalyStabilization is true.
-	SecurityProfileV2AnomalyStabilizationPeriod time.Duration
+	// SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's
+	// reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration
+	// after the profile is created instead of waiting for the first persistence.
+	SecurityProfileV2ProfileReportingDelayTimeBased bool
+	// SecurityProfileV2ProfileReportingDelayDuration is the delay after a profile is created
+	// before it starts reporting out-of-profile events, used only when
+	// SecurityProfileV2ProfileReportingDelayTimeBased is true.
+	SecurityProfileV2ProfileReportingDelayDuration time.Duration
 
-	// SecurityProfileV2StartupDelay is the delay after system-probe starts during which
-	// v2 workload profiling ignores events, so profiles don't learn noisy activity while
-	// system-probe is still stabilizing (OS resync, rule loading, programming approvers
+	// SecurityProfileV2ProfilingStartupDelay is the delay after system-probe starts during
+	// which v2 workload profiling ignores events, so profiles don't capture noisy activity
+	// while system-probe is still stabilizing (OS resync, rule loading, programming approvers
 	// and discarders into the kernel). A zero value disables the delay.
-	SecurityProfileV2StartupDelay time.Duration
+	SecurityProfileV2ProfilingStartupDelay time.Duration
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
@@ -1040,9 +1040,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
-		SecurityProfileV2UseTimeBasedAnomalyStabilization: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based"),
-		SecurityProfileV2AnomalyStabilizationPeriod:       pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"),
-		SecurityProfileV2StartupDelay:                     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.startup_delay"),
+		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
+		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
+		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -1248,12 +1248,12 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		}
 	}
 
-	if c.SecurityProfileV2AnomalyStabilizationPeriod < 0 {
-		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.anomaly_stabilization.period: %s, must not be negative", c.SecurityProfileV2AnomalyStabilizationPeriod)
+	if c.SecurityProfileV2ProfileReportingDelayDuration < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profile_reporting_delay.duration: %s, must not be negative", c.SecurityProfileV2ProfileReportingDelayDuration)
 	}
 
-	if c.SecurityProfileV2StartupDelay < 0 {
-		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.startup_delay: %s, must not be negative", c.SecurityProfileV2StartupDelay)
+	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
 	}
 
 	c.sanitizePlatform()

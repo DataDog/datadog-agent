@@ -704,28 +704,6 @@ properties:
         node_type: section
         type: object
         properties:
-          anomaly_stabilization:
-            node_type: section
-            type: object
-            properties:
-              period:
-                node_type: setting
-                type: string
-                default: 0s
-                description: |
-                  Duration after a security profile starts before anomaly
-                  detection events are emitted. Only used when
-                  use_time_based is true. 0s emits anomalies as soon as the
-                  profile starts.
-              use_time_based:
-                node_type: setting
-                type: boolean
-                default: false
-                description: |
-                  When false (default), anomaly detection events are withheld
-                  until the security profile has been persisted at least once.
-                  When true, anomalies are withheld for period after the
-                  profile starts, independent of persistence.
           enabled:
             node_type: setting
             type: boolean
@@ -750,20 +728,42 @@ properties:
             node_type: setting
             type: integer
             default: 2560
-          sample_refresh_period:
-            node_type: setting
-            type: string
-            default: 30s
-          startup_delay:
+          profile_reporting_delay:
+            node_type: section
+            type: object
+            properties:
+              duration:
+                node_type: setting
+                type: string
+                default: 0s
+                description: |
+                  Duration after a workload's security profile is created
+                  before it starts reporting out-of-profile events to the
+                  backend. Only used when time_based is true. 0s reports
+                  out-of-profile events as soon as the profile is created.
+              time_based:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  When false (default), a profile withholds out-of-profile
+                  events until it has been shipped to the backend at least once.
+                  When true, it withholds them for duration after the profile is
+                  created, independent of shipping.
+          profiling_startup_delay:
             node_type: setting
             type: string
             default: 0s
             description: |
               Duration after system-probe starts during which v2 workload
-              profiling ignores events, so profiles don't learn noisy activity
+              profiling ignores events, so profiles don't capture noisy activity
               while system-probe is still stabilizing (resyncing from the OS,
               loading rules, pushing approvers and discarders to the kernel).
               0s (default) disables the delay.
+          sample_refresh_period:
+            node_type: setting
+            type: string
+            default: 30s
       watch_dir:
         node_type: setting
         type: boolean
