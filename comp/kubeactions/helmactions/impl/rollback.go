@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"maps"
 	"strconv"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,6 +42,10 @@ const (
 	componentValue = "helm-actions"
 
 	defaultTTLSecondsAfterFinished int32 = 3600
+
+	// 5 minutes is the default Helm timeout for rollback
+	// plus small margin for image pulling, rollback hooks etc.
+	jobStuckDurationLimit = 6 * time.Minute
 )
 
 // RollbackExecutor creates Kubernetes Jobs that run `helm rollback`.

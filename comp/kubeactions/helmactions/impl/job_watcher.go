@@ -21,12 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// 5 minutes is the default Helm timeout for rollback
-	// plus small margin for image pulling, rollback hooks etc.
-	jobStuckDurationLimit = 6 * time.Minute
-)
-
 func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	switch ev.Type {
 
