@@ -28,7 +28,6 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        # TODO: dependency "python3"
         # TODO: dependencies:all_files belongs here, but that adding it will essentially
         # mean all builds build dependencies. That would break the repackage workflow, so
         # we'll do that in April.
