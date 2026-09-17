@@ -3,4 +3,6 @@ fixes:
   - |
     Reduce anomaly detection memory usage for large log messages by removing
     unused full-message pattern samples and preventing pattern tokens from
-    retaining oversized log payloads.
+    retaining oversized log payloads. Log pattern and log metrics extractors no
+    longer retain raw-message examples; log metrics notifications identify
+    contributors by their structural signature instead of a sample message.

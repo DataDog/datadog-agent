@@ -338,9 +338,8 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	e.enrichAnomaly(&anomaly)
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_pattern_extractor", anomaly.Context.Source)
-	// Context carries the most-recently-emitted example for the series (SetContext overwrites).
-	// After two source-a logs merge into a wildcard cluster, the example is from the second log.
-	assert.NotEmpty(t, anomaly.Context.Example)
+	// Context retains the merged pattern without keeping a raw log example.
+	assert.Empty(t, anomaly.Context.Example)
 	assert.Contains(t, anomaly.Context.Pattern, "*")
 }
 
@@ -373,7 +372,7 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
-	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
+	assert.Empty(t, anomaly.Context.Example)
 	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
 }
 
