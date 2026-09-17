@@ -6247,6 +6247,15 @@ properties:
         type: string
         default: tcp://0.0.0.0:5100
         comment: Listen addresses must include a URL scheme (e.g. "tcp://").
+      checks:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: Enables the Agent Data Plane pipeline that receives check payloads from the Agent Check Runner.
       dogstatsd:
         node_type: section
         type: object

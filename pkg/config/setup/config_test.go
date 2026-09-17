@@ -945,6 +945,55 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
 }
 
+func TestDataPlaneChecksEnabled(t *testing.T) {
+	const key = "data_plane.checks.enabled"
+	const envVar = "DD_DATA_PLANE_CHECKS_ENABLED"
+
+	for _, tc := range []struct {
+		name       string
+		yamlConfig string
+		envValue   string
+		want       bool
+		source     pkgconfigmodel.Source
+	}{
+		{
+			name:   "disabled by default",
+			source: pkgconfigmodel.SourceDefault,
+		},
+		{
+			name:       "enabled via YAML",
+			yamlConfig: "data_plane:\n  checks:\n    enabled: true\n",
+			want:       true,
+			source:     pkgconfigmodel.SourceFile,
+		},
+		{
+			name:     "enabled via environment",
+			envValue: "true",
+			want:     true,
+			source:   pkgconfigmodel.SourceEnvVar,
+		},
+		{
+			name:       "environment overrides YAML",
+			yamlConfig: "data_plane:\n  checks:\n    enabled: true\n",
+			envValue:   "false",
+			source:     pkgconfigmodel.SourceEnvVar,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(envVar, tc.envValue)
+			cfg := confFromYAML(t, tc.yamlConfig)
+
+			assert.Equal(t, tc.want, cfg.GetBool(key))
+			assert.Equal(t, tc.source, cfg.GetSource(key))
+			assert.Empty(t, findUnknownEnvVars(cfg, []string{envVar + "=" + tc.envValue}, nil))
+
+			// The config stream builds its snapshot from these resolved settings.
+			settings, _ := cfg.AllFlattenedSettingsWithSequenceID()
+			assert.Equal(t, tc.want, settings[key])
+		})
+	}
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
