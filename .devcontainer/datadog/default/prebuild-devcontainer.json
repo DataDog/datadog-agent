@@ -6,7 +6,7 @@
     "registry.ddbuild.io/workspaces/features/claude-code:0.1.136903543": {},
     "registry.ddbuild.io/workspaces/features/trajectory:0.2.138218621": {},
     "registry.ddbuild.io/workspaces/features/codex:0.1.116595837": {},
-    "registry.ddbuild.io/workspaces/features/base:0.4.133474527": {
+    "registry.ddbuild.io/workspaces/features/base:0.4.138019764": {
       "installDeveloperTools": "false"
     },
     "./features/datadog-agent": {}
