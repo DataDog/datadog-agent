@@ -74,6 +74,14 @@ properties:
     description: |-
       Named credentials available to Private Action Runner tasks.
     properties:
+      allow_integration_credentials:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Allow Private Action Runner tasks to use credentials from active
+          integration instances selected by the backend.
       values:
         node_type: setting
         type: object

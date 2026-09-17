@@ -492,10 +492,12 @@ func TestFromDDConfigCredentials(t *testing.T) {
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
 	mockConfig.SetInTest(setup.PARCredentialsValues, map[string]string{"api_token": "resolved-value"})
+	mockConfig.SetInTest(setup.PARCredentialsAllowIntegration, true)
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"api_token": "resolved-value"}, cfg.CredentialValues)
+	assert.True(t, cfg.AllowIntegrationCredentials)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {

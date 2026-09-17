@@ -64,6 +64,8 @@ type Config struct {
 	DisableCredentialTemplates bool
 	CredentialValues           map[string]string
 
+	AllowIntegrationCredentials bool
+
 	Version string
 
 	OpmsExtraHeaders map[string]string

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/google/uuid"
 
@@ -29,7 +30,8 @@ type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
-	catalog *CredentialCatalog
+	catalog                   *CredentialCatalog
+	integrationConfigProvider IntegrationConfigProvider
 }
 
 type PrivateConnectionConfig struct {
@@ -44,8 +46,8 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver(catalog *CredentialCatalog) PrivateCredentialResolver {
-	return &privateCredentialResolver{catalog: catalog}
+func NewPrivateCredentialResolver(catalog *CredentialCatalog, integrationConfigProvider IntegrationConfigProvider) PrivateCredentialResolver {
+	return &privateCredentialResolver{catalog: catalog, integrationConfigProvider: integrationConfigProvider}
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -75,7 +77,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2())
+		resolvedTokens, err := p.resolveConnectionTokensV2(ctx, connInfo.GetTokensV2())
 		if err != nil {
 			return nil, err
 		}
@@ -89,15 +91,35 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
+func (p *privateCredentialResolver) resolveConnectionTokensV2(ctx context.Context, tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
 	var catalogValues map[string]string
+	integrationCredentialFound := false
 	for _, token := range tokens {
-		if token == nil || len(token.GetNameSegments()) == 0 {
-			return nil, errors.New("connection token and its name must not be empty")
+		if token == nil {
+			return nil, errors.New("connection token must not be empty")
 		}
 		var value string
 		switch source := token.GetSource().(type) {
+		case *privateactionspb.ConnectionTokenV2_IntegrationCredential:
+			if integrationCredentialFound {
+				return nil, errors.New("connection must not contain more than one integration credential")
+			}
+			integrationCredentialFound = true
+			values, err := resolveIntegrationCredentials(ctx, p.integrationConfigProvider, source.IntegrationCredential)
+			if err != nil {
+				return nil, err
+			}
+			names := make([]string, 0, len(values))
+			for name := range values {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				value := values[name]
+				resolved = append(resolved, privateconnection.NewPlainTextToken([]string{privateconnection.RootTokenGroupName, name}, value))
+			}
+			continue
 		case *privateactionspb.ConnectionTokenV2_PlainText_:
 			value = source.PlainText.GetValue()
 		case *privateactionspb.ConnectionTokenV2_RunnerCredential_:
@@ -118,6 +140,9 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			}
 		default:
 			return nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
+		}
+		if len(token.GetNameSegments()) == 0 {
+			return nil, errors.New("connection token name must not be empty")
 		}
 		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
 	}
