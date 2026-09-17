@@ -34,7 +34,13 @@ pub fn load(contents: &str) -> Result<Value> {
     let mut builder = Builder::default();
     for result in Parser::new_from_str(contents) {
         let (event, _) = result.context("parse YAML event")?;
+        // `yaml.Unmarshal` stops at the first document and never tokenizes what follows,
+        // so a later document that does not parse must not fail the file.
+        let end_of_document = matches!(event, Event::DocumentEnd);
         builder.push(event)?;
+        if end_of_document {
+            break;
+        }
     }
     let mut root = builder.finish()?;
     root.apply_merge().context("apply YAML merge keys")?;
@@ -369,8 +375,6 @@ struct Builder {
     stack: Vec<Frame>,
     anchors: HashMap<usize, Value>,
     root: Option<Value>,
-    /// After the first document is parsed, ignore later `---` documents (yaml.v2 parity).
-    ignore_remaining_documents: bool,
 }
 
 enum Frame {
@@ -387,19 +391,12 @@ enum Frame {
 
 impl Builder {
     fn push(&mut self, event: Event<'_>) -> Result<()> {
-        if self.ignore_remaining_documents {
-            return Ok(());
-        }
         match event {
-            Event::Nothing | Event::StreamStart | Event::StreamEnd | Event::DocumentEnd => {}
-            Event::DocumentStart(_) => {
-                if self.root.is_some() {
-                    self.ignore_remaining_documents = true;
-                    return Ok(());
-                }
-                self.stack.clear();
-                self.anchors.clear();
-            }
+            Event::Nothing
+            | Event::StreamStart
+            | Event::StreamEnd
+            | Event::DocumentStart(_)
+            | Event::DocumentEnd => {}
             Event::MappingStart(anchor, _) => self.stack.push(Frame::Mapping {
                 pairs: HashMap::new(),
                 pending_key: None,
@@ -522,6 +519,26 @@ mod tests {
         assert_eq!(
             dotted(
                 "process_config:\n  enabled: true\n---\nprocess_config:\n  enabled: false\n",
+                "process_config.enabled"
+            ),
+            Some(Value::Bool(true))
+        );
+    }
+
+    /// `yaml.Unmarshal` never reads past the first document, so the Agent loads this file
+    /// and the gate must not see a parse error the Agent never hits.
+    #[test]
+    fn later_document_is_not_parsed_at_all() {
+        assert_eq!(
+            dotted(
+                "process_config:\n  enabled: true\n---\n{\n",
+                "process_config.enabled"
+            ),
+            Some(Value::Bool(true))
+        );
+        assert_eq!(
+            dotted(
+                "process_config:\n  enabled: true\n---\nenabled: !!int 1.0\n",
                 "process_config.enabled"
             ),
             Some(Value::Bool(true))
