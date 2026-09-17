@@ -166,7 +166,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -195,7 +195,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
