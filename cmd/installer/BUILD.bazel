@@ -1,7 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/check_for_symbols:check_for_symbols.bzl", "check_for_symbols_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
+
+# Symbol that Go's FIPS-mode cgo shim injects when linked against the FIPS
+# OpenSSL provider (see omnibus/lib/fips.rb's legacy
+# fips_check_binary_for_expected_symbol, which this check_for_symbols_test
+# usage generalizes). A successful build is not sufficient proof that the
+# FIPS code path was actually compiled in -- this checks the binary's symbol
+# table via `go tool nm`, mirroring the omnibus-era check.
+_FIPS_SYMBOL = "_Cfunc__mkcgo_OPENSSL"
 
 go_library(
     name = "installer_lib",
@@ -34,6 +43,23 @@ dd_agent_go_binary(
     embed = [":installer_lib"],
     gotags = INSTALLER_TAGS,
     visibility = ["//visibility:public"],
+)
+
+check_for_symbols_test(
+    name = "installer_fips_symbols_test",
+    binary = ":installer",
+    must_include = select({
+        "//packages/agent:linux_fips": [_FIPS_SYMBOL],
+        "//conditions:default": [],
+    }),
+    must_not_include = select({
+        "//packages/agent:linux_fips": [],
+        "//conditions:default": [_FIPS_SYMBOL],
+    }),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
