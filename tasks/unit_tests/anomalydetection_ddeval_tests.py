@@ -1,12 +1,22 @@
 import hashlib
+import json
 import tempfile
 import unittest
 from io import StringIO
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from invoke.exceptions import Exit
 
-from tasks.anomalydetection import AWS_VAULT_PROFILE, _local_aws_command, _local_ddeval_command, eval_ddeval
+from tasks.anomalydetection import (
+    AWS_VAULT_PROFILE,
+    _AgentCIAPITransientError,
+    _ddeval_dataset_filter_json,
+    _local_aws_command,
+    _local_ddeval_command,
+    _run_agent_ci_api_ddeval_workflow,
+    eval_ddeval,
+)
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
@@ -175,6 +185,59 @@ class TestLocalDDEvalArtifacts(unittest.TestCase):
         self.assertEqual(args[args.index("--dataset-version") + 1], "6")
         self.assertIn("metadata.record_id=a,b", args)
         self.assertNotIn("--workflow-test-drive", args)
+
+
+class TestAgentCIAPIDDEvalWorkflow(unittest.TestCase):
+    def test_starts_requested_dataset_and_retries_transient_result_poll(self):
+        options = SimpleNamespace(
+            dataset="observer-log-ad-golden-25",
+            dataset_version=7,
+            max_attempts=1,
+            jobs=6,
+            limit=0,
+            where_in="",
+            agent_ci_api_timeout=60,
+            agent_ci_api_poll_wait=0,
+            agent_ci_api_poll_interval=1,
+        )
+        responses = [
+            {"id": "workflow-1", "run_id": "run-1"},
+            _AgentCIAPITransientError("agent-ci-api request failed with code 503"),
+            {"completed": True, "status": "completed", "metrics_json": "{}"},
+        ]
+
+        with tempfile.NamedTemporaryFile() as log_file:
+            with (
+                patch("tasks.anomalydetection._agent_ci_api_post", side_effect=responses) as post,
+                patch("tasks.anomalydetection.time.monotonic", return_value=0),
+                patch("tasks.anomalydetection.time.sleep") as sleep,
+            ):
+                result, workflow_id, run_id = _run_agent_ci_api_ddeval_workflow(
+                    None,
+                    experiment_config={"input_parameters": {}},
+                    options=options,
+                    logger=MagicMock(),
+                    log_path=log_file.name,
+                )
+
+        self.assertEqual((workflow_id, run_id), ("workflow-1", "run-1"))
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(post.call_count, 3)
+        start_attributes = post.call_args_list[0].args[3]
+        self.assertEqual(start_attributes["dataset_name"], "observer-log-ad-golden-25")
+        self.assertEqual(start_attributes["dataset_version"], 7)
+        self.assertEqual(post.call_args_list[1].args[2], "observer-ablation/eval/result")
+        self.assertEqual(post.call_args_list[2].args[2], "observer-ablation/eval/result")
+        sleep.assert_called_once_with(1)
+
+    def test_dataset_filter_contains_limit_and_where_in(self):
+        options = SimpleNamespace(limit=3, where_in="metadata.record_id=a,b;metadata.source=gensim")
+
+        dataset_filter = json.loads(_ddeval_dataset_filter_json(options))
+
+        self.assertEqual(dataset_filter["limit"], 3)
+        self.assertEqual(dataset_filter["where_in"]["metadata.record_id"], ["a", "b"])
+        self.assertEqual(dataset_filter["where_in"]["metadata.source"], ["gensim"])
 
 
 if __name__ == "__main__":
