@@ -1125,6 +1125,20 @@ process_config:
         assert_eq!(env_bool_for_key(PROCESS_DISCOVERY_KEY), None);
     }
 
+    /// The SCM merges the service block over the inherited environment, so clearing a
+    /// machine-level `DD_*` there leaves the Agent with an empty value, which its env
+    /// layer skips. procmgr must not reach past the cleared entry to the machine value.
+    #[test]
+    fn empty_service_env_shadows_the_process_env() {
+        let fx = Gate::new();
+        fx.service_env(&[("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "")]);
+        fx.env("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true");
+        assert_eq!(env_bool_for_key(PROCESS_COLLECTION_KEY), None);
+
+        let agent = fx.agent(ALL_PROCESS_GATES_OFF);
+        fx.assert_key(&agent, PROCESS_COLLECTION_KEY, false);
+    }
+
     #[test]
     fn service_env_drives_the_legacy_transform() {
         let fx = Gate::new();

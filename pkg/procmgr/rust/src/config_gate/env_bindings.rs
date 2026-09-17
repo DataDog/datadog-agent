@@ -14,8 +14,14 @@
 //! Each name is resolved first against the Agent service environment (the Windows SCM
 //! `Environment` value, see [`crate::platform::agent_service_env_var`]) and then against
 //! dd-procmgr's own environment, so a service-local override is visible to gates exactly
-//! as it is to the Agent. An empty value counts as unset, matching
-//! `os.LookupEnv(..); ok && value != ""` in `pkg/config/nodetreemodel/config.go`.
+//! as it is to the Agent.
+//!
+//! The two lookups reconstruct one environment rather than forming a fallback chain. The
+//! SCM merges its block over the inherited environment before the Agent starts, so an
+//! entry present there shadows dd-procmgr's own value even when it is empty. Only after
+//! that merge does the Agent's rule apply: `os.LookupEnv(..); ok && value != ""` in
+//! `pkg/config/nodetreemodel/config.go`, which reads an empty value as unset and falls
+//! through to the config file and then the schema default.
 
 use crate::agent_yaml::parse_bool_string;
 
@@ -112,9 +118,12 @@ pub(super) fn env_configured_for_key(key: &str) -> bool {
 }
 
 /// Agent service environment first, then dd-procmgr's own environment.
+///
+/// A service entry shadows the process environment even when empty, so the empty check
+/// runs on the winning entry rather than on each source in turn.
 pub(super) fn env_var_value(name: &str) -> Option<String> {
     if let Some(value) = agent_service_env_var(name) {
-        return Some(value);
+        return Some(value).filter(|value| !value.is_empty());
     }
     std::env::var(name).ok().filter(|value| !value.is_empty())
 }
@@ -133,11 +142,12 @@ fn auto_env_var_for_key(key: &str) -> String {
 fn agent_service_env_var(name: &str) -> Option<String> {
     #[cfg(any(test, feature = "test-helpers"))]
     if let Some(vars) = test_agent_service_env() {
+        // Presence is preserved here, as in the real SCM read: an empty entry shadows
+        // the process environment instead of falling through to it.
         return vars
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case(name))
-            .map(|(_, value)| value.clone())
-            .filter(|value| !value.is_empty());
+            .map(|(_, value)| value.clone());
     }
 
     crate::platform::agent_service_env_var(name)
