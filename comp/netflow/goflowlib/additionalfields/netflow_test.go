@@ -6,11 +6,13 @@
 package additionalfields
 
 import (
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"testing"
+
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 )
 
 func makeSampleNetflowPacket(fields []netflow.DataField) netflow.NFv9Packet {
@@ -159,7 +161,7 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			packet := makeSampleNetflowPacket(tt.fields)
-			expectedFields, err := ProcessMessageNetFlowAdditionalFields(packet, tt.config)
+			expectedFields, err := ProcessMessageNetFlowAdditionalFields(packet, tt.config, "127.0.0.1", NewApplicationMapper())
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedCollectedFields, expectedFields)
 		})

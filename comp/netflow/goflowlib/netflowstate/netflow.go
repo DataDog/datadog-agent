@@ -48,6 +48,8 @@ type StateNetFlow struct {
 	samplinglock *sync.RWMutex
 	sampling     map[string]producer.SamplingRateSystem
 
+	appMapper *additionalfields.ApplicationMapper
+
 	Config       *producer.ProducerConfig
 	configMapped *producer.ProducerConfigMapped
 
@@ -64,6 +66,7 @@ func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool) *S
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
+		appMapper:          additionalfields.NewApplicationMapper(),
 		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing),
 	}
 }
@@ -123,7 +126,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		s.Logger.Errorf("failed to process netflow packet %s", err)
 	}
 
-	additionalFields, err := additionalfields.ProcessMessageNetFlowAdditionalFields(msgDec, s.mappedFieldsConfig)
+	additionalFields, err := additionalfields.ProcessMessageNetFlowAdditionalFields(msgDec, s.mappedFieldsConfig, key, s.appMapper)
 	if err != nil {
 		s.Logger.Errorf("failed to process additional fields %s", err)
 	}

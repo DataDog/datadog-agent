@@ -10,10 +10,12 @@ package additionalfields
 import (
 	"bytes"
 	"errors"
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/producer"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 )
 
 func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.EndianType) error {
@@ -39,7 +41,7 @@ func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg 
 	}
 }
 
-func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
+func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping, exporterIP string, appMapper *ApplicationMapper) common.AdditionalFields {
 	additionalFields := make(common.AdditionalFields)
 
 	for i := range record {
@@ -48,6 +50,12 @@ func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 		v, ok := df.Value.([]byte)
 		if !ok {
 			continue
+		}
+
+		if df.Type == ipfixFieldApplicationID {
+			if name, found := appMapper.lookupApplicationName(exporterIP, v); found {
+				additionalFields["dpi.application_name"] = name
+			}
 		}
 
 		mappingConfig, ok := fieldsConfig[df.Type]
@@ -61,10 +69,10 @@ func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 	return additionalFields
 }
 
-func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
+func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping, exporterIP string, appMapper *ApplicationMapper) []common.AdditionalFields {
 	var setsAdditionalFields []common.AdditionalFields
 	for _, record := range dataRecords {
-		additionalFields := convertNetFlowDataSet(record.Values, fieldsConfig)
+		additionalFields := convertNetFlowDataSet(record.Values, fieldsConfig, exporterIP, appMapper)
 		if additionalFields != nil {
 			setsAdditionalFields = append(setsAdditionalFields, additionalFields)
 		}
@@ -72,10 +80,10 @@ func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig
 	return setsAdditionalFields
 }
 
-func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
+func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[uint16]config.Mapping, exporterIP string, appMapper *ApplicationMapper) []common.AdditionalFields {
 	var flowsAdditonalFields []common.AdditionalFields
 	for _, dataFlowSetItem := range dataFlowSet {
-		setsAdditionalFields := searchNetFlowDataSetsRecords(dataFlowSetItem.Records, fieldsConfig)
+		setsAdditionalFields := searchNetFlowDataSetsRecords(dataFlowSetItem.Records, fieldsConfig, exporterIP, appMapper)
 		if setsAdditionalFields != nil {
 			flowsAdditonalFields = append(flowsAdditonalFields, setsAdditionalFields...)
 		}
@@ -83,8 +91,10 @@ func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[u
 	return flowsAdditonalFields
 }
 
-// ProcessMessageNetFlowAdditionalFields collects additional fields from netflow packet using the given config
-func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping) ([]common.AdditionalFields, error) {
+// ProcessMessageNetFlowAdditionalFields collects additional fields from netflow packet using the given config.
+// IPFIX Options Data records (e.g. applicationId/applicationName) are cached into appMapper, scoped to exporterIP,
+// and used to resolve any applicationId field found on a flow record into a datadog.application_name field.
+func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping, exporterIP string, appMapper *ApplicationMapper) ([]common.AdditionalFields, error) {
 	if len(fieldsConfig) == 0 {
 		return nil, nil
 	}
@@ -94,10 +104,11 @@ func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[
 	switch msgDecConv := msgDec.(type) {
 	case netflow.NFv9Packet:
 		dataFlowSet, _, _, _ := producer.SplitNetFlowSets(msgDecConv)
-		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig)
+		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig, exporterIP, appMapper)
 	case netflow.IPFIXPacket:
-		dataFlowSet, _, _, _ := producer.SplitIPFIXSets(msgDecConv)
-		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig)
+		dataFlowSet, _, _, optionsDataFlowSet := producer.SplitIPFIXSets(msgDecConv)
+		appMapper.addToCache(exporterIP, optionsDataFlowSet)
+		flowsAdditonalFields = searchNetFlowDataSets(dataFlowSet, fieldsConfig, exporterIP, appMapper)
 	default:
 		return flowsAdditonalFields, errors.New("Bad NetFlow/IPFIX version")
 	}
