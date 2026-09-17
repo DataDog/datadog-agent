@@ -6,7 +6,6 @@
 use anyhow::{Result, bail};
 use std::ptr;
 use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
-#[cfg(not(test))]
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::{CreateWellKnownSid, LookupAccountNameW, WELL_KNOWN_SID_TYPE};
 
@@ -92,7 +91,6 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     }
 }
 
-#[cfg(not(test))]
 pub(crate) fn sid_to_string(sid: &[u8]) -> Result<String> {
     unsafe {
         let mut sid_string: *mut u16 = ptr::null_mut();
