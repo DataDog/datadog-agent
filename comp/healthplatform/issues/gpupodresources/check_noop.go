@@ -10,12 +10,13 @@ package gpupodresources
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 type checker struct{}
 
-func newChecker(config.Component, hostnameinterface.Component) *checker {
+func newChecker(config.Component, hostnameinterface.Component, *selfident.SelfIdent) *checker {
 	return &checker{}
 }
 

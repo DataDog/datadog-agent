@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -22,15 +24,17 @@ import (
 const podResourcesRequestTimeout = 5 * time.Second
 
 type checker struct {
-	cfg   config.Component
-	host  hostnameinterface.Component
-	probe func(context.Context) error
+	cfg       config.Component
+	host      hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
+	probe     func(context.Context) error
 }
 
-func newChecker(cfg config.Component, host hostnameinterface.Component) *checker {
+func newChecker(cfg config.Component, host hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
 	return &checker{
-		cfg:  cfg,
-		host: host,
+		cfg:       cfg,
+		host:      host,
+		selfIdent: selfIdent,
 		probe: func(ctx context.Context) error {
 			client, err := kubelet.NewPodResourcesClient(cfg)
 			if err != nil {
@@ -52,7 +56,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	if err := c.probe(ctx); err != nil {
 		return []runnerdef.IssueReport{{
-			IssueID:   hostIssueID(c.host.GetSafe(context.Background())),
+			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "gpu",
 			Context: map[string]string{
@@ -64,10 +68,11 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }
 
-// hostIssueID scopes the singleton node-local condition to one host. The
-// backend deduplicates Agent Health issues by ID across an organization.
-func hostIssueID(hostname string) string {
+// instanceIssueID scopes an issue to the Agent DaemonSet when available, and
+// to the host otherwise. The backend deduplicates Agent Health issues by ID.
+func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	_, _ = h.Write([]byte(hostname))
+	discriminator := issues.IssueDiscriminator(c.selfIdent, c.host.GetSafe(context.Background()))
+	_, _ = h.Write([]byte(discriminator))
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }

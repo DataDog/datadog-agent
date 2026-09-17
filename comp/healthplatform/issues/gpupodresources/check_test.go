@@ -46,7 +46,7 @@ func TestCheckerRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, reports, 1)
 		assert.Equal(t, IssueName, reports[0].IssueName)
-		assert.Equal(t, hostIssueID("node-a"), reports[0].IssueID)
+		assert.Equal(t, checker.instanceIssueID(), reports[0].IssueID)
 		assert.Equal(t, "permission denied", reports[0].Context[contextKeyError])
 		assert.Equal(t, "/var/lib/kubelet/pod-resources/kubelet.sock", reports[0].Context[contextKeySocketPath])
 	})
@@ -63,12 +63,16 @@ func TestCheckerRun(t *testing.T) {
 	})
 }
 
-func TestHostIssueID(t *testing.T) {
-	id := hostIssueID("node-a")
+func TestInstanceIssueIDFallsBackToHost(t *testing.T) {
+	checker := newTestChecker(t, func(context.Context) error { return nil })
+	id := checker.instanceIssueID()
 
 	assert.True(t, strings.HasPrefix(id, IssueID+":"))
-	assert.Equal(t, id, hostIssueID("node-a"))
-	assert.NotEqual(t, id, hostIssueID("node-b"))
+	assert.Equal(t, id, checker.instanceIssueID())
+
+	other := newTestChecker(t, func(context.Context) error { return nil })
+	other.host, _ = hostnamemock.NewMock("node-b")
+	assert.NotEqual(t, id, other.instanceIssueID())
 }
 
 func TestModuleGate(t *testing.T) {

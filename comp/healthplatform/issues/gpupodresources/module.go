@@ -40,7 +40,7 @@ type gpuPodResourcesModule struct {
 func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &gpuPodResourcesModule{
 		cfg:     deps.Config,
-		checker: newChecker(deps.Config, deps.Hostname),
+		checker: newChecker(deps.Config, deps.Hostname, deps.SelfIdent),
 	}
 }
 
