@@ -10,12 +10,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	AddInstanceFunc func(context.Context, delegatedauth.InstanceParams) error
+	AddInstanceFunc              func(context.Context, delegatedauth.InstanceParams) error
+	GetWorkloadAuthorizationFunc func(context.Context, string, string) (*common.WorkloadAuthorization, error)
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -36,4 +38,12 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 		return m.AddInstanceFunc(ctx, params)
 	}
 	return nil
+}
+
+// GetWorkloadAuthorization invokes the configured mock or fails closed.
+func (m *Mock) GetWorkloadAuthorization(ctx context.Context, key, thumbprint string) (*common.WorkloadAuthorization, error) {
+	if m.GetWorkloadAuthorizationFunc != nil {
+		return m.GetWorkloadAuthorizationFunc(ctx, key, thumbprint)
+	}
+	return nil, common.ErrWorkloadAuthorizationUnavailable
 }

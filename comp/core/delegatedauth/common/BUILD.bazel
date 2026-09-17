@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "endpoints.go",
         "models.go",
+        "workload_authorization.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/common",
     visibility = ["//visibility:public"],

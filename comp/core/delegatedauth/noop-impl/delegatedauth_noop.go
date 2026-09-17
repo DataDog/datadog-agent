@@ -10,6 +10,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -37,6 +38,11 @@ func NewComponent() Provides {
 // AddInstance does nothing in the noop implementation
 func (d *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
 	return nil
+}
+
+// GetWorkloadAuthorization fails closed when delegated authentication is unavailable.
+func (d *DelegatedAuthNoop) GetWorkloadAuthorization(context.Context, string, string) (*common.WorkloadAuthorization, error) {
+	return nil, common.ErrWorkloadAuthorizationUnavailable
 }
 
 // Status Provider implementation for noop

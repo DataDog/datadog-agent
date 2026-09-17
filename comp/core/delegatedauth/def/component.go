@@ -91,4 +91,9 @@ type Component interface {
 	// background refresh uses its own cancellable context.
 	// Returns an error if Config or OrgUUID is empty.
 	AddInstance(ctx context.Context, params InstanceParams) error
+
+	// GetWorkloadAuthorization obtains a fresh PAR enrollment assertion for the
+	// selected instance, bound to the runner's SHA-256 public-JWK thumbprint.
+	// The assertion must not be persisted or logged.
+	GetWorkloadAuthorization(ctx context.Context, apiKeyConfigKey, jwkThumbprint string) (*common.WorkloadAuthorization, error)
 }
