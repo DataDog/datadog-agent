@@ -9,11 +9,13 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/providers/ndm",
+        "//comp/core/autodiscovery/providers/ndm/discovery",
         "//comp/core/autodiscovery/providers/ndm/handler",
         "//comp/core/autodiscovery/providers/ndm/snmp",
         "//comp/core/autodiscovery/providers/types",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/ndmdiscovery/def",
         "//comp/remote-config/rcclient/types",
         "//pkg/config/remote/data",
         "//pkg/config/utils",
@@ -29,6 +31,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/providers/types",
         "//comp/core/log/mock",
+        "//comp/ndmdiscovery/def",
         "//pkg/config/mock",
         "//pkg/config/remote/data",
         "@com_github_stretchr_testify//assert",
