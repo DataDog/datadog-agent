@@ -216,6 +216,7 @@ dd_agent_go_test(
         "rmdir_test.go",
         "sbom_test.go",
         "security_profile_test.go",
+        "security_profile_v2_test.go",
         "selftests_test.go",
         "selinux_test.go",
         "serializers_test.go",
