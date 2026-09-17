@@ -478,6 +478,39 @@ pub fn sleep_test_config(secs: u32) -> crate::config::ProcessConfig {
     }
 }
 
+#[cfg(windows)]
+pub fn privileged_process_agent_command_line() -> (String, Vec<String>) {
+    let install_root = crate::platform::install_root_for_tests();
+    let etc_root = crate::platform::program_data_root();
+    let command = install_root
+        .join(r"bin\agent\process-agent.exe")
+        .to_string_lossy()
+        .into_owned();
+    let args = vec![
+        "--cfgpath".to_string(),
+        etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
+    ];
+    (command, args)
+}
+
+#[cfg(windows)]
+fn yaml_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(windows)]
+pub fn privileged_process_agent_yaml(extra: &str) -> String {
+    let (command, args) = privileged_process_agent_command_line();
+    let mut yaml = format!("command: {}\n", yaml_single_quoted(&command));
+    yaml.push_str("args:\n");
+    for arg in &args {
+        yaml.push_str(&format!("  - {}\n", yaml_single_quoted(arg)));
+    }
+    yaml.push_str("auto_start: true\n");
+    yaml.push_str(extra);
+    yaml
+}
+
 /// Build a `ProcessConfig` with null stdio, suitable for tests.
 pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessConfig {
     crate::config::ProcessConfig {
