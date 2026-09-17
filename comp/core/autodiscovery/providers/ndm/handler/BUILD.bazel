@@ -16,5 +16,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
