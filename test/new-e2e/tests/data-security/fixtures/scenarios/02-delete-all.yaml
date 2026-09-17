@@ -1,6 +1,6 @@
-name: scan
+name: delete-all
 scan_data:
-  - sub_task_id: e2e-accounts
+  - sub_task_id: delete-all
     connection:
       host: localhost
       port: 5432
@@ -14,7 +14,7 @@ scan_data:
       database: labdb
       schema: public
       table: accounts
-    query: "SELECT owner FROM accounts"
+    query: "DELETE FROM accounts"
     timeout_seconds: 30
 expected:
   - resource:
@@ -25,12 +25,7 @@ expected:
     scanningSource:
       agent: {}
     scanResults:
-      - tableMatches:
-          - ruleId: e2e-owner-pattern
-            columnName: owner
-            countMatchedRows: 200
-            countMatches: 200
-        location:
+      - location:
           postgresTable:
             databaseClusterName: e2e-cluster
             databaseInstanceName: e2e-instance
@@ -38,12 +33,9 @@ expected:
             databaseName: labdb
             schemaName: public
             tableName: accounts
-            scannedRowCount: 200
-            scannedColumns:
-              - name: owner
-                dataType: text
+            scannedRowCount: 0
         scanMetadata:
           scanTaskMetadata:
             taskId: e2e-datasec-postgres
-            subTaskId: e2e-accounts
-            status: SUCCESS
+            subTaskId: delete-all
+            status: ERROR

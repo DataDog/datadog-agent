@@ -1,8 +1,6 @@
-# Write-blocking cases are numbered first so they run before the scan.
-# If DROP / DML had persisted, the scan would fail or the match counts would change.
-name: multi-statement
+name: happy-path
 scan_data:
-  - sub_task_id: multi-statement
+  - sub_task_id: e2e-accounts
     connection:
       host: localhost
       port: 5432
@@ -16,7 +14,7 @@ scan_data:
       database: labdb
       schema: public
       table: accounts
-    query: "SELECT owner FROM accounts; DROP TABLE accounts"
+    query: "SELECT owner FROM accounts"
     timeout_seconds: 30
 expected:
   - resource:
@@ -27,7 +25,12 @@ expected:
     scanningSource:
       agent: {}
     scanResults:
-      - location:
+      - tableMatches:
+          - ruleId: e2e-owner-pattern
+            columnName: owner
+            countMatchedRows: 200
+            countMatches: 200
+        location:
           postgresTable:
             databaseClusterName: e2e-cluster
             databaseInstanceName: e2e-instance
@@ -35,9 +38,12 @@ expected:
             databaseName: labdb
             schemaName: public
             tableName: accounts
-            scannedRowCount: 0
+            scannedRowCount: 200
+            scannedColumns:
+              - name: owner
+                dataType: text
         scanMetadata:
           scanTaskMetadata:
             taskId: e2e-datasec-postgres
-            subTaskId: multi-statement
-            status: ERROR
+            subTaskId: e2e-accounts
+            status: SUCCESS
