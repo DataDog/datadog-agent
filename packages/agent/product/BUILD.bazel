@@ -12,7 +12,13 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+
+_USE_RELATIVE_RPATHS = select({
+    "@platforms//os:macos": True,
+    "//conditions:default": False,
+})
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -22,7 +28,6 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        # TODO: dependency "python3"
         # TODO: dependencies:all_files belongs here, but that adding it will essentially
         # mean all builds build dependencies. That would break the repackage workflow, so
         # we'll do that in April.
@@ -31,32 +36,37 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
-        ":dda_built_agent_binary",
+        ":agent_binary",
 
         # TODO: sysprobe - windows
-        # TODO: systray - windows
-        # TODO: installer
-        ":dda_built_trace_agent_binary",
-        ":dda_built_process_agent_binary",
-        ":dda_built_privateactionrunner_binary",
+        ":trace_agent_binary",
+        ":process_agent_binary",
+        ":privateactionrunner_binary",
 
         # TODO: system-probe
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: security-agent
-        # TODO: cws-instrumentation
-        # TODO: secret-generic-connector
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
+        "//packages/agent:linux_heroku": [],
+        "//conditions:default": [
+            ":secret_generic_connector_binary",
+            ":security_agent_binary",
+        ],
+    }) + select({
         "//packages/agent:linux_default": [
+            ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -72,6 +82,8 @@ pkg_filegroup(
             # TODO: systray
         ],
         "@platforms//os:windows": [
+            ":installer_binary",
+            ":systray_binary",
             "//packages/windows:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
@@ -164,20 +176,80 @@ pkg_install(
     srcs = [":conf_dir_files"],
 )
 
-pkg_files(
-    name = "dda_built_agent_binary",
-    srcs = [
-        "@agent_binary//:agent",
-    ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "bin/agent",
+rewrite_rpath(
+    name = "agent_binary_rpath",
+    destination = "{install_dir}/bin/agent",
+    inputs = select({
+        "//packages/agent:linux_heroku": ["//cmd/agent:agent-heroku"],
+        "//conditions:default": ["//cmd/agent"],
+    }),
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
 pkg_files(
-    name = "dda_built_process_agent_binary",
+    name = "agent_binary",
+    srcs = [":agent_binary_rpath"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent",
+    renames = select({
+        "//packages/agent:linux_heroku": {":agent_binary_rpath": "agent"},
+        "//conditions:default": {},
+    }),
+)
+
+rewrite_rpath(
+    name = "process_agent_binary_rpath",
+    destination = select({
+        "@platforms//os:windows": "{install_dir}/bin/agent",
+        "//conditions:default": "{install_dir}/embedded/bin",
+    }),
+    inputs = select({
+        "//packages/agent:linux_heroku": ["//cmd/process-agent:process-agent-heroku"],
+        "//conditions:default": ["//cmd/process-agent"],
+    }),
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
+pkg_files(
+    name = "process_agent_binary",
+    srcs = [":process_agent_binary_rpath"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    renames = select({
+        "//packages/agent:linux_heroku": {":process_agent_binary_rpath": "process-agent"},
+        "//conditions:default": {},
+    }),
+)
+
+pkg_files(
+    name = "privateactionrunner_binary",
     srcs = [
-        "@process_agent_binary//:process_agent",
+        "//cmd/privateactionrunner",
     ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "trace_agent_binary",
+    srcs = select({
+        "//packages/agent:linux_heroku": ["//cmd/trace-agent:trace-agent-heroku"],
+        "//conditions:default": ["//cmd/trace-agent"],
+    }),
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    renames = select({
+        "//packages/agent:linux_heroku": {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
+        "//conditions:default": {},
+    }),
+)
+
+pkg_files(
+    name = "secret_generic_connector_binary",
+    srcs = ["//cmd/secret-generic-connector"],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
@@ -186,21 +258,41 @@ pkg_files(
 )
 
 pkg_files(
-    name = "dda_built_privateactionrunner_binary",
-    srcs = [
-        "@privateactionrunner_binary//:privateactionrunner",
-    ],
+    name = "security_agent_binary",
+    srcs = ["//cmd/security-agent"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+)
+
+pkg_files(
+    name = "cws_instrumentation_binary",
+    srcs = ["//cmd/cws-instrumentation"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )
 
 pkg_files(
-    name = "dda_built_trace_agent_binary",
-    srcs = [
-        "@trace_agent_binary//:trace_agent",
-    ],
+    name = "systray_binary",
+    srcs = ["//cmd/systray"],
     attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+    prefix = "bin/agent",
+)
+
+pkg_files(
+    name = "installer_binary",
+    srcs = ["//cmd/installer"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "embedded/bin",
+    }),
+    renames = select({
+        "@platforms//os:windows": {"//cmd/installer": "datadog-installer.exe"},
+        "//conditions:default": {},
+    }),
 )
 
 pkg_files(

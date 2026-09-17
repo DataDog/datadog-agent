@@ -9,10 +9,9 @@
 package config
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
-	"net"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -450,21 +449,6 @@ type RuntimeSecurityConfig struct {
 	// default_value: 40
 	EventSamplingConnectThreshold int
 
-	// description: EventSamplingBindEnabled defines if the agent should sample bind events
-	// visibility: private
-	// default_value: false
-	EventSamplingBindEnabled bool
-
-	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
-	// visibility: private
-	// default_value: 500
-	EventSamplingBindRate int
-
-	// description: EventSamplingBindThreshold defines the ring buffer pressure percentage below which bind events are always admitted when dynamic sampling is enabled
-	// visibility: private
-	// default_value: 60
-	EventSamplingBindThreshold int
-
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
 	// default_value: false
@@ -824,7 +808,17 @@ type RuntimeSecurityConfig struct {
 	// description: IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	// visibility: private
 	// default_value: 169.254.169.254
-	IMDSIPv4 uint32
+	IMDSIPv4 string
+
+	// description: EKSPodIdentityIPv4 is used to provide a custom IPv4 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: 169.254.170.23
+	EKSPodIdentityIPv4 string
+
+	// description: EKSPodIdentityIPv6 is used to provide a custom IPv6 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: fd00:ec2::23
+	EKSPodIdentityIPv6 string
 
 	// description: EventGRPCServer defines which process should be used to send events and activity dumps
 	// visibility: private
@@ -1012,9 +1006,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
 		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
 		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
-		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -1075,7 +1066,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
-		IMDSIPv4: parseIMDSIPv4(),
+		IMDSIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"),
+
+		// EKS Pod Identity
+		EKSPodIdentityIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv4"),
+		EKSPodIdentityIPv6: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv6"),
 
 		// event
 		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
@@ -1104,7 +1099,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	if rsConfig.SecurityProfileV2Enabled {
 		rsConfig.EventSamplingOpenEnabled = true
 		rsConfig.EventSamplingConnectEnabled = true
-		rsConfig.EventSamplingBindEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -1129,14 +1123,43 @@ func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
 	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
 }
 
-// parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
-func parseIMDSIPv4() uint32 {
-	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		return 0
+// CredentialEndpoint is an address and the credential source it serves
+type CredentialEndpoint struct {
+	Addr   netip.Addr
+	Source model.CredentialSource
+}
+
+// CredentialEndpoints returns the configured credential endpoints. An empty
+// address disables that endpoint.
+func (c *RuntimeSecurityConfig) CredentialEndpoints() ([]CredentialEndpoint, error) {
+	endpoints := []struct {
+		key    string
+		value  string
+		is4    bool
+		source model.CredentialSource
+	}{
+		{"runtime_security_config.imds_ipv4", c.IMDSIPv4, true, model.CredentialSourceIMDS},
+		{"runtime_security_config.eks_pod_identity_ipv4", c.EKSPodIdentityIPv4, true, model.CredentialSourceEKSPodIdentity},
+		{"runtime_security_config.eks_pod_identity_ipv6", c.EKSPodIdentityIPv6, false, model.CredentialSourceEKSPodIdentity},
 	}
-	return binary.LittleEndian.Uint32(parsedIP.To4())
+
+	var out []CredentialEndpoint
+	for _, endpoint := range endpoints {
+		if endpoint.value == "" {
+			continue
+		}
+
+		addr, err := netip.ParseAddr(endpoint.value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address for %s: %v", endpoint.key, endpoint.value)
+		}
+		if addr.Is4() != endpoint.is4 {
+			return nil, fmt.Errorf("wrong address family for %s: got %v", endpoint.key, endpoint.value)
+		}
+
+		out = append(out, CredentialEndpoint{Addr: addr, Source: endpoint.source})
+	}
+	return out, nil
 }
 
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
@@ -1184,8 +1207,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		c.HostServiceName = serviceName
 	}
 
-	if c.IMDSIPv4 == 0 {
-		return fmt.Errorf("invalid IPv4 address: got %v", pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
+	if _, err := c.CredentialEndpoints(); err != nil {
+		return err
 	}
 
 	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
@@ -1202,7 +1225,6 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
-		{"bind", c.EventSamplingBindThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)

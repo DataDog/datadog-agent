@@ -271,11 +271,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	}
 
 	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
-		pStats, err := net.GetProcStats(p.sysprobeClient, p.lastPIDs)
-		if err == nil {
-			mergeProcWithSysprobeStats(procs, pStats)
-		} else {
+		pStats, err := fetchSystemProbeStatsForProcesses(p.sysprobeClient, procs)
+		if err != nil {
 			log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
+		} else if pStats != nil {
+			mergeProcWithSysprobeStats(procs, pStats)
 		}
 	}
 
@@ -680,15 +680,36 @@ func skipProcess(
 	}
 	// Skipping zombie processes (defined in docs as Status = "Z") if the config
 	// for skipping zombie processes is on.
-	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
+	if zombiesIgnored && fp.Stats.IsZombie() {
 		return true
 	}
 	return false
 }
 
+func pidsForSystemProbeStats(procs map[int32]*procutil.Process) []int32 {
+	pids := make([]int32, 0, len(procs))
+	for pid, proc := range procs {
+		if !proc.Stats.IsZombie() {
+			pids = append(pids, pid)
+		}
+	}
+	return pids
+}
+
+func fetchSystemProbeStatsForProcesses(client *http.Client, procs map[int32]*procutil.Process) (*model.ProcStatsWithPermByPID, error) {
+	pids := pidsForSystemProbeStats(procs)
+	if len(pids) == 0 {
+		return nil, nil
+	}
+	return net.GetProcStats(client, pids)
+}
+
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
 func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pStats *model.ProcStatsWithPermByPID) {
 	for pid, proc := range procs {
+		if proc.Stats.IsZombie() {
+			continue
+		}
 		if s, ok := pStats.StatsByPID[pid]; ok {
 			proc.Stats.OpenFdCount = s.OpenFDCount
 			proc.Stats.IOStat.ReadCount = s.ReadCount
