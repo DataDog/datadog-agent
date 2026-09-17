@@ -155,7 +155,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			flare.NewFlareController(),
 			deps.Tagger,
 			fileOpener,
-			fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
+			fileTailer.NewFingerprinterWithUnreliableMount(*fingerprintCfg, fileOpener, logsconfig.UnreliableMountEnabled(deps.Config)),
 		)
 		launchersMgr.AddLauncher(fileLauncher)
 		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))

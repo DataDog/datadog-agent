@@ -15,7 +15,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/internal/util/opener",
-        "//pkg/logs/types",
         "//pkg/util/filesystem",
         "@com_github_spf13_afero//:afero",
     ] + select({
@@ -41,55 +40,11 @@ dd_agent_go_test(
     deps = [
         "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/logs/types",
-        ],
         "@rules_go//go/platform:android": [
-            "//pkg/logs/types",
             "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/logs/types",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/logs/types",
             "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:osx": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/logs/types",
-        ],
-        "@rules_go//go/platform:windows": [
-            "//pkg/logs/types",
         ],
         "//conditions:default": [],
     }),

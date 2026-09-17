@@ -11,15 +11,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestReadDirectRangeRequiresLinux(t *testing.T) {
 	opener := NewFileOpener()
-	flags := []types.FileOpenFlag{types.FileOpenFlagDirect}
-
-	_, err := opener.ReadDirectRange("/tmp/app.log", 16, flags)
+	_, err := opener.ReadDirectRange("/tmp/app.log", 16)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Linux")
 }

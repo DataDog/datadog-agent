@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -174,7 +175,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	// draining through its already-open descriptor while a fresh open of the path
 	// fails with a stale file handle. Give that drain its own, typically longer,
 	// budget so those trailing bytes are not dropped at the shorter close_timeout.
-	if drain := unreliableMountDrainTimeout(); drain > 0 {
+	if drain := config.UnreliableMountDrainTimeout(pkgconfigsetup.Datadog()); drain > 0 {
 		closeTimeout = drain
 	}
 	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
@@ -308,23 +309,6 @@ func (t *Tailer) Stop() {
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
-}
-
-// unreliableMountDrainTimeout returns the rotation drain window to use when
-// logs_config.unreliable_mount is enabled, or 0 when it is disabled so callers
-// keep using close_timeout. It reads the keys directly (rather than the config
-// component helper) to avoid an import cycle; the semantics and default match
-// config.UnreliableMountDrainTimeout.
-func unreliableMountDrainTimeout() time.Duration {
-	cfg := pkgconfigsetup.Datadog()
-	if !cfg.GetBool("logs_config.unreliable_mount.enabled") {
-		return 0
-	}
-	timeout := cfg.GetDuration("logs_config.unreliable_mount.rotation_drain_timeout") * time.Second
-	if timeout <= 0 {
-		return 60 * time.Second
-	}
-	return timeout
 }
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout

@@ -74,11 +74,9 @@ type Launcher struct {
 	fingerprintSkips map[string]*fingerprintSkip
 	fileOpener       opener.FileOpener
 	fingerprinter    tailer.Fingerprinter
-	// openFlagsErrors surfaces open_flags (O_DIRECT) fingerprint failures on the status
-	// page. It coexists with fingerprintSkips: the map logs skip transitions to the agent
-	// log, the reporter keeps the per-file reason visible in `agent status`.
-	openFlagsErrors *openFlagsErrorReporter
-	stopOnce        sync.Once
+	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
+	fingerprintRotationErrors map[string]*config.Messages
+	stopOnce                  sync.Once
 }
 
 const (
@@ -136,7 +134,6 @@ func NewLauncher(
 		fingerprintSkips:       make(map[string]*fingerprintSkip),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
-		openFlagsErrors:        newOpenFlagsErrorReporter(),
 	}
 }
 
@@ -207,12 +204,13 @@ func (s *Launcher) run() {
 
 func (s *Launcher) resolveScan(files []*tailer.File) {
 	s.cleanUpRotatedTailers()
-	s.openFlagsErrors.reset()
+	s.clearFingerprintRotationErrors()
 	s.resolveActiveTailers(files)
 }
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
+	s.clearFingerprintRotationErrors()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
@@ -317,13 +315,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			if s.fingerprinter.ShouldFileFingerprint(tailedFile) {
 				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
 				if err != nil {
-					if directOpenFlagsActiveForFile(s.fingerprinter, tailedFile) {
-						s.openFlagsErrors.report(tailedFile, err)
-					} else {
-						// Assuming no rotation keeps the existing tailer running, which is the safe
-						// choice for a check that usually fails only while a rotation is in flight.
-						log.Debugf("Could not check %s for log rotation: %v", file.Path, err)
-					}
+					s.recordFingerprintRotationError(tailedFile, err)
 					didRotate = false
 				}
 				if didRotate {
@@ -439,14 +431,7 @@ func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bo
 
 	fingerprint, err := s.fingerprinter.ComputeFingerprint(file)
 	if err != nil || fingerprint == nil || !fingerprint.ValidFingerprint() {
-		// Agent-log skip transition (main #54680): logs once when a file starts being
-		// skipped, keyed by scan key, distinguishing "too short" from a read error.
 		s.recordFingerprintSkip(file, fingerprint, err)
-		// Status-page reason, O_DIRECT open_flags failures specifically. Both loggers run
-		// on purpose: the map talks to the agent log, the reporter to `agent status`.
-		if err != nil && directOpenFlagsActiveForFile(s.fingerprinter, file) {
-			s.openFlagsErrors.report(file, err)
-		}
 		return nil, false
 	}
 	// Fingerprint is usable again: clear any skip note opened on a previous scan.
@@ -515,15 +500,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			source.SetStatus(tailer.Source().Status())
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
+			s.clearFingerprintRotationError(file.GetScanKey())
 			tailer.ReplaceSource(source)
 			continue
 		}
 
 		fingerprint, ok := s.resolveFingerprint(file)
 		if !ok {
-			// resolveFingerprint already recorded the skip (agent log) and, for O_DIRECT
-			// open_flags failures, the status-page reason. A scan running right now was
-			// handed a copy of activeSources that predates this source, so its result will
+			// resolveFingerprint already recorded the skip in the agent log and status. A scan
+			// running right now was handed a copy of activeSources that predates this source, so its result will
 			// not mention this file; without this, that result expires the skip we just
 			// opened and we report giving up on a file we are still retrying, then open a
 			// second skip on the next scan.
@@ -545,23 +530,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 }
 
-// tailerPosition resolves where t should start reading file, and returns false
-// when the tailer must not be started at all. An offset that cannot be
-// recovered is not fatal on its own -- the fallback position is used and the
-// tailer still starts -- but open_flags that the file cannot honour are, because
-// the recovery read the offset depends on can never succeed for this file.
-func (s *Launcher) tailerPosition(file *tailer.File, t *tailer.Tailer, m config.TailingMode, fingerprint *types.Fingerprint) (int64, int, bool) {
+// tailerPosition uses the fallback position when the saved offset cannot be recovered.
+func (s *Launcher) tailerPosition(file *tailer.File, t *tailer.Tailer, m config.TailingMode, fingerprint *types.Fingerprint) (int64, int) {
 	mode := s.handleTailingModeChange(t.Identifier(), m)
 
 	offset, whence, err := Position(s.registry, t.Identifier(), mode, s.fingerprinter, s.fileOpener, fingerprint)
 	if err != nil {
-		if directOpenFlagsActiveForFile(s.fingerprinter, file) {
-			s.openFlagsErrors.report(file, err)
-			return 0, 0, false
-		}
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
-	return offset, whence, true
+	return offset, whence
 }
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
@@ -575,10 +552,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
 	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
-	offset, whence, ok := s.tailerPosition(file, tailer, m, fingerprint)
-	if !ok {
-		return false
-	}
+	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 	if err := tailer.Start(offset, whence); err != nil {
@@ -639,10 +613,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	tailer := tailer.NewTailer(tailerOptions)
 	addFingerprintConfigToTailerInfo(tailer)
 
-	offset, whence, ok := s.tailerPosition(file, tailer, m, fingerprint)
-	if !ok {
-		return false
-	}
+	offset, whence := s.tailerPosition(file, tailer, m, fingerprint)
 
 	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
 		oldInfo.Pattern != nil, file.Path, offset, whence)
@@ -679,6 +650,7 @@ func (s *Launcher) handleTailingModeChange(tailerID string, currentTailingMode c
 
 // stopTailer stops the tailer
 func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
+	s.clearFingerprintRotationError(tailer.GetID())
 	go tailer.Stop()
 	s.tailers.Remove(tailer)
 }

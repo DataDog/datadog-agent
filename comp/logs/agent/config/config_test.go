@@ -222,17 +222,13 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithIn
 	suite.Nil(config)
 }
 
-func (suite *ConfigTestSuite) TestUnreliableMountEnablesFingerprintingWithDirect() {
-	// With no fingerprint_config set, enabling unreliable_mount must turn on
-	// fingerprinting (line_checksum) with a direct read, otherwise the bundle
-	// is a silent no-op.
+func (suite *ConfigTestSuite) TestUnreliableMountFingerprintDefaults() {
 	suite.config.SetInTest("logs_config.unreliable_mount.enabled", true)
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.NotNil(config)
 	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
-	suite.Equal([]types.FileOpenFlag{types.FileOpenFlagDirect}, config.OpenFlags)
 	suite.Equal(types.DefaultLinesCount, config.Count)
 	// The direct read pulls the whole window uncached every scan, so max_bytes is
 	// defaulted far below the global 100000.
@@ -249,37 +245,34 @@ func (suite *ConfigTestSuite) TestUnreliableMountKeepsExplicitMaxBytes() {
 }
 
 func (suite *ConfigTestSuite) TestUnreliableMountKeepsExplicitStrategy() {
-	// An operator who chose byte_checksum keeps it; direct is still added.
 	suite.config.SetInTest("logs_config.unreliable_mount.enabled", true)
 	suite.config.SetInTest("logs_config.fingerprint_config.fingerprint_strategy", "byte_checksum")
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.Equal(types.FingerprintStrategyByteChecksum, config.FingerprintStrategy)
-	suite.Equal([]types.FileOpenFlag{types.FileOpenFlagDirect}, config.OpenFlags)
+	suite.Equal(types.DefaultBytesCount, config.Count)
 }
 
 func (suite *ConfigTestSuite) TestUnreliableMountRespectsExplicitDisabled() {
-	// Explicitly disabling fingerprinting wins over the bundle default, and
-	// no open_flags is injected onto a disabled strategy.
 	suite.config.SetInTest("logs_config.unreliable_mount.enabled", true)
 	suite.config.SetInTest("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
-	suite.Empty(config.OpenFlags)
 }
 
-func (suite *ConfigTestSuite) TestUnreliableMountKeepsExplicitOpenFlags() {
-	// An explicit open_flags is not overwritten.
+func (suite *ConfigTestSuite) TestUnreliableMountKeepsExplicitCountAndSkip() {
 	suite.config.SetInTest("logs_config.unreliable_mount.enabled", true)
-	suite.config.SetInTest("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
-	suite.config.SetInTest("logs_config.fingerprint_config.open_flags", []string{"direct"})
+	suite.config.SetInTest("logs_config.fingerprint_config.count", 2)
+	suite.config.SetInTest("logs_config.fingerprint_config.count_to_skip", 1)
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
-	suite.Equal([]types.FileOpenFlag{types.FileOpenFlagDirect}, config.OpenFlags)
+	suite.Equal(2, config.Count)
+	suite.Equal(1, config.CountToSkip)
+	suite.Equal(float64(1), suite.config.GetFloat64("logs_config.file_scan_period"))
 }
 
 func (suite *ConfigTestSuite) TestUnreliableMountDrainTimeout() {
@@ -293,6 +286,11 @@ func (suite *ConfigTestSuite) TestUnreliableMountDrainTimeout() {
 	// Enabled, set: the configured seconds.
 	suite.config.SetInTest("logs_config.unreliable_mount.rotation_drain_timeout", 120)
 	suite.Equal(120*time.Second, UnreliableMountDrainTimeout(suite.config))
+
+	for _, value := range []int{0, -1} {
+		suite.config.SetInTest("logs_config.unreliable_mount.rotation_drain_timeout", value)
+		suite.Equal(DefaultUnreliableMountDrainTimeout, UnreliableMountDrainTimeout(suite.config))
+	}
 }
 
 func TestConfigTestSuite(t *testing.T) {

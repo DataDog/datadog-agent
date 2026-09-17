@@ -17,8 +17,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func requireDirectIOTestFile(t *testing.T, name string, content []byte) string {
@@ -64,7 +62,6 @@ func TestReadDirectRangeWithDirect(t *testing.T) {
 	}
 	path := requireDirectIOTestFile(t, "direct.log", content)
 	opener := NewFileOpener()
-	flags := []types.FileOpenFlag{types.FileOpenFlagDirect}
 
 	tests := []struct {
 		name  string
@@ -78,7 +75,7 @@ func TestReadDirectRangeWithDirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := opener.ReadDirectRange(path, tt.count, flags)
+			got, err := opener.ReadDirectRange(path, tt.count)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
@@ -92,14 +89,6 @@ func TestReadDirectRangeReportsPermissionError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "noperm.log")
 	require.NoError(t, os.WriteFile(path, []byte("data"), 0o000))
 
-	_, err := NewFileOpener().ReadDirectRange(path, 4, []types.FileOpenFlag{types.FileOpenFlagDirect})
+	_, err := NewFileOpener().ReadDirectRange(path, 4)
 	require.ErrorIs(t, err, os.ErrPermission)
-}
-
-func TestReadDirectRangeRequiresSupportedFlags(t *testing.T) {
-	path := requireDirectIOTestFile(t, "flags.log", []byte("data"))
-	opener := NewFileOpener()
-
-	_, err := opener.ReadDirectRange(path, 4, nil)
-	require.ErrorContains(t, err, "no supported open flags")
 }

@@ -679,23 +679,6 @@ properties:
         comment: |-
           The maximum number of bytes that will be used to generate a checksum fingerprint;
           used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-      open_flags:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-        comment: |-
-          Optional Linux flags used only when opening a file to compute its fingerprint.
-          The supported value is "direct" (O_DIRECT). If the requested flags are unusable,
-          new tailers are not started. An active tailer keeps reading its open descriptor,
-          but rotation detection is unavailable until fingerprinting recovers. Affected files
-          are reported per source under "Fingerprint Open Flags Errors" in the agent status.
-          The flag only takes effect on Linux; on other platforms it is accepted and ignored.
-          Cost: a direct read pulls the whole fingerprint window (max_bytes for line mode)
-          uncached from the mount on every scan, so when setting this by hand lower
-          logs_config.fingerprint_config.max_bytes and raise logs_config.file_scan_period.
-          Prefer logs_config.unreliable_mount, which applies these defaults for you.
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean
@@ -836,38 +819,42 @@ properties:
     type: object
     visibility: public
     description: |-
-      Hardening bundle for log files on mounts that cannot keep their page cache
-      coherent or reuse file handles safely across a rotation, such as CIFS/SMB
-      (for example Azure Files) on some Linux kernels. Enabling it turns on
-      fingerprint-based rotation detection with a direct (O_DIRECT) fingerprint
-      read, plus a longer rotation drain; the mitigations are halves of the same
-      fix. If no fingerprint_config.fingerprint_strategy is set, it defaults to
-      line_checksum, which detects rotation reliably on these mounts.
-      Because the direct read is whole-window and uncached, max_bytes defaults to
-      4096 (one page) here rather than the global 100000; a large window scanned
-      every second is the expensive case. Also consider raising
-      logs_config.file_scan_period so the read happens less often.
+      Node-wide profile for log files on mounts with stale page-cache or file-handle
+      behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
+      fingerprint reads on Linux, smaller fingerprint defaults, and a separate
+      rotation drain timeout. Normal log tailing keeps buffered reads.
     properties:
       enabled:
         node_type: setting
         type: boolean
         default: false
-        comment: |-
-          When true: enable fingerprinting (defaulting fingerprint_strategy to
-          line_checksum if it is unset) with a direct (O_DIRECT) read when no
-          explicit fingerprint_config.open_flags is set, and use
-          rotation_drain_timeout as the rotation drain window in place of
-          close_timeout.
+        visibility: public
+        description: |-
+          Enable the unreliable-mount profile for all file log sources on this Agent.
+          Restart the Agent after changing this setting. On Linux, fingerprint reads
+          use O_DIRECT, including when a source overrides the checksum settings.
+          Other platforms keep buffered fingerprint reads.
+          If no global fingerprint strategy is explicitly set, use line_checksum with
+          one line. In line mode, global max_bytes defaults to 4096 unless explicitly
+          configured. Explicit checksum settings, including disabled, are preserved.
+          Use rotation_drain_timeout in place of close_timeout for rotated files.
+          A failed fingerprint prevents a new tailer from starting. An active tailer
+          keeps collecting, but cannot check fingerprint rotation until a later read
+          succeeds. Failures appear in the Agent log and status; status clears on recovery.
+          Linux does not retry a failed direct read using buffered I/O.
+          Direct reads fetch the whole fingerprint window on each scan. Scan frequency
+          is unchanged; consider raising logs_config.file_scan_period to reduce I/O.
       rotation_drain_timeout:
         node_type: setting
         type: integer
         default: 60
-        comment: |-
+        visibility: public
+        description: |-
           Seconds a tailer keeps reading a rotated file through its already-open
           descriptor before closing it, used in place of close_timeout when
           unreliable_mount.enabled is true. On these mounts a fresh open of the
-          path can fail (stale file handle) while the open descriptor still
-          drains, so this window is kept separate and typically set higher.
+          path can fail while the open descriptor still drains. Values at or below
+          zero use the 60-second default.
   use_http:
     node_type: setting
     type: boolean

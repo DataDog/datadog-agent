@@ -13,8 +13,6 @@ import (
 	"hash/crc64"
 	"io"
 	"runtime"
-	"slices"
-	"strings"
 
 	"github.com/spf13/afero"
 
@@ -60,6 +58,7 @@ type Fingerprinter interface {
 type fingerprinterImpl struct {
 	globalConfig types.FingerprintConfig
 	fileOpener   opener.FileOpener
+	directIO     bool
 }
 
 // FingerprintConfigInfo holds fingerprint configuration for status display
@@ -67,11 +66,18 @@ type FingerprintConfigInfo struct {
 	config *types.FingerprintConfig
 }
 
-// NewFingerprinter creates a new Fingerprinter with the given configuration
+// NewFingerprinter creates a fingerprinter that uses buffered reads.
 func NewFingerprinter(fingerprintConfig types.FingerprintConfig, opener opener.FileOpener) Fingerprinter {
+	return NewFingerprinterWithUnreliableMount(fingerprintConfig, opener, false)
+}
+
+// NewFingerprinterWithUnreliableMount creates a fingerprinter. The unreliable-mount profile uses
+// direct reads on Linux, independently of global or per-source checksum settings.
+func NewFingerprinterWithUnreliableMount(fingerprintConfig types.FingerprintConfig, opener opener.FileOpener, unreliableMountEnabled bool) Fingerprinter {
 	return &fingerprinterImpl{
 		globalConfig: fingerprintConfig,
 		fileOpener:   opener,
+		directIO:     unreliableMountEnabled && runtime.GOOS == "linux",
 	}
 }
 
@@ -128,8 +134,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fing
 }
 
 // computeFingerprintFromReader hashes the bytes reachable from reader, which is
-// either a buffered descriptor or a reader over a descriptor opened with
-// open_flags.
+// either a buffered descriptor or an in-memory direct-read result.
 func (f *fingerprinterImpl) computeFingerprintFromReader(reader io.ReadSeeker, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	// Determine fingerprinting strategy (line_checksum or byte_checksum)
 	strategy := fingerprintConfig.FingerprintStrategy
@@ -145,21 +150,15 @@ func (f *fingerprinterImpl) computeFingerprintFromReader(reader io.ReadSeeker, f
 	}
 }
 
-// computeFingerprint fingerprints filePath with the configured open_flags.
-//
-// When those flags turn out to be unusable for this file the error is returned
-// rather than retried without them. Silently reading through a different path
-// than the one that was asked for leaves the Agent reporting a configuration it
-// is not honouring, so an unusable open_flags setting is treated as a
-// misconfiguration for the operator to correct. The launcher reports it per
-// file on the status page.
+// computeFingerprint uses the node's I/O mode. A failed direct read is returned
+// to the launcher for reporting; it is never retried through the page cache.
 func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		log.Debugf("no fingerprint configuration resolved for %q, returning an invalid fingerprint", filePath)
 		return newInvalidFingerprint(nil), nil
 	}
 
-	if FingerprintOpenFlagsActive(fingerprintConfig) {
+	if f.directIO {
 		return f.computeFingerprintDirect(filePath, fingerprintConfig)
 	}
 
@@ -173,10 +172,10 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 	return f.computeFingerprintFromReader(fpFile, filePath, fingerprintConfig)
 }
 
-// computeFingerprintDirect reads the head of the file once with open_flags, then
+// computeFingerprintDirect reads the head of the file once with O_DIRECT, then
 // runs the shared fingerprint flow over those bytes so direct and buffered agree.
 func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	data, err := f.fileOpener.ReadDirectRange(filePath, directReadBudget(fingerprintConfig), fingerprintConfig.OpenFlags)
+	data, err := f.fileOpener.ReadDirectRange(filePath, directReadBudget(fingerprintConfig))
 	if err != nil {
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
@@ -186,12 +185,8 @@ func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprin
 // directReadBudget is how many leading bytes computeFingerprintFromReader may
 // read for cfg, so a single read from offset 0 covers it.
 //
-// Cost note (AI agents and operators): with open_flags=direct this is the exact
-// number of uncached bytes read from the mount on every scan of every matched
-// file. It is dominated by MaxBytes (line mode) or CountToSkip+Count (byte mode).
-// logs_config.unreliable_mount caps MaxBytes at 4096 for this reason; a hand-set
-// open_flags=direct keeps the 100000 default, so lower MaxBytes and raise
-// logs_config.file_scan_period there to keep this read cheap.
+// Direct I/O rounds this budget up to the filesystem alignment. Byte mode reads
+// the skipped prefix too; line mode also reserves space for its byte fallback.
 func directReadBudget(cfg *types.FingerprintConfig) int {
 	switch cfg.FingerprintStrategy {
 	case types.FingerprintStrategyByteChecksum:
@@ -204,16 +199,6 @@ func directReadBudget(cfg *types.FingerprintConfig) int {
 		// Reader falls back to the default line config here.
 		return max(defaultLinesConfig.MaxBytes, defaultBytesConfig.Count)
 	}
-}
-
-// FingerprintOpenFlagsActive reports whether configured open_flags should be
-// applied for this fingerprint read. They are Linux-only; other platforms use
-// OpenLogFile and ignore the configured flags.
-func FingerprintOpenFlagsActive(cfg *types.FingerprintConfig) bool {
-	if cfg == nil {
-		return false
-	}
-	return len(cfg.OpenFlags) > 0 && runtime.GOOS == "linux"
 }
 
 // computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
@@ -283,9 +268,7 @@ func computeFingerPrintByLines(fpFile io.ReadSeeker, filePath string, fingerprin
 					log.Warnf("Error %s occurred while trying to reset file offset", err)
 					return newInvalidFingerprint(fingerprintConfig), err
 				}
-				fallbackConfig := *defaultBytesConfig
-				fallbackConfig.OpenFlags = append([]types.FileOpenFlag(nil), fingerprintConfig.OpenFlags...)
-				return computeFingerPrintByBytes(fpFile, filePath, &fallbackConfig)
+				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
 			}
 			// Handle scanner errors
 			if err := scanner.Err(); err != nil {
@@ -317,10 +300,7 @@ func (f *fingerprinterImpl) GetEffectiveConfigForFile(file *File) *types.Fingerp
 
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
-		// Copying the struct carries every parameter, including ones added later. OpenFlags is
-		// cloned because the result outlives the call while the source can be replaced.
 		perSourceConfig := *fileFingerprintConfig
-		perSourceConfig.OpenFlags = slices.Clone(fileFingerprintConfig.OpenFlags)
 		perSourceConfig.Source = types.FingerprintConfigSourcePerSource
 		return &perSourceConfig
 	}
@@ -369,13 +349,6 @@ func (f *FingerprintConfigInfo) Info() []string {
 
 	if f.config.FingerprintStrategy == types.FingerprintStrategyLineChecksum {
 		info = append(info, fmt.Sprintf("MaxBytes: %d", f.config.MaxBytes))
-	}
-	if len(f.config.OpenFlags) > 0 {
-		flags := make([]string, len(f.config.OpenFlags))
-		for i, openFlag := range f.config.OpenFlags {
-			flags[i] = string(openFlag)
-		}
-		info = append(info, "OpenFlags: "+strings.Join(flags, ","))
 	}
 
 	return info

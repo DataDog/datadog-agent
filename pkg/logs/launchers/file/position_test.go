@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -35,7 +34,6 @@ func (f *positionFingerprinter) ComputeFingerprintFromConfig(path string, config
 	f.reads++
 	if config != nil {
 		captured := *config
-		captured.OpenFlags = append([]types.FileOpenFlag(nil), config.OpenFlags...)
 		f.config = &captured
 	}
 	if f.err != nil {
@@ -118,7 +116,7 @@ func TestPosition(t *testing.T) {
 	assert.Equal(t, io.SeekEnd, whence)
 }
 
-func TestPositionUsesCurrentOpenFlagsWithStoredFingerprintConfig(t *testing.T) {
+func TestPositionUsesStoredChecksumParameters(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "app.log")
 	require.NoError(t, os.WriteFile(path, make([]byte, 512), 0o600))
 	identifier := "file:" + path
@@ -136,7 +134,6 @@ func TestPositionUsesCurrentOpenFlagsWithStoredFingerprintConfig(t *testing.T) {
 		Config: &types.FingerprintConfig{
 			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 			Count:               2048,
-			OpenFlags:           []types.FileOpenFlag{types.FileOpenFlagDirect},
 			Source:              types.FingerprintConfigSourcePerSource,
 		},
 	}
@@ -160,17 +157,14 @@ func TestPositionUsesCurrentOpenFlagsWithStoredFingerprintConfig(t *testing.T) {
 	require.Equal(t, storedConfig.CountToSkip, usedConfig.CountToSkip)
 	require.Equal(t, storedConfig.MaxBytes, usedConfig.MaxBytes)
 	require.Equal(t, storedConfig.Source, usedConfig.Source)
-	require.Equal(t, []types.FileOpenFlag{types.FileOpenFlagDirect}, usedConfig.OpenFlags)
-	require.Empty(t, registry.GetFingerprint(identifier).Config.OpenFlags, "the persisted config must not be mutated")
+	require.Equal(t, storedConfig, registry.GetFingerprint(identifier).Config, "the persisted config must not be mutated")
 
-	if runtime.GOOS != "linux" {
-		t.Skip("open_flags fingerprint failures use the dedicated error path on Linux only")
-	}
-
-	fingerprintErr := errors.New("direct I/O rejected")
-	fingerprinter.err = fingerprintErr
-	_, _, err = Position(registry, identifier, config.Beginning, fingerprinter, opener.NewFileOpener(), currentFingerprint)
-	require.ErrorIs(t, err, fingerprintErr)
+	// A historical comparison failure does not undo a successful current fingerprint.
+	fingerprinter.err = errors.New("direct I/O rejected")
+	offset, whence, err = Position(registry, identifier, config.Beginning, fingerprinter, opener.NewFileOpener(), currentFingerprint)
+	require.NoError(t, err)
+	require.EqualValues(t, 128, offset)
+	require.Equal(t, io.SeekStart, whence)
 }
 
 // TestPositionReusesLauncherFingerprint covers the read the launcher has already
@@ -187,11 +181,8 @@ func TestPositionReusesLauncherFingerprint(t *testing.T) {
 	}
 
 	// activeConfig hashes exactly the same bytes as storedConfig; only the fields
-	// that cannot change the value differ. That is the steady state on every
-	// restart once open_flags is configured, so it is the case that has to avoid
-	// the second read.
+	// that cannot change the value differ, so the second read is unnecessary.
 	activeConfig := *storedConfig
-	activeConfig.OpenFlags = []types.FileOpenFlag{types.FileOpenFlagDirect}
 	activeConfig.Source = types.FingerprintConfigSourcePerSource
 
 	differentConfig := activeConfig

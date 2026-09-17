@@ -54,20 +54,13 @@ func offsetBeyondEndOfFile(fileOpener opener.FileOpener, path string, offset int
 // recoveryFingerprint fingerprints the file as it is now under the stored checksum
 // parameters, so the result is comparable with the stored fingerprint.
 func recoveryFingerprint(fingerprinter tailer.Fingerprinter, filePath string, storedConfig *types.FingerprintConfig, currentFingerprint *types.Fingerprint) (*types.Fingerprint, error) {
-	if storedConfig == nil || currentFingerprint == nil || currentFingerprint.Config == nil {
-		return fingerprinter.ComputeFingerprintFromConfig(filePath, storedConfig)
-	}
-
 	// Reuse avoids a second read that could catch the file mid-rotation. An invalid
 	// fingerprint means no read happened, so reusing it would falsely signal a rotation.
-	if currentFingerprint.ValidFingerprint() && storedConfig.SameChecksumParameters(currentFingerprint.Config) {
+	if currentFingerprint != nil && currentFingerprint.ValidFingerprint() && storedConfig.SameChecksumParameters(currentFingerprint.Config) {
 		return currentFingerprint, nil
 	}
 
-	// Re-read under the stored parameters, but with the currently configured open mode.
-	recoveryConfig := *storedConfig
-	recoveryConfig.OpenFlags = append([]types.FileOpenFlag(nil), currentFingerprint.Config.OpenFlags...)
-	return fingerprinter.ComputeFingerprintFromConfig(filePath, &recoveryConfig)
+	return fingerprinter.ComputeFingerprintFromConfig(filePath, storedConfig)
 }
 
 // Position returns the position from where logs should be collected.
@@ -94,9 +87,6 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		if prevFingerprint != nil {
 			newFingerprint, ferr := recoveryFingerprint(fingerprinter, filePath, prevFingerprint.Config, currentFingerprint)
 			if ferr != nil {
-				if currentFingerprint != nil && tailer.FingerprintOpenFlagsActive(currentFingerprint.Config) {
-					return 0, 0, ferr
-				}
 				// The fingerprint could not be computed, so keep trusting the stored offset rather
 				// than re-reading the file from the start and sending its contents twice.
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, ferr)
