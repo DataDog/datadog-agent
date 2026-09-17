@@ -128,28 +128,32 @@ func denyKafkaEnvVar(name string) bool {
 	return false
 }
 
-// kafkaGetConfigArgFromCommandline returns the broker properties argument passed
-// to the running Kafka JVM. It intentionally ignores command-line
+// kafkaGetConfigArgFromCommandline returns the broker properties argument
+// passed to the Kafka server launcher. It intentionally ignores command-line
 // --override values: those mutate runtime config but do not identify an
 // additional file to read.
 func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
 	args = unwrapShellCommandline(args)
-	for i, arg := range args {
-		if path.Base(arg) == "kafka.Kafka" {
-			return kafkaGetConfigArg(args[i+1:])
-		}
+	kafkaArgs, ok := kafkaGetArgs(args)
+	if !ok {
+		return "", false
 	}
-	return "", false
+	return kafkaGetConfigArg(kafkaArgs)
 }
 
 func kafkaMatchesCommandline(args []string) bool {
-	for _, arg := range unwrapShellCommandline(args) {
-		name := path.Base(arg)
-		if name == "kafka-server-start.sh" || name == "kafka-server-start" || name == "kafka.Kafka" {
-			return true
+	_, ok := kafkaGetArgs(unwrapShellCommandline(args))
+	return ok
+}
+
+func kafkaGetArgs(args []string) ([]string, bool) {
+	for i, arg := range args {
+		switch path.Base(arg) {
+		case "kafka-server-start.sh", "kafka-server-start", "kafka.Kafka":
+			return args[i+1:], true
 		}
 	}
-	return false
+	return nil, false
 }
 
 func kafkaGetConfigArg(kafkaArgs []string) (string, bool) {
