@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
-// payloadSender is the slice of the event platform forwarder this component
-// needs.
+// payloadSender is the slice of the event platform forwarder this component needs.
 type payloadSender interface {
 	SendEventPlatformEventBlocking(m *message.Message, eventType string) error
 }
@@ -29,16 +28,13 @@ type discoveryReporter interface {
 	ReportRun(namespace string, run metadata.AutodiscoveryRunMetadata) error
 }
 
-// payloadReporter sends discovery results on the network-devices-metadata
-// stream, the same transport every other NDM producer uses.
+// payloadReporter sends discovery results on the network-devices-metadata stream.
 type payloadReporter struct {
 	sender payloadSender
 	log    log.Component
 	now    func() int64
 }
 
-// compile-time assertion that payloadReporter implements discoveryReporter.
-// discoveryReporter's consumer is Task 8's sweeper.
 var _ discoveryReporter = (*payloadReporter)(nil)
 
 func newPayloadReporter(sender payloadSender, logger log.Component) *payloadReporter {
@@ -49,12 +45,9 @@ func newPayloadReporter(sender payloadSender, logger log.Component) *payloadRepo
 	}
 }
 
-// ReportDevices sends the probed addresses in batches of
-// metadata.PayloadMetadataBatchSize, matching every other NDM producer so the
-// existing intake limits hold.
+// ReportDevices sends the probed addresses in batches of metadata.PayloadMetadataBatchSize.
 func (r *payloadReporter) ReportDevices(namespace string, devices []metadata.DiscoveredDeviceMetadata) error {
-	// One collect time for every batch of a single call, matching
-	// metadata.BatchDeviceScan, so the backend sees one coherent snapshot.
+	// One collect time for every batch of a single call, matching metadata.BatchDeviceScan.
 	collectTime := r.now()
 	for start := 0; start < len(devices); start += metadata.PayloadMetadataBatchSize {
 		end := start + metadata.PayloadMetadataBatchSize

@@ -156,9 +156,6 @@ func TestSchedulerWorkerShare(t *testing.T) {
 }
 
 func TestSchedulerWorkerShareNeverExceedsTheSweeperBudget(t *testing.T) {
-	// The sweeper's semaphore only holds 4 units, so a larger share could
-	// never be acquired. The scheduler must not hand out more than the sweeper
-	// can actually grant.
 	sw := newTestSweeper(t, answerAll(), &recordingReporter{}, newMemCursorStore(), 4)
 	s := newScheduler(sw, &stubCredentialStore{}, logmock.New(t), schedulerOptions{Workers: 64, MaxAddresses: 65536})
 
@@ -296,9 +293,8 @@ func (c *blockingChecker) sawTarget(ip string) bool {
 
 func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	checker := newBlockingChecker()
-	// The worker share is deliberately smaller than the sweeper's budget. With
-	// a share equal to the budget the global semaphore alone would serialise
-	// the cycles and the test would pass without exercising the cycle chain.
+	// A share equal to the budget would let the global semaphore serialise the
+	// cycles on its own, so the cycle chain would go unexercised.
 	sw := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
 	creds := &stubCredentialStore{creds: map[string]credentials.Credential{
 		"cred-a": {ID: "cred-a", SNMPVersion: "2c", CommunityString: "public"},
@@ -314,17 +310,11 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
 	<-checker.entered
 
-	// The first cycle is stuck inside its probe. Replacing the range must not
-	// start a second cycle for the same autodiscovery ID alongside it: the two
-	// would interleave their cursor writes.
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/24")))
 	require.Never(t, func() bool { return checker.sawTarget("10.0.1.0") }, 200*time.Millisecond, 10*time.Millisecond,
 		"the replacement cycle waits for the cancelled one to unwind")
 
-	// A third replacement, while the first cycle is still stuck in its probe
-	// and the second is still waiting its turn. The chain has to stay ordered
-	// at every depth: the newest cycle must not jump ahead of the oldest one
-	// just because the cycle it directly replaces was cancelled mid-wait.
+	// A third replacement, while the first cycle is stuck and the second waits.
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.2.0/24")))
 	require.Never(t, func() bool { return checker.sawTarget("10.0.2.0") }, 200*time.Millisecond, 10*time.Millisecond,
 		"the newest cycle waits for the whole chain ahead of it, not just its immediate predecessor")
