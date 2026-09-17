@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newTestForwarder returns a TelemetryForwarder with just enough state
@@ -681,26 +682,38 @@ func TestTelemetryProxy_InflightBytesAccountingWithScrubbing(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			srv := assertingServer(t, func(_ *http.Request, _ []byte) error { return nil })
+			const requests = 10
+
+			// Signalled once per payload the upstream intake receives, so the
+			// test can wait for every forward to have happened instead of
+			// sleeping.
+			forwarded := make(chan struct{}, requests)
+			srv := assertingServer(t, func(_ *http.Request, _ []byte) error {
+				forwarded <- struct{}{}
+				return nil
+			})
 			recv := newTestReceiverFromConfig(getTestConfig(srv.URL))
 			recv.telemetryForwarder.start()
-			defer recv.telemetryForwarder.Stop()
 			recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
 			mux := recv.buildMux()
 
-			for i := 0; i < 10; i++ {
+			for i := 0; i < requests; i++ {
 				req, err := http.NewRequest("POST", "/telemetry/proxy"+apmTelemetryProxyPath, bytes.NewReader(c.body))
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, req)
-				assert.Equal(t, http.StatusOK, recordedStatusCode(rec), "request %d", i)
+				require.Equal(t, http.StatusOK, recordedStatusCode(rec), "request %d", i)
 			}
 
-			deadline := time.Now().Add(2 * time.Second)
-			for recv.telemetryForwarder.inflightCount.Load() != 0 && time.Now().Before(deadline) {
-				time.Sleep(time.Millisecond)
+			// Every payload has reached the intake, so every forward is
+			// underway; Stop then waits for the workers to finish, which is
+			// what releases the reserved bytes.
+			for i := 0; i < requests; i++ {
+				<-forwarded
 			}
+			recv.telemetryForwarder.Stop()
+
 			assert.Zero(t, recv.telemetryForwarder.inflightCount.Load(),
 				"inflight bytes must be released exactly as reserved, whatever scrubbing does to the body's length")
 		})
