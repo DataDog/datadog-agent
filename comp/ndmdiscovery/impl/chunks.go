@@ -11,9 +11,7 @@ import (
 	"net/netip"
 )
 
-// chunkSize is the number of addresses dispatched to the connectivity engine
-// in one request. A /24 is small enough to bound memory and give useful
-// progress granularity, and large enough to amortise the request overhead.
+// chunkSize is the number of addresses sent to the connectivity engine in one request.
 const chunkSize = 256
 
 // probeChunk is one unit of work: a contiguous slice of a range's addresses.
@@ -22,8 +20,8 @@ type probeChunk struct {
 	Targets []string
 }
 
-// chunkPlan enumerates the addresses of a CIDR range one chunk at a time.
-// It never materialises the whole range, so a /16 costs a 256-entry slice.
+// chunkPlan enumerates the addresses of a CIDR range one chunk at a time,
+// without materialising the whole range.
 type chunkPlan struct {
 	prefix  netip.Prefix
 	total   int
@@ -31,8 +29,7 @@ type chunkPlan struct {
 }
 
 // newChunkPlan builds a plan for cidr, excluding ignored addresses from the
-// probed targets. A range holding more than maxAddresses addresses is
-// rejected: sweeping it would take longer than any useful cycle.
+// probed targets. A range holding more than maxAddresses addresses is rejected.
 func newChunkPlan(cidr string, ignored []string, maxAddresses int) (*chunkPlan, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -56,8 +53,7 @@ func newChunkPlan(cidr string, ignored []string, maxAddresses int) (*chunkPlan, 
 	for _, raw := range ignored {
 		addr, err := netip.ParseAddr(raw)
 		if err != nil {
-			// A malformed ignore entry cannot match any enumerated address,
-			// so it is dropped rather than failing the whole range.
+			// A malformed ignore entry cannot match any enumerated address.
 			continue
 		}
 		if !p.prefix.Contains(addr) {
@@ -83,9 +79,8 @@ func (p *chunkPlan) ignoredCount() int {
 	return len(p.ignored)
 }
 
-// chunk materialises the targets of one chunk. Ignored addresses are left out,
-// so a chunk can hold fewer than chunkSize targets. An out-of-bounds index
-// yields an empty chunk.
+// chunk materialises the targets of one chunk, leaving out ignored addresses.
+// An out-of-bounds index yields an empty chunk.
 func (p *chunkPlan) chunk(index int) probeChunk {
 	c := probeChunk{Index: index}
 	if index < 0 || index >= p.chunkCount() {

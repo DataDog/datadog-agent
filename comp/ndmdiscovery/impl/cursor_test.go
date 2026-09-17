@@ -16,14 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// memCursorStore is an in-memory cursorStore for the tests in this package.
-// It is not yet exercised by a test in this file: the sweeper that drives a
-// discovery cycle (a later component, in this same package) is what will
-// use it as a fake cursorStore.
 var _ cursorStore = newMemCursorStore()
 
-// The scheduler drives one store from several per-range goroutines, so the
-// state is guarded.
+// memCursorStore is an in-memory cursorStore for the tests in this package.
 type memCursorStore struct {
 	mu     sync.Mutex
 	states map[string]cursorState
