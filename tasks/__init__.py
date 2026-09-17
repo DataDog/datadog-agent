@@ -5,6 +5,8 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
+import sys
+
 from invoke import Collection, Task
 
 from tasks import (
@@ -133,7 +135,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
-    test_new,
+    test_legacy,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -156,8 +158,15 @@ Task.__call__ = custom__call__
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(test)
-ns.add_task(test_new)
+# TODO(agent-build): make bazel-driven test task default for windows as well
+# AIX gets routed to the legacy task because it doesn't support bazel
+if sys.platform in ("win32", "aix"):
+    ns.add_task(test_legacy, name="test")
+    ns.add_task(test, name="test-new")
+else:
+    ns.add_task(test)
+    ns.add_task(test_legacy)
+
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
