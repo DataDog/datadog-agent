@@ -67,10 +67,6 @@ type TargetCommandline struct {
 	WorkingDir string
 }
 
-// UnverifiedConfigFilePath is a config file path that has not crossed the
-// runtime reader's path-validation boundary.
-type UnverifiedConfigFilePath string
-
 // VerifiedConfigFilePath is a cleaned absolute config file path without parent
 // traversal or control characters. Its fields are private so values can only
 // be created through VerifyConfigFilePath.
@@ -80,8 +76,8 @@ type VerifiedConfigFilePath struct {
 
 // VerifyConfigFilePath validates and cleans path, returning a value safe to
 // pass to a runtime reader.
-func VerifyConfigFilePath(unverified UnverifiedConfigFilePath) (VerifiedConfigFilePath, error) {
-	value, err := verifyConfigFileLocation(string(unverified))
+func VerifyConfigFilePath(unverified string) (VerifiedConfigFilePath, error) {
+	value, err := verifyConfigFileLocation(unverified)
 	if err != nil {
 		return VerifiedConfigFilePath{}, err
 	}

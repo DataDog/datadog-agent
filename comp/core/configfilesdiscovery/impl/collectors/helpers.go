@@ -109,7 +109,7 @@ func selectConfigFile(
 		runtimeWorkingDir = cleanWorkingDir(commandline.WorkingDir)
 		if configArg, found := findConfigArg(commandline.Args); found {
 			if resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
-				verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(resolvedPath))
+				verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(resolvedPath)
 				if err != nil {
 					return nil, fmt.Errorf("read explicit config file %q: %w", resolvedPath, err)
 				}
@@ -135,7 +135,7 @@ func selectConfigFile(
 		if !resolved {
 			return nil, commandlineErr
 		}
-		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(resolvedPath))
+		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(resolvedPath)
 		if err != nil {
 			return nil, fmt.Errorf("read explicit config file %q: %w", resolvedPath, err)
 		}
@@ -158,7 +158,7 @@ func selectConfigFile(
 		if !resolved {
 			return nil, commandlineErr
 		}
-		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(configPath))
+		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("read explicit config file %q: %w", configPath, err)
 		}
@@ -185,7 +185,7 @@ func selectConfigFile(
 	for _, defaultPaths := range defaultPathGroups {
 		selections := make([]configFileSelection, 0, len(defaultPaths))
 		for _, path := range defaultPaths {
-			verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(path))
+			verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(path)
 			if err != nil {
 				continue
 			}

@@ -126,7 +126,7 @@ func readMatchingConfigFiles(
 		if len(outputPath) == 0 {
 			continue
 		}
-		filePath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
+		filePath, err := VerifyConfigFilePath(string(outputPath))
 		if err != nil || !search.Contains(filePath) {
 			continue
 		}

@@ -245,7 +245,7 @@ func getTestConfigArg(args []string) (string, bool) {
 // verifyTestConfigFilePath returns a verified path or fails the current test.
 func verifyTestConfigFilePath(t testing.TB, value string) configfilesdiscoveryimpl.VerifiedConfigFilePath {
 	t.Helper()
-	verified, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(value))
+	verified, err := configfilesdiscoveryimpl.VerifyConfigFilePath(value)
 	require.NoError(t, err)
 	return verified
 }

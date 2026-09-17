@@ -55,7 +55,7 @@ func matchTestFilePattern(pattern string) ConfigFilePathMatcher {
 // verifyTestConfigFilePath returns a verified path or fails the current test.
 func verifyTestConfigFilePath(t testing.TB, value string) VerifiedConfigFilePath {
 	t.Helper()
-	verified, err := VerifyConfigFilePath(UnverifiedConfigFilePath(value))
+	verified, err := VerifyConfigFilePath(value)
 	require.NoError(t, err)
 	return verified
 }
@@ -97,11 +97,11 @@ func readConfigFileResults(t testing.TB, results []ConfigFileReadResult) []Confi
 
 func TestVerifyConfigFileLocations(t *testing.T) {
 	for _, value := range []string{"", "relative.conf", "/etc/redis/../outside.conf", "/etc/redis/control\n.conf"} {
-		_, err := VerifyConfigFilePath(UnverifiedConfigFilePath(value))
+		_, err := VerifyConfigFilePath(value)
 		require.Error(t, err)
 	}
 
-	verifiedPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath("/etc/redis/./redis.conf"))
+	verifiedPath, err := VerifyConfigFilePath("/etc/redis/./redis.conf")
 	require.NoError(t, err)
 	assert.Equal(t, "/etc/redis/redis.conf", verifiedPath.String())
 

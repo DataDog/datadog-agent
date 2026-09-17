@@ -200,7 +200,7 @@ func readSparkConfigFile(
 		if !resolved {
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
-		configPath, verifyErr := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(resolvedPath))
+		configPath, verifyErr := configfilesdiscoveryimpl.VerifyConfigFilePath(resolvedPath)
 		if verifyErr != nil {
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
@@ -261,7 +261,7 @@ func readSparkExplicitPropertiesFile(
 		return configfilesdiscoveryimpl.ConfigFile{}, false, explicitFound, runtimeWorkingDir, nil
 	}
 
-	verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(configPath))
+	verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configPath)
 	if err != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, err
 	}

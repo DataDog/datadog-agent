@@ -975,7 +975,7 @@ func (r *redisCollectorTestReader) ReadMatchingFiles(
 	}
 	var results []configfilesdiscoveryimpl.ConfigFileReadResult
 	for _, filePath := range r.findFiles[patternValue] {
-		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(filePath))
+		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(filePath)
 		if err != nil {
 			return nil, false, err
 		}
