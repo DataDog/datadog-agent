@@ -215,12 +215,19 @@ fn resolved_as(text: &str, suffix: &str, accepts: fn(&Value) -> bool) -> Result<
 
 /// `!!float` is the one tag yaml.v2 widens rather than rejects: an integer scalar becomes
 /// a float, anything non-numeric still fails.
+///
+/// The widening is not universal. `resolve`'s deferred check matches only the `int` and
+/// `int64` cases, so a magnitude that needed `ParseUint` (above `i64::MAX`) falls through
+/// to `failf`: `!!float 18446744073709551615` aborts `Unmarshal`.
 fn tagged_float(text: &str) -> Result<Value> {
     let Value::Number(number) = plain_scalar_to_value(text) else {
         bail!("cannot decode `{text}` as !!float");
     };
     if number.is_f64() {
         return Ok(Value::Number(number));
+    }
+    if number.as_i64().is_none() {
+        bail!("cannot decode `{text}` as !!float");
     }
     let widened = number
         .as_f64()
@@ -1176,6 +1183,34 @@ process_config:
             scalar("enabled: !custom yes\n"),
             Value::String("yes".into())
         );
+    }
+
+    /// `resolve`'s deferred `!!float` check widens only `int`/`int64`, so the tag accepts
+    /// an integer exactly while it fits `i64`. The gap is not intuitive: `u64::MAX` is
+    /// rejected, yet a magnitude past `u64::MAX` overflows both integer parsers, reaches
+    /// the `yamlStyleFloat` fallback and resolves as a float before the tag is checked.
+    #[test]
+    fn tagged_float_widens_only_a_signed_integer() {
+        for (text, expected) in [
+            ("9223372036854775807", 9.223372036854776e18),
+            ("0x7FFFFFFFFFFFFFFF", 9.223372036854776e18),
+            ("-9223372036854775808", -9.223372036854776e18),
+            // Already a float by the time the tag is applied.
+            ("-9223372036854775809", -9.223372036854776e18),
+            ("18446744073709551616", 1.8446744073709552e19),
+        ] {
+            let yaml = format!("enabled: !!float {text}\n");
+            assert_eq!(scalar(&yaml).as_f64(), Some(expected), "{text}");
+        }
+
+        for text in [
+            "9223372036854775808",
+            "18446744073709551615",
+            "0xFFFFFFFFFFFFFFFF",
+        ] {
+            let yaml = format!("enabled: !!float {text}\n");
+            assert!(load(&yaml).is_err(), "{text}");
+        }
     }
 
     /// yaml.v2 hands a timestamp to an `interface{}` as its original text, so a valid
