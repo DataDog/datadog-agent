@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
 var _ cursorStore = newMemCursorStore()
@@ -85,51 +84,36 @@ func TestPersistentCursorStoreClearIsIdempotent(t *testing.T) {
 }
 
 func TestRangeDigestIsStable(t *testing.T) {
-	cfg := rangeConfig{
-		CIDR:               "10.0.0.0/24",
-		IgnoredIPAddresses: []string{"10.0.0.2", "10.0.0.1"},
-	}
-	creds := []connectivity.SNMPCredential{
-		{ID: "cred-b", Version: "2c", Community: "public"},
-		{ID: "cred-a", Version: "2c", Community: "public"},
-	}
+	cfg := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.2", "10.0.0.1"}}
+	a := rangeDigest(cfg, []string{"snmp:b", "ping:a"})
 
-	a := rangeDigest(cfg, creds)
-
-	// Order must not matter: the same set yields the same digest.
-	cfg2 := rangeConfig{
-		CIDR:               "10.0.0.0/24",
-		IgnoredIPAddresses: []string{"10.0.0.1", "10.0.0.2"},
-	}
-	creds2 := []connectivity.SNMPCredential{
-		{ID: "cred-a", Version: "2c", Community: "public"},
-		{ID: "cred-b", Version: "2c", Community: "public"},
-	}
-	assert.Equal(t, a, rangeDigest(cfg2, creds2))
+	cfg2 := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1", "10.0.0.2"}}
+	assert.Equal(t, a, rangeDigest(cfg2, []string{"ping:a", "snmp:b"}))
 	assert.NotEmpty(t, a)
 }
 
-func TestRangeDigestChangesWithRangeAndCredentials(t *testing.T) {
+func TestRangeDigestChangesWithTheRangeAndTheProbes(t *testing.T) {
 	base := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1"}}
-	creds := []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c", Community: "public"}}
-	a := rangeDigest(base, creds)
+	fingerprints := []string{"snmp:one"}
+	a := rangeDigest(base, fingerprints)
 
 	changedCIDR := base
 	changedCIDR.CIDR = "10.0.1.0/24"
-	assert.NotEqual(t, a, rangeDigest(changedCIDR, creds))
+	assert.NotEqual(t, a, rangeDigest(changedCIDR, fingerprints))
 
 	changedIgnored := base
 	changedIgnored.IgnoredIPAddresses = []string{"10.0.0.9"}
-	assert.NotEqual(t, a, rangeDigest(changedIgnored, creds))
+	assert.NotEqual(t, a, rangeDigest(changedIgnored, fingerprints))
 
-	changedSecret := []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c", Community: "rotated"}}
-	assert.NotEqual(t, a, rangeDigest(base, changedSecret))
+	assert.NotEqual(t, a, rangeDigest(base, []string{"snmp:two"}),
+		"a probe option or credential change invalidates a partial cycle")
+	assert.NotEqual(t, a, rangeDigest(base, []string{"snmp:one", "ping:one"}),
+		"adding a probe invalidates a partial cycle")
 }
 
 func TestRangeDigestIgnoresInterval(t *testing.T) {
-	creds := []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c"}}
 	a := rangeConfig{CIDR: "10.0.0.0/24", IntervalSec: 3600}
 	b := rangeConfig{CIDR: "10.0.0.0/24", IntervalSec: 900}
-	assert.Equal(t, rangeDigest(a, creds), rangeDigest(b, creds),
+	assert.Equal(t, rangeDigest(a, []string{"snmp:one"}), rangeDigest(b, []string{"snmp:one"}),
 		"an interval-only change must not discard scan progress")
 }

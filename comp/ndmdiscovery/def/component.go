@@ -10,33 +10,18 @@ package ndmdiscovery
 
 // team: network-device-monitoring-core
 
-// SNMPOptions are the per-range SNMP probe knobs. A nil Retries means the
-// Agent default, which an explicit zero overrides.
-type SNMPOptions struct {
-	Port      int
-	TimeoutMs int
-	Retries   *int
-}
+import "encoding/json"
 
-// PingOptions are the per-range ICMP probe knobs.
-type PingOptions struct {
-	Count      int
-	IntervalMs int
-	TimeoutMs  int
-}
-
-// Range is one IP range to sweep. A nil PingOptions disables ping for the
-// range.
+// Range is one IP range to sweep. Probes maps a probe kind, such as "snmp", to
+// that probe's options, and a kind that is present is a kind to scan with.
 type Range struct {
 	ID                 string
 	Namespace          string
 	CIDR               string
-	CredentialIDs      []string
 	IntervalSec        int
 	IgnoredIPAddresses []string
 	Tags               []string
-	SNMPOptions        *SNMPOptions
-	PingOptions        *PingOptions
+	Probes             map[string]json.RawMessage
 }
 
 // Component is the component type.

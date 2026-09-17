@@ -7,6 +7,7 @@ package ndmdiscoveryimpl
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,9 +25,10 @@ func testRangeConfig(id, cidr string) rangeConfig {
 		AutodiscoveryID: id,
 		Namespace:       "default",
 		CIDR:            cidr,
-		CredentialIDs:   []string{"cred-a"},
 		IntervalSec:     3600,
-		SNMPOptions:     &connectivity.SNMPOptions{Port: 161, TimeoutMs: 2000, Retries: 1},
+		Probes: []probeConfig{
+			&stubProbeConfig{name: "snmp", check: connectivity.CheckSNMP, raw: `{"port":161}`},
+		},
 	}
 }
 
@@ -35,11 +37,7 @@ func newTestScheduler(t *testing.T, checker connectivityChecker, workers int64) 
 	reporter := &recordingReporter{}
 	sw := newTestSweeper(t, checker, reporter, newMemCursorStore(), workers)
 
-	creds := &stubCredentialStore{creds: map[string]credentials.Credential{
-		"cred-a": {ID: "cred-a", SNMPVersion: "2c", CommunityString: "public"},
-	}}
-
-	s := newScheduler(sw, creds, logmock.New(t), schedulerOptions{
+	s := newScheduler(sw, logmock.New(t), schedulerOptions{
 		Workers:      workers,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
@@ -67,17 +65,58 @@ func TestSchedulerSweepsOnAdd(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
-func TestSchedulerRejectsBadConfig(t *testing.T) {
-	s, _ := newTestScheduler(t, answerAll(), 10)
+func TestSchedulerKeepsARangeWhoseProbeCannotBePrepared(t *testing.T) {
+	checker := answerAll()
+	s, _ := newTestScheduler(t, checker, 10)
 	s.start(context.Background())
 	defer s.stop()
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
-	cfg.CredentialIDs = []string{"missing"}
-	err := s.set(cfg)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing")
-	assert.Equal(t, 0, s.count(), "a range whose credentials are unavailable is not scheduled")
+	cfg.Probes = []probeConfig{&stubProbeConfig{
+		name:       "snmp",
+		check:      connectivity.CheckSNMP,
+		prepareErr: errors.New("credential \"cred-a\" is not available on this agent"),
+	}}
+
+	require.NoError(t, s.set(cfg), "a missing credential no longer rejects the range")
+	assert.Equal(t, 1, s.count(), "the range keeps its schedule and self-heals when the credential arrives")
+	require.Never(t, func() bool { return len(checker.recorded()) > 0 }, 200*time.Millisecond, 10*time.Millisecond,
+		"a cycle with no usable probe sweeps nothing")
+}
+
+func TestSchedulerPreparesEveryProbeEachCycle(t *testing.T) {
+	checker := answerAll()
+	s, _ := newTestScheduler(t, checker, 10)
+	s.start(context.Background())
+	defer s.stop()
+
+	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
+	cfg.Probes = []probeConfig{
+		&stubProbeConfig{name: "ping", check: connectivity.CheckPing},
+		&stubProbeConfig{name: "snmp", check: connectivity.CheckSNMP},
+	}
+	require.NoError(t, s.set(cfg))
+
+	require.Eventually(t, func() bool { return len(checker.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, checker.recorded()[0].Checks)
+}
+
+func TestSchedulerDropsOnlyTheUnpreparableProbe(t *testing.T) {
+	checker := answerAll()
+	s, _ := newTestScheduler(t, checker, 10)
+	s.start(context.Background())
+	defer s.stop()
+
+	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
+	cfg.Probes = []probeConfig{
+		&stubProbeConfig{name: "ping", check: connectivity.CheckPing, prepareErr: errors.New("no icmp")},
+		&stubProbeConfig{name: "snmp", check: connectivity.CheckSNMP},
+	}
+	require.NoError(t, s.set(cfg))
+
+	require.Eventually(t, func() bool { return len(checker.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{connectivity.CheckSNMP}, checker.recorded()[0].Checks,
+		"one broken probe does not stop the others")
 }
 
 func TestSchedulerRejectsOversizedRange(t *testing.T) {
@@ -157,7 +196,7 @@ func TestSchedulerWorkerShare(t *testing.T) {
 
 func TestSchedulerWorkerShareNeverExceedsTheSweeperBudget(t *testing.T) {
 	sw := newTestSweeper(t, answerAll(), &recordingReporter{}, newMemCursorStore(), 4)
-	s := newScheduler(sw, &stubCredentialStore{}, logmock.New(t), schedulerOptions{Workers: 64, MaxAddresses: 65536})
+	s := newScheduler(sw, logmock.New(t), schedulerOptions{Workers: 64, MaxAddresses: 65536})
 
 	assert.Equal(t, int64(4), s.workerShare())
 }
@@ -175,40 +214,26 @@ func TestSchedulerStopIsIdempotentAndDrains(t *testing.T) {
 	assert.Equal(t, 0, s.count())
 }
 
-func TestSchedulerLoadsCredentialsPerCycle(t *testing.T) {
-	checker := answerAll()
-	sw := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
-
-	creds := &stubCredentialStore{creds: map[string]credentials.Credential{
-		"cred-a": {ID: "cred-a", SNMPVersion: "2c", CommunityString: "public"},
-	}}
-	s := newScheduler(sw, creds, logmock.New(t), schedulerOptions{
-		Workers:      10,
-		MaxAddresses: 65536,
-		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
-	})
-	s.start(context.Background())
-	defer s.stop()
-
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
-	require.Eventually(t, func() bool { return len(checker.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
-	assert.GreaterOrEqual(t, creds.loads(), 1,
-		"credentials are re-read each cycle so a Fleet rotation lands without a restart")
-}
-
-func TestSchedulerPingToggle(t *testing.T) {
+func TestSchedulerPreparesTheProbesPerCycle(t *testing.T) {
 	checker := answerAll()
 	s, _ := newTestScheduler(t, checker, 10)
-	s.setPingEnabled(true)
 	s.start(context.Background())
 	defer s.stop()
 
+	store := &stubCredentialStore{creds: map[string]credentials.Credential{
+		"cred-a": {ID: "cred-a", SNMPVersion: "2c", CommunityString: "public"},
+	}}
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
-	cfg.PingOptions = &connectivity.PingOptions{Count: 1, IntervalMs: 1000, TimeoutMs: 1000}
+	cfg.Probes = []probeConfig{&snmpConfig{
+		store:         store,
+		credentialIDs: []string{"cred-a"},
+		options:       connectivity.SNMPOptions{Port: 161, TimeoutMs: 2000, Retries: 1},
+	}}
 	require.NoError(t, s.set(cfg))
 
 	require.Eventually(t, func() bool { return len(checker.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
-	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, checker.recorded()[0].Checks)
+	assert.GreaterOrEqual(t, store.loads(), 1,
+		"credentials are re-read each cycle so a Fleet rotation lands without a restart")
 }
 
 func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
@@ -296,10 +321,7 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	// A share equal to the budget would let the global semaphore serialise the
 	// cycles on its own, so the cycle chain would go unexercised.
 	sw := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
-	creds := &stubCredentialStore{creds: map[string]credentials.Credential{
-		"cred-a": {ID: "cred-a", SNMPVersion: "2c", CommunityString: "public"},
-	}}
-	s := newScheduler(sw, creds, logmock.New(t), schedulerOptions{
+	s := newScheduler(sw, logmock.New(t), schedulerOptions{
 		Workers:      1,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
