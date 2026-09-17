@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // TODO(dsec-215): mutualize code principles with datastreams/kafka_actions.go.
@@ -255,6 +255,8 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 	host, _ := instance["host"].(string)
 	username, _ := instance["username"].(string)
 	password, _ := instance["password"].(string)
+	sslMode, _ := instance["ssl"].(string)
+
 	port, ok := instancePort(instance)
 	if !ok {
 		port = defaultPostgresPort
@@ -265,6 +267,7 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 		DBName:   e.Database,
 		Username: username,
 		Password: password,
+		SSLMode:  sslMode,
 	}
 }
 

@@ -822,6 +822,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
+        - pkg/fleet/installer/packages/**/* # https://github.com/DataDog/datadog-agent/pull/56399
         - test/new-e2e/tests/agent-platform/tests/ddot*
         - test/e2e-framework/**/*
 
