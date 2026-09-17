@@ -1,12 +1,31 @@
 ---
 # e2e stage - data security jobs
 # Owned by: sensitive-data-scanner
-# Manual-only until the tests are proven.
-# TODO(DATASEC-317): remove the manual-only flag once the suite is proven.
+
+.on_data_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO(DATASEC-328): enable once the suite covers the AD provider.
+        # - comp/core/autodiscovery/providers/datasecurity/**/*
+        # Rust check, shared-library loader, and FFI
+        - pkg/collector/sharedlibrary/**/*
+        # SDS result event-platform pipeline
+        - comp/forwarder/eventplatform/impl/pipelines_datasecurity.go
+        # Enablement gate (data_security.enabled + shared_library_check.enabled)
+        - pkg/config/utils/miscellaneous.go
+        # SDS result protobuf
+        - pkg/proto/datadog/sds/**/*
+        - pkg/proto/pbgo/sds/**/*
+        # E2E suite
+        - test/new-e2e/tests/data-security/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 new-e2e-data-security:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.on_data_security_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/data-security
