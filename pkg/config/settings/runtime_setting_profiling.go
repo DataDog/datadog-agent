@@ -10,10 +10,16 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
+
+// clcRunnerProfilingService is the profiling service name reported by a core
+// Agent running as a Cluster Check Runner (deployed as datadog-agent-cluster-worker),
+// so its profiles are filterable by service without relying on pod_name.
+const clcRunnerProfilingService = "datadog-agent-cluster-worker"
 
 // ProfilingRuntimeSetting wraps operations to change profiling at runtime
 type ProfilingRuntimeSetting struct {
@@ -88,11 +94,16 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 		tags := config.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
 		tags = profiling.GetBaseProfilingTags(tags)
 
+		service := l.Service
+		if helper.IsCLCRunner(config) {
+			service = clcRunnerProfilingService
+		}
+
 		settings := profiling.Settings{
 			ProfilingURL:         site,
 			Socket:               config.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
 			Env:                  config.GetString(l.ConfigPrefix + "env"),
-			Service:              l.Service,
+			Service:              service,
 			Period:               config.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
 			CPUDuration:          config.GetDuration(l.ConfigPrefix + "internal_profiling.cpu_duration"),
 			MutexProfileFraction: config.GetInt(l.ConfigPrefix + "internal_profiling.mutex_profile_fraction"),
