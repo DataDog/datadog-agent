@@ -18,20 +18,14 @@ import (
 
 const cursorKeyPrefix = "ndmdiscovery"
 
-// cursorState is the resumable progress of one autodiscovery cycle. A /16
-// cycle takes hours, so an agent restart must continue where it stopped
-// instead of starting the cycle again.
+// cursorState is the resumable progress of one autodiscovery cycle.
 type cursorState struct {
 	RunID        string `json:"run_id"`
 	NextChunk    int    `json:"next_chunk"`
 	Scanned      int64  `json:"scanned"`
 	StartedAtMs  int64  `json:"started_at_ms"`
 	ConfigDigest string `json:"config_digest"`
-	// Failed marks a cycle that already reported a terminal failed status for
-	// RunID. The backend keeps one terminal record per run, so resuming such a
-	// cursor must open a new run rather than complete the failed one. An older
-	// cursor without the field decodes to false, which is the pre-existing
-	// behaviour.
+	// Failed marks a cycle that already reported a terminal failed status for RunID.
 	Failed bool `json:"failed"`
 }
 
@@ -42,12 +36,9 @@ type cursorStore interface {
 	Clear(autodiscoveryID string) error
 }
 
-// persistentCursorStore stores cursors under the agent run_path. The sweeper
-// that drives a discovery cycle (a later component) depends on the
-// cursorStore interface rather than this concrete type, so this assertion is
-// what ties the two together until that consumer exists.
 var _ cursorStore = (*persistentCursorStore)(nil)
 
+// persistentCursorStore stores cursors under the agent run_path.
 type persistentCursorStore struct{}
 
 func newPersistentCursorStore() *persistentCursorStore {
@@ -55,8 +46,7 @@ func newPersistentCursorStore() *persistentCursorStore {
 }
 
 func cursorKey(autodiscoveryID string) string {
-	// persistentcache splits the key on ":" and uses the first part as the
-	// directory name, so every cursor lands in one ndmdiscovery directory.
+	// persistentcache splits the key on ":" and uses the first part as the directory name.
 	return fmt.Sprintf("%s:%s", cursorKeyPrefix, autodiscoveryID)
 }
 
@@ -86,10 +76,8 @@ func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
 	return persistentcache.Write(cursorKey(autodiscoveryID), "")
 }
 
-// rangeDigest fingerprints the parts of a range config whose change makes a
-// partial cycle meaningless: the addresses probed and the credentials used.
-// The interval is deliberately excluded, so retiming a range keeps its
-// progress.
+// rangeDigest fingerprints the addresses probed and the credentials used, so
+// that a change to either invalidates a partial cycle.
 func rangeDigest(cfg rangeConfig, creds []connectivity.SNMPCredential) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "cidr=%s\n", cfg.CIDR)

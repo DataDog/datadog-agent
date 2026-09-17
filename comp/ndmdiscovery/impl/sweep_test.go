@@ -282,9 +282,6 @@ func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 	require.True(t, ok, "the cursor is kept, even though it holds no completed chunk yet")
 	assert.Equal(t, 0, saved.NextChunk, "the interrupted chunk is not counted as done")
 	assert.False(t, saved.Failed, "a stopping agent does not end the run")
-	// NextChunk is still 0, so startState discards this cursor: an interruption
-	// during the very first chunk restarts as a fresh cycle rather than
-	// resuming, which costs at most one chunk of re-scanning.
 }
 
 func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
@@ -506,8 +503,6 @@ func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneCheck(t *testing.T)
 	res := connectivity.Result{Devices: []connectivity.DeviceResult{
 		{
 			// A device is there, but the range's credentials do not open it.
-			// This is the case the approval UI most needs to tell apart from
-			// an empty address, so it must be reported.
 			IPAddress:  "10.0.0.1",
 			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
 			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},

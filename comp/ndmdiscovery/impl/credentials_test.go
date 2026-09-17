@@ -16,9 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 )
 
-// stubCredentialStore is a credentialStore backed by a map. The scheduler
-// loads credentials from its per-range goroutines, so the call count is
-// guarded.
+// stubCredentialStore is a credentialStore backed by a map.
 type stubCredentialStore struct {
 	creds   map[string]credentials.Credential
 	loadErr error
