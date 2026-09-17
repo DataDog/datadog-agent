@@ -1,127 +1,88 @@
 # e2ectl — QA environments for the Datadog Agent
 
-Create reusable Agent test environments: provision a cluster or a container,
-install and update the Agent independently, inspect what it actually sent
-through a fakeintake, and run existing E2E tests against the live environment —
-without Pulumi for local operations (EC2 provisioning runs in a separate
-executor binary).
+Spin up a named environment (a local kind cluster, a local Agent container, or
+an EC2 VM), install and update the Agent on it independently, see what the
+Agent really sent through a fakeintake, and run your tests against the live
+environment — no Pulumi for local operations.
 
-- **Environments**: a local kind cluster, a local Agent container, or an EC2
-  VM — each named, reusable, and inspectable with `e2ectl list`.
-- **Agent lifecycle**: install once, then `update` rebuilds your working-tree
-  change and redeploys without touching infrastructure.
-- **Fakeintake**: every environment ships one; `e2ectl fakeintake` shows the
-  metrics the Agent really emitted.
-- **Tests**: `e2ectl test` runs a new-e2e suite attached to a live
-  environment — the same test bodies as CI, only the provisioning differs.
-
-## Requirements
-
-- Docker (running) and the `kind` CLI — for kind environments.
-- The `dda` CLI — only for the local-container Agent install, which builds
-  the Agent binary from your working tree.
-- An Agent API key: a runner profile at `~/.test_infra_config.yaml`, or
-  `E2E_API_KEY` (and `E2E_APP_KEY` for Helm installs) in your environment.
-  Credentials are never written into e2ectl configs.
-
-## Installation
+## Install
 
 From the repository root:
 
 ```sh
 bazel build //test/e2e-framework/cmd/e2ectl:e2ectl
-
-# Locate the executable (or use the path directly):
-bazel cquery //test/e2e-framework/cmd/e2ectl:e2ectl --output=files
+bazel cquery //test/e2e-framework/cmd/e2ectl:e2ectl --output=files   # locate it
 ```
 
-Copy it somewhere on your `PATH`, or invoke it by path. The commands below
-assume an `e2ectl` on `PATH`. EC2 environments additionally need
-`//test/e2e-framework/cmd/e2ectl-worker:e2ectl-worker` built and placed beside
-the core binary (or `E2ECTL_WORKER` set to its path).
+Copy it on your `PATH` as `e2ectl`. You also need Docker running, the `kind`
+CLI, and an Agent API key (`~/.test_infra_config.yaml` or `E2E_API_KEY`).
 
-## Quickstart: an environment with the Agent installed
-
-Five commands, ~5 minutes:
+## First environment (~5 minutes)
 
 ```sh
-# 1. What environment types exist?
-e2ectl environments
-
-# 2. Generate an annotated starter config (review the comments — versions
-#    and sizes are examples, not defaults):
-e2ectl init --base kind --output my-kind.yaml
-
-# 3. Create the environment (a kind cluster + a local fakeintake):
-e2ectl start --config my-kind.yaml --name dev
-
-# 4. Install the released Agent on it (Helm chart):
-e2ectl install --env dev
-
-# 5. See what the Agent sent:
-e2ectl fakeintake names --env dev        # metric names
-e2ectl fakeintake metrics --env dev --name system.cpu.user
+e2ectl init --base kind --output my-kind.yaml    # annotated starter config — review it
+e2ectl start --config my-kind.yaml --name dev    # kind cluster + fakeintake
+e2ectl install --env dev                        # released Agent via Helm
+e2ectl fakeintake metrics --env dev --name datadog.agent.running
 ```
 
-Other useful commands:
-
-```sh
-e2ectl list                    # your environments and their status
-e2ectl fakeintake health --env dev
-e2ectl update --env dev        # rebuild your Agent change and redeploy
-e2ectl stop --env dev           # destroy everything (cluster, fakeintake, entry)
-```
-
-Instead of a released Agent, `agent.helm.image` installs a locally built
-image, and `--base local` runs the Agent binary itself in a container on a
-private Docker network — the fastest iteration loop, with the same config
-surface.
-
-## The iteration loop
-
-The point of e2ectl: change Agent code, redeploy it, see the difference —
-infrastructure untouched:
+That's the loop: the last command shows the Agent's heartbeat — you just
+deployed a working Agent. To iterate on Agent code:
 
 ```sh
 # ...edit Agent Go code...
-e2ectl update --env dev                 # rebuild + redeploy
-e2ectl fakeintake metrics --env dev --name my.renamed.metric
+e2ectl update --env dev                # rebuild + redeploy, infrastructure untouched
 ```
 
-## Running a test against your environment
+And to clean up: `e2ectl stop --env dev` (or `e2ectl list` to see what you have).
 
-`e2ectl test` runs an existing new-e2e suite attached to a live environment —
-it resolves the environment, verifies it is ready with the Agent installed,
-exports the attach variables, and dispatches to `go test`:
+## Run tests on it
+
+`e2ectl test` runs a new-e2e suite attached to a live environment — the same
+test bodies as CI, only the provisioning differs:
 
 ```sh
-e2ectl test --env dev \
-  --suite ./test/new-e2e/tests/agent-subcommands/ \
+# the agent-health suite, against a local Agent container:
+e2ectl start  --config test/new-e2e/tests/agent-subcommands/e2ectl-local.yml --name my-health
+e2ectl install --env my-health
+e2ectl test --env my-health --suite ./test/new-e2e/tests/agent-subcommands/ \
   --run 'TestLinuxHealthSuiteOnLocal/TestDefaultInstallHealthy'
-```
 
-Attachable entry points follow the naming convention `<Test>On<Local|Host>`
-and skip themselves unless `E2ECTL_ENV` is set — so the same suite keeps
-working in CI (provisioned) and locally (attached). Complete examples live in
-the tree, config file next to the test:
-
-| Suite | Config | Entry point |
-|---|---|---|
-| agent-subcommands health | `tests/agent-subcommands/e2ectl-local.yml` | `TestLinuxHealthSuiteOnLocal` |
-| containers kindSuite (the original) | `tests/containers/e2ectl-kind.yml` | `TestKindSuiteOnLocalKind` |
-
-```sh
+# the ORIGINAL containers suite, against a local kind cluster:
 e2ectl start  --config test/new-e2e/tests/containers/e2ectl-kind.yml --name my-kind
 e2ectl install --env my-kind
 e2ectl test --env my-kind --suite ./test/new-e2e/tests/containers/ -run TestKindSuiteOnLocalKind
 ```
 
-## Writing your own test
+The config lives next to the test it serves. Attachable entry points are named
+`<Test>On<Local|Host>` and skip themselves when no environment is attached,
+so the same suites keep working in CI.
 
-A test attaches with three calls from the `e2ectlenv` helper; the body is
-plain new-e2e. Put the e2ectl config next to the test file.
+## Write your own test
 
-`mycheck/e2ectl-kind.yml` — the environment your test needs:
+An attach entry is three helper calls; the body is plain new-e2e:
+
+```go
+func TestMyCheckOnLocal(t *testing.T) {
+	envName := e2ectlenv.RequireEnv(t)     // skips when E2ECTL_ENV is unset
+	e2ectlenv.RequireSnapshot(t, envName)
+	t.Parallel()
+	e2e.Run(t, &mySuite{}, e2e.WithProvisioner(
+		e2ectlenv.Attach[environments.Kubernetes](envName),
+	))
+}
+
+func (s *mySuite) TestHeartbeat() {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.agent.running")
+		require.NoError(c, err)
+		assert.NotEmpty(c, metrics, "no heartbeat yet")
+	}, 2*time.Minute, 15*time.Second, "agent heartbeat not found")
+}
+```
+
+Put a config like this next to the test (`e2ectl-kind.yml`), then
+`start` / `install` / `test --suite <your dir>` — same as above:
 
 ```yaml
 schema: 1
@@ -134,70 +95,14 @@ agent:
     version: 7.69.0
 ```
 
-`mycheck/mycheck_test.go` — the test:
+The attached environment gives the suite its components: `FakeIntake.Client()`
+queries what the Agent sent, `KubernetesCluster` is a client-go client, and
+host environments provide `RemoteHost` for command execution (SSH on a VM,
+`docker exec` in a container — same interface). For a host-style test use
+`environments.Host` and `--base local`.
 
-```go
-package mycheck
-
-import (
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	e2ectlenv "github.com/DataDog/datadog-agent/test/new-e2e/utils/e2ectlenv"
-)
-
-// mySuite works on any Kubernetes environment with an installed Agent.
-type mySuite struct {
-	e2e.BaseSuite[environments.Kubernetes]
-}
-
-// TestMyCheckOnLocal attaches to a running e2ectl environment
-// (e2ectl test sets E2ECTL_ENV); the body is the same as any new-e2e suite.
-func TestMyCheckOnLocal(t *testing.T) {
-	envName := e2ectlenv.RequireEnv(t)          // skips when E2ECTL_ENV is unset
-	e2ectlenv.RequireSnapshot(t, envName)
-	t.Parallel()
-	e2e.Run(t, &mySuite{}, e2e.WithProvisioner(
-		e2ectlenv.Attach[environments.Kubernetes](envName),
-	))
-}
-
-// TestHeartbeat asserts the Agent is alive and flushing to the fakeintake.
-func (s *mySuite) TestHeartbeat() {
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.agent.running")
-		require.NoError(c, err, "failed to filter metrics")
-		assert.NotEmpty(c, metrics, "no heartbeat metric yet")
-	}, 2*time.Minute, 15*time.Second, "agent heartbeat not found in fakeintake")
-}
-```
-
-Run it:
-
-```sh
-e2ectl start  --config test/new-e2e/tests/mycheck/e2ectl-kind.yml --name my-dev
-e2ectl install --env my-dev
-e2ectl test --env my-dev --suite ./test/new-e2e/tests/mycheck/
-```
-
-The environment gives the suite its components through the snapshot:
-`FakeIntake.Client()` queries what the Agent sent, `KubernetesCluster` is a
-client-go client on the cluster, and on host environments `RemoteHost`
-executes commands (SSH on a VM, `docker exec` in a local container — the same
-interface). For a host-style test use `environments.Host` in `Attach[...]`
-and `--base local` in the config.
-
-## Where state lives
-
-`$E2ECTL_HOME` (default `~/.e2ectl`), one directory per environment:
-the snapshot (the single source of truth every command reattaches from),
-the kubeconfig, the stored config copy. `e2ectl list` reads it; deleting an
-environment directory is equivalent to `stop --force`.
+State lives in `$E2ECTL_HOME` (default `~/.e2ectl`), one directory per
+environment; the snapshot there is what every command reattaches from.
 
 ---
 
