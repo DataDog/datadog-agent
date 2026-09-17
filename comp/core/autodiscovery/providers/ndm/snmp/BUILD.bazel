@@ -4,7 +4,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "snmp",
     srcs = [
-        "credentials.go",
         "handler.go",
         "instance.go",
     ],
@@ -13,11 +12,10 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/ndm/credentials",
         "//comp/core/log/def",
         "//pkg/collector/corechecks/snmp",
         "//pkg/config/model",
-        "//pkg/config/structure",
-        "//pkg/snmp/gosnmplib",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -25,12 +23,12 @@ go_library(
 dd_agent_go_test(
     name = "snmp_test",
     srcs = [
-        "credentials_test.go",
         "handler_test.go",
         "instance_test.go",
     ],
     embed = [":snmp"],
     deps = [
+        "//comp/core/autodiscovery/providers/ndm/credentials",
         "//comp/core/autodiscovery/providers/ndm/handler",
         "//comp/core/log/mock",
         "//pkg/config/mock",

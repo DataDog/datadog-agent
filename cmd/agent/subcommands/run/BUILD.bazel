@@ -135,6 +135,7 @@ go_library(
         "//comp/metriclookback/def",
         "//comp/metriclookback/fx",
         "//comp/ndm/rcconfig/fx",
+        "//comp/ndmdiscovery/fx",
         "//comp/ndmtmp",
         "//comp/netflow",
         "//comp/netflow/server/def",

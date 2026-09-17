@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package snmp
+// Package credentials reads the SNMP credentials every NDM feature resolves
+// the ids delivered over Remote Configuration against.
+package credentials
 
 import (
 	"fmt"
@@ -13,11 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-const credentialsConfigKey = "network_devices.snmp_credentials"
+// ConfigKey is the configuration key holding the credentials.
+const ConfigKey = "network_devices.snmp_credentials"
 
-// credential is one entry of network_devices.snmp_credentials. The mapstructure
+// Credential is one entry of network_devices.snmp_credentials. The mapstructure
 // tags match pkg/snmp.Authentication.
-type credential struct {
+type Credential struct {
 	ID              string `mapstructure:"id"`
 	SNMPVersion     string `mapstructure:"snmp_version"`
 	CommunityString string `mapstructure:"community_string"`
@@ -27,29 +30,30 @@ type credential struct {
 	PrivProtocol    string `mapstructure:"privProtocol"`
 	PrivKey         string `mapstructure:"privKey"`
 	ContextName     string `mapstructure:"context_name"`
-	// context_engine_id is absent: the snmp check's InstanceConfig has no such field.
+	ContextEngineID string `mapstructure:"context_engine_id"`
 }
 
-// credentialStore reads the credentials from the Agent configuration.
-type credentialStore struct {
+// Store reads the credentials from the Agent configuration.
+type Store struct {
 	cfg model.Reader
 }
 
-func newCredentialStore(cfg model.Reader) *credentialStore {
-	return &credentialStore{cfg: cfg}
+// NewStore builds a store over the given configuration.
+func NewStore(cfg model.Reader) *Store {
+	return &Store{cfg: cfg}
 }
 
-// load returns the configured credentials indexed by id, re-reading the
+// Load returns the configured credentials indexed by id, re-reading the
 // configuration on every call. An entry with no id is skipped and the first
 // of two entries sharing an id wins.
-func (s *credentialStore) load() (map[string]credential, error) {
-	var entries []credential
-	if err := structure.UnmarshalKey(s.cfg, credentialsConfigKey, &entries); err != nil {
+func (s *Store) Load() (map[string]Credential, error) {
+	var entries []Credential
+	if err := structure.UnmarshalKey(s.cfg, ConfigKey, &entries); err != nil {
 		// The unmarshal error is dropped, not wrapped: it quotes the offending value.
-		return nil, fmt.Errorf("failed to read %s", credentialsConfigKey)
+		return nil, fmt.Errorf("failed to read %s", ConfigKey)
 	}
 
-	creds := make(map[string]credential, len(entries))
+	creds := make(map[string]Credential, len(entries))
 	for _, e := range entries {
 		if e.ID == "" {
 			continue
@@ -62,10 +66,9 @@ func (s *credentialStore) load() (map[string]credential, error) {
 	return creds, nil
 }
 
-// validate reports why a credential cannot produce a usable check instance,
-// through the helpers the snmp check itself uses. No credential value ever
-// reaches the returned error.
-func validate(c credential) error {
+// Validate reports why a credential cannot be used, through the helpers the
+// snmp check itself uses. No credential value ever reaches the returned error.
+func Validate(c Credential) error {
 	switch c.SNMPVersion {
 	case "1", "2c":
 		return nil

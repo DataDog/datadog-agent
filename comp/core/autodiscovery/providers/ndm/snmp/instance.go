@@ -11,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 )
 
 // keyConfig is the value of the "snmp" key of the NDM Remote Configuration
@@ -75,7 +76,7 @@ func renderInitConfig(ic initConfig) (integration.Data, error) {
 
 // renderInstance joins an address with its resolved credential into one check
 // instance.
-func renderInstance(ipAddress string, c credential) (integration.Data, error) {
+func renderInstance(ipAddress string, c credentials.Credential) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:       ipAddress,
 		SNMPVersion:     c.SNMPVersion,
