@@ -95,7 +95,7 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
 	require.NoError(t, err)
-	want := Descriptor{Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
+	want := Descriptor{FQN: testCatalogFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
 	if descriptor != want {
 		t.Fatalf("Lookup() = %#v, want %#v", descriptor, want)
 	}

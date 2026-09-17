@@ -74,23 +74,24 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 	return nil
 }
 
-func (c *remoteCatalog) Lookup(key string) (Descriptor, error) {
+func (c *remoteCatalog) Lookup(fqn string) (Descriptor, error) {
 	if c == nil {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
 	}
-	if !strings.HasPrefix(key, authoredScriptPackagePrefix) || len(key) == len(authoredScriptPackagePrefix) {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+	if !strings.HasPrefix(fqn, authoredScriptPackagePrefix) || len(fqn) == len(authoredScriptPackagePrefix) {
+		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
 	}
 
-	packageName := strings.ToLower(key)
+	packageName := strings.ToLower(fqn)
 	c.mu.RLock()
 	match, found := c.packages[packageName]
 	c.mu.RUnlock()
 	if !found {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, key)
+		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
 	}
 
 	return Descriptor{
+		FQN:     fqn,
 		Package: match.Name,
 		Version: match.Version,
 		URL:     match.URL,

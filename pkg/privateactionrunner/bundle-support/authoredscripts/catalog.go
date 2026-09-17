@@ -14,16 +14,20 @@ import (
 
 var ErrPackageNotConfigured = errors.New("authored-script package is not configured")
 
-// Descriptor identifies an immutable published artifact variant.
+// Descriptor identifies an authored script and its immutable published artifact variant.
 type Descriptor struct {
+	FQN     string
 	Package string
 	Version string
 	URL     string
 	SHA256  string
 }
 
-// Validate checks that the descriptor contains valid artifact coordinates.
+// Validate checks that the descriptor contains required identities and valid artifact coordinates.
 func (d Descriptor) Validate() error {
+	if d.FQN == "" {
+		return errors.New("authored-script FQN is required")
+	}
 	if d.Package == "" {
 		return errors.New("authored-script package is required")
 	}
@@ -45,5 +49,5 @@ func (d Descriptor) Validate() error {
 }
 
 type Catalog interface {
-	Lookup(key string) (Descriptor, error)
+	Lookup(fqn string) (Descriptor, error)
 }
