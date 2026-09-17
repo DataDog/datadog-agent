@@ -26,9 +26,9 @@ func TestDiscoveredDeviceMetadataMarshalling(t *testing.T) {
 				RunID:           "run-1",
 				IPAddress:       "10.0.0.4",
 				Name:            "router-1",
-				PingStatus:      "reachable",
-				SNMPStatus:      "reachable",
-				SNMPCredID:      "cred-a",
+				ProbeResults: []ProbeResult{
+					{Kind: "snmp", Status: "reachable", CredID: "cred-a"},
+				},
 			},
 		},
 	}
@@ -45,9 +45,7 @@ func TestDiscoveredDeviceMetadataMarshalling(t *testing.T) {
 			"run_id": "run-1",
 			"ip_address": "10.0.0.4",
 			"name": "router-1",
-			"ping_status": "reachable",
-			"snmp_status": "reachable",
-			"snmp_cred_id": "cred-a"
+			"probe_results": [{"kind": "snmp", "status": "reachable", "cred_id": "cred-a"}]
 		}]
 	}`, string(out))
 }

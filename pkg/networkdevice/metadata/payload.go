@@ -74,16 +74,12 @@ type ProbeResult struct {
 	RttMs         *int64 `json:"rtt_ms,omitempty"`
 }
 
-// DiscoveredDeviceMetadata is one address probed by an autodiscovery sweep,
-// reported whether or not it answered.
+// DiscoveredDeviceMetadata is one address an autodiscovery sweep probed.
 type DiscoveredDeviceMetadata struct {
 	AutodiscoveryID string        `json:"autodiscovery_id"`
 	RunID           string        `json:"run_id"`
 	IPAddress       string        `json:"ip_address"`
 	Name            string        `json:"name,omitempty"`
-	PingStatus      string        `json:"ping_status,omitempty"`
-	SNMPStatus      string        `json:"snmp_status,omitempty"`
-	SNMPCredID      string        `json:"snmp_cred_id,omitempty"`
 	ProbeResults    []ProbeResult `json:"probe_results,omitempty"`
 }
 
