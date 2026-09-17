@@ -422,7 +422,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	for i, node := range n.Bind {
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label: "[" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Label: "bind [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
 			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,
@@ -440,6 +440,31 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 			Color: networkColor,
 		})
 		data.Nodes[bindNode.ID] = bindNode
+	}
+
+	// prepare connect nodes
+	bindCount := uint64(len(n.Bind))
+	for i, node := range n.Connect {
+		connectNode := &utils.Node{
+			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(bindCount+uint64(i)+1)),
+			Label: "connect [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Size:  smallText,
+			Color: networkColor,
+			Shape: networkShape,
+		}
+
+		switch node.GenerationType {
+		case Runtime, Snapshot, Unknown:
+			connectNode.FillColor = networkRuntimeColor
+		case ProfileDrift:
+			connectNode.FillColor = networkProfileDriftColor
+		}
+		data.Edges = append(data.Edges, &utils.Edge{
+			From:  targetID,
+			To:    connectNode.ID,
+			Color: networkColor,
+		})
+		data.Nodes[connectNode.ID] = connectNode
 	}
 
 	return targetID

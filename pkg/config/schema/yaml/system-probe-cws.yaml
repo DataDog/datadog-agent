@@ -716,6 +716,7 @@ properties:
             - open
             - dns
             - bind
+            - connect
             items:
               type: string
           excluded_images:
@@ -727,7 +728,7 @@ properties:
           max_dump_size:
             node_type: setting
             type: integer
-            default: 2560
+            default: 3072
           sample_refresh_period:
             node_type: setting
             type: string
