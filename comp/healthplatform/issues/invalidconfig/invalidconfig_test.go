@@ -6,6 +6,7 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
@@ -77,11 +79,7 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
-// A duration setting written as a duration string (e.g. "5s") in datadog.yaml is
-// coerced by the config into a time.Duration. time.Duration marshals back to a
-// string through go-yaml, but the schema types duration fields as numbers, so the
-// checker must normalize durations to their numeric form to avoid a spurious
-// "got string, want number" violation. Regression test for the e2e diagnose suite.
+// Duration strings must remain accepted for both dotted and nested config keys.
 func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 	for _, yaml := range []string{
 		"remote_configuration.refresh_interval: 5s\n",   // flat dotted key
@@ -99,7 +97,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	requireSchema(t)
 	cfg := config.NewMock(t)
-	cfg.SetInTest("agent_ipc.port", "not-a-number")
+	cfg.SetInTest("agent_ipc.port", "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 
 	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	if err != nil {
@@ -108,7 +106,106 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
+	assert.Equal(t, "at '/agent_ipc/port': got string, want integer", reports[0].Context[contextErrorKey(0)])
+	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(issue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
+}
+
+func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
+	requireSchema(t)
+	for _, testCase := range []struct {
+		yaml string
+		want string
+	}{
+		{"forwarder_apikey_validation_interval: 61\n", ""},
+		{"forwarder_apikey_validation_interval: [61]\n", "got array, want integer"},
+		{"forwarder_apikey_validation_interval: {value: 61}\n", "got object, want integer"},
+		{"api_key: [secret]\n", "got array, want string"},
+		{"additional_endpoints: {'https://example.test': [false]}\n", "got boolean, want string"},
+		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", "got string, want integer"},
+		{"logs_enabled: ENC[enabled]\n", "got string, want boolean"},
+		{"forwarder_backoff_factor: ENC[factor]\n", "got string, want number"},
+		{"api_key: ENC[key]\n", ""},
+		{"agent_ipc: ENC[ipc]\n", "got string, want object"},
+	} {
+		t.Run(testCase.yaml, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, testCase.yaml)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			if testCase.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Contains(t, reports[0].Context[contextErrorKey(0)], testCase.want)
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
+			assert.NotContains(t, string(encoded), "ENC[")
+		})
+	}
+}
+
+func TestCheck_ResolvedSecrets(t *testing.T) {
+	requireSchema(t)
+	for _, tc := range []struct{ name, key, value, want string }{
+		{"valid_integer", "agent_ipc.port", "5001", ""},
+		{"invalid_integer", "agent_ipc.port", "SECRET_INVALID_INTEGER", "got string, want integer"},
+		{"valid_boolean", "logs_enabled", "true", ""},
+		{"invalid_boolean", "logs_enabled", "SECRET_INVALID_BOOLEAN", "got string, want boolean"},
+		{"valid_number", "forwarder_backoff_factor", "2.5", ""},
+		{"invalid_number", "forwarder_backoff_factor", "SECRET_INVALID_NUMBER", "got string, want number"},
+		{"valid_duration", "remote_configuration.refresh_interval", "5s", ""},
+		{"api_key_string", "api_key", "SECRET_API_KEY", ""},
+		{"resolved_enc_literal", "agent_ipc.port", "ENC[SECRET_LITERAL]", "got string, want integer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, tc.key+": ENC[value]\n")
+			cfg.Set(tc.key, tc.value, model.SourceSecret)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Equal(t, "at '/"+strings.ReplaceAll(tc.key, ".", "/")+"': "+tc.want, reports[0].Context[contextErrorKey(0)])
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), tc.value)
+		})
+	}
+}
+
+func TestBuildIssueReportContext_MixedViolationsAreValueFree(t *testing.T) {
+	violations := []schema.Violation{
+		{
+			Message:       "at '/agent_ipc/port': got string, want integer",
+			Path:          "/agent_ipc/port",
+			ActualType:    "string",
+			ExpectedTypes: []string{"integer"},
+		},
+		{Message: "at '/unknown': RAW_SECRET_MUST_NOT_APPEAR does not match pattern", Path: "/unknown"},
+	}
+
+	ctx := buildIssueReportContext("/etc/datadog-agent/datadog.yaml", violations)
+	assert.Equal(t, violations[0].Message, ctx[contextErrorKey(0)])
+	assert.Equal(t, "at '/unknown': configuration does not match schema", ctx[contextErrorKey(1)])
+	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(issue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "RAW_SECRET_MUST_NOT_APPEAR")
 }
 
 // Two checkers with the same hostname but different config files must not
