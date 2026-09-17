@@ -66,8 +66,7 @@ func TestBuildRollbackJob_Defaults(t *testing.T) {
 	assert.Equal(t, "prod", job.Labels[labelNamespace])
 	assert.Equal(t, "action-1", job.Annotations[helmactions.AnnotationActionID])
 
-	require.NotNil(t, job.Spec.BackoffLimit)
-	assert.Equal(t, int32(0), *job.Spec.BackoffLimit)
+	require.Nil(t, job.Spec.BackoffLimit)
 	require.NotNil(t, job.Spec.TTLSecondsAfterFinished)
 	assert.Equal(t, defaultTTLSecondsAfterFinished, *job.Spec.TTLSecondsAfterFinished)
 
