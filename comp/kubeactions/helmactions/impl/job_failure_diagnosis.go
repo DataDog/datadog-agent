@@ -75,7 +75,7 @@ func (w *jobWatcher) latestFailedContainer(
 	ctx context.Context, job *batchv1.Job,
 ) (pod *corev1.Pod, containerName, reason, message string, exitCode int32, failedAt time.Time, previous bool, err error) {
 	pods, listErr := w.client.CoreV1().Pods(job.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("job-name=%s", job.Name),
+		LabelSelector: "job-name=" + job.Name,
 	})
 	if listErr != nil {
 		return nil, "", "", "", 0, time.Time{}, false, listErr

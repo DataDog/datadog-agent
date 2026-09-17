@@ -19,11 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// jobNameLabel is the canonical label kube-controller-manager stamps onto Pods
-// owned by a Job (Kubernetes 1.27+). It lets us correlate Pods we observe
-// against the JobRecord that OnRollback registered.
-const jobNameLabel = "batch.kubernetes.io/job-name"
-
 const (
 	// ActionTTL is how long action timestamps are considered valid.
 	ActionTTL = 1 * time.Minute
