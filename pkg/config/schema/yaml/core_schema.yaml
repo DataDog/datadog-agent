@@ -1790,11 +1790,7 @@ properties:
             minimum: 1
             maximum: 9223372036
             visibility: public
-            description: |-
-              The traceroute run interval for monitored connections, in seconds without a unit suffix.
-              When explicitly configured, this setting takes precedence over pathtest_interval.
-              Must be a positive integer no greater than 9223372036.
-              If unset or invalid, pathtest_interval is used instead (default: 30m).
+            description: Traceroute interval in seconds; overrides pathtest_interval when explicitly set and valid.
           filters:
             node_type: setting
             type: array
