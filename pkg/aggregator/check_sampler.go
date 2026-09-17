@@ -287,7 +287,7 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
-	cs.series = append(cs.series, cs.sdcDownsampler.flush()...)
+	cs.series = append(cs.series, cs.sdcDownsampler.flush(cs.deregistered)...)
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 

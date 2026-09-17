@@ -68,16 +68,20 @@ func (ds *downsampledSerie) process(serie *metrics.Serie, dryRun bool, samples, 
 	samples.Add(float64(len(points)))
 	selectedCount := 0
 	for _, point := range points {
-		if point.Ts <= ds.latestTimestamp {
+		// All series serializers truncate timestamps to integer seconds. Fit
+		// the corridor at that precision so serialization cannot change the
+		// reconstructed line. Keep the original points untouched in dry-run.
+		ts := float64(int64(point.Ts))
+		if ts <= ds.latestTimestamp {
 			log.Warnf(
-				"Adaptive downsampling received non-increasing timestamp %v after %v for metric %q; passing the point through without updating SDC state",
-				point.Ts, ds.latestTimestamp, serie.Name,
+				"Adaptive downsampling received non-increasing serialized timestamp %v after %v for metric %q (input timestamp %v); passing the point through without updating SDC state",
+				ts, ds.latestTimestamp, serie.Name, point.Ts,
 			)
 		} else {
-			ds.latestTimestamp = point.Ts
+			ds.latestTimestamp = ts
 		}
 
-		breakpoint, selected := ds.downsampler.Update(point.Ts, point.Value)
+		breakpoint, selected := ds.downsampler.Update(ts, point.Value)
 		if !selected {
 			continue
 		}
@@ -206,12 +210,13 @@ func (sc *checkSDCDownsampler) expire(contextKey ckey.ContextKey) {
 // flush drains selected breakpoints every window and closes segments on a
 // shared per-check schedule, including quiet windows. Expiration forces an
 // early close without changing that schedule for the remaining contexts.
-func (sc *checkSDCDownsampler) flush() metrics.Series {
+// Retiring a sampler always closes its remaining endpoints before removal.
+func (sc *checkSDCDownsampler) flush(retiring bool) metrics.Series {
 	if sc.series == nil {
 		return nil
 	}
 	sc.flushesSinceClose++
-	forceClose := sc.flushesSinceClose >= sc.closeEveryNFlushes
+	forceClose := retiring || sc.flushesSinceClose >= sc.closeEveryNFlushes
 	if forceClose {
 		sc.flushesSinceClose = 0
 	}

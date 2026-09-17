@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -93,6 +94,20 @@ func findSDCPoints(series metrics.Series, name string) []metrics.Point {
 		points = append(points, serie.Points...)
 	}
 	return points
+}
+
+// sdcWirePoints exercises the real point serializer's timestamp precision.
+func sdcWirePoints(t *testing.T, series metrics.Series, name string) []metrics.Point {
+	t.Helper()
+	var wire []metrics.Point
+	for _, point := range findSDCPoints(series, name) {
+		encoded, err := point.MarshalJSON()
+		require.NoError(t, err)
+		var decoded metrics.Point
+		require.NoError(t, decoded.UnmarshalJSON(encoded))
+		wire = append(wire, decoded)
+	}
+	return wire
 }
 
 func TestSDC_NotEligibleCheckPassesThrough(t *testing.T) {
@@ -545,6 +560,171 @@ func TestSDC_CloseIntervalBelowOneUsesEveryFlush(t *testing.T) {
 		})
 		cs := newSDCTestSampler("invalid_interval")
 		require.Equal(t, 1, cs.sdcDownsampler.closeEveryNFlushes)
+	}
+}
+
+func TestSDC_SerializedTimestampErrorBound(t *testing.T) {
+	for _, timestamped := range []bool{false, true} {
+		name := "gauge"
+		if timestamped {
+			name = "gauge_with_timestamp"
+		}
+		t.Run(name, func(t *testing.T) {
+			setSDCTestConfig(t, map[string]interface{}{
+				"adaptive_downsampling.all":                    true,
+				"adaptive_downsampling.close_every_n_flushes":  1,
+				"adaptive_downsampling.relative_error":         0.02,
+				"adaptive_downsampling.scale_smoothing_factor": 0.3,
+			})
+			cs := newSDCTestSampler("wire_timestamps_" + name)
+			submit := func(ts, value float64) {
+				if timestamped {
+					addSDCGaugeWithTimestamp(cs, "my.gauge", value, ts, nil)
+				} else {
+					addSDCGauge(cs, "my.gauge", value, ts, nil)
+				}
+				sdcCommit(cs, ts)
+			}
+			for i := 0; i < 9; i++ {
+				submit(float64(i), 0)
+			}
+			// These points are collinear before serialization, but not after
+			// truncation: (9,0) -> (10,10) -> (11,60). The middle must survive.
+			submit(9.9, 0)
+			submit(10.1, 10)
+			submit(11.1, 60)
+			series, _ := cs.flush()
+			wire := sdcWirePoints(t, series, "my.gauge")
+			require.Contains(t, wire, metrics.Point{Ts: 10, Value: 10})
+			found := false
+			for i := 1; i < len(wire); i++ {
+				left, right := wire[i-1], wire[i]
+				if left.Ts <= 10 && right.Ts >= 10 {
+					reconstructed := left.Value + (right.Value-left.Value)*(10-left.Ts)/(right.Ts-left.Ts)
+					// EWMA is zero after warmup, then 0.3*10=3 at this sample.
+					require.InDelta(t, 10.0, reconstructed, 0.02*3)
+					found = true
+					break
+				}
+			}
+			require.True(t, found)
+		})
+	}
+}
+
+func TestSDC_SerializedBoundAcrossPeriodicFlushes(t *testing.T) {
+	for _, interval := range []int{1, 4} {
+		setSDCTestConfig(t, map[string]interface{}{
+			"adaptive_downsampling.all":                    true,
+			"adaptive_downsampling.close_every_n_flushes":  interval,
+			"adaptive_downsampling.relative_error":         0.02,
+			"adaptive_downsampling.scale_smoothing_factor": 0.3,
+		})
+		cs := newSDCTestSampler("wire_periodic")
+		var output metrics.Series
+		var samples []metrics.Point
+		var tolerances []float64
+		var scale float64
+		for i := 0; i < 240; i++ {
+			// Nonuniform fractional timestamps become evenly spaced on wire.
+			ts := float64(i) + 0.05 + 0.1*float64((i*3)%9)
+			value := 100 + 40*math.Sin(2*math.Pi*float64(i)/120) + float64((i*7)%5-2)
+			if i == 0 {
+				scale = math.Abs(value)
+			} else {
+				scale = 0.3*math.Abs(value) + 0.7*scale
+			}
+			samples = append(samples, metrics.Point{Ts: float64(int64(ts)), Value: value})
+			tolerances = append(tolerances, 0.02*scale)
+			addSDCGauge(cs, "my.gauge", value, ts, nil)
+			sdcCommit(cs, ts)
+			if (i+1)%15 == 0 {
+				series, _ := cs.flush()
+				output = append(output, series...)
+			}
+		}
+		wire := sdcWirePoints(t, output, "my.gauge")
+		require.Less(t, len(wire), len(samples))
+		endpoint := 1
+		for i, sample := range samples {
+			for endpoint < len(wire)-1 && wire[endpoint].Ts < sample.Ts {
+				endpoint++
+			}
+			left, right := wire[endpoint-1], wire[endpoint]
+			require.Greater(t, right.Ts, left.Ts)
+			require.LessOrEqual(t, left.Ts, sample.Ts)
+			require.GreaterOrEqual(t, right.Ts, sample.Ts)
+			reconstructed := left.Value + (right.Value-left.Value)*(sample.Ts-left.Ts)/(right.Ts-left.Ts)
+			require.InDelta(t, sample.Value, reconstructed, tolerances[i]+1e-9,
+				"interval=%d sample=%d", interval, i)
+		}
+	}
+}
+
+func TestSDC_SameSecondSamplesPassThrough(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		setSDCTestConfig(t, map[string]interface{}{
+			"adaptive_downsampling.all":     true,
+			"adaptive_downsampling.dry_run": dryRun,
+		})
+		cs := newSDCTestSampler("same_second")
+		for _, point := range []metrics.Point{{Ts: 100.1, Value: 1}, {Ts: 100.9, Value: 2}} {
+			addSDCGaugeWithTimestamp(cs, "my.gauge", point.Value, point.Ts, nil)
+			sdcCommit(cs, point.Ts)
+		}
+		series, _ := cs.flush()
+		require.Equal(t, []metrics.Point{{Ts: 100, Value: 1}, {Ts: 100, Value: 2}}, sdcWirePoints(t, series, "my.gauge"))
+		if dryRun {
+			require.Equal(t, []metrics.Point{{Ts: 100.1, Value: 1}, {Ts: 100.9, Value: 2}}, findSDCPoints(series, "my.gauge"),
+				"dry-run must retain the original timestamps and committed series")
+		}
+	}
+}
+
+func TestSDC_RetiringSamplerClosesEndpoint(t *testing.T) {
+	for _, finalFlush := range []bool{false, true} {
+		for _, dryRun := range []bool{false, true} {
+			name := "deregister"
+			if finalFlush {
+				name = "final_flush"
+			}
+			if dryRun {
+				name += "_dry_run"
+			}
+			t.Run(name, func(t *testing.T) {
+				setSDCTestConfig(t, map[string]interface{}{
+					"adaptive_downsampling.all":                   true,
+					"adaptive_downsampling.dry_run":               dryRun,
+					"adaptive_downsampling.close_every_n_flushes": 4,
+				})
+				cs := newSDCTestSampler("retiring_" + name)
+				for ts := 0.0; ts < 13; ts++ {
+					addSDCGauge(cs, "my.gauge", 42, ts, nil)
+					sdcCommit(cs, ts)
+				}
+				first, _ := cs.flush()
+				if dryRun {
+					require.Len(t, findSDCPoints(first, "my.gauge"), 13)
+				} else {
+					require.Len(t, findSDCPoints(first, "my.gauge"), 10)
+				}
+				before := cs.sdcDownsampler.tlmBreakpoints.Get()
+				agg := &BufferedAggregator{checkSamplers: map[checkid.ID]*CheckSampler{cs.id: cs}}
+				if !finalFlush {
+					agg.handleDeregisterSampler(cs.id)
+				}
+				var output metrics.Series
+				var sketches metrics.SketchSeriesList
+				agg.getSeriesAndSketches(time.Time{}, &output, &sketches, finalFlush)
+				require.Empty(t, agg.checkSamplers)
+				if dryRun {
+					require.Empty(t, findSDCPoints(output, "my.gauge"))
+				} else {
+					require.Equal(t, []metrics.Point{{Ts: 12, Value: 42}}, findSDCPoints(output, "my.gauge"))
+				}
+				require.EqualValues(t, 1, cs.sdcDownsampler.tlmBreakpoints.Get()-before)
+			})
+		}
 	}
 }
 

@@ -5803,9 +5803,10 @@ properties:
           variable, DD_ADAPTIVE_DOWNSAMPLING_CHECKS, is comma-separated.
 
           SDC's bounded-error guarantee requires timestamps to increase across
-          and within check commits. Non-increasing points are forwarded as-is
-          without changing downsampler state, but streams that submit arbitrary
-          past points are outside that guarantee.
+          and within check commits after truncation to integer seconds, matching
+          the precision of serialized metrics. Non-increasing points (including
+          same-second collisions) are forwarded without changing downsampler
+          state and are outside that guarantee.
       dry_run:
         node_type: setting
         type: boolean
@@ -5824,7 +5825,8 @@ properties:
           gauges. The default closes every flush; 4 skips three closes before
           forcing the fourth. Selected breakpoints still ship every flush.
           A pending endpoint can wait up to N flush intervals, including when
-          no new samples arrive. Context expiration forces an earlier close.
+          no new samples arrive. Context expiration, check deregistration, and
+          Agent shutdown force a final close.
           Dry-run uses the same schedule for measurement but ships original
           points every flush. Values below 1 are treated as 1.
       relative_error:

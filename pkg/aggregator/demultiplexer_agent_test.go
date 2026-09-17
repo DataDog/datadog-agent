@@ -298,6 +298,40 @@ func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
 	require.Equal(t, 0, lookback.calls)
 }
 
+func TestSDC_ShutdownClosesDeferredEndpointWithoutFlushingIncompleteBuckets(t *testing.T) {
+	demux, serializer := newShutdownTelemetryTestDemux(t, "hostname")
+	serializer.On("SendEvents", mock.Anything).Return(nil).Maybe()
+	stopped := false
+	t.Cleanup(func() {
+		if !stopped {
+			demux.Stop()
+		}
+	})
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":                   true,
+		"adaptive_downsampling.close_every_n_flushes": 4,
+		"dogstatsd_flush_incomplete_buckets":          false,
+	})
+	cs := newSDCTestSampler("shutdown_endpoint")
+	for ts := 0.0; ts < 13; ts++ {
+		addSDCGauge(cs, "my.gauge", 42, ts, nil)
+		sdcCommit(cs, ts)
+	}
+	first, _ := cs.flush()
+	require.Len(t, findSDCPoints(first, "my.gauge"), 10)
+	agg := demux.aggregator
+	agg.mu.Lock()
+	agg.checkSamplers[cs.id] = cs
+	agg.mu.Unlock()
+
+	// Stop synchronously executes the real final-flush path. No sleeps or
+	// polling are needed, and the next periodic close is still three flushes away.
+	demux.Stop()
+	stopped = true
+	require.Equal(t, []metrics.Point{{Ts: 12, Value: 42}}, findSDCPoints(serializer.series, "my.gauge"))
+	require.Empty(t, agg.checkSamplers)
+}
+
 func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
 	shutdownEventCh := make(chan *event.Event, 1)
