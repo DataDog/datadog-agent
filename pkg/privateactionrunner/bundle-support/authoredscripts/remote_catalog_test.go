@@ -13,6 +13,7 @@ import (
 
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -41,9 +42,7 @@ func (*testCatalogRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, boo
 func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	client := &testCatalogRCClient{}
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
-	if err != nil {
-		t.Fatalf("NewRemoteCatalog() error = %v", err)
-	}
+	require.NoError(t, err)
 	if client.subscribeCount != 1 {
 		t.Fatalf("Subscribe() calls = %d, want 1", client.subscribeCount)
 	}
@@ -70,9 +69,7 @@ func TestNewRemoteCatalogValidatesDependencies(t *testing.T) {
 func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	client := &testCatalogRCClient{}
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
-	if err != nil {
-		t.Fatalf("NewRemoteCatalog() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	pkg := validRemotePackage()
 	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{
@@ -97,9 +94,7 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	}
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
-	if err != nil {
-		t.Fatalf("Lookup() error = %v", err)
-	}
+	require.NoError(t, err)
 	want := Descriptor{Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
 	if descriptor != want {
 		t.Fatalf("Lookup() = %#v, want %#v", descriptor, want)
@@ -120,9 +115,7 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	client := &testCatalogRCClient{}
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
-	if err != nil {
-		t.Fatalf("NewRemoteCatalog() error = %v", err)
-	}
+	require.NoError(t, err)
 	valid := validRemotePackage()
 	if status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}}); status.State != state.ApplyStateAcknowledged {
 		t.Fatalf("valid apply status = %#v, want acknowledged", status)
@@ -136,9 +129,7 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	}
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
-	if err != nil {
-		t.Fatalf("Lookup() after rejected update error = %v", err)
-	}
+	require.NoError(t, err)
 	if descriptor.Version != valid.Version {
 		t.Fatalf("Lookup() version = %q, want preserved version %q", descriptor.Version, valid.Version)
 	}
@@ -147,9 +138,7 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 func TestRemoteCatalogRejectsMultipleCompatiblePackages(t *testing.T) {
 	client := &testCatalogRCClient{}
 	_, err := NewRemoteCatalog(client, testCatalogProduct)
-	if err != nil {
-		t.Fatalf("NewRemoteCatalog() error = %v", err)
-	}
+	require.NoError(t, err)
 	pkg := validRemotePackage()
 	duplicate := pkg
 	duplicate.Version = "2.0.0"
@@ -174,9 +163,7 @@ func validRemotePackage() fleetcatalog.Package {
 func applyRemoteCatalog(t *testing.T, client *testCatalogRCClient, catalog fleetcatalog.Catalog) state.ApplyStatus {
 	t.Helper()
 	payload, err := json.Marshal(catalog)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
+	require.NoError(t, err)
 
 	var status state.ApplyStatus
 	client.handler(
