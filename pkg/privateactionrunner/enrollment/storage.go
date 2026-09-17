@@ -7,7 +7,6 @@ package enrollment
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +16,6 @@ import (
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -62,7 +60,7 @@ func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 		return nil, fmt.Errorf("failed to parse identity file JSON: %w", err)
 	}
 
-	if identityContent.URN == "" {
+	if identityContent.URN == "" && !(identityContent.Pending && identityContent.AuthorizationType == WorkloadIdentityAuthorization) {
 		return nil, errors.New("URN is empty in identity file")
 	}
 	if identityContent.PrivateKey == "" {
@@ -76,27 +74,12 @@ func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 	filePath := getIdentityFilePath(cfg)
 
-	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
+	jsonData, err := encodeIdentity(result)
 	if err != nil {
-		return fmt.Errorf("failed to convert private key to JWK: %w", err)
+		return err
 	}
-	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key to JSON: %w", err)
-	}
-
-	jsonData, err := json.Marshal(PersistedIdentity{
-		PrivateKey: base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
-		URN:        result.URN,
-		Hostname:   result.Hostname,
-		APIKeyHash: result.APIKeyHash,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)
-	}
-
-	if err := os.WriteFile(filePath, jsonData, 0600); err != nil {
-		return fmt.Errorf("failed to write temporary identity file: %w", err)
+	if err := writeIdentityFile(filePath, jsonData, false); err != nil {
+		return fmt.Errorf("failed to persist runner identity: %w", err)
 	}
 
 	log.Infof("Private Runner identity successfully persisted to %s", filePath)

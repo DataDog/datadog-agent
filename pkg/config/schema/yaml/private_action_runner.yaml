@@ -91,6 +91,11 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  workload_identity_enrollment:
+    node_type: setting
+    type: boolean
+    default: false
+    description: Enroll Private Action Runner using the primary workload identity. Requires server-side enrollment eligibility.
   api_key_only_enrollment:
     node_type: setting
     type: boolean

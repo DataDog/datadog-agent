@@ -25,3 +25,10 @@ func persistIdentityToK8sSecret(_ context.Context, _ configModel.Reader, _ *Resu
 func persistIdentityToK8sSecretNoLeader(_ context.Context, _ configModel.Reader, _ *Result) error {
 	return errors.New("Kubernetes secret storage is not available in this build")
 }
+
+func isWIFLeader() (bool, error) {
+	return false, errors.New("Kubernetes identity coordination unavailable in this build")
+}
+func claimPendingK8sIdentity(context.Context, configModel.Reader, *Result) (*PersistedIdentity, error) {
+	return nil, errors.New("Kubernetes identity coordination unavailable in this build")
+}

@@ -33,12 +33,17 @@ const defaultIdentityFileName = "privateactionrunner_private_identity.json"
 
 // Result contains the result of a successful enrollment
 type Result struct {
-	PrivateKey    *ecdsa.PrivateKey
-	URN           string
-	Hostname      string
-	RunnerName    string
-	OrchClusterID string
-	APIKeyHash    string
+	AuthorizationVersion int64
+	AuthorizationType    string
+	IntakeMappingID      string
+	Provider             string
+	Pending              bool
+	PrivateKey           *ecdsa.PrivateKey
+	URN                  string
+	Hostname             string
+	RunnerName           string
+	OrchClusterID        string
+	APIKeyHash           string
 }
 
 type AgentIdentifier struct {
@@ -47,10 +52,16 @@ type AgentIdentifier struct {
 }
 
 type PersistedIdentity struct {
-	PrivateKey    string `json:"private_key"`
-	URN           string `json:"urn"`
-	Hostname      string `json:"hostname,omitempty"`
-	OrchClusterID string `json:"orch_cluster_id,omitempty"`
+	AuthorizationVersion int64  `json:"authorization_version,omitempty"`
+	AuthorizationType    string `json:"authorization_type,omitempty"`
+	IntakeMappingID      string `json:"intake_mapping_id,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Pending              bool   `json:"pending,omitempty"`
+	RunnerName           string `json:"runner_name,omitempty"`
+	PrivateKey           string `json:"private_key"`
+	URN                  string `json:"urn"`
+	Hostname             string `json:"hostname,omitempty"`
+	OrchClusterID        string `json:"orch_cluster_id,omitempty"`
 	// Hashed rather than stored raw, to avoid persisting a second live credential.
 	APIKeyHash string `json:"api_key_hash,omitempty"`
 }
@@ -81,7 +92,7 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 // Re-enrollment is only supported for the node agent: the cluster agent's identity is
 // shared across replicas via a K8s secret, so re-enrolling from one replica could race with others.
 func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
-	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
+	if identity == nil || identity.AuthorizationType == WorkloadIdentityAuthorization || flavor.GetFlavor() == flavor.ClusterAgent {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
