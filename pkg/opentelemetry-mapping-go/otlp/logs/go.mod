@@ -11,7 +11,6 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.12.1
-	github.com/twmb/murmur3 v1.2.0
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
 	go.opentelemetry.io/collector/pdata v1.65.0
