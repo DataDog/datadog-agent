@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::identity::RunnerIdentity;
 use crate::opms::{ProxyDecision, TlsConfig};
 use anyhow::{Context, Result, ensure};
 use regex::Regex;
@@ -46,14 +47,13 @@ pub struct Config {
     pub opms_request_timeout: Duration,
     pub opms_extra_headers: HashMap<String, String>,
     pub opms_proxy: ProxyDecision,
-    pub tls: TlsConfig,
+    pub opms_tls: TlsConfig,
     pub min_backoff: Duration,
     pub max_backoff: Duration,
     pub wait_before_retry: Duration,
     pub max_attempts: u32,
     pub runner_version: String,
     pub modes: Vec<String>,
-    pub ipc_cert_file: PathBuf,
     pub identity: Identity,
 }
 
@@ -79,70 +79,33 @@ struct AgentProxyConfig {
     no_proxy: Vec<String>,
 }
 
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-pub struct BootstrapConfig {
-    pub split_mode: bool,
-    pub log_level: String,
-    identity: BootstrapIdentity,
-    agent_version: String,
-    pub cmd_port: u16,
-    pub auth_token_file_path: String,
-    pub ipc_cert_file_path: String,
+pub fn log_level(agent: &GenericConfiguration) -> Result<log::LevelFilter> {
+    let level: String = agent
+        .get_typed("log_level")
+        .context("invalid log_level configuration from the Core Agent")?;
+    Ok(match level.trim().to_ascii_lowercase().as_str() {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "error" | "critical" => log::LevelFilter::Error,
+        "off" => log::LevelFilter::Off,
+        _ => log::LevelFilter::Info,
+    })
 }
 
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-struct BootstrapIdentity {
-    urn: String,
-    private_key: String,
-    org_id: i64,
-    runner_id: String,
+pub fn split_mode(agent: &GenericConfiguration) -> Result<bool> {
+    let par: AgentParConfig = agent
+        .get_typed("private_action_runner")
+        .context("invalid private_action_runner configuration from the Core Agent")?;
+    Ok(par.enabled && par.split_enabled)
 }
 
-impl BootstrapConfig {
-    pub fn log_level(&self) -> log::LevelFilter {
-        match self.log_level.trim().to_ascii_lowercase().as_str() {
-            "trace" => log::LevelFilter::Trace,
-            "debug" => log::LevelFilter::Debug,
-            "warn" | "warning" => log::LevelFilter::Warn,
-            "error" | "critical" => log::LevelFilter::Error,
-            "off" => log::LevelFilter::Off,
-            _ => log::LevelFilter::Info,
-        }
-    }
-
-    pub fn into_config(
-        self,
+impl Config {
+    pub fn new(
         agent: &GenericConfiguration,
         dd_url_explicit: bool,
-    ) -> Result<Config> {
-        ensure!(
-            self.split_mode,
-            "bootstrap configuration has split mode disabled"
-        );
-        for (name, value) in [
-            ("log_level", self.log_level.as_str()),
-            ("identity.urn", self.identity.urn.as_str()),
-            ("identity.private_key", self.identity.private_key.as_str()),
-            ("identity.runner_id", self.identity.runner_id.as_str()),
-            ("agent_version", self.agent_version.as_str()),
-            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
-        ] {
-            ensure!(
-                !value.is_empty(),
-                "bootstrap configuration is missing {name}"
-            );
-        }
-        ensure!(
-            self.identity.org_id > 0,
-            "bootstrap configuration is missing identity.org_id"
-        );
-        ensure!(
-            self.cmd_port > 0,
-            "bootstrap configuration is missing cmd_port"
-        );
-
+        resolved_identity: RunnerIdentity,
+    ) -> Result<Self> {
         let par: AgentParConfig = agent
             .get_typed("private_action_runner")
             .context("invalid private_action_runner configuration from the Core Agent")?;
@@ -160,6 +123,7 @@ impl BootstrapConfig {
             "private_action_runner.executor.socket_path is empty"
         );
 
+        let identity = parse_identity(resolved_identity)?;
         let opms_base_url = opms_base_url(
             agent,
             std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
@@ -184,7 +148,7 @@ impl BootstrapConfig {
             opms_request_timeout: OPMS_REQUEST_TIMEOUT,
             opms_extra_headers: par.opms_extra_headers,
             opms_proxy,
-            tls: TlsConfig {
+            opms_tls: TlsConfig {
                 skip_ssl_validation: agent
                     .get_typed("skip_ssl_validation")
                     .context("invalid skip_ssl_validation configuration from the Core Agent")?,
@@ -194,17 +158,35 @@ impl BootstrapConfig {
             max_backoff: MAX_BACKOFF,
             wait_before_retry: WAIT_BEFORE_RETRY,
             max_attempts: MAX_ATTEMPTS,
-            runner_version: self.agent_version,
+            runner_version: crate::agent_version().to_string(),
             modes: vec!["pull".to_string()],
-            ipc_cert_file: self.ipc_cert_file_path.into(),
-            identity: Identity {
-                urn: self.identity.urn,
-                private_key: self.identity.private_key,
-                org_id: self.identity.org_id,
-                runner_id: self.identity.runner_id,
-            },
+            identity,
         })
     }
+}
+
+fn parse_identity(resolved: RunnerIdentity) -> Result<Identity> {
+    let parts: Vec<_> = resolved.urn.split(':').collect();
+    ensure!(parts.len() == 7, "invalid Private Action Runner URN");
+    let org_id = parts[5]
+        .parse::<i64>()
+        .context("invalid organization ID in Private Action Runner URN")?;
+    ensure!(
+        org_id > 0,
+        "invalid organization ID in Private Action Runner URN"
+    );
+    ensure!(
+        !parts[6].is_empty(),
+        "Private Action Runner URN has no runner ID"
+    );
+    let runner_id = parts[6].to_string();
+
+    Ok(Identity {
+        urn: resolved.urn,
+        private_key: resolved.private_key,
+        org_id,
+        runner_id,
+    })
 }
 
 fn opms_base_url(
@@ -215,10 +197,10 @@ fn opms_base_url(
     let dd_url: String = agent
         .get_typed("dd_url")
         .context("invalid dd_url configuration from the Core Agent")?;
-    if use_dd_url {
+    if use_dd_url && !dd_url.is_empty() {
         return endpoint_origin(&dd_url);
     }
-    if dd_url_explicit {
+    if dd_url_explicit && !dd_url.is_empty() {
         let site = site_from_datadog_url(&dd_url)
             .context("explicit dd_url does not contain a recognized Datadog site")?;
         return Ok(format!("https://api.{site}"));
@@ -306,15 +288,12 @@ mod tests {
     use serde_json::json;
     use tokio::sync::mpsc;
 
-    const JSON: &str = r#"{
-        "split_mode": true,
-        "log_level": "debug",
-        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
-        "agent_version":"7.76.0",
-        "cmd_port":5001,
-        "auth_token_file_path":"/etc/datadog-agent/auth_token",
-        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem"
-    }"#;
+    fn resolved_identity() -> RunnerIdentity {
+        RunnerIdentity {
+            urn: "urn:dd:apps:on-prem-runner:us5:42:runner".to_string(),
+            private_key: "key".to_string(),
+        }
+    }
 
     async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
         agent_config_values(
@@ -347,6 +326,7 @@ mod tests {
         nonexact: bool,
     ) -> GenericConfiguration {
         let settings = [
+            ConfigSetting::explicit("log_level", json!("debug")),
             ConfigSetting::explicit("private_action_runner.enabled", json!(true)),
             ConfigSetting::explicit("private_action_runner.split_enabled", json!(true)),
             ConfigSetting::explicit(
@@ -384,14 +364,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn combines_bootstrap_and_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        assert!(bootstrap.split_mode);
-        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
+    async fn combines_identity_and_core_agent_configuration() {
+        let agent = agent_config(9).await;
+        assert!(split_mode(&agent).unwrap());
+        assert_eq!(log_level(&agent).unwrap(), log::LevelFilter::Debug);
 
-        let config = bootstrap
-            .into_config(&agent_config(9).await, false)
-            .unwrap();
+        let config = Config::new(&agent, false, resolved_identity()).unwrap();
 
         assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
         assert_eq!(
@@ -401,17 +379,17 @@ mod tests {
         assert_eq!(config.task_concurrency, 9);
         assert_eq!(config.executor_socket, PathBuf::from("/from-agent.sock"));
         assert_eq!(config.opms_extra_headers["X-Test"], "agent");
-        assert!(config.tls.skip_ssl_validation);
-        assert_eq!(config.tls.min_tls_version, "tlsv1.3");
+        assert!(config.opms_tls.skip_ssl_validation);
+        assert_eq!(config.opms_tls.min_tls_version, "tlsv1.3");
         assert_eq!(config.loop_interval, Duration::from_secs(1));
+        assert_eq!(config.runner_version, crate::agent_version());
         assert_eq!(config.identity.org_id, 42);
+        assert_eq!(config.identity.runner_id, "runner");
     }
 
     #[tokio::test]
     async fn rejects_invalid_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        let error = bootstrap
-            .into_config(&agent_config(0).await, false)
+        let error = Config::new(&agent_config(0).await, false, resolved_identity())
             .err()
             .unwrap()
             .to_string();
@@ -457,6 +435,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn empty_dd_url_falls_back_to_site() {
+        let agent = agent_config_values(5, "", json!([]), false).await;
+        assert_eq!(
+            opms_base_url(&agent, false, true).unwrap(),
+            "https://api.datadoghq.com"
+        );
+        assert_eq!(
+            opms_base_url(&agent, true, true).unwrap(),
+            "https://api.datadoghq.com"
+        );
+    }
+
+    #[tokio::test]
     async fn uses_dd_url_for_internal_tests() {
         let fakeintake =
             agent_config_values(5, "http://fakeintake:8080/path", json!([]), false).await;
@@ -464,11 +455,5 @@ mod tests {
             opms_base_url(&fakeintake, true, true).unwrap(),
             "http://fakeintake:8080"
         );
-    }
-
-    #[test]
-    fn rejects_unknown_bootstrap_fields() {
-        let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
-        assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
     }
 }

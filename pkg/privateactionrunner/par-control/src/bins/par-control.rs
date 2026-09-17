@@ -5,25 +5,32 @@
 
 use anyhow::Result;
 use clap::Parser;
-use par_control::bootstrap;
+use datadog_agent_commons::{
+    ipc::config::{IpcAuthConfiguration, RemoteAgentClientConfiguration},
+    platform::PlatformSettings,
+};
 use par_control::executor::ExecutorDispatcher;
+use par_control::identity;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
 use par_control::remote_config;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(
-        long = "bootstrap-command",
-        num_args = 1..,
-        allow_hyphen_values = true
-    )]
-    bootstrap_command: Vec<String>,
+    #[arg(long)]
+    cfgpath: Option<PathBuf>,
+    #[arg(long)]
+    cmd_port: Option<u16>,
+    #[arg(long)]
+    auth_token_file: Option<PathBuf>,
+    #[arg(long)]
+    ipc_cert_file: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -52,18 +59,37 @@ async fn run() -> Result<()> {
     }
     log::set_max_level(log::LevelFilter::Info);
 
-    let bootstrapped = bootstrap::run_bootstrap(&cli.bootstrap_command)?;
-    log::set_max_level(bootstrapped.log_level());
+    par_control::tls::initialize_crypto_provider()?;
+    let config_path = cli
+        .cfgpath
+        .unwrap_or_else(PlatformSettings::get_config_file_path);
+    let bootstrap = par_control::bootstrap_ipc::load(&config_path)?;
+    let auth_token_file = cli
+        .auth_token_file
+        .or(bootstrap.auth_token_file_path)
+        .unwrap_or_default();
+    let ipc_cert_file = par_control::bootstrap_ipc::ipc_cert_file_path(
+        cli.ipc_cert_file.or(bootstrap.ipc_cert_file_path),
+        &auth_token_file,
+    );
+    let ipc = RemoteAgentClientConfiguration {
+        cmd_port: cli.cmd_port.or(bootstrap.cmd_port).unwrap_or(5001),
+        auth: IpcAuthConfiguration::new(auth_token_file, ipc_cert_file),
+        grpc_max_message_size: 128 * 1024 * 1024,
+        #[cfg(target_os = "linux")]
+        vsock_cid: None,
+    };
+    let (agent_config, dd_url_explicit) = remote_config::load(&ipc).await?;
+    log::set_max_level(par_control::config::log_level(&agent_config)?);
 
-    if !bootstrapped.split_mode {
+    if !par_control::config::split_mode(&agent_config)? {
         log::info!("private_action_runner split mode is disabled; exiting");
         return Ok(());
     }
 
-    par_control::tls::initialize_crypto_provider()?;
-
-    let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
-    let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
+    let resolved_identity = identity::resolve(&ipc, bootstrap.configured_identity.as_ref()).await?;
+    let config =
+        par_control::config::Config::new(&agent_config, dd_url_explicit, resolved_identity)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
@@ -79,7 +105,7 @@ async fn run() -> Result<()> {
             modes: config.modes.clone(),
             timeout: config.opms_request_timeout,
             proxy: config.opms_proxy.clone(),
-            tls: config.tls.clone(),
+            tls: config.opms_tls.clone(),
             extra_headers: config.opms_extra_headers.clone(),
         },
     )?);
@@ -89,7 +115,7 @@ async fn run() -> Result<()> {
     ));
     let dispatcher = Arc::new(ExecutorDispatcher::new(
         &config.executor_socket,
-        Some(&config.ipc_cert_file),
+        Some(ipc.auth.ipc_cert_file_path()),
     ));
 
     let params = Params::from_config(&config);
@@ -102,7 +128,7 @@ async fn run() -> Result<()> {
         config.opms_base_url,
         config.executor_socket.display(),
         config.procmgr_socket.display(),
-        config.ipc_cert_file.display(),
+        ipc.auth.ipc_cert_file_path().display(),
     );
 
     orchestrator.run(shutdown_signal()).await;
