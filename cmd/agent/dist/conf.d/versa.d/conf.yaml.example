@@ -97,8 +97,8 @@ instances:
     #   - <TENANT_NAME_1>
     #   - <TENANT_NAME_2>
 
-    ## @param included_devices - list of strings - optional
-    ## List of appliance names to include. If specified, only these appliances are
+    ## @param included_devices - list of strings or mappings - optional
+    ## List of appliances to include. If specified, only these appliances are
     ## monitored and every other appliance is skipped. Names are matched
     ## case-insensitively against the appliance name reported by the Director.
     ##
@@ -109,6 +109,17 @@ instances:
     # included_devices:
     #   - <DEVICE_NAME_1>
     #   - <DEVICE_NAME_2>
+    ##
+    ## An entry may instead be a mapping with a name and a set of tags, which are
+    ## attached to that device's metadata as "key:value" tags. The two forms can be
+    ## mixed in the same list.
+    #
+    # included_devices:
+    #   - <DEVICE_NAME_1>
+    #   - name: <DEVICE_NAME_2>
+    #     tags:
+    #       <TAG_KEY_1>: <TAG_VALUE_1>
+    #       <TAG_KEY_2>: <TAG_VALUE_2>
 
     ## @param excluded_devices - list of strings - optional
     ## List of appliance names to exclude from monitoring. Applied after
