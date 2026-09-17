@@ -550,6 +550,17 @@ fn mapping_from_pairs(pairs: HashMap<String, Value>) -> Value {
 /// a mapping is not comparable, so yaml.v2 aborts with `invalid map key` rather than
 /// inventing one. Returning an empty key instead would leave the rest of a file the
 /// Agent rejects readable, and a gate could act on it.
+///
+/// Known limitation: the text of a key that is not already a string can differ from the
+/// Agent's, because the Agent's own text depends on nesting depth. `readConfigurationContent`
+/// unmarshals into `map[string]interface{}`, so a top-level key is decoded into a `string`
+/// and yaml.v2 hands it the raw source text (`yes` stays `"yes"`, and a null-resolving key
+/// becomes `""`). Below the top level the value is an `interface{}`, so yaml.v2 builds a
+/// `map[interface{}]interface{}` with a resolved key, which `ToMapStringInterface` then
+/// renders with Go's `%v` (`yes` becomes `"true"`, `~` becomes `"<nil>"`). Reproducing both
+/// would mean tracking depth here and reimplementing Go float formatting, for keys no gate
+/// asks about: every setting a gate looks up is a schema name, never a YAML 1.1 keyword or
+/// a number.
 fn scalar_as_key(value: Value) -> Result<String> {
     match value {
         Value::String(text) => Ok(text),
@@ -579,20 +590,16 @@ fn allowed_alias_ratio(node_count: usize) -> f64 {
     }
 }
 
-fn count_nodes(value: &Value) -> usize {
-    match value {
-        Value::Mapping(mapping) => 1 + mapping.values().map(count_nodes).sum::<usize>(),
-        Value::Sequence(items) => 1 + items.iter().map(count_nodes).sum::<usize>(),
-        _ => 1,
-    }
-}
-
 /// Event-driven document builder. Mapping keys go through a [`HashMap`] so duplicate
 /// keys last-win, matching Go `yaml.Unmarshal`.
 #[derive(Default)]
 struct Builder {
     stack: Vec<Frame>,
     anchors: HashMap<usize, Value>,
+    /// What expanding each anchor costs, in `d.unmarshal` calls. Kept alongside the
+    /// value rather than recomputed from it, because a materialized subtree no longer
+    /// shows the alias nodes inside it that yaml.v2 charges for.
+    anchor_costs: HashMap<usize, usize>,
     root: Option<Value>,
     /// Nodes materialized so far, and how many of them came from expanding an alias.
     node_count: usize,
@@ -604,10 +611,13 @@ enum Frame {
         pairs: HashMap<String, Value>,
         pending: Pending,
         anchor: usize,
+        /// Running `d.unmarshal` cost of everything read into this mapping so far.
+        cost: usize,
     },
     Sequence {
         items: Vec<Value>,
         anchor: usize,
+        cost: usize,
     },
 }
 
@@ -677,17 +687,20 @@ impl Builder {
                 pairs: HashMap::new(),
                 pending: Pending::Key,
                 anchor,
+                cost: 0,
             }),
             Event::MappingEnd => self.finish_mapping()?,
             Event::SequenceStart(anchor, _) => self.stack.push(Frame::Sequence {
                 items: Vec::new(),
                 anchor,
+                cost: 0,
             }),
             Event::SequenceEnd => self.finish_sequence()?,
             Event::Scalar(text, style, anchor, tag) => {
                 let value = scalar_to_value(&text, style, tag.as_deref())?;
-                self.store_anchor(anchor, &value);
+                self.store_anchor(anchor, &value, 1);
                 self.attach(value, can_be_merge_key(style, tag.as_deref()))?;
+                self.credit_cost(1);
             }
             Event::Alias(anchor) => {
                 let value = self
@@ -695,12 +708,13 @@ impl Builder {
                     .get(&anchor)
                     .with_context(|| format!("unknown YAML alias anchor {anchor}"))?
                     .clone();
-                // An alias materializes its whole anchored subtree. `attach` charges the
-                // alias node itself, so the rest of the clone is charged here and
-                // attributed to aliasing.
-                let expanded = count_nodes(&value) - 1;
+                let expanded = self.anchor_costs.get(&anchor).copied().unwrap_or(1);
+                // `d.alias` raises `aliasDepth` before unmarshalling the anchored root,
+                // so the root and everything under it is alias-attributed. `attach` then
+                // charges the alias node itself, which is not.
                 self.charge_nodes(expanded, expanded)?;
                 self.attach(value, false)?;
+                self.credit_cost(expanded + 1);
             }
         }
         Ok(())
@@ -708,36 +722,55 @@ impl Builder {
 
     fn finish_mapping(&mut self) -> Result<()> {
         let frame = self.stack.pop().context("unexpected YAML mapping end")?;
-        let (pairs, anchor) = match frame {
+        let (pairs, anchor, cost) = match frame {
             Frame::Mapping {
                 pairs,
                 pending: Pending::Key,
                 anchor,
-            } => (pairs, anchor),
+                cost,
+            } => (pairs, anchor, cost),
             Frame::Mapping { .. } => bail!("YAML mapping ended before value for key"),
             Frame::Sequence { .. } => bail!("YAML mapping end without matching start"),
         };
-        self.attach_anchored(mapping_from_pairs(pairs), anchor)
+        self.attach_anchored(mapping_from_pairs(pairs), anchor, cost + 1)
     }
 
     fn finish_sequence(&mut self) -> Result<()> {
         let frame = self.stack.pop().context("unexpected YAML sequence end")?;
-        let (items, anchor) = match frame {
-            Frame::Sequence { items, anchor } => (items, anchor),
+        let (items, anchor, cost) = match frame {
+            Frame::Sequence {
+                items,
+                anchor,
+                cost,
+            } => (items, anchor, cost),
             Frame::Mapping { .. } => bail!("YAML sequence end without matching start"),
         };
-        self.attach_anchored(Value::Sequence(Sequence::from(items)), anchor)
+        self.attach_anchored(Value::Sequence(Sequence::from(items)), anchor, cost + 1)
     }
 
-    fn store_anchor(&mut self, anchor: usize, value: &Value) {
+    fn store_anchor(&mut self, anchor: usize, value: &Value, cost: usize) {
         if anchor != 0 {
             self.anchors.insert(anchor, value.clone());
+            self.anchor_costs.insert(anchor, cost);
         }
     }
 
-    fn attach_anchored(&mut self, value: Value, anchor: usize) -> Result<()> {
-        self.store_anchor(anchor, &value);
-        self.attach(value, false)
+    fn attach_anchored(&mut self, value: Value, anchor: usize, cost: usize) -> Result<()> {
+        self.store_anchor(anchor, &value, cost);
+        self.attach(value, false)?;
+        self.credit_cost(cost);
+        Ok(())
+    }
+
+    /// Adds a finished node's `d.unmarshal` cost to the collection that encloses it, so
+    /// that anchoring any ancestor prices the whole subtree correctly.
+    fn credit_cost(&mut self, cost: usize) {
+        match self.stack.last_mut() {
+            Some(Frame::Mapping { cost: total, .. } | Frame::Sequence { cost: total, .. }) => {
+                *total += cost;
+            }
+            None => {}
+        }
     }
 
     /// Adds a finished node to the collection being built. `merge_candidate` answers the
@@ -985,6 +1018,40 @@ process_config:
             yaml.push_str(&format!("l{level}: &l{level} [{children}]\n"));
         }
         assert!(load(&yaml).is_err());
+    }
+
+    /// The budget has to fire where yaml.v2's does, not merely somewhere. Each level
+    /// below anchors a mapping of `width` aliases to the level under it, the shape the
+    /// budget exists to stop, and each pair brackets the threshold: yaml.v2 accepts the
+    /// first width/levels combination and rejects the second. The thresholds come from
+    /// running the same documents through gopkg.in/yaml.v2 v2.4.0, which also agreed on
+    /// the sequence form of every case.
+    #[test]
+    fn alias_budget_matches_yaml_v2_threshold() {
+        fn nested_maps(width: usize, levels: usize) -> String {
+            let keys = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+            let leaves = keys[..width].join(": 0, ");
+            let mut yaml = format!("l0: &l0 {{{leaves}: 0}}\n");
+            for level in 1..=levels {
+                let entries: Vec<String> = keys[..width]
+                    .iter()
+                    .map(|key| format!("{key}: *l{}", level - 1))
+                    .collect();
+                yaml.push_str(&format!("l{level}: &l{level} {{{}}}\n", entries.join(", ")));
+            }
+            yaml
+        }
+
+        for (width, accepted, rejected) in [(3, 5, 6), (5, 3, 4), (9, 2, 3)] {
+            assert!(
+                load(&nested_maps(width, accepted)).is_ok(),
+                "width {width} levels {accepted} should load"
+            );
+            assert!(
+                load(&nested_maps(width, rejected)).is_err(),
+                "width {width} levels {rejected} should be refused"
+            );
+        }
     }
 
     /// The budget must leave an ordinary config that reuses a handful of anchors alone.
