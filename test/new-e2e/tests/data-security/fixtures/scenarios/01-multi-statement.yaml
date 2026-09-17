@@ -1,0 +1,43 @@
+# Write-blocking cases are numbered first so they run before the scan.
+# If DROP / DML had persisted, the scan would fail or the match counts would change.
+name: multi-statement
+scan_data:
+  - sub_task_id: multi-statement
+    connection:
+      host: localhost
+      port: 5432
+      dbname: labdb
+      username: postgres
+      password: postgres_admin_pw
+    entity:
+      platform: postgres
+      database_cluster_name: e2e-cluster
+      database_instance_name: e2e-instance
+      database: labdb
+      schema: public
+      table: accounts
+    query: "SELECT owner FROM accounts; DROP TABLE accounts"
+    timeout_seconds: 30
+expected:
+  - resource:
+      type: postgres_table
+      name: e2e-instance.labdb.public.accounts
+    ruleIds:
+      - e2e-owner-pattern
+    scanningSource:
+      agent: {}
+    scanResults:
+      - location:
+          postgresTable:
+            databaseClusterName: e2e-cluster
+            databaseInstanceName: e2e-instance
+            databaseHostName: localhost
+            databaseName: labdb
+            schemaName: public
+            tableName: accounts
+            scannedRowCount: 0
+        scanMetadata:
+          scanTaskMetadata:
+            taskId: e2e-datasec-postgres
+            subTaskId: multi-statement
+            status: ERROR

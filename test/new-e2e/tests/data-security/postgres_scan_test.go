@@ -19,12 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
-
-// postgresAccountsSeedRows is the number of rows inserted into `accounts` by
-// postgres-init.sql. The workload generator updates balances but does not add
-// or delete account rows.
-const postgresAccountsSeedRows int64 = 200
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
 type postgresScanEnv struct {
@@ -36,6 +32,17 @@ type postgresScanEnv struct {
 
 type postgresScanSuite struct {
 	e2e.BaseSuite[postgresScanEnv]
+}
+
+func TestPostgresScanFixtures(t *testing.T) {
+	require.NotEmpty(t, datasecurityCheckYAML())
+	require.NotEmpty(t, postgresScanScenarios)
+	for _, sc := range postgresScanScenarios {
+		require.NotEmpty(t, sc.expected, sc.name)
+		for _, want := range sc.expected {
+			require.NotEmpty(t, sdsSubTaskID(want), sc.name)
+		}
+	}
 }
 
 func TestDataSecurityPostgresScan(t *testing.T) {
@@ -55,68 +62,91 @@ func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
 	require.NotEmpty(s.T(), data, "empty check JSON: %s", out)
 	assert.Equal(s.T(), 0, data[0].Runner.TotalErrors, "datasecurity check reported errors")
 
-	// The scheduled check forwards one sds-result to fakeintake.
 	fakeintake := s.Env().FakeIntake.Client()
-	expected := expectedPostgresSDSResult()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		payloads, err := fakeintake.GetSDSResults()
 		require.NoError(c, err)
-		// The check has a single sub task, so it emits exactly one sds-result.
-		require.Len(c, payloads, 1, "expected exactly one sds-result payload")
-
-		got := proto.Clone(&payloads[0].SdsResultPayload).(*sds.SdsResultPayload)
-		require.Greater(c, got.GetTimestamp(), int64(0), "timestamp should be populated")
-		got.Timestamp = 0
-		if !proto.Equal(expected, got) {
-			assert.Fail(c, "sds-result payload did not match",
-				"want:\n%s\ngot:\n%s", protojson.Format(expected), protojson.Format(got))
+		got := sdsResultsBySubTask(aggregatorSDSResults(payloads))
+		for _, sc := range postgresScanScenarios {
+			for id, want := range sdsResultsBySubTask(sc.expected) {
+				assertSDSResultsEqual(c, sc.name, id, want, got[id])
+			}
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func expectedPostgresSDSResult() *sds.SdsResultPayload {
-	return &sds.SdsResultPayload{
-		Resource: &sds.SdsResultPayload_Resource{
-			Type: "postgres_table",
-			Name: "e2e-instance.labdb.public.accounts",
-		},
-		RuleIds: []string{"e2e-owner-pattern"},
-		ScanningSource: &sds.ScanningSource{
-			Source: &sds.ScanningSource_Agent_{
-				Agent: &sds.ScanningSource_Agent{},
-			},
-		},
-		ScanResults: []*sds.SdsResultPayload_ScanResult{{
-			TableMatches: []*sds.SdsResultPayload_TableMatch{{
-				RuleId:           "e2e-owner-pattern",
-				ColumnName:       "owner",
-				CountMatchedRows: postgresAccountsSeedRows,
-				CountMatches:     postgresAccountsSeedRows,
-			}},
-			Location: &sds.SdsResultPayload_ScanLocation{
-				ScanLocation: &sds.SdsResultPayload_ScanLocation_PostgresTable{
-					PostgresTable: &sds.SdsResultPayload_PostgresTable{
-						DatabaseClusterName:  "e2e-cluster",
-						DatabaseInstanceName: "e2e-instance",
-						DatabaseHostName:     "localhost",
-						DatabaseName:         "labdb",
-						SchemaName:           "public",
-						TableName:            "accounts",
-						ScannedRowCount:      postgresAccountsSeedRows,
-						ScannedColumns: []*sds.SdsResultPayload_PostgresTable_ScannedColumn{{
-							Name:     "owner",
-							DataType: "text",
-						}},
-					},
-				},
-			},
-			ScanMetadata: &sds.SdsResultPayload_ScanMetadata{
-				ScanTaskMetadata: &sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata{
-					TaskId:    "e2e-datasec-postgres",
-					SubTaskId: "e2e-accounts",
-					Status:    sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata_SUCCESS,
-				},
-			},
-		}},
+func aggregatorSDSResults(payloads []*aggregator.SDSResultPayload) []*sds.SdsResultPayload {
+	out := make([]*sds.SdsResultPayload, 0, len(payloads))
+	for _, p := range payloads {
+		out = append(out, &p.SdsResultPayload)
 	}
+	return out
+}
+
+func sdsResultsBySubTask(payloads []*sds.SdsResultPayload) map[string][]*sds.SdsResultPayload {
+	got := make(map[string][]*sds.SdsResultPayload)
+	for _, p := range payloads {
+		id := sdsSubTaskID(p)
+		if id == "" {
+			continue
+		}
+		got[id] = append(got[id], p)
+	}
+	return got
+}
+
+func sdsSubTaskID(p *sds.SdsResultPayload) string {
+	results := p.GetScanResults()
+	if len(results) == 0 {
+		return ""
+	}
+	return results[0].GetScanMetadata().GetScanTaskMetadata().GetSubTaskId()
+}
+
+func assertSDSResultsEqual(t require.TestingT, scenario, id string, want, got []*sds.SdsResultPayload) {
+	want = comparableSDSResults(want)
+	got = comparableSDSResults(got)
+	require.NotEmpty(t, got, "missing sds-result for scenario %q sub_task %s", scenario, id)
+	for _, g := range got {
+		if !containsSDSResult(want, g) {
+			assert.Fail(t, "unexpected sds-result",
+				"scenario %s sub_task %s\ngot:\n%s", scenario, id, protojson.Format(g))
+		}
+	}
+	for _, w := range want {
+		if !containsSDSResult(got, w) {
+			assert.Fail(t, "missing sds-result",
+				"scenario %s sub_task %s\nwant:\n%s", scenario, id, protojson.Format(w))
+		}
+	}
+}
+
+func containsSDSResult(haystack []*sds.SdsResultPayload, needle *sds.SdsResultPayload) bool {
+	for _, p := range haystack {
+		if proto.Equal(p, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func comparableSDSResults(in []*sds.SdsResultPayload) []*sds.SdsResultPayload {
+	out := make([]*sds.SdsResultPayload, len(in))
+	for i, p := range in {
+		out[i] = comparableSDSResult(p)
+	}
+	return out
+}
+
+// comparableSDSResult is the single place that strips fields we do not assert
+// (timestamp, failure_reason) before proto.Equal.
+func comparableSDSResult(p *sds.SdsResultPayload) *sds.SdsResultPayload {
+	out := proto.Clone(p).(*sds.SdsResultPayload)
+	out.Timestamp = 0
+	for _, result := range out.GetScanResults() {
+		if meta := result.GetScanMetadata().GetScanTaskMetadata(); meta != nil {
+			meta.FailureReason = nil
+		}
+	}
+	return out
 }

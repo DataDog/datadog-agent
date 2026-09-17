@@ -1,0 +1,79 @@
+name: readonly
+scan_data:
+  - sub_task_id: readonly-insert
+    connection:
+      host: localhost
+      port: 5432
+      dbname: labdb
+      username: postgres
+      password: postgres_admin_pw
+    entity:
+      platform: postgres
+      database_cluster_name: e2e-cluster
+      database_instance_name: e2e-instance
+      database: labdb
+      schema: public
+      table: accounts
+    query: "INSERT INTO accounts (owner, balance) VALUES ('owner_injected', 0)"
+    timeout_seconds: 30
+  - sub_task_id: readonly-update
+    connection:
+      host: localhost
+      port: 5432
+      dbname: labdb
+      username: postgres
+      password: postgres_admin_pw
+    entity:
+      platform: postgres
+      database_cluster_name: e2e-cluster
+      database_instance_name: e2e-instance
+      database: labdb
+      schema: public
+      table: accounts
+    query: "UPDATE accounts SET owner = 'pwned'"
+    timeout_seconds: 30
+expected:
+  - resource:
+      type: postgres_table
+      name: e2e-instance.labdb.public.accounts
+    ruleIds:
+      - e2e-owner-pattern
+    scanningSource:
+      agent: {}
+    scanResults:
+      - location:
+          postgresTable:
+            databaseClusterName: e2e-cluster
+            databaseInstanceName: e2e-instance
+            databaseHostName: localhost
+            databaseName: labdb
+            schemaName: public
+            tableName: accounts
+            scannedRowCount: 0
+        scanMetadata:
+          scanTaskMetadata:
+            taskId: e2e-datasec-postgres
+            subTaskId: readonly-insert
+            status: ERROR
+  - resource:
+      type: postgres_table
+      name: e2e-instance.labdb.public.accounts
+    ruleIds:
+      - e2e-owner-pattern
+    scanningSource:
+      agent: {}
+    scanResults:
+      - location:
+          postgresTable:
+            databaseClusterName: e2e-cluster
+            databaseInstanceName: e2e-instance
+            databaseHostName: localhost
+            databaseName: labdb
+            schemaName: public
+            tableName: accounts
+            scannedRowCount: 0
+        scanMetadata:
+          scanTaskMetadata:
+            taskId: e2e-datasec-postgres
+            subTaskId: readonly-update
+            status: ERROR

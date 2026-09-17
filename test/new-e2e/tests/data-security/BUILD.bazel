@@ -1,23 +1,20 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:exclude postgres_provisioner.go
+# gazelle:exclude postgres_scenarios.go
 
-# postgres_provisioner.go is excluded above (it uses test-only symbols), so it is
-# listed in the go_test srcs and its deps kept by hand.
+# postgres_provisioner.go / postgres_scenarios.go are excluded above (they use
+# test-only symbols), so they are listed in the go_test srcs and their deps
+# kept by hand.
 dd_agent_go_test(
     name = "data-security_test",
     srcs = [
         "postgres_provisioner.go",  # keep
         "postgres_scan_test.go",
+        "postgres_scenarios.go",  # keep
     ],
-    data = [
-        "fixtures/datadog-agent.yaml",
-        "fixtures/datasecurity.yaml",
-    ],
-    embedsrcs = [
-        "fixtures/datadog-agent.yaml",
-        "fixtures/datasecurity.yaml",
-    ],
+    data = glob(["fixtures/**"]),
+    embedsrcs = glob(["fixtures/**"]),
     tags = ["manual"],
     # keep
     deps = [
@@ -35,9 +32,11 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/testcommon/check",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//encoding/protojson",
         "@org_golang_google_protobuf//proto",
     ],
