@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
@@ -39,6 +40,11 @@ type probeRun interface {
 type probeReading struct {
 	Result metadata.ProbeResult
 	Name   string
+}
+
+// credentialStore reads the credentials of one kind from the Agent configuration.
+type credentialStore interface {
+	Load() (map[string]credentials.Credential, error)
 }
 
 // probeSet is the registered probes, ordered as the connectivity engine
