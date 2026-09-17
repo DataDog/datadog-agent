@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    A network device discovery range now declares the protocols to scan it with
+    under a ``probes`` object keyed by protocol, and each protocol's options,
+    including the SNMP ``credential_ids``, move inside its own block. The
+    ``credential_ids``, ``snmp_options`` and ``ping_options`` keys of a range are
+    replaced. Discovered devices are reported with a ``probe_results`` list, one
+    entry per protocol, instead of the flat ``ping_status``, ``snmp_status`` and
+    ``snmp_cred_id`` fields. Network device discovery is disabled by default and
+    the ranges to scan are delivered over Remote Configuration, so no Agent
+    configuration change is needed.

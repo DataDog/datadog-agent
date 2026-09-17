@@ -508,6 +508,41 @@ properties:
       SNMP credentials pushed by Fleet Automation. Instances delivered by
       Remote Configuration reference these entries by their id, because
       Remote Configuration does not carry encrypted values yet.
+  discovery:
+    node_type: section
+    type: object
+    comment: |-
+      Network Devices Autodiscovery. The network_devices.autodiscovery.*
+      prefix belongs to the legacy snmp_listener, so this feature uses
+      network_devices.discovery.*.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Enable the autodiscovery component.
+      workers:
+        node_type: setting
+        type: integer
+        default: 10
+        comment: Total concurrent probes shared across every active range.
+      default_interval_sec:
+        node_type: setting
+        type: integer
+        default: 3600
+        comment: Sweep interval used when a range does not set one.
+      max_range_addresses:
+        node_type: setting
+        type: integer
+        default: 65536
+        comment: |-
+          Largest range the Agent accepts. A range with more addresses than
+          this is rejected instead of sweeping for weeks.
+      default_namespace:
+        node_type: setting
+        type: string
+        default: default
+        comment: Namespace used when a range does not set one.
   snmp_traps:
     node_type: section
     type: object

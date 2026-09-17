@@ -1,0 +1,97 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package ndmdiscoveryimpl
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+)
+
+const cursorKeyPrefix = "ndmdiscovery"
+
+// cursorState is the resumable progress of one autodiscovery cycle.
+type cursorState struct {
+	RunID        string `json:"run_id"`
+	NextChunk    int    `json:"next_chunk"`
+	Scanned      int64  `json:"scanned"`
+	StartedAtMs  int64  `json:"started_at_ms"`
+	ConfigDigest string `json:"config_digest"`
+	// Failed marks a cycle that already reported a terminal failed status for RunID.
+	Failed bool `json:"failed"`
+}
+
+// cursorStore persists the cycle progress of each configured range.
+type cursorStore interface {
+	Load(autodiscoveryID string) (cursorState, bool)
+	Save(autodiscoveryID string, s cursorState) error
+	Clear(autodiscoveryID string) error
+}
+
+var _ cursorStore = (*persistentCursorStore)(nil)
+
+// persistentCursorStore stores cursors under the agent run_path.
+type persistentCursorStore struct{}
+
+func newPersistentCursorStore() *persistentCursorStore {
+	return &persistentCursorStore{}
+}
+
+func cursorKey(autodiscoveryID string) string {
+	// persistentcache splits the key on ":" and uses the first part as the directory name.
+	return fmt.Sprintf("%s:%s", cursorKeyPrefix, autodiscoveryID)
+}
+
+func (s *persistentCursorStore) Load(autodiscoveryID string) (cursorState, bool) {
+	raw, err := persistentcache.Read(cursorKey(autodiscoveryID))
+	if err != nil || raw == "" {
+		return cursorState{}, false
+	}
+
+	var state cursorState
+	if err := json.Unmarshal([]byte(raw), &state); err != nil {
+		// A corrupt cursor is treated as no cursor: the cycle restarts.
+		return cursorState{}, false
+	}
+	return state, true
+}
+
+func (s *persistentCursorStore) Save(autodiscoveryID string, state cursorState) error {
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return persistentcache.Write(cursorKey(autodiscoveryID), string(raw))
+}
+
+func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
+	return persistentcache.Write(cursorKey(autodiscoveryID), "")
+}
+
+// rangeDigest fingerprints the addresses probed and each probe's configuration,
+// so that a change to either invalidates a partial cycle.
+func rangeDigest(cfg rangeConfig, fingerprints []string) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "cidr=%s\n", cfg.CIDR)
+
+	ignored := append([]string(nil), cfg.IgnoredIPAddresses...)
+	sort.Strings(ignored)
+	for _, ip := range ignored {
+		fmt.Fprintf(h, "ignored=%s\n", ip)
+	}
+
+	probes := append([]string(nil), fingerprints...)
+	sort.Strings(probes)
+	for _, f := range probes {
+		fmt.Fprintf(h, "probe=%s\n", f)
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
