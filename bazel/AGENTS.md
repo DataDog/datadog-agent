@@ -727,6 +727,13 @@ When adding `ac_cv_*` presets for a cross build, verify them by diffing the
 generated `pyconfig.h` against a native build: autoconf's cross-compile
 fallbacks are silent and several of CPython's are wrong for macOS.
 
+Note that the `.dmg` is only partly a Bazel build: the omnibus software
+definitions still build the Go binaries by shelling out to `dda inv <x>.build`.
+Those take their target from `GOARCH`, which `tasks/omnibus.py` exports
+alongside `OMNIBUS_TARGET_ARCH`. A Bazel-only change to the target platform
+leaves the Go binaries on the host architecture, and the failure surfaces late,
+as unresolved cgo symbols when they link against the cross-built rtloader.
+
 ### Incompatible targets
 
 Use `target_compatible_with` to declare that a target only makes sense on certain platforms. Incompatible targets are

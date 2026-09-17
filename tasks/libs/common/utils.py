@@ -446,18 +446,27 @@ def get_build_flags(
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["GOARCH"] = arch.go_arch
 
-        env["CC"] = _find_cross_compiler(
-            target_platform,
-            os.getenv("DD_CC"),
-            arch.compiler_name("gcc", target_platform),
-            arch.compiler_name("clang", target_platform),
-        )
-        env["CXX"] = _find_cross_compiler(
-            target_platform,
-            os.getenv("DD_CXX"),
-            arch.compiler_name("g++", target_platform),
-            arch.compiler_name("clang++", target_platform),
-        )
+        if target_platform == "darwin" and sys.platform == "darwin":
+            # macOS x86_64 built on Apple Silicon (the Intel runner fleet is retired).
+            # Apple's clang emits either architecture, so there is no prefixed cross
+            # compiler to look for -- the slice just has to be selected. The linker
+            # derives `-arch` from GOARCH on its own, but cgo does not, so the C
+            # compiler has to carry it.
+            env["CC"] = f"{os.getenv('DD_CC') or 'clang'} -arch {arch.gcc_arch}"
+            env["CXX"] = f"{os.getenv('DD_CXX') or 'clang++'} -arch {arch.gcc_arch}"
+        else:
+            env["CC"] = _find_cross_compiler(
+                target_platform,
+                os.getenv("DD_CC"),
+                arch.compiler_name("gcc", target_platform),
+                arch.compiler_name("clang", target_platform),
+            )
+            env["CXX"] = _find_cross_compiler(
+                target_platform,
+                os.getenv("DD_CXX"),
+                arch.compiler_name("g++", target_platform),
+                arch.compiler_name("clang++", target_platform),
+            )
         print(f"Using CC {env['CC']} and CXX {env['CXX']} for cross-compilation")
 
         if target_platform == "aix":

@@ -32,6 +32,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
+from tasks.libs.types.arch import Arch
 
 
 def _format_omnibus_overrides(**overrides):
@@ -159,6 +160,14 @@ def get_omnibus_env(
         # Read by `target_machine` in omnibus/lib/ostools.rb and by
         # `_insert_omnibazel_flags` in tasks/libs/build/bazel.py.
         env['OMNIBUS_TARGET_ARCH'] = target_arch
+
+        target = Arch.from_str(target_arch)
+        if target.is_cross_compiling():
+            # The omnibus software definitions build the Go binaries by shelling out
+            # to `dda inv <x>.build`, which picks its target up from GOARCH (see
+            # `get_build_flags`). Without this they would compile for the host and
+            # then fail to link against the cross-built rtloader.
+            env['GOARCH'] = target.go_arch
 
     if sys.platform == 'darwin':
         env['MACOSX_DEPLOYMENT_TARGET'] = '12.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
