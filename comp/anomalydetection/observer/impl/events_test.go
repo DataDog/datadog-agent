@@ -377,15 +377,6 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
 }
 
-func containsTag(tags []string, want string) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
-}
-
 func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {
 	first := &stubExtractor{name: "dup"}
 	second := &stubExtractor{name: "dup"}
