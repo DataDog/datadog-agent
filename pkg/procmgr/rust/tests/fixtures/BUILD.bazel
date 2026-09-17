@@ -8,6 +8,7 @@ filegroup(
         "//pkg/procmgr/rust/tests/fixtures/burst_spaced",
         "//pkg/procmgr/rust/tests/fixtures/condition_blocked",
         "//pkg/procmgr/rust/tests/fixtures/crasher",
+        "//pkg/procmgr/rust/tests/fixtures/datadog-agent-process",
         "//pkg/procmgr/rust/tests/fixtures/exit_fail",
         "//pkg/procmgr/rust/tests/fixtures/exit_fail_on_failure",
         "//pkg/procmgr/rust/tests/fixtures/exit_fail_on_success",
