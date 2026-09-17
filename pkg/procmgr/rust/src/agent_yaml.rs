@@ -144,7 +144,6 @@ fn number_as_string(number: &serde_yaml::Number) -> String {
     // shortest form that round-trips, always positional. Rust's `Display` agrees, and
     // unlike a cast to i64 it does not saturate at i64::MAX for a value such as `1e20`.
     match number.as_f64() {
-        // `FormatFloat` spells the infinities with a sign, `Display` does not.
         // The two spell the infinities differently; both spell NaN `NaN`.
         Some(value) if value.is_infinite() && value.is_sign_negative() => "-Inf".to_owned(),
         Some(value) if value.is_infinite() => "+Inf".to_owned(),
@@ -189,9 +188,7 @@ fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Result<Value> {
             |value| matches!(value, Value::Number(number) if !number.is_f64()),
         ),
         "float" => tagged_float(text),
-        // yaml.v2 resolves `!!timestamp` to a `time.Time`, which no config gate reads.
-        // Keeping the scalar verbatim is closer than failing a file the Agent accepts.
-        //
+        "timestamp" => tagged_timestamp(text),
         // Every other suffix is unresolvable, so the scalar passes through.
         _ => Ok(Value::String(text.to_owned())),
     }
@@ -218,6 +215,124 @@ fn tagged_float(text: &str) -> Result<Value> {
         .as_f64()
         .with_context(|| format!("cannot decode `{text}` as !!float"))?;
     Ok(Value::Number(widened.into()))
+}
+
+/// yaml.v2 resolves `!!timestamp` to a `time.Time` but then hands an `interface{}` the
+/// original text instead, for backward compatibility, and `interface{}` is what the
+/// Agent decodes a config file into. The value therefore needs no conversion; what
+/// matters is that a scalar which is not a timestamp fails `Unmarshal`, so the Agent
+/// rejects the whole file and no gate in it should be trusted either.
+fn tagged_timestamp(text: &str) -> Result<Value> {
+    if !is_timestamp(text) {
+        bail!("cannot decode `{text}` as !!timestamp");
+    }
+    Ok(Value::String(text.to_owned()))
+}
+
+/// Whether a scalar is a timestamp, the way yaml.v2's `parseTimestamp` decides.
+///
+/// yaml.v2 tries four Go layouts and gives up when none of them parses:
+///
+/// ```text
+/// 2006-1-2                         2006-1-2 15:4:5.999999999
+/// 2006-1-2T15:4:5.999999999Z07:00  2006-1-2t15:4:5.999999999Z07:00
+/// ```
+///
+/// The year is exactly four digits and every other field is one or two. `time.Parse`
+/// also range-checks each field, so `2015-13-01` and `2015-02-29` are not timestamps.
+fn is_timestamp(text: &str) -> bool {
+    let Some((year, rest)) = take_number(text.as_bytes(), 4, 4) else {
+        return false;
+    };
+    let Some((month, rest)) = take_byte(rest, b'-').and_then(|rest| take_number(rest, 1, 2)) else {
+        return false;
+    };
+    let Some((day, rest)) = take_byte(rest, b'-').and_then(|rest| take_number(rest, 1, 2)) else {
+        return false;
+    };
+    if !(1..=12).contains(&month) || !(1..=days_in_month(year, month)).contains(&day) {
+        return false;
+    }
+    match rest {
+        // `2006-1-2`
+        [] => true,
+        // `2006-1-2 15:4:5.999999999`, which carries no zone.
+        [b' ', time @ ..] => matches!(take_time(time), Some([])),
+        // `2006-1-2T15:4:5.999999999Z07:00`, where the zone is not optional.
+        [b'T' | b't', time @ ..] => take_time(time).is_some_and(is_zone),
+        _ => false,
+    }
+}
+
+/// `15:4:5.999999999`: one or two digits per field, then an optional fraction that needs
+/// at least one digit once its `.` is there. Returns whatever follows the time.
+fn take_time(bytes: &[u8]) -> Option<&[u8]> {
+    let (hour, rest) = take_number(bytes, 1, 2)?;
+    let (minute, rest) = take_number(take_byte(rest, b':')?, 1, 2)?;
+    let (second, rest) = take_number(take_byte(rest, b':')?, 1, 2)?;
+    if hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    match rest {
+        [b'.', fraction @ ..] => {
+            let width = fraction.iter().take_while(|b| b.is_ascii_digit()).count();
+            (width > 0).then(|| &fraction[width..])
+        }
+        rest => Some(rest),
+    }
+}
+
+/// `Z07:00`: a literal `Z`, or a sign and a two-digit `hh:mm`. Go rejects a lowercase
+/// `z`, and deliberately bounds the offset with `>` rather than `>=` "as some people do
+/// write offsets of 24 hours or 60 minutes".
+fn is_zone(bytes: &[u8]) -> bool {
+    let offset = match bytes {
+        [b'Z'] => return true,
+        [b'+' | b'-', offset @ ..] => offset,
+        _ => return false,
+    };
+    let Some((hour, rest)) = take_number(offset, 2, 2) else {
+        return false;
+    };
+    let Some((minute, [])) = take_byte(rest, b':').and_then(|rest| take_number(rest, 2, 2)) else {
+        return false;
+    };
+    hour <= 24 && minute <= 60
+}
+
+fn days_in_month(year: u32, month: u32) -> u32 {
+    let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+fn take_byte(bytes: &[u8], expected: u8) -> Option<&[u8]> {
+    match bytes {
+        [first, rest @ ..] if *first == expected => Some(rest),
+        _ => None,
+    }
+}
+
+/// Reads between `min` and `max` digits, like Go's `getnum` with and without a fixed
+/// width, and returns the value with the rest of the input.
+fn take_number(bytes: &[u8], min: usize, max: usize) -> Option<(u32, &[u8])> {
+    let width = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count()
+        .min(max);
+    if width < min {
+        return None;
+    }
+    let value = bytes[..width]
+        .iter()
+        .fold(0, |number, digit| number * 10 + u32::from(digit - b'0'));
+    Some((value, &bytes[width..]))
 }
 
 /// Decodes a `!!binary` payload, which yaml.v2 hands over as the decoded bytes rather
@@ -958,6 +1073,90 @@ process_config:
             scalar("enabled: !custom yes\n"),
             Value::String("yes".into())
         );
+    }
+
+    /// yaml.v2 hands a timestamp to an `interface{}` as its original text, so a valid
+    /// `!!timestamp` needs no conversion, but an invalid one fails the whole file.
+    #[test]
+    fn timestamp_scalars_are_validated_not_converted() {
+        for text in [
+            "2015-01-01",
+            "2015-1-2",
+            "2015-01-1",
+            "2016-02-29",
+            "2000-02-29",
+            "0000-02-29",
+            "2015-01-01 10:00:00",
+            "2015-1-2 3:4:5",
+            "2015-01-01 10:00:00.25",
+            "2015-01-01T10:00:00Z",
+            "2015-01-01t10:00:00Z",
+            "2015-01-01T23:59:59Z",
+            "2015-01-01T10:00:00.123456789Z",
+            "2015-01-01T10:00:00+01:00",
+            "2015-01-01T10:00:00-05:30",
+            // Go bounds a zone offset with `>`, so 24 hours and 60 minutes still parse.
+            "2015-01-01T10:00:00+24:00",
+            "2015-01-01T10:00:00+01:60",
+        ] {
+            assert_eq!(
+                scalar(&format!("enabled: !!timestamp \"{text}\"\n")),
+                Value::String(text.into()),
+                "{text}"
+            );
+        }
+        for text in [
+            "",
+            "nope",
+            "1",
+            // Out-of-range fields, including a February that is not a leap year.
+            "2015-00-01",
+            "2015-13-01",
+            "2015-01-00",
+            "2015-01-32",
+            "2015-02-29",
+            "1900-02-29",
+            "2015-04-31",
+            "2015-01-01T24:00:00Z",
+            "2015-01-01T23:60:00Z",
+            "2015-01-01T23:59:60Z",
+            "2015-01-01T10:00:00+25:00",
+            "2015-01-01T10:00:00+01:99",
+            // The year is exactly four digits.
+            "999-01-01",
+            "02015-01-01",
+            // The `T` form needs a zone, and the zone spelling is exact.
+            "2015-01-01T10:00:00",
+            "2015-01-01T10:00:00z",
+            "2015-01-01T10:00:00+0100",
+            "2015-01-01T10:00:00+01",
+            // A fraction needs a digit, and nothing may trail the timestamp.
+            "2015-01-01T10:00:00.Z",
+            "2015-01-01 10:00:00.",
+            "2015-01-01 ",
+            " 2015-01-01",
+            "2015-01-01Textra",
+            "2015-01-01T10:00:00Zextra",
+            "2015-01-01 10:00:00 +0000",
+        ] {
+            assert!(
+                load(&format!("enabled: !!timestamp \"{text}\"\n")).is_err(),
+                "{text}"
+            );
+        }
+    }
+
+    /// An untagged date is a timestamp to yaml.v2 too, and reaches `interface{}` as the
+    /// same text, so it must stay a plain string here rather than become a number.
+    #[test]
+    fn plain_dates_stay_strings() {
+        for text in ["2015-01-01", "2015-01-01T10:00:00Z", "2015-13-45"] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::String(text.into()),
+                "{text}"
+            );
+        }
     }
 
     #[test]
