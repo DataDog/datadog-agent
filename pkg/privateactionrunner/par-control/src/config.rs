@@ -5,11 +5,9 @@
 
 use crate::opms::{ProxyDecision, TlsConfig};
 use anyhow::{Context, Result, ensure};
-use regex::Regex;
-use saluki_config::GenericConfiguration;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::PathBuf;
-use std::sync::LazyLock;
 use std::time::Duration;
 
 const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -22,7 +20,6 @@ const MAX_BACKOFF: Duration = Duration::from_secs(180);
 const WAIT_BEFORE_RETRY: Duration = Duration::from_secs(300);
 const MAX_ATTEMPTS: u32 = 20;
 pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
-const INTERNAL_USE_DD_URL_FOR_OPMS: &str = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS";
 
 #[derive(Clone)]
 pub struct Identity {
@@ -57,47 +54,45 @@ pub struct Config {
     pub identity: Identity,
 }
 
-#[derive(serde::Deserialize)]
-struct AgentParConfig {
-    enabled: bool,
-    split_enabled: bool,
-    task_concurrency: usize,
-    executor: AgentExecutorConfig,
-    opms_extra_headers: HashMap<String, String>,
-}
-
-#[derive(serde::Deserialize)]
-struct AgentExecutorConfig {
-    socket_path: PathBuf,
-}
-
-#[derive(serde::Deserialize, Default)]
-#[serde(default)]
-struct AgentProxyConfig {
-    http: String,
-    https: String,
-    no_proxy: Vec<String>,
-}
-
-#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[derive(serde::Deserialize, Default, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct BootstrapConfig {
     pub split_mode: bool,
     pub log_level: String,
     identity: BootstrapIdentity,
-    agent_version: String,
-    pub cmd_port: u16,
-    pub auth_token_file_path: String,
     pub ipc_cert_file_path: String,
+    runtime: Option<BootstrapRuntimeConfig>,
 }
 
-#[derive(serde::Deserialize, Debug, Default, Clone)]
+impl fmt::Debug for BootstrapConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BootstrapConfig")
+            .field("split_mode", &self.split_mode)
+            .field("log_level", &self.log_level)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(serde::Deserialize, Default, Clone)]
 #[serde(default, deny_unknown_fields)]
 struct BootstrapIdentity {
     urn: String,
     private_key: String,
     org_id: i64,
     runner_id: String,
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+struct BootstrapRuntimeConfig {
+    opms_base_url: String,
+    task_concurrency: usize,
+    executor_socket_path: PathBuf,
+    opms_extra_headers: HashMap<String, String>,
+    opms_proxy_url: String,
+    skip_ssl_validation: bool,
+    min_tls_version: String,
 }
 
 impl BootstrapConfig {
@@ -112,11 +107,7 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(
-        self,
-        agent: &GenericConfiguration,
-        dd_url_explicit: bool,
-    ) -> Result<Config> {
+    pub fn into_config(self) -> Result<Config> {
         ensure!(
             self.split_mode,
             "bootstrap configuration has split mode disabled"
@@ -126,7 +117,6 @@ impl BootstrapConfig {
             ("identity.urn", self.identity.urn.as_str()),
             ("identity.private_key", self.identity.private_key.as_str()),
             ("identity.runner_id", self.identity.runner_id.as_str()),
-            ("agent_version", self.agent_version.as_str()),
             ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
         ] {
             ensure!(
@@ -138,43 +128,31 @@ impl BootstrapConfig {
             self.identity.org_id > 0,
             "bootstrap configuration is missing identity.org_id"
         );
+        let runtime = self
+            .runtime
+            .context("bootstrap configuration is missing runtime")?;
         ensure!(
-            self.cmd_port > 0,
-            "bootstrap configuration is missing cmd_port"
-        );
-
-        let par: AgentParConfig = agent
-            .get_typed("private_action_runner")
-            .context("invalid private_action_runner configuration from the Core Agent")?;
-        ensure!(par.enabled, "private_action_runner.enabled is disabled");
-        ensure!(
-            par.split_enabled,
-            "private_action_runner.split_enabled is disabled"
-        );
-        ensure!(
-            par.task_concurrency > 0,
+            runtime.task_concurrency > 0,
             "private_action_runner.task_concurrency must be greater than zero"
         );
         ensure!(
-            !par.executor.socket_path.as_os_str().is_empty(),
+            !runtime.executor_socket_path.as_os_str().is_empty(),
             "private_action_runner.executor.socket_path is empty"
         );
-
-        let opms_base_url = opms_base_url(
-            agent,
-            std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
-            dd_url_explicit,
-        )?;
-        let opms_proxy = proxy_for(agent, &opms_base_url)?;
-        let min_tls_version: String = agent
-            .get_typed("min_tls_version")
-            .context("invalid min_tls_version configuration from the Core Agent")?;
-        ensure!(!min_tls_version.is_empty(), "min_tls_version is empty");
+        ensure!(
+            !runtime.opms_base_url.is_empty(),
+            "bootstrap OPMS URL is empty"
+        );
+        let opms_proxy = if runtime.opms_proxy_url.is_empty() {
+            ProxyDecision::None
+        } else {
+            ProxyDecision::Direct(runtime.opms_proxy_url)
+        };
 
         Ok(Config {
-            opms_base_url,
-            task_concurrency: par.task_concurrency,
-            executor_socket: par.executor.socket_path,
+            opms_base_url: runtime.opms_base_url,
+            task_concurrency: runtime.task_concurrency,
+            executor_socket: runtime.executor_socket_path,
             procmgr_socket: dd_procmgr_client::ipc_path(),
             executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
             loop_interval: LOOP_INTERVAL,
@@ -182,19 +160,17 @@ impl BootstrapConfig {
             health_check_interval: HEALTH_CHECK_INTERVAL,
             ready_timeout: EXECUTOR_READY_TIMEOUT,
             opms_request_timeout: OPMS_REQUEST_TIMEOUT,
-            opms_extra_headers: par.opms_extra_headers,
+            opms_extra_headers: runtime.opms_extra_headers,
             opms_proxy,
             tls: TlsConfig {
-                skip_ssl_validation: agent
-                    .get_typed("skip_ssl_validation")
-                    .context("invalid skip_ssl_validation configuration from the Core Agent")?,
-                min_tls_version,
+                skip_ssl_validation: runtime.skip_ssl_validation,
+                min_tls_version: runtime.min_tls_version,
             },
             min_backoff: MIN_BACKOFF,
             max_backoff: MAX_BACKOFF,
             wait_before_retry: WAIT_BEFORE_RETRY,
             max_attempts: MAX_ATTEMPTS,
-            runner_version: self.agent_version,
+            runner_version: crate::agent_version().to_string(),
             modes: vec!["pull".to_string()],
             ipc_cert_file: self.ipc_cert_file_path.into(),
             identity: Identity {
@@ -207,268 +183,112 @@ impl BootstrapConfig {
     }
 }
 
-fn opms_base_url(
-    agent: &GenericConfiguration,
-    use_dd_url: bool,
-    dd_url_explicit: bool,
-) -> Result<String> {
-    let dd_url: String = agent
-        .get_typed("dd_url")
-        .context("invalid dd_url configuration from the Core Agent")?;
-    if use_dd_url {
-        return endpoint_origin(&dd_url);
-    }
-    if dd_url_explicit {
-        let site = site_from_datadog_url(&dd_url)
-            .context("explicit dd_url does not contain a recognized Datadog site")?;
-        return Ok(format!("https://api.{site}"));
-    }
-
-    let site: String = agent
-        .get_typed("site")
-        .context("invalid site configuration from the Core Agent")?;
-    let site = site.trim();
-    ensure!(!site.is_empty(), "site is empty");
-    Ok(format!("https://api.{site}"))
-}
-
-fn endpoint_origin(raw: &str) -> Result<String> {
-    let parsed = reqwest::Url::parse(raw).context("invalid dd_url")?;
-    ensure!(
-        matches!(parsed.scheme(), "http" | "https"),
-        "dd_url must use HTTP or HTTPS"
-    );
-    ensure!(parsed.host_str().is_some(), "dd_url has no host");
-    Ok(parsed.origin().ascii_serialization())
-}
-
-// Mirrors Go's `ddSitePattern` in `pkg/config/utils/endpoints.go`: an optional datacenter
-// label (e.g. `us3.`, `ap1.`) followed by a known Datadog domain, anchored at the end of the
-// hostname.
-static SITE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:^|\.)([a-z]{2,}\d{1,2}\.)?(datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com)$")
-        .unwrap()
-});
-
-fn site_from_datadog_url(raw: &str) -> Option<String> {
-    let parsed = reqwest::Url::parse(raw).ok()?;
-    let host = parsed
-        .host_str()?
-        .trim_end_matches('.')
-        .to_ascii_lowercase();
-    let captures = SITE_RE.captures(&host)?;
-    let datacenter = captures.get(1).map_or("", |group| group.as_str());
-    Some(format!("{datacenter}{}", &captures[2]))
-}
-
-fn proxy_for(agent: &GenericConfiguration, target: &str) -> Result<ProxyDecision> {
-    let proxy: AgentProxyConfig = agent
-        .get_typed("proxy")
-        .context("invalid proxy configuration from the Core Agent")?;
-    let target = reqwest::Url::parse(target).context("invalid OPMS URL")?;
-    let proxy_url = match target.scheme() {
-        "http" => proxy.http,
-        "https" => proxy.https,
-        scheme => anyhow::bail!("unsupported OPMS URL scheme {scheme}"),
-    };
-    if proxy_url.is_empty() {
-        return Ok(ProxyDecision::None);
-    }
-
-    let nonexact: bool = agent
-        .get_typed("no_proxy_nonexact_match")
-        .context("invalid no_proxy_nonexact_match configuration from the Core Agent")?;
-    if nonexact {
-        return Ok(ProxyDecision::NonExact {
-            proxy_url,
-            no_proxy: proxy.no_proxy.join(","),
-        });
-    }
-
-    let host = match target.port() {
-        Some(port) => format!("{}:{port}", target.host_str().unwrap_or_default()),
-        None => target.host_str().unwrap_or_default().to_string(),
-    };
-    if proxy.no_proxy.iter().any(|entry| entry == &host) {
-        Ok(ProxyDecision::None)
-    } else {
-        Ok(ProxyDecision::Direct(proxy_url))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use saluki_config::{
-        ConfigurationLoader,
-        dynamic::{ConfigSetting, ConfigUpdate},
-    };
     use serde_json::json;
-    use tokio::sync::mpsc;
 
     const JSON: &str = r#"{
         "split_mode": true,
         "log_level": "debug",
-        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
-        "agent_version":"7.76.0",
-        "cmd_port":5001,
-        "auth_token_file_path":"/etc/datadog-agent/auth_token",
-        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem"
+        "identity": {"urn":"urn","private_key":"secret-key","org_id":42,"runner_id":"runner"},
+        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem",
+        "runtime": {
+            "opms_base_url":"https://api.us3.datadoghq.com",
+            "task_concurrency":9,
+            "executor_socket_path":"/from-par.sock",
+            "opms_extra_headers":{"X-Test":"secret-header"},
+            "opms_proxy_url":"http://user:secret-password@proxy:3128",
+            "skip_ssl_validation":true,
+            "min_tls_version":"tlsv1.3"
+        }
     }"#;
 
-    async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
-        agent_config_values(
-            task_concurrency,
-            "https://app.datadoghq.com",
-            json!([]),
-            false,
-        )
-        .await
-    }
-
-    async fn agent_config_with_proxy(
-        task_concurrency: usize,
-        no_proxy: serde_json::Value,
-        nonexact: bool,
-    ) -> GenericConfiguration {
-        agent_config_values(
-            task_concurrency,
-            "https://app.datadoghq.com",
-            no_proxy,
-            nonexact,
-        )
-        .await
-    }
-
-    async fn agent_config_values(
-        task_concurrency: usize,
-        dd_url: &str,
-        no_proxy: serde_json::Value,
-        nonexact: bool,
-    ) -> GenericConfiguration {
-        let settings = [
-            ConfigSetting::explicit("private_action_runner.enabled", json!(true)),
-            ConfigSetting::explicit("private_action_runner.split_enabled", json!(true)),
-            ConfigSetting::explicit(
-                "private_action_runner.task_concurrency",
-                json!(task_concurrency),
-            ),
-            ConfigSetting::explicit(
-                "private_action_runner.executor.socket_path",
-                json!("/from-agent.sock"),
-            ),
-            ConfigSetting::explicit(
-                "private_action_runner.opms_extra_headers",
-                json!({"X-Test": "agent"}),
-            ),
-            ConfigSetting::explicit("site", json!("datadoghq.com")),
-            ConfigSetting::explicit("dd_url", json!(dd_url)),
-            ConfigSetting::explicit(
-                "proxy",
-                json!({"http": "", "https": "http://proxy:3128", "no_proxy": no_proxy}),
-            ),
-            ConfigSetting::explicit("no_proxy_nonexact_match", json!(nonexact)),
-            ConfigSetting::explicit("skip_ssl_validation", json!(true)),
-            ConfigSetting::explicit("min_tls_version", json!("tlsv1.3")),
-        ];
-        let (sender, receiver) = mpsc::channel(1);
-        sender.send(ConfigUpdate::snapshot(settings)).await.unwrap();
-
-        let config = ConfigurationLoader::default()
-            .with_dynamic_configuration(receiver)
-            .into_generic()
-            .await
-            .unwrap();
-        config.ready().await;
-        config
-    }
-
-    #[tokio::test]
-    async fn combines_bootstrap_and_core_agent_configuration() {
+    #[test]
+    fn uses_only_the_resolved_bootstrap_snapshot() {
         let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
         assert!(bootstrap.split_mode);
         assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
 
-        let config = bootstrap
-            .into_config(&agent_config(9).await, false)
-            .unwrap();
+        let config = bootstrap.into_config().unwrap();
 
-        assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
+        assert_eq!(config.opms_base_url, "https://api.us3.datadoghq.com");
         assert_eq!(
             config.opms_proxy,
-            ProxyDecision::Direct("http://proxy:3128".to_string())
+            ProxyDecision::Direct("http://user:secret-password@proxy:3128".to_string())
         );
         assert_eq!(config.task_concurrency, 9);
-        assert_eq!(config.executor_socket, PathBuf::from("/from-agent.sock"));
-        assert_eq!(config.opms_extra_headers["X-Test"], "agent");
+        assert_eq!(config.executor_socket, PathBuf::from("/from-par.sock"));
+        assert_eq!(config.opms_extra_headers["X-Test"], "secret-header");
         assert!(config.tls.skip_ssl_validation);
         assert_eq!(config.tls.min_tls_version, "tlsv1.3");
         assert_eq!(config.loop_interval, Duration::from_secs(1));
+        assert_eq!(config.runner_version, crate::agent_version());
+        assert!(!config.runner_version.is_empty());
         assert_eq!(config.identity.org_id, 42);
+        assert_eq!(config.identity.private_key, "secret-key");
     }
 
-    #[tokio::test]
-    async fn rejects_invalid_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        let error = bootstrap
-            .into_config(&agent_config(0).await, false)
-            .err()
-            .unwrap()
-            .to_string();
-
-        assert!(error.contains("task_concurrency"));
+    #[test]
+    fn rejects_missing_runtime_instead_of_falling_back_to_core_agent() {
+        let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
+        payload.as_object_mut().unwrap().remove("runtime");
+        let bootstrap: BootstrapConfig = serde_json::from_value(payload).unwrap();
+        let error = bootstrap.into_config().err().unwrap().to_string();
+        assert!(error.contains("missing runtime"));
     }
 
-    #[tokio::test]
-    async fn applies_proxy_bypass_modes() {
-        let exact = agent_config_with_proxy(5, json!(["api.datadoghq.com"]), false).await;
+    #[test]
+    fn rejects_invalid_runtime_settings() {
+        for (field, value, message) in [
+            ("task_concurrency", json!(0), "task_concurrency"),
+            ("executor_socket_path", json!(""), "socket_path"),
+            ("opms_base_url", json!(""), "OPMS URL"),
+        ] {
+            let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
+            payload["runtime"][field] = value;
+            let bootstrap: BootstrapConfig = serde_json::from_value(payload).unwrap();
+            let error = bootstrap.into_config().err().unwrap().to_string();
+            assert!(error.contains(message), "{field}: {error}");
+        }
+    }
+
+    #[test]
+    fn preserves_go_proxy_bypass_decision() {
+        let mut bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+        bootstrap.runtime.as_mut().unwrap().opms_proxy_url.clear();
         assert_eq!(
-            proxy_for(&exact, "https://api.datadoghq.com").unwrap(),
+            bootstrap.into_config().unwrap().opms_proxy,
             ProxyDecision::None
         );
-
-        let nonexact = agent_config_with_proxy(5, json!(["datadoghq.com"]), true).await;
-        assert_eq!(
-            proxy_for(&nonexact, "https://api.datadoghq.com").unwrap(),
-            ProxyDecision::NonExact {
-                proxy_url: "http://proxy:3128".to_string(),
-                no_proxy: "datadoghq.com".to_string(),
-            }
-        );
     }
 
-    #[tokio::test]
-    async fn preserves_explicit_dd_url_precedence() {
-        let regional = agent_config_values(
-            5,
-            "https://intake.profile.us3.datadoghq.com/path",
-            json!([]),
-            false,
-        )
-        .await;
-        assert_eq!(
-            opms_base_url(&regional, false, true).unwrap(),
-            "https://api.us3.datadoghq.com"
-        );
-        assert_eq!(
-            opms_base_url(&regional, false, false).unwrap(),
-            "https://api.datadoghq.com"
-        );
-    }
+    #[test]
+    fn rejects_unknown_or_missing_runtime_fields() {
+        let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
+        payload["runtime"]["unknown"] = json!(true);
+        assert!(serde_json::from_value::<BootstrapConfig>(payload).is_err());
 
-    #[tokio::test]
-    async fn uses_dd_url_for_internal_tests() {
-        let fakeintake =
-            agent_config_values(5, "http://fakeintake:8080/path", json!([]), false).await;
-        assert_eq!(
-            opms_base_url(&fakeintake, true, true).unwrap(),
-            "http://fakeintake:8080"
-        );
+        let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
+        payload["runtime"]
+            .as_object_mut()
+            .unwrap()
+            .remove("skip_ssl_validation");
+        assert!(serde_json::from_value::<BootstrapConfig>(payload).is_err());
     }
 
     #[test]
     fn rejects_unknown_bootstrap_fields() {
         let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
         assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
+    }
+
+    #[test]
+    fn debug_does_not_expose_credentials() {
+        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+        let debug = format!("{bootstrap:?}");
+        for secret in ["secret-key", "secret-header", "secret-password"] {
+            assert!(!debug.contains(secret));
+        }
     }
 }

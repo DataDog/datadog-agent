@@ -11,7 +11,6 @@ use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
-use par_control::remote_config;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -62,8 +61,7 @@ async fn run() -> Result<()> {
 
     par_control::tls::initialize_crypto_provider()?;
 
-    let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
-    let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
+    let config = bootstrapped.into_config()?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
