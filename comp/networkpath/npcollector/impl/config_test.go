@@ -17,8 +17,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
 func TestPathtestIntervalYAML(t *testing.T) {
@@ -33,6 +35,9 @@ func TestPathtestIntervalYAML(t *testing.T) {
 		{name: "legacy numeric string remains nanoseconds", settings: `pathtest_interval: "45"`, want: 45 * time.Nanosecond},
 		{name: "seconds", settings: `pathtest_interval_sec: 30`, want: 30 * time.Second},
 		{name: "quoted seconds", settings: `pathtest_interval_sec: "30"`, want: 30 * time.Second},
+		// Native YAML numbers follow the shared config loader's integer coercion.
+		{name: "YAML fraction is truncated", settings: `pathtest_interval_sec: 1.5`, want: time.Second},
+		{name: "quoted fraction is rejected", settings: `pathtest_interval_sec: "1.5"`, want: 30 * time.Minute},
 		{name: "minimum", settings: `pathtest_interval_sec: 1`, want: time.Second},
 		{name: "maximum", settings: `pathtest_interval_sec: 9223372036`, want: 9223372036 * time.Second},
 		{
@@ -114,6 +119,37 @@ network_path:
 			result := newConfig(mockConfig, logmock.New(t))
 			assert.Equal(t, 30*time.Second, result.storeConfig.Interval)
 		})
+	}
+}
+
+func TestPathtestIntervalScheduling(t *testing.T) {
+	mockConfig := config.NewMockFromYAML(t, `
+network_path:
+  collector:
+    pathtest_interval: 1m
+    pathtest_interval_sec: 30
+`)
+	logger := logmock.New(t)
+	cfg := newConfig(mockConfig, logger)
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	now := start
+	store := pathteststore.NewPathtestStore(cfg.storeConfig, logger, &teststatsd.Client{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "192.0.2.1"})
+
+	// Advance the injected clock to prove that the configured seconds control
+	// repeated scheduling, including the boundary just before each run is due.
+	for _, step := range []struct {
+		elapsed time.Duration
+		want    int
+	}{
+		{0, 1},
+		{29 * time.Second, 0},
+		{30 * time.Second, 1},
+		{59 * time.Second, 0},
+		{60 * time.Second, 1},
+	} {
+		now = start.Add(step.elapsed)
+		assert.Len(t, store.Flush(), step.want, "elapsed: %s", step.elapsed)
 	}
 }
 
