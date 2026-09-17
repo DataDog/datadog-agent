@@ -118,50 +118,9 @@ func (r *dockerConfigReader) ReadMatchingFiles(ctx context.Context, search Confi
 		return nil, false, dockerExecExitError(output.exitCode, output.stderr)
 	}
 
-	discoveryLimited := output.stdoutLimited
-	stdout := output.stdout
-	if len(stdout) != 0 && stdout[len(stdout)-1] != 0 {
-		discoveryLimited = true
-		lastSeparator := bytes.LastIndexByte(stdout, 0)
-		if lastSeparator < 0 {
-			stdout = nil
-		} else {
-			stdout = stdout[:lastSeparator+1]
-		}
-	}
-
-	var paths []VerifiedConfigFilePath
-	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
-		if len(outputPath) == 0 {
-			continue
-		}
-		filePath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
-		if err != nil || !search.Contains(filePath) {
-			continue
-		}
-		matched, err := matches(filePath)
-		if err != nil {
-			return nil, false, fmt.Errorf("match docker config file %q: %w", filePath.String(), err)
-		}
-		if matched {
-			paths = append(paths, filePath)
-		}
-	}
-	paths, pathsLimited, err := sortAndLimitFilePaths(paths, maxMatches)
-	if err != nil {
-		return nil, false, err
-	}
-
-	var results []ConfigFileReadResult
-	for _, filePath := range paths {
-		file, err := r.readFileWithinSearch(ctx, searchRoot, filePath)
-		if err != nil {
-			results = append(results, NewConfigFileReadError(filePath, err))
-			continue
-		}
-		results = append(results, NewConfigFileReadResult(filePath, file))
-	}
-	return results, discoveryLimited || pathsLimited, nil
+	return readMatchingConfigFiles(output.stdout, output.stdoutLimited, search, maxMatches, matches, func(filePath VerifiedConfigFilePath) (ConfigFile, error) {
+		return r.readFileWithinSearch(ctx, searchRoot, filePath)
+	})
 }
 
 // readFileWithinSearch revalidates and reads filePath without following a

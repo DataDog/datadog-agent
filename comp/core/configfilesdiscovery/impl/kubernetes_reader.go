@@ -134,52 +134,9 @@ func (r *kubernetesConfigReader) ReadMatchingFiles(ctx context.Context, search C
 	if discoveryLimited {
 		stdout = stdout[:kubernetesFindOutputLimit]
 	}
-	if len(stdout) != 0 && stdout[len(stdout)-1] != 0 {
-		discoveryLimited = true
-		lastSeparator := bytes.LastIndexByte(stdout, 0)
-		if lastSeparator < 0 {
-			stdout = nil
-		} else {
-			stdout = stdout[:lastSeparator+1]
-		}
-	}
-
-	var paths []VerifiedConfigFilePath
-	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
-		if len(outputPath) == 0 {
-			continue
-		}
-		cleanPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
-		if err != nil {
-			continue
-		}
-		if !search.Contains(cleanPath) {
-			continue
-		}
-		matched, err := matches(cleanPath)
-		if err != nil {
-			return nil, false, fmt.Errorf("match kubernetes config file %q: %w", cleanPath.String(), err)
-		}
-		if !matched {
-			continue
-		}
-		paths = append(paths, cleanPath)
-	}
-	paths, limited, err := sortAndLimitFilePaths(paths, maxMatches)
-	if err != nil {
-		return nil, false, err
-	}
-
-	var results []ConfigFileReadResult
-	for _, filePath := range paths {
-		file, err := r.readFileWithinSearch(ctx, searchRoot, filePath)
-		if err != nil {
-			results = append(results, NewConfigFileReadError(filePath, err))
-			continue
-		}
-		results = append(results, NewConfigFileReadResult(filePath, file))
-	}
-	return results, discoveryLimited || limited, nil
+	return readMatchingConfigFiles(stdout, discoveryLimited, search, maxMatches, matches, func(filePath VerifiedConfigFilePath) (ConfigFile, error) {
+		return r.readFileWithinSearch(ctx, searchRoot, filePath)
+	})
 }
 
 // readFileWithinSearch revalidates and reads filePath without following a

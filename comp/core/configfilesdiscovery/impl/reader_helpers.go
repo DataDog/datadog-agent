@@ -8,7 +8,9 @@
 package configfilesdiscoveryimpl
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"slices"
@@ -92,6 +94,69 @@ func sortAndLimitFilePaths(paths []VerifiedConfigFilePath, maxMatches int) ([]Ve
 		return paths, false, nil
 	}
 	return paths[:maxMatches], true, nil
+}
+
+// readMatchingConfigFiles validates, matches, and reads NUL-delimited paths
+// returned by a bounded runtime search.
+func readMatchingConfigFiles(
+	stdout []byte,
+	discoveryLimited bool,
+	search ConfigFileSearch,
+	maxMatches int,
+	matches ConfigFilePathMatcher,
+	readFile func(VerifiedConfigFilePath) (ConfigFile, error),
+) ([]ConfigFileReadResult, bool, error) {
+	// A bounded search may stop halfway through a path. Keep only complete,
+	// NUL-terminated entries and report that discovery was partial.
+	if len(stdout) != 0 && stdout[len(stdout)-1] != 0 {
+		discoveryLimited = true
+		lastSeparator := bytes.LastIndexByte(stdout, 0)
+		if lastSeparator < 0 {
+			stdout = nil
+		} else {
+			stdout = stdout[:lastSeparator+1]
+		}
+	}
+
+	// Treat runtime output as untrusted: accept only verified paths confined to
+	// the requested search and approved by the collector's matcher.
+	var paths []VerifiedConfigFilePath
+	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
+		if len(outputPath) == 0 {
+			continue
+		}
+		filePath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
+		if err != nil || !search.Contains(filePath) {
+			continue
+		}
+		matched, err := matches(filePath)
+		if err != nil {
+			return nil, false, fmt.Errorf("match config file %q: %w", filePath.String(), err)
+		}
+		if matched {
+			paths = append(paths, filePath)
+		}
+	}
+
+	// Runtime discovery order is not stable, so establish lexical order and
+	// remove duplicates before applying the match limit.
+	paths, pathsLimited, err := sortAndLimitFilePaths(paths, maxMatches)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// Preserve per-file read failures alongside successful reads so callers can
+	// skip individual files without discarding the rest of the bounded result.
+	var results []ConfigFileReadResult
+	for _, filePath := range paths {
+		file, err := readFile(filePath)
+		if err != nil {
+			results = append(results, NewConfigFileReadError(filePath, err))
+			continue
+		}
+		results = append(results, NewConfigFileReadResult(filePath, file))
+	}
+	return results, discoveryLimited || pathsLimited, nil
 }
 
 func readLimitedFileContent(r io.Reader, limit int) ([]byte, bool, error) {
