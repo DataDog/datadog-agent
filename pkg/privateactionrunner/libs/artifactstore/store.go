@@ -4,12 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package artifactstore atomically publishes immutable artifacts in a filesystem cache.
-//
-// A Store must be rooted in a dedicated directory on a local filesystem that
-// provides reliable file locks and atomic renames. The root and its ancestors
-// must not be writable by untrusted users: Store intentionally relies on that
-// ownership boundary rather than defending against symlink replacement by an
-// attacker with write access to the cache hierarchy.
+
 package artifactstore
 
 import (
@@ -34,35 +29,36 @@ const (
 	defaultLockPollInterval = 100 * time.Millisecond
 )
 
-// Key identifies one immutable artifact variant. Each field must be a single,
-// non-empty path component. The key must include every input that affects
-// materialization, and callers sharing a key must use equivalent callbacks.
+// Key identifies an artifact variant. example sha256/sha.../v1-variant-hash...
 type Key struct {
 	Namespace string
 	ID        string
 	Variant   string
 }
 
-// Artifact identifies an immutable artifact directory that is ready for use.
+// Artifact identifies an artifact directory that is ready for use.
 type Artifact struct {
 	Directory string
 }
 
-// PopulateFunc writes a complete artifact into stagingDirectory before returning nil.
+// PopulateFunc writes a complete artifact into stagingDirectory.
 type PopulateFunc func(ctx context.Context, stagingDirectory string) error
 
-// ValidateFunc verifies an artifact without modifying it and must be safe for
-// concurrent use. Any non-context error marks the artifact invalid.
+// ValidateFunc verifies an artifact
 type ValidateFunc func(ctx context.Context, artifactDirectory string) error
 
-// Store coordinates concurrent access to immutable artifacts below a filesystem
-// root. Published artifacts must not be modified or removed outside Store.
+// Store coordinates concurrent access to artifacts
 type Store struct {
 	root             string
 	lockPollInterval time.Duration
 }
 
-// New creates an artifact store. Ensure creates and secures root lazily.
+type storePaths struct {
+	artifactDirectory      string
+	lockFile               string
+	stagingParentDirectory string
+}
+
 func New(root string) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("artifact store root is required")
@@ -82,24 +78,9 @@ func New(root string) (*Store, error) {
 	}, nil
 }
 
-// Ensure returns a validated cache entry or populates and atomically publishes one.
+// Ensure returns a validated artifact entry or populates and atomically publishes one.
 func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, validate ValidateFunc) (artifact Artifact, returnErr error) {
-	if s == nil {
-		return Artifact{}, errors.New("artifact store is required")
-	}
-	if ctx == nil {
-		return Artifact{}, errors.New("artifact store context is required")
-	}
-	if populate == nil {
-		return Artifact{}, errors.New("artifact populate function is required")
-	}
-	if validate == nil {
-		return Artifact{}, errors.New("artifact validate function is required")
-	}
-	if err := validateKey(key); err != nil {
-		return Artifact{}, err
-	}
-	if err := ctx.Err(); err != nil {
+	if err := s.validateEnsureRequest(ctx, key, populate, validate); err != nil {
 		return Artifact{}, err
 	}
 	if err := createPrivateDirectory(s.root); err != nil {
@@ -107,25 +88,27 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 	}
 
 	paths := s.paths(key)
-	usable, err := inspectArtifact(ctx, paths.finalDirectory, validate)
+	// Return immediately when a valid artifact is already cached.
+	artifactUsable, err := isArtifactUsable(ctx, paths.artifactDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s: %w", key, err)
 	}
-	if usable {
-		return Artifact{Directory: paths.finalDirectory}, nil
+	if artifactUsable {
+		return Artifact{Directory: paths.artifactDirectory}, nil
 	}
 
 	if err := createPrivateDirectory(filepath.Dir(paths.lockFile)); err != nil {
 		return Artifact{}, fmt.Errorf("could not create artifact lock directory: %w", err)
 	}
 
+	// Wait for another publisher to finish, or acquire the artifact lock.
 	fileLock := flock.New(paths.lockFile)
-	available, err := waitForArtifactOrLock(ctx, fileLock, s.lockPollInterval, paths.finalDirectory, validate)
+	artifactAvailable, err := waitForArtifactOrAcquireLock(ctx, fileLock, s.lockPollInterval, paths.artifactDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not acquire lock for artifact %s: %w", key, err)
 	}
-	if available {
-		return Artifact{Directory: paths.finalDirectory}, nil
+	if artifactAvailable {
+		return Artifact{Directory: paths.artifactDirectory}, nil
 	}
 	defer func() {
 		if err := fileLock.Unlock(); err != nil {
@@ -134,26 +117,78 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 		}
 	}()
 
-	usable, err = inspectArtifact(ctx, paths.finalDirectory, validate)
+	// Recheck after locking in case another process published first.
+	artifactUsable, err = isArtifactUsable(ctx, paths.artifactDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s after acquiring its lock: %w", key, err)
 	}
-	if usable {
-		return Artifact{Directory: paths.finalDirectory}, nil
+	if artifactUsable {
+		return Artifact{Directory: paths.artifactDirectory}, nil
 	}
 
-	if err := os.RemoveAll(paths.finalDirectory); err != nil {
+	return populateAndPublish(ctx, key, paths, populate, validate)
+}
+
+func (s *Store) validateEnsureRequest(ctx context.Context, key Key, populate PopulateFunc, validate ValidateFunc) error {
+	if s == nil {
+		return errors.New("artifact store is required")
+	}
+	if ctx == nil {
+		return errors.New("artifact store context is required")
+	}
+	if populate == nil {
+		return errors.New("artifact populate function is required")
+	}
+	if validate == nil {
+		return errors.New("artifact validate function is required")
+	}
+	if err := validateKey(key); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
+func (s *Store) paths(key Key) storePaths {
+	return storePaths{
+		artifactDirectory: filepath.Join(
+			s.root,
+			artifactsDirectoryName,
+			key.Namespace,
+			key.ID,
+			key.Variant,
+		),
+		lockFile: filepath.Join(
+			s.root,
+			locksDirectoryName,
+			key.Namespace,
+			key.ID,
+			key.Variant+lockFileSuffix,
+		),
+		stagingParentDirectory: filepath.Join(
+			s.root,
+			stagingDirectoryName,
+			key.Namespace,
+			key.ID,
+			key.Variant,
+		),
+	}
+}
+
+func populateAndPublish(ctx context.Context, key Key, paths storePaths, populate PopulateFunc, validate ValidateFunc) (Artifact, error) {
+	// Remove an existing entry that failed validation.
+	if err := os.RemoveAll(paths.artifactDirectory); err != nil {
 		return Artifact{}, fmt.Errorf("could not remove unusable artifact %s: %w", key, err)
 	}
 
-	if err := prepareStagingDirectory(paths); err != nil {
+	// Populate and validate in a private staging directory.
+	if err := prepareStagingParent(paths); err != nil {
 		return Artifact{}, fmt.Errorf("could not prepare staging for artifact %s: %w", key, err)
 	}
 	defer func() {
-		_ = os.RemoveAll(paths.stagingKeyDirectory)
+		_ = os.RemoveAll(paths.stagingParentDirectory)
 	}()
 
-	stagingRoot, err := os.MkdirTemp(paths.stagingKeyDirectory, stagingDirectoryPrefix)
+	stagingRoot, err := os.MkdirTemp(paths.stagingParentDirectory, stagingDirectoryPrefix)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not create staging directory for artifact %s: %w", key, err)
 	}
@@ -168,46 +203,15 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 		return Artifact{}, err
 	}
 
-	if err := createPrivateDirectory(filepath.Dir(paths.finalDirectory)); err != nil {
+	// Atomically publish the complete artifact.
+	if err := createPrivateDirectory(filepath.Dir(paths.artifactDirectory)); err != nil {
 		return Artifact{}, fmt.Errorf("could not create artifact cache directory: %w", err)
 	}
-	if err := os.Rename(stagingRoot, paths.finalDirectory); err != nil {
+	if err := os.Rename(stagingRoot, paths.artifactDirectory); err != nil {
 		return Artifact{}, fmt.Errorf("could not publish artifact %s: %w", key, err)
 	}
 
-	return Artifact{Directory: paths.finalDirectory}, nil
-}
-
-type storePaths struct {
-	finalDirectory      string
-	lockFile            string
-	stagingKeyDirectory string
-}
-
-func (s *Store) paths(key Key) storePaths {
-	return storePaths{
-		finalDirectory: filepath.Join(
-			s.root,
-			artifactsDirectoryName,
-			key.Namespace,
-			key.ID,
-			key.Variant,
-		),
-		lockFile: filepath.Join(
-			s.root,
-			locksDirectoryName,
-			key.Namespace,
-			key.ID,
-			key.Variant+lockFileSuffix,
-		),
-		stagingKeyDirectory: filepath.Join(
-			s.root,
-			stagingDirectoryName,
-			key.Namespace,
-			key.ID,
-			key.Variant,
-		),
-	}
+	return Artifact{Directory: paths.artifactDirectory}, nil
 }
 
 func validateKey(key Key) error {
@@ -230,7 +234,7 @@ func isPathComponent(value string) bool {
 	return value != "" && value != "." && filepath.IsLocal(value) && !strings.ContainsAny(value, `/\`)
 }
 
-func inspectArtifact(ctx context.Context, directory string, validate ValidateFunc) (bool, error) {
+func isArtifactUsable(ctx context.Context, directory string, validate ValidateFunc) (bool, error) {
 	info, err := os.Lstat(directory)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -257,23 +261,23 @@ func createPrivateDirectory(path string) error {
 	return os.Chmod(path, privateDirectoryMode)
 }
 
-func waitForArtifactOrLock(
+func waitForArtifactOrAcquireLock(
 	ctx context.Context,
 	fileLock *flock.Flock,
 	pollInterval time.Duration,
 	artifactDirectory string,
 	validate ValidateFunc,
-) (available bool, err error) {
+) (artifactAvailable bool, err error) {
 	for {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
 
-		usable, err := inspectArtifact(ctx, artifactDirectory, validate)
+		artifactUsable, err := isArtifactUsable(ctx, artifactDirectory, validate)
 		if err != nil {
 			return false, err
 		}
-		if usable {
+		if artifactUsable {
 			return true, nil
 		}
 
@@ -297,11 +301,11 @@ func waitForArtifactOrLock(
 	}
 }
 
-func prepareStagingDirectory(paths storePaths) error {
-	if err := os.RemoveAll(paths.stagingKeyDirectory); err != nil {
+func prepareStagingParent(paths storePaths) error {
+	if err := os.RemoveAll(paths.stagingParentDirectory); err != nil {
 		return err
 	}
-	return createPrivateDirectory(paths.stagingKeyDirectory)
+	return createPrivateDirectory(paths.stagingParentDirectory)
 }
 
 func (k Key) String() string {
