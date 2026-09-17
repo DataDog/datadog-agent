@@ -22,25 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-const goLabelsTestProgram = `package main
-
-import (
-	"fmt"
-	_ "net"
-	_ "os/user"
-)
-
-func main() { fmt.Println("hi") }
-`
-
 // buildGoLabelsTestBinary builds the test program with the given environment and
 // linker flags, and returns the path to the resulting binary.
 func buildGoLabelsTestBinary(t *testing.T, dir, name string, env []string, args ...string) string {
 	t.Helper()
 
 	out := filepath.Join(dir, name)
-	cmd := exec.Command("go", append(append([]string{"build", "-o", out}, args...), ".")...)
-	cmd.Dir = dir
+	cmd := exec.Command("go", append(append([]string{"build", "-o", out}, args...), "./main.go")...)
+	cmd.Dir = "testdata"
 	cmd.Env = append(os.Environ(), env...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build %v %v failed: %s\n%s", env, args, err, output)
@@ -100,10 +89,6 @@ func TestExtractTLSGOffset(t *testing.T) {
 		{name: "cgo_pie", env: []string{"CGO_ENABLED=1"}, args: []string{"-buildmode=pie"}},
 	}
 
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(goLabelsTestProgram), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module golabelstest\n\ngo 1.21\n"), 0o600))
-
 	offsetOf := func(t *testing.T, path string) int32 {
 		t.Helper()
 
@@ -116,6 +101,7 @@ func TestExtractTLSGOffset(t *testing.T) {
 		return offset
 	}
 
+	dir := t.TempDir()
 	for _, v := range variants {
 		t.Run(v.name, func(t *testing.T) {
 			plain := buildGoLabelsTestBinary(t, dir, v.name, v.env, v.args...)
