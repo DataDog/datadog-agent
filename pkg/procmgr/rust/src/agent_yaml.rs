@@ -142,8 +142,14 @@ fn number_as_string(number: &serde_yaml::Number) -> String {
     if let Some(value) = number.as_u64() {
         return value.to_string();
     }
+    // `cast.ToStringE` formats a float64 with `strconv.FormatFloat(v, 'f', -1, 64)`: the
+    // shortest form that round-trips, always positional. Rust's `Display` agrees, and
+    // unlike a cast to i64 it does not saturate at i64::MAX for a value such as `1e20`.
     match number.as_f64() {
-        Some(value) if value.fract() == 0.0 && value.is_finite() => format!("{}", value as i64),
+        // `FormatFloat` spells the infinities with a sign, `Display` does not.
+        // The two spell the infinities differently; both spell NaN `NaN`.
+        Some(value) if value.is_infinite() && value.is_sign_negative() => "-Inf".to_owned(),
+        Some(value) if value.is_infinite() => "+Inf".to_owned(),
         Some(value) => value.to_string(),
         None => String::new(),
     }
@@ -969,6 +975,29 @@ process_config:
                 scalar_as_string(&value).as_deref(),
                 expected,
                 "value={value:?}"
+            );
+        }
+    }
+
+    /// `cast.ToStringE` runs a float64 through `FormatFloat(v, 'f', -1, 64)`, which has
+    /// no exponent and no upper bound, so a large float must not be clamped to i64::MAX.
+    #[test]
+    fn large_floats_stringify_without_saturating() {
+        for (yaml, expected) in [
+            ("enabled: 1e20\n", "100000000000000000000"),
+            ("enabled: 1e17\n", "100000000000000000"),
+            ("enabled: 1e-7\n", "0.0000001"),
+            ("enabled: 18446744073709551616\n", "18446744073709552000"),
+            ("enabled: 123456789012345678901\n", "123456789012345680000"),
+            ("enabled: 1.5\n", "1.5"),
+            ("enabled: .inf\n", "+Inf"),
+            ("enabled: -.inf\n", "-Inf"),
+            ("enabled: .nan\n", "NaN"),
+        ] {
+            assert_eq!(
+                scalar_as_string(&scalar(yaml)).as_deref(),
+                Some(expected),
+                "{yaml:?}"
             );
         }
     }
