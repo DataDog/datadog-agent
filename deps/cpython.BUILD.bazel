@@ -17,7 +17,11 @@ DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".
 
 # Interpreter matching the CPython version we build, used as
 # `--with-build-python` when cross-compiling. Registered in MODULE.bazel.
-BUILD_PYTHON = "@python_{}//:python3".format(PYTHON_MAJOR_MINOR.replace(".", "_"))
+# Spelled out rather than derived from PYTHON_MAJOR_MINOR so buildozer and Code
+# Search can see the label. A CPython minor bump has to update this and the
+# matching `python.toolchain` call in MODULE.bazel; configure rejects a
+# mismatched `--with-build-python` outright, so drift cannot go unnoticed.
+BUILD_PYTHON = "@python_3_13//:python3"
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {

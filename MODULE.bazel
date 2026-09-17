@@ -459,7 +459,6 @@ python.defaults(python_version_file = "//:.python-version")
 # uses to generate frozen modules when cross-compiling, so its minor version
 # must match the CPython we ship (see deps/cpython/cpython.MODULE.bazel).
 python.toolchain(python_version = CPYTHON_MAJOR_MINOR)
-
 use_repo(
     python,
     "pythons_hub",
