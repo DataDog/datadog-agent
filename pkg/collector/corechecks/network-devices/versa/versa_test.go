@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 

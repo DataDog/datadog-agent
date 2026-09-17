@@ -7,6 +7,7 @@
 package versa
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -75,7 +76,7 @@ func (d *deviceEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("included_devices entries must be a device name or a mapping with a name and tags: %w", err)
 	}
 	if fields.Name == "" {
-		return fmt.Errorf("included_devices entry is missing a name")
+		return errors.New("included_devices entry is missing a name")
 	}
 
 	*d = deviceEntry(fields)
