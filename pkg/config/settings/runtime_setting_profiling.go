@@ -95,7 +95,7 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 		tags = profiling.GetBaseProfilingTags(tags)
 
 		service := l.Service
-		if helper.IsCLCRunner(config) {
+		if l.Service == "datadog-agent" && helper.IsCLCRunner(config) {
 			service = clcRunnerProfilingService
 		}
 
