@@ -257,9 +257,19 @@ pkg_files(
     }),
 )
 
+rewrite_rpath(
+    name = "security_agent_binary_rpath",
+    destination = select({
+        "@platforms//os:windows": "{install_dir}/bin/agent",
+        "//conditions:default": "{install_dir}/embedded/bin",
+    }),
+    inputs = ["//cmd/security-agent"],
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
 pkg_files(
     name = "security_agent_binary",
-    srcs = ["//cmd/security-agent"],
+    srcs = [":security_agent_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
