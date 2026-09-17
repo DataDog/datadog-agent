@@ -16,6 +16,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrConnectionOwnerNotFound means no process currently owns the queried TCP connection. Callers should
@@ -94,6 +96,19 @@ func adjustTokenPrivileges(token windows.Token, tp *windows.Tokenprivileges) err
 	return nil
 }
 
+// ensureDebugPrivilege enables SeDebugPrivilege best-effort. process-agent runs as LocalSystem, which holds
+// it by default, and it is what lets the token reads below reach hardened or other-user processes. It is not
+// required to resolve a normal, same-user process (e.g. the test binary's own), and a token that simply
+// lacks the privilege — such as a developer running these tests unelevated — makes AdjustTokenPrivileges
+// report ERROR_NOT_ALL_ASSIGNED. So a failure here is logged and tolerated rather than fatal: if the
+// privilege was genuinely needed, the OpenProcess/token read that follows fails on its own with
+// ERROR_ACCESS_DENIED.
+func ensureDebugPrivilege() {
+	if err := enableDebugPrivilege(); err != nil {
+		log.Debugf("proceeding without SeDebugPrivilege: %v", err)
+	}
+}
+
 // sidFromProcessHandle reads the owning user's SID string (e.g. "S-1-5-21-...-1001") from an already-open
 // process handle. The handle must grant at least PROCESS_QUERY_LIMITED_INFORMATION (as OpenProcessHandle
 // returns), which is enough to open the process token for TOKEN_QUERY.
@@ -132,9 +147,7 @@ func openProcessHandleForSID(pid uint32) (windows.Handle, error) {
 // resolving the owner of a network connection must use GetSIDForConnectionOwner, which guards against PID
 // reuse, rather than resolving a PID themselves and passing it here.
 func GetSIDForPID(pid int32) (string, error) {
-	if err := enableDebugPrivilege(); err != nil {
-		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
-	}
+	ensureDebugPrivilege()
 
 	h, err := openProcessHandleForSID(uint32(pid))
 	if err != nil {
@@ -164,9 +177,7 @@ func GetSIDForPID(pid int32) (string, error) {
 // This is the entry point callers must use to attribute a connection to an OS identity; see GetSIDForPID's
 // note on why passing a separately-resolved PID is unsafe.
 func GetSIDForConnectionOwner(family uint32, localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int) (string, error) {
-	if err := enableDebugPrivilege(); err != nil {
-		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
-	}
+	ensureDebugPrivilege()
 
 	pid, ok, err := findConnectionOwnerPID(family, localAddr, localPort, remoteAddr, remotePort)
 	if err != nil {
@@ -182,8 +193,7 @@ func GetSIDForConnectionOwner(family uint32, localAddr net.IP, localPort int, re
 	}
 	defer windows.Close(h)
 
-	// Re-validate with the handle held (see step 3 above). enableDebugPrivilege already succeeded, so this
-	// second read uses the same privileges as the first.
+	// Re-validate with the handle held (see step 3 above).
 	pid2, ok2, err := findConnectionOwnerPID(family, localAddr, localPort, remoteAddr, remotePort)
 	if err != nil {
 		return "", err
