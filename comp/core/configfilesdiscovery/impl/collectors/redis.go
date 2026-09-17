@@ -289,7 +289,9 @@ func isRedisPathWithinRoot(filePath string, rootDir string) bool {
 }
 
 // compileRedisIncludePattern returns a matcher that implements Redis glob
-// semantics, or an error when pattern is malformed.
+// semantics, or an error when pattern is malformed. Redis detects include
+// wildcards and delegates expansion to glob(3) in loadServerConfig:
+// https://github.com/redis/redis/blob/unstable/src/config.c
 func compileRedisIncludePattern(pattern configfilesdiscoveryimpl.VerifiedConfigFilePattern) (configfilesdiscoveryimpl.ConfigFilePathMatcher, error) {
 	patternValue := pattern.String()
 	convertedPattern := convertRedisIncludePattern(patternValue)
