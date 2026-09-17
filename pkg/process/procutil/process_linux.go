@@ -67,6 +67,10 @@ type statusInfo struct {
 	ctxSwitches *NumCtxSwitchesStat
 }
 
+func (s *statusInfo) isZombie() bool {
+	return s != nil && len(s.status) > 0 && s.status[0] == 'Z'
+}
+
 type statInfo struct {
 	ppid       int32
 	createTime int64
@@ -206,8 +210,29 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
+		isZombie := statusInfo.isZombie()
 		statInfo := p.parseStat(pathForPID, pid, now)
-		memInfoEx := p.parseStatm(pathForPID)
+
+		var memInfoEx *MemoryInfoExStat
+		var ioStat *IOCountersStat
+		var openFdCount int32
+		if isZombie {
+			memInfoEx = &MemoryInfoExStat{}
+			ioStat = &IOCountersStat{}
+		} else {
+			memInfoEx = p.parseStatm(pathForPID)
+			if p.elevatedPermissions {
+				openFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+				ioStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+			} else {
+				ioStat = &IOCountersStat{
+					ReadCount:  -1,
+					WriteCount: -1,
+					ReadBytes:  -1,
+					WriteBytes: -1,
+				} // use -1 values to represent "no permission"
+			}
+		}
 
 		stats := &Stats{
 			CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
@@ -216,19 +241,10 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
 			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
 			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
-		}
-		if p.elevatedPermissions {
-			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
-		} else {
-			stats.IOStat = &IOCountersStat{
-				ReadCount:  -1,
-				WriteCount: -1,
-				ReadBytes:  -1,
-				WriteBytes: -1,
-			} // use -1 values to represent "no permission"
+			IOStat:      ioStat,
+			OpenFdCount: openFdCount,
+			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
 		statsByPID[pid] = stats
 	}
@@ -247,45 +263,73 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 		return nil, nil
 	}
 
-	cmdline := p.getCmdline(pathForPID)
-	comm := p.getCommandName(pathForPID)
 	statusInfo := p.parseStatus(pathForPID)
-	statInfo := p.parseStat(pathForPID, pid, now)
+	isZombie := statusInfo.isZombie()
+	if isZombie && p.ignoreZombieProcesses {
+		return nil, nil
+	}
 
-	if len(cmdline) == 0 {
-		if isKernelThread(statInfo.flags) {
-			log.Tracef("Skipping kernel process pid:%d", pid)
-			// NOTE: The agent's process check currently skips all processes that are kernel threads which have
-			//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
-			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			return nil, nil
-		} else if p.ignoreZombieProcesses {
-			return nil, nil
+	statInfo := p.parseStat(pathForPID, pid, now)
+	comm := p.getCommandName(pathForPID)
+
+	var cmdline []string
+	if !isZombie {
+		cmdline = p.getCmdline(pathForPID)
+		if len(cmdline) == 0 {
+			if isKernelThread(statInfo.flags) {
+				log.Tracef("Skipping kernel process pid:%d", pid)
+				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
+				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				return nil, nil
+			}
+			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
 		}
-		log.Debugf("process with empty cmdline not skipped pid:%d", pid)
 	}
 
 	// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 	// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
-	// createTime to make a bytekey
+	// createTime to make a bytekey.
 	var memInfoEx *MemoryInfoExStat
-	if collectStats {
+	if !isZombie && collectStats {
 		memInfoEx = p.parseStatm(pathForPID)
 	} else {
 		memInfoEx = &MemoryInfoExStat{}
 	}
 
+	var cwd, exe string
+	if !isZombie {
+		cwd = p.getLinkWithAuthCheck(pathForPID, "cwd") // /proc/[pid]/cwd, requires permission checks
+		exe = p.getLinkWithAuthCheck(pathForPID, "exe") // /proc/[pid]/exe, requires permission checks
+	}
+
+	var ioStat *IOCountersStat
+	var openFdCount int32
+	if isZombie {
+		ioStat = &IOCountersStat{}
+	} else if p.elevatedPermissions {
+		openFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+		ioStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+	} else {
+		ioStat = &IOCountersStat{
+			ReadCount:  -1,
+			WriteCount: -1,
+			ReadBytes:  -1,
+			WriteBytes: -1,
+		} // use -1 values to represent "no permission"
+	}
+
 	proc := &Process{
-		Pid:     pid,                                       // /proc/[pid]
-		Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
-		Cmdline: cmdline,                                   // /proc/[pid]/cmdline
-		Comm:    comm,                                      // /proc/[pid]/comm
-		Name:    string(statusInfo.name),                   // /proc/[pid]/status
-		Uids:    statusInfo.uids,                           // /proc/[pid]/status
-		Gids:    statusInfo.gids,                           // /proc/[pid]/status
-		Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
-		Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
-		NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
+		Pid:     pid,                     // /proc/[pid]
+		Ppid:    statInfo.ppid,           // /proc/[pid]/stat
+		Cmdline: cmdline,                 // /proc/[pid]/cmdline
+		Comm:    comm,                    // /proc/[pid]/comm
+		Name:    string(statusInfo.name), // /proc/[pid]/status
+		Uids:    statusInfo.uids,         // /proc/[pid]/status
+		Gids:    statusInfo.gids,         // /proc/[pid]/status
+		Cwd:     cwd,
+		Exe:     exe,
+		NsPid:   statusInfo.nspid, // /proc/[pid]/status
 		Stats: &Stats{
 			CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
 			Status:      string(statusInfo.status), // /proc/[pid]/status
@@ -293,20 +337,11 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
 			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
 			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
+			IOStat:      ioStat,
+			OpenFdCount: openFdCount,
+			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		},
-	}
-	if p.elevatedPermissions {
-		proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-		proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
-	} else {
-		proc.Stats.IOStat = &IOCountersStat{
-			ReadCount:  -1,
-			WriteCount: -1,
-			ReadBytes:  -1,
-			WriteBytes: -1,
-		} // use -1 values to represent "no permission"
 	}
 	return proc, nil
 }
