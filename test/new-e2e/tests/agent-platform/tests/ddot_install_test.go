@@ -186,8 +186,8 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
 		// Debian 11 is currently the only Debian version with these dependencies prebaked.
 		// Keep installing them at runtime for other versions until they have E2E AMIs too.
-		isDebian11E2E := is.osDesc.Flavor == e2eos.Debian && is.osDesc.Version == e2eos.Debian11E2E.Version
-		if !isDebian11E2E {
+		isDebian11 := is.osDesc.Flavor == e2eos.Debian && is.osDesc.Version == e2eos.Debian11.Version
+		if !isDebian11 {
 			ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
 		}
 		tmpFileContent := fmt.Sprintf("deb %s %s 7", aptrepo, aptrepoDist)
