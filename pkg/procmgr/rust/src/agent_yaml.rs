@@ -513,13 +513,19 @@ fn mapping_from_pairs(pairs: HashMap<String, Value>) -> Value {
     Value::Mapping(map)
 }
 
-fn scalar_as_key(value: Value) -> String {
+/// Converts a finished node into a mapping key.
+///
+/// Every key becomes a Go map key when the Agent unmarshals the file, and a sequence or
+/// a mapping is not comparable, so yaml.v2 aborts with `invalid map key` rather than
+/// inventing one. Returning an empty key instead would leave the rest of a file the
+/// Agent rejects readable, and a gate could act on it.
+fn scalar_as_key(value: Value) -> Result<String> {
     match value {
-        Value::String(text) => text,
-        Value::Bool(enabled) => enabled.to_string(),
-        Value::Number(number) => number.to_string(),
-        Value::Null => "null".to_owned(),
-        _ => String::new(),
+        Value::String(text) => Ok(text),
+        Value::Bool(enabled) => Ok(enabled.to_string()),
+        Value::Number(number) => Ok(number.to_string()),
+        Value::Null => Ok("null".to_owned()),
+        other => bail!("invalid map key: {other:?}"),
     }
 }
 
@@ -593,13 +599,13 @@ enum Pending {
 /// after it. A sequence is walked backwards because its earlier entries take precedence.
 fn merge_into(pairs: &mut HashMap<String, Value>, value: Value) -> Result<()> {
     match value {
-        Value::Mapping(mapping) => insert_all(pairs, mapping),
+        Value::Mapping(mapping) => insert_all(pairs, mapping)?,
         Value::Sequence(items) => {
             for item in items.into_iter().rev() {
                 let Value::Mapping(mapping) = item else {
                     bail!("map merge requires map or sequence of maps as the value");
                 };
-                insert_all(pairs, mapping);
+                insert_all(pairs, mapping)?;
             }
         }
         _ => bail!("map merge requires map or sequence of maps as the value"),
@@ -607,10 +613,11 @@ fn merge_into(pairs: &mut HashMap<String, Value>, value: Value) -> Result<()> {
     Ok(())
 }
 
-fn insert_all(pairs: &mut HashMap<String, Value>, mapping: Mapping) {
+fn insert_all(pairs: &mut HashMap<String, Value>, mapping: Mapping) -> Result<()> {
     for (key, value) in mapping {
-        pairs.insert(scalar_as_key(key), value);
+        pairs.insert(scalar_as_key(key)?, value);
     }
+    Ok(())
 }
 
 impl Builder {
@@ -703,7 +710,7 @@ impl Builder {
                     *pending = if plain_scalar && value == Value::String("<<".to_owned()) {
                         Pending::Merge
                     } else {
-                        Pending::Value(scalar_as_key(value))
+                        Pending::Value(scalar_as_key(value)?)
                     };
                 }
                 Pending::Value(key) => {
@@ -871,6 +878,22 @@ process_config:
             ),
             Some(Value::Bool(false))
         );
+    }
+
+    /// A sequence or mapping used as a key is not comparable, so yaml.v2 rejects the
+    /// whole file instead of coining a key for it.
+    #[test]
+    fn collection_mapping_keys_are_rejected() {
+        assert!(load("process_config:\n  ? [a, b]\n  : enabled\n").is_err());
+        assert!(load("process_config:\n  ? {a: 1}\n  : enabled\n").is_err());
+        assert!(load("? [a, b]\n: enabled\n").is_err());
+        // Every scalar kind is still a usable key.
+        for key in ["enabled", "!!str enabled", "1", "true", "~"] {
+            assert!(
+                load(&format!("process_config:\n  {key}: true\n")).is_ok(),
+                "{key}"
+            );
+        }
     }
 
     /// A merge whose value is not a mapping aborts `Unmarshal`, so it must fail here too.
