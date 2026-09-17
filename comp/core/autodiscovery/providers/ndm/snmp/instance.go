@@ -78,7 +78,7 @@ func renderInitConfig(ic initConfig) (integration.Data, error) {
 func renderInstance(ipAddress string, c credential) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:       ipAddress,
-		SNMPVersion:     c.SNMPVersion,
+		SNMPVersion:     string(c.SNMPVersion),
 		CommunityString: c.CommunityString,
 		User:            c.User,
 		AuthProtocol:    c.AuthProtocol,

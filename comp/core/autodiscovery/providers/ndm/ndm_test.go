@@ -176,7 +176,8 @@ func credentialsConfig(t *testing.T) model.BuildableConfig {
 	require.NoError(t, os.WriteFile(path, []byte(`
 init_config:
 instances:
-  - name: cred-abc
+  - tags:
+    - credential-name:cred-abc
     network_address: 1.2.3.4/32
     ignored_ip_addresses:
       - 1.2.3.4

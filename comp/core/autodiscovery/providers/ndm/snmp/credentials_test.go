@@ -21,13 +21,15 @@ import (
 const credentialsYAML = `
 init_config:
 instances:
-  - name: v2c-public
+  - tags:
+    - credential-name:v2c-public
     network_address: 1.2.3.4/32
     ignored_ip_addresses:
       - 1.2.3.4
     snmp_version: "2c"
     community_string: public
-  - name: v3-full
+  - tags:
+    - credential-name:v3-full
     network_address: 1.2.3.4/32
     ignored_ip_addresses:
       - 1.2.3.4
@@ -72,12 +74,14 @@ func TestLoadIndexesTheCredentialFileByID(t *testing.T) {
 
 	assert.Equal(t, credential{
 		ID:              "v2c-public",
+		Tags:            []string{"credential-name:v2c-public"},
 		SNMPVersion:     "2c",
 		CommunityString: "public",
 	}, creds["v2c-public"])
 
 	assert.Equal(t, credential{
 		ID:           "v3-full",
+		Tags:         []string{"credential-name:v3-full"},
 		SNMPVersion:  "3",
 		User:         "test-user",
 		AuthProtocol: "SHA",
@@ -86,6 +90,45 @@ func TestLoadIndexesTheCredentialFileByID(t *testing.T) {
 		PrivKey:      "test-priv-key",
 		ContextName:  "test-context",
 	}, creds["v3-full"])
+}
+
+func TestLoadAcceptsAnIntegerSNMPVersion(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, `
+init_config:
+instances:
+  - tags:
+    - credential-name:int-version
+    network_address: 1.2.3.4/32
+    ignored_ip_addresses:
+      - 1.2.3.4
+    snmp_version: 2
+    community_string: public
+`))
+
+	creds, err := store.load()
+	require.NoError(t, err)
+	assert.Equal(t, version("2"), creds["int-version"].SNMPVersion)
+	assert.NoError(t, validate(creds["int-version"]))
+}
+
+func TestLoadIgnoresTagsOtherThanTheCredentialName(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, `
+init_config:
+instances:
+  - tags:
+    - env:prod
+    - credential-name:tagged
+    - team:ndm
+    network_address: 1.2.3.4/32
+    ignored_ip_addresses:
+      - 1.2.3.4
+    snmp_version: 2
+    community_string: public
+`))
+
+	creds, err := store.load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tagged"}, keysOf(creds))
 }
 
 func TestLoadReadsTheFileUnderConfdPath(t *testing.T) {
@@ -116,7 +159,8 @@ func TestLoadOfAnEmptyFileIsEmptyAndNotAnError(t *testing.T) {
 func TestLoadOfAMalformedFileErrorsWithoutQuotingItsContent(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, `
 instances:
-  - name: v2c
+  - tags:
+    - credential-name:v2c
     community_string: s3cret-community
     snmp_version: [not, a, string]
 `))
@@ -126,12 +170,13 @@ instances:
 	assert.NotContains(t, err.Error(), "s3cret-community")
 }
 
-func TestLoadSkipsAnEntryWithNoID(t *testing.T) {
+func TestLoadSkipsAnInstanceWithNoCredentialNameTag(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, `
 instances:
   - snmp_version: "2c"
     community_string: public
-  - name: kept
+  - tags:
+    - credential-name:kept
     snmp_version: "2c"
     community_string: public
 `))
@@ -144,10 +189,12 @@ instances:
 func TestLoadKeepsTheFirstOfTwoEntriesSharingAnID(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, `
 instances:
-  - name: dup
+  - tags:
+    - credential-name:dup
     snmp_version: "2c"
     community_string: first
-  - name: dup
+  - tags:
+    - credential-name:dup
     snmp_version: "2c"
     community_string: second
 `))
@@ -167,7 +214,8 @@ func TestLoadRereadsTheFileEveryTime(t *testing.T) {
 
 	writeCredentials(t, cfg.GetString("confd_path"), `
 instances:
-  - name: v2c-public
+  - tags:
+    - credential-name:v2c-public
     snmp_version: "2c"
     community_string: rotated
 `)
@@ -184,6 +232,7 @@ func TestValidate(t *testing.T) {
 		wantErr string
 	}{
 		{name: "v1", cred: credential{ID: "c", SNMPVersion: "1", CommunityString: "public"}},
+		{name: "v2", cred: credential{ID: "c", SNMPVersion: "2", CommunityString: "public"}},
 		{name: "v2c", cred: credential{ID: "c", SNMPVersion: "2c", CommunityString: "public"}},
 		{name: "v3 with no protocols", cred: credential{ID: "c", SNMPVersion: "3", User: "test-user"}},
 		{
@@ -197,8 +246,8 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:    "an unknown version",
-			cred:    credential{ID: "c", SNMPVersion: "2"},
-			wantErr: `unknown SNMP version "2"`,
+			cred:    credential{ID: "c", SNMPVersion: "4"},
+			wantErr: `unknown SNMP version "4"`,
 		},
 		{
 			name:    "an unsupported auth protocol",

@@ -6,5 +6,5 @@ features:
     ``true`` to subscribe. It defaults to off. The delivered instances
     reference credentials by id, read from
     ``<confd_path>/snmp.d/snmp_credentials.yaml``, which Fleet Automation
-    writes as an SNMP check configuration whose instance names are the
-    credential ids.
+    writes as an SNMP check configuration whose instances each carry their
+    credential id in a ``credential-name:<id>`` tag.

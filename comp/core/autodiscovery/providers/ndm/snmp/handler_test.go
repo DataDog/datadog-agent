@@ -19,15 +19,18 @@ import (
 const twoCredentialsYAML = `
 init_config:
 instances:
-  - name: cred-abc
+  - tags:
+    - credential-name:cred-abc
     snmp_version: "2c"
     community_string: public
-  - name: cred-v3
+  - tags:
+    - credential-name:cred-v3
     snmp_version: "3"
     user: test-user
     authProtocol: SHA
     authKey: test-auth-key
-  - name: cred-bad-version
+  - tags:
+    - credential-name:cred-bad-version
     snmp_version: "9"
     community_string: public
 `
@@ -128,7 +131,8 @@ func TestRenderSchedulesTheResolvableInstancesAndNamesTheRest(t *testing.T) {
 func TestRenderErrorNamesNoCredentialValue(t *testing.T) {
 	h := newTestHandler(t, `
 instances:
-  - name: cred-bad
+  - tags:
+    - credential-name:cred-bad
     snmp_version: "9"
     community_string: s3cret-community
 `)
@@ -156,7 +160,8 @@ func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 func TestRenderPicksUpACredentialValueThatChangedInPlace(t *testing.T) {
 	cfg := newTestConfig(t, `
 instances:
-  - name: cred-abc
+  - tags:
+    - credential-name:cred-abc
     snmp_version: "2c"
     community_string: public
 `)
@@ -169,7 +174,8 @@ instances:
 
 	writeCredentials(t, cfg.GetString("confd_path"), `
 instances:
-  - name: cred-abc
+  - tags:
+    - credential-name:cred-abc
     snmp_version: "2c"
     community_string: rotated
 `)

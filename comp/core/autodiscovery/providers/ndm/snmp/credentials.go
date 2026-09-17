@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"go.yaml.in/yaml/v2"
 
@@ -22,19 +24,44 @@ import (
 // confd_path.
 const credentialsFile = "snmp.d/snmp_credentials.yaml"
 
+// credentialNameTag is the tag prefix carrying a credential's id.
+const credentialNameTag = "credential-name:"
+
+// version is an snmp_version field, which Fleet Automation writes as an
+// integer and the snmp check reads as a string.
+type version string
+
+// UnmarshalYAML accepts both an integer and a string.
+func (v *version) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw interface{}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	switch value := raw.(type) {
+	case string:
+		*v = version(value)
+	case int:
+		*v = version(strconv.Itoa(value))
+	default:
+		return errors.New("snmp_version is neither a string nor an integer")
+	}
+	return nil
+}
+
 // credential is one instance of the credentials file. The yaml names match
 // the snmp check's instance config, so the file is a valid snmp check
-// configuration and the credential id is the instance name.
+// configuration.
 type credential struct {
-	ID              string `yaml:"name"`
-	SNMPVersion     string `yaml:"snmp_version"`
-	CommunityString string `yaml:"community_string"`
-	User            string `yaml:"user"`
-	AuthProtocol    string `yaml:"authProtocol"`
-	AuthKey         string `yaml:"authKey"`
-	PrivProtocol    string `yaml:"privProtocol"`
-	PrivKey         string `yaml:"privKey"`
-	ContextName     string `yaml:"context_name"`
+	ID              string   `yaml:"-"`
+	Tags            []string `yaml:"tags"`
+	SNMPVersion     version  `yaml:"snmp_version"`
+	CommunityString string   `yaml:"community_string"`
+	User            string   `yaml:"user"`
+	AuthProtocol    string   `yaml:"authProtocol"`
+	AuthKey         string   `yaml:"authKey"`
+	PrivProtocol    string   `yaml:"privProtocol"`
+	PrivKey         string   `yaml:"privKey"`
+	ContextName     string   `yaml:"context_name"`
 	// context_engine_id is absent: the snmp check's InstanceConfig has no such field.
 }
 
@@ -59,9 +86,9 @@ func (s *credentialStore) path() string {
 	return filepath.Join(s.cfg.GetString("confd_path"), credentialsFile)
 }
 
-// load returns the credentials indexed by instance name, re-reading the file
-// on every call. An absent file is an empty set, not an error. An instance
-// with no name is skipped and the first of two sharing a name wins.
+// load returns the credentials indexed by id, re-reading the file on every
+// call. An absent file is an empty set, not an error. An instance carrying no
+// credential-name tag is skipped and the first of two sharing an id wins.
 func (s *credentialStore) load() (map[string]credential, error) {
 	path := s.path()
 
@@ -81,6 +108,7 @@ func (s *credentialStore) load() (map[string]credential, error) {
 
 	creds := make(map[string]credential, len(doc.Credentials))
 	for _, e := range doc.Credentials {
+		e.ID = credentialName(e.Tags)
 		if e.ID == "" {
 			continue
 		}
@@ -92,12 +120,22 @@ func (s *credentialStore) load() (map[string]credential, error) {
 	return creds, nil
 }
 
+// credentialName returns the id an instance's tags carry, or "".
+func credentialName(tags []string) string {
+	for _, tag := range tags {
+		if name, found := strings.CutPrefix(tag, credentialNameTag); found {
+			return name
+		}
+	}
+	return ""
+}
+
 // validate reports why a credential cannot produce a usable check instance,
 // through the helpers the snmp check itself uses. No credential value ever
 // reaches the returned error.
 func validate(c credential) error {
 	switch c.SNMPVersion {
-	case "1", "2c":
+	case "1", "2", "2c":
 		return nil
 	case "3":
 		// An empty protocol means "none".
@@ -113,6 +151,6 @@ func validate(c credential) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("credential %q has an unknown SNMP version %q (expected 1, 2c, or 3)", c.ID, c.SNMPVersion)
+		return fmt.Errorf("credential %q has an unknown SNMP version %q (expected 1, 2, 2c, or 3)", c.ID, c.SNMPVersion)
 	}
 }
