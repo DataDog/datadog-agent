@@ -82,7 +82,11 @@ properties:
         additionalProperties:
           type: string
         description: |-
-          Credential values. Agent secret management is supported.
+          Named credential values available to Private Action Runner tasks.
+          Values may use ENC[...] handles resolved by Agent secret management.
+        example: |2-
+
+            api_token: ENC[api_token]
   http_timeout_seconds:
     node_type: setting
     type: integer
