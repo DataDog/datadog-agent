@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -80,12 +81,13 @@ func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 			return samples, err
 		})
 		if err != nil {
-			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkAPICall.Name, err)
-
-			// only skip ports if the error is because the API is unsupported
-			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			// No ports support this API. getSupportedNvlinkPorts reports that
+			// condition with errUnsupportedDevice; no collectors are enrolled.
+			if errors.Is(err, errUnsupportedDevice) {
 				continue
 			}
+
+			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkAPICall.Name, err)
 		}
 
 		for _, port := range ports {
