@@ -69,22 +69,31 @@ func newTestSweeper(t *testing.T, checker connectivityChecker, reporter discover
 
 func testSweepRequest(t *testing.T, cidr string, ignored []string) sweepRequest {
 	t.Helper()
+	return testSweepRequestWithProbes(t, cidr, ignored,
+		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP, raw: `{"port":161}`})
+}
+
+func testSweepRequestWithProbes(t *testing.T, cidr string, ignored []string, probes ...probeRun) sweepRequest {
+	t.Helper()
 	cfg := rangeConfig{
 		AutodiscoveryID:    "ad-1",
 		Namespace:          "default",
 		CIDR:               cidr,
 		IgnoredIPAddresses: ignored,
-		SNMPOptions:        &connectivity.SNMPOptions{Port: 161, TimeoutMs: 2000, Retries: 1},
 	}
 	plan, err := newChunkPlan(cidr, ignored, 65536)
 	require.NoError(t, err)
-	creds := []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c", Community: "public"}}
+
+	fingerprints := make([]string, 0, len(probes))
+	for _, p := range probes {
+		fingerprints = append(fingerprints, p.fingerprint())
+	}
 	return sweepRequest{
-		Config:      cfg,
-		Credentials: creds,
-		Plan:        plan,
-		Digest:      rangeDigest(cfg, creds),
-		Workers:     2,
+		Config:  cfg,
+		Probes:  probes,
+		Plan:    plan,
+		Digest:  rangeDigest(cfg, fingerprints),
+		Workers: 2,
 	}
 }
 
@@ -433,46 +442,37 @@ func countRunStatus(runs []metadata.AutodiscoveryRunMetadata, status metadata.Au
 	return n
 }
 
-func TestSweepBuildsTheRequest(t *testing.T) {
+func TestSweepBuildsOneRequestFromEveryProbe(t *testing.T) {
 	checker := answerAll()
 	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
 
-	req := testSweepRequest(t, "10.0.0.0/24", nil)
+	req := testSweepRequestWithProbes(t, "10.0.0.0/24", nil,
+		&stubProbeRun{name: "ping", check: connectivity.CheckPing},
+		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP},
+	)
 	req.Workers = 4
-	req.PingEnabled = true
-	req.Config.PingOptions = &connectivity.PingOptions{Count: 1, IntervalMs: 1000, TimeoutMs: 1000}
 	require.NoError(t, s.sweep(context.Background(), req))
 
 	sent := checker.recorded()
 	require.Len(t, sent, 1)
-	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, sent[0].Checks)
+	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, sent[0].Checks,
+		"the checks follow the registry order of the probes")
 	assert.Equal(t, 4, sent[0].Workers)
-	assert.Equal(t, req.Credentials, sent[0].Credentials)
-	assert.Equal(t, req.Config.SNMPOptions, sent[0].SNMPOptions)
-	assert.Equal(t, req.Config.PingOptions, sent[0].PingOptions)
 	assert.Len(t, sent[0].Targets, 256)
 }
 
-func TestSweepOmitsPingWhenDisabled(t *testing.T) {
-	checker := answerAll()
-	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
-
-	req := testSweepRequest(t, "10.0.0.0/24", nil)
-	req.PingEnabled = false
-	req.Config.PingOptions = &connectivity.PingOptions{Count: 1}
-	require.NoError(t, s.sweep(context.Background(), req))
-
-	sent := checker.recorded()
-	require.Len(t, sent, 1)
-	assert.Equal(t, []string{connectivity.CheckSNMP}, sent[0].Checks)
-	assert.Nil(t, sent[0].PingOptions)
+func testProbeRuns() []probeRun {
+	return []probeRun{
+		&stubProbeRun{name: "ping", check: connectivity.CheckPing},
+		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP},
+	}
 }
 
 func TestToDiscoveredDevices(t *testing.T) {
 	res := connectivity.Result{Devices: []connectivity.DeviceResult{
 		{
 			IPAddress:  "10.0.0.1",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true, RttMs: nil}},
+			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
 			SNMPResult: &connectivity.SNMPResult{
 				CheckResult: connectivity.CheckResult{Success: true},
 				CredID:      "cred-a",
@@ -485,21 +485,22 @@ func TestToDiscoveredDevices(t *testing.T) {
 			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},
 		},
 		{IPAddress: "10.0.0.3"},
-		// A zero-value entry: the engine pre-allocates its slice, so an
-		// interrupted run can leave holes. They must be dropped.
 		{},
 	}}
 
-	got := toDiscoveredDevices("ad-1", "run-1", res)
-	require.Len(t, got, 1, "only addresses that answered a check are reported")
+	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
+	require.Len(t, got, 1, "only addresses that answered a probe are reported")
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
-		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
-		Name: "router-1", PingStatus: "reachable", SNMPStatus: "reachable", SNMPCredID: "cred-a",
+		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1", Name: "router-1",
+		ProbeResults: []metadata.ProbeResult{
+			{Kind: "ping", Status: statusReachable},
+			{Kind: "snmp", Status: statusReachable, CredID: "cred-a"},
+		},
 	}, got[0])
 }
 
-func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneCheck(t *testing.T) {
+func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneProbe(t *testing.T) {
 	res := connectivity.Result{Devices: []connectivity.DeviceResult{
 		{
 			// A device is there, but the range's credentials do not open it.
@@ -508,7 +509,6 @@ func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneCheck(t *testing.T)
 			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},
 		},
 		{
-			// Ping is blocked but SNMP answers. Still a discovered device.
 			IPAddress:  "10.0.0.2",
 			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: false}},
 			SNMPResult: &connectivity.SNMPResult{
@@ -519,16 +519,54 @@ func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneCheck(t *testing.T)
 		},
 	}}
 
-	got := toDiscoveredDevices("ad-1", "run-1", res)
+	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
 	require.Len(t, got, 2)
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
-		PingStatus: "reachable", SNMPStatus: "unreachable",
-	}, got[0], "a ping-only answer still carries the wrong-credentials signal")
+		ProbeResults: []metadata.ProbeResult{
+			{Kind: "ping", Status: statusReachable},
+			{Kind: "snmp", Status: statusUnreachable},
+		},
+	}, got[0])
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
-		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.2",
-		Name: "switch-1", PingStatus: "unreachable", SNMPStatus: "reachable", SNMPCredID: "cred-a",
+		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.2", Name: "switch-1",
+		ProbeResults: []metadata.ProbeResult{
+			{Kind: "ping", Status: statusUnreachable},
+			{Kind: "snmp", Status: statusReachable, CredID: "cred-a"},
+		},
 	}, got[1])
+}
+
+func TestToDiscoveredDevicesTakesTheFirstNameInRegistryOrder(t *testing.T) {
+	res := connectivity.Result{Devices: []connectivity.DeviceResult{{
+		IPAddress: "10.0.0.1",
+		SNMPResult: &connectivity.SNMPResult{
+			CheckResult: connectivity.CheckResult{Success: true},
+			SysName:     "from-snmp",
+		},
+	}}}
+	// Both probes read the same SNMP answer, so both offer a name.
+	probes := []probeRun{
+		&stubProbeRun{name: "first", check: connectivity.CheckSNMP},
+		&stubProbeRun{name: "second", check: connectivity.CheckSNMP},
+	}
+
+	got := toDiscoveredDevices("ad-1", "run-1", probes, res)
+	require.Len(t, got, 1)
+	assert.Equal(t, "from-snmp", got[0].Name)
+	assert.Equal(t, []string{"first", "second"}, []string{got[0].ProbeResults[0].Kind, got[0].ProbeResults[1].Kind})
+}
+
+func TestToDiscoveredDevicesSkipsAProbeThatReadNothing(t *testing.T) {
+	res := connectivity.Result{Devices: []connectivity.DeviceResult{{
+		IPAddress:  "10.0.0.1",
+		PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
+	}}}
+
+	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
+	require.Len(t, got, 1)
+	assert.Equal(t, []metadata.ProbeResult{{Kind: "ping", Status: statusReachable}}, got[0].ProbeResults,
+		"an unanswered probe contributes no result entry")
 }

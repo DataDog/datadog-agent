@@ -7,6 +7,7 @@ package ndmdiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -155,7 +156,7 @@ func TestNewComponentReadsTheRangeDefaults(t *testing.T) {
 	assert.Equal(t, rangeDefaults{Namespace: "lab", IntervalSec: 900, MaxAddresses: 1024}, comp.defaults)
 }
 
-func TestStartProbesPingOnceAndStops(t *testing.T) {
+func TestStartDetectsThePingProbeOnceAndStops(t *testing.T) {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"network_devices.discovery.enabled": true,
 	})
@@ -170,11 +171,10 @@ func TestStartProbesPingOnceAndStops(t *testing.T) {
 
 	require.NoError(t, lc.Start(t.Context()))
 	comp := provides.Comp.(*ndmDiscovery)
-	comp.sched.mu.Lock()
-	pingEnabled := comp.sched.pingEnabled
-	comp.sched.mu.Unlock()
-	assert.False(t, pingEnabled, "a ping-incapable agent leaves ping disabled")
-	assert.Len(t, checker.recorded(), 1, "ping is probed exactly once, at start")
+	ping, ok := comp.probes.probes[0].(*pingProbe)
+	require.True(t, ok, "ping is registered first, so its check precedes snmp")
+	assert.False(t, ping.available(), "a ping-incapable agent leaves ping unavailable")
+	assert.Len(t, checker.recorded(), 1, "icmp is detected exactly once, at start")
 
 	require.NoError(t, lc.Stop(t.Context()))
 }
@@ -200,14 +200,14 @@ func TestScheduleStopsARangeAbsentFromTheSnapshot(t *testing.T) {
 	comp, _ := newScheduleTestComponent(t)
 
 	errs := comp.Schedule([]ndmdiscovery.Range{
-		{ID: "ad-1", CIDR: "10.0.0.0/24", CredentialIDs: []string{"cred-a"}},
-		{ID: "ad-2", CIDR: "10.0.1.0/24", CredentialIDs: []string{"cred-a"}},
+		{ID: "ad-1", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}},
+		{ID: "ad-2", CIDR: "10.0.1.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}},
 	})
 	assert.Empty(t, errs)
 	assert.Equal(t, 2, comp.RangeCount())
 
 	errs = comp.Schedule([]ndmdiscovery.Range{
-		{ID: "ad-1", CIDR: "10.0.0.0/24", CredentialIDs: []string{"cred-a"}},
+		{ID: "ad-1", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}},
 	})
 	assert.Empty(t, errs)
 	assert.Equal(t, 1, comp.RangeCount())
@@ -218,17 +218,44 @@ func TestScheduleStopsARangeAbsentFromTheSnapshot(t *testing.T) {
 
 func TestScheduleReportsOneErrorPerRejectedRange(t *testing.T) {
 	comp, _ := newScheduleTestComponent(t)
+	snmp := map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}
 
 	errs := comp.Schedule([]ndmdiscovery.Range{
-		{ID: "good", CIDR: "10.0.0.0/24", CredentialIDs: []string{"cred-a"}},
-		{ID: "bad-cidr", CIDR: "nope", CredentialIDs: []string{"cred-a"}},
-		{ID: "unknown-cred", CIDR: "10.0.2.0/24", CredentialIDs: []string{"cred-z"}},
+		{ID: "good", CIDR: "10.0.0.0/24", Probes: snmp},
+		{ID: "bad-cidr", CIDR: "nope", Probes: snmp},
+		{ID: "no-probes", CIDR: "10.0.2.0/24"},
 	})
 
 	require.Len(t, errs, 2)
 	assert.Contains(t, errs["bad-cidr"].Error(), "invalid CIDR")
-	assert.Contains(t, errs["unknown-cred"].Error(), "cred-z")
+	assert.Contains(t, errs["no-probes"].Error(), "probes")
 	assert.Equal(t, 1, comp.RangeCount(), "a rejected range does not stop the others")
+}
+
+func TestScheduleAcceptsARangeWhoseCredentialIsMissing(t *testing.T) {
+	comp, _ := newScheduleTestComponent(t)
+
+	errs := comp.Schedule([]ndmdiscovery.Range{{
+		ID:     "ad-1",
+		CIDR:   "10.0.0.0/24",
+		Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-z"]}`)},
+	}})
+
+	assert.Empty(t, errs, "a missing credential is a cycle-time problem, not a configuration error")
+	assert.Equal(t, 1, comp.RangeCount())
+}
+
+func TestScheduleAcceptsARangeWithOnlyAnUnknownProbeKind(t *testing.T) {
+	comp, _ := newScheduleTestComponent(t)
+
+	errs := comp.Schedule([]ndmdiscovery.Range{{
+		ID:     "ad-1",
+		CIDR:   "10.0.0.0/24",
+		Probes: map[string]json.RawMessage{"ssh": json.RawMessage(`{}`)},
+	}})
+
+	assert.Empty(t, errs, "an agent that does not know a kind must not reject the range")
+	assert.Equal(t, 1, comp.RangeCount())
 }
 
 func TestScheduleOnADisabledComponentRejectsEveryRange(t *testing.T) {
@@ -236,7 +263,7 @@ func TestScheduleOnADisabledComponentRejectsEveryRange(t *testing.T) {
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
 
-	errs := provides.Comp.Schedule([]ndmdiscovery.Range{{ID: "ad-1", CIDR: "10.0.0.0/24", CredentialIDs: []string{"cred-a"}}})
+	errs := provides.Comp.Schedule([]ndmdiscovery.Range{{ID: "ad-1", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}}})
 	require.Len(t, errs, 1)
 	assert.ErrorIs(t, errs["ad-1"], errDisabled)
 }
