@@ -369,6 +369,185 @@ func TestSDC_IdleContextExpiryDropsDownsamplerImmediately(t *testing.T) {
 	require.Empty(t, cs.sdcDownsampler.series)
 }
 
+func TestSDC_PeriodicClosing(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":                   true,
+		"adaptive_downsampling.close_every_n_flushes": 4,
+	})
+	cs := newSDCTestSampler("periodic_close")
+
+	for ts := 0.0; ts < 13; ts++ {
+		addSDCGauge(cs, "my.gauge", 42, ts, nil)
+		sdcCommit(cs, ts)
+	}
+	first, _ := cs.flush()
+	require.Len(t, findSDCPoints(first, "my.gauge"), 10, "only warmup points ship on flush one")
+
+	for window := 2; window <= 8; window++ {
+		ts := float64(11 + window)
+		addSDCGauge(cs, "my.gauge", 42, ts, nil)
+		sdcCommit(cs, ts)
+		output, _ := cs.flush()
+		if window%4 == 0 {
+			require.Equal(t, []metrics.Point{{Ts: ts, Value: 42}}, findSDCPoints(output, "my.gauge"))
+		} else {
+			require.Empty(t, output, "flush %d should not close the segment", window)
+		}
+		for _, ds := range cs.sdcDownsampler.series {
+			require.Empty(t, ds.series, "pending output must be drained even when closing is skipped")
+			require.Nil(t, ds.template.Points, "the metadata template must not retain raw points")
+		}
+	}
+	require.Len(t, findSDCPoints(first, "my.gauge"), 10, "later flushes must not mutate returned output")
+}
+
+func TestSDC_DeferredEndpointAfterQuietWindow(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		for _, expire := range []bool{false, true} {
+			name := "active"
+			if dryRun {
+				name = "dry_run"
+			}
+			if expire {
+				name += "_expired"
+			}
+			t.Run(name, func(t *testing.T) {
+				setSDCTestConfig(t, map[string]interface{}{
+					"adaptive_downsampling.all":                   true,
+					"adaptive_downsampling.dry_run":               dryRun,
+					"adaptive_downsampling.close_every_n_flushes": 4,
+				})
+				cs := newSDCTestSampler("quiet_" + name)
+				before := cs.sdcDownsampler.tlmBreakpoints.Get()
+				for ts := 0.0; ts < 13; ts++ {
+					addSDCGauge(cs, "my.gauge", 42, ts, []string{"env:test"})
+					sdcCommit(cs, ts)
+				}
+				first, _ := cs.flush()
+				expectedCount := 10
+				if dryRun {
+					expectedCount = 13
+				}
+				require.Len(t, findSDCPoints(first, "my.gauge"), expectedCount)
+				require.EqualValues(t, 10, cs.sdcDownsampler.tlmBreakpoints.Get()-before)
+				original := first[len(first)-1]
+				snapshot := *original
+				snapshot.Points = append([]metrics.Point(nil), original.Points...)
+
+				if expire {
+					// No new samples: expiration must preserve the endpoint even
+					// though the previous flush cleared all pending output series.
+					sdcCommit(cs, 13)
+					sdcCommit(cs, 14)
+					require.Zero(t, cs.contextResolver.length())
+					require.Len(t, cs.sdcDownsampler.series, 1)
+				} else {
+					for window := 2; window <= 3; window++ {
+						output, _ := cs.flush()
+						require.Empty(t, output)
+					}
+				}
+
+				closed, _ := cs.flush()
+				require.EqualValues(t, 11, cs.sdcDownsampler.tlmBreakpoints.Get()-before)
+				if dryRun {
+					require.Empty(t, closed, "dry-run must never emit an additional endpoint")
+				} else {
+					require.Len(t, closed, 1)
+					expected := snapshot
+					expected.Points = []metrics.Point{{Ts: 12, Value: 42}}
+					require.Equal(t, expected, *closed[0], "quiet closes must preserve series metadata")
+					require.NotSame(t, original, closed[0])
+				}
+				require.Equal(t, snapshot, *original, "returned series must never be mutated")
+				if expire {
+					require.Empty(t, cs.sdcDownsampler.series)
+				}
+				for window := 0; window < 4; window++ {
+					output, _ := cs.flush()
+					require.Empty(t, output, "quiet endpoints must not be emitted twice")
+				}
+				require.EqualValues(t, 11, cs.sdcDownsampler.tlmBreakpoints.Get()-before)
+			})
+		}
+	}
+}
+
+func TestSDC_PeriodicClosingDrainsBreakpointsEveryFlush(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":                   true,
+		"adaptive_downsampling.close_every_n_flushes": 4,
+	})
+	cs := newSDCTestSampler("periodic_breakpoints")
+	for ts := 0.0; ts <= 10; ts++ {
+		addSDCGauge(cs, "my.gauge", 42, ts, nil)
+		sdcCommit(cs, ts)
+	}
+	first, _ := cs.flush()
+	require.Len(t, first, 10)
+
+	addSDCGauge(cs, "my.gauge", 1000, 11, nil)
+	sdcCommit(cs, 11)
+	second, _ := cs.flush()
+	require.Equal(t, []metrics.Point{{Ts: 10, Value: 42}}, findSDCPoints(second, "my.gauge"))
+
+	addSDCGauge(cs, "my.gauge", -1000, 12, nil)
+	sdcCommit(cs, 12)
+	third, _ := cs.flush()
+	require.Equal(t, []metrics.Point{{Ts: 11, Value: 1000}}, findSDCPoints(third, "my.gauge"))
+	fourth, _ := cs.flush()
+	require.Equal(t, []metrics.Point{{Ts: 12, Value: -1000}}, findSDCPoints(fourth, "my.gauge"))
+	require.Equal(t, []metrics.Point{{Ts: 11, Value: 1000}}, findSDCPoints(third, "my.gauge"),
+		"the deferred endpoint must not be appended to an already-returned series")
+}
+
+func TestSDC_PeriodicDryRunMatchesDisabled(t *testing.T) {
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":                   false,
+		"adaptive_downsampling.checks":                []string{},
+		"adaptive_downsampling.close_every_n_flushes": 4,
+	})
+	disabled := newSDCTestSampler("periodic_disabled")
+	setSDCTestConfig(t, map[string]interface{}{
+		"adaptive_downsampling.all":     true,
+		"adaptive_downsampling.dry_run": true,
+	})
+	dryRun := newSDCTestSampler("periodic_dry_run")
+	setSDCTestConfig(t, map[string]interface{}{"adaptive_downsampling.dry_run": false})
+	active := newSDCTestSampler("periodic_active")
+	dryBreakpoints := dryRun.sdcDownsampler.tlmBreakpoints.Get()
+	activeBreakpoints := active.sdcDownsampler.tlmBreakpoints.Get()
+	for window := 0; window < 8; window++ {
+		for _, sampler := range []*CheckSampler{disabled, dryRun, active} {
+			for i := 0; i < 6; i++ {
+				ts := float64(window*6 + i)
+				addSDCGaugeWithTimestamp(sampler, "my.gauge", 42, ts, []string{"env:test"})
+				if i%3 == 2 {
+					sdcCommit(sampler, ts)
+				}
+			}
+		}
+		expected, _ := disabled.flush()
+		actual, _ := dryRun.flush()
+		active.flush()
+		require.Len(t, actual, 2, "dry-run must preserve committed series boundaries")
+		require.Equal(t, expected, actual)
+		require.Equal(t, active.sdcDownsampler.tlmBreakpoints.Get()-activeBreakpoints,
+			dryRun.sdcDownsampler.tlmBreakpoints.Get()-dryBreakpoints)
+	}
+}
+
+func TestSDC_CloseIntervalBelowOneUsesEveryFlush(t *testing.T) {
+	for _, interval := range []int{0, -1} {
+		setSDCTestConfig(t, map[string]interface{}{
+			"adaptive_downsampling.all":                   true,
+			"adaptive_downsampling.close_every_n_flushes": interval,
+		})
+		cs := newSDCTestSampler("invalid_interval")
+		require.Equal(t, 1, cs.sdcDownsampler.closeEveryNFlushes)
+	}
+}
+
 func TestSDC_FilteredGaugeIsNotStashed(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
 		"adaptive_downsampling.all": true,

@@ -13,6 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSDC_HasPendingEndpoint(t *testing.T) {
+	c := NewSDC(SDCConfig{RelativeError: 0.02, ScaleSmoothingFactor: 0.3})
+	require.False(t, c.HasPendingEndpoint())
+	for i := 0; i < warmupSamples; i++ {
+		_, selected := c.Update(float64(i), 42)
+		require.True(t, selected)
+		require.False(t, c.HasPendingEndpoint(), "warmup points are already emitted")
+	}
+	_, selected := c.Update(float64(warmupSamples), 42)
+	require.False(t, selected)
+	require.True(t, c.HasPendingEndpoint())
+	endpoint, selected := c.FlushWindow()
+	require.True(t, selected)
+	require.Equal(t, Point{Ts: float64(warmupSamples), Value: 42}, endpoint)
+	require.False(t, c.HasPendingEndpoint())
+	_, selected = c.FlushWindow()
+	require.False(t, selected)
+}
+
 // feedAll runs every point through Update, then force-closes the trailing
 // segment with a single FlushWindow, and returns every breakpoint emitted,
 // in order.

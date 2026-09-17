@@ -38,6 +38,9 @@ var (
 // downsampledSerie owns one context's persistent SDC state and the output
 // series pending for the current CheckSampler flush window.
 type downsampledSerie struct {
+	// template retains metadata, never points, for closing a segment after a
+	// quiet window. Copy it before handing output to the serializer.
+	template        metrics.Serie
 	series          metrics.Series
 	downsampler     *downsampler.SDC
 	latestTimestamp float64
@@ -54,6 +57,8 @@ func newDownsampledSerie(cfg downsampler.SDCConfig) *downsampledSerie {
 // process feeds one committed serie through the shared SDC state. Dry-run mode
 // preserves the original serie; active mode creates a corresponding output.
 func (ds *downsampledSerie) process(serie *metrics.Serie, dryRun bool, samples, breakpoints telemetry.SimpleCounter) {
+	ds.template = *serie
+	ds.template.Points = nil
 	points := serie.Points
 	if !dryRun {
 		serie.Points = nil
@@ -87,13 +92,20 @@ func (ds *downsampledSerie) process(serie *metrics.Serie, dryRun bool, samples, 
 	ds.expired = false
 }
 
-// flush closes the trailing SDC segment and returns non-empty pending series.
-func (ds *downsampledSerie) flush(dryRun bool, breakpoints telemetry.SimpleCounter) metrics.Series {
-	if breakpoint, selected := ds.downsampler.FlushWindow(); selected {
-		breakpoints.Inc()
-		if !dryRun {
-			output := ds.series[len(ds.series)-1]
-			output.Points = append(output.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
+// flush drains pending output every window, optionally closing the trailing
+// segment. A segment can remain open even when there are no pending series.
+func (ds *downsampledSerie) flush(forceClose, dryRun bool, breakpoints telemetry.SimpleCounter) metrics.Series {
+	if forceClose {
+		if breakpoint, selected := ds.downsampler.FlushWindow(); selected {
+			breakpoints.Inc()
+			if !dryRun {
+				if len(ds.series) == 0 {
+					output := ds.template
+					ds.series = append(ds.series, &output)
+				}
+				output := ds.series[len(ds.series)-1]
+				output.Points = append(output.Points, metrics.Point{Ts: breakpoint.Ts, Value: breakpoint.Value})
+			}
 		}
 	}
 
@@ -117,6 +129,9 @@ func (ds *downsampledSerie) flush(dryRun bool, breakpoints telemetry.SimpleCount
 type checkSDCDownsampler struct {
 	dryRun bool
 	cfg    downsampler.SDCConfig
+
+	closeEveryNFlushes int
+	flushesSinceClose  int
 
 	tlmSamples     telemetry.SimpleCounter
 	tlmBreakpoints telemetry.SimpleCounter
@@ -143,7 +158,8 @@ func newCheckSDCDownsampler(id checkid.ID) checkSDCDownsampler {
 	}
 
 	return checkSDCDownsampler{
-		dryRun: cfg.GetBool("adaptive_downsampling.dry_run"),
+		dryRun:             cfg.GetBool("adaptive_downsampling.dry_run"),
+		closeEveryNFlushes: max(1, cfg.GetInt("adaptive_downsampling.close_every_n_flushes")),
 		cfg: downsampler.SDCConfig{
 			RelativeError:        cfg.GetFloat64("adaptive_downsampling.relative_error"),
 			ScaleSmoothingFactor: cfg.GetFloat64("adaptive_downsampling.scale_smoothing_factor"),
@@ -172,34 +188,36 @@ func (sc *checkSDCDownsampler) take(contextKey ckey.ContextKey, serie *metrics.S
 	downsampled.process(serie, sc.dryRun, sc.tlmSamples, sc.tlmBreakpoints)
 }
 
-// expire drops idle downsampler state immediately. If the context still has
-// points waiting for the next aggregator flush, it is deleted only after
-// those points have been downsampled and emitted.
+// expire drops idle downsampler state immediately unless it still owns queued
+// output or a deferred endpoint. Those contexts are force-closed and removed
+// on the next aggregator flush, regardless of the periodic close schedule.
 func (sc *checkSDCDownsampler) expire(contextKey ckey.ContextKey) {
 	downsampled := sc.series[contextKey]
 	if downsampled == nil {
 		return
 	}
-	if len(downsampled.series) == 0 {
+	if len(downsampled.series) == 0 && !downsampled.downsampler.HasPendingEndpoint() {
 		delete(sc.series, contextKey)
 		return
 	}
 	downsampled.expired = true
 }
 
-// flush closes every segment with pending points. Downsampler state remains
-// available for the next window unless its context expired while points were
-// pending, in which case it is removed after producing its final output.
+// flush drains selected breakpoints every window and closes segments on a
+// shared per-check schedule, including quiet windows. Expiration forces an
+// early close without changing that schedule for the remaining contexts.
 func (sc *checkSDCDownsampler) flush() metrics.Series {
-	if len(sc.series) == 0 {
+	if sc.series == nil {
 		return nil
+	}
+	sc.flushesSinceClose++
+	forceClose := sc.flushesSinceClose >= sc.closeEveryNFlushes
+	if forceClose {
+		sc.flushesSinceClose = 0
 	}
 	series := make(metrics.Series, 0, len(sc.series))
 	for contextKey, downsampled := range sc.series {
-		if len(downsampled.series) == 0 {
-			continue
-		}
-		series = append(series, downsampled.flush(sc.dryRun, sc.tlmBreakpoints)...)
+		series = append(series, downsampled.flush(forceClose || downsampled.expired, sc.dryRun, sc.tlmBreakpoints)...)
 		if downsampled.expired {
 			delete(sc.series, contextKey)
 		}

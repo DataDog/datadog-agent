@@ -116,6 +116,11 @@ func (c *SDC) Update(ts, value float64) (breakpoint Point, ok bool) {
 	return closed, true
 }
 
+// HasPendingEndpoint reports whether closing the segment would emit a point.
+func (c *SDC) HasPendingEndpoint() bool {
+	return c.hasLastInBounds
+}
+
 // FlushWindow closes the current segment while preserving adaptive state.
 func (c *SDC) FlushWindow() (breakpoint Point, ok bool) {
 	if !c.hasLastInBounds {
