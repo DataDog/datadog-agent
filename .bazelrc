@@ -121,6 +121,17 @@ common:ci --remote_download_regex=.*/test\.log$ # force-download test.log for te
 import %workspace%/bazel/configs/go_tests.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
+# BEGIN Datadog Go Orchestrion bootstrap
+# Enables the Orchestrion repository materialization in MODULE.bazel. Pass
+# --config=test-optimization to any bazel build/test to get Orchestrion-
+# instrumented Go test binaries (equivalent to today's `orchestrion go test
+# -c`). Without this config, no Go target is instrumented and the orchestrion
+# tool is never built or fetched. The DD_* repo_env values are only needed
+# when payload upload (CI Visibility) is wired in; the enablement flag alone
+# just gates tool materialization.
+common:test-optimization --repo_env=DD_TEST_OPTIMIZATION_ENABLED=1
+# END Datadog Go Orchestrion bootstrap
+
 # Global release config ------------------------------------------------------------------------------------------------
 # This should aggregate all the release configs for all the languages with enabled optimizations,
 # stripping, etc.  It does not strictly mean that this build is the one to be released as a product.

@@ -1,0 +1,17 @@
+diff --git a/go/private/orchestrion/extensions.bzl b/go/private/orchestrion/extensions.bzl
+--- a/go/private/orchestrion/extensions.bzl
++++ b/go/private/orchestrion/extensions.bzl
+@@ -134,6 +134,13 @@ def _go_env(ctx):
+         "GOMODCACHE": _path_join(ctx, go_cache_root, "pkg", "mod"),
+         "GOCACHE": _path_join(ctx, go_cache_root, "cache"),
+     }
++    # ctx.execute(environment = ...) replaces the child process environment
++    # entirely, and this dict does not include HOME. Without HOME, `go` cannot
++    # derive GOPATH, and module verification against the checksum database
++    # fails with "missing $GOPATH: HOME is not set". Point GOPATH at the
++    # bootstrap cache root so sumdb lookups stay inside the extension's own
++    # cache instead of depending on a host HOME.
++    env["GOPATH"] = go_cache_root
+     env.update(_go_module_fetch_env(ctx))
+     env.update(_git_env(ctx))
+     return env
