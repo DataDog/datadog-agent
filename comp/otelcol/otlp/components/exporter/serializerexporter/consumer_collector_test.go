@@ -18,6 +18,7 @@ func newTestCollectorConsumer(buildInfo component.BuildInfo) *collectorConsumer 
 		serializerConsumer: s,
 		seenHosts:          make(map[string]struct{}),
 		seenTags:           make(map[string]struct{}),
+		seenTagSets:        make(map[tagSetKey][]string),
 		buildInfo:          buildInfo,
 		getPushTime:        func() uint64 { return uint64(2e9) },
 	}
@@ -32,6 +33,18 @@ func TestExporterFargateMetrics(t *testing.T) {
 	assert.Equal(t, float64(2e9), serie.Points[0].Ts)
 	assert.Equal(t, 1.0, serie.Points[0].Value)
 	assert.Equal(t, "", serie.Host)
+}
+
+func TestExporterWorkloadMetrics(t *testing.T) {
+	tags := []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"}
+	serie := exporterWorkloadMetrics("azureappservices", uint64(2e9), tags)
+
+	assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", serie.Name)
+	assert.Len(t, serie.Points, 1)
+	assert.Equal(t, float64(2e9), serie.Points[0].Ts)
+	assert.Equal(t, 1.0, serie.Points[0].Value)
+	assert.Empty(t, serie.Host)
+	assert.ElementsMatch(t, tags, serie.Tags.UnsafeToReadOnlySliceString())
 }
 
 func TestAddRuntimeTelemetryMetric_NoTags(t *testing.T) {
@@ -73,6 +86,60 @@ func TestAddRuntimeTelemetryMetric_FargateTags(t *testing.T) {
 		names = append(names, s.Name)
 	}
 	assert.ElementsMatch(t, []string{"otel.datadog_exporter.metrics.running.fargate"}, names)
+}
+
+func TestAddRuntimeTelemetryMetric_AzureAppServices(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	tags := []string{
+		"instance:instance-1",
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}
+	reordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:my-app",
+		"instance:instance-1",
+	}
+	c.ConsumeTagSet("azureappservices", tags)
+	c.ConsumeTagSet("azureappservices", reordered)
+
+	c.addRuntimeTelemetryMetric("", nil)
+
+	assert.Len(t, c.series, 1)
+	assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", c.series[0].Name)
+	assert.ElementsMatch(t, tags, c.series[0].Tags.UnsafeToReadOnlySliceString())
+}
+
+func TestAddRuntimeTelemetryMetric_AzureAppServicesDedupKeyIsUnambiguous(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	first := []string{
+		"instance:instance-1",
+		"name:my-app",
+		"resource_group:my-rg,resource_group:other-rg",
+		"subscription_id:sub-123",
+	}
+	second := []string{
+		"instance:instance-1",
+		"name:my-app,resource_group:my-rg",
+		"resource_group:other-rg",
+		"subscription_id:sub-123",
+	}
+
+	// Joining either sorted tag set with commas produces the same string. They
+	// must still identify two distinct App Service resources.
+	c.ConsumeTagSet("azureappservices", first)
+	c.ConsumeTagSet("azureappservices", second)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	assert.Len(t, c.series, 2)
+	var got [][]string
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", serie.Name)
+		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
+	}
+	assert.ElementsMatch(t, [][]string{first, second}, got)
 }
 
 func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {

@@ -161,6 +161,10 @@ rust_test(
     # Windows runs the whole suite serially in one process, well past the
     # default "moderate" budget.
     timeout = "long",
+    compile_data = [
+        "//pkg/fleet/installer/packages/user/windows:user.go",
+        "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
+    ],
     crate = ":dd-procmgrd-lib",
     data = select({
         "@platforms//os:windows": [":graceful-sleeper"],

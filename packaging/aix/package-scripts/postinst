@@ -65,6 +65,11 @@ mkssys -s datadog-agent-data-plane -G datadog-agent \
        -u dd-agent \
        -R -S -n 15 -f 9
 
+# Start the datadog-agent SRC group automatically at boot with an /etc/inittab entry.
+# Remove any stale entry first so upgrades never leave duplicates.
+rmitab datadog-agent 2>/dev/null || true
+mkitab "datadog-agent:2:once:startsrc -g datadog-agent >/dev/console 2>&1"
+
 # Start (or restart) the agent if datadog.yaml exists.
 # On a fresh install this starts the agent for the first time.
 # On an upgrade the preinst stopped the services; this brings them back up.

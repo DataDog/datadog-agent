@@ -196,6 +196,29 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         finally:
             os.unlink(invalid_config_file.name)
 
+    def test_init_finds_gate_defined_in_second_config_file(self):
+        """A gate only present in the second of several config files must still be found."""
+        cluster_agent_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+        yaml.dump(
+            {
+                "static_quality_gate_docker_cluster_agent_amd64": {
+                    "max_on_wire_size": "75 MiB",
+                    "max_on_disk_size": "214 MiB",
+                }
+            },
+            cluster_agent_config_file,
+        )
+        cluster_agent_config_file.close()
+
+        try:
+            measurer = InPlacePackageMeasurer(config_path=[self.temp_config_file.name, cluster_agent_config_file.name])
+            gate_config = measurer._measurer.config_manager.get_gate_config(
+                "static_quality_gate_docker_cluster_agent_amd64"
+            )
+            self.assertEqual(gate_config.gate_name, "static_quality_gate_docker_cluster_agent_amd64")
+        finally:
+            os.unlink(cluster_agent_config_file.name)
+
     @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def456"})
     @patch('os.path.exists')
     def test_measure_package_success(self, mock_exists):
@@ -480,6 +503,7 @@ class TestInvokeTask(unittest.TestCase):
     def test_measure_package_local_success(self, mock_print, mock_exists, mock_measurer_class):
         """Test successful local package measurement task."""
         from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.thresholds import ALL_GATE_CONFIG_PATHS
 
         # Setup mocks
         mock_exists.return_value = True
@@ -518,7 +542,7 @@ class TestInvokeTask(unittest.TestCase):
         )
 
         # Verify measurer was initialized and called
-        mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
+        mock_measurer_class.assert_called_once_with(config_path=ALL_GATE_CONFIG_PATHS)
         mock_measurer.measure_package.assert_called_once()
         mock_measurer.save_report_to_yaml.assert_called_once()
 

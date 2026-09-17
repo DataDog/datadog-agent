@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -42,8 +44,12 @@ type SelfIdent struct {
 
 	resolveRetries    int
 	resolveRetryDelay time.Duration
+	// clock backs ClusterID's retry/resolution waits so tests can advance
+	// time deterministically instead of sleeping on the wall clock.
+	clock clock.Clock
 
 	clusterIDResolveOnce sync.Once
+	clusterIDReady       chan struct{}
 	clusterID            atomic.Pointer[string]
 }
 
@@ -56,12 +62,15 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		wmeta:             wmeta,
 		resolveRetries:    defaultResolveRetries,
 		resolveRetryDelay: defaultResolveRetryDelay,
+		clock:             clock.New(),
+		clusterIDReady:    make(chan struct{}),
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
 		s.deploymentID.Store(&empty)
 		s.clusterIDResolveOnce.Do(func() {})
 		s.clusterID.Store(&empty)
+		close(s.clusterIDReady)
 	}
 	return s
 }
@@ -120,22 +129,28 @@ func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
 		go s.resolveClusterID()
 	})
-	for attempt := 0; ; attempt++ {
-		if id := s.clusterID.Load(); id != nil {
-			return *id
-		}
-		if attempt >= s.resolveRetries {
-			return ""
-		}
-		time.Sleep(s.resolveRetryDelay)
+	// Fast path: once settled, return straight from the atomic load.
+	if id := s.clusterID.Load(); id != nil {
+		return *id
 	}
+	select {
+	case <-s.clusterIDReady:
+	case <-s.clock.After(time.Duration(s.resolveRetries) * s.resolveRetryDelay):
+		// Still resolving; give up here, resolveClusterID keeps running.
+	}
+	if id := s.clusterID.Load(); id != nil {
+		return *id
+	}
+	return ""
 }
 
 // resolveClusterID retries clustername.GetClusterID() a bounded number of
 // times (clustername caches a successful result process-wide, so retries
 // here only matter while the Cluster Agent hasn't answered yet) before
 // giving up and caching empty for the process lifetime.
+// clusterIDReady is closed once resolution settles; ClusterID() waits on it.
 func (s *SelfIdent) resolveClusterID() {
+	defer close(s.clusterIDReady)
 	for attempt := 0; ; attempt++ {
 		id, err := clustername.GetClusterID()
 		if err == nil {
@@ -148,7 +163,7 @@ func (s *SelfIdent) resolveClusterID() {
 			s.clusterID.Store(&empty)
 			return
 		}
-		time.Sleep(s.resolveRetryDelay)
+		s.clock.Sleep(s.resolveRetryDelay)
 	}
 }
 

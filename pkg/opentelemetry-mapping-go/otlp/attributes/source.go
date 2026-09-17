@@ -16,6 +16,7 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -32,7 +33,51 @@ const (
 	// AttributeHost is a literal host tag.
 	// We check for this to avoid double tagging.
 	AttributeHost = "host"
+
+	attributeAzureResourceGroupName    = string(semconv143.AzureResourceGroupNameKey)
+	attributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
+	attributeServiceInstanceID         = string(conventions.ServiceInstanceIDKey)
 )
+
+var (
+	cloudPlatformAzureAppService       = semconv143.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureAppServiceLegacy = conventions.CloudPlatformAzureAppService.Value.AsString()
+)
+
+type azureAppServiceResource struct {
+	name           string
+	subscriptionID string
+	resourceGroup  string
+	instanceID     string
+}
+
+func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceResource, bool) {
+	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
+	if !ok || (platform.Str() != cloudPlatformAzureAppService && platform.Str() != cloudPlatformAzureAppServiceLegacy) {
+		return azureAppServiceResource{}, false
+	}
+
+	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
+	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
+	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	instanceID, instanceIDOK := attrs.Get(attributeAzureAppServiceInstanceID)
+	if !instanceIDOK || instanceID.Str() == "" {
+		instanceID, instanceIDOK = attrs.Get(attributeServiceInstanceID)
+	}
+	if !nameOK || name.Str() == "" ||
+		!subscriptionIDOK || subscriptionID.Str() == "" ||
+		!resourceGroupOK || resourceGroup.Str() == "" ||
+		!instanceIDOK || instanceID.Str() == "" {
+		return azureAppServiceResource{}, false
+	}
+
+	return azureAppServiceResource{
+		name:           name.Str(),
+		subscriptionID: subscriptionID.Str(),
+		resourceGroup:  resourceGroup.Str(),
+		instanceID:     instanceID.Str(),
+	}, true
+}
 
 func getClusterName(attrs pcommon.Map) (string, bool) {
 	if k8sClusterName, ok := attrs.Get(string(conventions.K8SClusterNameKey)); ok {
@@ -151,6 +196,22 @@ type HostFromAttributesHandler interface {
 // SourceFromAttrs gets a telemetry signal source from its attributes.
 // Deprecated: Use Translator.ResourceToSource or Translator.AttributesToSource instead.
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
+	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
+		return source.Source{
+			Kind:       source.AzureAppServiceKind,
+			Identifier: appService.instanceID,
+			SourceIdentifier: source.SourceIdentifier{
+				Primary: appService.instanceID,
+				Dimensions: map[string]string{
+					"name":            appService.name,
+					"subscription_id": appService.subscriptionID,
+					"resource_group":  appService.resourceGroup,
+					"instance":        appService.instanceID,
+				},
+			},
+		}, true
+	}
+
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.Str()}, true
