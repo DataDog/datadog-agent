@@ -13,6 +13,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,21 +69,22 @@ func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source stri
 	}
 }
 
-type rawTagsTrackingMetric struct {
-	name        string
-	value       float64
-	tags        []string
-	timestamp   int64
-	rawTagsRead int
+type tagsTrackingMetric struct {
+	name      string
+	value     float64
+	tags      []string
+	timestamp int64
+	tagsRead  int
 }
 
-func (m *rawTagsTrackingMetric) GetName() string         { return m.name }
-func (m *rawTagsTrackingMetric) GetValue() float64       { return m.value }
-func (m *rawTagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
-func (m *rawTagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
-func (m *rawTagsTrackingMetric) GetRawTags() []string {
-	m.rawTagsRead++
-	return m.tags
+func (m *tagsTrackingMetric) GetName() string         { return m.name }
+func (m *tagsTrackingMetric) GetValue() float64       { return m.value }
+func (m *tagsTrackingMetric) GetHost() string         { return "" }
+func (m *tagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
+func (m *tagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
+func (m *tagsTrackingMetric) GetTags() tagset.CompositeTags {
+	m.tagsRead++
+	return tagset.CompositeTagsFromSlice(m.tags)
 }
 
 func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
@@ -90,7 +92,7 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", tags)
+	h := seriesKeyHash("check", "system.cpu.user", "", tags)
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
@@ -156,6 +158,19 @@ func TestMetricsFilterRulesSourceFilter(t *testing.T) {
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 	assert.True(t, filter.isAllowed("system.cpu.user", "check", []string{"env:dev"}))
+}
+
+func TestMetricsFilterRulesHostFilter(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type: excludeAtMatch,
+		Name: "drop_noisy_host",
+		Host: "noisy-host",
+	}})
+	require.NoError(t, err)
+
+	assert.False(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "noisy-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "other-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"host:noisy-host"}))
 }
 
 func TestMetricsFilterRulesOrderedEvaluationFirstMatchWins(t *testing.T) {
@@ -291,7 +306,7 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
@@ -299,7 +314,7 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, "dogstatsd", decision.source)
-	assert.Zero(t, sample.rawTagsRead)
+	assert.Zero(t, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
@@ -320,7 +335,7 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name:      "system.cpu.user",
 		value:     1,
 		tags:      []string{"service:web", "env:prod"},
@@ -330,15 +345,15 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, []string{"env:prod", "service:web"}, decision.metric.tags)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, 1, sample.tagsRead)
 
-	rejectedSample := &rawTagsTrackingMetric{
+	rejectedSample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:dev"},
 	}
 	decision = prepareMetricIngest("dogstatsd", rejectedSample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, rejectedSample.rawTagsRead)
+	assert.Equal(t, 1, rejectedSample.tagsRead)
 }
 
 func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
@@ -351,16 +366,16 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 
 	tags := []string{"env:prod", "service:web"}
 	filter.publishMutedSnapshot(map[uint64]struct{}{
-		seriesKeyHash("dogstatsd", "system.cpu.user", tags): {},
+		seriesKeyHash("dogstatsd", "system.cpu.user", "", tags): {},
 	})
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
 
 	decision := prepareMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, 1, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {

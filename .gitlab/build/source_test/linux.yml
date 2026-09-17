@@ -69,31 +69,31 @@ tests_linux-arm64-py3:
 
 
 tests_serverless-init:
-  extends: .linux_x64
-  stage: source_test
+  extends: [.linux_x64, .linux_tests]
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  script:
+  before_script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
     - dda inv -- -e schema.codegen
+  script:
     - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
-  extends: .linux_x64
-  stage: source_test
+  extends: [.linux_x64, .linux_tests]
   needs: ["go_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  script:
+  before_script:
     - !reference [.retrieve_linux_go_deps]
     # TODO: remove once Bazel is used to test the Agent
     - dda inv -- -e schema.codegen
+  script:
     - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
@@ -133,12 +133,13 @@ new-e2e-unit-tests:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
     - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/e2e --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}-suite.tgz ${EXTRA_PARAMS}
-    - dda inv -- -e new-e2e-tests.run --module-name test/new-e2e --targets ./tests/windows/common/agent --tags "e2eunit" --no-recursive --junit-tar junit-${CI_JOB_ID}-win-agent.tgz ${EXTRA_PARAMS}
     - dda inv -- -e new-e2e-tests.run --module-name test/new-e2e --targets ./tests/installer/windows --tags "e2eunit" --no-recursive --junit-tar junit-${CI_JOB_ID}-win-installer.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
+    GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
+    GOMAXPROCS: $KUBERNETES_CPU_REQUEST
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
   timeout: 20m  # Not less than 20m because job startup can take time.
 

@@ -32,4 +32,6 @@ type connection struct {
 	DBName   string `json:"dbname"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	SSLMode  string `json:"ssl,omitempty"`
+	// TODO(DATASEC-318): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
 }

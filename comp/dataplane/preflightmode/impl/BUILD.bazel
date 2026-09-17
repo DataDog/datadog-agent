@@ -40,7 +40,7 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/version",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
@@ -55,7 +55,7 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/version",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
@@ -91,7 +91,7 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/version",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/config",
@@ -113,7 +113,7 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/version",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
@@ -171,7 +171,7 @@ go_library(
             "//pkg/version",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_microsoft_go_winio//:go-winio",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),
@@ -200,7 +200,7 @@ dd_agent_go_test(
             "//pkg/util/flavor",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/hostname/hostnameinterface/mock",
@@ -213,7 +213,7 @@ dd_agent_go_test(
             "//pkg/util/flavor",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/hostname/hostnameinterface/mock",
@@ -226,7 +226,7 @@ dd_agent_go_test(
             "//pkg/util/flavor",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/hostname/hostnameinterface/mock",
@@ -239,7 +239,7 @@ dd_agent_go_test(
             "//pkg/util/flavor",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/log/mock",
@@ -247,7 +247,7 @@ dd_agent_go_test(
             "//pkg/config/model",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),

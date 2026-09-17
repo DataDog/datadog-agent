@@ -19,6 +19,11 @@ unless do_repackage?
   dependency "python3"
   dependency 'datadog-agent-integrations-py3'
 
+  host_distribution = ""
+  if not Omnibus::Config.host_distribution().nil?
+      host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
+  end
+
   build do
       command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
@@ -114,13 +119,9 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
-  # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
-  if linux_target?
-    command "bazel run #{omnibazel_flags} //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=\"#{conf_dir}\"",
-      env: env,
-      :live_stream => Omnibus.logger.live_stream(:info)
-  end
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+    :live_stream => Omnibus.logger.live_stream(:info)
+
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
   # Now we place them into the pacakge via the //packages/agent/product:post_build_install
@@ -231,13 +232,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    # Add SELinux policy for system-probe
-    if debian_target? || redhat_target?
-      mkdir "#{conf_dir}/selinux"
-      command "dda inv -- -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
-    end
-
-    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
   end
 
   # System-probe eBPF files
@@ -282,7 +277,6 @@ build do
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
-    move 'pkg/config/example/security-agent.yaml.example', "#{conf_dir}/security-agent.yaml.example"
   end
 
   # CWS Instrumentation
@@ -318,11 +312,6 @@ build do
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
-  end
-
-  # APM Hands Off config file
-  if linux_target?
-    copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # Allows the agent to be installed in a custom location
