@@ -747,6 +747,7 @@ func initConstants() {
 	initPrCtlOptionConstants()
 	initUserSessionTypes()
 	initSSHAuthMethodConstants()
+	initMountOriginConstants()
 }
 
 // RetValError represents a syscall return error value
