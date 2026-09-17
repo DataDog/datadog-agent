@@ -282,10 +282,3 @@ func toDiscoveredDevices(autodiscoveryID, runID string, probes []probeRun, res c
 	}
 	return devices
 }
-
-func statusString(success bool) string {
-	if success {
-		return statusReachable
-	}
-	return statusUnreachable
-}
