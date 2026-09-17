@@ -57,6 +57,18 @@ pub fn load(contents: &str) -> Result<Value> {
 /// into nested maps, so `a.b:` with a child `c` and a plain `a: {b: {c: …}}` are the
 /// same setting to the Agent. serde_yaml keeps the literal key, so each mapping is
 /// searched for the whole remaining key first, then for any dotted prefix of it.
+///
+/// Searching the whole key first also decides the one case the Agent leaves undefined: a
+/// file where two spellings of one setting carry different values, such as
+/// `a.b: false` alongside `a: {b: true}`. `loadYamlInto` merges both into the same node
+/// and the last one written wins, but it walks the file as a Go map, so the winner is
+/// drawn afresh from the randomized iteration order on every load. Measured over the
+/// real loader, the same file returns either value across repeated runs. There is
+/// therefore no Agent behaviour to match, and this function deliberately picks the
+/// flattened spelling every time: a gate that answers consistently is worth more than
+/// one that reproduces a coin flip. Note that this is only about two *set* values, and
+/// the more common collision, one spelling valueless, stays faithful because the Agent
+/// drops a known nil leaf rather than recording it.
 pub fn lookup_dotted_key<'a>(root: &'a Value, key: &str) -> Option<&'a Value> {
     let mapping = root.as_mapping()?;
 
@@ -1151,6 +1163,25 @@ process_config:
             ),
             Some(Value::Bool(true))
         );
+    }
+
+    /// Two spellings of one setting, both set and disagreeing, is the one shape the
+    /// Agent answers inconsistently: it merges them and keeps whichever its randomized
+    /// map walk reached last, so repeated loads of one file return either value. This
+    /// loader answers the same way every time instead, which is what the gates need.
+    /// The assertion is here to keep that tie-break deliberate.
+    #[test]
+    fn conflicting_spellings_resolve_deterministically() {
+        for yaml in [
+            "process_config.enabled: false\nprocess_config:\n  enabled: true\n",
+            "process_config:\n  enabled: true\nprocess_config.enabled: false\n",
+        ] {
+            assert_eq!(
+                dotted(yaml, "process_config.enabled"),
+                Some(Value::Bool(false)),
+                "{yaml:?}"
+            );
+        }
     }
 
     /// `loadYamlInto` lowercases every key before merging, so two spellings of one
