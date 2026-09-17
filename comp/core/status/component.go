@@ -44,6 +44,15 @@ type Provider interface {
 	HTML(verbose bool, buffer io.Writer) error
 }
 
+// DynamicSectionProvider exposes status sections discovered at runtime.
+type DynamicSectionProvider interface {
+	Provider
+	Sections() []string
+	JSONBySection(section string, verbose bool, stats map[string]interface{}) error
+	TextBySection(section string, verbose bool, buffer io.Writer) error
+	HTMLBySection(section string, verbose bool, buffer io.Writer) error
+}
+
 // HeaderProvider interface
 type HeaderProvider interface {
 	// Index is used to choose the order in which the header information is displayed.

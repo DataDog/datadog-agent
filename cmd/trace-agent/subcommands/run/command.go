@@ -41,6 +41,7 @@ import (
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
+	tracestatusfx "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -122,6 +123,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		ipcfx.ModuleReadWrite(),
 		configsyncfx.Module(configsync.NewDefaultParams()),
 		fxinstrumentation.Module(),
+		tracestatusfx.Module(),
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("trace-agent", cliParams.ConfPath)),
 		configstreamconsumerfx.Module(),

@@ -21,7 +21,7 @@
         {{- range $agentStatus := . }}
             {{- with $agentStatus }}
                 <span class="stat_title">
-                    {{ .DisplayName }}
+                    {{ if .StatusSection }}{{ .StatusSection }}{{ else }}{{ .DisplayName }}{{ end }}
                 </span>
             <span class="stat_subdata">
                 {{ if .FailureReason }}
@@ -38,7 +38,11 @@
                             {{ $sectionName }}: <br>
                             <ul>
                                 {{- range $key, $value := $section }}
-                                    <li> {{ $key }}: {{ $value }}
+                                {{- if $key }}
+                                    <li> {{ $key }}: {{ $value }}</li>
+                                {{- else }}
+                                    <li style="list-style: none;"><pre><span>{{ $value }}</span></pre></li>
+                                {{- end }}
                                 {{- end }}
                             </ul>
                     {{ end }}

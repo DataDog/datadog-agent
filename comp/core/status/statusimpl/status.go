@@ -60,7 +60,83 @@ type statusImplementation struct {
 	sortedHeaderProviders    []status.HeaderProvider
 	sortedSectionNames       []string
 	sortedProvidersBySection map[string][]status.Provider
+	dynamicSectionProviders  []status.DynamicSectionProvider
 	log                      log.Component
+}
+
+type dynamicSectionAdapter struct {
+	provider status.DynamicSectionProvider
+	section  string
+}
+
+type jsonProvider interface {
+	Name() string
+	JSON(bool, map[string]interface{}) error
+}
+
+func (a dynamicSectionAdapter) Name() string {
+	return a.provider.Name()
+}
+
+func (a dynamicSectionAdapter) Section() string {
+	return a.section
+}
+
+func (a dynamicSectionAdapter) JSON(verbose bool, stats map[string]interface{}) error {
+	return a.provider.JSONBySection(a.section, verbose, stats)
+}
+
+func (a dynamicSectionAdapter) Text(verbose bool, buffer io.Writer) error {
+	return a.provider.TextBySection(a.section, verbose, buffer)
+}
+
+func (a dynamicSectionAdapter) HTML(verbose bool, buffer io.Writer) error {
+	return a.provider.HTMLBySection(a.section, verbose, buffer)
+}
+
+// populateJSON preserves the shared map used by local providers, then merges
+// dynamic providers without allowing them to overwrite local status fields.
+func populateJSON(stats map[string]interface{}, providers []jsonProvider, verbose bool) []error {
+	var errs []error
+	var dynamicProviders []jsonProvider
+	for _, provider := range providers {
+		switch provider.(type) {
+		case status.DynamicSectionProvider, dynamicSectionAdapter:
+			dynamicProviders = append(dynamicProviders, provider)
+		default:
+			if err := provider.JSON(verbose, stats); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	for _, provider := range dynamicProviders {
+		errs = append(errs, mergeDynamicProviderJSON(stats, provider, verbose)...)
+	}
+	return errs
+}
+
+func mergeDynamicProviderJSON(stats map[string]interface{}, provider jsonProvider, verbose bool) []error {
+	providerStats := make(map[string]interface{})
+	var errs []error
+	if err := provider.JSON(verbose, providerStats); err != nil {
+		errs = append(errs, err)
+	}
+
+	keys := make([]string, 0, len(providerStats))
+	for key := range providerStats {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if _, exists := stats[key]; exists {
+			errs = append(errs, fmt.Errorf("duplicate status JSON key %q from provider %q", key, provider.Name()))
+			continue
+		}
+		stats[key] = providerStats[key]
+	}
+
+	return errs
 }
 
 // Module defines the fx options for this component.
@@ -86,8 +162,13 @@ func newStatus(deps dependencies) provides {
 	collectorSectionPresent := false
 
 	providers := fxutil.GetAndFilterGroup(deps.Providers)
+	dynamicSectionProviders := make([]status.DynamicSectionProvider, 0)
 
 	for _, provider := range providers {
+		if dynamicProvider, ok := provider.(status.DynamicSectionProvider); ok {
+			dynamicSectionProviders = append(dynamicSectionProviders, dynamicProvider)
+		}
+
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
@@ -130,6 +211,7 @@ func newStatus(deps dependencies) provides {
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
+		dynamicSectionProviders:  dynamicSectionProviders,
 		log:                      deps.Log,
 	}
 
@@ -160,26 +242,24 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
+		var providers []jsonProvider
 		for _, sc := range s.sortedHeaderProviders {
 			if present(sc.Name(), excludeSections) {
 				continue
 			}
 
-			if err := sc.JSON(verbose, stats); err != nil {
-				errs = append(errs, err)
-			}
+			providers = append(providers, sc)
 		}
 
-		for _, providers := range s.sortedProvidersBySection {
-			for _, provider := range providers {
+		for _, section := range s.sortedSectionNames {
+			for _, provider := range s.sortedProvidersBySection[section] {
 				if present(provider.Section(), excludeSections) {
 					continue
 				}
-				if err := provider.JSON(verbose, stats); err != nil {
-					errs = append(errs, err)
-				}
+				providers = append(providers, provider)
 			}
 		}
+		errs = append(errs, populateJSON(stats, providers, verbose)...)
 
 		if len(errs) > 0 {
 			errorsInfo := []string{}
@@ -349,7 +429,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	// Get provider lists from one or more sections
 	var providers []status.Provider
 	for _, section := range sections {
-		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
+		providersForSection, ok := s.providersForSection(section)
 		if !ok {
 			res, _ := json.Marshal(s.GetSections())
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
@@ -361,12 +441,11 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
-
+		jsonProviders := make([]jsonProvider, 0, len(providers))
 		for _, sc := range providers {
-			if err := sc.JSON(verbose, stats); err != nil {
-				errs = append(errs, err)
-			}
+			jsonProviders = append(jsonProviders, sc)
 		}
+		errs = append(errs, populateJSON(stats, jsonProviders, verbose)...)
 
 		if len(errs) > 0 {
 			errorsInfo := []string{}
@@ -415,8 +494,60 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	}
 }
 
+func (s *statusImplementation) providersForSection(section string) ([]status.Provider, bool) {
+	if providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]; ok {
+		return providers, true
+	}
+
+	providers := make([]status.Provider, 0)
+	for _, provider := range s.dynamicSectionProviders {
+		for _, dynamicSection := range provider.Sections() {
+			if strings.EqualFold(section, dynamicSection) {
+				providers = append(providers, dynamicSectionAdapter{
+					provider: provider,
+					section:  dynamicSection,
+				})
+				break
+			}
+		}
+	}
+
+	if len(providers) == 0 {
+		return nil, false
+	}
+
+	return sortByName(providers), true
+}
+
 func (s *statusImplementation) GetSections() []string {
-	return append([]string{"header"}, s.sortedSectionNames...)
+	sectionNames := make([]string, 0, len(s.sortedSectionNames))
+	for _, section := range s.sortedSectionNames {
+		if section != "header" && !present(section, sectionNames) {
+			sectionNames = append(sectionNames, strings.ToLower(section))
+		}
+	}
+
+	for _, provider := range s.dynamicSectionProviders {
+		for _, section := range provider.Sections() {
+			section = strings.ToLower(section)
+			if section != "header" && !present(section, sectionNames) {
+				sectionNames = append(sectionNames, section)
+			}
+		}
+	}
+
+	sort.Strings(sectionNames)
+	sections := []string{"header"}
+	if present(status.CollectorSection, sectionNames) {
+		sections = append(sections, status.CollectorSection)
+	}
+	for _, section := range sectionNames {
+		if section != status.CollectorSection {
+			sections = append(sections, section)
+		}
+	}
+
+	return sections
 }
 
 // fillFlare add the status.log to flares.

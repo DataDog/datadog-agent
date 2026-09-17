@@ -12,7 +12,9 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/status",
         "//comp/def",
+        "//comp/process/status/def",
         "//pkg/process/util/status",
+        "//pkg/proto/pbgo/core",
         "//pkg/util/log",
         "//pkg/util/system",
     ],
@@ -29,6 +31,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -201,11 +201,14 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)
-		status, err := client.GetJSONStatus()
-		s.Require().NoError(err)
-		s.Require().Contains(status, "systemProbeStats", "agent status should contain systemProbeStats")
-		systemProbeStats := status["systemProbeStats"].(map[string]interface{})
-		s.Require().NotContains(systemProbeStats, "Errors", "system probe status should not contain Errors")
+		s.Require().EventuallyWithT(func(c *assert.CollectT) {
+			status, err := client.GetJSONStatus()
+			require.NoError(c, err)
+			require.Contains(c, status, "systemProbeStats", "agent status should contain systemProbeStats")
+			systemProbeStats, ok := status["systemProbeStats"].(map[string]interface{})
+			require.True(c, ok, "systemProbeStats should be a JSON object")
+			assert.NotContains(c, systemProbeStats, "Errors", "system probe status should not contain Errors")
+		}, 1*time.Minute, 1*time.Second)
 	})
 }
 

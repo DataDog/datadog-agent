@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -58,6 +59,17 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 			}
 		}
 		out.NamedSections = sections
+
+		if len(in.JsonPayload) > 0 {
+			var payload map[string]interface{}
+			if err := json.Unmarshal(in.JsonPayload, &payload); err != nil {
+				out.JSONError = fmt.Sprintf("invalid remote status JSON from %s: %v", details.DisplayName, err)
+			} else if payload == nil {
+				out.JSONError = fmt.Sprintf("invalid remote status JSON from %s: expected a JSON object", details.DisplayName)
+			} else {
+				out.JSONPayload = payload
+			}
+		}
 
 		return out
 	}

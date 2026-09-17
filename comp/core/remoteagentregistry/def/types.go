@@ -15,6 +15,7 @@ type RegisteredAgent struct {
 	PID                  string
 	LastSeen             time.Time
 	SessionID            string
+	StatusSection        string `json:"-"`
 }
 
 func (a *RegisteredAgent) String() string {
@@ -30,6 +31,8 @@ type StatusData struct {
 	FailureReason string
 	MainSection   StatusSection
 	NamedSections map[string]StatusSection
+	JSONPayload   map[string]interface{} `json:"-"`
+	JSONError     string                 `json:"-"`
 }
 
 // FlareData contains the flare data for a remote agent
@@ -43,6 +46,7 @@ type RegistrationData struct {
 	AgentFlavor      string
 	AgentDisplayName string
 	AgentPID         string
+	StatusSection    string
 	APIEndpointURI   string
 	Services         []string
 }

@@ -7,6 +7,8 @@
 package statusimpl
 
 import (
+	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,9 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	processstatus "github.com/DataDog/datadog-agent/comp/process/status/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -34,20 +38,26 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	StatusProvider status.InformationProvider
+	Comp           processstatus.Component
+	StatusProvider corestatus.InformationProvider
 }
 
 // NewComponent creates the status component.
 func NewComponent(deps dependencies) Provides {
+	provider := &statusProvider{
+		config:   deps.Config,
+		hostname: deps.Hostname,
+	}
+
 	return Provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
-		}),
+		Comp:           provider,
+		StatusProvider: corestatus.NewInformationProvider(provider),
 	}
 }
 
 type statusProvider struct {
+	pbcore.UnimplementedStatusProviderServer
+
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
@@ -66,17 +76,17 @@ func (s statusProvider) Section() string {
 	return "Process Agent"
 }
 
-func (s statusProvider) getStatusInfo() map[string]interface{} {
+func (s statusProvider) getStatusInfo(ctx context.Context) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	values := s.populateStatus()
+	values := s.populateStatus(ctx)
 
 	stats["processAgentStatus"] = values
 
 	return stats
 }
 
-func (s statusProvider) populateStatus() map[string]interface{} {
+func (s statusProvider) populateStatus(ctx context.Context) map[string]interface{} {
 	status := make(map[string]interface{})
 
 	var url string
@@ -101,7 +111,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s/debug/vars", addr)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetStatusWithContext(ctx, s.config, url, s.hostname)
 	if err != nil {
 		status["error"] = err.Error()
 		return status
@@ -126,7 +136,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
-	values := s.populateStatus()
+	values := s.populateStatus(context.Background())
 
 	stats["processAgentStatus"] = values
 
@@ -135,10 +145,45 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo())
+	return s.renderText(context.Background(), buffer)
+}
+
+func (s statusProvider) renderText(ctx context.Context, buffer io.Writer) error {
+	return s.renderTextFromStatus(s.getStatusInfo(ctx), buffer)
+}
+
+func (s statusProvider) renderTextFromStatus(stats map[string]interface{}, buffer io.Writer) error {
+	return corestatus.RenderText(templatesFS, "processagent.tmpl", buffer, stats)
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
+}
+
+// GetStatusDetails returns the Process Agent status rendered as text.
+func (s statusProvider) GetStatusDetails(ctx context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	stats := map[string]interface{}{
+		"processAgentStatus": s.populateStatus(ctx),
+	}
+
+	var details bytes.Buffer
+	if err := s.renderTextFromStatus(stats, &details); err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: map[string]*pbcore.StatusSection{
+			"Details": {
+				Fields: map[string]string{
+					"": details.String(),
+				},
+			},
+		},
+		JsonPayload: payload,
+	}, nil
 }

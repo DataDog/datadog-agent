@@ -40,6 +40,7 @@ go_library(
         "//comp/trace/config/def",
         "//comp/trace/config/impl",
         "//comp/trace/payload-modifier/fx",
+        "//comp/trace/status/fx",
         "//pkg/serverless/env",
         "//pkg/trace/api",
         "//pkg/trace/telemetry",
