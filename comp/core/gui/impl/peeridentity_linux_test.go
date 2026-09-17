@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/cpu"
 )
 
 // procNetTCPHeader is the header line every /proc/net/tcp{,6} file starts with; searchProcNetTCP discards it unconditionally.
@@ -35,7 +36,7 @@ func writeFixture(t *testing.T, contents string) string {
 	return path
 }
 
-// encodeProcNetAddr encodes ip the way /proc/net/tcp{,6} does (byte-swapped 32-bit words); the inverse of hexAddrPort's decoding, used to build fixtures instead of hand-computing hex strings.
+// encodeProcNetAddr encodes ip the way /proc/net/tcp{,6} does (32-bit words in the host's native byte order); the inverse of hexAddrPort's decoding, used to build fixtures instead of hand-computing hex strings. Like hexAddrPort it swaps each word only on little-endian hosts, so fixtures are correct on big-endian ones (e.g. s390x) too.
 func encodeProcNetAddr(ip net.IP) string {
 	raw := []byte(ip.To4())
 	if raw == nil {
@@ -43,7 +44,11 @@ func encodeProcNetAddr(ip net.IP) string {
 	}
 	buf := make([]byte, len(raw))
 	for word := 0; word < len(raw); word += 4 {
-		buf[word], buf[word+1], buf[word+2], buf[word+3] = raw[word+3], raw[word+2], raw[word+1], raw[word]
+		if cpu.IsBigEndian {
+			copy(buf[word:word+4], raw[word:word+4])
+		} else {
+			buf[word], buf[word+1], buf[word+2], buf[word+3] = raw[word+3], raw[word+2], raw[word+1], raw[word]
+		}
 	}
 	return strings.ToUpper(hex.EncodeToString(buf))
 }
@@ -56,6 +61,17 @@ func procNetTCPLine(localAddr net.IP, localPort int, remoteAddr net.IP, remotePo
 
 func TestHexAddrPort(t *testing.T) {
 	t.Run("valid IPv4 address:port", func(t *testing.T) {
+		addr, port, err := hexAddrPort(encodeProcNetAddr(loopbackV4) + ":1F90")
+		require.NoError(t, err)
+		assert.Equal(t, 8080, port)
+		assert.True(t, loopbackV4.Equal(addr), "got %s", addr)
+	})
+
+	t.Run("valid IPv4 address:port, against a literal computed independently of encodeProcNetAddr", func(t *testing.T) {
+		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug; "0100007F" is 127.0.0.1's native-order encoding on little-endian hosts only.
+		if cpu.IsBigEndian {
+			t.Skip("this literal is little-endian-specific; the encodeProcNetAddr-based subtests cover big-endian")
+		}
 		addr, port, err := hexAddrPort("0100007F:1F90")
 		require.NoError(t, err)
 		assert.Equal(t, 8080, port)
@@ -70,7 +86,10 @@ func TestHexAddrPort(t *testing.T) {
 	})
 
 	t.Run("valid IPv6 address:port, against a literal computed independently of encodeProcNetAddr", func(t *testing.T) {
-		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug.
+		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug; the literal is ::1's native-order encoding on little-endian hosts only.
+		if cpu.IsBigEndian {
+			t.Skip("this literal is little-endian-specific; the encodeProcNetAddr-based subtests cover big-endian")
+		}
 		addr, port, err := hexAddrPort("00000000000000000000000001000000:1F90")
 		require.NoError(t, err)
 		assert.Equal(t, 8080, port)

@@ -58,6 +58,9 @@ go_library(
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//cpu",
+        ],
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/api/client",
             "@org_golang_x_sys//unix",
@@ -65,6 +68,9 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//pkg/system-probe/api/client",
             "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//cpu",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/ipc/httphelpers",
@@ -99,11 +105,17 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//cpu",
+        ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/sysprobeconfig/mock",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/sysprobeconfig/mock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//cpu",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/ipc/mock",

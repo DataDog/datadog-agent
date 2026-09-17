@@ -15,6 +15,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/sys/cpu"
 )
 
 // procNetTCPFiles are the kernel-exposed tables consulted to resolve the OS UID owning a loopback TCP connection; a var so tests can point it at fixture files instead of the real /proc.
@@ -78,7 +80,7 @@ func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }
 
-// hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}, whose address is one (IPv4) or four (IPv6) 32-bit words, each byte-swapped to native order (e.g. loopback 127.0.0.1 is "0100007F").
+// hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}, whose address is one (IPv4) or four (IPv6) 32-bit words printed in the host's native byte order. On a little-endian host each word is therefore byte-reversed relative to network order (e.g. loopback 127.0.0.1 is "0100007F") and must be swapped back; on a big-endian host (e.g. s390x) it is already in network order and must be left as-is, otherwise 127.0.0.1 would decode to 1.0.0.127 and never match.
 func hexAddrPort(field string) (net.IP, int, error) {
 	idx := strings.LastIndexByte(field, ':')
 	if idx < 0 {
@@ -94,7 +96,11 @@ func hexAddrPort(field string) (net.IP, int, error) {
 	}
 	addr := make(net.IP, len(raw))
 	for word := 0; word < len(raw); word += 4 {
-		addr[word], addr[word+1], addr[word+2], addr[word+3] = raw[word+3], raw[word+2], raw[word+1], raw[word]
+		if cpu.IsBigEndian {
+			copy(addr[word:word+4], raw[word:word+4])
+		} else {
+			addr[word], addr[word+1], addr[word+2], addr[word+3] = raw[word+3], raw[word+2], raw[word+1], raw[word]
+		}
 	}
 	return addr, int(port), nil
 }
