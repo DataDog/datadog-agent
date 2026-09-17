@@ -65,16 +65,26 @@ const (
 	AutodiscoveryRunBlocked    AutodiscoveryRunStatus = "blocked"
 )
 
+// ProbeResult is what one discovery probe learned about one address.
+type ProbeResult struct {
+	Kind          string `json:"kind"`
+	Status        string `json:"status"`
+	CredID        string `json:"cred_id,omitempty"`
+	FailureReason string `json:"failure_reason,omitempty"`
+	RttMs         *int64 `json:"rtt_ms,omitempty"`
+}
+
 // DiscoveredDeviceMetadata is one address probed by an autodiscovery sweep,
 // reported whether or not it answered.
 type DiscoveredDeviceMetadata struct {
-	AutodiscoveryID string `json:"autodiscovery_id"`
-	RunID           string `json:"run_id"`
-	IPAddress       string `json:"ip_address"`
-	Name            string `json:"name,omitempty"`
-	PingStatus      string `json:"ping_status,omitempty"`
-	SNMPStatus      string `json:"snmp_status,omitempty"`
-	SNMPCredID      string `json:"snmp_cred_id,omitempty"`
+	AutodiscoveryID string        `json:"autodiscovery_id"`
+	RunID           string        `json:"run_id"`
+	IPAddress       string        `json:"ip_address"`
+	Name            string        `json:"name,omitempty"`
+	PingStatus      string        `json:"ping_status,omitempty"`
+	SNMPStatus      string        `json:"snmp_status,omitempty"`
+	SNMPCredID      string        `json:"snmp_cred_id,omitempty"`
+	ProbeResults    []ProbeResult `json:"probe_results,omitempty"`
 }
 
 // AutodiscoveryRunMetadata is the lifecycle record of one autodiscovery sweep
