@@ -105,12 +105,14 @@ fn number_as_bool(number: &serde_yaml::Number) -> bool {
 }
 
 /// Mirrors Go `strconv.ParseBool`, used for env vars and quoted YAML scalars.
+///
+/// The spellings are an exact list rather than a case-insensitive comparison: Go rejects
+/// `tRuE`, and `GetBool` then reads it as false, so accepting it here would start a
+/// process the Agent considers disabled.
 pub fn parse_bool_string(text: &str) -> Option<bool> {
     match text {
-        "1" | "t" | "T" => Some(true),
-        "0" | "f" | "F" => Some(false),
-        _ if text.eq_ignore_ascii_case("true") => Some(true),
-        _ if text.eq_ignore_ascii_case("false") => Some(false),
+        "1" | "t" | "T" | "true" | "TRUE" | "True" => Some(true),
+        "0" | "f" | "F" | "false" | "FALSE" | "False" => Some(false),
         _ => None,
     }
 }
@@ -632,6 +634,9 @@ process_config:
             (Value::String("disabled".into()), Some(false)),
             // Quoted scalars go through ParseBool only, so YAML 1.1 spellings are false.
             (Value::String("yes".into()), Some(false)),
+            // ParseBool accepts "true"/"True"/"TRUE" but no other casing.
+            (Value::String("True".into()), Some(true)),
+            (Value::String("tRuE".into()), Some(false)),
             (Value::Number(1.into()), Some(true)),
             (Value::Number(0.into()), Some(false)),
             (Value::Number(1.0.into()), Some(true)),
@@ -663,6 +668,11 @@ process_config:
             (" true ", None),
             (" false ", None),
             (" 1 ", None),
+            // ParseBool matches an exact list, so any other casing is a syntax error.
+            ("tRuE", None),
+            ("trUE", None),
+            ("FaLsE", None),
+            ("fALSE", None),
         ] {
             assert_eq!(parse_bool_string(input), expected, "input={input:?}");
         }
