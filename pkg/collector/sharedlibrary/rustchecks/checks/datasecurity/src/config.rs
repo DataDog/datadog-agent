@@ -72,7 +72,6 @@ where
 }
 
 /// Database connection parameters for a sub task.
-// TODO(dsec-156): add SSL/TLS support; only unencrypted connections for now.
 #[derive(Debug, Default, Deserialize)]
 pub struct Connection {
     /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
@@ -86,6 +85,21 @@ pub struct Connection {
     pub password: String,
     #[serde(default = "default_application_name")]
     pub application_name: String,
+    #[serde(default)]
+    pub ssl: SslMode,
+    // TODO(DATASEC-318): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
+}
+
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SslMode {
+    Disable,
+    #[default]
+    Allow,
+    Prefer,
+    Require,
+    VerifyCa,
+    VerifyFull,
 }
 
 fn default_port() -> u16 {
