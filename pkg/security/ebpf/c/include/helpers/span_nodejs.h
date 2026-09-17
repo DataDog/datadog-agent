@@ -37,7 +37,7 @@
 #define OTEL_V8_OHM_MAX_BUCKETS 1024
 
 // How far the chain of one bucket is followed.
-#define OTEL_NODEJS_MAX_CHAIN 16
+#define OTEL_NODEJS_MAX_CHAIN 4
 
 static u64 __attribute__((always_inline)) otel_v8_untag(u64 value) {
     return value & ~(u64)OTEL_V8_HEAP_OBJECT_TAG;
