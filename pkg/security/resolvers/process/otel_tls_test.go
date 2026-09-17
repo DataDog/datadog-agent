@@ -41,8 +41,7 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 func BenchmarkGroupedReadableFileMaps(b *testing.B) {
 	pid := uint32(2)
 	procfs := kernel.CreateFakeProcFS(b, []kernel.FakeProcFSEntry{{Pid: pid, Maps: mapsFileSample}})
-	b.Setenv("HOST_PROC", procfs)
-	b.Cleanup(kernel.ResetProcFSRoot)
+	kernel.WithFakeProcFS(b, procfs)
 
 	b.ReportAllocs()
 	b.ResetTimer()
