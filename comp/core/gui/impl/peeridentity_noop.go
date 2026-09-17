@@ -8,13 +8,13 @@
 package guiimpl
 
 import (
-	"fmt"
+	"errors"
 	"net"
 )
 
 // lookupLoopbackPeerIdentity is not implemented on this platform; callers fall back to the pre-existing TTL/single-use protection instead.
 func lookupLoopbackPeerIdentity(_ net.IP, _, _ int, _ net.IP) (peerIdentity, error) {
-	return "", fmt.Errorf("peer identity resolution is not implemented on this platform")
+	return "", errors.New("peer identity resolution is not implemented on this platform")
 }
 
 // elevatedMintIdentity binds directly to root here too, since lookupLoopbackPeerIdentity never resolves anything on this platform (see its own doc comment).
