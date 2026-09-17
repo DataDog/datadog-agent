@@ -66,7 +66,7 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: []string{"env:prod"}},
 		},
 		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
-			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
+			42: {Pattern: "C3:C8_C1"},
 			43: {Pattern: "GET /checkout <*> returned 500"},
 		},
 	}
@@ -76,7 +76,7 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
 	}, storage)
 
-	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {host:web-1,service:api}")
+	assert.Contains(t, message, "1. 75% — log: C3:C8_C1 — {host:web-1,service:api}")
 	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
 	assert.NotContains(t, message, "log.pattern.abc.count")
 	assert.NotContains(t, message, "log.pattern.def.rate")
@@ -200,7 +200,8 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 	}
 	msg := BuildChangeMessage(c, nil)
 	assert.Contains(t, msg, "Log frequency change detected")
-	assert.Contains(t, msg, "C3:C8_C1")
+	assert.Contains(t, msg, "signature: C3:C8_C1")
+	assert.NotContains(t, msg, "example:")
 }
 
 func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {

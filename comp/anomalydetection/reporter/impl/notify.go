@@ -797,13 +797,12 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 }
 
 // logFrequencyDerivedDescription builds a human-readable description for
-// log.pattern.* anomalies from LogMetricsExtractor. The stored pattern is an
-// internal tokenized structural signature (not human-readable), so the example
-// log line is used as the primary identifier instead.
+// log.pattern.* anomalies from LogMetricsExtractor. New extractor outputs carry
+// only a structural signature; distinguish it from an explicitly supplied example.
 func logFrequencyDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
-	example := strings.TrimSpace(a.Context.Example)
-	if example == "" {
-		example = strings.TrimSpace(a.Context.Pattern)
+	label, value := "signature", strings.TrimSpace(a.Context.Pattern)
+	if example := strings.TrimSpace(a.Context.Example); example != "" {
+		label, value = "example", example
 	}
-	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, logRatePart(a, storage))
+	return fmt.Sprintf("Log frequency change detected:\n\t%s: %s%s", label, value, logRatePart(a, storage))
 }

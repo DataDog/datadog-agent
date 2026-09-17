@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,7 +141,7 @@ func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_metrics_extractor", ctx.Source)
-	assert.Equal(t, "Request completed in 45ms", ctx.Example)
+	assert.Empty(t, ctx.Example)
 }
 
 func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
@@ -165,7 +166,45 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	ctxA := resA.Metrics[0].Context
 	ctxB := resB.Metrics[0].Context
 
-	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
-	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
+	assert.Empty(t, ctxA.Example)
+	assert.Empty(t, ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+}
+
+// Both extractors must emit useful metric context without retaining raw log
+// examples, including the numeric-field outputs of JSON extraction.
+func TestLogExtractorsOmitRawExamples(t *testing.T) {
+	for _, input := range []struct {
+		name         string
+		content      string
+		metricsCount int
+	}{
+		{"unstructured", "request completed " + strings.Repeat("payload", 1<<17), 1},
+		{"json", `{"duration_ms":45,"message":"` + strings.Repeat("payload", 1<<17) + `"}`, 2},
+	} {
+		t.Run(input.name, func(t *testing.T) {
+			cfg := DefaultLogPatternExtractorConfig()
+			cfg.MinClusterSizeBeforeEmit = 1
+			for _, extractor := range []observer.LogMetricsExtractor{
+				NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+				NewLogPatternExtractor(cfg),
+			} {
+				t.Run(extractor.Name(), func(t *testing.T) {
+					result := extractor.ProcessLog(&mockLogView{content: input.content, tags: []string{"service:api"}})
+					expected := 1
+					if extractor.Name() == LogMetricsExtractorName {
+						expected = input.metricsCount
+					}
+					require.Len(t, result.Metrics, expected)
+					for _, metric := range result.Metrics {
+						require.NotNil(t, metric.Context)
+						assert.Empty(t, metric.Context.Example)
+						assert.NotEmpty(t, metric.Context.Pattern)
+						assert.Equal(t, extractor.Name(), metric.Context.Source)
+						assert.Equal(t, []string{"service:api"}, metric.Tags)
+					}
+				})
+			}
+		})
+	}
 }

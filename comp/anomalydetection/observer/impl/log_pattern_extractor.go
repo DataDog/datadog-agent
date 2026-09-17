@@ -238,7 +238,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		Tags:  log.Tags(),
 		Context: &observerdef.MetricContext{
 			Pattern:   cluster.PatternString(),
-			Example:   truncate(message, 160),
 			Source:    e.Name(),
 			SplitTags: group.AsMap(),
 		},
