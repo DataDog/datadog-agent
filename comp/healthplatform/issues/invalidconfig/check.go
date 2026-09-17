@@ -53,8 +53,9 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 }
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
-	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
-	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
+	// Validate effective customer settings, including locally resolved secrets.
+	// Only value-free diagnostics leave this checker.
+	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -69,7 +70,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	retained := violations[:0]
 	for _, violation := range violations {
-		if !isUnresolvedSecret(normalized, violation) {
+		if !c.isUnresolvedSecret(normalized, violation) {
 			retained = append(retained, violation)
 		}
 	}
@@ -138,7 +139,7 @@ func scrubViolationPath(path string) string {
 	return pointer.String()
 }
 
-func isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
+func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
 	pointer, err := jsonpointer.Parse(violation.Path)
 	if err != nil {
 		return false
@@ -148,11 +149,21 @@ func isUnresolvedSecret(normalized map[string]any, violation schema.Violation) b
 		return false
 	}
 	text, ok := value.(string)
-	return ok && scrubber.IsEnc(text) && allExpectedTypesScalar(violation.ExpectedTypes)
+	if !ok || !scrubber.IsEnc(text) || !allExpectedTypesScalar(violation.ExpectedTypes) {
+		return false
+	}
+	// Compound settings carry the source on the enclosing map or list.
+	// A resolved value can itself look like ENC[...] and must still be validated.
+	for i := range pointer {
+		key := strings.Join(pointer[:i+1], ".")
+		if c.cfg.IsSetting(key) {
+			return c.cfg.GetSource(key) != model.SourceSecret
+		}
+	}
+	return false
 }
 
-// The secrets layer is excluded from this check, so we cannot validate resolved
-// scalar values. A placeholder cannot supply an array or object.
+// Unresolved scalar references are deferred, but not array or object shape errors.
 func allExpectedTypesScalar(values []string) bool {
 	if len(values) == 0 {
 		return false

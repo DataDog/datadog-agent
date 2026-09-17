@@ -79,11 +79,7 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
-// A duration setting written as a duration string (e.g. "5s") in datadog.yaml is
-// coerced by the config into a time.Duration. time.Duration marshals back to a
-// string through go-yaml, but the schema types duration fields as numbers, so the
-// checker must normalize durations to their numeric form to avoid a spurious
-// "got string, want number" violation. Regression test for the e2e diagnose suite.
+// Duration strings must remain accepted for both dotted and nested config keys.
 func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 	for _, yaml := range []string{
 		"remote_configuration.refresh_interval: 5s\n",   // flat dotted key
@@ -168,6 +164,40 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 			encoded, err := json.Marshal(issue)
 			require.NoError(t, err)
 			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
+		})
+	}
+}
+
+func TestCheck_ResolvedSecrets(t *testing.T) {
+	requireSchema(t)
+	for _, tc := range []struct{ name, key, value, want string }{
+		{"valid_integer", "agent_ipc.port", "5001", ""},
+		{"invalid_integer", "agent_ipc.port", "SECRET_INVALID_INTEGER", "got string, want integer"},
+		{"valid_boolean", "logs_enabled", "true", ""},
+		{"invalid_boolean", "logs_enabled", "SECRET_INVALID_BOOLEAN", "got string, want boolean"},
+		{"valid_number", "forwarder_backoff_factor", "2.5", ""},
+		{"invalid_number", "forwarder_backoff_factor", "SECRET_INVALID_NUMBER", "got string, want number"},
+		{"valid_duration", "remote_configuration.refresh_interval", "5s", ""},
+		{"api_key_string", "api_key", "SECRET_API_KEY", ""},
+		{"resolved_enc_literal", "agent_ipc.port", "ENC[SECRET_LITERAL]", "got string, want integer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, tc.key+": ENC[value]\n")
+			cfg.Set(tc.key, tc.value, model.SourceSecret)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Equal(t, "at '/"+strings.ReplaceAll(tc.key, ".", "/")+"': "+tc.want, reports[0].Context[contextErrorKey(0)])
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), tc.value)
 		})
 	}
 }
