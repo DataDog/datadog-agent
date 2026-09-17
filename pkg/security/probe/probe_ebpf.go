@@ -2118,7 +2118,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 
 		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(event.CgroupTracing.CGroupContext.CGroupPathKey.Inode)
 		if cacheEntry == nil {
-			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
+			// dropping the offer here loses it for good: the kernel keeps its traced_cgroups
+			// slot and its cgroup_wait_list entry, so nothing re-offers this cgroup
+			seclog.Warnf("dropping cgroup tracing offer, cgroup resolver has no entry for %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
 			return false
 		}
 

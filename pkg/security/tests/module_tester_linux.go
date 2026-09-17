@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -1095,7 +1096,12 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		var err error
 
-		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, logLevel)
+		// Build the inner logger at the most verbose level, not at the level asked
+		// for here: its min level is fixed at construction, and this logger is
+		// created once and reused. Creating it at the -loglevel value would cap
+		// every later swap at that level, so raising to Debug or Trace mid-run
+		// would print nothing. SetupLogger below is what actually gates output.
+		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, log.TraceLvl)
 		if err != nil {
 			return 0, err
 		}
@@ -1399,12 +1405,53 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
+		// dumps is a slice of pointers, so %+v prints addresses and hides whether the
+		// list was empty or held a dump for some other cgroup -- the whole question
+		// when this fails. Spell the entries out instead.
+		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%d dump(s): %s)", dockerInstance.containerID, len(dumps), formatActivityDumps(dumps))
 	}
 	return dump, nil
 }
 
+func formatActivityDumps(dumps []*activityDumpIdentifier) string {
+	entries := make([]string, 0, len(dumps))
+	for _, d := range dumps {
+		entries = append(entries, fmt.Sprintf("{name:%s container:%s cgroup:%s timeout:%s}", d.Name, d.ContainerID, d.CGroupID, d.Timeout))
+	}
+	return "[" + strings.Join(entries, " ") + "]"
+}
+
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	// The cgroup offer that starts the dump can be dropped silently in a dozen places
+	// between the exec hook and insertActivityDump, and all of them log at Debug or
+	// below -- which the suite's default -loglevel warn throws away. Raise the level
+	// for just the window where the offer has to happen, so the rest of the run keeps
+	// its usual (far smaller) output.
+	// Use ChangeLogLevel, not swapLogLevel: the latter goes through log.SetupLogger,
+	// which closes the previously installed inner logger -- and since swapLogLevel
+	// caches and reuses one inner logger, a second call closes the very logger it
+	// installs and silences the rest of the run. ChangeLogLevel only sets the level
+	// var. This is also why initLogger guards swapLogLevel with logInitilialized.
+	prevLevel, err := log.GetLogLevel()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := log.ChangeLogLevel(log.TraceLvl); err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = log.ChangeLogLevel(prevLevel) }()
+
+	// The level alone prints no Tracef: seclog filters trace calls on the caller's
+	// package.struct.func and an empty pattern set matches nothing.
+	//
+	// Keep this list tight. "probe.EBPFProbe.*" looks like the obvious third entry
+	// but it matches DispatchEvent, which serializes every dispatched event to JSON:
+	// it produced 11MB for a single 9.5s run of this test locally, against a KMT job
+	// trace that is only ~4.5MB in total. The probe-side drop on this path logs at
+	// Warn, which no pattern gates, so nothing is lost by leaving it out.
+	prevPatterns := seclog.SetPatterns("cgroup.Resolver.*", "security_profile.Manager.*")
+	defer seclog.SetPatterns(prevPatterns...)
+
 	// before starting the docker, we need to make sure the traced cgroup map is not filled with
 	// entries waiting to be evicted
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
@@ -1423,28 +1470,16 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	var dump *activityDumpIdentifier
 	if err := retry(tm.t, func() error {
+		// check that the kernel offered a dump for this container's cgroup when it started,
+		// rather than requesting one ourselves
 		d, err := tm.GetDumpFromDocker(dockerInstance)
 		if err != nil {
-			// Nothing offers the cgroup for tracing when the container is migrated
-			// into it rather than exec'ing in it, so ask for the dump instead. A
-			// requested dump takes DifferentiateArgs from the request, where an
-			// offered one reads it from the config, so pass it along to keep the two
-			// paths interchangeable.
-			if _, reqErr := managers.DumpActivity(&api.ActivityDumpParams{
-				ContainerID:       dockerInstance.containerID,
-				DifferentiateArgs: tm.secconfig.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
-			}); reqErr != nil {
-				return reqErr
-			}
 			return err
 		}
 		if d == nil {
 			return fmt.Errorf("no dump found for container %s", dockerInstance.containerID)
 		}
 		if d.CGroupID == "" {
-			// A request that lands before the container reaches the process cache
-			// collects nothing in kernel space, so drop it and ask again.
-			_, _ = managers.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: dockerInstance.containerID})
 			return fmt.Errorf("dump for container %s has no cgroup yet", dockerInstance.containerID)
 		}
 		dump = d
