@@ -276,7 +276,10 @@ fn is_timestamp(text: &str) -> bool {
 }
 
 /// `15:4:5.999999999`: one or two digits per field, then an optional fraction that needs
-/// at least one digit once its `.` is there. Returns whatever follows the time.
+/// at least one digit once its separator is there. Returns whatever follows the time.
+///
+/// Go's `parseNanoseconds` takes a comma as readily as a period, and accepts more digits
+/// than the layout asks for, so `10:00:00,5` is as valid as `10:00:00.5`.
 fn take_time(bytes: &[u8]) -> Option<&[u8]> {
     let (hour, rest) = take_number(bytes, 1, 2)?;
     let (minute, rest) = take_number(take_byte(rest, b':')?, 1, 2)?;
@@ -285,7 +288,7 @@ fn take_time(bytes: &[u8]) -> Option<&[u8]> {
         return None;
     }
     match rest {
-        [b'.', fraction @ ..] => {
+        [b'.' | b',', fraction @ ..] => {
             let width = fraction.iter().take_while(|b| b.is_ascii_digit()).count();
             (width > 0).then(|| &fraction[width..])
         }
@@ -1193,6 +1196,10 @@ process_config:
             "2015-01-01t10:00:00Z",
             "2015-01-01T23:59:59Z",
             "2015-01-01T10:00:00.123456789Z",
+            // Go's parseNanoseconds takes a comma as readily as a period.
+            "2015-01-01T10:00:00,5Z",
+            "2015-01-01T10:00:00,123456789Z",
+            "2015-01-01 10:00:00,25",
             "2015-01-01T10:00:00+01:00",
             "2015-01-01T10:00:00-05:30",
             // Go bounds a zone offset with `>`, so 24 hours and 60 minutes still parse.
@@ -1233,6 +1240,8 @@ process_config:
             // A fraction needs a digit, and nothing may trail the timestamp.
             "2015-01-01T10:00:00.Z",
             "2015-01-01 10:00:00.",
+            "2015-01-01T10:00:00,Z",
+            "2015-01-01 10:00:00,",
             "2015-01-01 ",
             " 2015-01-01",
             "2015-01-01Textra",
