@@ -1,4 +1,4 @@
-# Assembled at test load: scan_data is imported from fixtures/scenarios/*.yaml
+# Assembled at test load: scan_data is filled from fixtures/scenarios/*.yaml
 # (filename order). Each scenario file owns its subtasks and expected SDS results.
 init_config:
 
@@ -8,5 +8,4 @@ instances:
     scanning_rules:
       - id: e2e-owner-pattern
         pattern: 'owner_[0-9]+'
-    scan_data:
-{{.ScanData}}
+    scan_data: []

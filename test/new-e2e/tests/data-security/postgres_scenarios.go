@@ -6,13 +6,11 @@
 package datasecurity
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
 	"io/fs"
 	"sort"
 	"strings"
-	"text/template"
 
 	"go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -21,7 +19,7 @@ import (
 )
 
 //go:embed fixtures/datasecurity.yaml
-var datasecurityYAMLTmpl string
+var datasecurityYAML string
 
 //go:embed fixtures/scenarios/*.yaml
 var scenarioFS embed.FS
@@ -45,13 +43,23 @@ func datasecurityCheckYAML() string {
 	for _, scenario := range postgresScanScenarios {
 		scanData = append(scanData, scenario.scanData...)
 	}
-	body, err := yaml.Marshal(scanData)
-	if err != nil {
-		panic("datasecurity scan_data: " + err.Error())
+
+	var doc struct {
+		InitConfig map[string]any   `yaml:"init_config"`
+		Instances  []map[string]any `yaml:"instances"`
 	}
-	return mustRender("datasecurity.yaml", datasecurityYAMLTmpl, struct{ ScanData string }{
-		ScanData: indentLines(string(body), 6),
-	})
+	if err := yaml.Unmarshal([]byte(datasecurityYAML), &doc); err != nil {
+		panic("datasecurity.yaml: " + err.Error())
+	}
+	if len(doc.Instances) != 1 {
+		panic("datasecurity.yaml: expected one instance")
+	}
+	doc.Instances[0]["scan_data"] = scanData
+	body, err := yaml.Marshal(&doc)
+	if err != nil {
+		panic("datasecurity.yaml: " + err.Error())
+	}
+	return string(body)
 }
 
 func loadPostgresScanScenarios() []postgresScanScenario {
@@ -114,26 +122,4 @@ func mustSDSResult(scenario string, raw map[string]any) *sds.SdsResultPayload {
 		panic(scenario + ": " + err.Error())
 	}
 	return &payload
-}
-
-func mustRender(name, src string, data any) string {
-	tmpl := template.Must(template.New(name).Parse(src))
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		panic(name + ": " + err.Error())
-	}
-	return buf.String()
-}
-
-func indentLines(s string, n int) string {
-	prefix := strings.Repeat(" ", n)
-	s = strings.TrimRight(s, "\n")
-	lines := strings.Split(s, "\n")
-	for i, line := range lines {
-		if line == "" {
-			continue
-		}
-		lines[i] = prefix + line
-	}
-	return strings.Join(lines, "\n")
 }
