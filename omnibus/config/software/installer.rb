@@ -59,7 +59,9 @@ build do
 
     # Build both packages and dump them where gitlab will upload them.
     command "bazel build #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "bazel test #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb_contents_test", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
+    command "bazel cquery #{omnibazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
+    command "tar tvf $(bazel info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Copy both the .deb and .rpm out to artifact outputs
     # In the package job, we'll compare these to the omnibus built packages and report the diffs

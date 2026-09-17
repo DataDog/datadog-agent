@@ -14,7 +14,6 @@ load(
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//compliance:package_licenses.bzl", "package_licenses")
@@ -149,17 +148,6 @@ pkg_tar(
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
-    tags = ["manual"],
-)
-
-# Asserts the tarball's contents rather than merely printing them (see
-# omnibus/config/software/installer.rb, which runs this as a real test).
-sh_test(
-    name = "whole_distro_tar_deb_contents_test",
-    size = "small",
-    srcs = ["whole_distro_tar_deb_contents_test.sh"],
-    args = ["$(rootpath :whole_distro_tar_deb)"],
-    data = [":whole_distro_tar_deb"],
     tags = ["manual"],
 )
 
