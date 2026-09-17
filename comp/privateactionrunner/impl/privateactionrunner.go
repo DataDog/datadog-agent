@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -80,6 +81,7 @@ func splitDeploymentSupported(goos string, containerized, fipsEnabled, processMa
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
+	DelegatedAuth delegatedauth.Component
 	Config        config.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
@@ -101,14 +103,16 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     model.ReaderWriter
-	hostnameGetter hostnameinterface.Component
-	rcClient       pkgrcclient.Client
-	logger         log.Component
-	tagger         tagger.Component
-	traceroute     traceroute.Component
-	eventPlatform  eventplatform.Component
-	ipc            ipc.Component
+	workloadAuthorizer     enrollment.WorkloadAuthorizer
+	workloadRefreshEnabled bool
+	coreConfig             model.ReaderWriter
+	hostnameGetter         hostnameinterface.Component
+	rcClient               pkgrcclient.Client
+	logger                 log.Component
+	tagger                 tagger.Component
+	traceroute             traceroute.Component
+	eventPlatform          eventplatform.Component
+	ipc                    ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -166,7 +170,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil, reqs.DelegatedAuth)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -195,7 +199,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil, reqs.DelegatedAuth)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -223,20 +227,26 @@ func NewPrivateActionRunner(
 	metricsClient statsdclient.ClientInterface,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	authorizers ...enrollment.WorkloadAuthorizer,
 ) (*PrivateActionRunner, error) {
+	var authorizer enrollment.WorkloadAuthorizer
+	if len(authorizers) > 0 {
+		authorizer = authorizers[0]
+	}
 	return &PrivateActionRunner{
-		coreConfig:     coreConfig,
-		hostnameGetter: hostnameGetter,
-		rcClient:       rcClient,
-		logger:         logger,
-		tagger:         taggerComp,
-		traceroute:     tracerouteComp,
-		eventPlatform:  eventPlatform,
-		ipc:            ipcComp,
-		metricsClient:  metricsClient,
-		startChan:      make(chan struct{}),
-		ha:             ha,
-		ka:             ka,
+		workloadAuthorizer: authorizer,
+		coreConfig:         coreConfig,
+		hostnameGetter:     hostnameGetter,
+		rcClient:           rcClient,
+		logger:             logger,
+		tagger:             taggerComp,
+		traceroute:         tracerouteComp,
+		eventPlatform:      eventPlatform,
+		ipc:                ipcComp,
+		metricsClient:      metricsClient,
+		startChan:          make(chan struct{}),
+		ha:                 ha,
+		ka:                 ka,
 	}, nil
 }
 
@@ -250,10 +260,14 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+	if enrollment.WIFIdentityEnabled(p.coreConfig, persistedIdentity) {
+		if err := enrollment.ValidateWorkloadIdentityHost(persistedIdentity, agentIdentifier); err != nil {
+			return nil, err
+		}
+	} else if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
-	if persistedIdentity != nil {
+	if persistedIdentity != nil && !persistedIdentity.Pending {
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
 		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
@@ -266,7 +280,13 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
+		var updatedCfg *parconfig.Config
+		var err error
+		if enrollment.WIFIdentityEnabled(p.coreConfig, persistedIdentity) {
+			updatedCfg, err = p.performWorkloadEnrollment(ctx, cfg, agentIdentifier)
+		} else {
+			updatedCfg, err = p.performSelfEnrollment(ctx, cfg, agentIdentifier)
+		}
 		if err != nil {
 			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
@@ -277,6 +297,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
+	p.workloadRefreshEnabled = enrollment.WIFIdentityEnabled(p.coreConfig, persistedIdentity) && canSelfEnroll
 	return cfg, nil
 }
 
@@ -382,6 +403,9 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
 		}
 	}()
+	if p.workloadRefreshEnabled {
+		p.startWorkloadRefresh(runCtx)
+	}
 	return nil
 }
 
@@ -484,7 +508,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return p.commonRunner.Start(ctx)
+	if err := p.commonRunner.Start(ctx); err != nil {
+		return err
+	}
+	if p.workloadRefreshEnabled {
+		p.startWorkloadRefresh(ctx)
+	}
+	return nil
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -595,4 +625,39 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	)
 
 	return cfg, nil
+}
+
+func (p *PrivateActionRunner) performWorkloadEnrollment(ctx context.Context, cfg *parconfig.Config, identifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
+	result, err := enrollment.EnrollWorkloadIdentity(ctx, p.coreConfig, identifier, p.workloadAuthorizer)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := util.ParseRunnerURN(result.URN)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Urn = result.URN
+	cfg.PrivateKey = result.PrivateKey
+	cfg.OrgId = parts.OrgID
+	cfg.RunnerId = parts.RunnerID
+	return cfg, nil
+}
+func (p *PrivateActionRunner) startWorkloadRefresh(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			attempt, cancel := context.WithTimeout(ctx, 45*time.Second)
+			err := enrollment.RefreshWorkloadIdentity(attempt, p.coreConfig, p.workloadAuthorizer)
+			cancel()
+			if err != nil && ctx.Err() == nil {
+				p.logger.Warn("PAR workload reauthorization unavailable; retaining the existing runner identity")
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }

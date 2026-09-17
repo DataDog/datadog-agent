@@ -23,11 +23,12 @@ type CreateRunnerRequest struct {
 
 // CreateRunnerResponse represents the response for runner creation
 type CreateRunnerResponse struct {
-	ID            string   `jsonapi:"primary,createRunnerResponse"`
-	RunnerID      string   `json:"runner_id" jsonapi:"attribute"`
-	OrgID         int64    `json:"org_id" jsonapi:"attribute"`
-	RunnerModes   []string `json:"runner_modes" jsonapi:"attribute"`
-	AgentHostname string   `json:"agent_hostname,omitempty" jsonapi:"attribute"`
-	OrchClusterID string   `json:"orch_cluster_id,omitempty" jsonapi:"attribute"`
-	AgentFlavor   string   `json:"agent_flavor,omitempty" jsonapi:"attribute"`
+	AuthorizationVersion int64    `json:"authorization_version,omitempty" jsonapi:"attribute"`
+	ID                   string   `jsonapi:"primary,createRunnerResponse"`
+	RunnerID             string   `json:"runner_id" jsonapi:"attribute"`
+	OrgID                int64    `json:"org_id" jsonapi:"attribute"`
+	RunnerModes          []string `json:"runner_modes" jsonapi:"attribute"`
+	AgentHostname        string   `json:"agent_hostname,omitempty" jsonapi:"attribute"`
+	OrchClusterID        string   `json:"orch_cluster_id,omitempty" jsonapi:"attribute"`
+	AgentFlavor          string   `json:"agent_flavor,omitempty" jsonapi:"attribute"`
 }

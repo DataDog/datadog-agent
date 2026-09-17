@@ -304,3 +304,41 @@ func TestIsNonTransientK8sError(t *testing.T) {
 		})
 	}
 }
+
+func TestPendingWorkloadSecretSurvivesLeaderChange(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	first := makeTestResult(t)
+	first.URN = ""
+	first.Pending = true
+	first.AuthorizationType = WorkloadIdentityAuthorization
+	saved, err := claimPendingSecret(context.Background(), client, "default", "par-identity", first)
+	require.NoError(t, err)
+	require.True(t, saved.Pending)
+	second := makeTestResult(t)
+	second.URN = ""
+	second.Pending = true
+	second.AuthorizationType = WorkloadIdentityAuthorization
+	winner, err := claimPendingSecret(context.Background(), client, "default", "par-identity", second)
+	require.NoError(t, err)
+	require.Equal(t, saved.PrivateKey, winner.PrivateKey)
+	second.URN = "runner-other"
+	second.Pending = false
+	second.AuthorizationVersion = 1
+	require.ErrorContains(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", second), "different shared runner key")
+	first.URN = "runner-original"
+	first.Pending = false
+	first.AuthorizationVersion = 2
+	first.IntakeMappingID = "mapping-2"
+	first.Provider = "aws"
+	require.NoError(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", first))
+	first.AuthorizationVersion = 1
+	first.IntakeMappingID = "mapping-1"
+	require.ErrorContains(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", first), "newer shared runner authorization")
+	secret, err := client.CoreV1().Secrets("default").Get(context.Background(), "par-identity", metav1.GetOptions{})
+	require.NoError(t, err)
+	final, err := parseSecretData(secret, "default", "par-identity")
+	require.NoError(t, err)
+	require.Equal(t, int64(2), final.AuthorizationVersion)
+	require.Equal(t, "mapping-2", final.IntakeMappingID)
+	require.Equal(t, saved.PrivateKey, final.PrivateKey)
+}

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "opms.go",
         "public_opms.go",
+        "workload_identity.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms",
     visibility = ["//visibility:public"],
@@ -31,12 +32,16 @@ go_library(
 
 dd_agent_go_test(
     name = "opms_test",
-    srcs = ["opms_test.go"],
+    srcs = [
+        "opms_test.go",
+        "workload_identity_test.go",
+    ],
     embed = [":opms"],
     deps = [
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/libs/par",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "@com_github_datadog_jsonapi//:jsonapi",
         "@com_github_stretchr_testify//assert",

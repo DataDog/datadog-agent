@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add opt-in workload identity enrollment for Private Action Runner in
+    organizations where it is enabled. With AWS workload identity federation
+    configured, runners can enroll without an application key and retain their
+    identity when managed intake API keys rotate. Enable it with
+    ``private_action_runner.workload_identity_enrollment``.
