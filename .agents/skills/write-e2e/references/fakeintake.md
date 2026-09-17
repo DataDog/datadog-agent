@@ -22,6 +22,7 @@ Get the client with `s.Env().FakeIntake.Client()`, importing `"github.com/DataDo
 | Orchestrator resources | `GetOrchestratorResources(filter)`, `GetOrchestratorManifests()` |
 | Agent health, telemetry, flare | `GetAgentHealth()`, `GetAgentTelemetryLogs()`, `GetLatestFlare()` |
 | Host metadata or tags | `GetMetadata()`, `GetHostTags(hostname)`, `GetHosts()` |
+| SDS scan results | `GetSDSResults()` |
 
 When debugging an assertion that never fires, list what actually arrived: `GetMetricNames()`, `GetLogServiceNames()`, `GetCheckRunNames()`, `GetEventSources()`. Log the list from inside the failing callback — a mismatch is usually a name or tag typo, not a missing payload.
 
