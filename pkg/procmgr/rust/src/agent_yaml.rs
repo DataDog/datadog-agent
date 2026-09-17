@@ -54,8 +54,13 @@ pub fn load(contents: &str) -> Result<Value> {
 pub fn lookup_dotted_key<'a>(root: &'a Value, key: &str) -> Option<&'a Value> {
     let mapping = root.as_mapping()?;
 
-    if let Some(value) = lookup_case_insensitive(mapping, key) {
-        return value_is_set(value).then_some(value);
+    // A valueless leaf is skipped rather than returned, so that it cannot mask the same
+    // setting spelled another way. For a setting the schema knows, which is all a gate
+    // asks about, `loadYamlInto` drops such a leaf instead of recording it, so a file
+    // with both `a.b:` and `a: {b: true}` reads as true to the Agent whichever order it
+    // happens to visit the two keys in.
+    if let Some(value) = lookup_case_insensitive(mapping, key).filter(|value| value_is_set(value)) {
+        return Some(value);
     }
 
     key.match_indices('.').find_map(|(dot, _)| {
@@ -1014,6 +1019,31 @@ process_config:
         assert_eq!(
             dotted("network_config.enabled:\n", "network_config.enabled"),
             None
+        );
+    }
+
+    /// For a setting the schema knows, `loadYamlInto` drops a valueless leaf instead of
+    /// recording it, so the same setting spelled as a nested mapping still wins. Go
+    /// visits the two keys in map order, but because the valueless one is never
+    /// inserted, both orders agree.
+    #[test]
+    fn valueless_leaf_does_not_mask_a_nested_value() {
+        for yaml in [
+            "process_config.enabled:\nprocess_config:\n  enabled: true\n",
+            "process_config:\n  enabled: true\nprocess_config.enabled:\n",
+        ] {
+            assert_eq!(
+                dotted(yaml, "process_config.enabled"),
+                Some(Value::Bool(true)),
+                "{yaml:?}"
+            );
+        }
+        assert_eq!(
+            dotted(
+                "process_config:\n  process_collection.enabled:\n  process_collection:\n    enabled: true\n",
+                "process_config.process_collection.enabled"
+            ),
+            Some(Value::Bool(true))
         );
     }
 
