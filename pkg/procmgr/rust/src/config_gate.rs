@@ -291,7 +291,13 @@ fn legacy_process_enabled_mode(
         return Some(ProcessEnabledMode::parse(&text));
     }
     let value = yaml.value(base_path, LEGACY_PROCESS_ENABLED_KEY)?;
-    agent_yaml::scalar_as_string(value).map(|text| ProcessEnabledMode::parse(&text))
+    // The transform keys off `IsConfigured`, so any value runs it, and a sequence or
+    // mapping reaches it through `GetString` as "" once `cast.ToStringE` fails, which
+    // selects containers-only. A valueless leaf is already absent here, matching
+    // `loadYamlInto` dropping it rather than marking the key configured.
+    Some(ProcessEnabledMode::parse(
+        &agent_yaml::scalar_as_string(value).unwrap_or_default(),
+    ))
 }
 
 /// Whether the user set `key` before the transform ran (`GetSource` > `SourceInfraMode`).
@@ -935,6 +941,23 @@ process_config:
         let agent = fx.agent("process_config:\n  process_discovery:\n    enabled: false\n");
         fx.env("DD_PROCESS_CONFIG_ENABLED", " disabled ");
         fx.assert_key(&agent, CONTAINER_COLLECTION_KEY, true);
+    }
+
+    /// The transform keys off `IsConfigured`, so a sequence or mapping runs it too, and
+    /// reaches it through `GetString` as "", which is neither `disabled` nor a bool. The
+    /// infrastructure mode is set so that skipping the transform would be visible: it
+    /// would leave process collection unconfigured for `end_user_device` to enable.
+    #[test]
+    fn legacy_process_enabled_non_scalar_runs_the_transform() {
+        for value in ["[1, 2]", "{a: b}"] {
+            let fx = Gate::new();
+            let agent = fx.agent(&format!(
+                "infrastructure_mode: end_user_device\nprocess_config:\n  enabled: {value}\n  process_discovery:\n    enabled: false\n"
+            ));
+            fx.assert_key(&agent, PROCESS_COLLECTION_KEY, false);
+            fx.assert_key(&agent, CONTAINER_COLLECTION_KEY, true);
+            fx.assert_key(&agent, LEGACY_PROCESS_ENABLED_KEY, false);
+        }
     }
 
     /// Mirrors `TestProcConfigEnabledTransformPrecedence` in pkg/config/setup/process_test.go.
