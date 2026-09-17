@@ -2,6 +2,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/variables:variables.bzl", "compute_version_variables")
+
+_BUILD_VARIABLES = compute_version_variables()
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -31,7 +34,6 @@ rust_library(
         "src/orchestrator.rs",
         "src/procmgr.rs",
         "src/proto.rs",
-        "src/remote_config.rs",
         "src/test_support.rs",
         "src/tls.rs",
         "src/transport.rs",
@@ -40,6 +42,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"]},
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -50,18 +53,13 @@ rust_library(
         "@crates//:base64",
         "@crates//:chrono",
         "@crates//:datadog-agent-commons",
-        "@crates//:datadog-protos",
-        "@crates//:futures",
         "@crates//:hyper-util",
         "@crates//:log",
         "@crates//:p256",
         "@crates//:prost",
-        "@crates//:prost-types",
-        "@crates//:regex",
         "@crates//:reqwest",
         "@crates//:rustls",
         "@crates//:rustls-pki-types",
-        "@crates//:saluki-config",
         "@crates//:saluki-tls",
         "@crates//:serde",
         "@crates//:serde_json",

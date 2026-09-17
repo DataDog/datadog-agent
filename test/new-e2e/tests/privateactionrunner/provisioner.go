@@ -40,7 +40,7 @@ const (
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
 // configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
 // signing identity dequeued tasks need to pass verification.
-// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, coreSplitEnabled, systemServiceOperatorPolicy
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -55,8 +55,12 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH: "/opt/datadog-agent/run/core-only-executor.sock"
     privateActionRunner:
       envDict:
+        DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH: "/opt/datadog-agent/run/par-local-executor.sock"
         DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
         DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep","rshell:help"]'

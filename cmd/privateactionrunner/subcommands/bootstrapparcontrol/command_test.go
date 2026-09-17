@@ -15,6 +15,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"path/filepath"
 	"testing"
 
@@ -24,9 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func TestBootstrapCommand(t *testing.T) {
@@ -70,6 +74,7 @@ func TestBootstrapSplitModeDisabled(t *testing.T) {
 	assert.False(t, resolved.SplitMode)
 	assert.Equal(t, "debug", resolved.LogLevel)
 	assert.Nil(t, resolved.Identity)
+	assert.Nil(t, resolved.Runtime)
 }
 
 func TestBootstrapPersistedIdentityWins(t *testing.T) {
@@ -126,9 +131,114 @@ func TestBootstrapResolvesConfig(t *testing.T) {
 	resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
 
 	require.NoError(t, err)
-	assert.NotZero(t, resolved.CmdPort)
-	assert.Equal(t, "/tmp/auth_token", resolved.AuthTokenFilePath)
 	assert.NotEmpty(t, resolved.IPCCertFilePath)
+	require.NotNil(t, resolved.Runtime)
+	assert.NotNil(t, resolved.Runtime.OPMSExtraHeaders, "Rust expects an object, not JSON null")
+	assert.NotEmpty(t, resolved.Runtime.ExecutorSocketPath)
+	assert.Positive(t, resolved.Runtime.TaskConcurrency)
+}
+
+func TestBootstrapRuntimeMatchesMonolith(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		overrides map[string]interface{}
+		useDDURL  bool
+		wantURL   string
+		wantProxy string
+	}{
+		{
+			name:      "PAR-local settings",
+			wantURL:   "https://api.us3.datadoghq.com",
+			wantProxy: "http://user:password@https-proxy:3128",
+		},
+		{
+			name:      "explicit dd_url overrides site",
+			overrides: map[string]interface{}{"dd_url": "https://app.datadoghq.eu"},
+			wantURL:   "https://api.datadoghq.eu",
+			wantProxy: "http://user:password@https-proxy:3128",
+		},
+		{
+			name:      "internal HTTP fake intake",
+			overrides: map[string]interface{}{"dd_url": "http://fake-intake:8080"},
+			useDDURL:  true,
+			wantURL:   "http://fake-intake:8080",
+			wantProxy: "http://http-proxy:3128",
+		},
+		{
+			name:      "exact proxy bypass",
+			overrides: map[string]interface{}{"proxy.no_proxy": []string{"api.us3.datadoghq.com"}},
+			wantURL:   "https://api.us3.datadoghq.com",
+		},
+		{
+			name: "domain proxy bypass",
+			overrides: map[string]interface{}{
+				"proxy.no_proxy":          []string{".datadoghq.com"},
+				"no_proxy_nonexact_match": true,
+			},
+			wantURL: "https://api.us3.datadoghq.com",
+		},
+		{
+			name:      "direct connection",
+			overrides: map[string]interface{}{"proxy.http": "", "proxy.https": ""},
+			wantURL:   "https://api.us3.datadoghq.com",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.useDDURL {
+				t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
+			} else {
+				t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+			}
+			values := map[string]interface{}{
+				"private_action_runner.urn":                  validURN(),
+				"private_action_runner.private_key":          validPrivateKey(t),
+				"private_action_runner.task_concurrency":     9,
+				"private_action_runner.executor.socket_path": filepath.Join(t.TempDir(), "par.sock"),
+				"private_action_runner.opms_extra_headers":   map[string]string{"X-PAR-Only": "header-value"},
+				"log_level":               "debug",
+				"site":                    "us3.datadoghq.com",
+				"proxy.http":              "http://http-proxy:3128",
+				"proxy.https":             "http://user:password@https-proxy:3128",
+				"proxy.no_proxy":          []string{},
+				"no_proxy_nonexact_match": false,
+				"skip_ssl_validation":     true,
+				"min_tls_version":         "tlsv1.3",
+			}
+			for key, value := range tc.overrides {
+				values[key] = value
+			}
+			cfg := splitConfig(t, values)
+			resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
+			require.NoError(t, err)
+			require.NotNil(t, resolved.Runtime)
+
+			monolith, err := parconfig.FromDDConfig(cfg, nil)
+			require.NoError(t, err)
+			transport := httputils.CreateHTTPTransport(cfg)
+			defer transport.CloseIdleConnections()
+			request, err := http.NewRequest(http.MethodPost, opms.EndpointURL(monolith, "/api/unstable/on-prem-management/runner/dequeue"), nil)
+			require.NoError(t, err)
+			proxyURL := ""
+			if transport.Proxy != nil {
+				proxy, err := transport.Proxy(request)
+				require.NoError(t, err)
+				if proxy != nil {
+					proxyURL = proxy.String()
+				}
+			}
+
+			assert.Equal(t, "debug", resolved.LogLevel)
+			assert.Equal(t, tc.wantURL, resolved.Runtime.OPMSBaseURL)
+			assert.Equal(t, opms.EndpointURL(monolith, ""), resolved.Runtime.OPMSBaseURL)
+			assert.Equal(t, tc.wantProxy, resolved.Runtime.OPMSProxyURL)
+			assert.Equal(t, proxyURL, resolved.Runtime.OPMSProxyURL)
+			assert.Equal(t, monolith.RunnerPoolSize, resolved.Runtime.TaskConcurrency)
+			assert.Equal(t, monolith.OpmsExtraHeaders, resolved.Runtime.OPMSExtraHeaders)
+			assert.Equal(t, values["private_action_runner.executor.socket_path"], resolved.Runtime.ExecutorSocketPath)
+			assert.Equal(t, transport.TLSClientConfig.InsecureSkipVerify, resolved.Runtime.SkipSSLValidation)
+			assert.Equal(t, "tlsv1.3", resolved.Runtime.MinTLSVersion)
+		})
+	}
 }
 
 func TestBootstrapRejectsInvalidIdentity(t *testing.T) {

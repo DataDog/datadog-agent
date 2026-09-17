@@ -9,10 +9,22 @@ See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZd
 
 ## Configuration
 
-Go owns enrollment and supplies the identity, Agent version, and Core Agent IPC
-bootstrap settings. `par-control` then registers as a
-config-only Remote Agent and loads its runtime settings from the Core Agent config
-stream through Saluki's `GenericConfiguration`.
+PAR owns its configuration and identity. Enabling split mode must preserve the
+monolith's effective configuration, including PAR-specific files, environment,
+secrets, Fleet policies, and persisted identity; Core Agent-only settings are not
+an alternative source.
+
+The short-lived Go `bootstrap-par-control` command loads configuration in PAR's
+environment and supplies identity, the executor IPC certificate path, and a narrow
+`runtime` snapshot: OPMS URL, concurrency, executor socket, headers, selected proxy,
+and TLS settings. Rust consumes that snapshot without loading the Core Agent config
+stream. The bootstrap and control binaries must come from the same Agent package.
+Configuration changes require a restart. Agent version is stamped into Rust at build
+time (`DD_AGENT_VERSION`); unstamped Cargo builds fall back to the crate version.
+
+This draft restores PAR-local runtime configuration. Sharing enrollment logic with
+the monolith and verifying parity across deployment modes remain follow-up work;
+executor-free startup is deferred.
 
 At startup, `par-control` runs the command passed to `--bootstrap-command` and parses
 its stdout as JSON. The bootstrap command disables normal logging, while errors and

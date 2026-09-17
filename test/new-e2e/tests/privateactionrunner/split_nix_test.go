@@ -6,6 +6,7 @@
 package privateactionrunner
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -34,6 +35,9 @@ const (
 	parIdentityPath    = "/etc/datadog-agent/privateactionrunner_private_identity.json"
 	parConfigStaging   = "/tmp/par-e2e-datadog.yaml"
 )
+
+//go:embed fixtures/self-enroll.yaml.tmpl
+var selfEnrollConfigTemplate string
 
 type linuxPARSplitSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -75,6 +79,69 @@ func TestLinuxPARSplitSuite(t *testing.T) {
 	))
 }
 
+func (s *linuxPARSplitSuite) TestMonolithToSplitMigration() {
+	host := s.Env().RemoteHost
+	client := s.Env().FakeIntake.Client()
+	backup := privateActionRunnerConfigPath + ".migration-backup"
+	host.MustExecute("sudo cp -p " + privateActionRunnerConfigPath + " " + backup)
+	s.T().Cleanup(func() {
+		_, _ = host.Execute("sudo systemctl stop " + privateActionRunnerServiceName)
+		_ = s.runProcmgr("stop", parExecutorProcess)
+		_ = s.runProcmgr("stop", parControlProcess)
+		host.MustExecute("sudo mv " + backup + " " + privateActionRunnerConfigPath)
+		host.MustExecute("sudo rm -f " + parIdentityPath)
+		s.startControl()
+		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+	})
+
+	_ = s.runProcmgr("stop", parControlProcess)
+	s.waitForProcessInactive(parControlProcess, 30*time.Second)
+	_ = s.runProcmgr("stop", parExecutorProcess)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited", "Failed"}, 30*time.Second)
+	host.MustExecute("sudo rm -f " + parIdentityPath)
+	s.Require().NoError(client.FlushPAR())
+	s.resetSigningKeyState()
+	s.T().Cleanup(s.resetSigningKeyState)
+	s.Require().NoError(s.writeConfig(selfEnrollConfig(client.URL(), false)))
+	host.MustExecute("sudo systemctl restart " + privateActionRunnerServiceName)
+	s.waitForSystemdState(privateActionRunnerServiceName, "active", 2*time.Minute)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := client.GetPAREnrollmentCount()
+		require.NoError(c, err)
+		require.Equal(c, 1, count, "monolith should enroll once")
+		_, err = host.Execute("sudo test -s " + parIdentityPath)
+		require.NoError(c, err, "enrollment must be persisted before migration")
+	}, 2*time.Minute, 2*time.Second)
+
+	host.MustExecute("sudo systemctl stop " + privateActionRunnerServiceName)
+	identityHash := host.MustExecute("sudo sha256sum " + parIdentityPath)
+	s.Require().NoError(s.writeConfig(selfEnrollConfig(client.URL(), true)))
+	s.startControl()
+	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+
+	// Fakeintake's first enrollment returns org 42 / fake-runner-1. A signed
+	// action proves the executor also adopts that identity after migration.
+	s.Require().NoError(client.SetPARSigningKey(s.signingKey1.id, s.signingKey1.privateKey,
+		42, "fake-runner-1", "connection:execgroup_ddagent:par-migration"))
+	taskID := uuid.New().String()
+	s.Require().NoError(client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo identity-preserved",
+		"allowedCommands": []string{"rshell:echo"},
+	}))
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey1.id, s.signingKey1.id, s.signingKey1.config))
+		result, err := client.GetPARTaskResult(taskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, result.Success, "migrated runner action failed: %+v", result)
+		require.Contains(c, result.Outputs["stdout"], "identity-preserved")
+	}, 2*time.Minute, 2*time.Second)
+
+	s.Require().Equal(identityHash, host.MustExecute("sudo sha256sum "+parIdentityPath))
+	count, err := client.GetPAREnrollmentCount()
+	s.Require().NoError(err)
+	s.Require().Equal(1, count, "control and executor must reuse the monolith's identity")
+}
+
 func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR(), "reset PAR state so same-host retries are independent")
@@ -96,9 +163,9 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 		require.Greater(c, count, 0, "par-control should report runner liveness")
 	}, 90*time.Second, 5*time.Second)
 
-	// The executor definition must stay cold until work arrives. Same-host retries
-	// retain the Exited state from the previous attempt.
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 2*time.Minute)
+	// The executor must stay cold until work arrives, including after migration
+	// cleanup or a same-host retry.
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited", "Stopped"}, 2*time.Minute)
 
 	setPARTaskSigningKey(s.T(), client, s.signingKey1)
 	taskID := uuid.New().String()
@@ -254,7 +321,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.T().Cleanup(s.restoreBaseline)
 
 	client := s.Env().FakeIntake.Client()
-	selfEnrollConfig := selfEnrollSplitConfig(client.URL())
+	selfEnrollConfig := selfEnrollConfig(client.URL(), true)
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
 	s.restartControl(selfEnrollConfig, "Running")
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
@@ -304,8 +371,8 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
 	s.restartControl(splitConfig("", ""), "Failed")
 
-	// Direct Rust settings never resolve secret-backend handles. The process must
-	// fail before constructing the OPMS client, and must not persist the handle.
+	// Without a configured secret backend, an unresolved handle must fail startup
+	// rather than being used or persisted as a private key.
 	encConfig := splitConfig(s.inlineURN, "ENC[runner-private-key]")
 	s.restartControl(encConfig, "Failed")
 	host.MustExecute("sudo test ! -e " + parIdentityPath)
@@ -322,17 +389,8 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
-func selfEnrollSplitConfig(fakeintakeURL string) string {
-	return fmt.Sprintf(`dd_url: %q
-skip_ssl_validation: true
-private_action_runner:
-  enabled: true
-  split_enabled: true
-  self_enroll: true
-  idle_timeout_seconds: 5
-  actions_allowlist:
-    - %s
-`, fakeintakeURL, runCommandAction)
+func selfEnrollConfig(fakeintakeURL string, splitEnabled bool) string {
+	return fmt.Sprintf(selfEnrollConfigTemplate, fakeintakeURL, splitEnabled, runCommandAction)
 }
 
 func splitConfig(urn, privateKey string) string {

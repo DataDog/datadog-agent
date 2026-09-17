@@ -42,6 +42,7 @@ const (
 type parK8sSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 	runnerURN    string
+	privateKey   string
 	parPodName   string
 	splitEnabled bool
 }
@@ -53,14 +54,14 @@ type parK8sSplitSuite struct {
 func TestPARRshellK8sSuite(t *testing.T) {
 	t.Parallel()
 	urn, keyB64 := generateTestRunnerIdentity(t)
-	suite := &parK8sSuite{runnerURN: urn}
+	suite := &parK8sSuite{runnerURN: urn, privateKey: keyB64}
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64, false)))
 }
 
 func TestPARSplitRshellK8sSuite(t *testing.T) {
 	t.Parallel()
 	urn, keyB64 := generateTestRunnerIdentity(t)
-	suite := &parK8sSplitSuite{parK8sSuite: parK8sSuite{runnerURN: urn, splitEnabled: true}}
+	suite := &parK8sSplitSuite{parK8sSuite: parK8sSuite{runnerURN: urn, privateKey: keyB64, splitEnabled: true}}
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64, true)))
 }
 
@@ -97,6 +98,35 @@ func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
 	if !s.IsDevMode() {
 		_ = s.Env().FakeIntake.Client().FlushPAR()
 	}
+}
+
+func (s *parK8sSuite) TestMonolithToSplitMigration() {
+	if s.splitEnabled {
+		s.T().Skip("migration starts in the monolithic suite")
+	}
+
+	taskID := uuid.New().String()
+	s.Require().NoError(s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo before-split",
+		"allowedCommands": []string{"rshell:echo"},
+	}))
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().True(result.Success, "monolithic runner action failed: %+v", result)
+	s.Require().Contains(result.Outputs["stdout"], "before-split")
+
+	s.T().Cleanup(func() {
+		s.splitEnabled = false
+		s.UpdateEnv(parK8sProvisioner(s.runnerURN, s.privateKey, false))
+		s.waitForPARReady()
+	})
+	s.UpdateEnv(parK8sProvisioner(s.runnerURN, s.privateKey, true))
+	s.splitEnabled = true
+	s.Require().NoError(s.Env().FakeIntake.Client().FlushPAR())
+	s.waitForPARReady()
+
+	// The control and executor must agree on the PAR-only socket, not the
+	// deliberately different Core Agent socket. The identity stays in PAR's config.
+	s.verifySplitExecutorStartup()
 }
 
 // TestRshellHappyFlow verifies the deployed operator and backend policies overlap.
@@ -372,8 +402,11 @@ func (s *parK8sSuite) waitForPARReady() {
 			Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: "app=" + selector,
 		})
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		for _, pod := range pods.Items {
+			if pod.DeletionTimestamp != nil {
+				continue
+			}
 			for _, cs := range pod.Status.ContainerStatuses {
 				if cs.Name == parContainerName && cs.Ready {
 					s.parPodName = pod.Name
@@ -437,6 +470,7 @@ func (s *parK8sSuite) verifySplitPodSpec() {
 	}
 	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_ENABLED"])
 	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
+	s.Require().Equal("/opt/datadog-agent/run/core-only-executor.sock", agentEnv["DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH"])
 
 	env := make(map[string]string, len(parContainer.Env))
 	for _, variable := range parContainer.Env {
@@ -445,6 +479,7 @@ func (s *parK8sSuite) verifySplitPodSpec() {
 	s.Require().Equal("true", env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
 	s.Require().Equal("/etc/privateactionrunner/privateactionrunner.yaml", env["DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH"])
 	s.Require().Equal("/opt/datadog-agent/run/dd-procmgrd.sock", env["DD_PM_SOCKET_PATH"])
+	s.Require().Equal("/opt/datadog-agent/run/par-local-executor.sock", env["DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH"])
 
 	var runVolumeName string
 	for _, mount := range parContainer.VolumeMounts {

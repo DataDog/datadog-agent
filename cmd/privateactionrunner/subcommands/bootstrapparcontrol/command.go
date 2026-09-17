@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -26,9 +27,11 @@ import (
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Identity is the runner identity par-control signs OPMS requests with.
@@ -44,12 +47,21 @@ type ControlPlaneConfig struct {
 	SplitMode bool   `json:"split_mode"`
 	LogLevel  string `json:"log_level"`
 
-	Identity *Identity `json:"identity,omitempty"`
+	Identity *Identity      `json:"identity,omitempty"`
+	Runtime  *RuntimeConfig `json:"runtime,omitempty"`
 
-	AgentVersion      string `json:"agent_version,omitempty"`
-	CmdPort           int    `json:"cmd_port,omitempty"`
-	AuthTokenFilePath string `json:"auth_token_file_path,omitempty"`
-	IPCCertFilePath   string `json:"ipc_cert_file_path,omitempty"`
+	IPCCertFilePath string `json:"ipc_cert_file_path,omitempty"`
+}
+
+// RuntimeConfig contains only the PAR-local settings consumed by the control plane.
+type RuntimeConfig struct {
+	OPMSBaseURL        string            `json:"opms_base_url"`
+	TaskConcurrency    int32             `json:"task_concurrency"`
+	ExecutorSocketPath string            `json:"executor_socket_path"`
+	OPMSExtraHeaders   map[string]string `json:"opms_extra_headers"`
+	OPMSProxyURL       string            `json:"opms_proxy_url"`
+	SkipSSLValidation  bool              `json:"skip_ssl_validation"`
+	MinTLSVersion      string            `json:"min_tls_version"`
 }
 
 // Commands returns the bootstrap-par-control subcommand.
@@ -112,19 +124,53 @@ func resolveConfig(ctx context.Context, cfg config.Component, hostnameComp hostn
 		return nil, fmt.Errorf("failed to parse the Private Action Runner identity: %w", err)
 	}
 
+	runtime, err := resolveRuntimeConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ControlPlaneConfig{
 		SplitMode: true,
 		LogLevel:  logLevel,
+		Runtime:   runtime,
 		Identity: &Identity{
 			URN:        urn,
 			PrivateKey: privateKey,
 			OrgID:      identity.OrgID,
 			RunnerID:   identity.RunnerID,
 		},
-		AgentVersion:      version.AgentVersion,
-		CmdPort:           cfg.GetInt("cmd_port"),
-		AuthTokenFilePath: cfg.GetString("auth_token_file_path"),
-		IPCCertFilePath:   cfg.GetString("ipc_cert_file_path"),
+		IPCCertFilePath: cfg.GetString("ipc_cert_file_path"),
+	}, nil
+}
+
+func resolveRuntimeConfig(cfg config.Component) (*RuntimeConfig, error) {
+	parCfg, err := parconfig.FromDDConfig(cfg, nil)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := opms.EndpointURL(parCfg, "")
+	request, err := http.NewRequest(http.MethodPost, endpoint, nil)
+	if err != nil {
+		return nil, errors.New("invalid PAR OPMS endpoint")
+	}
+	proxyURL := ""
+	if proxies := cfg.GetProxies(); proxies != nil {
+		proxy, err := httputils.GetProxyTransportFunc(proxies, cfg)(request)
+		if err != nil {
+			return nil, errors.New("failed to resolve PAR OPMS proxy")
+		}
+		if proxy != nil {
+			proxyURL = proxy.String()
+		}
+	}
+	return &RuntimeConfig{
+		OPMSBaseURL:        endpoint,
+		TaskConcurrency:    parCfg.RunnerPoolSize,
+		ExecutorSocketPath: cfg.GetString(par.PARExecutorSocketPath),
+		OPMSExtraHeaders:   parCfg.OpmsExtraHeaders,
+		OPMSProxyURL:       proxyURL,
+		SkipSSLValidation:  cfg.GetBool("skip_ssl_validation"),
+		MinTLSVersion:      cfg.GetString("min_tls_version"),
 	}, nil
 }
 
