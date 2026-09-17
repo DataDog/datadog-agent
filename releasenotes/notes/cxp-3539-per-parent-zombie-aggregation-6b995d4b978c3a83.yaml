@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    The ``process_config.ignore_zombie_processes`` configuration option (and
+    its ``DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES`` and
+    ``DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES`` environment variables) is
+    deprecated and will be removed in a future release. It is temporarily
+    retained as a no-op for backward compatibility and emits a warning when
+    configured. Zombie processes are now always aggregated per parent and
+    never emitted as standalone process records, so the toggle no longer has
+    any effect. Remove it from ``datadog.yaml`` and deployment manifests.
+enhancements:
+  - |
+    The Process Agent now aggregates zombie processes by parent instead of
+    emitting standalone zombie process records. Each parent process record
+    includes two new fields, ``zombie_children_count`` and
+    ``zombie_net_rate``.
