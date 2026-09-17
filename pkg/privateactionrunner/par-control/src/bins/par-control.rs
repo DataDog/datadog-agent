@@ -6,6 +6,7 @@
 use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
+use par_control::config;
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
@@ -60,10 +61,12 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
+    bootstrapped.validate()?;
+
     par_control::tls::initialize_crypto_provider()?;
 
     let (agent_config, dd_url_explicit) = remote_config::load(&bootstrapped).await?;
-    let config = bootstrapped.into_config(&agent_config, dd_url_explicit)?;
+    let config = config::resolve(&bootstrapped, &agent_config, dd_url_explicit).await;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

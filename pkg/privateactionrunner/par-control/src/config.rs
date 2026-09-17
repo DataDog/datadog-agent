@@ -21,6 +21,9 @@ const MIN_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(180);
 const WAIT_BEFORE_RETRY: Duration = Duration::from_secs(300);
 const MAX_ATTEMPTS: u32 = 20;
+const CONFIG_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+/// Retries tolerated quietly before a slow Core Agent starts looking like a stuck one.
+const CONFIG_RETRY_QUIET_ATTEMPTS: u32 = 6;
 pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const INTERNAL_USE_DD_URL_FOR_OPMS: &str = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS";
 
@@ -112,11 +115,9 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(
-        self,
-        agent: &GenericConfiguration,
-        dd_url_explicit: bool,
-    ) -> Result<Config> {
+    /// Check the fields supplied by the bootstrap file alone. Waiting cannot fix any of
+    /// these, so par-control treats them as fatal.
+    pub fn validate(&self) -> Result<()> {
         ensure!(
             self.split_mode,
             "bootstrap configuration has split mode disabled"
@@ -142,6 +143,15 @@ impl BootstrapConfig {
             self.cmd_port > 0,
             "bootstrap configuration is missing cmd_port"
         );
+        Ok(())
+    }
+
+    pub fn into_config(
+        self,
+        agent: &GenericConfiguration,
+        dd_url_explicit: bool,
+    ) -> Result<Config> {
+        self.validate()?;
 
         let par: AgentParConfig = agent
             .get_typed("private_action_runner")
@@ -204,6 +214,39 @@ impl BootstrapConfig {
                 runner_id: self.identity.runner_id,
             },
         })
+    }
+}
+
+/// Build the runtime configuration, waiting for the Core Agent to publish a usable one.
+///
+/// par-control starts alongside the Core Agent, so the first snapshots on the configuration
+/// stream can legitimately be incomplete. Exiting on one of those spends the supervisor's
+/// restart budget within seconds and takes the runner down for the rest of the boot, so wait
+/// for a later snapshot instead. `agent` is backed by the live stream, so re-reading it here
+/// picks up whatever has arrived since.
+pub async fn resolve(
+    bootstrap: &BootstrapConfig,
+    agent: &GenericConfiguration,
+    dd_url_explicit: bool,
+) -> Config {
+    let mut attempts: u32 = 0;
+    loop {
+        match bootstrap.clone().into_config(agent, dd_url_explicit) {
+            Ok(config) => return config,
+            Err(error) => {
+                attempts += 1;
+                // A configuration that never becomes usable is indistinguishable from a slow
+                // one to anything watching the process, so say so rather than waiting quietly.
+                if attempts > CONFIG_RETRY_QUIET_ATTEMPTS {
+                    log::error!(
+                        "still no usable Agent configuration after {attempts} attempts: {error:#}"
+                    );
+                } else {
+                    log::warn!("waiting for a usable Agent configuration: {error:#}");
+                }
+                tokio::time::sleep(CONFIG_RETRY_INTERVAL).await;
+            }
+        }
     }
 }
 
