@@ -12,7 +12,9 @@ export PATH
 
 BUILD_DIR=/opt/dd-build
 DNF=/opt/freeware/bin/dnf-3
-AGENT_SRC=$(cd "$(dirname "$0")" && pwd)
+# Run this script from within the agent repo; AGENT_SRC is the nearest .git
+# ancestor of the current directory.
+AGENT_SRC=$PWD
 while [ "$AGENT_SRC" != "/" ] && [ ! -e "$AGENT_SRC/.git" ]; do
     AGENT_SRC=$(dirname "$AGENT_SRC")
 done

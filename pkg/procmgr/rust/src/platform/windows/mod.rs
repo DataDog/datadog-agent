@@ -6,11 +6,16 @@
 mod agent_service_sid;
 mod child_env;
 mod console;
+mod installer_lsa_password;
 mod job_object;
 mod local_account;
 mod local_agent_account;
+mod pipe_caller;
+mod pipe_security;
 mod process;
 mod runtime_user;
+mod secure_utf16;
+mod service_account;
 mod sid;
 mod spawn;
 mod token_identity;
@@ -20,17 +25,17 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::Notify;
 
-pub(crate) use spawn::{SpawnCredential, resolve_spawn_identity, spawn_child_handle};
+pub(crate) use spawn::user_profile::UserProfileGuard;
+pub(crate) use spawn::{SpawnCredential, resolve_initial_spawn_identity};
 
-pub(crate) use child_env::apply_child_baseline_env;
-pub(crate) use child_env::apply_legacy_scm_env;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 pub(crate) use console::console_lock;
 pub use console::{
-    last_signal, send_force_kill, send_graceful_stop, setup_process_group, stderr_inheritable,
-    stdout_inheritable,
+    last_signal, send_force_kill, send_graceful_stop, stderr_inheritable, stdout_inheritable,
 };
 pub use job_object::JobObject;
+pub(crate) use pipe_caller::pipe_client_may_mutate;
+pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use process::{
     ProcessWaitOutcome, WAIT_INFINITE, terminate_process, wait_for_process_exit_ms,
 };
@@ -99,6 +104,10 @@ fn default_install_root() -> PathBuf {
 
 fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
+}
+
+pub fn install_root_for_tests() -> PathBuf {
+    install_root()
 }
 
 pub fn default_config_dir() -> PathBuf {

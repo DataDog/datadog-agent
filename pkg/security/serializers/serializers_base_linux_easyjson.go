@@ -2394,6 +2394,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 			} else {
 				out.Server = string(in.String())
 			}
+		case "credential_source":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CredentialSource = string(in.String())
+			}
 		case "aws":
 			if in.IsNull() {
 				in.Skip()
@@ -2451,6 +2457,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 		const prefix string = ",\"server\":"
 		out.RawString(prefix)
 		out.String(string(in.Server))
+	}
+	if in.CredentialSource != "" {
+		const prefix string = ",\"credential_source\":"
+		out.RawString(prefix)
+		out.String(string(in.CredentialSource))
 	}
 	if in.AWS != nil {
 		const prefix string = ",\"aws\":"

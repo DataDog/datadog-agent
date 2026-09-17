@@ -44,23 +44,31 @@ while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
-mkssys -s datadog-agent \
+# All three subsystems share the "datadog-agent" SRC group so they can be
+# started/stopped together with a single command (startsrc -g / stopsrc -g
+# datadog-agent) instead of one subsystem at a time.
+mkssys -s datadog-agent -G datadog-agent \
        -p /opt/datadog-agent/bin/agent/agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
        -u dd-agent \
        -R -S -n 15 -f 9
 
-mkssys -s datadog-trace-agent \
+mkssys -s datadog-trace-agent -G datadog-agent \
        -p /opt/datadog-agent/embedded/bin/trace-agent \
        -a "run --config /etc/datadog-agent/datadog.yaml" \
        -u dd-agent \
        -R -S -n 15 -f 9
 
-mkssys -s datadog-agent-data-plane \
+mkssys -s datadog-agent-data-plane -G datadog-agent \
        -p /opt/datadog-agent/embedded/bin/agent-data-plane \
        -a "--config /etc/datadog-agent/datadog.yaml run --pidfile /opt/datadog-agent/run/agent-data-plane.pid" \
        -u dd-agent \
        -R -S -n 15 -f 9
+
+# Start the datadog-agent SRC group automatically at boot with an /etc/inittab entry.
+# Remove any stale entry first so upgrades never leave duplicates.
+rmitab datadog-agent 2>/dev/null || true
+mkitab "datadog-agent:2:once:startsrc -g datadog-agent >/dev/console 2>&1"
 
 # Start (or restart) the agent if datadog.yaml exists.
 # On a fresh install this starts the agent for the first time.

@@ -9,14 +9,18 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"slices"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 // MetricPriority represents the priority level of a metric
@@ -98,6 +102,12 @@ type Metric struct {
 	Value               float64              // Value holds the value of the metric.
 	Type                ddmetrics.MetricType // Type holds the type of the metric.
 	RateCalculationMode RateCalculationMode  // RateCalculationMode is the mode of rate calculation for the metric.
+
+	// StrictInterval overrides the check interval. Do not use with RateCalculationMode.
+	StrictInterval time.Duration
+
+	// Timestamp overrides the check execution time. Zero uses the execution time.
+	Timestamp time.Time
 }
 
 // NewMetric creates a metric sample with its common sample metadata.
@@ -127,6 +137,10 @@ func (m *Metric) Clone() Sample {
 }
 
 func (m *Metric) Emit(namespace string, snd sender.Sender, timestamp time.Time) error {
+	if !m.Timestamp.IsZero() {
+		timestamp = m.Timestamp
+	}
+
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
 	switch m.Type {
 	case ddmetrics.GaugeType:
@@ -179,6 +193,60 @@ func (h *HistogramSample) Clone() Sample {
 func (h *HistogramSample) Emit(namespace string, snd sender.Sender, _ time.Time) error {
 	snd.HistogramBucket(namespace+h.Name, h.Value, h.Bounds[0], h.Bounds[1], h.Monotonic, "", h.tags, h.FlushFirstValue)
 
+	return nil
+}
+
+var nextEventID atomic.Uint64
+
+// Event carries a Datadog event emitted by a GPU collector.
+// Events deliberately have a unique Key: distinct event occurrences must
+// never be removed by the generic sample deduplication pipeline.
+type Event struct {
+	baseSample
+	event      event.Event
+	occurredAt time.Time
+	id         uint64
+}
+
+// NewEvent creates an event with its occurrence time and common metadata.
+func NewEvent(e event.Event, occurredAt time.Time, priority MetricPriority, tags []string, associatedWorkloads []workloadmeta.EntityID) *Event {
+	e.Tags = slices.Clone(e.Tags)
+
+	return &Event{
+		baseSample: baseSample{
+			priority:            priority,
+			tags:                slices.Clone(tags),
+			associatedWorkloads: slices.Clone(associatedWorkloads),
+		},
+		event:      e,
+		occurredAt: occurredAt,
+		id:         nextEventID.Add(1),
+	}
+}
+
+var _ Sample = (*Event)(nil)
+
+// Key returns a unique key so that events are never deduplicated.
+func (e *Event) Key() string {
+	return "__event__:" + strconv.FormatUint(e.id, 10)
+}
+
+func (e *Event) Clone() Sample {
+	sample := *e
+	sample.baseSample = e.baseSample.clone()
+	sample.event.Tags = slices.Clone(e.event.Tags)
+	return &sample
+}
+
+func (e *Event) Emit(_ string, snd sender.Sender, _ time.Time) error {
+	if e.occurredAt.IsZero() {
+		return errors.New("event occurrence time is zero")
+	}
+
+	emittedEvent := e.event
+	emittedEvent.Tags = append(slices.Clone(e.tags), emittedEvent.Tags...)
+	emittedEvent.Ts = e.occurredAt.Unix()
+	snd.Event(emittedEvent)
 	return nil
 }
 

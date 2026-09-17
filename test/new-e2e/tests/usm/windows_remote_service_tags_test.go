@@ -10,11 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	ec2windows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -34,13 +33,13 @@ func TestWindowsUSMSuite(t *testing.T) {
 	t.Parallel()
 
 	e2eParams := []e2e.SuiteOption{
-		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("iisHost", windowsUSMProvisioner(), nil)),
+		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("iisHost", windowsUSMProvisioner(systemProbeConfig), nil)),
 	}
 
 	e2e.Run(t, &windowsUSMSuite{}, e2eParams...)
 }
 
-func windowsUSMProvisioner() provisioners.PulumiEnvRunFunc[environments.WindowsHost] {
+func windowsUSMProvisioner(config string) provisioners.PulumiEnvRunFunc[environments.WindowsHost] {
 	return func(ctx *pulumi.Context, env *environments.WindowsHost) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -49,7 +48,7 @@ func windowsUSMProvisioner() provisioners.PulumiEnvRunFunc[environments.WindowsH
 		opts := []ec2windows.RunOption{
 			ec2windows.WithAgentOptions(
 				agentparams.WithAgentConfig("log_level: debug"),
-				agentparams.WithSystemProbeConfig(systemProbeConfig),
+				agentparams.WithSystemProbeConfig(config),
 			),
 		}
 		params := ec2windows.GetRunParams(opts...)
@@ -203,4 +202,18 @@ func (s *windowsUSMSuite) TestHTTPRemoteServiceTags() {
 	sendWindowsKeepAliveRequestsToPort(host, 8084, requestsPerPort, 20)
 
 	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", 8083, 8084, requestsPerPort)
+}
+
+// windowsUSMDirectSuite is the direct send variant of windowsUSMSuite.
+type windowsUSMDirectSuite struct {
+	windowsUSMSuite
+}
+
+func TestWindowsUSMDirectSuite(t *testing.T) {
+	t.Parallel()
+
+	e2eParams := []e2e.SuiteOption{
+		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("iisHost", windowsUSMProvisioner(systemProbeConfigDirect), nil)),
+	}
+	e2e.Run(t, &windowsUSMDirectSuite{}, e2eParams...)
 }

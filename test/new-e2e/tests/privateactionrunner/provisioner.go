@@ -26,10 +26,9 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR split mode
-	// (helm-charts PR #2904). Drop this override once the e2e framework's global HelmVersion
-	// default is bumped to at least this value.
-	minHelmChartVersion = "3.243.0"
+	// minHelmChartVersion is the earliest Datadog chart release that configures both the
+	// Core Agent and PAR sidecar for split mode (helm-charts PRs #2904 and #2918).
+	minHelmChartVersion = "3.245.1"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -41,7 +40,7 @@ const (
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
 // configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
 // signing identity dequeued tasks need to pass verification.
-// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, coreSplitEnabled, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -121,13 +120,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 4. Plant allowed and operator-blocked test data on the Kind node.
-			_, err = host.OS.Runner().Command(
+			plantTestData, err := host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
 						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
 						kindCluster.ClusterName,
 					),
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
 				},
 				utils.PulumiDependsOn(kindCluster),
 			)
@@ -151,6 +151,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
+				kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(plantTestData)),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)
