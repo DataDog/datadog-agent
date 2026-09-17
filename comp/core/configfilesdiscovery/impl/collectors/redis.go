@@ -51,6 +51,13 @@ type redisIncludeTraversal struct {
 	limited         bool
 }
 
+// redisConfigFileAtDepth identifies a collected file that still needs its
+// includes inspected and records its depth in the include tree.
+type redisConfigFileAtDepth struct {
+	file  configfilesdiscoveryimpl.ConfigFile
+	depth int
+}
+
 var redisEnvAllow = regexp.MustCompile(`^REDIS_[A-Z0-9_]+$`)
 
 // Deny auth directives, arbitrary option bags, and connection strings that can
@@ -133,8 +140,8 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 }
 
 // collectRedisConfigFiles returns the root followed by safe included files in
-// Redis processing order. It also reports whether a safety limit made the
-// result partial.
+// breadth-first order. It also reports whether a safety limit made the result
+// partial.
 func collectRedisConfigFiles(
 	ctx context.Context,
 	reader configfilesdiscoveryimpl.ConfigReader,
@@ -154,12 +161,25 @@ func collectRedisConfigFiles(
 		visited:    map[configfilesdiscoveryimpl.VerifiedConfigFilePath]struct{}{rootPath: {}},
 		totalBytes: len(root.Content),
 	}
-	traversal.collectFileIncludes(root, 1)
+	traversal.collectFilesBreadthFirst(root)
 	return traversal.files, traversal.limited
 }
 
-// collectFileIncludes parses and collects the include directives in file.
-func (t *redisIncludeTraversal) collectFileIncludes(file configfilesdiscoveryimpl.ConfigFile, depth int) {
+// collectFilesBreadthFirst inspects each collected file only after every file
+// at the preceding depth has been collected.
+func (t *redisIncludeTraversal) collectFilesBreadthFirst(root configfilesdiscoveryimpl.ConfigFile) {
+	pending := []redisConfigFileAtDepth{{file: root, depth: 1}}
+	for len(pending) > 0 {
+		current := pending[0]
+		pending = pending[1:]
+		pending = append(pending, t.collectFileIncludes(current.file, current.depth)...)
+	}
+}
+
+// collectFileIncludes parses one file's include directives and returns newly
+// collected children to inspect later.
+func (t *redisIncludeTraversal) collectFileIncludes(file configfilesdiscoveryimpl.ConfigFile, depth int) []redisConfigFileAtDepth {
+	var children []redisConfigFileAtDepth
 	includes, parserOK := redisIncludePatterns(file.Content)
 	if !parserOK {
 		log.Debugf("config files discovery skipped malformed redis include directives in %q", file.Path)
@@ -170,24 +190,26 @@ func (t *redisIncludeTraversal) collectFileIncludes(file configfilesdiscoveryimp
 			t.totalBytes >= redisMaxAggregateBytes ||
 			t.includeSearches >= redisMaxIncludeSearches {
 			t.limited = true
-			return
+			return children
 		}
-		t.collectInclude(include, file.Path, depth)
+		children = append(children, t.collectInclude(include, file.Path, depth+1)...)
 	}
+	return children
 }
 
-// collectInclude resolves one include directive and collects its matching files.
-func (t *redisIncludeTraversal) collectInclude(include string, parentPath string, depth int) {
+// collectInclude resolves one include directive and returns its newly collected
+// matching files to inspect later.
+func (t *redisIncludeTraversal) collectInclude(include string, parentPath string, depth int) []redisConfigFileAtDepth {
 	pattern, err := resolveRedisIncludePattern(include, t.workingDir, t.rootDir.String())
 	if err != nil {
 		log.Debugf("config files discovery skipped unsafe or unresolved redis include %q from %q: %v", include, parentPath, err)
-		return
+		return nil
 	}
 
 	matchesPath, err := compileRedisIncludePattern(pattern)
 	if err != nil {
 		log.Debugf("config files discovery skipped malformed redis include %q from %q: %v", include, parentPath, err)
-		return
+		return nil
 	}
 
 	matchesUnvisitedPath := func(filePath configfilesdiscoveryimpl.VerifiedConfigFilePath) (bool, error) {
@@ -208,14 +230,14 @@ func (t *redisIncludeTraversal) collectInclude(include string, parentPath string
 	search, err := configfilesdiscoveryimpl.NewConfigFileSearch(t.rootDir, pattern)
 	if err != nil {
 		log.Debugf("config files discovery skipped unsafe redis include %q from %q: %v", include, parentPath, err)
-		return
+		return nil
 	}
 
 	t.includeSearches++
 	matches, matchesLimited, err := t.reader.ReadMatchingFiles(t.ctx, search, redisMaxConfigFiles-len(t.files), matchesUnvisitedPath)
 	if err != nil {
 		log.Debugf("config files discovery skipped redis include %q from %q: %v", include, parentPath, err)
-		return
+		return nil
 	}
 	if matchesLimited {
 		t.limited = true
@@ -223,15 +245,17 @@ func (t *redisIncludeTraversal) collectInclude(include string, parentPath string
 	if len(matches) == 0 {
 		log.Debugf("config files discovery found no files for redis include %q from %q", include, parentPath)
 	}
-	t.collectMatchingFiles(matches, depth)
+	return t.collectMatchingFiles(matches, depth)
 }
 
-// collectMatchingFiles adds and traverses matched include files in order.
-func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscoveryimpl.ConfigFileReadResult, depth int) {
+// collectMatchingFiles adds matched include files and returns them for later
+// breadth-first traversal.
+func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscoveryimpl.ConfigFileReadResult, depth int) []redisConfigFileAtDepth {
+	var children []redisConfigFileAtDepth
 	for _, match := range matches {
 		if len(t.files) >= redisMaxConfigFiles || t.totalBytes >= redisMaxAggregateBytes {
 			t.limited = true
-			return
+			return children
 		}
 		matchPath := match.Path()
 		if _, visited := t.visited[matchPath]; visited {
@@ -255,8 +279,9 @@ func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscov
 
 		t.files = append(t.files, includedFile)
 		t.totalBytes += len(includedFile.Content)
-		t.collectFileIncludes(includedFile, depth+1)
+		children = append(children, redisConfigFileAtDepth{file: includedFile, depth: depth})
 	}
+	return children
 }
 
 // resolveRedisIncludePattern resolves a relative include against workingDir.

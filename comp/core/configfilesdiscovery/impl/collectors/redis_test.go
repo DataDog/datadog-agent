@@ -715,7 +715,7 @@ func TestCompileRedisIncludePattern(t *testing.T) {
 	}
 }
 
-func TestRedisCollectorTraversesIncludesDepthFirst(t *testing.T) {
+func TestRedisCollectorTraversesIncludesBreadthFirst(t *testing.T) {
 	reader := &redisCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args:       []string{"redis-server", "redis.conf"},
@@ -726,26 +726,28 @@ func TestRedisCollectorTraversesIncludesDepthFirst(t *testing.T) {
 			Content: []byte("include conf.d/*.conf\n"),
 		},
 		files: map[string]configfilesdiscoveryimpl.ConfigFile{
-			"/etc/redis/conf.d/a.conf": {Path: "/etc/redis/conf.d/a.conf", Content: []byte("include /etc/redis/conf.d/b.conf\n")},
-			"/etc/redis/conf.d/b.conf": {Path: "/etc/redis/conf.d/b.conf", Content: []byte("include /etc/redis/nested.conf\n")},
-			"/etc/redis/nested.conf":   {Path: "/etc/redis/nested.conf", Content: []byte("port 6380\n")},
+			"/etc/redis/conf.d/a.conf": {Path: "/etc/redis/conf.d/a.conf", Content: []byte("include /etc/redis/a-child.conf\n")},
+			"/etc/redis/conf.d/b.conf": {Path: "/etc/redis/conf.d/b.conf", Content: []byte("include /etc/redis/b-child.conf\n")},
+			"/etc/redis/a-child.conf":  {Path: "/etc/redis/a-child.conf", Content: []byte("port 6380\n")},
+			"/etc/redis/b-child.conf":  {Path: "/etc/redis/b-child.conf", Content: []byte("port 6381\n")},
 		},
 		findFiles: map[string][]string{
 			"/etc/redis/conf.d/*.conf": {"/etc/redis/conf.d/a.conf", "/etc/redis/conf.d/b.conf"},
-			"/etc/redis/conf.d/b.conf": {"/etc/redis/conf.d/b.conf"},
-			"/etc/redis/nested.conf":   {"/etc/redis/nested.conf"},
+			"/etc/redis/a-child.conf":  {"/etc/redis/a-child.conf"},
+			"/etc/redis/b-child.conf":  {"/etc/redis/b-child.conf"},
 		},
 	}
 
 	collected, err := NewRedis().Collect(context.Background(), reader)
 
 	require.NoError(t, err)
-	require.Len(t, collected.ConfigFiles, 4)
+	require.Len(t, collected.ConfigFiles, 5)
 	assert.Equal(t, []string{
 		"/etc/redis/redis.conf",
 		"/etc/redis/conf.d/a.conf",
 		"/etc/redis/conf.d/b.conf",
-		"/etc/redis/nested.conf",
+		"/etc/redis/a-child.conf",
+		"/etc/redis/b-child.conf",
 	}, redisConfigFilePaths(collected.ConfigFiles))
 	for _, file := range collected.ConfigFiles {
 		assert.Equal(t, redisConfigPayloadFormat, file.PayloadFormat)
