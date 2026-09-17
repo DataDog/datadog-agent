@@ -563,9 +563,13 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, windows=False):
     # CWS codegens keep their //go:generate directives so a future Gazelle
     # extension can emit the matching Bazel targets from them (ABLD-475).
+    # Off Windows, cws_codegen renders backend_windows.md from the committed
+    # schema, so refresh that first.
+    if windows and sys.platform == "linux":
+        bazel("run", "//docs/cloud-workload-security:backend_windows_schema", "--//:wine=true")
     bazel("run", "//pkg/security:cws_codegen")
 
 

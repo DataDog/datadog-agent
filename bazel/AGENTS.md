@@ -727,6 +727,37 @@ target_compatible_with = select({
 })
 ```
 
+A named target that is `target_compatible_with` an incompatible platform reports
+`Target //foo:bar was skipped`, and `bazel run` then fails with
+`ERROR: No targets found to run`. That is the expected outcome, not a bug — check
+the target's constraints before assuming the rule is broken.
+
+### Running Windows-only generators from Linux or macOS
+
+Some code generators reflect over the Go types compiled *into* the generator
+binary (e.g. `//pkg/security/generators/backend_doc`, which produces
+`backend_<os>.schema.json` from the `serializers` types). Their per-platform
+output therefore cannot be cross-compiled: it needs a binary built *for* that
+platform and then actually executed. Such targets are normally
+`target_compatible_with = ["@platforms//os:windows"]`.
+
+To run one from a non-Windows host, pass `--//:wine=true`:
+
+```sh
+bazel run //docs/cloud-workload-security:backend_windows_schema --//:wine=true
+```
+
+The flag swaps the `run_binary` `tool` for `//bazel/tools/wine:wine_run` and adds
+a `go_cross_binary` build of the generator for `windows_amd64` as an input. Only
+the `wine` package is required — `wine_run` invokes the executable explicitly, so
+the `binfmt_misc` registration from `wine-binfmt` / `binfmt-support` is *not*
+needed.
+
+Keep the flag off by default: the action reads `wine` from the host `PATH`, so it
+is not hermetic and CI must not depend on it. When adding another such generator,
+follow the `backend_windows_schema_gen` pattern — `select()` on `//:is_wine` for
+`srcs`, `args`, `tool` and `target_compatible_with`.
+
 ## Depsets and rule performance
 
 Accumulating deps with plain lists is O(n²). Use depsets.
