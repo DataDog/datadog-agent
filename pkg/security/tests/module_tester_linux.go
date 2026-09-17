@@ -50,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -1096,12 +1095,7 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		var err error
 
-		// Build the inner logger at the most verbose level, not at the level asked
-		// for here: its min level is fixed at construction, and this logger is
-		// created once and reused. Creating it at the -loglevel value would cap
-		// every later swap at that level, so raising to Debug or Trace mid-run
-		// would print nothing. SetupLogger below is what actually gates output.
-		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, log.TraceLvl)
+		logger, err = log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(os.Stdout, logLevel)
 		if err != nil {
 			return 0, err
 		}
@@ -1422,36 +1416,6 @@ func formatActivityDumps(dumps []*activityDumpIdentifier) string {
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
-	// The cgroup offer that starts the dump can be dropped silently in a dozen places
-	// between the exec hook and insertActivityDump, and all of them log at Debug or
-	// below -- which the suite's default -loglevel warn throws away. Raise the level
-	// for just the window where the offer has to happen, so the rest of the run keeps
-	// its usual (far smaller) output.
-	// Use ChangeLogLevel, not swapLogLevel: the latter goes through log.SetupLogger,
-	// which closes the previously installed inner logger -- and since swapLogLevel
-	// caches and reuses one inner logger, a second call closes the very logger it
-	// installs and silences the rest of the run. ChangeLogLevel only sets the level
-	// var. This is also why initLogger guards swapLogLevel with logInitilialized.
-	prevLevel, err := log.GetLogLevel()
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := log.ChangeLogLevel(log.TraceLvl); err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = log.ChangeLogLevel(prevLevel) }()
-
-	// The level alone prints no Tracef: seclog filters trace calls on the caller's
-	// package.struct.func and an empty pattern set matches nothing.
-	//
-	// Keep this list tight. "probe.EBPFProbe.*" looks like the obvious third entry
-	// but it matches DispatchEvent, which serializes every dispatched event to JSON:
-	// it produced 11MB for a single 9.5s run of this test locally, against a KMT job
-	// trace that is only ~4.5MB in total. The probe-side drop on this path logs at
-	// Warn, which no pattern gates, so nothing is lost by leaving it out.
-	prevPatterns := seclog.SetPatterns("cgroup.Resolver.*", "security_profile.Manager.*")
-	defer seclog.SetPatterns(prevPatterns...)
-
 	// before starting the docker, we need to make sure the traced cgroup map is not filled with
 	// entries waiting to be evicted
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
