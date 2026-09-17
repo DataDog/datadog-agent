@@ -190,6 +190,7 @@ dd_agent_go_test(
         "otel_tls_test.go",
         "resolver_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":process"],
     deps = select({
         "@rules_go//go/platform:android": [
