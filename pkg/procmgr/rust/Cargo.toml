@@ -23,6 +23,7 @@ path = "src/bins/dd-procmgr.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
 clap = { workspace = true, features = ["derive"] }
 log.workspace = true
 saphyr-parser.workspace = true

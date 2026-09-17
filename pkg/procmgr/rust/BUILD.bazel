@@ -20,6 +20,7 @@ _LIB_SRCS = glob(
 _LIB_DEPS = [
     "//pkg/procmgr/rust/client:dd-procmgr-client",
     "@crates//:anyhow",
+    "@crates//:base64",
     "@crates//:log",
     "@crates//:saphyr-parser",
     "@crates//:serde",

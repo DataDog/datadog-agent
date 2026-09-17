@@ -21,6 +21,7 @@
 //! resolution lives in [`crate::config_gate`].
 
 use anyhow::{Context, Result, bail};
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 use saphyr_parser::{Event, Parser, ScalarStyle, Tag};
 use serde_yaml::{Mapping, Sequence, Value};
 use std::collections::HashMap;
@@ -142,29 +143,85 @@ fn number_as_string(number: &serde_yaml::Number) -> String {
     }
 }
 
-fn scalar_to_value(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> Value {
+fn scalar_to_value(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> Result<Value> {
     if let Some(tag) = tag {
         return tagged_scalar_to_value(text, tag);
     }
     if style == ScalarStyle::Plain {
-        plain_scalar_to_value(text)
+        Ok(plain_scalar_to_value(text))
     } else {
-        Value::String(text.to_owned())
+        Ok(Value::String(text.to_owned()))
     }
 }
 
-/// Explicit YAML tags disable implicit plain-scalar resolution (Go yaml.v2 parity).
-fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Value {
+/// Applies an explicit YAML tag the way yaml.v2's `resolve` does.
+///
+/// A tag does not reinterpret the scalar, it constrains it: yaml.v2 resolves the text as
+/// if it were plain and then calls `failf` when the result does not match the tag, so
+/// `!!bool 1` and `!!int 1.0` abort `Unmarshal` instead of being coerced. Coercing them
+/// here would hand a gate a value the Agent never sees, because the Agent fails to load
+/// the file at all, so the mismatch is surfaced as a [`load`] error.
+fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Result<Value> {
     if !tag.is_yaml_core_schema() {
-        return Value::String(text.to_owned());
+        // `resolvableTag` is false for a non-`tag:yaml.org,2002:` handle, so the scalar
+        // passes through untouched.
+        return Ok(Value::String(text.to_owned()));
     }
     match tag.suffix.as_str() {
-        "bool" => plain_scalar_to_value(text),
-        "int" | "float" => plain_number(text).unwrap_or_else(|| Value::String(text.to_owned())),
-        "null" => Value::Null,
-        // "str" and anything unrecognized stay verbatim.
-        _ => Value::String(text.to_owned()),
+        // Any scalar is accepted as a `!!str`.
+        "str" => Ok(Value::String(text.to_owned())),
+        "binary" => decode_binary(text),
+        "bool" => resolved_as(text, "bool", |value| matches!(value, Value::Bool(_))),
+        "null" => resolved_as(text, "null", |value| matches!(value, Value::Null)),
+        "int" => resolved_as(
+            text,
+            "int",
+            |value| matches!(value, Value::Number(number) if !number.is_f64()),
+        ),
+        "float" => tagged_float(text),
+        // yaml.v2 resolves `!!timestamp` to a `time.Time`, which no config gate reads.
+        // Keeping the scalar verbatim is closer than failing a file the Agent accepts.
+        //
+        // Every other suffix is unresolvable, so the scalar passes through.
+        _ => Ok(Value::String(text.to_owned())),
     }
+}
+
+fn resolved_as(text: &str, suffix: &str, accepts: fn(&Value) -> bool) -> Result<Value> {
+    let resolved = plain_scalar_to_value(text);
+    if !accepts(&resolved) {
+        bail!("cannot decode `{text}` as !!{suffix}");
+    }
+    Ok(resolved)
+}
+
+/// `!!float` is the one tag yaml.v2 widens rather than rejects: an integer scalar becomes
+/// a float, anything non-numeric still fails.
+fn tagged_float(text: &str) -> Result<Value> {
+    let Value::Number(number) = plain_scalar_to_value(text) else {
+        bail!("cannot decode `{text}` as !!float");
+    };
+    if number.is_f64() {
+        return Ok(Value::Number(number));
+    }
+    let widened = number
+        .as_f64()
+        .with_context(|| format!("cannot decode `{text}` as !!float"))?;
+    Ok(Value::Number(widened.into()))
+}
+
+/// Decodes a `!!binary` payload, which yaml.v2 hands over as the decoded bytes rather
+/// than the base64 text, so a gate compares against the same string the Agent sees.
+fn decode_binary(text: &str) -> Result<Value> {
+    // Go's `base64.StdEncoding` ignores line breaks, which the YAML spec allows inside a
+    // binary payload, but no other whitespace.
+    let payload: String = text.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+    let bytes = BASE64_STANDARD
+        .decode(payload)
+        .context("!!binary value contains invalid base64 data")?;
+    // Go keeps the raw bytes in a string. Rust cannot, and no config gate reads a
+    // non-UTF-8 setting, so replace rather than fail a file the Agent loads.
+    Ok(Value::String(String::from_utf8_lossy(&bytes).into_owned()))
 }
 
 /// Plain-scalar coercion aligned with Go yaml.v2: YAML 1.1 bool and null spellings,
@@ -355,7 +412,7 @@ impl Builder {
             }),
             Event::SequenceEnd => self.finish_sequence()?,
             Event::Scalar(text, style, anchor, tag) => {
-                let value = scalar_to_value(&text, style, tag.as_deref());
+                let value = scalar_to_value(&text, style, tag.as_deref())?;
                 self.store_anchor(anchor, &value);
                 self.attach(value);
             }
@@ -645,6 +702,46 @@ process_config:
                 "{text}"
             );
         }
+    }
+
+    /// yaml.v2 resolves a tagged scalar as if it were plain and then rejects it when the
+    /// result does not match the tag, which aborts the whole `Unmarshal`.
+    #[test]
+    fn tagged_scalars_must_match_their_tag() {
+        for yaml in [
+            "enabled: !!bool 1\n",
+            "enabled: !!bool maybe\n",
+            "enabled: !!int 1.0\n",
+            "enabled: !!int yes\n",
+            "enabled: !!float nope\n",
+            "enabled: !!null nope\n",
+        ] {
+            assert!(load(yaml).is_err(), "{yaml:?}");
+        }
+    }
+
+    #[test]
+    fn tagged_scalars_resolve_like_yaml_v2() {
+        assert_eq!(scalar("enabled: !!bool on\n"), Value::Bool(true));
+        assert_eq!(scalar("enabled: !!int 0x10\n").as_i64(), Some(16));
+        assert_eq!(scalar("enabled: !!float 1.5\n").as_f64(), Some(1.5));
+        // `!!float` is widened from an integer instead of being rejected.
+        assert_eq!(scalar("enabled: !!float 1\n").as_f64(), Some(1.0));
+        assert!(load("enabled: !!null ~\n").is_ok());
+        // A non-core handle is unresolvable, so the scalar passes through verbatim.
+        assert_eq!(
+            scalar("enabled: !custom yes\n"),
+            Value::String("yes".into())
+        );
+    }
+
+    #[test]
+    fn binary_scalars_are_base64_decoded() {
+        assert_eq!(
+            scalar("enabled: !!binary dHJ1ZQ==\n"),
+            Value::String("true".into())
+        );
+        assert!(load("enabled: !!binary \"not base64\"\n").is_err());
     }
 
     #[test]
