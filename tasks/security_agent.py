@@ -563,7 +563,7 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
+def cws_go_generate(ctx, verbose=False, windows=False):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
@@ -585,6 +585,8 @@ def cws_go_generate(ctx, verbose=False):
     bazel("run", "//docs/cloud-workload-security:workload_protection_agent_config_schema")
     if sys.platform == "linux":
         bazel("run", "//docs/cloud-workload-security:backend_linux_schema")
+        if windows:
+            bazel("run", "//docs/cloud-workload-security:backend_windows_schema", "--//:wine=true")
     elif is_windows:
         bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
     skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc|generators/backend_doc"

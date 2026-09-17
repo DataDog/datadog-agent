@@ -1,0 +1,10 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+# Wrapper used as the `tool` of a run_binary() that has to execute a
+# Windows-only generator from a non-Windows host. See //:wine.
+sh_binary(
+    name = "wine_run",
+    srcs = ["wine_run.sh"],
+)
