@@ -1491,6 +1491,19 @@ func (tm *testModule) describeADKernelState(containerID string) string {
 		b.WriteString(fmt.Sprintf("  %s: %s\n", m.name, tm.dumpInodeKeyedMap(p, m.name, m.valueLen)))
 	}
 
+	// a lost cgroup_tracing event is indistinguishable from an offer the kernel never
+	// made, and onEventLost's SyncTracedCgroups frees the traced_cgroups slot while
+	// leaving the wait list entry, which blocks every later offer for that cgroup.
+	// The -status-metrics counters are the only way to tell, and KMT never passes it.
+	if monitors := p.GetMonitors(); monitors != nil {
+		if esm := monitors.GetEventStreamMonitor(); esm != nil {
+			stats, kernelStats := esm.GetEventStats(model.CgroupTracingEventType, "events", -1)
+			b.WriteString(fmt.Sprintf("  cgroup_tracing events: user=%d kernel=%d kernel-lost=%d (all events lost=%d)\n",
+				stats.Count.Load(), kernelStats.Count.Load(), kernelStats.Lost.Load(),
+				esm.GetKernelLostCount("events", -1, model.MaxKernelEventType)))
+		}
+	}
+
 	return b.String()
 }
 
