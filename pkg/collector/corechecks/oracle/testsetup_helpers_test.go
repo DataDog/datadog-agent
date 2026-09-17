@@ -8,6 +8,7 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -42,7 +43,7 @@ func waitForTestDatabase(ctx context.Context, db *sql.DB, retry <-chan time.Time
 			return nil
 		}
 		if err == nil {
-			err = fmt.Errorf("database or pluggable databases are not open READ WRITE")
+			err = errors.New("database or pluggable databases are not open READ WRITE")
 		}
 		fmt.Printf("Waiting for Oracle (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
 		select {
