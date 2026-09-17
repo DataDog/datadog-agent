@@ -4,7 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "authoredscripts",
     srcs = [
-        "cache.go",
+        "artifact_resolver.go",
         "catalog.go",
         "command.go",
         "environment.go",
@@ -120,7 +120,7 @@ go_library(
 dd_agent_go_test(
     name = "authoredscripts_test",
     srcs = [
-        "cache_test.go",
+        "artifact_resolver_test.go",
         "catalog_test.go",
         "command_test.go",
         "environment_test.go",

@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// Package oci provides an OCI-backed authored-script package source.
+// Package oci provides an OCI-backed authored-script package materializer.
 package oci
 
 import (
@@ -14,11 +14,8 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"net/url"
 	"runtime"
 	"strings"
-
-	"github.com/google/go-containerregistry/pkg/name"
 
 	installerenv "github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	fleetoci "github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -27,14 +24,14 @@ import (
 
 const materializationLayoutVersion = "datadog-package-v1"
 
-// Source materializes authored-script packages from OCI images.
-type Source struct {
-	downloader *fleetoci.Downloader
-	variant    string
+// Materializer materializes authored-script packages from OCI images.
+type Materializer struct {
+	downloader        *fleetoci.Downloader
+	materializationID string
 }
 
-// NewSource creates an OCI package source using the Fleet downloader.
-func NewSource(environment *installerenv.Env, client *http.Client) (*Source, error) {
+// NewMaterializer creates an OCI package materializer using the Fleet downloader.
+func NewMaterializer(environment *installerenv.Env, client *http.Client) (*Materializer, error) {
 	if environment == nil {
 		return nil, errors.New("installer environment is required for authored-script OCI downloads")
 	}
@@ -51,9 +48,9 @@ func NewSource(environment *installerenv.Env, client *http.Client) (*Source, err
 	if environmentCopy.FIPSMode {
 		flavor = fleetoci.VariantFIPS
 	}
-	return &Source{
+	return &Materializer{
 		downloader: fleetoci.NewDownloader(&environmentCopy, client),
-		variant: strings.Join([]string{
+		materializationID: strings.Join([]string{
 			materializationLayoutVersion,
 			runtime.GOOS,
 			runtime.GOARCH,
@@ -62,30 +59,18 @@ func NewSource(environment *installerenv.Env, client *http.Client) (*Source, err
 	}, nil
 }
 
-// Variant identifies the platform, flavor, and extracted layout.
-func (s *Source) Variant() string {
-	if s == nil {
-		return ""
-	}
-	return s.variant
+// MaterializationID identifies the platform, flavor, and extracted layout.
+func (m *Materializer) MaterializationID() string {
+	return m.materializationID
 }
 
-// Fetch downloads and extracts the main Datadog Package layer.
-func (s *Source) Fetch(ctx context.Context, descriptor authoredscripts.Descriptor, destination string) error {
-	if ctx == nil {
-		return errors.New("authored-script OCI fetch context is required")
-	}
-	if s == nil || s.downloader == nil {
-		return errors.New("authored-script OCI source is not configured")
-	}
+// Materialize downloads and extracts the main Datadog Package layer.
+func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscripts.Descriptor, destination string) error {
 	if destination == "" {
 		return errors.New("authored-script OCI destination is required")
 	}
-	if err := validateReference(descriptor); err != nil {
-		return err
-	}
 
-	downloadedPackage, err := s.downloader.Download(ctx, descriptor.URL)
+	downloadedPackage, err := m.downloader.Download(ctx, descriptor.URL)
 	if err != nil {
 		return fmt.Errorf("could not download authored-script OCI package: %w", err)
 	}
@@ -100,33 +85,6 @@ func (s *Source) Fetch(ctx context.Context, descriptor authoredscripts.Descripto
 	}
 	if err := downloadedPackage.ExtractLayers(ctx, fleetoci.DatadogPackageLayerMediaType, destination); err != nil {
 		return fmt.Errorf("could not extract authored-script OCI package: %w", err)
-	}
-	return nil
-}
-
-func validateReference(descriptor authoredscripts.Descriptor) error {
-	parsedURL, err := url.Parse(descriptor.URL)
-	if err != nil {
-		return fmt.Errorf("could not parse authored-script OCI URL: %w", err)
-	}
-	if parsedURL.Scheme != "oci" {
-		return fmt.Errorf("authored-script package URL uses unsupported scheme %q", parsedURL.Scheme)
-	}
-	if parsedURL.User != nil {
-		return errors.New("authored-script OCI URL must not contain user information")
-	}
-	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return errors.New("authored-script OCI URL must not contain a query or fragment")
-	}
-
-	rawReference := strings.TrimPrefix(descriptor.URL, "oci://")
-	reference, err := name.NewDigest(rawReference, name.StrictValidation)
-	if err != nil {
-		return fmt.Errorf("authored-script package URL must contain a valid immutable OCI digest: %w", err)
-	}
-	expectedDigest := "sha256:" + descriptor.SHA256
-	if reference.DigestStr() != expectedDigest {
-		return fmt.Errorf("authored-script OCI reference digest %q does not match expected digest %q", reference.DigestStr(), expectedDigest)
 	}
 	return nil
 }
