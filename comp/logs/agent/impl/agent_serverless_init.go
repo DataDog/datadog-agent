@@ -56,7 +56,9 @@ func (a *logAgent) SetupPipeline(
 		a.auditor,
 		diagnosticMessageReceiver,
 		processingRules,
-		nil, // serverless encoder bypasses Origin tags; filtering doesn't apply
+		// jsonServerlessInitEncoder caches one process-global tag string, which
+		// cannot represent per-source filters.
+		nil,
 		a.endpoints,
 		destinationsCtx,
 		NewStatusProvider(),
