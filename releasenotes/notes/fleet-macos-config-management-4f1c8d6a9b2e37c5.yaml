@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    macOS Agent packages now ship the Fleet installer daemon and support remote configuration
+    management. A configuration deployment can be started, promoted and reverted from Fleet
+    Automation on a Mac; the Agent is restarted against the experiment configuration and, if the
+    experiment is not promoted, restored to the configuration it was running before.
+fixes:
+  - |
+    Fleet Automation now reports a status for every request in a task set. Previously, when one
+    request failed, the requests alongside it in the same set were left without a status, so a
+    deployment could appear to stall with no error reported against it.

@@ -169,6 +169,33 @@ func TestProxyWithSecret(t *testing.T) {
 	}
 }
 
+// TestLoadDatadogSurvivesAnUnresolvableSecret pins the fix for an agent that crashes (and, on
+// platforms that restart the whole process to apply a new config, crash-loops forever) whenever a
+// single secret handle in datadog.yaml can't be resolved: LoadDatadog must still succeed, with
+// every other secret in the same file resolved normally and the unresolvable one left as its
+// literal "ENC[handle]" placeholder rather than the process refusing to start.
+func TestLoadDatadogSurvivesAnUnresolvableSecret(t *testing.T) {
+	config := newTestConf(t)
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`
+secret_backend_command: some command
+log_level: ENC[invalid_secret]
+api_key: ENC[good_secret]
+`), 0o600))
+	config.SetConfigFile(configPath)
+
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{"good_secret": "resolved_api_key"})
+
+	err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+	require.NoError(t, err, "an unresolvable secret handle must not fail the whole config load")
+
+	assert.Equal(t, "ENC[invalid_secret]", config.GetString("log_level"))
+	assert.Equal(t, "resolved_api_key", config.GetString("api_key"))
+}
+
 func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolution(t *testing.T) {
 	config := newTestConf(t)
 

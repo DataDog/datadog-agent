@@ -20,6 +20,7 @@ import (
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -129,6 +130,9 @@ var errPoolExhausted = errors.New("no idle instance available")
 func AcquireIdleInstance(ctx context.Context, region, profile, leaseBucket string, pool []string, stackID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
+		return "", "", "", err
+	}
+	if err := ensureBucketExists(ctx, client, region, leaseBucket); err != nil {
 		return "", "", "", err
 	}
 
@@ -428,6 +432,9 @@ func PublishInitialLease(ctx context.Context, region, profile, leaseBucket, inst
 	if err != nil {
 		return "", err
 	}
+	if err := ensureBucketExists(ctx, client, region, leaseBucket); err != nil {
+		return "", err
+	}
 
 	body, err := json.Marshal(leaseRecord{
 		Status:     statusInUse,
@@ -564,4 +571,35 @@ func newS3Client(ctx context.Context, region, profile string) (*s3.Client, error
 		return nil, fmt.Errorf("failed to load AWS config for S3 lease client: %w", err)
 	}
 	return s3.NewFromConfig(cfg), nil
+}
+
+// ensureBucketExists creates leaseBucket if it does not already exist, so a fresh
+// account/environment -- or a bucket deleted out of band -- does not require a human
+// to provision it before the pool can be used.
+func ensureBucketExists(ctx context.Context, client *s3.Client, region, leaseBucket string) error {
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(leaseBucket)})
+	if err == nil {
+		return nil
+	}
+	if !isNotFound(err) {
+		return fmt.Errorf("failed to check lease bucket %s: %w", leaseBucket, err)
+	}
+
+	input := &s3.CreateBucketInput{Bucket: aws.String(leaseBucket)}
+	// us-east-1 is S3's default region and rejects an explicit LocationConstraint for it.
+	if region != "us-east-1" {
+		input.CreateBucketConfiguration = &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(region),
+		}
+	}
+	if _, err := client.CreateBucket(ctx, input); err != nil {
+		var apiErr apiError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "BucketAlreadyOwnedByYou" {
+			// Lost a race with another concurrent first-run: the bucket exists now,
+			// which is all this call needs.
+			return nil
+		}
+		return fmt.Errorf("failed to create lease bucket %s: %w", leaseBucket, err)
+	}
+	return nil
 }

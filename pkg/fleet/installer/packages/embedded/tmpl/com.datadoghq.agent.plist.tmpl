@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.agent{{.LabelSuffix}}</string>
+        <key>RunAtLoad</key>
+        <true/>
+{{- if .Supervised}}
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+{{- end}}
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+            <key>DD_FLEET_POLICIES_DIR</key>
+            <string>{{.FleetPoliciesDir}}</string>
+{{- if not .Stable}}
+            <key>DD_INVENTORIES_FIRST_RUN_DELAY</key>
+            <string>5</string>
+            <key>DD_CONFD_PATH</key>
+            <string>{{.EtcDir}}/conf.d</string>
+{{- end}}
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{{.ProgramDir}}/bin/agent/agent</string>
+            <string>run</string>
+            <string>-c</string>
+            <string>{{.EtcDir}}</string>
+            <string>-p</string>
+            <string>{{.RunDir}}/agent.pid</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>{{.LogDir}}/launchd{{.LabelSuffix}}.log</string>
+        <key>StandardErrorPath</key>
+        <string>{{.LogDir}}/launchd{{.LabelSuffix}}.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>{{.AgentUser}}</string>
+        <key>GroupName</key>
+        <string>{{.AgentGroup}}</string>
+    </dict>
+</plist>

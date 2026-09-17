@@ -74,16 +74,15 @@ func (m *Mock) Resolve(data []byte, origin string, _ string, _ string, notify bo
 		return nil, err
 	}
 
-	if len(unknownSecrets) > 0 {
-		return nil, fmt.Errorf("unknown secrets found: %s", strings.Join(unknownSecrets, ", "))
-	}
-
 	finalConfig, err := yaml.Marshal(config)
 	if err != nil {
 		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
 	}
-	return finalConfig, nil
 
+	if len(unknownSecrets) > 0 {
+		return finalConfig, fmt.Errorf("unknown secrets found: %s: %w", strings.Join(unknownSecrets, ", "), secrets.ErrUnresolvedHandles)
+	}
+	return finalConfig, nil
 }
 
 // SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
