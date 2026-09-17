@@ -592,6 +592,20 @@ enum Pending {
     Merge,
 }
 
+/// Whether a `<<` scalar with this style and tag is a merge key.
+///
+/// yaml.v2's `isMerge` accepts two spellings: a plain, untagged `<<`, or a `<<` under an
+/// explicit `!!merge` tag, whose style then does not matter, so `!!merge "<<"` merges.
+/// `!!merge` is not in `resolvableTag`, so the scalar keeps its text either way; only
+/// the merge decision changes. Any other tag makes it an ordinary key, `!!str <<`
+/// included.
+fn can_be_merge_key(style: ScalarStyle, tag: Option<&Tag>) -> bool {
+    match tag {
+        None => style == ScalarStyle::Plain,
+        Some(tag) => tag.is_yaml_core_schema() && tag.suffix == "merge",
+    }
+}
+
 /// Applies a yaml.v2 `<<` merge in place.
 ///
 /// yaml.v2 unmarshals the merged mapping over the one being built at the position the
@@ -642,10 +656,7 @@ impl Builder {
             Event::Scalar(text, style, anchor, tag) => {
                 let value = scalar_to_value(&text, style, tag.as_deref())?;
                 self.store_anchor(anchor, &value);
-                // Only a plain, untagged scalar can be a merge key, which is what
-                // yaml.v2's `isMerge` checks before treating `<<` as one.
-                let plain = style == ScalarStyle::Plain && tag.is_none();
-                self.attach(value, plain)?;
+                self.attach(value, can_be_merge_key(style, tag.as_deref()))?;
             }
             Event::Alias(anchor) => {
                 let value = self
@@ -698,16 +709,16 @@ impl Builder {
         self.attach(value, false)
     }
 
-    /// Adds a finished node to the collection being built. `plain_scalar` says whether
-    /// the node came from a plain, untagged scalar, which is the only kind of node
-    /// yaml.v2 will read as a `<<` merge key.
-    fn attach(&mut self, value: Value, plain_scalar: bool) -> Result<()> {
+    /// Adds a finished node to the collection being built. `merge_candidate` answers the
+    /// half of yaml.v2's `isMerge` that the value alone cannot: whether the node's style
+    /// and tag allow it to be a `<<` merge key.
+    fn attach(&mut self, value: Value, merge_candidate: bool) -> Result<()> {
         self.charge_nodes(1, 0)?;
         match self.stack.last_mut() {
             None => self.root = Some(value),
             Some(Frame::Mapping { pairs, pending, .. }) => match std::mem::take(pending) {
                 Pending::Key => {
-                    *pending = if plain_scalar && value == Value::String("<<".to_owned()) {
+                    *pending = if merge_candidate && value == Value::String("<<".to_owned()) {
                         Pending::Merge
                     } else {
                         Pending::Value(scalar_as_key(value)?)
@@ -840,6 +851,23 @@ process_config:
             dotted(yaml, "process_config.process_collection.enabled"),
             Some(Value::Bool(false))
         );
+    }
+
+    /// `isMerge` also accepts an explicit `!!merge` tag, and then the scalar's style no
+    /// longer matters, so a quoted `<<` merges too.
+    #[test]
+    fn explicitly_tagged_merge_keys_merge() {
+        let base = "base: &base\n  enabled: true\n";
+        for key in ["!!merge <<", "!!merge \"<<\""] {
+            assert_eq!(
+                dotted(
+                    &format!("{base}process_config:\n  {key}: *base\n"),
+                    "process_config.enabled"
+                ),
+                Some(Value::Bool(true)),
+                "{key}"
+            );
+        }
     }
 
     /// yaml.v2's `isMerge` requires a plain, untagged scalar, so a quoted or `!!str`
