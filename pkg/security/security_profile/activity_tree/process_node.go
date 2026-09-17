@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -296,6 +297,14 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			fmt.Fprintf(w, "%s    - %s | %s\n", prefix, evt.CloudProvider, evt.Type)
 		}
 	}
+	for _, sock := range pn.Sockets {
+		if len(sock.Connect) > 0 {
+			fmt.Fprintf(w, "%s  connect (%s):\n", prefix, sock.Family)
+			for _, conn := range sock.Connect {
+				fmt.Fprintf(w, "%s    - %s:%d\n", prefix, conn.IP, conn.Port)
+			}
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
@@ -554,6 +563,41 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 	return newNode, bindNodeBase
 }
 
+// InsertConnectEvent inserts a connect event in a process node. Returns whether a new entry was
+// added and the NodeBase of the matched or newly created ConnectNode.
+func (pn *ProcessNode) InsertConnectEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) (bool, *NodeBase) {
+	if evt.Connect.SyscallEvent.Retval != 0 &&
+		evt.Connect.SyscallEvent.Retval != -int64(syscall.EINPROGRESS) &&
+		evt.Connect.SyscallEvent.Retval != -int64(syscall.EAGAIN) {
+		return false, nil
+	}
+	var newNode bool
+	evtFamily := model.AddressFamily(evt.Connect.AddrFamily).String()
+
+	var sock *SocketNode
+	for _, s := range pn.Sockets {
+		if s.Family == evtFamily {
+			sock = s
+		}
+	}
+	if sock == nil {
+		sock = NewSocketNode(evtFamily, generationType)
+		if !dryRun {
+			stats.SocketNodes++
+			stats.SizeBytes += sock.size()
+			pn.Sockets = append(pn.Sockets, sock)
+		}
+		newNode = true
+	}
+
+	connectNew, connectNodeBase := sock.InsertConnectEvent(&evt.Connect, evt, imageTagID, generationType, evt.Rules, stats, dryRun)
+	if connectNew {
+		newNode = true
+	}
+
+	return newNode, connectNodeBase
+}
+
 // InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node
 func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTagID uint64, stats *Stats, dryRun bool) bool {
 	hasNewCapabilitiesUsage := false
@@ -613,6 +657,12 @@ func (pn *ProcessNode) TagAllNodes(imageTagID uint64, timestamp time.Time) {
 	}
 	for _, sock := range pn.Sockets {
 		sock.AppendImageTagID(imageTagID, timestamp)
+		for _, bind := range sock.Bind {
+			bind.AppendImageTagID(imageTagID, timestamp)
+		}
+		for _, conn := range sock.Connect {
+			conn.AppendImageTagID(imageTagID, timestamp)
+		}
 	}
 	for _, scall := range pn.Syscalls {
 		scall.AppendImageTagID(imageTagID, timestamp)
