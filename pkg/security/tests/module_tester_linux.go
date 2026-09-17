@@ -1449,10 +1449,83 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		dump = d
 		return nil
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(5)); err != nil {
+		err = fmt.Errorf("%w\n%s", err, tm.describeADKernelState(dockerInstance.containerID))
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+// describeADKernelState reports the kernel side activity dump state for a container.
+// should_trace_new_process_cgroup() drops an offer at several points without a log or a
+// counter -- an unset mount id, the discarded blacklist, a live wait list entry, or a full
+// traced_cgroups -- and they are indistinguishable from userspace after the fact. Reading
+// the maps tells them apart.
+func (tm *testModule) describeADKernelState(containerID string) string {
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return "activity dump kernel state: not an eBPF probe"
+	}
+
+	var b strings.Builder
+	b.WriteString("activity dump kernel state:\n")
+
+	// the cgroup the offer would have been made for. A zero mount id is rejected by
+	// is_cgroup_mount_id_filter_valid() before any other gate, even under NO_FILTER.
+	if entry := p.Resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(containerID)); entry != nil {
+		cg := entry.GetCGroupContext()
+		b.WriteString(fmt.Sprintf("  container cgroup: id=%s inode=%d mount_id=%d\n",
+			cg.CGroupID, cg.CGroupPathKey.Inode, cg.CGroupPathKey.MountID))
+	} else {
+		b.WriteString("  container cgroup: no cgroup resolver entry for this container\n")
+	}
+
+	for _, m := range []struct {
+		name     string
+		valueLen int
+	}{
+		{"traced_cgroups", 8},
+		{"cgroup_wait_list", 8},
+		{"traced_cgroups_discarded", 1},
+	} {
+		b.WriteString(fmt.Sprintf("  %s: %s\n", m.name, tm.dumpInodeKeyedMap(p, m.name, m.valueLen)))
+	}
+
+	return b.String()
+}
+
+// dumpInodeKeyedMap renders the keys of one of the inode-keyed activity dump maps, with
+// their values when they carry one worth reading (a cookie, a wait list deadline).
+func (tm *testModule) dumpInodeKeyedMap(p *sprobe.EBPFProbe, name string, valueLen int) string {
+	m, _, err := p.Manager.Get().GetMap(name)
+	if err != nil || m == nil {
+		return fmt.Sprintf("unavailable (%v)", err)
+	}
+
+	var (
+		entries []string
+		inode   uint64
+		u64Val  uint64
+		u8Val   uint8
+		value   interface{} = &u64Val
+	)
+	if valueLen == 1 {
+		value = &u8Val
+	}
+
+	it := m.Iterate()
+	for it.Next(&inode, value) {
+		if valueLen == 1 {
+			entries = append(entries, strconv.FormatUint(inode, 10))
+		} else {
+			entries = append(entries, fmt.Sprintf("%d=%d", inode, u64Val))
+		}
+	}
+	if err := it.Err(); err != nil {
+		entries = append(entries, fmt.Sprintf("<iteration failed: %v>", err))
+	}
+
+	return fmt.Sprintf("%d entr(ies) [%s]", len(entries), strings.Join(entries, " "))
 }
 
 func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {
