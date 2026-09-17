@@ -6238,25 +6238,108 @@ properties:
       Agent Check Runner (ACR) is an optional out-of-process check executor that
       registers with the Datadog Agent as a remote agent.
     properties:
+      adapters:
+        node_type: setting
+        type: object
+        default: {}
+        additionalProperties:
+          type: object
+        env_parser: json
+        env_vars:
+        - DD_CHECK_RUNNER_ADAPTERS
+        - DD_CHECK_RUNNER__ADAPTERS
+        description: |-
+          Adapters keyed by registry name, with per-adapter options such as checksd.
+          The adapter option selects the plugin type and defaults to the registry name.
+          Environment variables must contain a JSON object.
+      adapters_dir:
+        node_type: setting
+        type: string
+        default: null
+        env_vars:
+        - DD_CHECK_RUNNER_ADAPTERS_DIR
+        - DD_CHECK_RUNNER__ADAPTERS_DIR
+        description: Directory containing adapter plugin libraries. When unset, ACR uses
+          the adapters directory next to its executable.
+        comment: Keep this unset by default. An empty string becomes an explicit empty
+          path in ACR and prevents its executable-relative fallback.
       enabled:
         node_type: setting
         type: boolean
         default: false
+        env_vars:
+        - DD_CHECK_RUNNER_ENABLED
+        - DD_CHECK_RUNNER__ENABLED
+      endpoints:
+        node_type: section
+        type: object
+        properties:
+          console:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                env_vars:
+                - DD_CHECK_RUNNER_ENDPOINTS_CONSOLE_ENABLED
+                - DD_CHECK_RUNNER__ENDPOINTS__CONSOLE__ENABLED
+                description: Writes check payloads to the console.
+          ipc:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_CHECK_RUNNER_ENDPOINTS_IPC_ENABLED
+                - DD_CHECK_RUNNER__ENDPOINTS__IPC__ENABLED
+                description: Sends check payloads to the Agent Data Plane over IPC.
+              endpoint:
+                node_type: setting
+                type: string
+                default: http://localhost:5105
+                env_vars:
+                - DD_CHECK_RUNNER_ENDPOINTS_IPC_ENDPOINT
+                - DD_CHECK_RUNNER__ENDPOINTS__IPC__ENDPOINT
+                description: URL of the Agent Data Plane checks IPC endpoint.
+      flush_interval_secs:
+        node_type: setting
+        type: integer
+        default: 15
+        minimum: 0
+        env_vars:
+        - DD_CHECK_RUNNER_FLUSH_INTERVAL_SECS
+        - DD_CHECK_RUNNER__FLUSH_INTERVAL_SECS
+        description: Interval in seconds between flushes of sampled check metrics.
+          Zero uses ACR's default interval of 15 seconds.
       standalone_mode:
         node_type: setting
         type: boolean
         default: false
+        env_vars:
+        - DD_CHECK_RUNNER_STANDALONE_MODE
+        - DD_CHECK_RUNNER__STANDALONE_MODE
         comment: When true, ACR runs without registering with the Core Agent and loads its
           configuration from the config file directly.
       api_listen_address:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5200
+        env_vars:
+        - DD_CHECK_RUNNER_API_LISTEN_ADDRESS
+        - DD_CHECK_RUNNER__API_LISTEN_ADDRESS
         comment: Unprivileged API listen address. Must include a URL scheme (e.g. "tcp://").
       secure_api_listen_address:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5201
+        env_vars:
+        - DD_CHECK_RUNNER_SECURE_API_LISTEN_ADDRESS
+        - DD_CHECK_RUNNER__SECURE_API_LISTEN_ADDRESS
         comment: Privileged API listen address, served with the Core Agent IPC TLS config.
           Must include a URL scheme (e.g. "tcp://").
     tags:
