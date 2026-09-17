@@ -324,9 +324,6 @@ type K8sTranslationResult struct {
 	ClusterID string
 }
 
-// clusterKey is the grouping key used to associate ResourceLogs with a cluster.
-type clusterKey struct{ id, name string }
-
 // TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads, grouped by cluster identity.
 // It handles deduplication via cache (pass nil to disable) and chunking.
 // Set maxChunkSize to value > 0 to override individual chunk weight. Otherwise, default value will be used.
@@ -336,25 +333,27 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger,
 		maxChunkSize = MaxPayloadSizeBytes
 	}
 
-	groups, order := groupResourceLogsByCluster(ld, logger)
+	groups, names, order := groupResourceLogsByCluster(ld, logger)
 	if len(order) == 0 {
 		return nil
 	}
 
 	results := make([]*K8sTranslationResult, 0, len(order))
-	for _, key := range order {
-		if result := translateClusterLogs(key, groups[key], cache, logger, maxChunkSize); result != nil {
+	for _, id := range order {
+		if result := translateClusterLogs(id, names[id], groups[id], cache, logger, maxChunkSize); result != nil {
 			results = append(results, result)
 		}
 	}
 	return results
 }
 
-// groupResourceLogsByCluster partitions ld into per-cluster buckets.
+// groupResourceLogsByCluster partitions ld into per-cluster buckets keyed by cluster UID.
+// The first cluster name seen for a given UID is used; subsequent ResourceLogs with the same UID
+// but a different name produce a Warn log.
 // ResourceLogs missing k8s.cluster.uid or k8s.cluster.name are skipped with an error log.
-func groupResourceLogsByCluster(ld plog.Logs, logger *zap.Logger) (map[clusterKey][]plog.ResourceLogs, []clusterKey) {
-	groups := make(map[clusterKey][]plog.ResourceLogs)
-	var order []clusterKey
+func groupResourceLogsByCluster(ld plog.Logs, logger *zap.Logger) (groups map[string][]plog.ResourceLogs, names map[string]string, order []string) {
+	groups = make(map[string][]plog.ResourceLogs)
+	names = make(map[string]string)
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		rl := ld.ResourceLogs().At(i)
@@ -371,17 +370,24 @@ func groupResourceLogsByCluster(ld plog.Logs, logger *zap.Logger) (map[clusterKe
 			continue
 		}
 
-		key := clusterKey{id: cid.AsString(), name: cname.AsString()}
-		if _, seen := groups[key]; !seen {
-			order = append(order, key)
+		id := cid.AsString()
+		name := cname.AsString()
+		if _, seen := groups[id]; !seen {
+			order = append(order, id)
+			names[id] = name
+		} else if names[id] != name {
+			logger.Warn("Conflicting cluster name for same cluster UID; using first name seen",
+				zap.String("k8s.cluster.uid", id),
+				zap.String("first_name", names[id]),
+				zap.String("conflicting_name", name))
 		}
-		groups[key] = append(groups[key], rl)
+		groups[id] = append(groups[id], rl)
 	}
-	return groups, order
+	return groups, names, order
 }
 
 // translateClusterLogs converts one cluster's ResourceLogs into a K8sTranslationResult.
-func translateClusterLogs(key clusterKey, rls []plog.ResourceLogs, cache *gocache.Cache, logger *zap.Logger, maxChunkSize int) *K8sTranslationResult {
+func translateClusterLogs(clusterID, clusterName string, rls []plog.ResourceLogs, cache *gocache.Cache, logger *zap.Logger, maxChunkSize int) *K8sTranslationResult {
 	var manifests []*agentmodel.Manifest
 
 	for _, rl := range rls {
@@ -395,7 +401,7 @@ func translateClusterLogs(key clusterKey, rls []plog.ResourceLogs, cache *gocach
 					logger.Error("Failed to convert to manifest", zap.Error(err))
 					continue
 				}
-				if shouldSkipManifest(manifest, key.id, isWatch, cache) {
+				if shouldSkipManifest(manifest, clusterID, isWatch, cache) {
 					logger.Debug("Skipping manifest (cache hit)",
 						zap.String("uid", manifest.Uid),
 						zap.String("kind", manifest.Kind),
@@ -413,8 +419,8 @@ func translateClusterLogs(key clusterKey, rls []plog.ResourceLogs, cache *gocach
 
 	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxChunkSize)
 	logger.Debug("Sending manifests in chunks",
-		zap.String("k8s.cluster.uid", key.id),
-		zap.String("k8s.cluster.name", key.name),
+		zap.String("k8s.cluster.uid", clusterID),
+		zap.String("k8s.cluster.name", clusterName),
 		zap.Int("total_manifests", len(manifests)),
 		zap.Int("chunk_count", len(chunks)),
 		zap.Int("max_manifests_per_chunk", maxManifestsPerPayload),
@@ -425,8 +431,8 @@ func translateClusterLogs(key clusterKey, rls []plog.ResourceLogs, cache *gocach
 	}
 	return &K8sTranslationResult{
 		Chunks:      chunks,
-		ClusterName: key.name,
-		ClusterID:   key.id,
+		ClusterName: clusterName,
+		ClusterID:   clusterID,
 	}
 }
 
