@@ -1,3 +1,14 @@
+# The e2ectl environment for the containers kind suite. Kept next to the
+# test it serves: TestKindSuiteOnLocalKind (local_kind_test.go) runs the
+# ORIGINAL kindSuite against an environment created from this file:
+#
+#   e2ectl start --config e2ectl-kind.yml --name <name>
+#   e2ectl install -env <name>
+#   e2ectl test -env <name> --suite ./test/new-e2e/tests/containers/ -run TestKindSuiteOnLocalKind
+#
+# The suite's Pulumi entry point (TestKindSuite) expresses the same setup as
+# scenario options (helm values, workloads, argo-rollouts); this file is the
+# attach-mode equivalent.
 schema: 1
 environment:
   base: kind

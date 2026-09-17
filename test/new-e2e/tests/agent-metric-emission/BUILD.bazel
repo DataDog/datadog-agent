@@ -6,10 +6,8 @@ dd_agent_go_test(
     deps = [
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
-        "//test/new-e2e/utils/e2ectlenv",
         "//test/e2e-framework/testing/provisioners/aws/host",
-        "//test/fakeintake/aggregator",
-        "//test/fakeintake/client",
+        "//test/new-e2e/utils/e2ectlenv",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

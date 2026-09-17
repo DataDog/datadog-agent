@@ -17,7 +17,7 @@ waits on the next agent-binary build cycle.
 | Design | As built | Why |
 |---|---|---|
 | Dispatch to `go test` *or* `dda inv new-e2e-tests.run` | Plain `go test -tags test` only | `dda inv new-e2e-tests.run` hard-fails when the pulumi CLI is absent — the exact dependency e2ectl exists to remove. The `-tags test` mechanism is the same one the attach tests already use. |
-| `kind` "not supported yet" (§4 table) | Supported: base `kind` maps to the same `OnLocal` default pattern | `TestContainersOnLocalKind` proved kind attach after this plan was written |
+| `kind` "not supported yet" (§4 table) | Supported: base `kind` maps to the same `OnLocal` default pattern | `TestKindSuiteOnLocalKind` proved kind attach after this plan was written |
 | Default `-run` always applied | Applied only when `--run` is absent; `--run ''` runs every test | Escape hatch for suites that are entirely attach-based |
 | `e2ectlenv` package in `test/new-e2e/utils/e2ectlenv` | Exactly there | — |
 | `E2ECTL_LOCAL_ENV` (the metric test's old variable) | Unified to `E2ECTL_ENV` via the helper | One variable for one concept; `e2ectl test` sets it |

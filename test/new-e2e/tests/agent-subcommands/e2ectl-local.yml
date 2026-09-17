@@ -1,0 +1,20 @@
+# The e2ectl environment for the agent-subcommands health suite. Kept next to
+# the test it serves: TestLinuxHealthSuiteOnLocal (local_test.go) runs the
+# ORIGINAL health suite against an environment created from this file:
+#
+#   e2ectl start --config e2ectl-local.yml --name <name>
+#   e2ectl install -env <name>
+#   e2ectl test -env <name> --suite ./test/new-e2e/tests/agent-subcommands/ -run TestLinuxHealthSuiteOnLocal/TestDefaultInstallHealthy
+#
+# The install builds the agent binary from the working tree (dda inv
+# agent.build), pins it into a container on the environment's network and
+# records its path — the AgentClient invokes it directly, no sudo.
+schema: 1
+environment:
+  base: local
+  # The fakeintake runs as a container on the environment's network.
+  fakeintake: true
+  local: {}
+agent:
+  install: binary
+  binary: {}

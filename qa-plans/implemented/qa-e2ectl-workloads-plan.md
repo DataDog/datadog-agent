@@ -307,7 +307,7 @@ manifest can run on a VM.
 | 5. Kubernetes deployer | kubectl apply for `manifest:`/`app:`/`image:` | `e2ectl install` with `app: nginx` deploys a Deployment on kind | ✅ done, live-verified |
 | 6. Host deployer | SSH execute / docker run for `image:`/`app:` | `e2ectl install` with `app: nginx` deploys nginx on the VM | ⬜ not started |
 | 7. Stop integration | Each driver removes its workload type | `stop` cleans everything on all three bases | ✅ inherent (cluster deletion / container network teardown) |
-| 8. Test expansion | `TestContainersOnLocalKind` gains workload assertions | Workload tests pass on local kind | ✅ done (TestWorkloadRunning, TestWorkloadContainerMetrics, TestWorkloadADCheck — 9/9 pass) |
+| 8. Test expansion | The containers suite asserts the workloads | Workload tests pass on local kind | ✅ done — the original kindSuite runs on e2ectl (TestKindSuiteOnLocalKind): its TestNginx/TestCPU/TestDogstatsd* assertions cover the workloads (an earlier custom suite with TestWorkload* assertions was removed once the original suite attached — the migration goal is unchanged tests, not new ones) |
 
 The local Docker deployer is the simplest (step 4) — it's the same
 mechanism as the fakeintake. The Kubernetes deployer (step 5) is the next
