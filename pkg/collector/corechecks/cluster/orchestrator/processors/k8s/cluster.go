@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 
@@ -37,6 +38,18 @@ var (
 		corev1.ResourcePods:   {},
 	}
 )
+
+// clampToUint32 converts v to uint32, clamping it to [0, math.MaxUint32]
+// instead of silently wrapping on out-of-range input.
+func clampToUint32(v int64) uint32 {
+	if v < 0 {
+		return 0
+	}
+	if v > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(v)
+}
 
 // ClusterProcessor is a processor for Kubernetes clusters. There is no
 // concept of cluster per se in Kubernetes. The model is created by aggregating
@@ -99,8 +112,8 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		memoryCapacity += uint64(r.Status.Capacity.Memory().Value())
 
 		// Pod allocatable and capacity.
-		podAllocatable += uint32(r.Status.Allocatable.Pods().Value())
-		podCapacity += uint32(r.Status.Capacity.Pods().Value())
+		podAllocatable += clampToUint32(r.Status.Allocatable.Pods().Value())
+		podCapacity += clampToUint32(r.Status.Capacity.Pods().Value())
 
 		// Unaggregated node information summary.
 		nodesInfo = append(nodesInfo, k8sTransformers.ExtractClusterNodeInfo(r))
