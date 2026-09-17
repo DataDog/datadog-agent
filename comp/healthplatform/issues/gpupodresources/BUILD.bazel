@@ -14,8 +14,8 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/healthplatform/issues",
         "//comp/healthplatform/issueregistry/utils/selfident",
+        "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
         "//pkg/util/kubernetes/kubelet",
