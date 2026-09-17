@@ -6,7 +6,6 @@
 use anyhow::{Result, bail};
 use std::ptr;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::NetworkManagement::NetManagement::SERVICE_ACCOUNT_PASSWORD;
 use windows_sys::Win32::Security::{
     ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
     RevertToSelf,
@@ -20,8 +19,6 @@ pub(super) enum LogonPassword<'a> {
     None,
     Empty,
     Wide(&'a SecureUtf16String),
-    /// gMSA/sMSA sentinel for `LogonUserW` (`SERVICE_ACCOUNT_PASSWORD` in lmaccess.h).
-    ManagedServiceAccount,
 }
 
 pub(super) struct LogonUserCredentials<'a> {
@@ -60,13 +57,6 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
             username: user.as_str(),
             password: LogonPassword::Wide(password),
         },
-        AgentAccount::ManagedServiceAccountLogon {
-            logon_domain, user, ..
-        } => LogonUserCredentials {
-            domain: logon_domain.as_str(),
-            username: user.as_str(),
-            password: LogonPassword::ManagedServiceAccount,
-        },
     }
 }
 
@@ -80,7 +70,6 @@ pub(crate) fn logon_user_token(
         LogonPassword::None => ptr::null(),
         LogonPassword::Empty => EMPTY_PASSWORD.as_ptr(),
         LogonPassword::Wide(password) => password.as_ptr(),
-        LogonPassword::ManagedServiceAccount => SERVICE_ACCOUNT_PASSWORD,
     };
 
     let mut logon_token: HANDLE = ptr::null_mut();
@@ -193,26 +182,6 @@ mod tests {
         assert_eq!(logon_domain(creds.domain), ".");
         assert_eq!(creds.username, "ddagentuser");
         assert!(matches!(creds.password, LogonPassword::Wide(_)));
-    }
-
-    #[test]
-    fn logon_user_credentials_map_managed_service_account_to_service_account_password() {
-        let account = AgentAccount::ManagedServiceAccountLogon {
-            registry_domain: "CORP".to_string(),
-            logon_domain: "CORP".to_string(),
-            user: "ddgmsa$".to_string(),
-        };
-        let creds = logon_user_credentials(&account);
-        assert_eq!(creds.domain, "CORP");
-        assert_eq!(creds.username, "ddgmsa$");
-        assert!(matches!(
-            creds.password,
-            LogonPassword::ManagedServiceAccount
-        ));
-        assert_eq!(
-            wide::from_ptr(SERVICE_ACCOUNT_PASSWORD),
-            "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}"
-        );
     }
 
     #[test]

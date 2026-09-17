@@ -10,12 +10,9 @@ mod installer_lsa_password;
 mod job_object;
 mod local_account;
 mod local_agent_account;
-mod pipe_caller;
-mod pipe_security;
 mod process;
 mod runtime_user;
 mod secure_utf16;
-mod service_account;
 mod sid;
 mod spawn;
 mod token_identity;
@@ -35,8 +32,6 @@ pub use console::{
     last_signal, send_force_kill, send_graceful_stop, stderr_inheritable, stdout_inheritable,
 };
 pub use job_object::JobObject;
-pub(crate) use pipe_caller::pipe_client_may_mutate;
-pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use process::{
     ProcessWaitOutcome, WAIT_INFINITE, terminate_process, wait_for_process_exit_ms,
 };
@@ -105,10 +100,6 @@ fn default_install_root() -> PathBuf {
 
 fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
-}
-
-pub fn install_root_for_tests() -> PathBuf {
-    install_root()
 }
 
 pub fn default_config_dir() -> PathBuf {

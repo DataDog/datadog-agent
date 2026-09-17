@@ -13,7 +13,6 @@ import (
 	"net"
 
 	"github.com/Microsoft/go-winio"
-	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -22,15 +21,8 @@ func dialProcmgrGRPC(socketPath string) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(
 		"passthrough:///procmgr",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			// Pair with AGENT_PIPE_CLIENT_ACCESS_MASK in pipe_security.rs: GENERIC_READ |
-			// FILE_WRITE_DATA, not GENERIC_WRITE (includes FILE_CREATE_PIPE_INSTANCE).
-			return winio.DialPipeAccessImpLevel(
-				ctx,
-				socketPath,
-				uint32(windows.GENERIC_READ|windows.FILE_WRITE_DATA),
-				winio.PipeImpLevelIdentification,
-			)
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			return winio.DialPipe(socketPath, nil)
 		}),
 	)
 	if err != nil {

@@ -158,12 +158,11 @@ type testUpgradeWithoutStoredPasswordSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
-// TestUpgradeWithoutPasswordKeepsProcessManagerEnabled covers upgrading a host first
-// installed with Agent 7.65 or earlier without providing DDAGENTUSER_PASSWORD. Older
-// installers disabled dd-procmgr-service in that case to avoid domain account lockout
-// when the service logged on as the Agent user. With LocalSystem procmgr, the service
-// stays enabled because it no longer uses the Agent account.
-func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKeepsProcessManagerEnabled() {
+// TestUpgradeWithoutPasswordDisablesProcessManager covers the regression where upgrading a host first
+// installed with Agent 7.65 or earlier, without providing DDAGENTUSER_PASSWORD, left dd-procmgr-service
+// failing to log on until the domain account locked out. It must now be disabled instead, and re-enabled
+// once a password is provided again.
+func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordDisablesProcessManager() {
 	host := suite.Env().RemoteHost
 	username := fmt.Sprintf("%s\\%s", TestDomain, TestUser)
 
@@ -190,19 +189,11 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKe
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "upgrade_without_password.log")))
 	suite.Require().NoError(err, "should succeed to upgrade the Agent without providing the password")
 
-	suite.Run("process manager stays enabled as LocalSystem", func() {
+	suite.Run("process manager is disabled", func() {
 		config, err := windowsCommon.GetServiceConfig(host, procmgrServiceName)
 		suite.Require().NoError(err)
-		suite.Assert().Equal(windowsCommon.SERVICE_DEMAND_START, config.StartType,
-			"%s must stay enabled when it runs as LocalSystem", procmgrServiceName)
-
-		account, err := windowsCommon.GetServiceAccountName(host, procmgrServiceName)
-		suite.Require().NoError(err)
-		suite.Assert().Equal("LocalSystem", account,
-			"%s must run as LocalSystem after upgrade", procmgrServiceName)
-
-		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
-			"%s should start without the Agent user password once it runs as LocalSystem", procmgrServiceName)
+		suite.Assert().Equal(windowsCommon.SERVICE_DISABLED, config.StartType,
+			"%s must be disabled when the Agent user password is not available", procmgrServiceName)
 	})
 
 	suite.Run("core Agent is unaffected", func() {
@@ -216,7 +207,7 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKe
 		}, 5*time.Minute, 10*time.Second)
 	})
 
-	suite.Run("providing the password keeps process manager healthy", func() {
+	suite.Run("providing the password re-enables the process manager", func() {
 		_, err := suite.InstallAgent(host,
 			windowsAgent.WithPackage(suite.AgentPackage),
 			windowsAgent.WithAgentUser(username),
@@ -227,7 +218,7 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKe
 		config, err := windowsCommon.GetServiceConfig(host, procmgrServiceName)
 		suite.Require().NoError(err)
 		suite.Assert().Equal(windowsCommon.SERVICE_DEMAND_START, config.StartType,
-			"%s must stay enabled after reinstall with the Agent user password", procmgrServiceName)
+			"%s must be enabled again once the Agent user password is available", procmgrServiceName)
 		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
 			"%s should start once the Agent user password is available", procmgrServiceName)
 	})

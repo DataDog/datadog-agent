@@ -161,12 +161,6 @@ mod tests {
                      {credential:?}"
                 );
             }
-            AgentAccount::ManagedServiceAccountLogon { .. } => {
-                panic!(
-                    "test harness must inherit the supervisor token, not managed service account logon: \
-                     {credential:?}"
-                );
-            }
         }
     }
 

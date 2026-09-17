@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+use anyhow::Result;
+#[cfg(not(test))]
+use anyhow::{Context, bail};
 #[cfg(not(test))]
 use log::info;
 #[cfg(not(test))]
@@ -15,6 +17,7 @@ use windows_sys::Win32::System::Services::{
 };
 
 use super::sid::lookup_account_sid;
+#[cfg(not(test))]
 use super::sid::sid_to_string;
 #[cfg(not(test))]
 use super::wide;
@@ -58,32 +61,11 @@ pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<
     }))
 }
 
-pub(crate) fn installed_agent_user_sid_bytes() -> Result<Vec<u8>> {
-    use super::{open_datadog_agent_key, registry_nonempty_string};
-
-    let Some(key) = open_datadog_agent_key() else {
-        bail!("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent");
-    };
-    let user = registry_nonempty_string(&key, "installedUser")
-        .context("read installedUser from registry")?;
-    let domain = key
-        .get_string("installedDomain")
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-
-    lookup_installed_user_sid(&domain, &user)
-        .with_context(|| format!("lookup SID for {domain}\\{user}"))
-}
-
-pub(crate) fn installed_agent_user_sid_string() -> Result<String> {
-    sid_to_string(&installed_agent_user_sid_bytes()?)
-}
-
 fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
     let mut candidates = vec![(domain.to_string(), user.to_string())];
     if !domain.is_empty() {
         candidates.push((String::new(), format!("{user}@{domain}")));
+        candidates.push((String::new(), user.to_string()));
     }
     candidates
 }
@@ -201,31 +183,15 @@ mod tests {
     }
 
     #[test]
-    fn installed_user_lookup_candidates_include_upn_for_domain_accounts() {
+    fn installed_user_lookup_candidates_include_upn_and_default_domain() {
         let candidates = installed_user_lookup_candidates("datadogqalab.com", "TestUser");
         assert_eq!(
             candidates,
             vec![
                 ("datadogqalab.com".to_string(), "TestUser".to_string()),
                 (String::new(), "TestUser@datadogqalab.com".to_string()),
+                (String::new(), "TestUser".to_string()),
             ]
-        );
-    }
-
-    #[test]
-    fn installed_user_lookup_candidates_do_not_fall_back_to_bare_username_for_domain() {
-        let candidates = installed_user_lookup_candidates("CORP", "ddagentuser");
-        assert!(
-            !candidates.contains(&(String::new(), "ddagentuser".to_string())),
-            "domain installs must not resolve an unrelated local account with the same name"
-        );
-    }
-
-    #[test]
-    fn installed_user_lookup_candidates_for_local_account_use_machine_domain() {
-        assert_eq!(
-            installed_user_lookup_candidates("", "ddagentuser"),
-            vec![(String::new(), "ddagentuser".to_string())]
         );
     }
 }

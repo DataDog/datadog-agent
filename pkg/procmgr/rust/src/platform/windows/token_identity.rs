@@ -7,12 +7,11 @@ use std::ptr;
 #[cfg(test)]
 use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-#[cfg(test)]
-use windows_sys::Win32::Security::LookupAccountSidW;
 use windows_sys::Win32::Security::{
-    EqualSid, GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser,
-    WinLocalSystemSid,
+    EqualSid, GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser,
 };
+#[cfg(test)]
+use windows_sys::Win32::Security::{IsWellKnownSid, LookupAccountSidW, WinLocalSystemSid};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 pub(crate) struct WinHandle(HANDLE);
@@ -40,6 +39,14 @@ impl Drop for WinHandle {
     }
 }
 
+#[cfg(test)]
+use super::local_account::is_local_account;
+#[cfg(test)]
+use super::local_agent_account::AccountName;
+#[cfg(test)]
+use super::wide;
+
+#[cfg(test)]
 pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool> {
     if token.is_null() {
         return Err(std::io::Error::new(
@@ -79,13 +86,6 @@ pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool>
 
     Ok(unsafe { IsWellKnownSid(sid, WinLocalSystemSid) != 0 })
 }
-
-#[cfg(test)]
-use super::local_account::is_local_account;
-#[cfg(test)]
-use super::local_agent_account::AccountName;
-#[cfg(test)]
-use super::wide;
 
 #[cfg(test)]
 pub(crate) fn current_process_account_display() -> std::io::Result<String> {
