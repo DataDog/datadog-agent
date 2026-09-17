@@ -10,7 +10,7 @@ package command
 import "github.com/DataDog/datadog-agent/comp/core/config"
 
 // shouldServeGUIIdentityAPI is always false off Windows: the GUI resolves peer identity in-process
-// (Linux /proc/net/tcp, Darwin sysctl) without process-agent's help, and the /pid/{pid}/sid API only
+// (Linux /proc/net/tcp, Darwin sysctl) without process-agent's help, and the /connection/owner-sid API only
 // exists on Windows (see cmd/process-agent/api/server_other.go). So there is never a reason to keep
 // process-agent alive for the GUI on these platforms.
 func shouldServeGUIIdentityAPI(_ config.Component) bool {

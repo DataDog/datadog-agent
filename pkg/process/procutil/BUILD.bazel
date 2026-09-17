@@ -20,6 +20,7 @@ go_library(
         "process_windows.go",
         "process_windows_toolhelp.go",
         "sid_windows.go",
+        "tcptable_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/procutil",
     visibility = ["//visibility:public"],
@@ -83,6 +84,7 @@ go_library(
             "//pkg/util/winutil",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
             "@com_github_shirou_gopsutil_v4//process",
+            "@org_golang_x_sys//cpu",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
@@ -196,6 +198,21 @@ dd_agent_go_test(
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "tcptable_windows_test",
+    srcs = ["tcptable_windows_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//cpu",
         ],
         "//conditions:default": [],
     }),

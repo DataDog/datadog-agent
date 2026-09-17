@@ -12,6 +12,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// configurePeerIdentityResolution is a no-op on this platform: only Windows's sidForPID (see
-// peeridentity_windows.go) needs the agent-wide IPC client and config to call process-agent.
+// configurePeerIdentityResolution is a no-op on this platform: only Windows's resolveConnectionOwnerSID
+// (see peeridentity_windows.go) needs the agent-wide IPC client and config to call process-agent.
 func configurePeerIdentityResolution(_ ipc.Component, _ pkgconfigmodel.Reader) {}

@@ -11,5 +11,5 @@ import "net/http"
 
 // registerPlatformHandlers registers process-agent routes that exist only on this platform.
 func registerPlatformHandlers(_ APIServerDeps, r *http.ServeMux) {
-	r.HandleFunc("GET /pid/{pid}/sid", sidForPIDHandler)
+	r.HandleFunc("GET /connection/owner-sid", connectionOwnerSIDHandler)
 }

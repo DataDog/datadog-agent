@@ -5,7 +5,7 @@ go_library(
     name = "api",
     srcs = [
         "check.go",
-        "pid_windows.go",
+        "connection_windows.go",
         "secrets.go",
         "server.go",
         "server_other.go",
@@ -41,11 +41,12 @@ go_library(
 
 dd_agent_go_test(
     name = "api_test",
-    srcs = ["pid_windows_test.go"],
+    srcs = ["connection_windows_test.go"],
     embed = [":api"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/process/procutil",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",

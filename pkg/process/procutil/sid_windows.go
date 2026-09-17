@@ -8,13 +8,25 @@
 package procutil
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
+
+// ErrConnectionOwnerNotFound means no process currently owns the queried TCP connection. Callers should
+// treat it as "not found" (e.g. HTTP 404), not as an internal error.
+var ErrConnectionOwnerNotFound = errors.New("no process owns the connection")
+
+// ErrConnectionOwnerChanged means the connection's owning PID changed between the two table reads that
+// bracket GetSIDForConnectionOwner's process-handle open — i.e. the original owner exited (tearing down
+// its connection) and the PID may have been reused. The lookup is rejected rather than trusting a
+// possibly-unrelated process's identity. Callers should treat it as "not found" too.
+var ErrConnectionOwnerChanged = errors.New("connection owner changed during resolution (possible PID reuse)")
 
 var procAdjustTokenPrivileges = windows.NewLazySystemDLL("advapi32.dll").NewProc("AdjustTokenPrivileges")
 
@@ -82,34 +94,107 @@ func adjustTokenPrivileges(token windows.Token, tp *windows.Tokenprivileges) err
 	return nil
 }
 
-// GetSIDForPID returns the Windows SID string of the process owning pid (e.g. "S-1-5-21-...-1001"), resolved using this process's own token privileges. It is meant to be called from process-agent, which runs as LocalSystem, so OpenProcessToken below succeeds even when pid belongs to a different, lower-privileged user — letting other, lower-privileged agent processes ask process-agent for a PID's owner instead of needing that broad privilege granted to them directly.
-func GetSIDForPID(pid int32) (string, error) {
-	if err := enableDebugPrivilege(); err != nil {
-		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
-	}
-
-	// OpenProcessHandle can return a valid handle alongside a non-nil error: its own internal
-	// second OpenProcess call (an unrelated PROCESS_VM_READ upgrade attempt) may fail even though
-	// the first, already-successful PROCESS_QUERY_LIMITED_INFORMATION handle is all this function
-	// needs for the OpenProcessToken(..., TOKEN_QUERY, ...) call below. Only a zero handle means
-	// no usable handle was obtained at all.
-	h, _, err := OpenProcessHandle(pid)
-	if h != 0 {
-		defer windows.Close(h)
-	} else {
-		return "", fmt.Errorf("failed to open process %d: %w", pid, err)
-	}
-
+// sidFromProcessHandle reads the owning user's SID string (e.g. "S-1-5-21-...-1001") from an already-open
+// process handle. The handle must grant at least PROCESS_QUERY_LIMITED_INFORMATION (as OpenProcessHandle
+// returns), which is enough to open the process token for TOKEN_QUERY.
+func sidFromProcessHandle(h windows.Handle) (string, error) {
 	var token windows.Token
 	if err := windows.OpenProcessToken(h, windows.TOKEN_QUERY, &token); err != nil {
-		return "", fmt.Errorf("failed to open process token for pid %d: %w", pid, err)
+		return "", fmt.Errorf("failed to open process token: %w", err)
 	}
 	defer token.Close()
 
 	tokenUser, err := token.GetTokenUser()
 	if err != nil {
-		return "", fmt.Errorf("failed to get token user for pid %d: %w", pid, err)
+		return "", fmt.Errorf("failed to get token user: %w", err)
 	}
 
 	return tokenUser.User.Sid.String(), nil
+}
+
+// openProcessHandleForSID opens a handle to pid suitable for reading its token SID. OpenProcessHandle can
+// return a valid handle alongside a non-nil error: its own internal second OpenProcess call (an unrelated
+// PROCESS_VM_READ upgrade attempt) may fail even though the first, already-successful
+// PROCESS_QUERY_LIMITED_INFORMATION handle is all this function needs. Only a zero handle means no usable
+// handle was obtained at all.
+func openProcessHandleForSID(pid uint32) (windows.Handle, error) {
+	h, _, err := OpenProcessHandle(int32(pid))
+	if h == 0 {
+		return 0, fmt.Errorf("failed to open process %d: %w", pid, err)
+	}
+	return h, nil
+}
+
+// GetSIDForPID returns the Windows SID string of the process owning pid, resolved using this process's own
+// token privileges. It is meant to be called from process-agent, which runs as LocalSystem, so the token
+// read succeeds even when pid belongs to a different, lower-privileged user. It performs no validation that
+// pid still identifies the process the caller expected: a PID is not a stable identifier, so callers
+// resolving the owner of a network connection must use GetSIDForConnectionOwner, which guards against PID
+// reuse, rather than resolving a PID themselves and passing it here.
+func GetSIDForPID(pid int32) (string, error) {
+	if err := enableDebugPrivilege(); err != nil {
+		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
+	}
+
+	h, err := openProcessHandleForSID(uint32(pid))
+	if err != nil {
+		return "", err
+	}
+	defer windows.Close(h)
+
+	sid, err := sidFromProcessHandle(h)
+	if err != nil {
+		return "", fmt.Errorf("%w (pid %d)", err, pid)
+	}
+	return sid, nil
+}
+
+// GetSIDForConnectionOwner returns the SID of the process owning the loopback TCP connection whose local
+// endpoint is localAddr:localPort and whose remote endpoint is remoteAddr:remotePort (family is
+// windows.AF_INET or windows.AF_INET6). It resolves the owner race-free against PID reuse:
+//
+//  1. read the TCP table to find the owning PID;
+//  2. open a handle to that PID — Windows will not recycle a PID while any handle to its process object
+//     remains open, so holding this handle pins the identity for the rest of the call;
+//  3. re-read the TCP table and confirm the connection still maps to the same PID. If the original owner
+//     had exited between steps 1 and 2 its connection would be gone (TCP tears down when the owner dies)
+//     and the PID could have been reused, so a mismatch here is rejected rather than trusted;
+//  4. read the SID from the handle opened in step 2.
+//
+// This is the entry point callers must use to attribute a connection to an OS identity; see GetSIDForPID's
+// note on why passing a separately-resolved PID is unsafe.
+func GetSIDForConnectionOwner(family uint32, localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int) (string, error) {
+	if err := enableDebugPrivilege(); err != nil {
+		return "", fmt.Errorf("failed to enable SeDebugPrivilege: %w", err)
+	}
+
+	pid, ok, err := findConnectionOwnerPID(family, localAddr, localPort, remoteAddr, remotePort)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", ErrConnectionOwnerNotFound
+	}
+
+	h, err := openProcessHandleForSID(pid)
+	if err != nil {
+		return "", err
+	}
+	defer windows.Close(h)
+
+	// Re-validate with the handle held (see step 3 above). enableDebugPrivilege already succeeded, so this
+	// second read uses the same privileges as the first.
+	pid2, ok2, err := findConnectionOwnerPID(family, localAddr, localPort, remoteAddr, remotePort)
+	if err != nil {
+		return "", err
+	}
+	if !ok2 || pid2 != pid {
+		return "", ErrConnectionOwnerChanged
+	}
+
+	sid, err := sidFromProcessHandle(h)
+	if err != nil {
+		return "", fmt.Errorf("%w (pid %d)", err, pid)
+	}
+	return sid, nil
 }
