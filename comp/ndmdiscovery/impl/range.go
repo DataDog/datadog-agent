@@ -16,9 +16,6 @@ import (
 
 // Defaults applied when a range leaves a field unset.
 const (
-	defaultSNMPPort       = 161
-	defaultSNMPTimeoutMs  = 2000
-	defaultSNMPRetries    = 1
 	defaultPingCount      = 1
 	defaultPingIntervalMs = 1000
 	defaultPingTimeoutMs  = 1000
@@ -28,8 +25,6 @@ const (
 // Upper bounds on the per-probe knobs, generous enough that only a
 // misconfigured range hits them.
 const (
-	maxSNMPTimeoutMs  = 60_000
-	maxSNMPRetries    = 10
 	maxPingCount      = 10
 	maxPingIntervalMs = 60_000
 	maxPingTimeoutMs  = 60_000
