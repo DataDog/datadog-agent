@@ -22,33 +22,22 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// resolveOwnerSIDTimeout bounds the call to process-agent: it caps how long a stalled or overloaded
-// process-agent can delay minting or redeeming. A var, not a const, so tests can shrink it instead of
-// waiting out the real duration.
+// resolveOwnerSIDTimeout caps how long a stalled process-agent can delay minting/redeeming; a var so tests can shrink it.
 var resolveOwnerSIDTimeout = 2 * time.Second
 
 var (
-	// processAgentIPC and processAgentConfig back resolveConnectionOwnerSID below, which asks process-agent
-	// to resolve a loopback connection's owning SID instead of opening the process's token directly. Set
-	// once by configurePeerIdentityResolution, called from NewComponent before the GUI's HTTP listener
-	// starts, so no synchronization is needed between that write and the later reads.
+	// processAgentIPC/processAgentConfig back resolveConnectionOwnerSID; set once by configurePeerIdentityResolution before the listener starts, so no sync needed.
 	processAgentIPC    ipc.Component
 	processAgentConfig pkgconfigmodel.Reader
 )
 
-// configurePeerIdentityResolution records the agent-wide IPC client and config that resolveConnectionOwnerSID needs to call process-agent.
+// configurePeerIdentityResolution records the IPC client and config resolveConnectionOwnerSID needs to call process-agent.
 func configurePeerIdentityResolution(ipcComp ipc.Component, cfg pkgconfigmodel.Reader) {
 	processAgentIPC = ipcComp
 	processAgentConfig = cfg
 }
 
-// lookupLoopbackPeerIdentity resolves the SID owning the loopback TCP connection by asking process-agent,
-// which runs as LocalSystem, to attribute the connection to a process and read its token SID. The
-// connection's own 4-tuple is sent — not a PID this process resolved itself — because a PID is not a stable
-// identifier: resolving it in process-agent, where the owning handle is held and ownership is re-validated,
-// is what closes the PID-reuse race (see pkg/process/procutil.GetSIDForConnectionOwner). serverAddr/
-// serverPort are the GUI listener's endpoint; peerAddr/peerPort are the connecting caller's, i.e. the local
-// endpoint of the peer's own socket.
+// lookupLoopbackPeerIdentity asks process-agent (LocalSystem) to attribute the loopback connection's 4-tuple to a process and read its token SID; sending the 4-tuple (not a PID) closes the PID-reuse race (see pkg/process/procutil.GetSIDForConnectionOwner). serverAddr/serverPort is the GUI listener; peerAddr/peerPort is the caller.
 func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, peerAddr net.IP) (peerIdentity, error) {
 	family := "6"
 	if peerAddr.To4() != nil {
@@ -57,17 +46,12 @@ func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, pee
 	return resolveConnectionOwnerSID(family, peerAddr, peerPort, serverAddr, serverPort)
 }
 
-// elevatedMintIdentity is unreachable here: peerIdentity is a Windows SID string, never a plain "0" (see rootIdentity), so mintTimeIdentity's root check never triggers on this platform.
+// elevatedMintIdentity is effectively unreachable here: peerIdentity is a SID string, never "0", so mintTimeIdentity's root check never fires on Windows.
 func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }
 
-// resolveConnectionOwnerSID asks process-agent for the SID owning the loopback connection whose local
-// endpoint is localAddr:localPort and whose remote endpoint is remoteAddr:remotePort, over the agent-wide
-// IPC mTLS client. process-agent runs as LocalSystem (which already holds SeDebugPrivilege by default) and
-// exposes GET /connection/owner-sid for exactly this lookup (see pkg/process/procutil.GetSIDForConnectionOwner
-// and cmd/process-agent/api/connection_windows.go), so ddagentuser no longer needs SeDebugPrivilege granted
-// to it directly.
+// resolveConnectionOwnerSID asks process-agent (LocalSystem, which holds SeDebugPrivilege) for the SID owning the loopback connection via GET /connection/owner-sid over the IPC mTLS client, so ddagentuser needs no SeDebugPrivilege (see cmd/process-agent/api/connection_windows.go).
 func resolveConnectionOwnerSID(family string, localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int) (peerIdentity, error) {
 	if processAgentIPC == nil || processAgentConfig == nil {
 		return "", errors.New("peer identity resolution is not configured")

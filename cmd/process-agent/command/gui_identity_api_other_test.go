@@ -16,8 +16,7 @@ import (
 )
 
 func TestShouldServeGUIIdentityAPI_Other(t *testing.T) {
-	// Off Windows the GUI resolves peer identity in-process, so process-agent is never kept alive
-	// for it — even with the GUI enabled.
+	// Off Windows the GUI resolves peer identity in-process, so process-agent is never kept alive for it, even when the GUI is enabled.
 	t.Run("GUI enabled still returns false", func(t *testing.T) {
 		cfg := config.NewMockWithOverrides(t, map[string]interface{}{"GUI_port": 5002})
 		assert.False(t, shouldServeGUIIdentityAPI(cfg))

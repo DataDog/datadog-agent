@@ -19,20 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// getSIDForConnectionOwner is a var (not a direct call) so tests can stub the lookup without a real
-// Windows connection.
+// getSIDForConnectionOwner is a var so tests can stub the lookup without a real Windows connection.
 var getSIDForConnectionOwner = procutil.GetSIDForConnectionOwner
 
-// connectionOwnerSIDHandler returns the Windows SID of the process owning the loopback TCP connection
-// described by the query parameters, as plain text. Callers pass the connection's 4-tuple rather than a
-// pre-resolved PID: a PID is not a stable identifier, and resolving it here — where the owning handle is
-// held and the ownership is re-validated (see procutil.GetSIDForConnectionOwner) — is what closes the
-// PID-reuse race between a caller reading the TCP table and this lookup. This lets lower-privileged agent
-// processes (e.g. the GUI, running as ddagentuser) resolve a peer's owning identity by asking
-// process-agent, which runs as LocalSystem, instead of being granted that broad user right themselves.
-//
-// Query parameters (all required): family (4 or 6), laddr/lport (the peer's local endpoint),
-// raddr/rport (the GUI server endpoint the peer connected to).
+// connectionOwnerSIDHandler returns the SID owning the loopback TCP 4-tuple (family, laddr/lport, raddr/rport, all required) as plain text; taking the 4-tuple and re-validating ownership here closes the PID-reuse race and lets low-privilege agents (GUI as ddagentuser) resolve a peer's identity via process-agent (LocalSystem).
 func connectionOwnerSIDHandler(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 

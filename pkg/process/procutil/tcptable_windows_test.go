@@ -61,7 +61,7 @@ func v6Row(localPort, remotePort uint16, localAddr, remoteAddr net.IP, pid uint3
 	return row
 }
 
-// buildV4Table lays out rows exactly as GetExtendedTcpTable(AF_INET) would: a 4-byte entry count followed by that many mibTCPRowOwnerPID records.
+// buildV4Table lays out rows as GetExtendedTcpTable(AF_INET) would: a 4-byte count followed by that many mibTCPRowOwnerPID records.
 func buildV4Table(rows []mibTCPRowOwnerPID) []byte {
 	size := int(unsafe.Sizeof(mibTCPTableOwnerPID{}))
 	if extra := len(rows) - 1; extra > 0 {
@@ -102,7 +102,7 @@ func TestAddrFromV4Field(t *testing.T) {
 }
 
 func TestAddrFromV4Field_LiteralOracle(t *testing.T) {
-	// Unlike the subtest above, this literal is an independent oracle, not produced by addrToV4Field, so a symmetric bug shared by both can't hide a real decoding bug; 127.0.0.1 is 0x0100007F little-endian, matching both of Windows's supported architectures (amd64, arm64).
+	// This literal is an independent oracle (127.0.0.1 == 0x0100007F little-endian) so a symmetric bug can't hide a real decoding bug.
 	if cpu.IsBigEndian {
 		t.Skip("this literal is little-endian-specific; Windows has no supported big-endian architecture")
 	}
@@ -134,7 +134,7 @@ func TestFindPIDInV4Table(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across distinct server addresses", func(t *testing.T) {
-		// Regression test: matching on ports and client address alone isn't enough; only the row actually made to remoteAddr (127.0.0.1 vs .2) must match.
+		// Regression test: ports and client address alone aren't enough; only the row with the matching remoteAddr must match.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		buf := buildV4Table([]mibTCPRowOwnerPID{
 			v4Row(8080, 80, loopbackV4, loopbackV4, 4000),
@@ -177,7 +177,7 @@ func TestFindPIDInV6Table(t *testing.T) {
 }
 
 func TestFindPID_DoesNotConfuseAddressFamilies(t *testing.T) {
-	// Regression test: each finder must reject rows whose address family doesn't match, even though findConnectionOwnerPID already routes to the table matching the requested family in practice.
+	// Regression test: each finder must reject rows whose address family doesn't match.
 	v4Buf := buildV4Table([]mibTCPRowOwnerPID{v4Row(8080, 80, loopbackV4, loopbackV4, 4000)})
 	v6Buf := buildV6Table([]mibTCP6RowOwnerPID{v6Row(8080, 80, loopbackV6, loopbackV6, 6000)})
 

@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
-// procNetTCPHeader is the header line every /proc/net/tcp{,6} file starts with; searchProcNetTCP discards it unconditionally.
+// procNetTCPHeader is the header line every /proc/net/tcp{,6} starts with; searchProcNetTCP discards it.
 const procNetTCPHeader = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
 
 var (
@@ -36,7 +36,7 @@ func writeFixture(t *testing.T, contents string) string {
 	return path
 }
 
-// encodeProcNetAddr encodes ip the way /proc/net/tcp{,6} does (32-bit words in the host's native byte order); the inverse of hexAddrPort's decoding, used to build fixtures instead of hand-computing hex strings. Like hexAddrPort it swaps each word only on little-endian hosts, so fixtures are correct on big-endian ones (e.g. s390x) too.
+// encodeProcNetAddr encodes ip like /proc/net/tcp{,6} does (32-bit words in host byte order, swapped only on little-endian hosts); inverse of hexAddrPort, used to build fixtures.
 func encodeProcNetAddr(ip net.IP) string {
 	raw := []byte(ip.To4())
 	if raw == nil {
@@ -53,7 +53,7 @@ func encodeProcNetAddr(ip net.IP) string {
 	return strings.ToUpper(hex.EncodeToString(buf))
 }
 
-// procNetTCPLine fabricates a well-formed /proc/net/tcp{,6} row for a connection between localAddr:localPort and remoteAddr:remotePort, owned by uid.
+// procNetTCPLine fabricates a well-formed /proc/net/tcp{,6} row for localAddr:localPort to remoteAddr:remotePort, owned by uid.
 func procNetTCPLine(localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int, uid int) string {
 	return fmt.Sprintf("   0: %s:%04X %s:%04X 01 00000000:00000000 00:00000000 00000000  %d        0 12345 1 0000000000000000 20 4 30 10 -1\n",
 		encodeProcNetAddr(localAddr), localPort, encodeProcNetAddr(remoteAddr), remotePort, uid)
@@ -68,7 +68,7 @@ func TestHexAddrPort(t *testing.T) {
 	})
 
 	t.Run("valid IPv4 address:port, against a literal computed independently of encodeProcNetAddr", func(t *testing.T) {
-		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug; "0100007F" is 127.0.0.1's native-order encoding on little-endian hosts only.
+		// An independent oracle (not from encodeProcNetAddr) so a shared symmetric bug can't hide a decoding bug; "0100007F" is 127.0.0.1's little-endian encoding.
 		if cpu.IsBigEndian {
 			t.Skip("this literal is little-endian-specific; the encodeProcNetAddr-based subtests cover big-endian")
 		}
@@ -86,7 +86,7 @@ func TestHexAddrPort(t *testing.T) {
 	})
 
 	t.Run("valid IPv6 address:port, against a literal computed independently of encodeProcNetAddr", func(t *testing.T) {
-		// Unlike the subtest above, this hex string is an independent oracle, not produced by encodeProcNetAddr, so a symmetric bug shared by both can't hide a real decoding bug; the literal is ::1's native-order encoding on little-endian hosts only.
+		// An independent oracle (not from encodeProcNetAddr) so a shared symmetric bug can't hide a decoding bug; the literal is ::1's little-endian encoding.
 		if cpu.IsBigEndian {
 			t.Skip("this literal is little-endian-specific; the encodeProcNetAddr-based subtests cover big-endian")
 		}
@@ -170,7 +170,7 @@ func TestLookupLoopbackPeerIdentity(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across address families", func(t *testing.T) {
-		// Regression test: a naive port-only match would return whichever row is found first, regardless of address family.
+		// Regression: a port-only match would return whichever row is found first, regardless of address family.
 		tcp4 := writeFixture(t, procNetTCPHeader+"\n"+procNetTCPLine(loopbackV4, 8080, loopbackV4, 80, 4000))
 		tcp6 := writeFixture(t, procNetTCPHeader+"\n"+procNetTCPLine(loopbackV6, 8080, loopbackV6, 80, 6000))
 		procNetTCPFiles = []string{tcp4, tcp6}
@@ -185,7 +185,7 @@ func TestLookupLoopbackPeerIdentity(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across distinct server addresses", func(t *testing.T) {
-		// Regression test: matching on ports and client address alone isn't enough; only the row actually made to serverAddr (127.0.0.1 vs .2) must match.
+		// Regression: ports and client address alone aren't enough; only the row made to serverAddr (127.0.0.1 vs .2) must match.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		path := writeFixture(t, procNetTCPHeader+"\n"+
 			procNetTCPLine(loopbackV4, 8080, loopbackV4, 80, 4000)+

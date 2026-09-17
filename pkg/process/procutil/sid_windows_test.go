@@ -17,23 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetSIDForPID_CurrentProcess exercises GetSIDForPID against a real, currently
-// running process (this test binary itself). This package has no precedent for
-// mocking Windows syscalls (OpenProcessHandle/GetUsernameForProcess are untested
-// today for the same reason), so - matching TestWindowsProbe in
-// process_windows_test.go - this asserts against the real OS instead.
+// TestGetSIDForPID_CurrentProcess exercises GetSIDForPID against the real running test binary, since this package doesn't mock Windows syscalls.
 func TestGetSIDForPID_CurrentProcess(t *testing.T) {
 	sid, err := GetSIDForPID(int32(os.Getpid()))
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(sid, "S-1-"), "expected a well-formed Windows SID, got %q", sid)
 }
 
-// TestGetSIDForPID_NonexistentPID spawns and waits for a trivial child process to
-// obtain a PID that is guaranteed to no longer be running, then asserts
-// GetSIDForPID surfaces an error for it. The exact Win32 error code for a
-// reused/nonexistent PID can vary slightly by Windows version, so this only
-// asserts that an error is returned, not its classification (that classification
-// is exercised against a stub in cmd/process-agent/api/pid_windows_test.go).
+// TestGetSIDForPID_NonexistentPID asserts GetSIDForPID errors on a PID guaranteed gone (only that it errors, not the exact code, which varies by Windows version).
 func TestGetSIDForPID_NonexistentPID(t *testing.T) {
 	cmd := exec.Command("cmd.exe", "/c", "exit", "0")
 	require.NoError(t, cmd.Start())

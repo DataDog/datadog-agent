@@ -12,13 +12,13 @@ import (
 	"strconv"
 )
 
-// peerIdentity identifies the OS user (UID on Unix, SID on Windows) owning one end of a loopback TCP connection; empty means unconstrained (matches anything).
+// peerIdentity is the OS user (UID on Unix, SID on Windows) owning a loopback TCP connection end; empty means unconstrained.
 type peerIdentity string
 
-// rootIdentity is Unix root (UID 0); Windows SIDs are never a plain "0", so this constant is safe to compare against on every platform.
+// rootIdentity is Unix root (UID 0); Windows SIDs are never a plain "0", so it's safe to compare on every platform.
 const rootIdentity peerIdentity = "0"
 
-// mintTimeIdentity re-resolves a root mint-time identity per-platform (see elevatedMintIdentity), since sudo/elevated launches are sometimes redeemed by a different, unelevated identity.
+// mintTimeIdentity re-resolves a root mint-time identity per-platform (see elevatedMintIdentity), as elevated launches may redeem under a different identity.
 func mintTimeIdentity(resolved peerIdentity) peerIdentity {
 	if resolved == rootIdentity {
 		return elevatedMintIdentity()
@@ -26,12 +26,12 @@ func mintTimeIdentity(resolved peerIdentity) peerIdentity {
 	return resolved
 }
 
-// resolvePeerIdentity returns the OS identity of the peer on the other end of the loopback connection identified by serverAddr/remoteAddr, both derived by net/http from the accepted socket and so never client-spoofable.
+// resolvePeerIdentity returns the OS identity of the loopback peer for serverAddr/remoteAddr, both derived by net/http from the accepted socket and so not client-spoofable.
 func resolvePeerIdentity(serverAddr net.Addr, remoteAddr string) (peerIdentity, error) {
 	if serverAddr == nil {
 		return "", errors.New("server address unavailable")
 	}
-	// A Unix domain socket serverAddr won't parse as host:port; that falls back to the pre-existing TTL/single-use protection too.
+	// A Unix domain socket serverAddr won't parse as host:port, falling back to the pre-existing TTL/single-use protection.
 	serverHost, serverPortStr, err := net.SplitHostPort(serverAddr.String())
 	if err != nil {
 		return "", fmt.Errorf("malformed server address %q: %w", serverAddr, err)
@@ -45,7 +45,7 @@ func resolvePeerIdentity(serverAddr net.Addr, remoteAddr string) (peerIdentity, 
 		return "", fmt.Errorf("malformed server port %q: %w", serverPortStr, err)
 	}
 
-	// A Unix domain socket or vsock (e.g. "host(2):1234") remoteAddr is rejected the same way, falling back to the pre-existing TTL/single-use protection.
+	// A Unix domain socket or vsock remoteAddr is rejected the same way, falling back to the pre-existing TTL/single-use protection.
 	host, portStr, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
 		return "", fmt.Errorf("malformed remote address %q: %w", remoteAddr, err)

@@ -232,16 +232,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			if processAgent.Enabled() || collector.Enabled(cfg) {
 				return nil
 			}
-			// process-agent has no checks or process collection to run, so it would normally
-			// report itself disabled and exit. On Windows, though, the GUI runs inside the core
-			// agent as the lower-privileged ddagentuser, which cannot open other processes' tokens
-			// to resolve the OS identity it binds intent tokens to (CWE-214, see
-			// comp/core/gui/impl/peeridentity_windows.go). It delegates that lookup to process-agent's
-			// /connection/owner-sid API, which runs as LocalSystem. If process-agent exits here that API is
-			// gone, GUI token minting fails open, and the vulnerability resurfaces. So keep
-			// process-agent alive to serve the API whenever the GUI needs it, even with no checks of
-			// its own to run — returning nil lets fx run the apiserver's OnStart hook and the process
-			// falls through to the exit-signal wait below instead of shutting down.
+			// No checks/collection to run, but on Windows keep process-agent alive to serve the GUI's peer-identity API (/connection/owner-sid, LocalSystem); exiting would make GUI token minting fail open (CWE-214). Returning nil starts the apiserver and falls through to the exit-signal wait.
 			if shouldServeGUIIdentityAPI(cfg) {
 				log.Info("process-agent has no checks enabled but is staying alive to serve the peer-identity API required by the GUI")
 				return nil

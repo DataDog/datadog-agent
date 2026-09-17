@@ -19,10 +19,10 @@ import (
 	"golang.org/x/sys/cpu"
 )
 
-// procNetTCPFiles are the kernel-exposed tables consulted to resolve the OS UID owning a loopback TCP connection; a var so tests can point it at fixture files instead of the real /proc.
+// procNetTCPFiles are the kernel tables giving the UID owning a loopback TCP connection; a var so tests can point it at fixtures.
 var procNetTCPFiles = []string{"/proc/net/tcp", "/proc/net/tcp6"}
 
-// lookupLoopbackPeerIdentity finds the UID owning the loopback TCP connection by reading /proc/net/tcp{,6}, which expose the owning UID directly (column 8) and are world-readable, so no PID resolution step is needed.
+// lookupLoopbackPeerIdentity finds the UID owning the loopback TCP connection by reading /proc/net/tcp{,6}, which expose the UID directly (column 8) so no PID resolution is needed.
 func lookupLoopbackPeerIdentity(serverAddr net.IP, serverPort, peerPort int, peerAddr net.IP) (peerIdentity, error) {
 	for _, path := range procNetTCPFiles {
 		id, found, err := searchProcNetTCP(path, serverAddr, serverPort, peerPort, peerAddr)
@@ -62,7 +62,7 @@ func searchProcNetTCP(path string, serverAddr net.IP, serverPort, peerPort int, 
 		if err != nil {
 			continue
 		}
-		// Matching on ports alone isn't enough: two loopback connections can share a port pair across address families (e.g. 127.0.0.1 vs ::1), misattributing an unrelated connection's UID.
+		// Ports alone aren't enough: two loopback connections can share a port pair across address families, misattributing the UID.
 		if localPort != peerPort || remotePort != serverPort || !localAddr.Equal(peerAddr) || !remoteAddr.Equal(serverAddr) {
 			continue
 		}
@@ -75,12 +75,12 @@ func searchProcNetTCP(path string, serverAddr net.IP, serverPort, peerPort int, 
 	return "", false, scanner.Err()
 }
 
-// elevatedMintIdentity binds directly to root here: a sudo-launched xdg-open can't reach the desktop session to hand a URL to a different user's browser, so mint and redeem stay consistently root on the rare occasion it runs at all.
+// elevatedMintIdentity stays root here: a sudo-launched xdg-open can't reach the desktop session, so mint and redeem stay consistently root.
 func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }
 
-// hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}, whose address is one (IPv4) or four (IPv6) 32-bit words printed in the host's native byte order. On a little-endian host each word is therefore byte-reversed relative to network order (e.g. loopback 127.0.0.1 is "0100007F") and must be swapped back; on a big-endian host (e.g. s390x) it is already in network order and must be left as-is, otherwise 127.0.0.1 would decode to 1.0.0.127 and never match.
+// hexAddrPort decodes a "<hex address>:<hex port>" field from /proc/net/tcp{,6}; the address is 32-bit words in host byte order, so each word is byte-swapped on little-endian hosts and left as-is on big-endian ones (else 127.0.0.1 would decode to 1.0.0.127).
 func hexAddrPort(field string) (net.IP, int, error) {
 	idx := strings.LastIndexByte(field, ':')
 	if idx < 0 {

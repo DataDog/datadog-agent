@@ -20,13 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupPeerIdentityResolutionForTest wires up whatever this platform's lookupLoopbackPeerIdentity needs
-// to resolve a real loopback connection to a real, non-empty identity. No-op by default, since most
-// platforms resolve directly via syscalls with nothing to configure; overridden by init() in
-// peeridentity_windows_test.go, where sidForPID requires a configured process-agent IPC client.
+// setupPeerIdentityResolutionForTest configures what this platform's lookupLoopbackPeerIdentity needs to resolve a real identity; no-op by default, overridden by peeridentity_windows_test.go's init() where sidForPID needs a process-agent IPC client.
 var setupPeerIdentityResolutionForTest = func(_ *testing.T) {}
 
-// Test_intentToken_peerIdentity exercises peer-identity binding through real loopback TCP connections (unlike httptest.NewRequest's synthetic RemoteAddr), so mint/redeem go through the real, platform-specific lookupLoopbackPeerIdentity; restricted to platforms that implement it, since the peeridentity_noop.go fallback (e.g. AIX) always returns an empty identity by design.
+// Test_intentToken_peerIdentity exercises peer-identity binding over real loopback TCP so mint/redeem hit the real platform lookupLoopbackPeerIdentity; limited to platforms that implement it, as the peeridentity_noop.go fallback always returns an empty identity.
 func Test_intentToken_peerIdentity(t *testing.T) {
 	setupPeerIdentityResolutionForTest(t)
 
@@ -68,7 +65,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	t.Run("same OS identity: mint then redeem succeeds", func(t *testing.T) {
 		token, record := mintToken(t)
 		if os.Getuid() == 0 {
-			// elevatedMintIdentity's resolution is platform-specific (see its per-OS implementations); cross-check against it directly rather than assuming a single fixed outcome for root.
+			// elevatedMintIdentity is platform-specific, so cross-check against it directly rather than assuming a fixed root outcome.
 			assert.Equal(t, mintTimeIdentity(rootIdentity), record.identity, "root's mint-time identity should match this platform's elevatedMintIdentity")
 		} else {
 			require.NotEmpty(t, record.identity, "a real loopback connection from this same process should resolve to a real OS identity")
@@ -81,7 +78,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 	})
 
 	t.Run("mismatched OS identity: redeem is rejected", func(t *testing.T) {
-		// The identity is forced directly so this test is independent of the test process's own OS identity (see mintTimeIdentity).
+		// Force the identity directly so this test is independent of the test process's own OS identity.
 		token, record := mintToken(t)
 		record.identity = "not-the-real-identity"
 		g.intentMu.Lock()
@@ -102,7 +99,7 @@ func Test_intentToken_peerIdentity(t *testing.T) {
 		g.intentTokens[token] = record
 		g.intentMu.Unlock()
 
-		// Bypass the real listener: a synthetic, non-loopback request simulates redeem-time resolution failing despite a real identity bound at mint time.
+		// Bypass the real listener: a synthetic non-loopback request simulates redeem-time resolution failing despite an identity bound at mint time.
 		req := httptest.NewRequest(http.MethodGet, "/auth?intent="+token, nil)
 		rr := httptest.NewRecorder()
 		g.getAccessToken(rr, req)

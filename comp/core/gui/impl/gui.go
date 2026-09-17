@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// intentTokenTTL bounds how long a single-use intent token stays valid, limiting exposure from leaking via a child process's argv; redemption is also bound to the minting OS identity (see intentTokenRecord).
+// intentTokenTTL bounds a single-use intent token's validity, limiting argv-leak exposure; redemption is also bound to the minting OS identity (see intentTokenRecord).
 const intentTokenTTL = 30 * time.Second
 
 // intentTokenRecord tracks a single-use intent token's expiration and the minting caller's OS identity.
@@ -204,7 +204,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bind the token to the caller's OS identity; fail open to an unconstrained token on resolution failure, since this endpoint already requires bearer auth. On Windows this resolution now depends on process-agent being reachable over IPC (see peeridentity_windows.go), so a failure here is logged at error level: it is more likely to be an operational issue (process-agent down or unreachable) worth surfacing than the rarer direct-syscall failures this used to be the only source of.
+	// Bind the token to the caller's OS identity; fail open to an unconstrained token on resolution failure since this endpoint already requires bearer auth. Logged at error level because on Windows this now depends on process-agent being reachable over IPC (see peeridentity_windows.go).
 	localAddr, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
 	identity, err := resolvePeerIdentity(localAddr, r.RemoteAddr)
 	if err != nil {

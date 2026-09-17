@@ -24,14 +24,7 @@ var (
 )
 
 func init() {
-	// elevatedMintIdentity remaps a root mint-time identity to whoever owns /dev/console (see
-	// peeridentity_darwin.go); without this, Test_intentToken_peerIdentity's "same OS identity" subtest
-	// would bind to whatever real, uncontrolled UID actually owns the console on the machine running the
-	// test, then fail redemption from the literal root test process whenever that's a different,
-	// non-root user (e.g. running `sudo go test` on a Mac with someone logged into the GUI). Pointing
-	// consoleDevicePath at a fixture this test creates itself keeps the resolved UID deterministic: as
-	// root, the fixture it creates is root-owned too, so elevatedMintIdentity resolves to "" (unconstrained)
-	// and the existing 302 assertion holds regardless of who's actually logged into the real console.
+	// elevatedMintIdentity remaps a root mint to /dev/console's owner; pointing consoleDevicePath at a self-created (root-owned) fixture keeps the resolved UID deterministic (""), so the test doesn't depend on who's logged into the real console.
 	setupPeerIdentityResolutionForTest = func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "console")
 		require.NoError(t, os.WriteFile(path, nil, 0o644))
@@ -41,14 +34,14 @@ func init() {
 	}
 }
 
-// buildHeaderRecord fabricates the leading xinpgen header record; findUIDInPCBList only cares about its self-declared length, not its content.
+// buildHeaderRecord fabricates the leading xinpgen header record; only its self-declared length matters to findUIDInPCBList.
 func buildHeaderRecord(size int) []byte {
 	rec := make([]byte, size)
 	binary.LittleEndian.PutUint32(rec, uint32(size))
 	return rec
 }
 
-// buildPCBRecord fabricates a well-formed xtcpcb64 record with the given ports, addresses, and owning UID at their real, SDK-derived offsets.
+// buildPCBRecord fabricates a well-formed xtcpcb64 record with the given ports, addresses, and UID at their SDK-derived offsets.
 func buildPCBRecord(localPort, remotePort uint16, localAddr, remoteAddr net.IP, uid uint32) []byte {
 	rec := make([]byte, xtcpcb64RecordSize)
 	binary.LittleEndian.PutUint32(rec, uint32(xtcpcb64RecordSize))
@@ -72,13 +65,13 @@ func buildPCBRecord(localPort, remotePort uint16, localAddr, remoteAddr net.IP, 
 	return rec
 }
 
-// buildDualStackPCBRecord fabricates a record with both INP_IPV4 and INP_IPV6 set in inp_vflag, as real xnu does for a dual-stack (::) listener accepting an IPv4 peer (address stored IPv4-mapped in the IPv6 fields).
+// buildDualStackPCBRecord fabricates a record with both INP_IPV4 and INP_IPV6 set, as xnu does for a dual-stack listener accepting an IPv4 peer (address stored IPv4-mapped in the IPv6 fields).
 func buildDualStackPCBRecord(localPort, remotePort uint16, localAddrV4, remoteAddrV4 net.IP, uid uint32) []byte {
 	rec := buildPCBRecord(localPort, remotePort, localAddrV4, remoteAddrV4, uid)
 	rec[xtcpcb64VflagOffset] = inpIPv4 | inpIPv6
 	mappedLocal := localAddrV4.To4()
 	mappedRemote := remoteAddrV4.To4()
-	// Overwrite the (now-irrelevant) v4 slots with the IPv4-mapped form in the v6 slots, mirroring xnu's actual on-the-wire representation.
+	// Store the IPv4-mapped form in the v6 slots, mirroring xnu's on-the-wire representation.
 	copy(rec[xtcpcb64Laddr6Offset:xtcpcb64Laddr6Offset+16], net.IPv4(mappedLocal[0], mappedLocal[1], mappedLocal[2], mappedLocal[3]).To16())
 	copy(rec[xtcpcb64Faddr6Offset:xtcpcb64Faddr6Offset+16], net.IPv4(mappedRemote[0], mappedRemote[1], mappedRemote[2], mappedRemote[3]).To16())
 	return rec
@@ -112,7 +105,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("a record with an unexpected size is skipped, not misread", func(t *testing.T) {
-		// An IPv4-only xtcpcb record (shorter layout) can appear in real kernel output; it must be skipped wholesale, not reinterpreted as a v6 record.
+		// A shorter IPv4-only xtcpcb record can appear in real kernel output; it must be skipped, not reinterpreted as a v6 record.
 		oddSizedRecord := make([]byte, 128)
 		binary.LittleEndian.PutUint32(oddSizedRecord, uint32(len(oddSizedRecord)))
 
@@ -149,7 +142,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across address families", func(t *testing.T) {
-		// Regression test: a naive port-only match would return whichever record is found first, regardless of address family.
+		// Regression: a port-only match would return whichever record is found first, regardless of address family.
 		buf := buildHeaderRecord(24)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV4, loopbackV4, 4000)...)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV6, loopbackV6, 6000)...)
@@ -164,7 +157,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("does not confuse connections that share a port pair across distinct server addresses", func(t *testing.T) {
-		// Regression test: matching on ports and client address alone isn't enough; only the record actually made to serverAddr (127.0.0.1 vs .2) must match.
+		// Regression: ports and client address alone aren't enough; only the record made to serverAddr (127.0.0.1 vs .2) must match.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		buf := buildHeaderRecord(24)
 		buf = append(buf, buildPCBRecord(8080, 80, loopbackV4, loopbackV4, 4000)...)
@@ -180,7 +173,7 @@ func TestFindUIDInPCBList(t *testing.T) {
 	})
 
 	t.Run("matches a dual-stack record (both INP_IPV4 and INP_IPV6 set)", func(t *testing.T) {
-		// Regression test: a real xnu dual-stack listener sets both address-family flags and stores an IPv4-mapped address; local/foreign use distinct addresses so a field mix-up would fail, not pass vacuously.
+		// Regression: xnu dual-stack sets both flags and stores IPv4-mapped addresses; distinct local/foreign addresses mean a field mix-up would fail, not pass vacuously.
 		loopbackV4Alt := net.ParseIP("127.0.0.2")
 		buf := append(buildHeaderRecord(24), buildDualStackPCBRecord(8080, 80, loopbackV4, loopbackV4Alt, 7000)...)
 

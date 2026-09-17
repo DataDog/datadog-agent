@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// stubAddr is a net.Addr whose String() is an arbitrary literal, letting tests exercise serverAddr values that net.TCPAddr/net.UnixAddr can't produce (e.g. a host that isn't a valid IP).
+// stubAddr is a net.Addr with an arbitrary String() literal, for serverAddr values net.TCPAddr/net.UnixAddr can't produce (e.g. an invalid IP host).
 type stubAddr string
 
 func (s stubAddr) Network() string { return "tcp" }
@@ -25,7 +25,7 @@ func TestResolvePeerIdentity(t *testing.T) {
 	})
 
 	t.Run("a Unix domain socket serverAddr is rejected, not mishandled", func(t *testing.T) {
-		// The CMD/IPC API server can listen on a Unix domain socket instead of TCP; *net.UnixAddr.String() returns just the socket path, which has no ":port" for net.SplitHostPort to find.
+		// The IPC server may listen on a Unix domain socket; *net.UnixAddr.String() returns just the path, with no ":port" for net.SplitHostPort.
 		addr := &net.UnixAddr{Name: "/var/run/datadog/agent.sock", Net: "unix"}
 		_, err := resolvePeerIdentity(addr, "127.0.0.1:1234")
 		assert.ErrorContains(t, err, "malformed server address")

@@ -9,11 +9,7 @@ package command
 
 import "github.com/DataDog/datadog-agent/comp/core/config"
 
-// shouldServeGUIIdentityAPI reports whether process-agent should stay alive to serve its
-// /connection/owner-sid API even when it has no checks of its own to run. On Windows the GUI (running in
-// the core agent as the lower-privileged ddagentuser) depends on that API to bind intent tokens to
-// the caller's OS identity (CWE-214). It is needed exactly when the GUI itself is enabled, which is
-// whenever GUI_port is not the "-1" disabled sentinel.
+// shouldServeGUIIdentityAPI reports whether process-agent must stay alive to serve /connection/owner-sid, which the Windows GUI (ddagentuser) uses to bind intent tokens to the caller's OS identity (CWE-214); needed whenever the GUI is enabled, i.e. GUI_port is not the "-1" disabled sentinel.
 func shouldServeGUIIdentityAPI(cfg config.Component) bool {
 	return cfg.GetString("GUI_port") != "-1"
 }

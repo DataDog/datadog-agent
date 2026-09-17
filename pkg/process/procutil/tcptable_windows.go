@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// tcpTableOwnerPIDAll requests TCP_TABLE_OWNER_PID_ALL from GetExtendedTcpTable: one row per connection, each tagged with its owning PID.
+// tcpTableOwnerPIDAll is TCP_TABLE_OWNER_PID_ALL: one row per connection tagged with its owning PID.
 const tcpTableOwnerPIDAll = 5
 
 var (
@@ -56,7 +56,7 @@ type mibTCP6TableOwnerPID struct {
 	table      [1]mibTCP6RowOwnerPID
 }
 
-// portFromField decodes a port number stored, like the other fields GetExtendedTcpTable returns, in network byte order within the low 16 bits of a 32-bit field.
+// portFromField decodes a port stored in network byte order within the low 16 bits of a 32-bit field.
 func portFromField(v uint32) uint16 {
 	if !cpu.IsBigEndian {
 		return uint16(bits.ReverseBytes32(v) >> 16)
@@ -64,7 +64,7 @@ func portFromField(v uint32) uint16 {
 	return uint16(v >> 16)
 }
 
-// addrFromV4Field decodes an IPv4 address from a MIB_TCPROW_OWNER_PID field; unlike the port fields, it occupies the full 32 bits, so re-serializing with the same byte order it was read with reconstructs the original network-order bytes.
+// addrFromV4Field decodes an IPv4 address occupying the full 32-bit field, re-serializing with the same byte order to reconstruct the network-order bytes.
 func addrFromV4Field(v uint32) net.IP {
 	buf := make([]byte, 4)
 	if cpu.IsBigEndian {
@@ -75,7 +75,7 @@ func addrFromV4Field(v uint32) net.IP {
 	return net.IP(buf)
 }
 
-// getExtendedTCPTable calls GetExtendedTcpTable for the given address family, growing the buffer until the kernel-reported size is satisfied.
+// getExtendedTCPTable calls GetExtendedTcpTable for the family, growing the buffer until the kernel-reported size fits.
 func getExtendedTCPTable(family uint32) ([]byte, error) {
 	var size uint32
 	var buf []byte
@@ -140,10 +140,7 @@ func findPIDInV6Table(buf []byte, localPort, remotePort int, localAddr, remoteAd
 	return 0, false
 }
 
-// findConnectionOwnerPID reads the OS TCP table for the given address family and returns the PID owning
-// the connection whose local endpoint is localAddr:localPort and whose remote endpoint is
-// remoteAddr:remotePort. The bool is false (with a nil error) when no such connection exists; a non-nil
-// error means the table itself couldn't be read.
+// findConnectionOwnerPID returns the PID owning the given connection; bool is false with nil error when none matches, non-nil error means the table couldn't be read.
 func findConnectionOwnerPID(family uint32, localAddr net.IP, localPort int, remoteAddr net.IP, remotePort int) (uint32, bool, error) {
 	table, err := getExtendedTCPTable(family)
 	if err != nil {

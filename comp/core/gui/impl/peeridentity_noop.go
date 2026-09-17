@@ -12,12 +12,12 @@ import (
 	"net"
 )
 
-// lookupLoopbackPeerIdentity is not implemented on this platform; callers fall back to the pre-existing TTL/single-use protection instead.
+// lookupLoopbackPeerIdentity is unimplemented here; callers fall back to the pre-existing TTL/single-use protection.
 func lookupLoopbackPeerIdentity(_ net.IP, _, _ int, _ net.IP) (peerIdentity, error) {
 	return "", errors.New("peer identity resolution is not implemented on this platform")
 }
 
-// elevatedMintIdentity binds directly to root here too, since lookupLoopbackPeerIdentity never resolves anything on this platform (see its own doc comment).
+// elevatedMintIdentity binds to root here too, since lookupLoopbackPeerIdentity never resolves anything on this platform.
 func elevatedMintIdentity() peerIdentity {
 	return rootIdentity
 }

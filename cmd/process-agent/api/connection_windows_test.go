@@ -24,10 +24,7 @@ import (
 
 const validOwnerSIDQuery = "/connection/owner-sid?family=4&laddr=127.0.0.1&lport=54321&raddr=127.0.0.1&rport=5002"
 
-// stubGetSIDForConnectionOwner replaces the getSIDForConnectionOwner package var (the seam
-// connectionOwnerSIDHandler calls through) for the duration of the test, restoring the original
-// implementation on cleanup. Mirrors this repo's existing test-seam convention for package-level function
-// vars, e.g. peeridentity_darwin.go's consoleDevicePath.
+// stubGetSIDForConnectionOwner swaps the getSIDForConnectionOwner seam for the test, restoring it on cleanup.
 func stubGetSIDForConnectionOwner(t *testing.T, fn func(uint32, net.IP, int, net.IP, int) (string, error)) {
 	orig := getSIDForConnectionOwner
 	getSIDForConnectionOwner = fn
@@ -141,9 +138,7 @@ func TestConnectionOwnerSIDHandler_ErrorClassification(t *testing.T) {
 	}
 }
 
-// TestConnectionOwnerSIDHandler_ThroughServeMux is a smoke test that registerPlatformHandlers
-// (server_windows.go) actually wires "GET /connection/owner-sid" to connectionOwnerSIDHandler on a real
-// *http.ServeMux, guarding against a future accidental removal or typo in that one-line registration.
+// TestConnectionOwnerSIDHandler_ThroughServeMux smoke-tests that registerPlatformHandlers wires "GET /connection/owner-sid" to the handler.
 func TestConnectionOwnerSIDHandler_ThroughServeMux(t *testing.T) {
 	stubGetSIDForConnectionOwner(t, func(uint32, net.IP, int, net.IP, int) (string, error) {
 		return "S-1-5-21-1-2-3-1001", nil
