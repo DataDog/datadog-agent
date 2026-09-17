@@ -255,6 +255,8 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 	host, _ := instance["host"].(string)
 	username, _ := instance["username"].(string)
 	password, _ := instance["password"].(string)
+	sslMode, _ := instance["ssl"].(string)
+
 	port, ok := instancePort(instance)
 	if !ok {
 		port = defaultPostgresPort
@@ -265,6 +267,7 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 		DBName:   e.Database,
 		Username: username,
 		Password: password,
+		SSLMode:  sslMode,
 	}
 }
 

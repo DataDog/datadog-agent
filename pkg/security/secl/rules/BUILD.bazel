@@ -54,6 +54,17 @@ go_library(
     ],
 )
 
+# Expose all .go sources so //pkg/security/generators/schemas/policy can read
+# them via AddGoComments when running as a Bazel run_binary tool.
+filegroup(
+    name = "rules_sources",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ),
+    visibility = ["//pkg/security/secl/schemas:__pkg__"],
+)
+
 dd_agent_go_test(
     name = "rules_test",
     srcs = [

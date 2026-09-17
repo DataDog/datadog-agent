@@ -184,3 +184,10 @@ dd_agent_go_test(
     embed = [":procutil"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
+
+dd_agent_go_test(
+    name = "process_zombie_benchmark_test",
+    srcs = ["process_zombie_benchmark_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+)

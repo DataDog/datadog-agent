@@ -1,0 +1,16 @@
+# Build openssl-sys against @openssl rather than whatever OpenSSL the host has.
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+inject_repo(crate, "openssl")
+
+# OPENSSL_DIR must be an install prefix (include/ + lib/), not a source tree.
+# See https://docs.rs/openssl/latest/openssl/#manual
+crate.annotation(
+    build_script_data = [
+        "@openssl//:gen_dir",
+    ],
+    build_script_env = {
+        "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
+    },
+    crate = "openssl-sys",
+)

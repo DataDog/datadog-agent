@@ -3220,8 +3220,8 @@ github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 h1:BP4M0CvQ
 github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-chi/chi/v5 v5.2.4 h1:WtFKPHwlywe8Srng8j2BhOD9312j9cGUxG1SP4V2cR4=
 github.com/go-chi/chi/v5 v5.2.4/go.mod h1:X7Gx4mteadT3eDOMTsXzmI4/rwUpOwBHLpAfupzFJP0=
-github.com/go-delve/delve v1.27.1 h1:bW71XR3wXf1BMKwwdE9VkxW3AdxigFDuZG5mugkbt3s=
-github.com/go-delve/delve v1.27.1/go.mod h1:UVScc1dWhNEGxrwYa9GXHZVT3k+L7hnonbxzzo+bCq0=
+github.com/go-delve/delve v1.27.2 h1:dhcjFjiVoQI53uwsG7EqYiMhdvFuywsBZx4KDOK+sYE=
+github.com/go-delve/delve v1.27.2/go.mod h1:nkFriKZ7rywF+tspcCgJeouzq6b0krJlJiGp15T81hA=
 github.com/go-errors/errors v1.5.1 h1:ZwEMSLRCapFLflTpT7NKaAc7ukJ8ZPEjzlxt8rPN8bk=
 github.com/go-errors/errors v1.5.1/go.mod h1:sIVyrIiJhuEF+Pj9Ebtd6P/rEYROXFi3BopGUQ5a5Og=
 github.com/go-fonts/dejavu v0.1.0/go.mod h1:4Wt4I4OU2Nq9asgDCteaAaWZOV24E+0/Pwo0gppep4g=
@@ -5017,8 +5017,8 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
-gitlab.com/gitlab-org/api/client-go/v3 v3.2.0 h1:DzbwSzJ5kDt5QXOdebqo0KWV8nfAKPfDVMPX0/Lgvic=
-gitlab.com/gitlab-org/api/client-go/v3 v3.2.0/go.mod h1:k7uYxRoIeuSqyWZSJfAPZlf0L32OH0lUBImAl4gWUFc=
+gitlab.com/gitlab-org/api/client-go/v3 v3.4.0 h1:otjawgW54eVmKRGgaHQmH65sfUP+y2Xmcps5EVp/UYE=
+gitlab.com/gitlab-org/api/client-go/v3 v3.4.0/go.mod h1:k7uYxRoIeuSqyWZSJfAPZlf0L32OH0lUBImAl4gWUFc=
 go.einride.tech/aip v0.66.0/go.mod h1:qAhMsfT7plxBX+Oy7Huol6YUvZ0ZzdUz26yZsQwfl1M=
 go.einride.tech/aip v0.67.1/go.mod h1:ZGX4/zKw8dcgzdLsrvpOOGxfxI2QSk12SlP7d6c0/XI=
 go.einride.tech/aip v0.68.0/go.mod h1:7y9FF8VtPWqpxuAxl0KQWqaULxW4zFIesD6zF5RIHHg=

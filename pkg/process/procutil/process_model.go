@@ -177,6 +177,11 @@ type Stats struct {
 	CtxSwitches *NumCtxSwitchesStat
 }
 
+// IsZombie reports whether these stats belong to a zombie process.
+func (s *Stats) IsZombie() bool {
+	return s != nil && s.Status == "Z"
+}
+
 // Service holds service discovery data for a process
 type Service struct {
 	// GeneratedName is the name generated from the process info

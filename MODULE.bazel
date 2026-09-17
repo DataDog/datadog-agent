@@ -72,7 +72,7 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
-bazel_dep(name = "bazel_features", version = "1.50.0")
+bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.4.0.bcr.1")
@@ -497,6 +497,9 @@ include("//deps:crates.MODULE.bazel")
 # doesn't fail nor re-format them.
 # buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/openssl:openssl_sys.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
