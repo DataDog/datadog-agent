@@ -29,7 +29,7 @@ const (
 	defaultLockPollInterval = 100 * time.Millisecond
 )
 
-// Key identifies an artifact variant. example sha256/sha.../v1-variant-hash...
+// Key identifies an artifact variant, such as package/sha256-digest/materialization.
 type Key struct {
 	Namespace string
 	ID        string
@@ -80,7 +80,7 @@ func New(root string) (*Store, error) {
 
 // Ensure returns a validated artifact entry or populates and atomically publishes one.
 func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, validate ValidateFunc) (artifact Artifact, returnErr error) {
-	if err := s.validateEnsureRequest(ctx, key, populate, validate); err != nil {
+	if err := validateEnsureRequest(ctx, key, populate, validate); err != nil {
 		return Artifact{}, err
 	}
 	if err := createPrivateDirectory(s.root); err != nil {
@@ -129,13 +129,7 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 	return populateAndPublish(ctx, key, paths, populate, validate)
 }
 
-func (s *Store) validateEnsureRequest(ctx context.Context, key Key, populate PopulateFunc, validate ValidateFunc) error {
-	if s == nil {
-		return errors.New("artifact store is required")
-	}
-	if ctx == nil {
-		return errors.New("artifact store context is required")
-	}
+func validateEnsureRequest(ctx context.Context, key Key, populate PopulateFunc, validate ValidateFunc) error {
 	if populate == nil {
 		return errors.New("artifact populate function is required")
 	}
