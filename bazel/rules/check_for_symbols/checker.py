@@ -44,9 +44,7 @@ def dump_symbols(nm, binary):
         text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            "`nm %s` failed (rc=%d):\n%s" % (binary, result.returncode, result.stderr)
-        )
+        raise RuntimeError("`nm %s` failed (rc=%d):\n%s" % (binary, result.returncode, result.stderr))
     return result.stdout
 
 
@@ -54,14 +52,10 @@ def check_symbols(symbols, must_include, must_not_include):
     failures = []
     for pattern in must_include:
         if not re.search(pattern, symbols, re.MULTILINE):
-            failures.append(
-                "expected a symbol matching %r, but none was found in the symbol table" % pattern
-            )
+            failures.append("expected a symbol matching %r, but none was found in the symbol table" % pattern)
     for pattern in must_not_include:
         if re.search(pattern, symbols, re.MULTILINE):
-            failures.append(
-                "found a symbol matching %r, but it must not be present" % pattern
-            )
+            failures.append("found a symbol matching %r, but it must not be present" % pattern)
     return failures
 
 
