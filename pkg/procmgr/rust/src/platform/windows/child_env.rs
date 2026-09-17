@@ -122,6 +122,44 @@ const LEGACY_SCM_ENV_DENYLIST: &[&str] = &[
     "DD_OTELCOLLECTOR_INSTALLATION_METHOD",
 ];
 
+/// Windows service name of the core Agent (`coreAgentService` in
+/// `pkg/fleet/installer/packages/datadog_agent_ddot_windows.go`).
+const CORE_AGENT_SERVICE_NAME: &str = "datadogagent";
+
+/// Reads one `DD_*` value out of the core Agent service's SCM `Environment` registry
+/// value, so config gates resolve env overrides the way the Agent service does.
+///
+/// Two deliberate asymmetries with the child-spawn path in [`apply_legacy_scm_env`]:
+///
+/// 1. **Service.** The spawn path reads the service matching the child being launched
+///    (`datadog-agent-process` maps to `datadog-process-agent`, see
+///    [`legacy_scm_service_name`]). Gate resolution always wants the core Agent, so it
+///    uses [`CORE_AGENT_SERVICE_NAME`] instead of the child mapping.
+/// 2. **No denylist.** [`is_denied_legacy_scm_env_key`] exists to stop inherited vars
+///    leaking into a spawned child's environment block. A gate read is an input to a
+///    start/no-start decision, not an env block handed to a process, so it must see
+///    every `DD_*` the Agent service sees. Filtering here would make procmgr disagree
+///    with the Agent about whether a key is set.
+///
+/// Empty values count as unset, matching how `config_gate::env_bindings` treats the
+/// process environment.
+pub fn agent_service_env_var(name: &str) -> Option<String> {
+    let entries = match read_service_environment(CORE_AGENT_SERVICE_NAME) {
+        Ok(entries) => entries,
+        Err(e) => {
+            log::debug!("failed to read SCM Environment for {CORE_AGENT_SERVICE_NAME}: {e:#}");
+            return None;
+        }
+    };
+    // Last duplicate wins, matching `merge_env_overrides` on the spawn path.
+    parse_scm_environment_entries(&entries)
+        .into_iter()
+        .rev()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value)
+        .filter(|value| !value.is_empty())
+}
+
 fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
     match process_name {
         "datadog-agent-process" => Some("datadog-process-agent"),
