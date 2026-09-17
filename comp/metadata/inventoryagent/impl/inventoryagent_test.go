@@ -31,6 +31,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -735,6 +736,29 @@ gpu_monitoring:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestFetchedSystemProbeConfigUsesSystemProbeSchema(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	localConfig, isSet := ia.sysprobeConf.Get()
+	if !isSet {
+		t.Fatal("system-probe config is not set")
+	}
+
+	fetched := ia.getCorrectConfig(
+		"system-probe",
+		localConfig,
+		func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) { return "{}", nil },
+		pkgconfigsetup.InitSystemProbeConfig,
+	)
+	config, ok := fetched.(pkgconfigmodel.Reader)
+	if !ok {
+		t.Fatal("fetched system-probe config does not implement model.Reader")
+	}
+	assert.True(t, config.IsKnown("network_config.collect_tcp_v4"))
+	assert.True(t, config.IsKnown("system_probe_config.enable_oom_kill"))
+	assert.True(t, config.IsKnown("service_monitoring_config.http2.enabled"))
+	assert.True(t, config.IsKnown("runtime_security_config.enabled"))
 }
 
 func TestFetchFleet(t *testing.T) {
