@@ -36,7 +36,6 @@ import (
 	com_datadoghq_gitlab_repository_files "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/repositoryfiles"
 	com_datadoghq_gitlab_tags "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/tags"
 	com_datadoghq_gitlab_users "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/users"
-	com_datadoghq_helm "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/helm"
 	com_datadoghq_http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http"
 	com_datadoghq_jenkins "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins"
 	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admission"
@@ -72,7 +71,7 @@ type Registry struct {
 // ka is accepted for signature parity with the kubeapiserver build; the
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(),
@@ -96,7 +95,6 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.gitlab.repositoryfiles":               com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
 			"com.datadoghq.gitlab.tags":                          com_datadoghq_gitlab_tags.NewGitlabTags(),
 			"com.datadoghq.gitlab.users":                         com_datadoghq_gitlab_users.NewGitlabUsers(),
-			"com.datadoghq.helm":                                 com_datadoghq_helm.NewKubernetesHelmActions(helmactions, ka),
 			"com.datadoghq.http":                                 com_datadoghq_http.NewHttpBundle(configuration),
 			"com.datadoghq.jenkins":                              com_datadoghq_jenkins.NewJenkins(configuration),
 			"com.datadoghq.kubernetes.admissionregistration":     com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
