@@ -58,6 +58,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	var totalBytes, totalRotations int64
 	var lastLossAt time.Time
+	bottleneckCounts := make(map[string]int64)
 	// Counted here, not in BuildIssue, which only receives the capped breakdown.
 	distinctSources := make(map[string]struct{}, len(summaries))
 	for _, s := range summaries {
@@ -66,6 +67,9 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		distinctSources[s.Source] = struct{}{}
 		if s.LastLossAt.After(lastLossAt) {
 			lastLossAt = s.LastLossAt
+		}
+		for component, count := range s.Bottlenecks {
+			bottleneckCounts[component] += count
 		}
 	}
 
@@ -82,6 +86,10 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		contextKeyPairsOmitted: strconv.Itoa(omitted),
 		contextKeyLastLossAt:   lastLossAt.UTC().Format(time.RFC3339),
 		contextKeySources:      string(encoded),
+	}
+	if bottleneck, rotations := dominantBottleneck(bottleneckCounts); bottleneck != "" {
+		issueContext[contextKeyLossBottleneck] = bottleneck
+		issueContext[contextKeyLossBottleneckRotations] = strconv.FormatInt(rotations, 10)
 	}
 
 	// Enrichment only: an unreadable pipeline drops the key rather than failing the check.

@@ -41,6 +41,10 @@ type ComponentBackpressure struct {
 	Saturated1mSeconds  int64   `json:"saturated_1m_s"`
 	Saturated30mSeconds int64   `json:"saturated_30m_s"`
 	CurrentlySaturated  bool    `json:"currently_saturated"`
+	// Used only to correlate saturation with the post-rotation read window. These fields
+	// are intentionally not part of the health-platform wire representation.
+	LastSaturatedAt  time.Time `json:"-"`
+	HasLastSaturated bool      `json:"-"`
 }
 
 // BackpressureSummary is the whole pipeline's saturation at one instant.
@@ -113,6 +117,8 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 			Saturated1mSeconds:  int64(s.Windows.Saturated1m.Seconds()),
 			Saturated30mSeconds: int64(s.Windows.Saturated30m.Seconds()),
 			CurrentlySaturated:  s.Windows.CurrentlySaturated,
+			LastSaturatedAt:     s.Windows.LastSaturatedAt,
+			HasLastSaturated:    s.Windows.HasLastSaturated,
 		})
 	}
 
@@ -186,14 +192,15 @@ func BackpressureSnapshot() BackpressureSummary {
 	return DeriveBackpressure(pm.Snapshots())
 }
 
-// bottleneckCache memoizes the bottleneck's component name: deriving it walks every
-// component's rolling history.
+// bottleneckCache memoizes the derived summary: reading it walks every component's rolling
+// history, while correlating that immutable summary with each rotation window is cheap.
 type bottleneckCache struct {
-	mu        sync.Mutex
-	clk       clock.Clock
-	component string
-	readAt    time.Time
-	valid     bool
+	mu         sync.Mutex
+	clk        clock.Clock
+	summary    BackpressureSummary
+	readAt     time.Time
+	generation uint64
+	valid      bool
 }
 
 func newBottleneckCache(clk clock.Clock) *bottleneckCache {
@@ -203,57 +210,92 @@ func newBottleneckCache(clk clock.Clock) *bottleneckCache {
 func (c *bottleneckCache) invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.generation++
 	c.valid = false
 }
 
-// concurrentWithLoss reports whether the saturation was still happening when the tailer gave
-// up. The trailing minute is an approximation of the close_timeout the caller waited out, so
-// a longer close_timeout resolves to unknown rather than to a wrong stage.
-func concurrentWithLoss(c *ComponentBackpressure) bool {
-	return c.CurrentlySaturated || c.Saturated1mSeconds > 0
+// bottleneckDuringLoss names a component that saturated during the actual post-rotation read
+// window. A recovered component is eligible only when its last saturated sample is at or after
+// the rotation; saturation before the rotation cannot have caused this loss.
+func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now time.Time) string {
+	if summary.State == "" || lossWindowStartedAt.IsZero() || lossWindowStartedAt.After(now) {
+		return ""
+	}
+
+	var current, recovered *ComponentBackpressure
+	for i := range summary.Components {
+		component := &summary.Components[i]
+		// CurrentlySaturated is debounced, so it can stay true briefly after recovery. When a
+		// precise sample timestamp is available, it must still fall inside the loss window.
+		saturatedDuringLoss := component.HasLastSaturated &&
+			!component.LastSaturatedAt.Before(lossWindowStartedAt)
+		switch {
+		case component.CurrentlySaturated && (saturatedDuringLoss || !component.HasLastSaturated):
+			if current == nil || outranks(component, current, component.AvgRatio, current.AvgRatio) {
+				current = component
+			}
+		case saturatedDuringLoss:
+			if recovered == nil || component.LastSaturatedAt.After(recovered.LastSaturatedAt) ||
+				(component.LastSaturatedAt.Equal(recovered.LastSaturatedAt) &&
+					outranks(component, recovered, component.Saturated30mSeconds, recovered.Saturated30mSeconds)) {
+				recovered = component
+			}
+		}
+	}
+
+	if current != nil {
+		return current.Component
+	}
+	if recovered != nil {
+		return recovered.Component
+	}
+
+	// Saturation durations cover the trailing 30 minutes. Inside that observation window, a
+	// healthy summary proves that no measured component saturated after the rotation. For a
+	// longer close_timeout, absence of a timestamp is not enough evidence, so stay unknown.
+	if summary.State == BackpressureHealthy && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
+		return NoBottleneck
+	}
+	return ""
 }
 
 // get returns the bottleneck's component name without its instance, bounding cardinality.
-func (c *bottleneckCache) get() string {
-	now := c.clk.Now()
+func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
+	for {
+		now := c.clk.Now()
 
-	c.mu.Lock()
-	if c.valid && now.Sub(c.readAt) < bottleneckCacheTTL {
-		component := c.component
+		c.mu.Lock()
+		generation := c.generation
+		if c.valid && now.Sub(c.readAt) < bottleneckCacheTTL && !c.readAt.Before(lossWindowStartedAt) {
+			summary := c.summary
+			c.mu.Unlock()
+			return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
+		}
 		c.mu.Unlock()
-		return component
+
+		// Derived outside the lock: a rotating tailer must not block on another tailer's read.
+		summary := BackpressureSnapshot()
+
+		c.mu.Lock()
+		if generation != c.generation {
+			// The registered pipeline changed while its snapshot was being derived. Retry so
+			// neither this caller nor the cache observes the stopped pipeline.
+			c.mu.Unlock()
+			continue
+		}
+		c.summary = summary
+		c.readAt = now
+		c.valid = true
+		c.mu.Unlock()
+
+		return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
 	}
-	c.mu.Unlock()
-
-	// Derived outside the lock: a rotating tailer must not block on another tailer's read.
-	summary := BackpressureSnapshot()
-	component := ""
-	switch {
-	case summary.State == "":
-		// No monitor answered.
-	case summary.Bottleneck == nil:
-		// Distinct from "": a monitor answered, and nothing was saturated at all.
-		component = NoBottleneck
-	case concurrentWithLoss(summary.Bottleneck):
-		component = summary.Bottleneck.Component
-	default:
-		// Saturated inside the trailing 30m but not concurrent with the loss. Blaming it
-		// would overclaim, and so would reporting the pipeline as keeping up.
-	}
-
-	c.mu.Lock()
-	c.component = component
-	c.readAt = now
-	c.valid = true
-	c.mu.Unlock()
-
-	return component
 }
 
 var bottleneck = newBottleneckCache(clock.New())
 
-// currentBottleneckComponent names the saturated stage, NoBottleneck when the pipeline is
-// healthy, or "" when no monitor is registered.
-func currentBottleneckComponent() string {
-	return bottleneck.get()
+// currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
+// when the pipeline was measured as healthy throughout it, or "" when attribution is unknown.
+func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
+	return bottleneck.get(lossWindowStartedAt)
 }

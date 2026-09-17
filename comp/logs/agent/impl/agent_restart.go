@@ -167,6 +167,9 @@ func (a *logAgent) restartPipeline() {
 func (a *logAgent) partialStop() error {
 	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
+	// Losses recorded while the transient pipeline is stopped must not be attributed to its
+	// stale monitor. restartPipeline registers the replacement after it is rebuilt.
+	logsmetrics.RegisterPipelineMonitor(nil)
 
 	toStop := []startstop.Stoppable{
 		a.launchers,

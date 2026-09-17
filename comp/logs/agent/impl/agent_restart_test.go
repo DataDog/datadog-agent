@@ -368,6 +368,7 @@ func (suite *RestartTestSuite) TestPartialStop_WithTimeout() {
 
 	agent, _, _ := createTestAgent(suite, endpoints)
 	agent.startPipeline()
+	suite.True(metrics.PipelineMonitorRegisteredForTest(), "startPipeline should register its monitor")
 
 	// Execute partial stop with timeout
 	start := time.Now()
@@ -377,6 +378,7 @@ func (suite *RestartTestSuite) TestPartialStop_WithTimeout() {
 	// Should complete within reasonable time
 	suite.NoError(err)
 	suite.Less(elapsed, 3*time.Second, "Should complete or timeout within grace period")
+	suite.False(metrics.PipelineMonitorRegisteredForTest(), "partialStop must not expose the stopped pipeline")
 }
 
 func (suite *RestartTestSuite) TestPartialStop_FlushesRegistryToDisk() {

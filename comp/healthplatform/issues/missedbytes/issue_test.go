@@ -363,6 +363,26 @@ func TestBuildIssue_DescriptionPrefersLossTimeBottleneck(t *testing.T) {
 	assert.NotContains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`processor`")
 }
 
+func TestBuildIssue_ProcessorRemediationDoesNotDisableMultiline(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:                   "1024",
+		contextKeyRotations:               "1",
+		contextKeySourceCount:             "1",
+		contextKeyPairsOmitted:            "0",
+		contextKeySources:                 `[{"source":"nginx","service":"web","bytes":1024,"rotations":1,"bottleneck":"processor","bottleneck_rotations":1}]`,
+		contextKeyLossBottleneck:          "processor",
+		contextKeyLossBottleneckRotations: "1",
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	processorStep := issue.GetRemediation().GetSteps()[4].GetText()
+	assert.Contains(t, processorStep, "processing_rules")
+	assert.NotContains(t, processorStep, "auto_multi_line_detection",
+		"multiline aggregation runs before the measured processor and disabling it can increase processor load")
+}
+
 // The loss happened while the pipeline was keeping up: the fix is close_timeout, not
 // relieving saturation, and the prose has to say so.
 func TestBuildIssue_HealthyAtLossTimeSaysSo(t *testing.T) {
@@ -384,7 +404,10 @@ func TestBuildIssue_HealthyAtLossTimeSaysSo(t *testing.T) {
 	assert.Contains(t, step1, "No pipeline component was saturated when this data was lost")
 	// Step 1 points by setting name, not step number, so reordering cannot make it lie.
 	assert.Contains(t, step1, "`logs_config.close_timeout`")
-	assert.Contains(t, issue.GetRemediation().GetSteps()[1].GetText(), "`logs_config.close_timeout`")
+	step2 := issue.GetRemediation().GetSteps()[1].GetText()
+	assert.Contains(t, step2, "`logs_config.close_timeout`")
+	assert.Contains(t, step2, "from its current value")
+	assert.Contains(t, step2, "default: 60 seconds")
 }
 
 // The loss window is 24h and the check runs every 15m, so the pipeline can be healthy at loss

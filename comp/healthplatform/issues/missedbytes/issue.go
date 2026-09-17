@@ -37,6 +37,11 @@ const (
 	// Encoded backpressureWire. Absent when no pipeline monitor answered.
 	contextKeyBackpressure = "backpressure"
 
+	// Host-wide loss-time attribution, computed before the per-source breakdown is capped or
+	// reduced to one component per tuple.
+	contextKeyLossBottleneck          = "loss_time_bottleneck"
+	contextKeyLossBottleneckRotations = "loss_time_bottleneck_rotations"
+
 	// The reporting component, not the scheduler's checkSource label.
 	issueSource = "logs"
 
@@ -89,6 +94,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	}
 
 	sources := decodeSources(ctx[contextKeySources])
+	lossBottleneck, lossBottleneckRotations, completeLossAttribution := lossAttribution(ctx, sources)
 
 	// Nameable only when one source and one service are the entire loss.
 	named := sourceCount == 1 && len(sources) == 1 && omitted == 0
@@ -113,7 +119,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	if breakdown != "" {
 		sentences = append(sentences, breakdown)
 	}
-	if cause := describeCause(bp, sources); cause != "" {
+	if cause := describeCause(bp, lossBottleneck, lossBottleneckRotations); cause != "" {
 		sentences = append(sentences, cause)
 	}
 
@@ -127,6 +133,10 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	}
 	if bp != nil {
 		extraFields[contextKeyBackpressure] = backpressureAsExtra(bp)
+	}
+	if lossBottleneck != "" {
+		extraFields[contextKeyLossBottleneck] = lossBottleneck
+		extraFields[contextKeyLossBottleneckRotations] = lossBottleneckRotations
 	}
 
 	extra, err := structpb.NewStruct(extraFields)
@@ -155,11 +165,11 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 			// Plain text: Summary is not rendered as markdown.
 			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: firstRemediationStep(bp, sources, rotations, omitted)},
-				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},
+				{Order: 1, Text: firstRemediationStep(bp, lossBottleneck, lossBottleneckRotations, completeLossAttribution, rotations, omitted)},
+				{Order: 2, Text: "Increase `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) from its current value (default: 60 seconds) to give the tailer longer to finish a rotated file."},
 				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
 				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
-				{Order: 5, Text: "If the `processor` row is saturated, scope global `logs_config.processing_rules` to the affected source, or set `logs_config.auto_multi_line_detection` to false."},
+				{Order: 5, Text: "If the `processor` row is saturated, remove unnecessary global `logs_config.processing_rules` or scope them to the affected source."},
 				{Order: 6, Text: "If the Agent still cannot keep up, drop unneeded logs with an `exclude_at_match` processing rule, or reduce the volume written to the file between rotations."},
 				{Order: 7, Text: "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."},
 			},
@@ -306,8 +316,8 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 
 // describeCause names the stage responsible, preferring the one sampled at loss time: the
 // loss window is 24h and the check runs every 15m, so the two can disagree.
-func describeCause(bp *backpressureWire, sources []sourceLoss) string {
-	if atLoss, rotations := lossTimeBottleneck(sources); atLoss != "" {
+func describeCause(bp *backpressureWire, atLoss string, rotations int64) string {
+	if atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
 			// Leading with the count keeps the conclusion scoped to those rotations.
 			return fmt.Sprintf("During %d of these %s the logs pipeline was keeping up, so the Agent ran out of time rather than throughput.",
@@ -324,6 +334,18 @@ func describeCause(bp *backpressureWire, sources []sourceLoss) string {
 		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
 }
 
+// lossAttribution prefers the host-wide attribution emitted by the current check. Falling back
+// to the capped source breakdown keeps persisted reports from older Agents readable.
+func lossAttribution(ctx map[string]string, sources []sourceLoss) (string, int64, bool) {
+	component, present := ctx[contextKeyLossBottleneck]
+	rotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
+	if present && component != "" && err == nil && rotations > 0 {
+		return component, rotations, true
+	}
+	component, rotations = lossTimeBottleneck(sources)
+	return component, rotations, false
+}
+
 // lossTimeBottleneck reports the stage blamed for the most rotations, and how many.
 func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
 	totals := make(map[string]int64, len(sources))
@@ -337,11 +359,10 @@ func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
 
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
 // Loss time wins over check time: it is what lost the data, not what is saturated now.
-func firstRemediationStep(bp *backpressureWire, sources []sourceLoss, rotations, omitted int64) string {
-	component, blamed := lossTimeBottleneck(sources)
-	// rankSources keeps one stage per tuple, so a stage blamed for fewer than every rotation
-	// leaves the rest unaccounted for; only a clean sweep can rule saturation in or out.
-	whole := blamed == rotations && omitted == 0
+func firstRemediationStep(bp *backpressureWire, component string, blamed int64, completeAttribution bool, rotations, omitted int64) string {
+	// New reports aggregate before rankSources, so omitted tuples are already represented.
+	// Persisted reports that use the source fallback still require an uncapped breakdown.
+	whole := blamed == rotations && (completeAttribution || omitted == 0)
 
 	switch {
 	case component == logsmetrics.NoBottleneck && whole:

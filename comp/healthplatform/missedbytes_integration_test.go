@@ -59,8 +59,8 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),
 		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
 	})
-	logsmetrics.RecordMissedBytes("nginx", "web", 4096)
-	logsmetrics.RecordMissedBytes("redis", "cache", 1024)
+	logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
+	logsmetrics.RecordMissedBytes("redis", "cache", 1024, time.Now())
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -121,6 +121,8 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	assert.Equal(t, float64(4096), largest["bytes"].GetNumberValue())
 	assert.Equal(t, "destination_reliable_0", largest["bottleneck"].GetStringValue(),
 		"the stage saturated at loss time must survive the trip")
+	assert.Equal(t, "destination_reliable_0", received.GetExtra().GetFields()["loss_time_bottleneck"].GetStringValue())
+	assert.Equal(t, float64(2), received.GetExtra().GetFields()["loss_time_bottleneck_rotations"].GetNumberValue())
 
 	// Same test as sources: structpb can carry this as an encoded string, and did once.
 	bp := received.GetExtra().GetFields()["backpressure"].GetStructValue().GetFields()

@@ -21,6 +21,11 @@ func ResetPipelineMonitorForTest() {
 	RegisterPipelineMonitor(nil)
 }
 
+// PipelineMonitorRegisteredForTest reports whether process-wide readers have a live monitor.
+func PipelineMonitorRegisteredForTest() bool {
+	return registeredPipelineMonitor() != nil
+}
+
 type fakePipelineMonitor struct {
 	NoopPipelineMonitor
 	snaps []ComponentSnapshot
