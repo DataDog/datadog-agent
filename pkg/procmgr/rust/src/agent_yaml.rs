@@ -28,8 +28,10 @@ use std::collections::HashMap;
 
 /// Parses the first document of an Agent YAML file.
 ///
-/// An empty or comment-only file is a valid config that sets nothing, so it yields
-/// [`Value::Null`] rather than an error.
+/// An empty, comment-only or explicitly null file is a valid config that sets nothing,
+/// so it yields [`Value::Null`] rather than an error. Any other non-mapping root is an
+/// error, because `readConfigurationContent` unmarshals into `map[string]interface{}`
+/// and the Agent refuses such a file outright.
 pub fn load(contents: &str) -> Result<Value> {
     let mut builder = Builder::default();
     for result in Parser::new_from_str(contents) {
@@ -42,7 +44,11 @@ pub fn load(contents: &str) -> Result<Value> {
             break;
         }
     }
-    builder.finish()
+    let root = builder.finish()?;
+    if !matches!(root, Value::Null | Value::Mapping(_)) {
+        bail!("config file must be a YAML mapping");
+    }
+    Ok(root)
 }
 
 /// Resolves a dotted config key, mirroring the Agent's flattened-key expansion.
@@ -791,6 +797,19 @@ mod tests {
     #[test]
     fn malformed_yaml_is_an_error() {
         assert!(load("{\n").is_err());
+    }
+
+    /// The Agent unmarshals a config file into `map[string]interface{}`, so a scalar or
+    /// sequence root fails to load rather than reading as an empty config.
+    #[test]
+    fn non_mapping_document_roots_are_rejected() {
+        for yaml in ["just a scalar\n", "- a\n- b\n", "123\n", "''\n"] {
+            assert!(load(yaml).is_err(), "{yaml:?}");
+        }
+        // An explicitly null document still unmarshals into a nil map without error.
+        for yaml in ["null\n", "~\n"] {
+            assert_eq!(load(yaml).unwrap(), Value::Null, "{yaml:?}");
+        }
     }
 
     #[test]
