@@ -24,6 +24,12 @@ const (
 	statusUnreachable = "unreachable"
 )
 
+// connectivityChecker runs the probe checks against a batch of addresses. It is
+// satisfied by the networkdevices component.
+type connectivityChecker interface {
+	CheckConnectivity(ctx context.Context, req connectivity.Request) (connectivity.Result, error)
+}
+
 // sweepRequest is everything one cycle over one range needs.
 type sweepRequest struct {
 	Config      rangeConfig
