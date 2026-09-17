@@ -272,7 +272,7 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 }
 
 // SelectBottleneck reports WARNING for a component that recovered earlier in the trailing 30m.
-// That one was not saturating when the tailer gave up, so it must not be blamed for the loss.
+// Blaming it overclaims, and so does calling the pipeline healthy, so this resolves to unknown.
 func TestCurrentBottleneckComponentIgnoresRecoveredSaturation(t *testing.T) {
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
@@ -284,8 +284,19 @@ func TestCurrentBottleneckComponentIgnoresRecoveredSaturation(t *testing.T) {
 	summary := BackpressureSnapshot()
 	require.Equal(t, BackpressureWarning, summary.State, "the snapshot still carries the history")
 	require.NotNil(t, summary.Bottleneck)
-	assert.Equal(t, NoBottleneck, currentBottleneckComponent(),
-		"saturation that ended before the loss must not be attributed to it")
+	assert.Empty(t, currentBottleneckComponent(),
+		"saturation that ended before the loss is neither the cause nor proof of health")
+}
+
+// Nothing saturated anywhere in the window is the one case that can claim the pipeline kept up.
+func TestCurrentBottleneckComponentHealthyIsNoBottleneck(t *testing.T) {
+	ResetPipelineMonitorForTest()
+	t.Cleanup(ResetPipelineMonitorForTest)
+
+	RegisterPipelineMonitor(&stubPipelineMonitor{
+		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)},
+	})
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent())
 }
 
 // Saturation in the trailing minute overlaps the close_timeout the loss was recorded after,

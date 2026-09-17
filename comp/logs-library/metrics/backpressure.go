@@ -207,7 +207,8 @@ func (c *bottleneckCache) invalidate() {
 }
 
 // concurrentWithLoss reports whether the saturation was still happening when the tailer gave
-// up. SelectBottleneck also returns components that recovered earlier in the trailing 30m.
+// up. The trailing minute is an approximation of the close_timeout the caller waited out, so
+// a longer close_timeout resolves to unknown rather than to a wrong stage.
 func concurrentWithLoss(c *ComponentBackpressure) bool {
 	return c.CurrentlySaturated || c.Saturated1mSeconds > 0
 }
@@ -228,11 +229,16 @@ func (c *bottleneckCache) get() string {
 	summary := BackpressureSnapshot()
 	component := ""
 	switch {
-	case summary.Bottleneck != nil && concurrentWithLoss(summary.Bottleneck):
-		component = summary.Bottleneck.Component
-	case summary.State != "":
-		// Distinct from "": a monitor answered, and nothing was saturating the loss.
+	case summary.State == "":
+		// No monitor answered.
+	case summary.Bottleneck == nil:
+		// Distinct from "": a monitor answered, and nothing was saturated at all.
 		component = NoBottleneck
+	case concurrentWithLoss(summary.Bottleneck):
+		component = summary.Bottleneck.Component
+	default:
+		// Saturated inside the trailing 30m but not concurrent with the loss. Blaming it
+		// would overclaim, and so would reporting the pipeline as keeping up.
 	}
 
 	c.mu.Lock()

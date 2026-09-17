@@ -62,16 +62,17 @@ type missedBytesBucket struct {
 	bottlenecks map[string]int64
 }
 
-// recordBottleneck counts one rotation against a stage, folding past the cap.
+// recordBottleneck counts one rotation against a stage. Past the cap the rotation is left
+// unattributed rather than folded: a synthetic stage name matches no remediation step.
 func (b *missedBytesBucket) recordBottleneck(component string) {
 	if component == "" {
 		return
 	}
+	if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
+		return
+	}
 	if b.bottlenecks == nil {
 		b.bottlenecks = make(map[string]int64, 4)
-	}
-	if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
-		component = missedBytesOverflowLabel
 	}
 	b.bottlenecks[component]++
 }
@@ -82,8 +83,17 @@ type missedBytesEntry struct {
 	lastLossNano int64
 }
 
+// prune drops the buckets no longer overlapping the window ending at cutoffNano.
+func (e *missedBytesEntry) prune(cutoffNano int64) {
+	for start := range e.buckets {
+		if start+int64(missedBytesBucketSize) <= cutoffNano {
+			delete(e.buckets, start)
+		}
+	}
+}
+
 // pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
-// The only place buckets are removed. bottlenecks is nil when nothing was attributed.
+// bottlenecks is nil when nothing was attributed.
 func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64, bottlenecks map[string]int64) {
 	for start, bucket := range e.buckets {
 		if start+int64(missedBytesBucketSize) <= cutoffNano {
@@ -141,7 +151,7 @@ func (t *missedBytesTracker) record(source, service string, bytes int64, bottlen
 	}
 
 	// Pruned here too: nothing reads the tracker when health_platform.enabled is false.
-	entry.pruneAndSum(nowNano - int64(missedBytesWindow))
+	entry.prune(nowNano - int64(missedBytesWindow))
 
 	start := alignMissedBytesBucket(nowNano)
 	bucket, ok := entry.buckets[start]
@@ -221,9 +231,6 @@ var logsAgentRunning atomic.Bool
 
 // RecordMissedBytes records bytes lost when a rotation closed a file early. Never
 // reached on Windows, where the tailer holds no os.File to size the loss with.
-//
-// The bottleneck is sampled here because this runs one close_timeout after the rotation,
-// when the data became unrecoverable.
 func RecordMissedBytes(source, service string, bytes int64) {
 	missedBytes.record(source, service, bytes, currentBottleneckComponent())
 }

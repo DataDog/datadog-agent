@@ -411,6 +411,26 @@ func TestBuildIssue_HealthyAtLossTimeIgnoresLaterSaturation(t *testing.T) {
 	assert.NotContains(t, step1, "`strategy`", "strategy saturated after the loss, so it did not cause it")
 }
 
+// rankSources keeps one stage per tuple, so a tuple that was 3 unsaturated and 2 worker
+// rotations arrives as ("none", 3) with the worker pair discarded. The 2 must not vanish.
+func TestBuildIssue_WithinTupleMixDoesNotRuleOutSaturation(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "5",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":5,"bottleneck":"none","bottleneck_rotations":3}]`,
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	step1 := issue.GetRemediation().GetSteps()[0].GetText()
+	assert.Contains(t, step1, "3 of 5 rotations")
+	assert.NotContains(t, step1, "No pipeline component was saturated",
+		"2 of the 5 rotations were attributed to a saturated stage and dropped by rankSources")
+}
+
 // The dominant attribution is a plurality, not a verdict. A healthy majority must not rule
 // out the rotations that were saturated.
 func TestBuildIssue_HealthyMajorityDoesNotRuleOutSaturation(t *testing.T) {
@@ -429,7 +449,7 @@ func TestBuildIssue_HealthyMajorityDoesNotRuleOutSaturation(t *testing.T) {
 	require.NoError(t, err)
 
 	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "6 of 11 attributed rotations")
+	assert.Contains(t, step1, "6 of 11 rotations")
 	assert.Contains(t, step1, "`logs_config.close_timeout`")
 	assert.NotContains(t, step1, "No pipeline component was saturated",
 		"five rotations were saturated, so saturation cannot be ruled out")
@@ -452,7 +472,7 @@ func TestBuildIssue_SaturatedMajorityIsCountQualified(t *testing.T) {
 
 	step1 := issue.GetRemediation().GetSteps()[0].GetText()
 	assert.Contains(t, step1, "`worker`")
-	assert.Contains(t, step1, "during 6 of 10 attributed rotations")
+	assert.Contains(t, step1, "during 6 of 10 rotations")
 }
 
 // Tuples dropped from the breakdown may have been saturated, so a clean reported set is not
