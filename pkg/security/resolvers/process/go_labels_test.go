@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
@@ -35,6 +36,43 @@ func buildGoLabelsTestBinary(t *testing.T, dir, name string, env []string, args 
 		t.Fatalf("go build %v %v failed: %s\n%s", env, args, err, output)
 	}
 	return out
+}
+
+type goLabelsFixtureKind string
+
+const (
+	goLabelsFixtureNoCGO  goLabelsFixtureKind = "NOCGO"
+	goLabelsFixtureCGO    goLabelsFixtureKind = "CGO"
+	goLabelsFixtureCGOPIE goLabelsFixtureKind = "CGO_PIE"
+)
+
+func isBazelTest() bool {
+	return os.Getenv("TEST_SRCDIR") != "" || os.Getenv("RUNFILES_DIR") != "" || os.Getenv("RUNFILES_MANIFEST_FILE") != ""
+}
+
+func bazelGoLabelsTestBinary(t *testing.T, fixture goLabelsFixtureKind, stripped bool) string {
+	t.Helper()
+
+	suffix := "PLAIN"
+	if stripped {
+		suffix = "STRIPPED"
+	}
+	envName := "GO_LABELS_TEST_FIXTURE_" + string(fixture) + "_" + suffix
+	loc := os.Getenv(envName)
+	require.NotEmptyf(t, loc, "expected %s to be set by the Bazel test rule", envName)
+
+	path, err := runfiles.Rlocation(loc)
+	require.NoError(t, err)
+	return path
+}
+
+func goLabelsTestBinary(t *testing.T, dir, name string, fixture goLabelsFixtureKind, stripped bool, env []string, args ...string) string {
+	t.Helper()
+
+	if isBazelTest() {
+		return bazelGoLabelsTestBinary(t, fixture, stripped)
+	}
+	return buildGoLabelsTestBinary(t, dir, name, env, args...)
 }
 
 // hasSymtab reports whether the binary still carries a symbol table.
@@ -75,18 +113,21 @@ func TestStripGoVersion(t *testing.T) {
 // table silently falls back to a hardcoded offset on stripped binaries — which
 // is what most production Go images are.
 func TestExtractTLSGOffset(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("go toolchain not available")
+	if !isBazelTest() {
+		if _, err := exec.LookPath("go"); err != nil {
+			t.Skip("go toolchain not available")
+		}
 	}
 
 	variants := []struct {
-		name string
-		env  []string
-		args []string
+		name    string
+		fixture goLabelsFixtureKind
+		env     []string
+		args    []string
 	}{
-		{name: "nocgo", env: []string{"CGO_ENABLED=0"}},
-		{name: "cgo", env: []string{"CGO_ENABLED=1"}},
-		{name: "cgo_pie", env: []string{"CGO_ENABLED=1"}, args: []string{"-buildmode=pie"}},
+		{name: "nocgo", fixture: goLabelsFixtureNoCGO, env: []string{"CGO_ENABLED=0"}},
+		{name: "cgo", fixture: goLabelsFixtureCGO, env: []string{"CGO_ENABLED=1"}},
+		{name: "cgo_pie", fixture: goLabelsFixtureCGOPIE, env: []string{"CGO_ENABLED=1"}, args: []string{"-buildmode=pie"}},
 	}
 
 	offsetOf := func(t *testing.T, path string) int32 {
@@ -104,8 +145,8 @@ func TestExtractTLSGOffset(t *testing.T) {
 	dir := t.TempDir()
 	for _, v := range variants {
 		t.Run(v.name, func(t *testing.T) {
-			plain := buildGoLabelsTestBinary(t, dir, v.name, v.env, v.args...)
-			stripped := buildGoLabelsTestBinary(t, dir, v.name+"_stripped", v.env,
+			plain := goLabelsTestBinary(t, dir, v.name, v.fixture, false, v.env, v.args...)
+			stripped := goLabelsTestBinary(t, dir, v.name+"_stripped", v.fixture, true, v.env,
 				append(append([]string{}, v.args...), "-ldflags=-s -w")...)
 
 			require.True(t, hasSymtab(t, plain), "unstripped binary should have a symbol table")

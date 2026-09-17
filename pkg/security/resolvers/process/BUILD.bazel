@@ -1,5 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load(":go_labels_test.bzl", "go_labels_fixture")
 
 go_library(
     name = "process",
@@ -183,6 +184,72 @@ go_library(
     }),
 )
 
+go_labels_fixture(
+    name = "go_labels_nocgo_plain",
+    srcs = ["testdata/main.go"],
+    linkmode = "normal",
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_labels_fixture(
+    name = "go_labels_nocgo_stripped",
+    srcs = ["testdata/main.go"],
+    gc_linkopts = [
+        "-s",
+        "-w",
+    ],
+    linkmode = "normal",
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_labels_fixture(
+    name = "go_labels_cgo_plain",
+    srcs = ["testdata/main.go"],
+    linkmode = "normal",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_labels_fixture(
+    name = "go_labels_cgo_stripped",
+    srcs = ["testdata/main.go"],
+    gc_linkopts = [
+        "-s",
+        "-w",
+    ],
+    linkmode = "normal",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_labels_fixture(
+    name = "go_labels_cgo_pie_plain",
+    srcs = ["testdata/main.go"],
+    linkmode = "pie",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_labels_fixture(
+    name = "go_labels_cgo_pie_stripped",
+    srcs = ["testdata/main.go"],
+    gc_linkopts = [
+        "-s",
+        "-w",
+    ],
+    linkmode = "pie",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 dd_agent_go_test(
     name = "process_test",
     srcs = [
@@ -190,8 +257,29 @@ dd_agent_go_test(
         "otel_tls_test.go",
         "resolver_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/**"]) + select({
+        "@platforms//os:linux": [
+            ":go_labels_cgo_pie_plain",
+            ":go_labels_cgo_pie_stripped",
+            ":go_labels_cgo_plain",
+            ":go_labels_cgo_stripped",
+            ":go_labels_nocgo_plain",
+            ":go_labels_nocgo_stripped",
+        ],
+        "//conditions:default": [],
+    }),
     embed = [":process"],
+    env = select({
+        "@platforms//os:linux": {
+            "GO_LABELS_TEST_FIXTURE_CGO_PIE_PLAIN": "$(rlocationpath :go_labels_cgo_pie_plain)",
+            "GO_LABELS_TEST_FIXTURE_CGO_PIE_STRIPPED": "$(rlocationpath :go_labels_cgo_pie_stripped)",
+            "GO_LABELS_TEST_FIXTURE_CGO_PLAIN": "$(rlocationpath :go_labels_cgo_plain)",
+            "GO_LABELS_TEST_FIXTURE_CGO_STRIPPED": "$(rlocationpath :go_labels_cgo_stripped)",
+            "GO_LABELS_TEST_FIXTURE_NOCGO_PLAIN": "$(rlocationpath :go_labels_nocgo_plain)",
+            "GO_LABELS_TEST_FIXTURE_NOCGO_STRIPPED": "$(rlocationpath :go_labels_nocgo_stripped)",
+        },
+        "//conditions:default": {},
+    }),
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
@@ -222,6 +310,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),
