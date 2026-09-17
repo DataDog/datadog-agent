@@ -16,7 +16,13 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//pkg/fleet/catalog",
+        "//pkg/fleet/catalog/remoteconfig",
+        "//pkg/privateactionrunner/adapters/rcclient",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_opencontainers_go_digest//:go-digest",
+    ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/privateactionrunner/adapters/workflowjsonschema",
             "//pkg/privateactionrunner/util",
@@ -93,13 +99,7 @@ go_library(
             "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         ],
         "//conditions:default": [],
-    }) + [
-        "//pkg/fleet/catalog",
-        "//pkg/fleet/catalog/remoteconfig",
-        "//pkg/privateactionrunner/adapters/rcclient",
-        "@com_github_google_go_containerregistry//pkg/name",
-        "@com_github_opencontainers_go_digest//:go-digest",
-    ],
+    }),
 )
 
 dd_agent_go_test(
@@ -115,7 +115,10 @@ dd_agent_go_test(
         "remote_catalog_test.go",
     ],
     embed = [":authoredscripts"],
-    deps = select({
+    deps = [
+        "//pkg/fleet/catalog",
+        "//pkg/remoteconfig/state",
+    ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -177,8 +180,5 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
-    }) + [
-        "//pkg/fleet/catalog",
-        "//pkg/remoteconfig/state",
-    ],
+    }),
 )
