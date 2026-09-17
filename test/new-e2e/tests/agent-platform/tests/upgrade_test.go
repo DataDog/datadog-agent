@@ -109,6 +109,9 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 	install.Unix(is.T(), VMclient, installOptions...)
 	var err error
 	if is.srcVersion == "5" {
+		// install.Unix skipped starting Agent 5 (DD_INSTALL_ONLY), so start it here instead.
+		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent start")
+		require.NoError(is.T(), err)
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
 	} else {
 		_, err = VMclient.SvcManager.Stop("datadog-agent")
