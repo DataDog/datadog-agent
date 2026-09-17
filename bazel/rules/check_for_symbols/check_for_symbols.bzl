@@ -42,15 +42,7 @@ _unstripped_binary_transition = transition(
 )
 
 def _check_for_symbols_impl(ctx):
-    # attr.label(cfg = <transition>) always yields a list, even for a 1:1
-    # outgoing edge transition.
-    binary_files = ctx.attr.binary[0][DefaultInfo].files.to_list()
-    if len(binary_files) != 1:
-        fail(
-            "check_for_symbols_test: 'binary' must produce exactly one default output file, got: %s" %
-            binary_files,
-        )
-    binary = binary_files[0]
+    binary = ctx.file.binary
 
     if not ctx.attr.must_include and not ctx.attr.must_not_include:
         fail("check_for_symbols_test: at least one of 'must_include' or 'must_not_include' must be non-empty")
@@ -83,6 +75,7 @@ check_for_symbols = rule(
     attrs = {
         "binary": attr.label(
             mandatory = True,
+            allow_single_file = True,
             doc = "The (Go) binary target whose symbol table should be inspected. Must produce exactly one default output file.",
             cfg = _unstripped_binary_transition,
         ),
@@ -139,6 +132,7 @@ def check_for_symbols_test(name, binary, must_include = None, must_not_include =
         must_include = must_include or [],
         must_not_include = must_not_include or [],
         testonly = True,
+        tags = ["manual"],
         **check_kwargs
     )
     build_test(

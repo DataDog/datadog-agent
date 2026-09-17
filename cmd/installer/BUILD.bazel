@@ -9,7 +9,7 @@ load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
 # fips_check_binary_for_expected_symbol, which this check_for_symbols_test
 # usage generalizes). A successful build is not sufficient proof that the
 # FIPS code path was actually compiled in -- this checks the binary's symbol
-# table via `go tool nm`, mirroring the omnibus-era check.
+# table via `nm`, mirroring the omnibus-era check.
 _FIPS_SYMBOL = "_Cfunc__mkcgo_OPENSSL"
 
 go_library(
