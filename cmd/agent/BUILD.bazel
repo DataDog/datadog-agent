@@ -1,8 +1,22 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 load("//tasks:build_tags.bzl", "AGENT_HEROKU_TAGS", "AGENT_TAGS", "COMMON_TAGS")
 
 exports_files(["macos/uninstall_mac_os.sh"])
+
+pkg_files(
+    name = "example_config",
+    srcs = ["//pkg/config:agent_config"],
+    prefix = select(ETC_DIR_SELECTOR),
+    renames = {"//pkg/config:agent_config": "datadog.yaml.example"},
+)
+
+pkg_filegroup(
+    name = "example_config_pkg",
+    srcs = [":example_config"],
+)
 
 go_library(
     name = "agent_lib",
@@ -20,6 +34,7 @@ go_library(
         "@platforms//os:linux": True,
         "//conditions:default": False,
     }),  # keep
+    data = [":example_config_pkg"],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent",
     visibility = ["//visibility:private"],
     deps = [

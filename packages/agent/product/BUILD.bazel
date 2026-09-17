@@ -142,9 +142,7 @@ pkg_mkdirs(
 
 pkg_files(
     name = "example_config",
-    srcs = [
-        "//pkg/config:agent_config",
-    ] + select({
+    srcs = select({
         "//packages/agent:heroku_flavor": [],
         "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
     }) + select({
@@ -152,9 +150,6 @@ pkg_files(
         "//conditions:default": [],
     }),
     prefix = select(ETC_DIR_SELECTOR),
-    renames = {
-        "//pkg/config:agent_config": "datadog.yaml.example",
-    },
 )
 
 # Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
