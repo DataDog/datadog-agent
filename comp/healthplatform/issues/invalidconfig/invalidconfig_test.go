@@ -145,7 +145,10 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"api_key: [secret]\n", "got array, want string"},
 		{"additional_endpoints: {'https://example.test': [false]}\n", "got boolean, want string"},
 		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
-		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", "got string, want integer"},
+		{"logs_enabled: ENC[enabled]\n", "got string, want boolean"},
+		{"forwarder_backoff_factor: ENC[factor]\n", "got string, want number"},
+		{"api_key: ENC[key]\n", ""},
 		{"agent_ipc: ENC[ipc]\n", "got string, want object"},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
@@ -164,6 +167,7 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 			encoded, err := json.Marshal(issue)
 			require.NoError(t, err)
 			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
+			assert.NotContains(t, string(encoded), "ENC[")
 		})
 	}
 }

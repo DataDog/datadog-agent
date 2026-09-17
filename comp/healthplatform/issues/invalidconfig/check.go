@@ -68,13 +68,6 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	retained := violations[:0]
-	for _, violation := range violations {
-		if !c.isUnresolvedSecret(normalized, violation) {
-			retained = append(retained, violation)
-		}
-	}
-	violations = retained
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -137,43 +130,6 @@ func scrubViolationPath(path string) string {
 		}
 	}
 	return pointer.String()
-}
-
-func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
-	pointer, err := jsonpointer.Parse(violation.Path)
-	if err != nil {
-		return false
-	}
-	value, err := pointer.Eval(normalized)
-	if err != nil {
-		return false
-	}
-	text, ok := value.(string)
-	if !ok || !scrubber.IsEnc(text) || !allExpectedTypesScalar(violation.ExpectedTypes) {
-		return false
-	}
-	// Compound settings carry the source on the enclosing map or list.
-	// A resolved value can itself look like ENC[...] and must still be validated.
-	for i := range pointer {
-		key := strings.Join(pointer[:i+1], ".")
-		if c.cfg.IsSetting(key) {
-			return c.cfg.GetSource(key) != model.SourceSecret
-		}
-	}
-	return false
-}
-
-// Unresolved scalar references are deferred, but not array or object shape errors.
-func allExpectedTypesScalar(values []string) bool {
-	if len(values) == 0 {
-		return false
-	}
-	for _, value := range values {
-		if value == "array" || value == "object" || value == "null" {
-			return false
-		}
-	}
-	return true
 }
 
 func resolveDefault(cfg config.Component, pointerPath string) (string, any) {
