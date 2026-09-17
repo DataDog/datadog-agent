@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use openssl::pkey::PKey;
 use openssl::ssl::{SslConnector, SslConnectorBuilder, SslMethod, SslVerifyMode};
+use openssl::x509::store::X509StoreBuilder;
 use postgres_openssl::MakeTlsConnector;
 
 use crate::config::{Connection, SslMode};
@@ -17,9 +18,17 @@ pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
     if matches!(conn.ssl, SslMode::VerifyCa | SslMode::VerifyFull) {
         builder.set_verify(SslVerifyMode::PEER);
         match conn.ssl_root_cert.as_deref() {
-            Some(path) => builder
-                .set_ca_file(path)
-                .with_context(|| format!("reading ssl_root_cert {path}"))?,
+            // set_ca_file adds to the builder's system store; replace it so we trust only this CA.
+            Some(path) => {
+                builder.set_cert_store(
+                    X509StoreBuilder::new()
+                        .context("creating CA store")?
+                        .build(),
+                );
+                builder
+                    .set_ca_file(path)
+                    .with_context(|| format!("reading ssl_root_cert {path}"))?;
+            }
             None => builder
                 .set_default_verify_paths()
                 .context("loading the system CA store")?,
