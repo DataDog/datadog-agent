@@ -47,7 +47,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 				}
 				w.reportDone(rec, info)
 				// mark job as reported
-				w.store.MarkReported(rec)
+				rec.markReported()
 			}
 			return
 		}
@@ -82,7 +82,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		} else {
 			log.Infof("[HelmActions] deleted job %s/%s", job.Namespace, job.Name)
 			w.reportFailed(rec, failInfo)
-			w.store.MarkReported(rec)
+			rec.markReported()
 		}
 
 	case watch.Error:

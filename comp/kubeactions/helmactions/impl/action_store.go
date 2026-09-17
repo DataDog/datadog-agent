@@ -75,8 +75,17 @@ func (r *JobRecord) reported() bool {
 	return !r.ReportedTs.IsZero()
 }
 
+func (r *JobRecord) markReported() {
+	// update only if not set before.
+	if r.ReportedTs.IsZero() {
+		r.ReportedTs = time.Now()
+	}
+}
+
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
+	// mu guards jobs
+	mu       sync.RWMutex
 	jobs     map[types.UID]*JobRecord
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -113,10 +122,13 @@ type trackedLifecycle interface {
 // per record type (Job: "just terminal", Pod: "just failed"), and only the
 // caller knows which transition matters to its watcher.
 func upsertTracked[T trackedLifecycle](
+	s *ActionStore,
 	m map[types.UID]*T,
 	uid types.UID,
 	build func(prev *T, now int64) *T,
 ) *T {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	prev := m[uid]
 	if prev == nil {
 		prev = new(T)
@@ -133,6 +145,8 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 	if job == nil || job.UID == "" {
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, exists := s.jobs[job.UID]; exists {
 		return
 	}
@@ -159,7 +173,7 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 // the Job watcher on ADDED/MODIFIED events. Returns the resulting record and
 // whether it represents a transition into a terminal phase (succeeded/failed).
 func (s *ActionStore) UpdateJob(job *batchv1.Job) *JobRecord {
-	return upsertTracked(s.jobs, job.UID, func(prev *JobRecord, now int64) *JobRecord {
+	return upsertTracked(s, s.jobs, job.UID, func(prev *JobRecord, now int64) *JobRecord {
 		actionID := jobActionID(job, prev.ActionID)
 
 		phase, msg := classifyJob(job)
@@ -192,13 +206,6 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) *JobRecord {
 	})
 }
 
-func (s *ActionStore) MarkReported(r *JobRecord) {
-	// update only if not set before.
-	if r.ReportedTs.IsZero() {
-		r.ReportedTs = time.Now()
-	}
-}
-
 // jobActionID determines actionID for current job usign following logic:
 // in normal conditions DCA runs for a long time and prevID is always present when job is not manually created.
 // prevID can be "" on DCA restart in which case functions inspects job annotation for actionID.
@@ -214,6 +221,8 @@ func jobActionID(job *batchv1.Job, prevID string) string {
 
 // RemoveJob drops a tracked Job. Called on watcher DELETED events.
 func (s *ActionStore) RemoveJob(uid types.UID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.jobs, uid)
 }
 
@@ -267,6 +276,9 @@ func (s *ActionStore) cleanupLoop(ctx context.Context) {
 }
 
 func (s *ActionStore) cleanup() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	cutoff := time.Now().Add(-RecordRetentionTTL).Unix()
 
 	removedJobs := 0
