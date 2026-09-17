@@ -29,6 +29,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -255,6 +256,18 @@ func (f *metricsFilterRules) isAllowedByRulesFromWithHost(name, source, host str
 	return true
 }
 
+// isAllowedByRulesFromWithHostComposite evaluates tag-aware rules against an
+// immutable CompositeTags view without flattening or sorting it.
+func (f *metricsFilterRules) isAllowedByRulesFromWithHostComposite(name, source, host string, tags tagset.CompositeTags, start int) bool {
+	for _, rule := range f.rules[start:] {
+		if rule.matchesWithHostComposite(name, source, host, tags) {
+			return !rule.exclude
+		}
+	}
+
+	return true
+}
+
 // publishMutedSnapshot atomically publishes an immutable baseline mute union.
 // The engine owns constructing this copy-on-write snapshot; callers and
 // readers must never mutate m after publication.
@@ -264,6 +277,18 @@ func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 
 func (r metricsCompiledRule) matchesWithHost(name, source, host string, tags []string) bool {
 	return r.matchesNameSourceAndHost(name, source, host) && containsAllTagsSorted(tags, r.tags)
+}
+
+func (r metricsCompiledRule) matchesWithHostComposite(name, source, host string, tags tagset.CompositeTags) bool {
+	if !r.matchesNameSourceAndHost(name, source, host) {
+		return false
+	}
+	for _, ruleTag := range r.tags {
+		if !tags.Find(func(tag string) bool { return tag == ruleTag }) {
+			return false
+		}
+	}
+	return true
 }
 
 func (r metricsCompiledRule) matchesNameSourceAndHost(name, source, host string) bool {

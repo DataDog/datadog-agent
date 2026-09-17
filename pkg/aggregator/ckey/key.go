@@ -73,6 +73,18 @@ func (g *SliceKeyGenerator) Generate(name, hostname string, tags []string) Conte
 	return key
 }
 
+// GenerateComposite returns the context key for name, hostname, and tags.
+// The CompositeTags slices are read-only and are never flattened or mutated.
+// Scratch state is reset before returning.
+func (g *SliceKeyGenerator) GenerateComposite(name, hostname string, tags tagset.CompositeTags) ContextKey {
+	tags1, tags2 := tags.UnsafeGet()
+	g.tags.Append(tags1...)
+	g.tags.Append(tags2...)
+	key := g.generator.Generate(name, hostname, g.tags)
+	g.tags.Reset()
+	return key
+}
+
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsAccumulator) ContextKey {

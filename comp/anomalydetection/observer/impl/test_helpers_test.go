@@ -29,7 +29,7 @@ func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
 func testContextKeyFor(sample observerdef.MetricView) uint64 {
 	switch sample := sample.(type) {
 	case *metricObs:
-		return testContextKeyForIdentity(sample.name, sample.host, sample.tags)
+		return testContextKeyForCompositeIdentity(sample.name, sample.host, sample.tags)
 	case *tagsTrackingMetric:
 		return testContextKeyForIdentity(sample.name, "", sample.tags)
 	case *sampleNoSource:
@@ -41,6 +41,14 @@ func testContextKeyFor(sample observerdef.MetricView) uint64 {
 
 func testContextKeyForIdentity(name, host string, tags []string) uint64 {
 	return uint64(ckey.NewSliceKeyGenerator().Generate(name, host, tags))
+}
+
+func testContextKeyForCompositeIdentity(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(ckey.NewSliceKeyGenerator().GenerateComposite(name, host, tags))
+}
+
+func testCompositeTags(tags []string) tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(tags)
 }
 
 func testStorageKeyForMetric(namespace string, sample observerdef.MetricView) uint64 {
@@ -141,8 +149,8 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	tags := log.Tags()
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{
-			{Name: "metric.a", Value: 1, Tags: tags},
-			{Name: "metric.b", Value: 1, Tags: tags},
+			{Name: "metric.a", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
+			{Name: "metric.b", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
 		},
 	}
 }
