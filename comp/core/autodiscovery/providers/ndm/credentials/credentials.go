@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package snmp
+// Package credentials reads the SNMP credentials Fleet Automation writes to the
+// Agent configuration, shared by the NDM config provider and the NDM discovery
+// component.
+package credentials
 
 import (
 	"errors"
@@ -18,19 +21,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-// credentialsDir and credentialsFilename locate the credential file Fleet
-// Automation writes, relative to confd_path. The file sits in a subdirectory
-// because the file config provider collects every yaml directly under snmp.d
-// as a check config.
+// Dir and Filename locate the credential file Fleet Automation writes, relative
+// to confd_path. The file sits in a subdirectory because the file config
+// provider collects every yaml directly under snmp.d as a check config.
 const (
-	credentialsDir      = "snmp.d/credentials"
-	credentialsFilename = "snmp_credentials.yaml"
+	Dir      = "snmp.d/credentials"
+	Filename = "snmp_credentials.yaml"
 )
 
-// credential is one entry of the credential file. The yaml names match
+// Credential is one entry of the credential file. The yaml names match
 // pkg/snmp.Authentication. ID is the join key an RC instance references, Name
 // is a human label.
-type credential struct {
+type Credential struct {
 	ID              string `yaml:"id"`
 	Name            string `yaml:"name"`
 	SNMPVersion     string `yaml:"snmp_version"`
@@ -46,34 +48,36 @@ type credential struct {
 
 // credentialsDocument is the credential file.
 type credentialsDocument struct {
-	Credentials []credential `yaml:"credentials"`
+	Credentials []Credential `yaml:"credentials"`
 }
 
-// credentialStore reads the credential file Fleet Automation writes to
+// Store reads the credential file Fleet Automation writes to
 // conf.d/snmp.d/credentials/snmp_credentials.yaml.
-type credentialStore struct {
+type Store struct {
 	cfg model.Reader
 }
 
-func newCredentialStore(cfg model.Reader) *credentialStore {
-	return &credentialStore{cfg: cfg}
+// NewStore returns a store reading the credential file under the given
+// configuration's confd_path.
+func NewStore(cfg model.Reader) *Store {
+	return &Store{cfg: cfg}
 }
 
-// path returns where the credential file is expected.
-func (s *credentialStore) path() string {
-	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
+// Path returns where the credential file is expected.
+func (s *Store) Path() string {
+	return filepath.Join(s.cfg.GetString("confd_path"), Dir, Filename)
 }
 
-// load returns the credentials indexed by id, re-reading the file on every
+// Load returns the credentials indexed by id, re-reading the file on every
 // call. An absent file is an empty set. An entry with no id is skipped and the
 // first of two entries sharing an id wins.
-func (s *credentialStore) load() (map[string]credential, error) {
-	doc, err := readCredentialsFile(s.path())
+func (s *Store) Load() (map[string]Credential, error) {
+	doc, err := readCredentialsFile(s.Path())
 	if err != nil {
 		return nil, err
 	}
 
-	creds := make(map[string]credential, len(doc.Credentials))
+	creds := make(map[string]Credential, len(doc.Credentials))
 	for _, e := range doc.Credentials {
 		if e.ID == "" {
 			continue
@@ -107,10 +111,10 @@ func readCredentialsFile(path string) (credentialsDocument, error) {
 	return doc, nil
 }
 
-// validate reports why a credential cannot produce a usable check instance,
+// Validate reports why a credential cannot produce a usable check instance,
 // through the helpers the snmp check itself uses. No credential value ever
 // reaches the returned error.
-func validate(c credential) error {
+func Validate(c Credential) error {
 	switch c.SNMPVersion {
 	case "1", "2c":
 		if c.CommunityString == "" {

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -171,7 +172,7 @@ func TestRenderInitConfigOfAnEmptyBlockIsEmpty(t *testing.T) {
 func TestRenderInstanceForV2C(t *testing.T) {
 	got, err := renderInstance(
 		documentInstance{IPAddress: "10.0.0.1", CredID: "cred-1"},
-		credential{ID: "cred-1", Name: "v2c-public", SNMPVersion: "2c", CommunityString: "public"},
+		credentials.Credential{ID: "cred-1", Name: "v2c-public", SNMPVersion: "2c", CommunityString: "public"},
 		nil,
 	)
 	require.NoError(t, err)
@@ -187,7 +188,7 @@ func TestRenderInstanceForV2C(t *testing.T) {
 func TestRenderInstanceForV1(t *testing.T) {
 	got, err := renderInstance(
 		documentInstance{IPAddress: "10.0.0.9"},
-		credential{Name: "v1", SNMPVersion: "1", CommunityString: "public"},
+		credentials.Credential{Name: "v1", SNMPVersion: "1", CommunityString: "public"},
 		nil,
 	)
 	require.NoError(t, err)
@@ -197,7 +198,7 @@ func TestRenderInstanceForV1(t *testing.T) {
 func TestRenderInstanceForV3(t *testing.T) {
 	got, err := renderInstance(
 		documentInstance{IPAddress: "10.0.0.2"},
-		credential{
+		credentials.Credential{
 			Name:            "v3-full",
 			SNMPVersion:     "3",
 			User:            "test-user",
@@ -260,7 +261,7 @@ func TestRenderInstanceCarriesEveryPerDeviceSetting(t *testing.T) {
 			Tags:       []string{"role:uplink"},
 			Disabled:   true,
 		}},
-	}, credential{ID: "cred-1", Name: "core-switches", SNMPVersion: "2c", CommunityString: "public"},
+	}, credentials.Credential{ID: "cred-1", Name: "core-switches", SNMPVersion: "2c", CommunityString: "public"},
 		&pingOptions{Count: 1, IntervalMS: 10, TimeoutMS: 1000, Linux: pingLinuxOptions{UseRawSocket: ptr(false)}})
 	require.NoError(t, err)
 
@@ -313,7 +314,7 @@ interface_configs:
 
 func TestRenderInstanceKeepsTheVersionAString(t *testing.T) {
 	// The snmp check reads snmp_version as a string, so it must stay quoted.
-	got, err := renderInstance(documentInstance{IPAddress: "10.0.0.3"}, credential{Name: "v3", SNMPVersion: "3", User: "u"}, nil)
+	got, err := renderInstance(documentInstance{IPAddress: "10.0.0.3"}, credentials.Credential{Name: "v3", SNMPVersion: "3", User: "u"}, nil)
 	require.NoError(t, err)
 	assert.Contains(t, string(got), `snmp_version: "3"`)
 }

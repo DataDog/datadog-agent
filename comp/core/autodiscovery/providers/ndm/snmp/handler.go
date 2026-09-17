@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	snmpcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -29,13 +30,13 @@ const configSource = names.NDMRemoteConfig + ":" + Key
 // Handler turns the "snmp" key of an Agent's NDM document into one snmp check
 // config per device.
 type Handler struct {
-	creds *credentialStore
+	creds *credentials.Store
 	log   log.Component
 }
 
 // NewHandler builds the snmp document-key handler.
 func NewHandler(cfg model.Reader, logComp log.Component) *Handler {
-	return &Handler{creds: newCredentialStore(cfg), log: logComp}
+	return &Handler{creds: credentials.NewStore(cfg), log: logComp}
 }
 
 // Key returns the document key this handler owns.
@@ -61,7 +62,7 @@ func (h *Handler) Render(path string, raw json.RawMessage, siblings map[string]j
 		return nil, err
 	}
 
-	creds, err := h.creds.load()
+	creds, err := h.creds.Load()
 	if err != nil {
 		h.log.Warnf("ndm: some snmp credential files of config %s did not load: %v", path, err)
 	}
@@ -116,16 +117,16 @@ func (h *Handler) Render(path string, raw json.RawMessage, siblings map[string]j
 
 // resolve joins an instance with its credential, or returns why it cannot be
 // scheduled. The reason never names a credential value.
-func resolve(instance documentInstance, creds map[string]credential) (credential, string) {
+func resolve(instance documentInstance, creds map[string]credentials.Credential) (credentials.Credential, string) {
 	if instance.IPAddress == "" {
-		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredID)
+		return credentials.Credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredID)
 	}
 	cred, found := creds[instance.CredID]
 	if !found {
-		return credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredID)
+		return credentials.Credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredID)
 	}
-	if err := validate(cred); err != nil {
-		return credential{}, fmt.Sprintf("%s cannot be scheduled: %s", instance.IPAddress, err.Error())
+	if err := credentials.Validate(cred); err != nil {
+		return credentials.Credential{}, fmt.Sprintf("%s cannot be scheduled: %s", instance.IPAddress, err.Error())
 	}
 	return cred, ""
 }
