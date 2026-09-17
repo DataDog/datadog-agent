@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +125,7 @@ func (r *dockerConfigReader) ReadMatchingFiles(ctx context.Context, search Confi
 // readFileWithinSearch revalidates and reads filePath without following a
 // symlink observed below searchRoot.
 func (r *dockerConfigReader) readFileWithinSearch(ctx context.Context, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
-	command := dockerReadFileWithinSearchCommand(searchRoot, filePath)
+	command := buildReadFileWithinSearchCommand(searchRoot, filePath)
 	stdoutLimit := len(filePath.String()) + 1 + maxConfigFileSize + 1
 	output, err := r.client.execSync(ctx, r.containerID, command, stdoutLimit)
 	if err != nil {
@@ -138,31 +137,11 @@ func (r *dockerConfigReader) readFileWithinSearch(ctx context.Context, searchRoo
 	if output.exitCode != 0 {
 		return ConfigFile{}, dockerExecExitError(output.exitCode, output.stderr)
 	}
-	if len(output.stderr) != 0 {
-		return ConfigFile{}, fmt.Errorf("read scoped config file in docker container: %s", strings.TrimSpace(string(output.stderr)))
-	}
-
-	pathPrefix := append([]byte(filePath.String()), 0)
-	if !bytes.HasPrefix(output.stdout, pathPrefix) {
-		return ConfigFile{}, fmt.Errorf("config file %q is not a regular file within search root %q", filePath.String(), searchRoot.String())
-	}
-	content, truncated, err := readLimitedFileContent(bytes.NewReader(output.stdout[len(pathPrefix):]), maxConfigFileSize)
+	file, err := decodeReadFileWithinSearchOutput(output.stdout, output.stderr, searchRoot, filePath)
 	if err != nil {
-		return ConfigFile{}, fmt.Errorf("read docker config file output: %w", err)
+		return ConfigFile{}, fmt.Errorf("decode scoped docker config file: %w", err)
 	}
-	return ConfigFile{Path: filePath.String(), Content: content, Truncated: truncated}, nil
-}
-
-// dockerReadFileWithinSearchCommand returns a command that emits the path
-// followed by bounded contents only when find observes a regular file.
-func dockerReadFileWithinSearchCommand(searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) []string {
-	return []string{
-		"find", "-P", searchRoot.String(),
-		"-type", "f",
-		"-path", escapeFindPathPattern(filePath),
-		"-print0",
-		"-exec", "head", "-c", strconv.Itoa(maxConfigFileSize + 1), "{}", ";",
-	}
+	return file, nil
 }
 
 // dockerExecExitError returns an error containing the exit code and bounded

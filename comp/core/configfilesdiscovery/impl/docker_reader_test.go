@@ -329,7 +329,7 @@ func TestDockerReaderReadMatchingFiles(t *testing.T) {
 			for i, wantFile := range tt.wantFiles {
 				assert.Equal(t, dockerExecCall{
 					containerID: "container-id",
-					command: dockerReadFileWithinSearchCommand(
+					command: buildReadFileWithinSearchCommand(
 						verifyTestConfigFilePath(t, tt.wantSearchRoot),
 						verifyTestConfigFilePath(t, wantFile.Path),
 					),

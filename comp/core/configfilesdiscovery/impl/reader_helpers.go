@@ -14,6 +14,7 @@ import (
 	"io"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -157,6 +158,36 @@ func readMatchingConfigFiles(
 		results = append(results, NewConfigFileReadResult(filePath, file))
 	}
 	return results, discoveryLimited || pathsLimited, nil
+}
+
+// buildReadFileWithinSearchCommand returns a command that emits the path
+// followed by bounded contents only when find observes a regular file.
+func buildReadFileWithinSearchCommand(searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) []string {
+	return []string{
+		"find", "-P", searchRoot.String(),
+		"-type", "f",
+		"-path", escapeFindPathPattern(filePath),
+		"-print0",
+		"-exec", "head", "-c", strconv.Itoa(maxConfigFileSize + 1), "{}", ";",
+	}
+}
+
+// decodeReadFileWithinSearchOutput validates and decodes the path-prefixed
+// output from buildReadFileWithinSearchCommand.
+func decodeReadFileWithinSearchOutput(stdout []byte, stderr []byte, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	if len(stderr) != 0 {
+		return ConfigFile{}, fmt.Errorf("read scoped config file: %s", strings.TrimSpace(string(stderr)))
+	}
+
+	pathPrefix := append([]byte(filePath.String()), 0)
+	if !bytes.HasPrefix(stdout, pathPrefix) {
+		return ConfigFile{}, fmt.Errorf("config file %q is not a regular file within search root %q", filePath.String(), searchRoot.String())
+	}
+	content, truncated, err := readLimitedFileContent(bytes.NewReader(stdout[len(pathPrefix):]), maxConfigFileSize)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("read config file output: %w", err)
+	}
+	return ConfigFile{Path: filePath.String(), Content: content, Truncated: truncated}, nil
 }
 
 func readLimitedFileContent(r io.Reader, limit int) ([]byte, bool, error) {
