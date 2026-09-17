@@ -116,7 +116,7 @@ func (c *PackageCache) artifactKey(descriptor Descriptor) artifactstore.Key {
 }
 
 func artifactVariant(sourceVariant string, descriptor Descriptor) string {
-	digest := sha256.Sum256([]byte(sourceVariant + "\x00" + descriptor.Package + "\x00" + descriptor.Version))
+	digest := sha256.Sum256([]byte(sourceVariant + "\x00" + descriptor.FQN + "\x00" + descriptor.Package + "\x00" + descriptor.Version))
 	return artifactKeyVersion + "-" + hex.EncodeToString(digest[:])
 }
 

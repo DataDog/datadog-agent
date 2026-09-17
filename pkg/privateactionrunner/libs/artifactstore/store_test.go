@@ -140,7 +140,7 @@ func TestEnsureCleansFailedPopulation(t *testing.T) {
 		validateTestArtifact("valid"),
 	)
 	require.ErrorIs(t, err, expectedErr)
-	_, err = os.Stat(store.paths(testKey).stagingKeyDirectory)
+	_, err = os.Stat(store.paths(testKey).stagingParentDirectory)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
