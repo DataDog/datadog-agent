@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Reduce anomaly detection memory usage for large log messages by removing
+    unused full-message pattern samples and preventing pattern tokens from
+    retaining oversized log payloads.

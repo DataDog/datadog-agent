@@ -225,3 +225,11 @@ bin/anomalydetection-testbench \
 
 Reads scenarios from `observer/scenarios/`. See
 `internal/qbranch/anomalydetection-testbench/README.md`.
+
+### Log pattern retention
+
+Cluster patterns must not retain full raw log samples. Token strings and nested
+fields can share their input backing allocation: clone the bounded tokenizer
+input before creating substrings, and clear reusable token scratch references.
+A token-count or input-length cap alone does not bound retained bytes. Keep the
+large-message retained-heap regression when changing this ownership boundary.
