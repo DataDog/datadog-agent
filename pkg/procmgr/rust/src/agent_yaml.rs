@@ -250,30 +250,39 @@ fn plain_scalar_to_value(text: &str) -> Value {
     }
 }
 
-/// Integers first (decimal, then yaml.v2 `0x`/`0b`/`0o` prefixes), then YAML 1.1
-/// special floats (`.inf`, `-.inf`, `.nan`), then finite decimal/scientific floats.
+/// Resolves a numeric plain scalar the way yaml.v2's `resolve` does.
 ///
-/// Matches yaml.v2 unmarshalling into `interface{}`, so `cast.ToBoolE` sees a number
-/// (any non-zero is true) wherever Go would.
+/// yaml.v2 dispatches on the first byte of the *untouched* text through `resolveTable`,
+/// and only a `.`, a sign or a digit reaches a numeric path. That is why `1_` is the
+/// integer 1 while `_1` stays a string: underscores are stripped only after the hint is
+/// taken. Matching the order matters because `cast.ToBoolE` reads any non-zero number as
+/// true, so a scalar that Go resolves to a number must not end up a string here.
 fn plain_number(text: &str) -> Option<Value> {
-    let plain: String = text.chars().filter(|c| *c != '_').collect();
-    if let Ok(n) = plain.parse::<i64>() {
-        return Some(Value::Number(n.into()));
+    // `resolveMap` is consulted before any parsing, and covers the special floats.
+    if let Some(number) = special_float(text) {
+        return Some(Value::Number(number.into()));
     }
-    if let Ok(n) = plain.parse::<u64>() {
-        return Some(Value::Number(n.into()));
+    match text.as_bytes().first()? {
+        // Hint `.`: yaml.v2 goes straight to ParseFloat, with no shape filter.
+        b'.' => finite_float(text),
+        // Hint `D`/`S`: base-0 integers, then a `yamlStyleFloat`-shaped float.
+        b'+' | b'-' | b'0'..=b'9' => {
+            let plain: String = text.chars().filter(|c| *c != '_').collect();
+            base0_int(&plain).or_else(|| {
+                yaml_style_float(&plain)
+                    .then(|| finite_float(&plain))
+                    .flatten()
+            })
+        }
+        // Every other first byte has no hint at all, so the scalar stays a string.
+        _ => None,
     }
-    if let Some(n) = prefixed_int(&plain) {
-        return Some(n);
-    }
-    if let Some(n) = special_float(&plain) {
-        return Some(Value::Number(n.into()));
-    }
-    if !looks_like_float(&plain) {
-        return None;
-    }
-    plain
-        .parse::<f64>()
+}
+
+/// yaml.v2 falls through to a string when ParseFloat fails, and an overflow such as
+/// `1e400` is a failure, so it is a string rather than an infinity.
+fn finite_float(text: &str) -> Option<Value> {
+    text.parse::<f64>()
         .ok()
         .filter(|n| n.is_finite())
         .map(|n| Value::Number(n.into()))
@@ -292,62 +301,89 @@ fn special_float(text: &str) -> Option<f64> {
     }
 }
 
-/// `strconv.ParseInt`/`ParseUint` with base 0: `0x` hex, `0b` binary, `0o` octal.
-/// Leading-zero decimals stay decimal (`010` is 10) so `08` still parses as 8
-/// instead of failing octal and falling through to a string.
-fn prefixed_int(plain: &str) -> Option<Value> {
-    let (negative, rest) = match plain.as_bytes().first() {
-        Some(b'+') => (false, &plain[1..]),
-        Some(b'-') => (true, &plain[1..]),
-        _ => (false, plain),
+/// `strconv.ParseInt`/`ParseUint` with base 0, which is how yaml.v2 resolves every
+/// integer. Besides the `0x`/`0b`/`0o` prefixes, base 0 reads a bare leading zero as
+/// C-style octal, so `010` is 8 and `0644` is 420. An invalid octal digit is not an
+/// error: yaml.v2 falls through to its float fallback, which makes `08` the float 8.
+fn base0_int(plain: &str) -> Option<Value> {
+    let (negative, rest) = match plain.as_bytes() {
+        [b'+', rest @ ..] => (false, rest),
+        [b'-', rest @ ..] => (true, rest),
+        rest => (false, rest),
     };
-    let bytes = rest.as_bytes();
-    if bytes.len() < 3 || bytes[0] != b'0' {
-        return None;
-    }
-    let (base, digits) = match bytes[1] {
-        b'x' | b'X' => (16, &rest[2..]),
-        b'b' | b'B' => (2, &rest[2..]),
-        b'o' | b'O' => (8, &rest[2..]),
-        _ => return None,
+    let (base, digits) = match rest {
+        [b'0', b'x' | b'X', digits @ ..] => (16, digits),
+        [b'0', b'b' | b'B', digits @ ..] => (2, digits),
+        [b'0', b'o' | b'O', digits @ ..] => (8, digits),
+        // A lone `0` is just zero; any further digit makes it octal.
+        [b'0', digits @ ..] if !digits.is_empty() => (8, digits),
+        digits => (10, digits),
     };
-    if digits.is_empty() {
+    let digits = std::str::from_utf8(digits).ok()?;
+    // Go reads the sign before the base prefix, so `0x-1` is not an integer, but
+    // `from_str_radix` would accept it.
+    if digits.is_empty() || digits.starts_with(['+', '-']) {
         return None;
     }
     if negative {
         if let Ok(n) = i64::from_str_radix(digits, base) {
             return Some(Value::Number(n.checked_neg()?.into()));
         }
-        // Magnitude 2^63 (e.g. 0x8000000000000000) exceeds i64::MAX but negates to i64::MIN.
+        // ParseUint rejects a sign, so the only negative magnitude above i64::MAX that
+        // Go accepts is 2^63 (e.g. -0x8000000000000000), which negates to i64::MIN.
         let magnitude = u64::from_str_radix(digits, base).ok()?;
-        if magnitude == i64::MIN.unsigned_abs() {
-            return Some(Value::Number(i64::MIN.into()));
-        }
-        return None;
+        return (magnitude == i64::MIN.unsigned_abs()).then(|| Value::Number(i64::MIN.into()));
     }
     if let Ok(n) = i64::from_str_radix(digits, base) {
         return Some(Value::Number(n.into()));
     }
-    let n = u64::from_str_radix(digits, base).ok()?;
-    Some(Value::Number(n.into()))
+    u64::from_str_radix(digits, base)
+        .ok()
+        .map(|n| Value::Number(n.into()))
 }
 
-/// Digit-based decimal or scientific form (`1.0`, `1e0`). Plain `inf` without a
-/// leading dot stays a string in yaml.v2.
-fn looks_like_float(text: &str) -> bool {
-    let mut rest = text.as_bytes();
-    if rest.first().is_some_and(|c| *c == b'+' || *c == b'-') {
-        rest = &rest[1..];
-    }
-    if rest.is_empty() {
-        return false;
-    }
-    let has_digit = rest.iter().any(u8::is_ascii_digit);
-    let has_dot_or_exp = rest.iter().any(|c| *c == b'.' || *c == b'e' || *c == b'E');
-    let all_float_chars = rest.iter().all(|c| {
-        c.is_ascii_digit() || *c == b'.' || *c == b'e' || *c == b'E' || *c == b'+' || *c == b'-'
-    });
-    has_digit && has_dot_or_exp && all_float_chars
+/// yaml.v2 gates its float fallback on `yamlStyleFloat`,
+/// `^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)([eE][-+]?[0-9]+)?$`. The filter is what keeps
+/// Go's ParseFloat extensions (`Inf`, `NaN`, hex floats such as `0x1p-2`) out of YAML,
+/// while still letting a digit-only scalar become a float once it has overflowed
+/// `uint64`.
+fn yaml_style_float(plain: &str) -> bool {
+    let rest = match plain.as_bytes() {
+        [b'+' | b'-', rest @ ..] => rest,
+        rest => rest,
+    };
+    // `\.[0-9]+` or `[0-9]+(\.[0-9]*)?`
+    let rest = match rest {
+        [b'.', fraction @ ..] => match split_digits(fraction) {
+            (0, _) => return false,
+            (_, rest) => rest,
+        },
+        integer => match split_digits(integer) {
+            (0, _) => return false,
+            (_, [b'.', fraction @ ..]) => split_digits(fraction).1,
+            (_, rest) => rest,
+        },
+    };
+    // `([eE][-+]?[0-9]+)?`
+    let rest = match rest {
+        [b'e' | b'E', exponent @ ..] => {
+            let exponent = match exponent {
+                [b'+' | b'-', digits @ ..] => digits,
+                digits => digits,
+            };
+            match split_digits(exponent) {
+                (0, _) => return false,
+                (_, rest) => rest,
+            }
+        }
+        rest => rest,
+    };
+    rest.is_empty()
+}
+
+fn split_digits(bytes: &[u8]) -> (usize, &[u8]) {
+    let width = bytes.iter().take_while(|b| b.is_ascii_digit()).count();
+    (width, &bytes[width..])
 }
 
 fn mapping_from_pairs(pairs: HashMap<String, Value>) -> Value {
@@ -805,6 +841,65 @@ process_config:
     fn non_yaml_v2_number_spellings_stay_strings() {
         assert_eq!(scalar("enabled: inf\n"), Value::String("inf".into()));
         assert_eq!(scalar("enabled: -.nan\n"), Value::String("-.nan".into()));
+    }
+
+    /// yaml.v2 resolves integers with `strconv.ParseInt(s, 0, 64)`, so a bare leading
+    /// zero is octal rather than decimal.
+    #[test]
+    fn integers_resolve_with_base_zero() {
+        assert_eq!(scalar("enabled: 0\n").as_i64(), Some(0));
+        assert_eq!(scalar("enabled: 00\n").as_i64(), Some(0));
+        assert_eq!(scalar("enabled: 010\n").as_i64(), Some(8));
+        assert_eq!(scalar("enabled: 0644\n").as_i64(), Some(420));
+        assert_eq!(scalar("enabled: 02472256\n").as_i64(), Some(685230));
+        assert_eq!(scalar("enabled: -010\n").as_i64(), Some(-8));
+        // An invalid octal digit is not an error, it reaches the float fallback.
+        assert_eq!(scalar("enabled: 08\n").as_f64(), Some(8.0));
+        assert_eq!(scalar("enabled: 09\n").as_f64(), Some(9.0));
+        // Underscores are dropped, but only after the first byte has picked the hint.
+        assert_eq!(scalar("enabled: 1_000\n").as_i64(), Some(1000));
+        assert_eq!(scalar("enabled: 0_10\n").as_i64(), Some(8));
+        assert_eq!(scalar("enabled: 1_\n").as_i64(), Some(1));
+        assert_eq!(scalar("enabled: _1\n"), Value::String("_1".into()));
+    }
+
+    /// An integer too large for `uint64` is a float in yaml.v2, not a string, and
+    /// `GetBool` reads any non-zero float as true.
+    #[test]
+    fn integer_overflow_falls_back_to_a_float() {
+        let value = scalar("enabled: 18446744073709551616\n");
+        assert_eq!(value.as_f64(), Some(18446744073709551616.0));
+        assert_eq!(value_as_bool(&value), Some(true));
+        assert_eq!(
+            scalar("enabled: -9223372036854775809\n").as_f64(),
+            Some(-9223372036854775809.0)
+        );
+        assert_eq!(
+            scalar("enabled: 99999999999999999999999\n").as_f64(),
+            Some(1e23)
+        );
+    }
+
+    #[test]
+    fn floats_follow_the_yaml_style_float_shape() {
+        assert_eq!(scalar("enabled: 1.\n").as_f64(), Some(1.0));
+        assert_eq!(scalar("enabled: 1.e3\n").as_f64(), Some(1000.0));
+        assert_eq!(scalar("enabled: .5\n").as_f64(), Some(0.5));
+        assert_eq!(scalar("enabled: -.5\n").as_f64(), Some(-0.5));
+        assert_eq!(scalar("enabled: 1e5\n").as_f64(), Some(100000.0));
+        assert_eq!(scalar("enabled: +1e5\n").as_f64(), Some(100000.0));
+        // Shapes yaml.v2 refuses: Go's ParseFloat extensions, a truncated exponent, an
+        // empty or invalid radix prefix, and an overflowing exponent.
+        for text in [
+            "1e", "e5", "1.2.3", "0x1p-2", "Inf", "NaN", "1e400", "-1e400", "0x", "0b", "0o",
+            "0o8", "0b12",
+        ] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::String(text.into()),
+                "{text}"
+            );
+        }
     }
 
     #[test]
