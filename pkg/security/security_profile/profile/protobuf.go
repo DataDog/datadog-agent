@@ -139,6 +139,9 @@ func seccompToProto(s *securitycontext.SeccompProfile) *adprotov1.SeccompProfile
 		lp := s.LocalhostProfile
 		out.LocalhostProfile = &lp
 	}
+	if s.Filter != nil {
+		out.Filter = seccompFilterToProto(s.Filter)
+	}
 	return out
 }
 
@@ -153,6 +156,61 @@ func seccompFromProto(s *adprotov1.SeccompProfile) *securitycontext.SeccompProfi
 	out := &securitycontext.SeccompProfile{Type: t}
 	if t == securitycontext.SeccompLocalhost {
 		out.LocalhostProfile = s.GetLocalhostProfile()
+	}
+	if pf := s.GetFilter(); pf != nil {
+		out.Filter = seccompFilterFromProto(pf)
+	}
+	return out
+}
+
+func seccompFilterToProto(f *securitycontext.SeccompFilterResult) *adprotov1.SeccompFilter {
+	if f == nil {
+		return nil
+	}
+	out := &adprotov1.SeccompFilter{
+		DefaultAction: string(f.DefaultAction),
+	}
+	if len(f.Syscalls) > 0 {
+		out.Syscalls = make(map[string]*adprotov1.SyscallRule, len(f.Syscalls))
+		for name, rule := range f.Syscalls {
+			pr := &adprotov1.SyscallRule{Action: string(rule.Action)}
+			for _, c := range rule.ArgConditions {
+				pr.Conditions = append(pr.Conditions, &adprotov1.ArgCondition{
+					ArgIndex: int32(c.Index),
+					Op:       c.Op,
+					Value:    c.Value,
+					Action:   string(c.Action),
+				})
+			}
+			out.Syscalls[name] = pr
+		}
+	}
+	return out
+}
+
+func seccompFilterFromProto(pf *adprotov1.SeccompFilter) *securitycontext.SeccompFilterResult {
+	if pf == nil {
+		return nil
+	}
+	out := &securitycontext.SeccompFilterResult{
+		DefaultAction: securitycontext.SeccompAction(pf.GetDefaultAction()),
+	}
+	if len(pf.GetSyscalls()) > 0 {
+		out.Syscalls = make(map[string]securitycontext.SyscallRule, len(pf.GetSyscalls()))
+		for name, pr := range pf.GetSyscalls() {
+			rule := securitycontext.SyscallRule{
+				Action: securitycontext.SeccompAction(pr.GetAction()),
+			}
+			for _, c := range pr.GetConditions() {
+				rule.ArgConditions = append(rule.ArgConditions, securitycontext.ArgCondition{
+					Index:  int(c.GetArgIndex()),
+					Op:     c.GetOp(),
+					Value:  c.GetValue(),
+					Action: securitycontext.SeccompAction(c.GetAction()),
+				})
+			}
+			out.Syscalls[name] = rule
+		}
 	}
 	return out
 }

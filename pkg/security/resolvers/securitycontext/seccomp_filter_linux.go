@@ -62,10 +62,24 @@ const (
 	ActionNotify      SeccompAction = "USER_NOTIF"
 )
 
+// ArgCondition describes one argument-level check extracted from a BPF filter.
+type ArgCondition struct {
+	Index  int           // args[0..5]
+	Op     string        // "==", "!=", "&"
+	Value  uint32        // constant compared against
+	Action SeccompAction // action when condition matches
+}
+
+// SyscallRule is the effective action for a syscall, optionally with argument conditions.
+type SyscallRule struct {
+	Action        SeccompAction  // base action (evaluated with args=0)
+	ArgConditions []ArgCondition // extracted argument-level conditions, may be nil
+}
+
 // SeccompFilterResult holds the full result of extracting a seccomp filter.
 type SeccompFilterResult struct {
 	DefaultAction SeccompAction
-	Syscalls      map[string]SeccompAction // syscall name → effective action
+	Syscalls      map[string]SyscallRule // syscall name → rule with arg conditions
 }
 
 // ExtractSeccompFilter attaches to pid via ptrace, reads all seccomp BPF
@@ -96,10 +110,18 @@ func ExtractSeccompFilter(pid int, arch string) (*SeccompFilterResult, error) {
 	actions := emulateFilters(filters, auditArch)
 
 	result := &SeccompFilterResult{
-		Syscalls: make(map[string]SeccompAction, len(actions)),
+		Syscalls: make(map[string]SyscallRule, len(actions)),
 	}
 
 	result.DefaultAction = verdictToAction(evalFilters(filters, auditArch, maxSyscallNR+1))
+
+	// Static analysis: extract argument conditions from each filter.
+	argCondsByNR := make(map[int][]ArgCondition)
+	for _, insts := range filters {
+		for nr, conds := range analyzeArgConditions(insts) {
+			argCondsByNR[nr] = append(argCondsByNR[nr], conds...)
+		}
+	}
 
 	syscallArch := normalizeArch(arch)
 	for nr, action := range actions {
@@ -107,7 +129,11 @@ func ExtractSeccompFilter(pid int, arch string) (*SeccompFilterResult, error) {
 		if !ok {
 			continue
 		}
-		result.Syscalls[name] = action
+		rule := SyscallRule{Action: action}
+		if conds, ok := argCondsByNR[nr]; ok {
+			rule.ArgConditions = conds
+		}
+		result.Syscalls[name] = rule
 	}
 	return result, nil
 }
@@ -275,5 +301,153 @@ func normalizeArch(arch string) string {
 	default:
 		return arch
 	}
+}
+
+// offsetArgs is the byte offset of seccomp_data.args[0] in the seccomp_data struct.
+const offsetArgs = 16
+
+// analyzeArgConditions walks a single BPF filter's instructions and extracts
+// argument-level conditions for each syscall NR. It returns a map from syscall
+// NR to the conditions found.
+//
+// The analysis tracks three pieces of state as it walks:
+//   - currentNR: the syscall NR established by the most recent JumpIf on offset 0
+//   - argIndex:  which args[N] was last loaded (from LoadAbsolute at offset 16..63)
+//   - masked:    whether an ALUOpAnd was applied (bitmask check)
+//   - maskVal:   the AND mask constant
+func analyzeArgConditions(insts []bpf.Instruction) map[int][]ArgCondition {
+	result := make(map[int][]ArgCondition)
+
+	type state struct {
+		currentNR   int  // -1 = unknown
+		argIndex    int  // -1 = not an arg load
+		lastLoadOff int  // offset of last LoadAbsolute
+		masked      bool // ALUOpAnd was applied after arg load
+		maskVal     uint32
+	}
+	s := state{currentNR: -1, argIndex: -1, lastLoadOff: -1}
+
+	for i, inst := range insts {
+		switch v := inst.(type) {
+		case bpf.LoadAbsolute:
+			s.masked = false
+			s.lastLoadOff = int(v.Off)
+			if v.Off == offsetNr {
+				s.argIndex = -1
+			} else if v.Off >= offsetArgs && v.Off < offsetArgs+48 {
+				s.argIndex = int(v.Off-offsetArgs) / 8
+			} else {
+				s.argIndex = -1
+			}
+
+		case bpf.ALUOpConstant:
+			if v.Op == bpf.ALUOpAnd && s.argIndex >= 0 {
+				s.masked = true
+				s.maskVal = v.Val
+			}
+
+		case bpf.JumpIf:
+			if s.lastLoadOff == offsetNr && v.Cond == bpf.JumpEqual {
+				// This is a syscall NR check — update the tracked NR.
+				s.currentNR = int(v.Val)
+				s.argIndex = -1
+				continue
+			}
+			if s.argIndex >= 0 && s.currentNR >= 0 {
+				conds := extractConditions(v, s.argIndex, s.masked, s.maskVal, insts, i)
+				result[s.currentNR] = append(result[s.currentNR], conds...)
+			}
+
+		case bpf.RetConstant:
+			// A return resets arg tracking but not the current NR context.
+			s.argIndex = -1
+			s.masked = false
+		}
+	}
+	return result
+}
+
+// extractConditions produces ArgConditions from a JumpIf on an arg load.
+func extractConditions(j bpf.JumpIf, argIdx int, masked bool, maskVal uint32, insts []bpf.Instruction, pc int) []ArgCondition {
+	var conds []ArgCondition
+
+	trueAction := resolveTarget(insts, pc+1+int(j.SkipTrue))
+	falseAction := resolveTarget(insts, pc+1+int(j.SkipFalse))
+
+	if masked {
+		// Pattern: A = args[N]; A &= MASK; if A <cond> val
+		// Most common: A &= MASK; if A != 0 → bitmask check
+		switch j.Cond {
+		case bpf.JumpBitsSet:
+			if trueAction != "" {
+				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: trueAction})
+			}
+		case bpf.JumpBitsNotSet:
+			if falseAction != "" {
+				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: falseAction})
+			}
+		default:
+			// ALUOpAnd + JumpEqual/NotEqual on 0 is the typical pattern
+			if j.Cond == bpf.JumpEqual && j.Val == 0 {
+				// A & MASK == 0: false branch means bits are set
+				if falseAction != "" {
+					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: maskVal, Action: falseAction})
+				}
+			} else if j.Cond == bpf.JumpNotEqual && j.Val == 0 {
+				if trueAction != "" {
+					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: maskVal, Action: trueAction})
+				}
+			}
+		}
+		return conds
+	}
+
+	switch j.Cond {
+	case bpf.JumpEqual:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "==", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpNotEqual:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "!=", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpGreaterThan:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: ">", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpGreaterOrEqual:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: ">=", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpLessThan:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "<", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpLessOrEqual:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "<=", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpBitsSet:
+		if trueAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: trueAction})
+		}
+	case bpf.JumpBitsNotSet:
+		if falseAction != "" {
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: falseAction})
+		}
+	}
+	return conds
+}
+
+// resolveTarget looks at the instruction at the given index and returns
+// the SeccompAction if it's a RetConstant, or "" if it's not directly resolvable.
+func resolveTarget(insts []bpf.Instruction, idx int) SeccompAction {
+	if idx < 0 || idx >= len(insts) {
+		return ""
+	}
+	if ret, ok := insts[idx].(bpf.RetConstant); ok {
+		return verdictToAction(ret.Val & seccompRetActionMask)
+	}
+	return ""
 }
 

@@ -91,3 +91,160 @@ func TestArchToAudit(t *testing.T) {
 	assert.Equal(t, uint32(auditArchAArch64), archToAudit("arm64"))
 	assert.Equal(t, uint32(auditArchX86_64), archToAudit(""))
 }
+
+// --- Arg condition analysis tests ---
+
+// buildArgEqualityFilter creates a filter that checks:
+//
+//	if nr == syscallNR:
+//	    if args[argIdx] == allowedVal: ALLOW
+//	    else: ERRNO
+//	else: ALLOW (default)
+func buildArgEqualityFilter(syscallNR int, argIdx int, allowedVal uint32) []bpf.Instruction {
+	argOff := uint32(offsetArgs + argIdx*8) // low 32 bits of args[N]
+	return []bpf.Instruction{
+		bpf.LoadAbsolute{Off: offsetArch, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: auditArchX86_64, SkipTrue: 1},
+		bpf.RetConstant{Val: seccompRetKillThread},
+		bpf.LoadAbsolute{Off: offsetNr, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: uint32(syscallNR), SkipTrue: 0, SkipFalse: 3},
+		// NR matched — check arg
+		bpf.LoadAbsolute{Off: argOff, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: allowedVal, SkipTrue: 0, SkipFalse: 1},
+		bpf.RetConstant{Val: seccompRetAllow},
+		bpf.RetConstant{Val: seccompRetErrno},
+		// Default: allow other syscalls
+		bpf.RetConstant{Val: seccompRetAllow},
+	}
+}
+
+func TestAnalyzeArgConditions_EqualityCheck(t *testing.T) {
+	// socket (NR 41): allow only if args[0] == 2 (AF_INET)
+	filter := buildArgEqualityFilter(41, 0, 2)
+	result := analyzeArgConditions(filter)
+
+	require.Contains(t, result, 41)
+	conds := result[41]
+	require.Len(t, conds, 1)
+	assert.Equal(t, 0, conds[0].Index)
+	assert.Equal(t, "==", conds[0].Op)
+	assert.Equal(t, uint32(2), conds[0].Value)
+	assert.Equal(t, ActionAllow, conds[0].Action)
+}
+
+// buildArgBitmaskFilter creates a filter that checks:
+//
+//	if nr == syscallNR:
+//	    if args[argIdx] & mask != 0: ERRNO (deny if bits set)
+//	    else: ALLOW
+//	else: ALLOW
+func buildArgBitmaskFilter(syscallNR int, argIdx int, mask uint32) []bpf.Instruction {
+	argOff := uint32(offsetArgs + argIdx*8)
+	return []bpf.Instruction{
+		bpf.LoadAbsolute{Off: offsetArch, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: auditArchX86_64, SkipTrue: 1},
+		bpf.RetConstant{Val: seccompRetKillThread},
+		bpf.LoadAbsolute{Off: offsetNr, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: uint32(syscallNR), SkipTrue: 0, SkipFalse: 4},
+		// NR matched — check bitmask on arg
+		bpf.LoadAbsolute{Off: argOff, Size: 4},
+		bpf.ALUOpConstant{Op: bpf.ALUOpAnd, Val: mask},
+		bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: 0, SkipTrue: 0, SkipFalse: 1},
+		bpf.RetConstant{Val: seccompRetErrno},
+		bpf.RetConstant{Val: seccompRetAllow},
+		// Default
+		bpf.RetConstant{Val: seccompRetAllow},
+	}
+}
+
+func TestAnalyzeArgConditions_BitmaskCheck(t *testing.T) {
+	// clone (NR 56): deny if args[0] & 0x7E020000 != 0 (CLONE_NEW* flags)
+	filter := buildArgBitmaskFilter(56, 0, 0x7E020000)
+	result := analyzeArgConditions(filter)
+
+	require.Contains(t, result, 56)
+	conds := result[56]
+	require.Len(t, conds, 1)
+	assert.Equal(t, 0, conds[0].Index)
+	assert.Equal(t, "&", conds[0].Op)
+	assert.Equal(t, uint32(0x7E020000), conds[0].Value)
+	assert.Equal(t, ActionErrno, conds[0].Action)
+}
+
+// buildMultiArgValFilter creates a filter that allows a syscall only for
+// multiple specific values of one argument.
+func buildMultiArgValFilter(syscallNR int, argIdx int, allowedVals []uint32) []bpf.Instruction {
+	argOff := uint32(offsetArgs + argIdx*8)
+	insts := []bpf.Instruction{
+		bpf.LoadAbsolute{Off: offsetArch, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: auditArchX86_64, SkipTrue: 1},
+		bpf.RetConstant{Val: seccompRetKillThread},
+		bpf.LoadAbsolute{Off: offsetNr, Size: 4},
+	}
+	// Skip to default allow if NR doesn't match: skip over arg checks + final deny
+	skipLen := uint8(len(allowedVals)*2 + 2) // load + N*(jump+ret) + deny ret
+	insts = append(insts, bpf.JumpIf{Cond: bpf.JumpEqual, Val: uint32(syscallNR), SkipTrue: 0, SkipFalse: skipLen})
+	insts = append(insts, bpf.LoadAbsolute{Off: argOff, Size: 4})
+	for _, val := range allowedVals {
+		insts = append(insts,
+			bpf.JumpIf{Cond: bpf.JumpEqual, Val: val, SkipTrue: 0, SkipFalse: 1},
+			bpf.RetConstant{Val: seccompRetAllow},
+		)
+	}
+	insts = append(insts, bpf.RetConstant{Val: seccompRetErrno}) // deny
+	insts = append(insts, bpf.RetConstant{Val: seccompRetAllow}) // default allow
+	return insts
+}
+
+func TestAnalyzeArgConditions_MultipleValues(t *testing.T) {
+	// socket (NR 41): allow only AF_INET(2), AF_INET6(10), AF_UNIX(1)
+	filter := buildMultiArgValFilter(41, 0, []uint32{2, 10, 1})
+	result := analyzeArgConditions(filter)
+
+	require.Contains(t, result, 41)
+	conds := result[41]
+	require.Len(t, conds, 3)
+
+	values := make(map[uint32]bool)
+	for _, c := range conds {
+		assert.Equal(t, 0, c.Index)
+		assert.Equal(t, "==", c.Op)
+		assert.Equal(t, ActionAllow, c.Action)
+		values[c.Value] = true
+	}
+	assert.True(t, values[2], "AF_INET")
+	assert.True(t, values[10], "AF_INET6")
+	assert.True(t, values[1], "AF_UNIX")
+}
+
+func TestAnalyzeArgConditions_NoArgChecks(t *testing.T) {
+	// Simple allowlist filter has no arg conditions.
+	filter := buildAllowlistFilter([]int{0, 1, 2})
+	result := analyzeArgConditions(filter)
+	assert.Empty(t, result)
+}
+
+func TestAnalyzeArgConditions_BitsSetDirect(t *testing.T) {
+	// Filter using JumpBitsSet directly (no ALUOpAnd):
+	// if nr == 56: if args[0] & 0x10000 set: ERRNO; else: ALLOW
+	filter := []bpf.Instruction{
+		bpf.LoadAbsolute{Off: offsetArch, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: auditArchX86_64, SkipTrue: 1},
+		bpf.RetConstant{Val: seccompRetKillThread},
+		bpf.LoadAbsolute{Off: offsetNr, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: 56, SkipTrue: 0, SkipFalse: 3},
+		bpf.LoadAbsolute{Off: offsetArgs, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpBitsSet, Val: 0x10000, SkipTrue: 0, SkipFalse: 1},
+		bpf.RetConstant{Val: seccompRetErrno},
+		bpf.RetConstant{Val: seccompRetAllow},
+		bpf.RetConstant{Val: seccompRetAllow},
+	}
+	result := analyzeArgConditions(filter)
+
+	require.Contains(t, result, 56)
+	conds := result[56]
+	require.Len(t, conds, 1)
+	assert.Equal(t, "&", conds[0].Op)
+	assert.Equal(t, uint32(0x10000), conds[0].Value)
+	assert.Equal(t, ActionErrno, conds[0].Action)
+}
