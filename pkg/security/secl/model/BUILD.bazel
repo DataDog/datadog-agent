@@ -378,9 +378,6 @@ go_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "@rules_go//go/platform:aix_ppc64": [
-            "@org_golang_x_sys//unix",
-        ],
         "@rules_go//go/platform:android_386": [
             "@org_golang_x_sys//unix",
         ],
@@ -403,24 +400,6 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin_arm64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:dragonfly_amd64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:freebsd_386": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:freebsd_amd64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:freebsd_arm": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:freebsd_arm64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:illumos_amd64": [
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios_amd64": [
@@ -465,33 +444,6 @@ go_library(
         "@rules_go//go/platform:linux_s390x": [
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:netbsd_386": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd_amd64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd_arm": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd_arm64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:openbsd_386": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:openbsd_amd64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:openbsd_arm": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:openbsd_arm64": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:solaris_amd64": [
-            "@org_golang_x_sys//unix",
-        ],
         "//conditions:default": [],
     }),
 )
@@ -518,43 +470,16 @@ dd_agent_go_test(
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "@org_golang_x_sys//unix",
-        ],
         "@rules_go//go/platform:android": [
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model/utils",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:darwin": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@org_golang_x_sys//unix",
-        ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model/utils",
             "@com_github_stretchr_testify//require",
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:solaris": [
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
