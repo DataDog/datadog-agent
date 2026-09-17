@@ -408,6 +408,33 @@ fn scalar_as_key(value: Value) -> String {
     }
 }
 
+/// yaml.v2's alias budget, from `decode.go`. Below these floors a document is too small
+/// to be worth policing; above them the share of nodes that may come from alias
+/// expansion tapers from 99% down to 10% as the document grows.
+const ALIAS_COUNT_FLOOR: usize = 100;
+const NODE_COUNT_FLOOR: usize = 1000;
+const ALIAS_RATIO_RANGE_LOW: usize = 400_000;
+const ALIAS_RATIO_RANGE_HIGH: usize = 4_000_000;
+
+fn allowed_alias_ratio(node_count: usize) -> f64 {
+    match node_count {
+        count if count <= ALIAS_RATIO_RANGE_LOW => 0.99,
+        count if count >= ALIAS_RATIO_RANGE_HIGH => 0.10,
+        count => {
+            let range = (ALIAS_RATIO_RANGE_HIGH - ALIAS_RATIO_RANGE_LOW) as f64;
+            0.99 - 0.89 * ((count - ALIAS_RATIO_RANGE_LOW) as f64 / range)
+        }
+    }
+}
+
+fn count_nodes(value: &Value) -> usize {
+    match value {
+        Value::Mapping(mapping) => 1 + mapping.values().map(count_nodes).sum::<usize>(),
+        Value::Sequence(items) => 1 + items.iter().map(count_nodes).sum::<usize>(),
+        _ => 1,
+    }
+}
+
 /// Event-driven document builder. Mapping keys go through a [`HashMap`] so duplicate
 /// keys last-win, matching Go `yaml.Unmarshal`.
 #[derive(Default)]
@@ -415,6 +442,9 @@ struct Builder {
     stack: Vec<Frame>,
     anchors: HashMap<usize, Value>,
     root: Option<Value>,
+    /// Nodes materialized so far, and how many of them came from expanding an alias.
+    node_count: usize,
+    alias_node_count: usize,
 }
 
 enum Frame {
@@ -501,6 +531,11 @@ impl Builder {
                     .get(&anchor)
                     .with_context(|| format!("unknown YAML alias anchor {anchor}"))?
                     .clone();
+                // An alias materializes its whole anchored subtree. `attach` charges the
+                // alias node itself, so the rest of the clone is charged here and
+                // attributed to aliasing.
+                let expanded = count_nodes(&value) - 1;
+                self.charge_nodes(expanded, expanded)?;
                 self.attach(value, false)?;
             }
         }
@@ -545,6 +580,7 @@ impl Builder {
     /// the node came from a plain, untagged scalar, which is the only kind of node
     /// yaml.v2 will read as a `<<` merge key.
     fn attach(&mut self, value: Value, plain_scalar: bool) -> Result<()> {
+        self.charge_nodes(1, 0)?;
         match self.stack.last_mut() {
             None => self.root = Some(value),
             Some(Frame::Mapping { pairs, pending, .. }) => match std::mem::take(pending) {
@@ -561,6 +597,26 @@ impl Builder {
                 Pending::Merge => merge_into(pairs, value)?,
             },
             Some(Frame::Sequence { items, .. }) => items.push(value),
+        }
+        Ok(())
+    }
+
+    /// Charges `total` newly materialized nodes, `from_alias` of which came from an
+    /// alias, and enforces yaml.v2's alias budget.
+    ///
+    /// yaml.v2 rejects a document whose decoding is dominated by alias expansion, which
+    /// is what stops a "billion laughs" file. This loader clones each anchored subtree
+    /// eagerly, so without the same budget a few lines of YAML would exhaust memory and
+    /// take procmgr down before `load` could return.
+    fn charge_nodes(&mut self, total: usize, from_alias: usize) -> Result<()> {
+        self.node_count += total;
+        self.alias_node_count += from_alias;
+        if self.alias_node_count > ALIAS_COUNT_FLOOR
+            && self.node_count > NODE_COUNT_FLOOR
+            && self.alias_node_count as f64 / self.node_count as f64
+                > allowed_alias_ratio(self.node_count)
+        {
+            bail!("YAML document contains excessive aliasing");
         }
         Ok(())
     }
@@ -707,6 +763,28 @@ process_config:
     fn merge_key_requires_a_mapping() {
         assert!(load("process_config:\n  <<: literal\n").is_err());
         assert!(load("process_config:\n  <<: [1, 2]\n").is_err());
+    }
+
+    /// A few lines of nested aliases expand to more nodes than there is memory for.
+    /// yaml.v2 refuses such a document, and so must this loader.
+    #[test]
+    fn alias_bombs_are_rejected() {
+        let mut yaml = String::from("l0: &l0 [a, a, a, a, a, a, a, a, a]\n");
+        for level in 1..12 {
+            let children = vec![format!("*l{}", level - 1); 9].join(", ");
+            yaml.push_str(&format!("l{level}: &l{level} [{children}]\n"));
+        }
+        assert!(load(&yaml).is_err());
+    }
+
+    /// The budget must leave an ordinary config that reuses a handful of anchors alone.
+    #[test]
+    fn ordinary_alias_reuse_is_allowed() {
+        let mut yaml = String::from("base: &base\n  enabled: true\n");
+        for index in 0..50 {
+            yaml.push_str(&format!("check{index}:\n  <<: *base\n"));
+        }
+        assert_eq!(dotted(&yaml, "check49.enabled"), Some(Value::Bool(true)));
     }
 
     #[test]
