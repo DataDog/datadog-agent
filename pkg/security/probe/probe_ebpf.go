@@ -214,6 +214,11 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
+	// container, so the debug log below reports only transitions instead of one line
+	// per exec. Debug aid, see setProcessContext.
+	lastExecCGroupKey sync.Map
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -1404,6 +1409,22 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 					p.onCgroupUpdate(entry)
 				}
 			}
+		}
+	}
+
+	// The cgroup resolver keys on the inode alone, so a container process whose
+	// kernel-side path_key carries mount_id 0 still resolves to a perfectly correct
+	// cgroup and container id -- while is_cgroup_mount_id_filter_valid() rejects
+	// mount_id 0 before every activity dump gate, even under CGROUP_MOUNT_ID_NO_FILTER.
+	// Log the event-time key, which is the one that filter actually tests.
+	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil &&
+		event.ProcessCacheEntry.Process.ContainerContext.ContainerID != "" {
+		containerID := event.ProcessCacheEntry.Process.ContainerContext.ContainerID
+		if prev, ok := p.lastExecCGroupKey.Load(containerID); !ok || prev != cgroupContext.CGroupPathKey {
+			p.lastExecCGroupKey.Store(containerID, cgroupContext.CGroupPathKey)
+			seclog.Warnf("exec in container %s: event-time cgroup path_key %+v, resolved cgroup %s",
+				containerID, cgroupContext.CGroupPathKey,
+				event.ProcessCacheEntry.Process.CGroup.CGroupID)
 		}
 	}
 

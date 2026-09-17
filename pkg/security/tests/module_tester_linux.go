@@ -1470,11 +1470,14 @@ func (tm *testModule) describeADKernelState(containerID string) string {
 	var b strings.Builder
 	b.WriteString("activity dump kernel state:\n")
 
-	// the cgroup the offer would have been made for. A zero mount id is rejected by
-	// is_cgroup_mount_id_filter_valid() before any other gate, even under NO_FILTER.
+	// the cgroup the offer would have been made for. Note this mount id is the
+	// resolver's, which keys on the inode alone and takes its path_key from whichever
+	// cgroup_write populated the entry -- it is NOT the per-process kernel value that
+	// is_cgroup_mount_id_filter_valid() tests. The "exec in container" probe log
+	// carries that one.
 	if entry := p.Resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(containerID)); entry != nil {
 		cg := entry.GetCGroupContext()
-		b.WriteString(fmt.Sprintf("  container cgroup: id=%s inode=%d mount_id=%d\n",
+		b.WriteString(fmt.Sprintf("  container cgroup (resolver): id=%s inode=%d mount_id=%d\n",
 			cg.CGroupID, cg.CGroupPathKey.Inode, cg.CGroupPathKey.MountID))
 	} else {
 		b.WriteString("  container cgroup: no cgroup resolver entry for this container\n")
