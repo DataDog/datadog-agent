@@ -43,7 +43,7 @@
 #define OTEL_NODEJS_SMI(value) ((uint64_t)((int64_t)(value)) << 32)
 
 // kept in sync with OTEL_NODEJS_MAX_CHAIN in helpers/span_nodejs.h
-#define OTEL_NODEJS_MAX_CHAIN 16
+#define OTEL_NODEJS_MAX_CHAIN 4
 
 // sized so the entry_deep case below can chain MAX_CHAIN decoys plus the real
 // entry into one bucket without running out of capacity (OTEL_NODEJS_CAPACITY
@@ -123,7 +123,6 @@ static inline void otel_nodejs_build(struct otel_nodejs_graph *g, enum otel_node
 
     g->wrapper.slot = (uint64_t)(uintptr_t)&g->record.header;
 
-    g->table.num_elements = OTEL_NODEJS_SMI(1);
     g->table.num_deleted = OTEL_NODEJS_SMI(0);
     g->table.num_buckets = OTEL_NODEJS_SMI(OTEL_NODEJS_BUCKETS);
     for (int i = 0; i < OTEL_NODEJS_BUCKETS; i++) {
@@ -148,15 +147,20 @@ static inline void otel_nodejs_build(struct otel_nodejs_graph *g, enum otel_node
     g->table.entries[1] = OTEL_NODEJS_TAG(&g->wrapper);
     g->table.entries[2] = OTEL_NODEJS_SMI(OTEL_NODEJS_EMPTY_BUCKET);
     int head = 0;
+    int written = 1;
 
-    for (int i = 0, entry = 1; i < decoys && entry < OTEL_NODEJS_CAPACITY; i++, entry++) {
+    for (int i = 0; i < decoys && written < OTEL_NODEJS_CAPACITY; i++, written++) {
         // a key of its own, which the reader must walk past
-        g->table.entries[entry * 3] = OTEL_NODEJS_TAG(&g->table.entries[entry * 3]);
-        g->table.entries[entry * 3 + 1] = g->undefined;
-        g->table.entries[entry * 3 + 2] = OTEL_NODEJS_SMI(head);
-        head = entry;
+        g->table.entries[written * 3] = OTEL_NODEJS_TAG(&g->table.entries[written * 3]);
+        g->table.entries[written * 3 + 1] = g->undefined;
+        g->table.entries[written * 3 + 2] = OTEL_NODEJS_SMI(head);
+        head = written;
     }
     g->table.buckets[bucket] = OTEL_NODEJS_SMI(head);
+    // The decoys are entries of the table like any other, so they count here:
+    // the reader bounds the chain it walks by the number of entries the table
+    // declares, and a real one never holds more than it says it does.
+    g->table.num_elements = OTEL_NODEJS_SMI(written);
 
     g->frame.slot = OTEL_NODEJS_TAG(&g->table);
     g->cped = OTEL_NODEJS_TAG(&g->frame);
