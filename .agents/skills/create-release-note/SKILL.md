@@ -39,15 +39,16 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic> --no-edit
+reno new <topic>
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic> --no-edit
+reno --rel-notes-dir <directory> new <topic>
 ```
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
+Creation is non-interactive by default; `--edit` opts into opening an editor.
 
 > **Always create the file with `reno`. The `<hash>` suffix is reno's unique note ID** — it must be a real, unique 16-character hex string that `reno` generates for you. Never hand-write a placeholder like `a1b2c3d4e5f6a7b8` or any sequential/guessed value: reno treats the suffix as the note's UID and fails `release-note-check` with a "UID collision" when two notes share one (this placeholder has broken `main` more than once).
 >

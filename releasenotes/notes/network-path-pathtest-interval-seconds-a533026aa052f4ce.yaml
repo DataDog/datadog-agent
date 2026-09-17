@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add ``network_path.collector.pathtest_interval_sec`` to configure the Network
+    Path traceroute interval in seconds without a unit suffix. When explicitly
+    set to a valid positive integer, it takes precedence over ``pathtest_interval``.
+    If unset or invalid, the existing setting and its 30-minute default continue
+    to apply.

@@ -21,6 +21,102 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+func TestPathtestIntervalYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings string
+		want     time.Duration
+	}{
+		{name: "default", want: 30 * time.Minute},
+		{name: "legacy duration", settings: `pathtest_interval: "45s"`, want: 45 * time.Second},
+		{name: "legacy number remains nanoseconds", settings: `pathtest_interval: 45`, want: 45 * time.Nanosecond},
+		{name: "legacy numeric string remains nanoseconds", settings: `pathtest_interval: "45"`, want: 45 * time.Nanosecond},
+		{name: "seconds", settings: `pathtest_interval_sec: 30`, want: 30 * time.Second},
+		{name: "quoted seconds", settings: `pathtest_interval_sec: "30"`, want: 30 * time.Second},
+		{name: "minimum", settings: `pathtest_interval_sec: 1`, want: time.Second},
+		{name: "maximum", settings: `pathtest_interval_sec: 9223372036`, want: 9223372036 * time.Second},
+		{
+			name:     "seconds take precedence",
+			settings: "pathtest_interval: 45s\n    pathtest_interval_sec: 30",
+			want:     30 * time.Second,
+		},
+		{
+			name:     "explicit default seconds take precedence",
+			settings: "pathtest_interval: 45s\n    pathtest_interval_sec: 1800",
+			want:     30 * time.Minute,
+		},
+		{
+			name:     "invalid seconds fall back to custom legacy interval",
+			settings: "pathtest_interval: 45s\n    pathtest_interval_sec: 0",
+			want:     45 * time.Second,
+		},
+		{name: "zero", settings: `pathtest_interval_sec: 0`, want: 30 * time.Minute},
+		{name: "negative", settings: `pathtest_interval_sec: -1`, want: 30 * time.Minute},
+		{name: "suffix rejected", settings: `pathtest_interval_sec: "30s"`, want: 30 * time.Minute},
+		{name: "malformed", settings: `pathtest_interval_sec: "invalid"`, want: 30 * time.Minute},
+		{name: "duration overflow", settings: `pathtest_interval_sec: 9223372037`, want: 30 * time.Minute},
+		{name: "integer overflow", settings: `pathtest_interval_sec: "9223372036854775808"`, want: 30 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := config.NewMockFromYAML(t, "network_path:\n  collector:\n    "+tt.settings)
+			result := newConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, tt.want, result.storeConfig.Interval)
+		})
+	}
+}
+
+func TestPathtestIntervalEnv(t *testing.T) {
+	tests := []struct {
+		name    string
+		seconds string
+		want    time.Duration
+	}{
+		{name: "seconds", seconds: "30", want: 30 * time.Second},
+		{name: "explicit default", seconds: "1800", want: 30 * time.Minute},
+		{name: "zero", seconds: "0", want: 45 * time.Second},
+		{name: "negative", seconds: "-1", want: 45 * time.Second},
+		{name: "fractional", seconds: "1.5", want: 45 * time.Second},
+		{name: "suffix rejected", seconds: "30s", want: 45 * time.Second},
+		{name: "duration overflow", seconds: "9223372037", want: 45 * time.Second},
+		{name: "integer overflow", seconds: "9223372036854775808", want: 45 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL_SEC", tt.seconds)
+			mockConfig := config.NewMockFromYAML(t, `
+network_path:
+  collector:
+    pathtest_interval: 45s
+    pathtest_interval_sec: 60
+`)
+			result := newConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, tt.want, result.storeConfig.Interval)
+		})
+	}
+
+	for _, tt := range []struct {
+		value string
+		want  time.Duration
+	}{
+		{value: "45s", want: 45 * time.Second},
+		{value: "45", want: 45 * time.Nanosecond},
+	} {
+		t.Run("legacy env "+tt.value, func(t *testing.T) {
+			t.Setenv("DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL", tt.value)
+			mockConfig := config.NewMock(t)
+			result := newConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, tt.want, result.storeConfig.Interval)
+		})
+		t.Run("seconds override legacy env "+tt.value, func(t *testing.T) {
+			t.Setenv("DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL", tt.value)
+			mockConfig := config.NewMockFromYAML(t, "network_path:\n  collector:\n    pathtest_interval_sec: 30")
+			result := newConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, 30*time.Second, result.storeConfig.Interval)
+		})
+	}
+}
+
 func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config := &collectorConfigs{
 		connectionsMonitoringEnabled: true,

@@ -2250,9 +2250,19 @@ api_key:
 
 #     # @param pathtest_interval - string - optional - default: "30m"
 #     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - string - optional - default: "30m"
-#     # The traceroute run interval for monitored connections.
+#     # The traceroute run interval for monitored connections, as a duration such as "30m" or "30s".
+#     # A valid, explicitly configured pathtest_interval_sec takes precedence over this setting.
 #
 #     pathtest_interval: "30m"
+
+#     # @param pathtest_interval_sec - integer - optional - default: 1800
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL_SEC - integer - optional - default: 1800
+#     # The traceroute run interval for monitored connections, in seconds without a unit suffix.
+#     # When explicitly configured, this setting takes precedence over pathtest_interval.
+#     # Must be a positive integer no greater than 9223372036.
+#     # If unset or invalid, pathtest_interval is used instead (default: 30m).
+#
+#     pathtest_interval_sec: 1800
 
 #     # @param filters - list of object - optional - default: []
 #     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - JSON list of object - optional - default: []
