@@ -271,6 +271,35 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 	assert.Equal(t, NoBottleneck, currentBottleneckComponent())
 }
 
+// SelectBottleneck reports WARNING for a component that recovered earlier in the trailing 30m.
+// That one was not saturating when the tailer gave up, so it must not be blamed for the loss.
+func TestCurrentBottleneckComponentIgnoresRecoveredSaturation(t *testing.T) {
+	ResetPipelineMonitorForTest()
+	t.Cleanup(ResetPipelineMonitorForTest)
+
+	RegisterPipelineMonitor(&stubPipelineMonitor{
+		snaps: []ComponentSnapshot{saturatedSnapshot("worker", 0.4, 0, 20*time.Minute, false)},
+	})
+
+	summary := BackpressureSnapshot()
+	require.Equal(t, BackpressureWarning, summary.State, "the snapshot still carries the history")
+	require.NotNil(t, summary.Bottleneck)
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent(),
+		"saturation that ended before the loss must not be attributed to it")
+}
+
+// Saturation in the trailing minute overlaps the close_timeout the loss was recorded after,
+// so it is still the cause once the component drops back below threshold.
+func TestCurrentBottleneckComponentKeepsLastMinuteSaturation(t *testing.T) {
+	ResetPipelineMonitorForTest()
+	t.Cleanup(ResetPipelineMonitorForTest)
+
+	RegisterPipelineMonitor(&stubPipelineMonitor{
+		snaps: []ComponentSnapshot{saturatedSnapshot("strategy", 0.9, 30*time.Second, 20*time.Minute, false)},
+	})
+	assert.Equal(t, "strategy", currentBottleneckComponent())
+}
+
 func TestCurrentBottleneckComponentMemoizes(t *testing.T) {
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)

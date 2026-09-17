@@ -156,7 +156,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 			// Plain text: Summary is not rendered as markdown.
 			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: firstRemediationStep(bp, sources)},
+				{Order: 1, Text: firstRemediationStep(bp, sources, omitted)},
 				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},
 				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
 				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
@@ -307,9 +307,10 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 // describeCause names the stage responsible, preferring the one sampled at loss time: the
 // loss window is 24h and the check runs every 15m, so the two can disagree.
 func describeCause(bp *backpressureWire, sources []sourceLoss) string {
-	if atLoss, rotations := lossTimeBottleneck(sources); atLoss != "" {
+	if atLoss, rotations, _ := lossTimeAttribution(sources); atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
-			return fmt.Sprintf("The logs pipeline was keeping up during %d of these %s, so the Agent ran out of time rather than throughput.",
+			// Leading with the count keeps the conclusion scoped to those rotations.
+			return fmt.Sprintf("During %d of these %s the logs pipeline was keeping up, so the Agent ran out of time rather than throughput.",
 				rotations, pluralize(rotations, "rotation"))
 		}
 		return fmt.Sprintf("The %s stage of the logs pipeline was saturated during %d of these %s.",
@@ -323,26 +324,41 @@ func describeCause(bp *backpressureWire, sources []sourceLoss) string {
 		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
 }
 
-func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
+// lossTimeAttribution reports the stage blamed for the most rotations, how many those were,
+// and how many rotations carry any attribution at all.
+func lossTimeAttribution(sources []sourceLoss) (component string, rotations, attributed int64) {
 	totals := make(map[string]int64, len(sources))
 	for _, s := range sources {
 		if s.Bottleneck != "" {
 			totals[s.Bottleneck] += s.BottleneckRotations
+			attributed += s.BottleneckRotations
 		}
 	}
-	return dominantBottleneck(totals)
+	component, rotations = dominantBottleneck(totals)
+	return component, rotations, attributed
 }
 
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
 // Loss time wins over check time: it is what lost the data, not what is saturated now.
-func firstRemediationStep(bp *backpressureWire, sources []sourceLoss) string {
-	switch component, _ := lossTimeBottleneck(sources); {
-	case component == logsmetrics.NoBottleneck:
+func firstRemediationStep(bp *backpressureWire, sources []sourceLoss, omitted int64) string {
+	component, rotations, attributed := lossTimeAttribution(sources)
+	// The dominant stage is a plurality, not a verdict: rotations blamed elsewhere,
+	// unattributed, or dropped from the breakdown may each have been saturated.
+	whole := rotations == attributed && omitted == 0
+
+	switch {
+	case component == logsmetrics.NoBottleneck && whole:
 		// Naming the check-time component here would claim it was measured at loss time.
 		return "No pipeline component was saturated when this data was lost, so the `logs_config.close_timeout` step below is the one that applies."
-	case component != "":
+	case component == logsmetrics.NoBottleneck:
+		return fmt.Sprintf("%d of %d attributed %s lost data with nothing saturated: start with the `logs_config.close_timeout` step below, then check this issue's details for rotations that were saturated.",
+			rotations, attributed, pluralize(attributed, "rotation"))
+	case component != "" && whole:
 		return fmt.Sprintf("The `%s` component was saturated when this data was lost. Follow the step below that names it, then confirm with `sudo datadog-agent status`.",
 			component)
+	case component != "":
+		return fmt.Sprintf("The `%s` component was saturated during %d of %d attributed %s. Follow the step below that names it, then check the others in this issue's details.",
+			component, rotations, attributed, pluralize(attributed, "rotation"))
 	case bp != nil && bp.Bottleneck != nil:
 		return fmt.Sprintf("The saturated component at loss time was not measured, but `%s` is saturated now. Follow the step below that names it.",
 			bp.Bottleneck.Component)

@@ -206,6 +206,12 @@ func (c *bottleneckCache) invalidate() {
 	c.valid = false
 }
 
+// concurrentWithLoss reports whether the saturation was still happening when the tailer gave
+// up. SelectBottleneck also returns components that recovered earlier in the trailing 30m.
+func concurrentWithLoss(c *ComponentBackpressure) bool {
+	return c.CurrentlySaturated || c.Saturated1mSeconds > 0
+}
+
 // get returns the bottleneck's component name without its instance, bounding cardinality.
 func (c *bottleneckCache) get() string {
 	now := c.clk.Now()
@@ -222,10 +228,10 @@ func (c *bottleneckCache) get() string {
 	summary := BackpressureSnapshot()
 	component := ""
 	switch {
-	case summary.Bottleneck != nil:
+	case summary.Bottleneck != nil && concurrentWithLoss(summary.Bottleneck):
 		component = summary.Bottleneck.Component
 	case summary.State != "":
-		// Distinct from "": a monitor answered, and nothing was saturated.
+		// Distinct from "": a monitor answered, and nothing was saturating the loss.
 		component = NoBottleneck
 	}
 

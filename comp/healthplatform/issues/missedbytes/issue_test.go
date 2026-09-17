@@ -411,6 +411,70 @@ func TestBuildIssue_HealthyAtLossTimeIgnoresLaterSaturation(t *testing.T) {
 	assert.NotContains(t, step1, "`strategy`", "strategy saturated after the loss, so it did not cause it")
 }
 
+// The dominant attribution is a plurality, not a verdict. A healthy majority must not rule
+// out the rotations that were saturated.
+func TestBuildIssue_HealthyMajorityDoesNotRuleOutSaturation(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "2048",
+		contextKeyRotations:    "11",
+		contextKeySourceCount:  "2",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"none","bottleneck_rotations":6},` +
+			`{"source":"redis","service":"cache","bytes":1024,"rotations":5,"bottleneck":"worker","bottleneck_rotations":5}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{State: logsmetrics.BackpressureHealthy}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	step1 := issue.GetRemediation().GetSteps()[0].GetText()
+	assert.Contains(t, step1, "6 of 11 attributed rotations")
+	assert.Contains(t, step1, "`logs_config.close_timeout`")
+	assert.NotContains(t, step1, "No pipeline component was saturated",
+		"five rotations were saturated, so saturation cannot be ruled out")
+}
+
+// The mirror case: a saturated plurality must not imply every rotation was saturated.
+func TestBuildIssue_SaturatedMajorityIsCountQualified(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "2048",
+		contextKeyRotations:    "10",
+		contextKeySourceCount:  "2",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"worker","bottleneck_rotations":6},` +
+			`{"source":"redis","service":"cache","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	step1 := issue.GetRemediation().GetSteps()[0].GetText()
+	assert.Contains(t, step1, "`worker`")
+	assert.Contains(t, step1, "during 6 of 10 attributed rotations")
+}
+
+// Tuples dropped from the breakdown may have been saturated, so a clean reported set is not
+// enough to rule saturation out.
+func TestBuildIssue_OmittedTuplesPreventRulingOutSaturation(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "9",
+		contextKeySourceCount:  "4",
+		contextKeyPairsOmitted: "3",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.NotContains(t, issue.GetRemediation().GetSteps()[0].GetText(),
+		"No pipeline component was saturated",
+		"three omitted tuples are unaccounted for, so saturation cannot be ruled out")
+}
+
 // Attribution missing entirely is not the same as attribution saying the pipeline was healthy.
 func TestBuildIssue_UnknownAttributionUsesCheckTimeWording(t *testing.T) {
 	ctx := map[string]string{
