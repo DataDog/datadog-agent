@@ -122,10 +122,24 @@ pkg_files(
     },
 )
 
+pkg_files(
+    name = "glustercli_license_files",
+    srcs = [
+        "@glustercli_python//:COPYING-GPLV2",
+        "@glustercli_python//:COPYING-LGPLV3",
+    ],
+    prefix = "LICENSES",
+    renames = {
+        "@glustercli_python//:COPYING-GPLV2": "glustercli-COPYING-GPLV2",
+        "@glustercli_python//:COPYING-LGPLV3": "glustercli-COPYING-LGPLV3",
+    },
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
+        ":glustercli_license_files",
         ":license_file",
     ],
 )
