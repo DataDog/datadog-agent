@@ -371,7 +371,15 @@ func groupResourceLogsByCluster(ld plog.Logs, logger *zap.Logger) (groups map[st
 		}
 
 		id := cid.AsString()
+		if id == "" {
+			logger.Error("k8s.cluster.uid is empty, skipping resource log")
+			continue
+		}
 		name := cname.AsString()
+		if name == "" {
+			logger.Error("k8s.cluster.name is empty, skipping resource log")
+			continue
+		}
 		if _, seen := groups[id]; !seen {
 			order = append(order, id)
 			names[id] = name
