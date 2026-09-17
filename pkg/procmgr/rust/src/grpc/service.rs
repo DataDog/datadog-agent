@@ -7,6 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
 use crate::platform;
@@ -106,6 +107,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -132,6 +134,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -157,6 +160,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -179,8 +183,10 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
     async fn reload_config(
         &self,
-        _request: Request<proto::ReloadConfigRequest>,
+        request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
+        let _ = request.into_inner();
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::ReloadConfig { reply: reply_tx })
@@ -394,13 +400,9 @@ mod tests {
 
     #[test]
     fn test_process_to_proto() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let expected_args = args.clone();
-        let cfg = ProcessConfig {
-            command: cmd.to_string(),
-            args,
-            ..Default::default()
-        };
+        let cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        let expected_args = cfg.args.clone();
+        let cmd = cfg.command.clone();
         let proc =
             ManagedProcess::new_config("test-proc".to_string(), test_helpers::test_uuid(), cfg);
         let proto = process_to_proto(&proc);
@@ -464,13 +466,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let expected_args = args.clone();
-        let cfg = ProcessConfig {
-            command: cmd.to_string(),
-            args,
-            ..Default::default()
-        };
+        let cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        let expected_args = cfg.args.clone();
+        let cmd = cfg.command.clone();
         let mut proc =
             ManagedProcess::new_config("sleeper".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn(test_exit_channel().0).unwrap();

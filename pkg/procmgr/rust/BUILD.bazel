@@ -89,6 +89,15 @@ rust_binary(
 )
 
 rust_binary(
+    name = "graceful-sleeper",
+    testonly = True,
+    srcs = ["src/test_bins/graceful_sleeper.rs"],
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["@crates//:windows-sys"],
+)
+
+rust_binary(
     name = "dd-procmgr",
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
@@ -149,8 +158,29 @@ pkg_install(
 
 rust_test(
     name = "dd-procmgrd_test",
+    # Windows runs the whole suite serially in one process, well past the
+    # default "moderate" budget.
+    timeout = "long",
+    compile_data = [
+        "//pkg/fleet/installer/packages/user/windows:user.go",
+        "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
+    ],
     crate = ":dd-procmgrd-lib",
+    data = select({
+        "@platforms//os:windows": [":graceful-sleeper"],
+        "//conditions:default": [],
+    }),
     edition = "2024",
+    env = select({
+        "@platforms//os:windows": {
+            "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
+            # Graceful stop detaches the supervisor from its own console and
+            # attaches to the child's, which is per-process state. Spawn-heavy
+            # tests must therefore not overlap.
+            "RUST_TEST_THREADS": "1",
+        },
+        "//conditions:default": {},
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = ["@crates//:tempfile"],

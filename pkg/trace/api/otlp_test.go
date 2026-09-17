@@ -474,7 +474,14 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				// V2 goes through transform.OtelSpanToDDSpan, which normalizes the
+				// name (dashes become underscores); V1 uses the legacy convertSpan
+				// path, which does not.
+				if enableReceiveResourceSpansV2 {
+					require.Equal("aws_api.server.request", out.Chunks[0].Spans[0].Name)
+				} else {
+					require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				}
 			},
 		},
 		{
@@ -2503,11 +2510,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "res_op",
-			operationNameV2: "span-op",
+			operationNameV2: "span_op",
 			resourceNameV1:  "res-res",
 			resourceNameV2:  "span-res",
 			out: &pb.Span{
-				Name:     "span-op",
+				Name:     "span_op",
 				Resource: "span-res",
 				Service:  "span-service",
 				TraceID:  2594128270069917171,

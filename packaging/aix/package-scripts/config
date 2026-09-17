@@ -38,13 +38,16 @@ if [ -f "$CONFIG_FILE" ]; then
     else
         echo ""
         echo "DD_INSTALL_ONLY is set: the Datadog Agent was not started."
-        echo "Start it with:  startsrc -g datadog-agent"
+        echo "It will start automatically at the next reboot, or start it now with:"
+        echo "  startsrc -g datadog-agent"
         echo ""
     fi
 else
     echo ""
     echo "Datadog Agent installed."
     echo "Create /etc/datadog-agent/datadog.yaml with your api_key to start."
-    echo "Then run:  startsrc -g datadog-agent"
+    echo "The services start automatically at boot. Create /etc/datadog-agent/datadog.yaml"
+    echo "with your api_key, or start them now with:"
+    echo "  startsrc -g datadog-agent"
     echo ""
 fi
