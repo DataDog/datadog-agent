@@ -169,8 +169,8 @@ dd_pkg_deb(
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-installer",
     package_file_name = "datadog-installer_{version}-1_{arch_deb}.deb",
-    postinst = "//omnibus:package-scripts/installer-deb/postinst",
-    postrm = "//omnibus:package-scripts/installer-deb/postrm",
+    postinst = "package-scripts/installer-deb/postinst",
+    postrm = "package-scripts/installer-deb/postrm",
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
@@ -191,8 +191,8 @@ pkg_rpm(
     license = "Apache License Version 2.0",
     package_file_name = "datadog-installer-{version}-1.{arch_rpm}.rpm",
     package_variables = ":variables",
-    posttrans_scriptlet_file = "//omnibus:package-scripts/installer-rpm/posttrans",
-    postun_scriptlet_file = "//omnibus:package-scripts/installer-rpm/postrm",
+    posttrans_scriptlet_file = "package-scripts/installer-rpm/posttrans",
+    postun_scriptlet_file = "package-scripts/installer-rpm/postrm",
     release = "1",
     # TODO: use select() for RHEL vs SUSE when a platform constraint is defined.
     requires_contextual = {
