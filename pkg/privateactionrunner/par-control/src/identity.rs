@@ -6,6 +6,10 @@
 use anyhow::{Context, Result, bail, ensure};
 use datadog_agent_commons::ipc::config::RemoteAgentClientConfiguration;
 use std::fmt;
+use std::time::Duration;
+
+const RETRY_INTERVAL: Duration = Duration::from_secs(5);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct RunnerIdentity {
@@ -48,6 +52,7 @@ pub async fn resolve(
         .context("reading Core Agent IPC auth token")?;
     let client = reqwest::Client::builder()
         .no_proxy()
+        .timeout(REQUEST_TIMEOUT)
         .use_preconfigured_tls(tls)
         .build()
         .context("building Core Agent IPC client")?;
@@ -55,17 +60,15 @@ pub async fn resolve(
         has_local_identity: configured_identity.is_some(),
     })
     .context("encoding Core Agent identity request")?;
-    let response = client
+    let request = client
         .post(format!(
             "{}agent/private-action-runner/resolve-identity",
             ipc.endpoint()
         ))
         .bearer_auth(token)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .body(request)
-        .send()
-        .await
-        .context("calling Core Agent identity endpoint")?;
+        .body(request);
+    let response = send_with_retry(&request, RETRY_INTERVAL).await?;
     let status = response.status();
     if !status.is_success() {
         let detail = response.text().await.unwrap_or_default().trim().to_string();
@@ -80,6 +83,29 @@ pub async fn resolve(
         .await
         .context("reading Core Agent identity response")?;
     decode_response(&body, configured_identity)
+}
+
+async fn send_with_retry(
+    request: &reqwest::RequestBuilder,
+    retry_interval: Duration,
+) -> Result<reqwest::Response> {
+    loop {
+        let response = request
+            .try_clone()
+            .context("cloning buffered identity request")?
+            .send()
+            .await;
+        match response {
+            Ok(response) if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE => {
+                log::warn!("Core Agent identity endpoint is temporarily unavailable; retrying");
+            }
+            Err(error) if error.is_connect() || error.is_timeout() => {
+                log::warn!("Core Agent identity connection failed or timed out; retrying");
+            }
+            result => return result.context("calling Core Agent identity endpoint"),
+        }
+        tokio::time::sleep(retry_interval).await;
+    }
 }
 
 fn decode_response(
@@ -126,6 +152,87 @@ mod tests {
             "urn": "provided-urn",
             "private_key": "provided-key",
         })
+    }
+
+    async fn identity_server(
+        responses: Vec<(u16, String)>,
+    ) -> (reqwest::RequestBuilder, tokio::task::JoinHandle<()>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        crate::tls::initialize_crypto_provider().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let body = r#"{"has_local_identity":false}"#;
+        let server = tokio::spawn(async move {
+            for (status, response) in responses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut headers = Vec::new();
+                let mut byte = [0];
+                while !headers.ends_with(b"\r\n\r\n") {
+                    stream.read_exact(&mut byte).await.unwrap();
+                    headers.push(byte[0]);
+                }
+                let mut received = vec![0; body.len()];
+                stream.read_exact(&mut received).await.unwrap();
+                assert_eq!(received, body.as_bytes());
+                let response = format!(
+                    "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",
+                    response.len()
+                );
+                stream.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let request = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .post(format!(
+                "http://{address}/agent/private-action-runner/resolve-identity"
+            ))
+            .body(body);
+        (request, server)
+    }
+
+    #[tokio::test]
+    async fn retries_service_unavailable_then_resolves_identity() {
+        let (request, server) = identity_server(vec![
+            (503, "enrollment temporarily unavailable".into()),
+            (200, provided_body().to_string()),
+        ])
+        .await;
+        let response = tokio::time::timeout(
+            Duration::from_secs(5),
+            send_with_retry(&request, Duration::ZERO),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let identity = decode_response(&response.bytes().await.unwrap(), None).unwrap();
+        assert_eq!(identity.urn, "provided-urn");
+        assert_eq!(identity.private_key, "provided-key");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_permanent_http_errors_or_invalid_responses() {
+        for status in [400, 401, 403, 409, 500, 200] {
+            let (request, server) =
+                identity_server(vec![(status, "invalid identity".into())]).await;
+            let response = tokio::time::timeout(
+                Duration::from_secs(5),
+                send_with_retry(&request, Duration::ZERO),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert_eq!(response.status().as_u16(), status);
+            let body = response.bytes().await.unwrap();
+            assert_eq!(body.as_ref(), b"invalid identity");
+            if status == 200 {
+                assert!(decode_response(&body, None).is_err());
+            }
+            server.await.unwrap();
+        }
     }
 
     #[test]
