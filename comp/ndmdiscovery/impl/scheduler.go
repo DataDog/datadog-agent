@@ -32,7 +32,6 @@ type scheduledRange struct {
 // they share one worker budget.
 type scheduler struct {
 	sweeper *sweeper
-	creds   credentialStore
 	log     log.Component
 	opts    schedulerOptions
 
@@ -43,16 +42,15 @@ type scheduler struct {
 	ranges map[string]*scheduledRange
 	// cycles holds, per range id, the completion channel of the most recently
 	// launched goroutine, which a replacement waits on before it starts.
-	cycles      map[string]chan struct{}
-	ctx         context.Context
-	cancel      context.CancelFunc
-	pingEnabled bool
+	cycles map[string]chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
 	// wg is reused across start/stop pairs, which the sequential fx lifecycle
 	// hooks never call concurrently.
 	wg sync.WaitGroup
 }
 
-func newScheduler(sw *sweeper, creds credentialStore, logger log.Component, opts schedulerOptions) *scheduler {
+func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *scheduler {
 	if opts.Workers < 1 {
 		opts.Workers = 1
 	}
@@ -63,7 +61,6 @@ func newScheduler(sw *sweeper, creds credentialStore, logger log.Component, opts
 	}
 	return &scheduler{
 		sweeper: sw,
-		creds:   creds,
 		log:     logger,
 		opts:    opts,
 		ranges:  map[string]*scheduledRange{},
@@ -102,12 +99,6 @@ func (s *scheduler) stop() {
 	s.wg.Wait()
 }
 
-func (s *scheduler) setPingEnabled(enabled bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.pingEnabled = enabled
-}
-
 // ids returns the ids of the active ranges.
 func (s *scheduler) ids() []string {
 	s.mu.Lock()
@@ -142,14 +133,10 @@ func (s *scheduler) workerShare() int64 {
 	return share
 }
 
-// set adds or replaces a range. A range whose credentials are unavailable or
-// which is too large is rejected.
+// set adds or replaces a range. A range that is too large is rejected.
 func (s *scheduler) set(cfg rangeConfig) error {
 	// Validate before touching any state so a bad update cannot take down a
 	// range that is already running well.
-	if _, err := resolveCredentials(s.creds, cfg.CredentialIDs); err != nil {
-		return err
-	}
 	if _, err := newChunkPlan(cfg.CIDR, cfg.IgnoredIPAddresses, s.opts.MaxAddresses); err != nil {
 		return err
 	}
@@ -247,31 +234,35 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
 		return
 	}
 
-	// The store re-reads the configuration here, so a Fleet-pushed rotation
-	// applies without an agent restart.
-	creds, err := resolveCredentials(s.creds, cfg.CredentialIDs)
-	if err != nil {
-		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
-		return
-	}
-
 	plan, err := newChunkPlan(cfg.CIDR, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
 	if err != nil {
 		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
 		return
 	}
 
-	s.mu.Lock()
-	pingEnabled := s.pingEnabled
-	s.mu.Unlock()
+	// Prepared per cycle, so a credential rotation lands without a restart.
+	runs := make([]probeRun, 0, len(cfg.Probes))
+	fingerprints := make([]string, 0, len(cfg.Probes))
+	for _, pc := range cfg.Probes {
+		run, err := pc.prepare()
+		if err != nil {
+			s.log.Warnf("ndmdiscovery: range %s: skipping the %s probe for this cycle: %v", cfg.AutodiscoveryID, pc.kind(), err)
+			continue
+		}
+		runs = append(runs, run)
+		fingerprints = append(fingerprints, run.fingerprint())
+	}
+	if len(runs) == 0 {
+		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", cfg.AutodiscoveryID)
+		return
+	}
 
 	req := sweepRequest{
-		Config:      cfg,
-		Credentials: creds,
-		Plan:        plan,
-		Digest:      rangeDigest(cfg, creds),
-		Workers:     s.workerShare(),
-		PingEnabled: pingEnabled,
+		Config:  cfg,
+		Probes:  runs,
+		Plan:    plan,
+		Digest:  rangeDigest(cfg, fingerprints),
+		Workers: s.workerShare(),
 	}
 
 	if err := s.sweeper.sweep(ctx, req); err != nil && ctx.Err() == nil {

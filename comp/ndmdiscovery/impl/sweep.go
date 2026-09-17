@@ -32,14 +32,13 @@ type connectivityChecker interface {
 
 // sweepRequest is everything one cycle over one range needs.
 type sweepRequest struct {
-	Config      rangeConfig
-	Credentials []connectivity.SNMPCredential
-	Plan        *chunkPlan
-	Digest      string
+	Config rangeConfig
+	// Probes are this cycle's prepared probes, in registry order.
+	Probes []probeRun
+	Plan   *chunkPlan
+	Digest string
 	// Workers is this range's share of the global worker budget.
 	Workers int64
-	// PingEnabled is false when the agent cannot send ICMP.
-	PingEnabled bool
 }
 
 // sweeper runs one cycle over one range, chunk by chunk, persisting a cursor
@@ -206,16 +205,11 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 	defer s.sem.Release(r.Workers)
 
 	req := connectivity.Request{
-		Targets:     chunk.Targets,
-		Checks:      []string{connectivity.CheckSNMP},
-		SNMPOptions: r.Config.SNMPOptions,
-		Credentials: r.Credentials,
-		Workers:     int(r.Workers),
+		Targets: chunk.Targets,
+		Workers: int(r.Workers),
 	}
-	if r.PingEnabled && r.Config.PingOptions != nil {
-		// Ping first: it is the cheaper probe.
-		req.Checks = []string{connectivity.CheckPing, connectivity.CheckSNMP}
-		req.PingOptions = r.Config.PingOptions
+	for _, p := range r.Probes {
+		p.apply(&req)
 	}
 
 	res, err := s.checker.CheckConnectivity(ctx, req)
@@ -225,7 +219,7 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
+	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, r.Probes, res), nil
 }
 
 // clampWorkers keeps a range's worker share inside [1, budget]: a larger share
@@ -253,17 +247,12 @@ func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadat
 }
 
 // toDiscoveredDevices converts one chunk's probe results into report documents.
-// Only addresses that answered at least one check are reported.
-func toDiscoveredDevices(autodiscoveryID, runID string, res connectivity.Result) []metadata.DiscoveredDeviceMetadata {
+// Only addresses that answered at least one probe are reported.
+func toDiscoveredDevices(autodiscoveryID, runID string, probes []probeRun, res connectivity.Result) []metadata.DiscoveredDeviceMetadata {
 	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(res.Devices))
 	for _, d := range res.Devices {
 		if d.IPAddress == "" {
 			// The engine pre-allocates its result slice, so a run can leave zero-value holes.
-			continue
-		}
-		pingAnswered := d.PingResult != nil && d.PingResult.Success
-		snmpAnswered := d.SNMPResult != nil && d.SNMPResult.Success
-		if !pingAnswered && !snmpAnswered {
 			continue
 		}
 
@@ -272,15 +261,22 @@ func toDiscoveredDevices(autodiscoveryID, runID string, res connectivity.Result)
 			RunID:           runID,
 			IPAddress:       d.IPAddress,
 		}
-		if d.PingResult != nil {
-			device.PingStatus = statusString(d.PingResult.Success)
-		}
-		if d.SNMPResult != nil {
-			device.SNMPStatus = statusString(d.SNMPResult.Success)
-			if d.SNMPResult.Success {
-				device.Name = d.SNMPResult.SysName
-				device.SNMPCredID = d.SNMPResult.CredID
+		answered := false
+		for _, p := range probes {
+			reading := p.read(d)
+			if reading == nil {
+				continue
 			}
+			if reading.Result.Status == statusReachable {
+				answered = true
+			}
+			if device.Name == "" {
+				device.Name = reading.Name
+			}
+			device.ProbeResults = append(device.ProbeResults, reading.Result)
+		}
+		if !answered {
+			continue
 		}
 		devices = append(devices, device)
 	}

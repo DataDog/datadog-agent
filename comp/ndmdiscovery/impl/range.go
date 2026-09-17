@@ -11,10 +11,9 @@ import (
 	"regexp"
 
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// minIntervalSec is the smallest interval a range is allowed to run at.
+// minIntervalSec is the shortest cycle interval a range can ask for.
 const minIntervalSec = 60
 
 // autodiscoveryIDPattern is the character set the persistent cursor cache can
@@ -22,18 +21,15 @@ const minIntervalSec = 60
 // instead of hashing, so two ids could share one cursor file.
 var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// rangeConfig is the validated, defaulted form of one range. A nil
-// PingOptions means ping is disabled for the range.
+// rangeConfig is the validated, defaulted form of one range.
 type rangeConfig struct {
 	AutodiscoveryID    string
 	Namespace          string
 	CIDR               string
-	CredentialIDs      []string
 	IntervalSec        int
 	IgnoredIPAddresses []string
 	Tags               []string
-	SNMPOptions        *connectivity.SNMPOptions
-	PingOptions        *connectivity.PingOptions
+	Probes             []probeConfig
 }
 
 // rangeDefaults are the agent-side defaults applied to a range.
@@ -43,9 +39,9 @@ type rangeDefaults struct {
 	MaxAddresses int
 }
 
-// parseRange validates and defaults one range. The returned error is
-// surfaced to the backend, so it must say what is wrong with the range.
-func parseRange(r ndmdiscovery.Range, def rangeDefaults) (rangeConfig, error) {
+// parseRange validates and defaults one range. The returned error is surfaced
+// to the backend, so it must say what is wrong with the range.
+func parseRange(r ndmdiscovery.Range, def rangeDefaults, set *probeSet) (rangeConfig, error) {
 	if r.ID == "" {
 		return rangeConfig{}, errors.New("the range id is required")
 	}
@@ -55,8 +51,8 @@ func parseRange(r ndmdiscovery.Range, def rangeDefaults) (rangeConfig, error) {
 	if r.CIDR == "" {
 		return rangeConfig{}, errors.New("cidr is required")
 	}
-	if len(r.CredentialIDs) == 0 {
-		return rangeConfig{}, errors.New("credential_ids must hold at least one credential")
+	if len(r.Probes) == 0 {
+		return rangeConfig{}, errors.New("probes must hold at least one probe")
 	}
 	if _, err := newChunkPlan(r.CIDR, r.IgnoredIPAddresses, def.MaxAddresses); err != nil {
 		return rangeConfig{}, err
@@ -66,10 +62,10 @@ func parseRange(r ndmdiscovery.Range, def rangeDefaults) (rangeConfig, error) {
 		AutodiscoveryID:    r.ID,
 		Namespace:          r.Namespace,
 		CIDR:               r.CIDR,
-		CredentialIDs:      r.CredentialIDs,
 		IntervalSec:        r.IntervalSec,
 		IgnoredIPAddresses: r.IgnoredIPAddresses,
 		Tags:               r.Tags,
+		Probes:             set.parse(r.ID, r.Probes),
 	}
 	if cfg.Namespace == "" {
 		cfg.Namespace = def.Namespace
@@ -79,61 +75,6 @@ func parseRange(r ndmdiscovery.Range, def rangeDefaults) (rangeConfig, error) {
 	}
 	if cfg.IntervalSec < minIntervalSec {
 		cfg.IntervalSec = minIntervalSec
-	}
-
-	snmp := connectivity.SNMPOptions{
-		Port:      defaultSNMPPort,
-		TimeoutMs: defaultSNMPTimeoutMs,
-		Retries:   defaultSNMPRetries,
-	}
-	if r.SNMPOptions != nil {
-		if r.SNMPOptions.Port != 0 {
-			snmp.Port = r.SNMPOptions.Port
-		}
-		if r.SNMPOptions.TimeoutMs != 0 {
-			snmp.TimeoutMs = r.SNMPOptions.TimeoutMs
-		}
-		if r.SNMPOptions.Retries != nil {
-			snmp.Retries = *r.SNMPOptions.Retries
-		}
-	}
-	if snmp.Port < 1 || snmp.Port > 65535 {
-		return rangeConfig{}, fmt.Errorf("snmp_options.port %d is out of range (expected 1-65535)", snmp.Port)
-	}
-	if snmp.TimeoutMs < 1 || snmp.TimeoutMs > maxSNMPTimeoutMs {
-		return rangeConfig{}, fmt.Errorf("snmp_options.timeout_ms %d is out of range (expected 1-%d)", snmp.TimeoutMs, maxSNMPTimeoutMs)
-	}
-	// An explicit retries:0 is a legitimate do-not-retry setting.
-	if snmp.Retries < 0 || snmp.Retries > maxSNMPRetries {
-		return rangeConfig{}, fmt.Errorf("snmp_options.retries %d is out of range (expected 0-%d)", snmp.Retries, maxSNMPRetries)
-	}
-	cfg.SNMPOptions = &snmp
-
-	if r.PingOptions != nil {
-		ping := connectivity.PingOptions{
-			Count:      defaultPingCount,
-			IntervalMs: defaultPingIntervalMs,
-			TimeoutMs:  defaultPingTimeoutMs,
-		}
-		if r.PingOptions.Count != 0 {
-			ping.Count = r.PingOptions.Count
-		}
-		if r.PingOptions.IntervalMs != 0 {
-			ping.IntervalMs = r.PingOptions.IntervalMs
-		}
-		if r.PingOptions.TimeoutMs != 0 {
-			ping.TimeoutMs = r.PingOptions.TimeoutMs
-		}
-		if ping.Count < 1 || ping.Count > maxPingCount {
-			return rangeConfig{}, fmt.Errorf("ping_options.count %d is out of range (expected 1-%d)", ping.Count, maxPingCount)
-		}
-		if ping.IntervalMs < 1 || ping.IntervalMs > maxPingIntervalMs {
-			return rangeConfig{}, fmt.Errorf("ping_options.interval_ms %d is out of range (expected 1-%d)", ping.IntervalMs, maxPingIntervalMs)
-		}
-		if ping.TimeoutMs < 1 || ping.TimeoutMs > maxPingTimeoutMs {
-			return rangeConfig{}, fmt.Errorf("ping_options.timeout_ms %d is out of range (expected 1-%d)", ping.TimeoutMs, maxPingTimeoutMs)
-		}
-		cfg.PingOptions = &ping
 	}
 
 	return cfg, nil
