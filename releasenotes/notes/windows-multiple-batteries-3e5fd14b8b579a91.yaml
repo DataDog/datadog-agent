@@ -1,5 +1,3 @@
 ---
 fixes:
-  - |
-    Fix the battery check to report every Windows system battery instead of
-    only the first one.
+  - Fix the battery check to report every Windows system battery instead of only the first one. On Windows, host aggregate metrics use ``system.battery.*.total`` names, while macOS metrics retain their existing ``system.battery.*`` names.
