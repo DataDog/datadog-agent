@@ -14,7 +14,7 @@ package(default_visibility = ["//packages:__subpackages__"])
 # The installer binary, placed at bin/installer/ within the install dir.
 pkg_files(
     name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
+    srcs = ["//cmd/installer"],
     prefix = "bin/installer",
 )
 
