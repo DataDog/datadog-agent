@@ -153,14 +153,14 @@ end
 # for the package being created
 if linux_target?
   if !generate_distro_package
-    extra_package_file "#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-rpm"
+    extra_package_file File.expand_path("#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-deb")
+    extra_package_file File.expand_path("#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-rpm")
     extra_package_file "#{Omnibus::Config.project_root}/config/templates/installer/README.md.erb"
   end
   if debian_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-deb"
+      package_scripts_path File.expand_path("#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-deb")
   elsif redhat_target? || suse_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-rpm"
+      package_scripts_path File.expand_path("#{Omnibus::Config.project_root}/../packages/installer/linux/package-scripts/installer-rpm")
   end
 end
 
