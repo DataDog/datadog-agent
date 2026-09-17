@@ -42,9 +42,7 @@ pub fn load(contents: &str) -> Result<Value> {
             break;
         }
     }
-    let mut root = builder.finish()?;
-    root.apply_merge().context("apply YAML merge keys")?;
-    Ok(root)
+    builder.finish()
 }
 
 /// Resolves a dotted config key, mirroring the Agent's flattened-key expansion.
@@ -422,13 +420,52 @@ struct Builder {
 enum Frame {
     Mapping {
         pairs: HashMap<String, Value>,
-        pending_key: Option<String>,
+        pending: Pending,
         anchor: usize,
     },
     Sequence {
         items: Vec<Value>,
         anchor: usize,
     },
+}
+
+/// What the next node inside a mapping is.
+#[derive(Default)]
+enum Pending {
+    /// A key.
+    #[default]
+    Key,
+    /// The value for a key already read.
+    Value(String),
+    /// The mapping(s) to merge in for a `<<` key.
+    Merge,
+}
+
+/// Applies a yaml.v2 `<<` merge in place.
+///
+/// yaml.v2 unmarshals the merged mapping over the one being built at the position the
+/// `<<` appears, so a merge overwrites keys set before it and is overwritten by keys set
+/// after it. A sequence is walked backwards because its earlier entries take precedence.
+fn merge_into(pairs: &mut HashMap<String, Value>, value: Value) -> Result<()> {
+    match value {
+        Value::Mapping(mapping) => insert_all(pairs, mapping),
+        Value::Sequence(items) => {
+            for item in items.into_iter().rev() {
+                let Value::Mapping(mapping) = item else {
+                    bail!("map merge requires map or sequence of maps as the value");
+                };
+                insert_all(pairs, mapping);
+            }
+        }
+        _ => bail!("map merge requires map or sequence of maps as the value"),
+    }
+    Ok(())
+}
+
+fn insert_all(pairs: &mut HashMap<String, Value>, mapping: Mapping) {
+    for (key, value) in mapping {
+        pairs.insert(scalar_as_key(key), value);
+    }
 }
 
 impl Builder {
@@ -441,7 +478,7 @@ impl Builder {
             | Event::DocumentEnd => {}
             Event::MappingStart(anchor, _) => self.stack.push(Frame::Mapping {
                 pairs: HashMap::new(),
-                pending_key: None,
+                pending: Pending::Key,
                 anchor,
             }),
             Event::MappingEnd => self.finish_mapping()?,
@@ -453,7 +490,10 @@ impl Builder {
             Event::Scalar(text, style, anchor, tag) => {
                 let value = scalar_to_value(&text, style, tag.as_deref())?;
                 self.store_anchor(anchor, &value);
-                self.attach(value);
+                // Only a plain, untagged scalar can be a merge key, which is what
+                // yaml.v2's `isMerge` checks before treating `<<` as one.
+                let plain = style == ScalarStyle::Plain && tag.is_none();
+                self.attach(value, plain)?;
             }
             Event::Alias(anchor) => {
                 let value = self
@@ -461,7 +501,7 @@ impl Builder {
                     .get(&anchor)
                     .with_context(|| format!("unknown YAML alias anchor {anchor}"))?
                     .clone();
-                self.attach(value);
+                self.attach(value, false)?;
             }
         }
         Ok(())
@@ -472,17 +512,13 @@ impl Builder {
         let (pairs, anchor) = match frame {
             Frame::Mapping {
                 pairs,
-                pending_key: None,
+                pending: Pending::Key,
                 anchor,
             } => (pairs, anchor),
-            Frame::Mapping {
-                pending_key: Some(_),
-                ..
-            } => bail!("YAML mapping ended before value for key"),
+            Frame::Mapping { .. } => bail!("YAML mapping ended before value for key"),
             Frame::Sequence { .. } => bail!("YAML mapping end without matching start"),
         };
-        self.attach_anchored(mapping_from_pairs(pairs), anchor);
-        Ok(())
+        self.attach_anchored(mapping_from_pairs(pairs), anchor)
     }
 
     fn finish_sequence(&mut self) -> Result<()> {
@@ -491,8 +527,7 @@ impl Builder {
             Frame::Sequence { items, anchor } => (items, anchor),
             Frame::Mapping { .. } => bail!("YAML sequence end without matching start"),
         };
-        self.attach_anchored(Value::Sequence(Sequence::from(items)), anchor);
-        Ok(())
+        self.attach_anchored(Value::Sequence(Sequence::from(items)), anchor)
     }
 
     fn store_anchor(&mut self, anchor: usize, value: &Value) {
@@ -501,25 +536,33 @@ impl Builder {
         }
     }
 
-    fn attach_anchored(&mut self, value: Value, anchor: usize) {
+    fn attach_anchored(&mut self, value: Value, anchor: usize) -> Result<()> {
         self.store_anchor(anchor, &value);
-        self.attach(value);
+        self.attach(value, false)
     }
 
-    fn attach(&mut self, value: Value) {
+    /// Adds a finished node to the collection being built. `plain_scalar` says whether
+    /// the node came from a plain, untagged scalar, which is the only kind of node
+    /// yaml.v2 will read as a `<<` merge key.
+    fn attach(&mut self, value: Value, plain_scalar: bool) -> Result<()> {
         match self.stack.last_mut() {
             None => self.root = Some(value),
-            Some(Frame::Mapping {
-                pairs, pending_key, ..
-            }) => {
-                if pending_key.is_none() {
-                    *pending_key = Some(scalar_as_key(value));
-                } else {
-                    pairs.insert(pending_key.take().expect("mapping key"), value);
+            Some(Frame::Mapping { pairs, pending, .. }) => match std::mem::take(pending) {
+                Pending::Key => {
+                    *pending = if plain_scalar && value == Value::String("<<".to_owned()) {
+                        Pending::Merge
+                    } else {
+                        Pending::Value(scalar_as_key(value))
+                    };
                 }
-            }
+                Pending::Value(key) => {
+                    pairs.insert(key, value);
+                }
+                Pending::Merge => merge_into(pairs, value)?,
+            },
             Some(Frame::Sequence { items, .. }) => items.push(value),
         }
+        Ok(())
     }
 
     fn finish(self) -> Result<Value> {
@@ -619,6 +662,51 @@ process_config:
             dotted(yaml, "process_config.process_collection.enabled"),
             Some(Value::Bool(false))
         );
+    }
+
+    /// yaml.v2's `isMerge` requires a plain, untagged scalar, so a quoted or `!!str`
+    /// `<<` is an ordinary key and must neither merge nor fail the file.
+    #[test]
+    fn only_a_plain_merge_key_merges() {
+        for yaml in [
+            "base: &base\n  enabled: true\nprocess_config:\n  \"<<\": literal\n",
+            "base: &base\n  enabled: true\nprocess_config:\n  !!str <<: literal\n",
+        ] {
+            assert_eq!(
+                dotted(yaml, "process_config.<<"),
+                Some(Value::String("literal".into())),
+                "{yaml:?}"
+            );
+            assert_eq!(dotted(yaml, "process_config.enabled"), None, "{yaml:?}");
+        }
+    }
+
+    /// yaml.v2 unmarshals a merge over the keys read so far, so `<<` overwrites what
+    /// precedes it and loses to what follows it.
+    #[test]
+    fn merge_precedence_follows_document_order() {
+        let base = "base: &base\n  enabled: true\n";
+        assert_eq!(
+            dotted(
+                &format!("{base}process_config:\n  enabled: false\n  <<: *base\n"),
+                "process_config.enabled"
+            ),
+            Some(Value::Bool(true))
+        );
+        assert_eq!(
+            dotted(
+                &format!("{base}process_config:\n  <<: *base\n  enabled: false\n"),
+                "process_config.enabled"
+            ),
+            Some(Value::Bool(false))
+        );
+    }
+
+    /// A merge whose value is not a mapping aborts `Unmarshal`, so it must fail here too.
+    #[test]
+    fn merge_key_requires_a_mapping() {
+        assert!(load("process_config:\n  <<: literal\n").is_err());
+        assert!(load("process_config:\n  <<: [1, 2]\n").is_err());
     }
 
     #[test]
