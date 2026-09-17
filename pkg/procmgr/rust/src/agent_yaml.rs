@@ -169,11 +169,20 @@ fn tagged_scalar_to_value(text: &str, tag: &Tag) -> Value {
 
 /// Plain-scalar coercion aligned with Go yaml.v2: YAML 1.1 bool and null spellings,
 /// then numeric scalars (including floats such as `1.0`).
+///
+/// The spellings come from `resolveMap` in yaml.v2's `resolve.go`, which is an exact
+/// lookup table covering only the lowercase, capitalized, and uppercase forms. Matching
+/// case-insensitively instead would turn `tRuE` into a bool here while the Agent keeps
+/// it a string that `GetBool` reads as false.
 fn plain_scalar_to_value(text: &str) -> Value {
-    match text.to_ascii_lowercase().as_str() {
-        "" | "~" | "null" => Value::Null,
-        "true" | "yes" | "on" | "y" => Value::Bool(true),
-        "false" | "no" | "off" | "n" => Value::Bool(false),
+    match text {
+        "" | "~" | "null" | "Null" | "NULL" => Value::Null,
+        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
+            Value::Bool(true)
+        }
+        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
+            Value::Bool(false)
+        }
         _ => plain_number(text).unwrap_or_else(|| Value::String(text.to_owned())),
     }
 }
@@ -207,28 +216,16 @@ fn plain_number(text: &str) -> Option<Value> {
         .map(|n| Value::Number(n.into()))
 }
 
-/// YAML 1.1 special floats resolved by go.yaml.in/yaml/v2 (must include a leading `.`).
+/// YAML 1.1 special floats resolved by go.yaml.in/yaml/v2.
+///
+/// Another exact `resolveMap` slice: only these spellings are floats, so `.iNf` and
+/// `+.nan` (which yaml.v2 has no entry for) stay strings.
 fn special_float(text: &str) -> Option<f64> {
-    if let Some(rest) = text.strip_prefix('+') {
-        return unsigned_special_float(rest);
-    }
-    if let Some(rest) = text.strip_prefix('-') {
-        // `-.nan` is not a yaml.v2 float, only signed infinities are.
-        return unsigned_special_float(rest)
-            .filter(|n| n.is_infinite())
-            .map(|n| -n);
-    }
-    unsigned_special_float(text)
-}
-
-fn unsigned_special_float(text: &str) -> Option<f64> {
-    let suffix = text.strip_prefix('.')?;
-    if suffix.eq_ignore_ascii_case("inf") {
-        Some(f64::INFINITY)
-    } else if suffix.eq_ignore_ascii_case("nan") {
-        Some(f64::NAN)
-    } else {
-        None
+    match text {
+        ".nan" | ".NaN" | ".NAN" => Some(f64::NAN),
+        ".inf" | ".Inf" | ".INF" | "+.inf" | "+.Inf" | "+.INF" => Some(f64::INFINITY),
+        "-.inf" | "-.Inf" | "-.INF" => Some(f64::NEG_INFINITY),
+        _ => None,
     }
 }
 
@@ -577,6 +574,77 @@ process_config:
         assert_eq!(scalar("enabled: yes\n"), Value::Bool(true));
         assert_eq!(scalar("enabled: on\n"), Value::Bool(true));
         assert_eq!(scalar("enabled: !!bool yes\n"), Value::Bool(true));
+    }
+
+    /// yaml.v2 resolves plain scalars through an exact table, so only the lowercase,
+    /// capitalized, and uppercase spellings of each keyword are bools or nulls.
+    #[test]
+    fn plain_bool_and_null_spellings_are_exact() {
+        for text in [
+            "y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON",
+        ] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::Bool(true),
+                "{text}"
+            );
+        }
+        for text in [
+            "n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF",
+        ] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::Bool(false),
+                "{text}"
+            );
+        }
+        for text in ["~", "null", "Null", "NULL"] {
+            assert_eq!(
+                dotted(&format!("enabled: {text}\n"), "enabled"),
+                None,
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_case_keyword_spellings_stay_strings() {
+        for text in ["tRuE", "yEs", "oN", "fAlSe", "nO", "oFf", "nUlL", "yES"] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::String(text.into()),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn special_float_spellings_are_exact() {
+        for text in [".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF"] {
+            let value = scalar(&format!("enabled: {text}\n"));
+            assert_eq!(value.as_f64(), Some(f64::INFINITY), "{text}");
+        }
+        for text in ["-.inf", "-.Inf", "-.INF"] {
+            let value = scalar(&format!("enabled: {text}\n"));
+            assert_eq!(value.as_f64(), Some(f64::NEG_INFINITY), "{text}");
+        }
+        for text in [".nan", ".NaN", ".NAN"] {
+            assert!(
+                scalar(&format!("enabled: {text}\n"))
+                    .as_f64()
+                    .unwrap()
+                    .is_nan(),
+                "{text}"
+            );
+        }
+        // yaml.v2 has no `+.nan` entry and no case-insensitive match.
+        for text in ["+.nan", "-.nan", ".iNf", ".nAn"] {
+            assert_eq!(
+                scalar(&format!("enabled: {text}\n")),
+                Value::String(text.into()),
+                "{text}"
+            );
+        }
     }
 
     #[test]
