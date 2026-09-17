@@ -34,7 +34,9 @@ type Component interface {
 	// RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.f
 	RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error
 
-	// Enqueue enqueues a capture buffer so it's written to file.
+	// Enqueue enqueues a capture buffer so it's written to file. The caller must
+	// keep ownership of its buffers until Enqueue returns; capture retains its own
+	// references for accepted packets.
 	Enqueue(msg *CaptureBuffer) bool
 
 	// GetStartUpError returns an error if TrafficCapture failed to start up
