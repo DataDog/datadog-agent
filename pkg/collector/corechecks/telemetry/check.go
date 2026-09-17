@@ -27,13 +27,30 @@ const (
 	prefix    = "datadog.agent."
 )
 
+// List of metrics to scrape out of the internal telemetry registry.
+//
+// This list is _deliberately_ small, and well documented: these metrics are always sent to the customer's organization,
+// so they're incurring the egress cost for these metrics, no matter how slight, and they are sent for good reason. We should
+// be extremely mindful both of what we add _and_ what we remove.
+var defaultMetrics = []string{
+	// Powers the "HA Agent Overview" out-of-the-box dashboard in customer accounts.
+	"ha_agent__integration_runs",
+
+	// Count of points sent/dropped from the perspective of the forwarder.
+	//
+	// Not used to power any user experiences, but referenced heavily in customer resources, such as monitors and dashboards.
+	// Simply put, we don't want to cause customer monitors to fire because we removed a metric. C'est la vie.
+	"point__sent",
+	"point__dropped",
+}
+
 type checkImpl struct {
 	corechecks.CheckBase
 	telemetry telemetry.Component
 }
 
 func (c *checkImpl) Run() error {
-	mfs, err := c.telemetry.Gather(true)
+	mfs, err := c.telemetry.Gather(telemetry.StaticMetricFilter(defaultMetrics...))
 	if err != nil {
 		log.Warnf("agent_telemetry check: failed to gather default telemetry metrics: %v", err)
 		return err

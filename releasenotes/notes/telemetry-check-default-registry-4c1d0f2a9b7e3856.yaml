@@ -27,3 +27,10 @@ enhancements:
     for the per-flush timings and counts, ``aggregator__number_of_flush`` for the total
     number of aggregator flushes, and ``scheduler__queue_size`` (tagged by ``interval``)
     for the number of checks scheduled in each job queue.
+  - |
+    The Agent's ``/telemetry`` endpoint now exposes all of the Agent's internal telemetry.
+    A small number of metrics -- including ``point__sent``, ``point__dropped``, and
+    ``ha_agent__integration_runs`` -- were previously held in a separate registry that the
+    endpoint did not serve, so they were only visible as ``datadog.agent.*`` metrics. They
+    are now available on ``/telemetry`` (and in the ``telemetry.log`` flare file) as well,
+    in addition to still being submitted as ``datadog.agent.*`` metrics.

@@ -23,6 +23,7 @@ dd_agent_go_test(
     embed = [":telemetry"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
         "@com_github_prometheus_client_golang//prometheus",
