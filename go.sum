@@ -2528,8 +2528,8 @@ github.com/CycloneDX/cyclonedx-go v0.12.0 h1:/7Jum36UA6V043tQZ/fE3jf+Nf9gn/qxUFf
 github.com/CycloneDX/cyclonedx-go v0.12.0/go.mod h1:V2577HhxDDCDLYfkm55WJrz16nHTfyQZwcWUBSG7Z28=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.210 h1:yLEYo1V20zPeh1bENaUApCtdaTdZP8WOvYWZQX9A7Yw=
-github.com/DataDog/agent-payload/v5 v5.0.210/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
+github.com/DataDog/agent-payload/v5 v5.0.211 h1:8dXxhrm1NWG/BWEXWc5LDI/Lph3/acURFnjhgS6ZMd8=
+github.com/DataDog/agent-payload/v5 v5.0.211/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9 h1:SqGEmv63IrjqqDmXf49ZjlZnyBiHiBbF/1AVaM3q+wI=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9/go.mod h1:UmLcF4Qcn6yaiqp5xrsVwEfeBSD2YTWkWLv69SIlvtE=
 github.com/DataDog/cast v1.8.0 h1:uooY8bMzq+cjgiNP1VTquCWve5emgk8fRspZojJwQa8=
@@ -2552,8 +2552,8 @@ github.com/DataDog/dd-trace-go/v2 v2.10.1 h1:wX/jJcs3Zh6ybwgdMwzRi5IlZ2NIJ6OgASX
 github.com/DataDog/dd-trace-go/v2 v2.10.1/go.mod h1:fHlAl/gA8UuEoPxIoh5xoWvpsH7WT0DBW79vgjgtAjU=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7 h1:N9Ufc+tRU6BaVpxw0D60bvhqwsJ90r5ygXNIbx/kucg=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7/go.mod h1:cy6fMTy/g9yD4GxWUXTTDzKKJE9ZbONxcwiQfpPrv/M=
-github.com/DataDog/ebpf-manager v0.8.4 h1:JDY0PWXwG8lirC/9QX7iq5Klc0ftK0t232rk1iY+qJM=
-github.com/DataDog/ebpf-manager v0.8.4/go.mod h1:zlmQH/xpl87sWLv2k0ek5Nw1PsAOEfDYc8+AYd7lYxw=
+github.com/DataDog/ebpf-manager v0.8.6 h1:AcAQByzla0A6MAgtrAuFUFT3GexHugphlU//OuevbLs=
+github.com/DataDog/ebpf-manager v0.8.6/go.mod h1:zlmQH/xpl87sWLv2k0ek5Nw1PsAOEfDYc8+AYd7lYxw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d h1:ErpIQikDqtpE21afk2ExlJn0wg7gGWyUVu/RY4rBlMI=
