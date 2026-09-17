@@ -93,3 +93,43 @@ func TestAutodiscoveryRunStatusesUseUnderscores(t *testing.T) {
 	assert.Equal(t, AutodiscoveryRunStatus("failed"), AutodiscoveryRunFailed)
 	assert.Equal(t, AutodiscoveryRunStatus("blocked"), AutodiscoveryRunBlocked)
 }
+
+func TestDiscoveredDeviceProbeResultsMarshalling(t *testing.T) {
+	rtt := int64(12)
+	payload := NetworkDevicesMetadata{
+		Namespace:        "default",
+		Integration:      integrations.SNMP,
+		CollectTimestamp: 1700000000,
+		DiscoveredDevices: []DiscoveredDeviceMetadata{
+			{
+				AutodiscoveryID: "ad-1",
+				RunID:           "run-1",
+				IPAddress:       "10.0.0.4",
+				Name:            "router-1",
+				ProbeResults: []ProbeResult{
+					{Kind: "ping", Status: "reachable", RttMs: &rtt},
+					{Kind: "snmp", Status: "unreachable", FailureReason: "timeout"},
+				},
+			},
+		},
+	}
+
+	out, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+		"namespace": "default",
+		"integration": "snmp",
+		"collect_timestamp": 1700000000,
+		"discovered_devices": [{
+			"autodiscovery_id": "ad-1",
+			"run_id": "run-1",
+			"ip_address": "10.0.0.4",
+			"name": "router-1",
+			"probe_results": [
+				{"kind": "ping", "status": "reachable", "rtt_ms": 12},
+				{"kind": "snmp", "status": "unreachable", "failure_reason": "timeout"}
+			]
+		}]
+	}`, string(out))
+}
