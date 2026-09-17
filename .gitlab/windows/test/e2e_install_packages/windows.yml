@@ -159,15 +159,10 @@ new-e2e-windows-ddot-package-a7-x86_64:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaMSI$/TestInstallAndUninstallDDOTExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaMSI$/TestUpgradeEnablesDDOTExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestDDOTExtensionMSIUpgrade$/TestUpgradePreservesDDOTExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaInstallScript$/TestInstallAndPurgeDDOTExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaSubcommand$/TestInstallDDOTSubcommand$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestProcmgrSwitch$"
         DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
   rules:
@@ -197,11 +192,8 @@ new-e2e-windows-eudm-package-a7-x86_64:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestInstallAndUninstallEUDMExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestUpgradeEnablesEUDMExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
       - EXTRA_PARAMS: --run "TestEUDMExtensionViaMSI$/TestInstallWithoutEUDMSkipsExtension$"
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
