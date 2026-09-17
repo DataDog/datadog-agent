@@ -65,13 +65,18 @@ pub fn lookup_dotted_key<'a>(root: &'a Value, key: &str) -> Option<&'a Value> {
     // asks about, `loadYamlInto` drops such a leaf instead of recording it, so a file
     // with both `a.b:` and `a: {b: true}` reads as true to the Agent whichever order it
     // happens to visit the two keys in.
-    if let Some(value) = lookup_case_insensitive(mapping, key).filter(|value| value_is_set(value)) {
+    //
+    // Every case-insensitive match is tried, not just the first: `loadYamlInto` lowercases
+    // each key before merging, so `A: {b: }` and `a: {b: true}` collapse into one node in
+    // which the valueless leaf is the one dropped. Stopping at the first match would let
+    // whichever spelling happens to come first decide the answer.
+    if let Some(value) = case_insensitive_matches(mapping, key).find(|value| value_is_set(value)) {
         return Some(value);
     }
 
     key.match_indices('.').find_map(|(dot, _)| {
-        let child = lookup_case_insensitive(mapping, &key[..dot])?;
-        lookup_dotted_key(child, &key[dot + 1..])
+        case_insensitive_matches(mapping, &key[..dot])
+            .find_map(|child| lookup_dotted_key(child, &key[dot + 1..]))
     })
 }
 
@@ -83,15 +88,20 @@ fn value_is_set(value: &Value) -> bool {
     !matches!(value, Value::Null)
 }
 
-fn lookup_case_insensitive<'a>(mapping: &'a Mapping, key: &str) -> Option<&'a Value> {
-    if let Some(value) = mapping.get(key) {
-        return Some(value);
-    }
-    mapping.iter().find_map(|(k, v)| {
-        k.as_str()
-            .filter(|segment| segment.eq_ignore_ascii_case(key))
-            .map(|_| v)
-    })
+/// Every value in `mapping` whose key equals `key` ignoring ASCII case, exact spelling
+/// first so that a file mixing spellings resolves the same way on every run.
+fn case_insensitive_matches<'a, 'k>(
+    mapping: &'a Mapping,
+    key: &'k str,
+) -> impl Iterator<Item = &'a Value> + use<'a, 'k> {
+    let exact = mapping.get(key);
+    exact
+        .into_iter()
+        .chain(mapping.iter().filter_map(move |(k, v)| {
+            k.as_str()
+                .filter(|segment| *segment != key && segment.eq_ignore_ascii_case(key))
+                .map(|_| v)
+        }))
 }
 
 /// Mirrors Go `GetBool` coercion. Returns `None` for collections, which `cast.ToBoolE`
@@ -1074,6 +1084,25 @@ process_config:
             ),
             Some(Value::Bool(true))
         );
+    }
+
+    /// `loadYamlInto` lowercases every key before merging, so two spellings of one
+    /// setting land in the same node and the valueless one is the one dropped. Verified
+    /// against the Go loader: all four files below read as true.
+    #[test]
+    fn valueless_leaf_does_not_mask_another_spelling() {
+        for yaml in [
+            "PROCESS_CONFIG.ENABLED: true\nprocess_config.enabled:\n",
+            "process_config.enabled:\nPROCESS_CONFIG.ENABLED: true\n",
+            "PROCESS_CONFIG:\n  ENABLED: true\nprocess_config:\n  enabled:\n",
+            "process_config:\n  enabled:\nPROCESS_CONFIG:\n  ENABLED: true\n",
+        ] {
+            assert_eq!(
+                dotted(yaml, "process_config.enabled"),
+                Some(Value::Bool(true)),
+                "{yaml:?}"
+            );
+        }
     }
 
     #[test]
