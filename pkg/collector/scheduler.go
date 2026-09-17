@@ -41,10 +41,12 @@ var (
 
 type commonInitConfig struct {
 	LoaderName string `yaml:"loader"`
+	RunIn      RunIn  `yaml:"run_in"`
 }
 
 type commonInstanceConfig struct {
 	LoaderName string `yaml:"loader"`
+	RunIn      RunIn  `yaml:"run_in"`
 }
 
 type loadInstanceResult struct {
@@ -217,6 +219,15 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			continue
 		}
 
+		decision := evaluateRunIn(initConfig.RunIn, instanceConfig.RunIn)
+		if decision.warning != "" {
+			log.Warnf("Check '%s' instance %d: %s", config.Name, instanceIndex, decision.warning)
+		}
+		if !decision.run {
+			log.Debugf("Check '%s' instance %d is not run by the %s, skipping it", config.Name, instanceIndex, RunnerCoreAgent)
+			continue
+		}
+
 		if instanceConfig.LoaderName != "" {
 			selectedInstanceLoader = instanceConfig.LoaderName
 		}
@@ -321,6 +332,13 @@ func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, ch
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
+// FIXME(check-runner): this path backs `agent check <name>`, so an instance
+// delegated with `run_in` is now invisible to the CLI - getChecks skips it and
+// the command reports no such check. That breaks debugging exactly when it is
+// most wanted, since the check is not running in the Core Agent either. Either
+// let this caller bypass the run_in decision (an explicit `agent check` is a
+// request to run it here), or report which runner owns the instance instead of
+// returning nothing.
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
 	var checks []check.Check
 	if checkScheduler == nil {
