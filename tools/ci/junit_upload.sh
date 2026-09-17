@@ -20,6 +20,13 @@ if [[ -n "$2" ]]; then
     result_json="$2"
 fi
 
+# Pass "collapse-retries" as the third argument to report a test retried by gotestsum
+# once instead of once per attempt (see the junit-upload task).
+upload_args=()
+if [[ "$3" == "collapse-retries" ]]; then
+    upload_args+=(--collapse-retries)
+fi
+
 DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)"
 export DATADOG_API_KEY
 error=0
@@ -28,7 +35,7 @@ for file in $junit_files; do
         echo "Issue with junit file: $file"
         continue
     fi
-    dda inv -e junit-upload --tgz-path "$file" --result-json "$result_json" || error=1
+    dda inv -e junit-upload --tgz-path "$file" --result-json "$result_json" "${upload_args[@]}" || error=1
 done
 unset DATADOG_API_KEY
 # Never fail on Junit upload failure since it would prevent the other after scripts to run.

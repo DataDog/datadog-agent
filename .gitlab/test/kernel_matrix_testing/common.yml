@@ -111,7 +111,7 @@
 
 .upload_junit_kmt:
   - tar -xzvf $DD_AGENT_TESTING_DIR/testjson-*.tar.gz
-  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz" out.json
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz" out.json collapse-retries
 
 # Important: this job needs DD_API_KEY to be set. Some caveats:
 # - if this command is called in the after_script section, note that variables exported in the before_script and
