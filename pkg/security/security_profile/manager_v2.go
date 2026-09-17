@@ -1214,7 +1214,8 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 }
 
 // resolveAndSaveSecurityContext resolves the container's declared SecurityContext
-// and saves it under its workload-template key.
+// and saves it under its workload-template key. It also attempts to extract the
+// effective seccomp filter via ptrace when a seccomp profile is present.
 func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id containerutils.ContainerID) {
 	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
 		return
@@ -1223,6 +1224,16 @@ func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id c
 	if sc == nil || key.IsZero() {
 		return
 	}
+
+	if sc.Seccomp != nil && sc.Seccomp.Type != 0 {
+		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(id, utils.RuntimeArch())
+		if err != nil {
+			seclog.Debugf("seccomp filter extraction for %s: %v", id, err)
+		} else if filter != nil {
+			sc.Seccomp.Filter = filter
+		}
+	}
+
 	secprof.SaveSecurityContext(key, sc)
 }
 

@@ -8,6 +8,7 @@
 package securitycontext
 
 import (
+	"fmt"
 	"slices"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -104,6 +105,19 @@ func copyBoolPtr(src *bool) *bool {
 	}
 	v := *src
 	return &v
+}
+
+// ResolveSeccompFilter extracts the effective seccomp filter for a container
+// by attaching to its init PID and reading the BPF filter.
+func (r *WorkloadmetaResolver) ResolveSeccompFilter(id containerutils.ContainerID, arch string) (*SeccompFilterResult, error) {
+	if r == nil || r.wmeta == nil || len(id) == 0 {
+		return nil, nil
+	}
+	container, err := r.wmeta.GetContainer(string(id))
+	if err != nil || container == nil || container.PID == 0 {
+		return nil, fmt.Errorf("no running container or PID for %s", id)
+	}
+	return ExtractSeccompFilter(container.PID, arch)
 }
 
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {
