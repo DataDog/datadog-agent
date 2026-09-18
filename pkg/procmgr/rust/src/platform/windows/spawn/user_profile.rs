@@ -90,6 +90,9 @@ fn profile_load_user_name(account: &AgentAccount) -> Result<String> {
         }
         | AgentAccount::PasswordLogon {
             logon_domain, user, ..
+        }
+        | AgentAccount::ManagedServiceAccountLogon {
+            logon_domain, user, ..
         } => {
             let computer = if logon_domain.is_empty() {
                 computer_name()?
