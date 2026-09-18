@@ -146,13 +146,14 @@ func resolveDefault(cfg config.Component, pointerPath string) (string, any) {
 		if valueWithSource.Source != model.SourceDefault {
 			continue
 		}
-		if valueWithSource.Value == nil {
+		switch value := valueWithSource.Value.(type) {
+		case nil:
 			return "none", nil
+		case time.Duration:
+			return "known", value.String()
+		default:
+			return "known", value
 		}
-		if duration, ok := valueWithSource.Value.(time.Duration); ok {
-			return "known", duration.String()
-		}
-		return "known", valueWithSource.Value
 	}
 	return "none", nil
 }
