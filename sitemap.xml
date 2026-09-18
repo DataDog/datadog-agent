@@ -148,21 +148,6 @@
         <loc>https://datadoghq.dev/datadog-agent/guidelines/conventions/logging/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/examples/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
-      </url>
-      <url>
         <loc>https://datadoghq.dev/datadog-agent/reference/components/status/</loc>
       </url>
       <url>
@@ -179,5 +164,26 @@
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/reference/builds/components/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/docs/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/examples/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
       </url>
 </urlset>
