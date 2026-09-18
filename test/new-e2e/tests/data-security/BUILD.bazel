@@ -1,10 +1,10 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go:dd_e2e_go_test.bzl", "dd_e2e_go_test")
 
 # gazelle:exclude postgres_provisioner.go
 
 # postgres_provisioner.go is excluded above (it uses test-only symbols), so it is
 # listed in the go_test srcs and its deps kept by hand.
-dd_agent_go_test(
+dd_e2e_go_test(
     name = "data-security_test",
     srcs = [
         "postgres_provisioner.go",  # keep

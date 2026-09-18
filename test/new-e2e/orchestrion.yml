@@ -1,0 +1,7 @@
+---
+# yaml-language-server: $schema=https://datadoghq.dev/orchestrion/schema.json
+meta:
+  name: datadog/new-e2e
+  description: Orchestrion pin file for the test/new-e2e Go module.
+
+aspects: []

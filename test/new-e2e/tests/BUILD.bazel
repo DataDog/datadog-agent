@@ -1,0 +1,5 @@
+# E2E tests under this directory are compiled with Orchestrion
+# compile-time instrumentation (CI Visibility) via dd_e2e_go_test, while the
+# rest of the repository keeps plain dd_agent_go_test.
+#
+# gazelle:dd_e2e_go_test on

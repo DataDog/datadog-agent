@@ -108,17 +108,96 @@ single_version_override(
     version = "35.1",
 )
 
-# Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
-# (main module), bazel-contrib/rules_go#4700 (checksums), and bazel-contrib/rules_go#4709 (actually reachable deps)
+# Datadog-maintained Orchestrion-enabled rules_go fork ("base" variant).
+#
+# Why a fork: upstream rules_go cannot run Orchestrion's compile-time
+# instrumentation (-toolexec), which the e2e test binaries need for CI
+# Visibility. This fork adds an `orchestrion` module extension (see the managed
+# block below) while otherwise behaving like vanilla rules_go.
+#
+# The archive contains the whole rules_test_optimization repo; strip_prefix
+# selects the vendored rules_go tree based on upstream v0.63.0. We use
+# archive_override (not git_override) because git_override cannot apply patches,
+# and we still need the Windows symlink workaround below.
+#
+# NOTE: this replaces a previous archive_override pinned to rules_go master
+# (September 2026) that pulled in build-info improvements (#4694, #4700,
+# #4709). Those fixes are NOT in the v0.63.0-based fork; agent build-info/
+# stamping behavior must be re-verified. If they are needed, the fallback is
+# the Topt "consumer patch profile" flow: apply the Orchestrion patch profile
+# on top of the master snapshot instead of adopting the fork tree.
 archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+        # ctx.execute(environment=...) in the orchestrion extension replaces the
+        # whole child env and never sets HOME/GOPATH, so `go` cannot derive
+        # GOPATH and sumdb verification fails ("missing $GOPATH: HOME is not set").
+        # Upstream fix candidate: DataDog/rules_test_optimization (go/private/orchestrion/extensions.bzl, _go_env).
+        "//bazel/patches:rules_go-orchestrion-gopath.patch",
+        # _archive_data_for_testmain (go/private/rules/test.bzl) builds a
+        # GoArchive-like struct without cgo_link_inputs, which emit_archive
+        # requires when orchestrion is enabled and transitive archives feed
+        # the synthetic testmain. Upstream fix candidate: DataDog/rules_test_optimization.
+        "//bazel/patches:rules_go-orchestrion-testmain-cgo-link-inputs.patch",
     ],
-    sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
-    strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/18a6fbb9f4fa93331640efddf81271eb467710f4.tar.gz"],  # master as of September 14, 2026
+    sha256 = "bbeab4c931ad59ffc767cf3d5e3f7ea1fa2203fa7d6234a6d116795e7f385b82",
+    strip_prefix = "rules_test_optimization-000a454600cc2f41f71c0668b1824b8cfa664ebc/third_party/rgo/v0_63_0/base",
+    urls = ["https://github.com/DataDog/rules_test_optimization/archive/000a454600cc2f41f71c0668b1824b8cfa664ebc.tar.gz"],
+)
+
+# BEGIN Datadog Go Orchestrion bootstrap
+# Managed block: provides the `orchestrion` module extension from the patched
+# rules_go above, and builds the orchestrion tool from source with the
+# Bazel-managed Go SDK (no host `go` required).
+#
+# Gating: the extension only materializes the orchestrion tool when
+# DD_TEST_OPTIMIZATION_ENABLED is truthy (see the `common:test-optimization`
+# config in .bazelrc). Without that config, everything resolves to empty
+# targets and no target is instrumented — ordinary Go builds are unaffected.
+#
+# Version pins: dd-trace-go v2.10.1 matches test/new-e2e/go.mod, the module the
+# e2e test binaries are built from (the contrib modules are published in
+# lockstep). Orchestrion is pinned to v1.12.0, the version this rules_go fork's
+# source patcher supports (see _ORCHESTRION_* patches in
+# go/private/orchestrion/extensions.bzl of the fork). Under Bazel the tool is
+# built from source by the extension, so test/new-e2e's host-side
+# `orchestrion.tool.go` (v1.13.0) is irrelevant to this path.
+# (dd_trace_go_pin_files would be preferable — it derives versions from
+# go.mod/go.sum — but test/new-e2e/go.mod contains workspace-relative `replace`
+# directives that cannot resolve in the isolated pin-file context.)
+orchestrion = use_extension("@rules_go//go:extensions.bzl", "orchestrion")
+orchestrion.from_source(
+    dd_trace_go_versions = {
+        "github.com/DataDog/dd-trace-go/v2": "v2.10.1",
+        "github.com/DataDog/dd-trace-go/contrib/net/http/v2": "v2.10.1",
+        "github.com/DataDog/dd-trace-go/contrib/log/slog/v2": "v2.10.1",
+    },
+    go_sdk_root = "@go_work_sdk//:ROOT",
+    go_sdk_version = "1.26.7",
+    version = "v1.12.0",
+)
+use_repo(orchestrion, "rules_go_orchestrion_tool")
+# END Datadog Go Orchestrion bootstrap
+
+# Datadog Test Optimization modules (module extensions + dd_topt_go_test macro
+# family). Not on the Bazel Central Registry yet, hence the git_override pins.
+# The commit matches the rules_go fork archive above: the fork trees live in
+# this same repository (third_party/rgo/...).
+bazel_dep(name = "datadog-rules-test-optimization", version = "1.2.0")
+git_override(
+    module_name = "datadog-rules-test-optimization",
+    commit = "000a454600cc2f41f71c0668b1824b8cfa664ebc",
+    remote = "https://github.com/DataDog/rules_test_optimization.git",
+)
+
+bazel_dep(name = "datadog-rules-test-optimization-go", version = "1.2.0")
+git_override(
+    module_name = "datadog-rules-test-optimization-go",
+    commit = "000a454600cc2f41f71c0668b1824b8cfa664ebc",
+    remote = "https://github.com/DataDog/rules_test_optimization.git",
+    strip_prefix = "modules/go",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR

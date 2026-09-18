@@ -1,6 +1,6 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go:dd_e2e_go_test.bzl", "dd_e2e_go_test")
 
-dd_agent_go_test(
+dd_e2e_go_test(
     name = "dynamic-tests_test",
     srcs = [
         "basic_host_traffic_dynamic_path_test.go",

@@ -137,3 +137,11 @@ def dd_agent_go_test(
             target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
             **kwargs
         )
+
+# Public re-exports of the variant helpers above, for dd_e2e_go_test.bzl: it
+# mirrors this macro's gotags-set variant emission but wraps each raw go_test
+# with an Orchestrion instrumentation transition. Everything else in the
+# repository keeps using dd_agent_go_test unchanged.
+e2e_test_tag_set_suffix = _test_tag_set_suffix
+e2e_test_tag_set_tags = _test_tag_set_tags
+e2e_test_tag_set_target_compatible_with = _test_tag_set_target_compatible_with
