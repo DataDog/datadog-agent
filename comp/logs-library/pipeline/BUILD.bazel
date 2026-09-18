@@ -21,6 +21,7 @@ go_library(
         "//comp/logs-library/sender",
         "//comp/logs-library/sender/http",
         "//comp/logs-library/sender/tcp",
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/def",
         "//pkg/config/model",

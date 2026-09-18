@@ -15,9 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	statusutils "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +45,7 @@ type Processor struct {
 	inputChan                 chan *message.Message
 	outputChan                chan *message.Message // strategy input
 	processingRules           []*config.ProcessingRule
+	tagFilters                *tagfilter.Filters
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
@@ -59,7 +63,7 @@ type Processor struct {
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{
@@ -67,6 +71,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
+		tagFilters:                tagFilters,
 		encoder:                   encoder,
 		configChan:                make(chan failoverConfig, 1),
 		done:                      make(chan struct{}),
@@ -201,6 +206,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		msg.SetRendered(rendered)
 
+		p.resolveTagFilter(msg)
+
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
@@ -218,6 +225,67 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
+}
+
+// ResolveSourceTagFilter compiles and caches a source's effective filter. It is
+// idempotent and safe for concurrent calls.
+func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) {
+	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
+	// appended before rejecting for a nil Config.
+	if src == nil || src.Config == nil {
+		return
+	}
+	if _, resolved := src.TagFilter(); resolved {
+		return
+	}
+
+	var sourceFilters *tagfilter.Filters
+	var report tagfilter.Report
+	if !src.Config.TagFilters.IsEmpty() {
+		sourceFilters, report = src.Config.TagFilters.Compile()
+	}
+
+	// Avoid storing a non-nil interface containing a nil *Scoped.
+	var resolved sources.TagFilter
+	if scoped := tagfilter.NewScoped(global, sourceFilters); scoped != nil {
+		resolved = scoped
+	}
+
+	if !src.SetTagFilterIfUnset(resolved) {
+		return
+	}
+
+	// A malformed pattern degrades to filtering less, never blocks the source
+	// from tailing; record it so it's visible on the source's status block.
+	for _, rejected := range report.Rejected {
+		src.Messages.AddMessage("tag_filters:rejected:"+rejected.Pattern, rejected.Reason)
+	}
+	for _, warning := range report.Warnings {
+		log.Warnf("tag_filters for source %q: %s", src.Name, warning)
+		src.Messages.AddMessage("tag_filters:warning:"+warning, warning)
+	}
+
+	globalPatterns := global.Patterns()
+	sourcePatterns := sourceFilters.Patterns()
+	if !globalPatterns.IsEmpty() || !sourcePatterns.IsEmpty() {
+		src.RegisterInfo(statusutils.NewTagFilterInfo(
+			globalPatterns.Include, globalPatterns.Exclude,
+			sourcePatterns.Include, sourcePatterns.Exclude))
+	}
+
+}
+
+// resolveTagFilter resolves the filter if the eager subscriber has not already.
+func (p *Processor) resolveTagFilter(msg *message.Message) {
+	if msg.Origin == nil || msg.Origin.LogSource == nil {
+		return
+	}
+	src := msg.Origin.LogSource
+
+	if _, resolved := src.TagFilter(); resolved {
+		return
+	}
+	ResolveSourceTagFilter(p.tagFilters, src)
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF

@@ -33,3 +33,20 @@ func TestInfoRegistryReplace(t *testing.T) {
 	assert.Equal(t, "1", all[0].InfoKey())
 	assert.Equal(t, "10", all[0].Info()[0])
 }
+
+type fakeVerboseInfo struct {
+	key  string
+	info []string
+}
+
+func (f *fakeVerboseInfo) InfoKey() string { return f.key }
+func (f *fakeVerboseInfo) Info() []string  { return f.info }
+func (f *fakeVerboseInfo) IsVerbose() bool { return true }
+
+func TestRenderedVerbose(t *testing.T) {
+	reg := NewInfoRegistry()
+	reg.Register(&fakeVerboseInfo{key: "Verbose Only", info: []string{"a"}})
+
+	assert.Empty(t, reg.Rendered())
+	assert.Equal(t, map[string][]string{"Verbose Only": {"a"}}, reg.RenderedVerbose(true))
+}
