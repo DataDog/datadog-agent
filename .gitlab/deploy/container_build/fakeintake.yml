@@ -2,7 +2,7 @@
 docker_build_fakeintake:
   stage: container_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_fakeintake_changes]
     - !reference [.on_fakeintake_changes_on_main]
   needs: []

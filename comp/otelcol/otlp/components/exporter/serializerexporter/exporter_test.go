@@ -503,6 +503,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 					serializerConsumer: &serializerConsumer{},
 					seenHosts:          make(map[string]struct{}),
 					seenTags:           make(map[string]struct{}),
+					seenTagSets:        make(map[tagSetKey][]string),
 					getPushTime:        func() uint64 { return 0 },
 				}
 			}
@@ -529,6 +530,61 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAzureAppServiceRunningMetric(t *testing.T) {
+	cfg := newDefaultConfig().(*ExporterConfig)
+	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+	attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+	require.NoError(t, err)
+	hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+	tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+	require.NoError(t, err)
+
+	createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+		return &collectorConsumer{
+			serializerConsumer: &serializerConsumer{},
+			seenHosts:          make(map[string]struct{}),
+			seenTags:           make(map[string]struct{}),
+			seenTagSets:        make(map[tagSetKey][]string),
+			getPushTime:        func() uint64 { return 0 },
+		}
+	}
+
+	rec := &metricRecorder{}
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	require.NoError(t, err)
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+		"cloud.platform":            "azure.app_service",
+		"service.name":              "my-app",
+		"cloud.account.id":          "sub-123",
+		"azure.resource_group.name": "my-rg",
+		"service.instance.id":       "instance-1",
+	}))
+	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	metric.SetName("my.metric")
+	metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+
+	require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+	var running *metrics.Serie
+	for _, serie := range rec.series {
+		if serie.Name == "otel.datadog_exporter.metrics.running.azureappservices" {
+			running = serie
+			break
+		}
+	}
+	require.NotNil(t, running)
+	assert.Empty(t, running.Host)
+	assert.ElementsMatch(t, []string{
+		"instance:instance-1",
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}, running.Tags.UnsafeToReadOnlySliceString())
 }
 
 func newMetrics(

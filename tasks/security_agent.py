@@ -581,7 +581,8 @@ def cws_go_generate(ctx, verbose=False):
     bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
     bazel("run", "//docs/cloud-workload-security:secl_linux")
     bazel("run", "//docs/cloud-workload-security:secl_windows")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
+    bazel("run", "//pkg/security/secl/schemas:policy_schema")
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
             ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")

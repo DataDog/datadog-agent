@@ -202,6 +202,10 @@ type EBPFProbe struct {
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 
+	// capabilities usage events dropped because the exec or fork event that introduced the
+	// program they belong to was missed, leaving userspace unable to resolve it
+	capabilitiesExecutableMismatch *atomic.Uint64
+
 	// per-event scratch state — only safe because handleEvent is single-goroutine.
 	// onNewPCE / onCgroupUpdate are stored as function values rather than declared as
 	// methods because a `p.method` expression allocates a fresh method value on every
@@ -1225,8 +1229,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-		p.monitors.ProcessEvent(event, p.probe.scrubber)
 	}
+
+	p.monitors.ProcessEvent(event, p.probe.scrubber)
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -1249,6 +1254,10 @@ func (p *EBPFProbe) SendStats() error {
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
+	}
+
+	if executableMismatchCount := p.capabilitiesExecutableMismatch.Swap(0); executableMismatchCount > 0 {
+		_ = p.statsdClient.Count(metrics.MetricCapabilitiesExecutableMismatch, int64(executableMismatchCount), []string{}, 1.0)
 	}
 
 	if err := p.eventStream.SendStats(); err != nil {
@@ -2029,6 +2038,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
 			return false
 		}
+		// Usage is aggregated per exec and reported asynchronously, so the process may already be
+		// running another program by the time this lands. If we missed the exec or fork event that
+		// introduced the program the usage belongs to, nothing is cached for the pid and resolution
+		// falls back to the kernel maps or procfs, both of which describe a new executable instead
+		// of the executable entry for which this capabilities event is reported.
+		if event.ProcessCacheEntry.Cookie != event.CapabilitiesUsage.Cookie {
+			p.capabilitiesExecutableMismatch.Add(1)
+			seclog.Debugf("capabilities usage event for pid %d resolved to a different executable (cookie %d != %d), skipping", event.PIDContext.Pid, event.ProcessCacheEntry.Cookie, event.CapabilitiesUsage.Cookie)
+			return false
+		}
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
@@ -2469,8 +2488,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
-	case model.BindEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingBindEnabled
 	}
 	return false
 }
@@ -3241,18 +3258,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_bind_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingBindEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_bind_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_bind_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
-		},
-		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
@@ -3364,7 +3369,6 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
-		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3510,6 +3514,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
 		dropActionRuleIDs:    make(map[uint32]string),
+
+		capabilitiesExecutableMismatch: atomic.NewUint64(0),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {

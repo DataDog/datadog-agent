@@ -79,6 +79,8 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNvLinkVersion returns the version of the specified NVLink.
 	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
+	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device

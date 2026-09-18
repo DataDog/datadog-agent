@@ -78,6 +78,7 @@ const (
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
 	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
+	sdsResultEndpoint            = "/api/v2/sdsresult"
 	containerImageEndpoint       = "/api/v2/contimage"
 	containerLifecycleEndpoint   = "/api/v2/contlcycle"
 	sbomEndpoint                 = "/api/v2/sbom"
@@ -145,6 +146,7 @@ type Client struct {
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
 	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
+	sdsResultAggregator            aggregator.SDSResultAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
 	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
 	sbomAggregator                 aggregator.SBOMAggregator
@@ -183,6 +185,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
 		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
+		sdsResultAggregator:            aggregator.NewSDSResultAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:                 aggregator.NewSBOMAggregator(),
@@ -282,6 +285,14 @@ func (c *Client) getAgentDiscoveryPayloads() error {
 		return err
 	}
 	return c.agentDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getSDSResults() error {
+	payloads, err := c.getFakePayloads(sdsResultEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sdsResultAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getContainerImages() error {
@@ -842,6 +853,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
 	c.agentDiscoveryAggregator.Reset()
+	c.sdsResultAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
@@ -978,6 +990,21 @@ func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayloa
 	var payloads []*aggregator.AgentDiscoveryPayload
 	for _, name := range c.agentDiscoveryAggregator.GetNames() {
 		payloads = append(payloads, c.agentDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return payloads, nil
+}
+
+// GetSDSResults fetches fakeintake on `/api/v2/sdsresult` and returns all received
+// sds-result payloads.
+func (c *Client) GetSDSResults() ([]*aggregator.SDSResultPayload, error) {
+	if err := c.getSDSResults(); err != nil {
+		return nil, err
+	}
+
+	var payloads []*aggregator.SDSResultPayload
+	for _, name := range c.sdsResultAggregator.GetNames() {
+		payloads = append(payloads, c.sdsResultAggregator.GetPayloadsByName(name)...)
 	}
 
 	return payloads, nil
