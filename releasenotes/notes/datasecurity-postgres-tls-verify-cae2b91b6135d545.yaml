@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Data security PostgreSQL scans now support the ``verify-ca`` and
+    ``verify-full`` SSL modes, and send a client certificate and key on TLS
+    connections when ``ssl_cert`` and ``ssl_key`` are set.

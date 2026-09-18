@@ -48,6 +48,19 @@ pub fn default_config_dir() -> PathBuf {
     PathBuf::from("/opt/datadog-agent/processes.d")
 }
 
+/// Fleet policies directory to fall back on when no config source names one.
+///
+/// Unix has no equivalent of the Windows registry hint, so config gates rely on
+/// `DD_FLEET_POLICIES_DIR` or `fleet_policies_dir` in the gated file.
+pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
+    None
+}
+
+/// Per-service environment overrides, which only the Windows SCM provides.
+pub fn agent_service_env_var(_name: &str) -> Option<String> {
+    None
+}
+
 pub fn stdout_inheritable() -> bool {
     true
 }

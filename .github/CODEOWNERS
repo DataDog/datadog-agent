@@ -130,6 +130,7 @@
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
 /.gitlab/.post/*                                                          @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
+/.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
 /.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
 /.gitlab/deploy*/*                                                        @DataDog/agent-delivery

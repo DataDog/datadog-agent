@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed a memory leak that occurred when the containerd socket was
+    unreachable. Each failed attempt to create a containerd client leaked a
+    gRPC connection that was never closed and could not be garbage collected,
+    causing the Agent's memory usage to grow until it was restarted.

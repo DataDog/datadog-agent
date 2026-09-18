@@ -28,7 +28,6 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        # TODO: dependency "python3"
         # TODO: dependencies:all_files belongs here, but that adding it will essentially
         # mean all builds build dependencies. That would break the repackage workflow, so
         # we'll do that in April.
@@ -258,9 +257,19 @@ pkg_files(
     }),
 )
 
+rewrite_rpath(
+    name = "security_agent_binary_rpath",
+    destination = select({
+        "@platforms//os:windows": "{install_dir}/bin/agent",
+        "//conditions:default": "{install_dir}/embedded/bin",
+    }),
+    inputs = ["//cmd/security-agent"],
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
 pkg_files(
     name = "security_agent_binary",
-    srcs = ["//cmd/security-agent"],
+    srcs = [":security_agent_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",

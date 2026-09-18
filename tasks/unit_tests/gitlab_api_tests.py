@@ -1,9 +1,11 @@
 import unittest
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import yaml
 from invoke import MockContext, Result
+from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
@@ -13,6 +15,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     expand_matrix_jobs,
     filter_gitlab_ci_configuration,
     find_buildimages,
+    get_gitlab_token,
     gitlab_configuration_is_modified,
     read_includes,
     retrieve_all_paths,
@@ -685,3 +688,54 @@ class TestUpdateGitlabConfig(unittest.TestCase):
             ),
             6,
         )
+
+
+class TestGetGitlabToken(unittest.TestCase):
+    def _mock_bti_call(self, mock_session_cls):
+        """Wires a fake `requests.Session` and returns the mock `.get` call for inspection."""
+        mock_response = MagicMock(ok=True)
+        mock_response.json.return_value = {'token': 'fake-token'}
+        mock_session = mock_session_cls.return_value
+        mock_session.get.return_value = mock_response
+        return mock_session.get
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_default_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext())
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['DataDog'])
+        self.assertEqual(query['repository'], ['datadog-agent'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_cross_org_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext(), repo='ddoghq/images')
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['ddoghq'])
+        self.assertEqual(query['repository'], ['images'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_datadog_org_repo(self, _mock_is_enabled, _mock_infra_token, mock_session_cls):
+        mock_get = self._mock_bti_call(mock_session_cls)
+
+        get_gitlab_token(MockContext(), repo='DataDog/codescanning')
+
+        query = parse_qs(urlparse(mock_get.call_args.args[0]).query)
+        self.assertEqual(query['owner'], ['DataDog'])
+        self.assertEqual(query['repository'], ['codescanning'])
+
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)
+    def test_bare_repo_name_raises(self, _mock_is_enabled):
+        with self.assertRaises(Exit):
+            get_gitlab_token(MockContext(), repo='images')

@@ -66,6 +66,8 @@ host: db-host
 port: 5678
 username: datadog
 password: secret
+ssl: verify-full
+ssl_root_cert: /etc/ssl/root.crt
 `
 
 // scanTaskConfig is a valid Data Security scan task RC payload (JSON, which is
@@ -147,6 +149,8 @@ scan_data:
       dbname: app
       username: datadog
       password: secret
+      ssl: verify-full
+      ssl_root_cert: /etc/ssl/root.crt
 `
 
 // rawScanTask builds the RC payload for a scan task delivered at the given path/id.

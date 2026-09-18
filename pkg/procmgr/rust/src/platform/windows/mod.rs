@@ -28,6 +28,7 @@ use tokio::sync::Notify;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 pub(crate) use spawn::{SpawnCredential, resolve_initial_spawn_identity};
 
+pub use child_env::agent_service_env_var;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 pub(crate) use console::console_lock;
 pub use console::{
@@ -112,4 +113,21 @@ pub fn install_root_for_tests() -> PathBuf {
 
 pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
+}
+
+/// Fleet policies directory when neither `DD_FLEET_POLICIES_DIR` nor the gated config
+/// file names one.
+///
+/// Mirrors `FleetConfigOverride` in `pkg/config/setup/config_windows.go`: the registry
+/// value, or nothing at all. The installer's managed-process path
+/// (`paths.FleetPoliciesDirForManagedProcess`) does fall back to the stable managed
+/// directory, but it hands that value over as `DD_FLEET_POLICIES_DIR`, so the caller
+/// sees it from the environment rather than from here. Falling back to that directory
+/// here would load policy the Agent itself ignores.
+pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
+    fleet_policies_dir_from_registry().map(PathBuf::from)
+}
+
+fn fleet_policies_dir_from_registry() -> Option<String> {
+    open_datadog_agent_key().and_then(|k| registry_nonempty_string(&k, "fleet_policies_dir"))
 }

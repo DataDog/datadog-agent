@@ -1,0 +1,37 @@
+"""Agent package components specific to Windows."""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# This is everything in the distro, mirroring packages/agent/linux and
+# packages/agent/macos. There is no Windows package format (MSI) yet, so
+# this has no further consumer besides the healthcheck gate below.
+pkg_filegroup(
+    name = "agent_components",
+    srcs = [
+        "//packages/agent/dependencies:all_files",
+        "//packages/agent/product:all_files",
+    ],
+)
+
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":agent_components",
+    ],
+)
+
+# Runs the healthcheck as a build-time validation against the assembled
+# install tree. See packages/agent/linux for the rationale; unlike Linux and
+# macOS, nothing packages this yet, so building this target directly is what
+# triggers the check until a Windows package format target exists.
+healthcheck_gate(
+    name = "everything_checked",
+    srcs = ":everything",
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
