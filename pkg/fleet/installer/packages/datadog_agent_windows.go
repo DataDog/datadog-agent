@@ -208,26 +208,53 @@ type procmgrConfig struct {
 	label  string
 	write  func(installRoot string) error
 	remove func(installRoot string) error
+	// binaryRoot resolves the root write/remove check for their binary and use for path
+	// placeholders. Defaults to the resolved MSI Program Files install root (ADP, PAR: their
+	// binary ships with the base agent install). DDOT is an extension whose binary instead lives
+	// under the agent package repository, so it needs its own resolver.
+	binaryRoot func() (string, error)
+}
+
+// resolveAgentStablePackagePath resolves the "stable" symlink under the agent package repository
+// to the real versioned directory, mirroring postInstallDDOTExtension so a re-enable after a
+// process-manager switch finds the DDOT binary at the same path the extension installer used.
+func resolveAgentStablePackagePath() (string, error) {
+	stablePath := filepath.Join(paths.PackagesPath, agentPackage, "stable")
+	resolved, err := filepath.EvalSymlinks(stablePath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve stable agent package path: %w", err)
+	}
+	return resolved, nil
 }
 
 var procmgrConfigs = []procmgrConfig{
-	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
-	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
-	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
-	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
-	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig, nil},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig, nil},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig, nil},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig, nil},
+	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig, resolveAgentStablePackagePath},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
+	// Always resolve paths.DatadogProgramFilesDir: write/remove use it directly for where
+	// processes.d itself lives, regardless of which root their binary is checked against.
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if processManagerEnabled {
-		return cfg.write(installRoot)
+	root := installRoot
+	if cfg.binaryRoot != nil {
+		root, err = cfg.binaryRoot()
+		if err != nil {
+			return fmt.Errorf("failed to resolve %s binary root: %w", cfg.label, err)
+		}
 	}
-	if err := cfg.remove(installRoot); err != nil {
+
+	if processManagerEnabled {
+		return cfg.write(root)
+	}
+	if err := cfg.remove(root); err != nil {
 		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
