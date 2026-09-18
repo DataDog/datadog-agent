@@ -15,6 +15,12 @@
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
+        # The runner's control plane and executor are dd-procmgrd processes: procmgr
+        # spawns them, and par-control drives the executor over the procmgr socket.
+        - pkg/procmgr/**/*
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor*.yaml.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control*.yaml.tmpl
+        - pkg/fleet/installer/packages/processmanager/par_procmgr_config_windows.go
         - pkg/config/setup/privateactionrunner.go
         - pkg/proto/datadog/privateactionrunner/**/*
         - pkg/proto/pbgo/privateactionrunner/**/*
