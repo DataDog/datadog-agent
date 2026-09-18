@@ -752,6 +752,8 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
 	}
 
+	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
+
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
 		m.sendAnomalyDetection(event)
 	}
