@@ -93,6 +93,20 @@ func TestRescueRejectsAmbiguousBlockBoundary(t *testing.T) {
 	}
 }
 
+func TestRescueRejectsUnresolvedFleetHostname(t *testing.T) {
+	cleanEnv(t)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	defer server.Close()
+	p := Params{
+		ConfigPath:       configFile(t, "api_key: dummy\ndd_url: "+server.URL+"\nhostname: main-host\n"),
+		FleetPoliciesDir: filepath.Dir(configFile(t, "hostname: ENC[host]\n")),
+	}
+	err := Rescue(context.Background(), p, errors.New("failed"))
+	require.Zero(t, calls.Load(), "an unresolved Fleet hostname must not be reported as a shared host identity")
+	require.Error(t, err)
+}
+
 func TestRescueDoesNotSend(t *testing.T) {
 	for _, tc := range []struct {
 		name, raw, env string

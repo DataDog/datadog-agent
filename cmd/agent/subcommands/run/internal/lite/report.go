@@ -75,7 +75,7 @@ func Rescue(ctx context.Context, params Params, startupErr error) error {
 	if hostname == "" {
 		hostname, err = os.Hostname()
 	}
-	if err != nil || hostname == "" {
+	if err != nil || hostname == "" || strings.Contains(hostname, "ENC[") {
 		return errors.New("no reporting hostname")
 	}
 	report := startupReport(hostname, path, scrubError(startupErr, cfg))
