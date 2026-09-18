@@ -411,6 +411,10 @@ func (d *AgentDemultiplexer) run() {
 
 func (d *AgentDemultiplexer) flushLoop() {
 	var flushTicker <-chan time.Time
+	var batchFlushRequested <-chan struct{}
+	if d.aggregator != nil {
+		batchFlushRequested = d.aggregator.batchFlushRequested
+	}
 	if d.options.FlushInterval > 0 {
 		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
@@ -438,6 +442,8 @@ func (d *AgentDemultiplexer) flushLoop() {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
+		case <-batchFlushRequested:
+			d.flushToSerializer(time.Now(), false, false)
 		case t := <-flushTicker:
 			d.flushToSerializer(t, false, false)
 		}

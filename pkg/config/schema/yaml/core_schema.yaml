@@ -466,6 +466,27 @@ properties:
       RSS usage with better performances.
     tags:
     - template_section:Common
+  check_sampler_batch_sizes:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      type: integer
+    env_parser: json
+    example: '{sqlserver: 100000}'
+    visibility: public
+    description: |-
+      Map check names to a metric sample limit per intermediate commit and flush.
+      Batching is disabled unless a check has a positive limit. The example enables
+      100000-sample batches for all SQL Server instances, including custom queries.
+      Each batch is an aggregation window: gauges keep their last value, counts and
+      histograms aggregate within the batch, and counter/rate baselines persist.
+      Commits wait for distinct seconds to preserve count totals at ingestion;
+      small limits can slow collection. Other checks sharing the pipeline may wait
+      while a batch drains. This bounds transient sample accumulation, not total
+      Agent memory or query results. Does not apply to `agent check`. Requires restart.
+    tags:
+    - template_section:CoreAgent
   forwarder_timeout:
     node_type: setting
     type: integer
