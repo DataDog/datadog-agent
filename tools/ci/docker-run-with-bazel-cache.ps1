@@ -56,12 +56,15 @@ if ($commandPos -gt $args.Count) {
 $dockerArgs = @($args | Select-Object -First $commandPos)
 $command = @($args | Select-Object -Skip $commandPos)
 $lockName = "$env:CI_JOB_ID.lock"
+# Keep the exclusive lock outside the checkout: packaging copies it with xcopy,
+# which aborts with a sharing violation if it encounters the open lock file.
+$lockPath = Join-Path $env:XDG_CACHE_HOME $lockName
 $watchdog = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(@"
 `$ProgressPreference = 'SilentlyContinue'
 `$probes = 1
 while (`$true) {
     try {
-        [IO.File]::Delete('C:\bob\$lockName') # succeeds when already gone
+        [IO.File]::Delete('$lockPath') # succeeds when already gone
     } catch [IO.IOException] {
         Start-Sleep -Seconds 1
         `$probes++
@@ -79,7 +82,7 @@ if (`$serverPid) {
 }
 [Console]::Error.WriteLine("bye")
 "@))
-$lock = [IO.FileStream]::new((Join-Path $outputBase $lockName), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
+$lock = [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
 try {
     $containerId = docker run `
         --detach `
