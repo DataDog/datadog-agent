@@ -93,6 +93,40 @@ func TestRescueRejectsAmbiguousBlockBoundary(t *testing.T) {
 	}
 }
 
+func TestRescueUsesEffectiveAPIKey(t *testing.T) {
+	for _, source := range []string{"environment", "extra file"} {
+		t.Run(source, func(t *testing.T) {
+			cleanEnv(t)
+			keys := make(chan string, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				keys <- r.Header.Get("DD-API-KEY")
+				w.WriteHeader(http.StatusAccepted)
+			}))
+			defer server.Close()
+			p := Params{ConfigPath: configFile(t, "api_key: 123\ndd_url: "+server.URL+"\nlogs_config: [broken\n")}
+			if source == "environment" {
+				t.Setenv("DD_API_KEY", "effective-key")
+			} else {
+				p.ExtraConfigPaths = []string{configFile(t, "api_key: effective-key\n")}
+			}
+			require.NoError(t, Rescue(context.Background(), p, errors.New("startup failed")))
+			select {
+			case key := <-keys:
+				require.Equal(t, "effective-key", key)
+			default:
+				t.Fatal("a valid override must allow startup reporting")
+			}
+		})
+	}
+}
+
+func TestScrubErrorOverlappingCredentials(t *testing.T) {
+	cfg := &reportingConfig{}
+	cfg.rememberSensitive("proxy.http", "http://svc:svc-long-secret@proxy.invalid")
+	message := scrubError(errors.New("authentication failed for svc with svc-long-secret"), cfg)
+	require.Equal(t, "authentication failed for ******** with ********", message)
+}
+
 func TestRescueRejectsUnresolvedFleetHostname(t *testing.T) {
 	cleanEnv(t)
 	var calls atomic.Int32

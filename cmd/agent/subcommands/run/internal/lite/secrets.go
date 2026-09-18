@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -114,10 +115,13 @@ func sensitiveStrings(value interface{}) []string {
 }
 
 func (cfg *reportingConfig) redact(message string) string {
+	// Match complete credentials before shorter values they contain.
+	slices.SortFunc(cfg.sensitive, func(a, b string) int { return len(b) - len(a) })
+	var replacements []string
 	for _, value := range cfg.sensitive {
 		if value != "" {
-			message = strings.ReplaceAll(message, value, "********")
+			replacements = append(replacements, value, "********")
 		}
 	}
-	return message
+	return strings.NewReplacer(replacements...).Replace(message)
 }

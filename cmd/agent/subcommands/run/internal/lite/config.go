@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -61,15 +62,18 @@ func recoverConfig(p Params) (*reportingConfig, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if err = loadSettings(cfg, path, model.SourceFile, p.ConfigPath == ""); err != nil {
+	settings, err := cfg.readSettings(path, p.ConfigPath == "")
+	if err != nil {
 		return nil, "", err
 	}
 	for _, extra := range p.ExtraConfigPaths {
-		if err = loadSettings(cfg, extra, model.SourceFile, false); err != nil {
+		overrides, err := cfg.readSettings(extra, false)
+		if err != nil {
 			return nil, "", err
 		}
+		maps.Copy(settings, overrides)
 	}
-	return cfg, path, nil
+	return cfg, path, cfg.applySettings(settings, model.SourceFile)
 }
 
 // Normal startup merges Fleet after resolving secrets and sanitizing the key.
@@ -80,7 +84,11 @@ func mergeFleetConfig(cfg *reportingConfig, p Params) error {
 		fleetDir = cfg.GetString("fleet_policies_dir")
 	}
 	if fleetDir != "" {
-		return loadSettings(cfg, filepath.Join(fleetDir, "datadog.yaml"), model.SourceFleetPolicies, true)
+		settings, err := cfg.readSettings(filepath.Join(fleetDir, "datadog.yaml"), true)
+		if err != nil {
+			return err
+		}
+		return cfg.applySettings(settings, model.SourceFleetPolicies)
 	}
 	return nil
 }
@@ -109,30 +117,39 @@ func selectedPath(p Params) (string, error) {
 	return filepath.Abs(filepath.Join(path, "datadog.yaml"))
 }
 
-func loadSettings(cfg *reportingConfig, path string, source model.Source, optional bool) error {
+func (cfg *reportingConfig) readSettings(path string, optional bool) (map[string]interface{}, error) {
 	if path == "" {
-		return nil
+		return map[string]interface{}{}, nil
 	}
 	info, err := os.Stat(path)
 	if optional && os.IsNotExist(err) {
-		return nil
+		return map[string]interface{}{}, nil
 	}
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 {
-		return errors.New("cannot read selected reporting configuration")
+		return nil, errors.New("cannot read selected reporting configuration")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return errors.New("cannot read selected reporting configuration")
+		return nil, errors.New("cannot read selected reporting configuration")
 	}
 	settings, err := reportingSettings(raw)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for k, value := range settings {
+		cfg.rememberSensitive(k, value)
+	}
+	return settings, nil
+}
+
+func (cfg *reportingConfig) applySettings(settings map[string]interface{}, source model.Source) error {
+	for k, value := range settings {
+		if cfg.GetSource(k).IsGreaterThan(source) {
+			continue
+		}
 		if !validValue(k, value) {
 			return fmt.Errorf("invalid reporting setting %s", k)
 		}
-		cfg.rememberSensitive(k, value)
 		cfg.Set(k, value, source)
 	}
 	return nil
@@ -149,7 +166,7 @@ func reportingSettings(raw []byte) (map[string]interface{}, error) {
 	}
 	selected := map[string]interface{}{}
 	for _, key := range reportingKeys {
-		value, found, err := settingAt(document, strings.Split(key, "."))
+		value, found, err := settingAt(document, key)
 		if err != nil {
 			return nil, fmt.Errorf("ambiguous reporting setting %s", key)
 		}
@@ -160,39 +177,41 @@ func reportingSettings(raw []byte) (map[string]interface{}, error) {
 	return selected, nil
 }
 
-func settingAt(document map[string]interface{}, path []string) (interface{}, bool, error) {
+func settingAt(document map[string]interface{}, key string) (interface{}, bool, error) {
+	value, found, err := foldedValue(document, key)
+	root, leaf, nested := strings.Cut(key, ".")
+	if err != nil || !nested {
+		return value, found, err
+	}
+	parent, exists, err := foldedValue(document, root)
+	if err != nil || !exists {
+		return value, found, err
+	}
+	mapping, ok := parent.(map[string]interface{})
+	if !ok {
+		return nil, false, errors.New("expected a mapping")
+	}
+	child, childFound, err := foldedValue(mapping, leaf)
+	if found && childFound {
+		return nil, false, errors.New("conflicting reporting paths")
+	}
+	if childFound {
+		return child, true, err
+	}
+	return value, found, err
+}
+
+func foldedValue(document map[string]interface{}, name string) (interface{}, bool, error) {
 	var result interface{}
 	found := false
-	wanted := strings.Join(path, ".")
-	seen := map[string]bool{}
 	for key, value := range document {
-		// Normalize only reporting path names, never opaque backend map values.
-		key = strings.ToLower(key)
-		if key != wanted && key != path[0] {
+		if !strings.EqualFold(key, name) {
 			continue
 		}
-		if seen[key] {
+		if found {
 			return nil, false, errors.New("duplicate reporting path")
 		}
-		seen[key] = true
-		matched := true
-		if key != wanted {
-			nested, ok := value.(map[string]interface{})
-			if !ok {
-				return nil, false, errors.New("expected a mapping")
-			}
-			var err error
-			value, matched, err = settingAt(nested, path[1:])
-			if err != nil {
-				return nil, false, err
-			}
-		}
-		if matched {
-			if found {
-				return nil, false, errors.New("conflicting reporting paths")
-			}
-			result, found = value, true
-		}
+		result, found = value, true
 	}
 	return result, found, nil
 }
@@ -203,46 +222,49 @@ var topLevelKey = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_.]*):(?:[ \t]|$)`)
 // Indented content is never promoted to a top-level setting. Quoted keys,
 // aliases, document boundaries and other ambiguous syntax fail closed.
 func recoverBlocks(raw []byte) (map[string]interface{}, error) {
-	blocks := map[string][]byte{}
-	var order []string
-	var key string
+	blocks, err := splitBlocks(raw)
+	if err != nil {
+		return nil, err
+	}
+	document := map[string]interface{}{}
+	for i, block := range blocks {
+		name, _, _ := bytes.Cut(block, []byte(":"))
+		key := string(name)
+		if _, exists := document[key]; exists {
+			return nil, errors.New("duplicate configuration field")
+		}
+		var parsed map[string]interface{}
+		if err := yaml.Unmarshal(block, &parsed); err != nil {
+			// A later column-zero field may still belong to this unclosed block.
+			if i != len(blocks)-1 || requiredRoot(key) || bytes.ContainsAny(block, "\"'&*|>") {
+				return nil, errors.New("unrecoverable reporting configuration")
+			}
+			continue
+		}
+		document[key] = parsed[key]
+	}
+	return document, nil
+}
+
+func splitBlocks(raw []byte) ([][]byte, error) {
+	var blocks [][]byte
 	for _, line := range bytes.SplitAfter(raw, []byte("\n")) {
 		trimmed := strings.TrimSpace(string(line))
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 		if line[0] != ' ' && line[0] != '\t' {
-			match := topLevelKey.FindSubmatch(line)
-			if match == nil {
+			if !topLevelKey.Match(line) {
 				return nil, errors.New("ambiguous top-level configuration")
 			}
-			key = string(match[1])
-			if _, exists := blocks[key]; exists {
-				return nil, errors.New("duplicate configuration field")
-			}
-			order = append(order, key)
+			blocks = append(blocks, nil)
 		}
-		if key == "" {
+		if len(blocks) == 0 {
 			return nil, errors.New("ambiguous configuration indentation")
 		}
-		blocks[key] = append(blocks[key], line...)
+		blocks[len(blocks)-1] = append(blocks[len(blocks)-1], line...)
 	}
-	document := map[string]interface{}{}
-	for i, key := range order {
-		block := blocks[key]
-		var parsed map[string]interface{}
-		if err := yaml.Unmarshal(block, &parsed); err != nil {
-			// A later column-zero field may still belong to this unclosed block.
-			if i != len(order)-1 || requiredRoot(key) || bytes.ContainsAny(block, "\"'&*|>") {
-				return nil, errors.New("unrecoverable reporting configuration")
-			}
-			continue
-		}
-		if requiredRoot(key) {
-			document[key] = parsed[key]
-		}
-	}
-	return document, nil
+	return blocks, nil
 }
 
 func requiredRoot(key string) bool {
