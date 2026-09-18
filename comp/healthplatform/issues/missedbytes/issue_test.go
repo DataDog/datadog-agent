@@ -541,6 +541,36 @@ func TestBuildIssue_UnknownAttributionUsesCheckTimeWording(t *testing.T) {
 	assert.Contains(t, step1, "`strategy` is saturated now")
 }
 
+// WARNING still carries a bottleneck, so the fallback must not send the reader after a
+// component that has already recovered.
+func TestBuildIssue_RecoveredCheckTimeBottleneckIsHistorical(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "4",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{
+			State: logsmetrics.BackpressureWarning,
+			Bottleneck: &logsmetrics.ComponentBackpressure{
+				Component:           "strategy",
+				Instance:            "0",
+				AvgRatio:            0.4,
+				Saturated30mSeconds: 120,
+			},
+		}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	step1 := issue.GetRemediation().GetSteps()[0].GetText()
+	assert.Contains(t, step1, "`strategy`")
+	assert.Contains(t, step1, "was saturated earlier in the last 30 minutes")
+	assert.NotContains(t, step1, "`strategy` is saturated now")
+}
+
 // agent diagnose prints Description verbatim behind a fixed prefix.
 func TestBuildIssue_DescriptionStaysOneBlock(t *testing.T) {
 	ctx := map[string]string{

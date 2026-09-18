@@ -377,8 +377,12 @@ func firstRemediationStep(bp *backpressureWire, component string, blamed int64, 
 	case component != "":
 		return fmt.Sprintf("The `%s` component was saturated during %d of %d %s. Follow the step below that names it, then check the others in this issue's details.",
 			component, blamed, rotations, pluralize(rotations, "rotation"))
-	case bp != nil && bp.Bottleneck != nil:
+	case bp != nil && bp.Bottleneck != nil && bp.State == logsmetrics.BackpressureSaturated:
 		return fmt.Sprintf("The saturated component at loss time was not measured, but `%s` is saturated now. Follow the step below that names it.",
+			bp.Bottleneck.Component)
+	case bp != nil && bp.Bottleneck != nil:
+		// WARNING keeps a bottleneck for 30m after it recovers, so it cannot be presented as a fix.
+		return fmt.Sprintf("The saturated component at loss time was not measured. Nothing is saturated now, but `%s` was saturated earlier in the last 30 minutes: read the step below that names it, then re-check under representative log volume.",
 			bp.Bottleneck.Component)
 	}
 	return "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."
