@@ -9,10 +9,11 @@ package bininspect
 
 import (
 	"os"
-	"strconv"
+	"os/exec"
 	"strings"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,11 +28,49 @@ const (
 	infoFunction = byte(safeelf.STB_GLOBAL)<<4 | byte(safeelf.STT_FUNC)
 )
 
+func buildPCLNTABFixture(t *testing.T, tmpDir string) string {
+	t.Helper()
+
+	f, err := os.CreateTemp(tmpDir, "pclntab-fixture")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	exe := f.Name()
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", exe, "./testdata/pclntab_fixture.go") // #nosec G204
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "failed to build test binary with `%v`: %s\n%s", cmd.Args, err, out)
+	return exe
+}
+
+func isBazelTest() bool {
+	return os.Getenv("TEST_SRCDIR") != "" || os.Getenv("RUNFILES_DIR") != "" || os.Getenv("RUNFILES_MANIFEST_FILE") != ""
+}
+
+func bazelPCLNTABFixture(t *testing.T) string {
+	t.Helper()
+
+	loc := os.Getenv("BININSPECT_PCLNTAB_FIXTURE")
+	require.NotEmpty(t, loc, "expected BININSPECT_PCLNTAB_FIXTURE to be set by the Bazel test rule")
+
+	fixture, err := runfiles.Rlocation(loc)
+	require.NoError(t, err)
+	return fixture
+}
+
+func pclntabFixture(t *testing.T, tmpDir string) string {
+	t.Helper()
+
+	if isBazelTest() {
+		return bazelPCLNTABFixture(t)
+	}
+	return buildPCLNTABFixture(t, tmpDir)
+}
+
 // TestGetPCLNTABSymbolParser tests the GetPCLNTABSymbolParser function with strings set symbol filter.
-// We are looking to find all symbols of the current process executable and check if they are found in the PCLNTAB.
+// We are looking to find all symbols of a Go fixture executable and check if they are found in the PCLNTAB.
 func TestGetPCLNTABSymbolParser(t *testing.T) {
-	currentPid := os.Getpid()
-	f, err := safeelf.Open("/proc/" + strconv.Itoa(currentPid) + "/exe")
+	exe := pclntabFixture(t, t.TempDir())
+	f, err := safeelf.Open(exe)
 	require.NoError(t, err)
 	symbolSet := make(common.StringSet)
 	staticSymbols, _ := f.Symbols()
@@ -47,9 +86,6 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 			}
 			symbolSet[sym.Name] = struct{}{}
 		}
-	}
-	if len(symbolSet) == 0 {
-		t.Skip("No symbols found")
 	}
 
 	got, err := GetPCLNTABSymbolParser(f, newStringSetSymbolFilter(symbolSet))
