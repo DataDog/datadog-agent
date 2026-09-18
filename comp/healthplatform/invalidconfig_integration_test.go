@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -26,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -79,7 +81,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 
 	const tickInterval = 50 * time.Millisecond
 
-	fxutil.Test[fxutil.NoDependencies](t,
+	store := fxutil.Test[storedef.Component](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
@@ -156,5 +158,15 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
+	const correction = "`/logs_enabled` received a string instead of true or false. Replace it with true or false. The default value for this setting is `false`."
+	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
+	var localRemediation string
+	for _, result := range Diagnose(store, diagnose.Config{Verbose: true}) {
+		if result.Category == receivedIssue.Id {
+			localRemediation = result.Remediation
+		}
+	}
+	assert.Contains(t, localRemediation, correction)
+	assert.NotContains(t, localRemediation, rawInvalidLogsEnabled)
 	t.Logf("received invalid-config issue: %s", receivedJSON)
 }
