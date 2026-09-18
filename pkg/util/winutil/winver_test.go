@@ -9,10 +9,15 @@ package winutil
 
 import (
 	"fmt"
+	"os/exec"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var windowsVersionPattern = regexp.MustCompile(`\d+\.\d+\.\d+\.\d+`)
 
 func TestGetWindowsVersionComponents(t *testing.T) {
 	version, err := GetWindowsVersionComponents()
@@ -34,4 +39,16 @@ func TestWindowsVersionFormattersUseSharedComponents(t *testing.T) {
 	buildString, err := GetWindowsBuildString()
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s.%s Build %s", components.Major, components.Minor, components.Build), buildString)
+}
+
+func TestGetWindowsVersionMatchesCommandVersion(t *testing.T) {
+	output, err := exec.Command("cmd", "/c", "ver").Output()
+	require.NoError(t, err)
+
+	commandVersion := windowsVersionPattern.FindString(string(output))
+	require.NotEmpty(t, commandVersion, "cmd /c ver output: %q", output)
+
+	version, err := GetWindowsVersion()
+	require.NoError(t, err)
+	assert.Equal(t, commandVersion, version)
 }
