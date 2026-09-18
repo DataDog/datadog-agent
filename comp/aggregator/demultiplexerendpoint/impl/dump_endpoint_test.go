@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,31 +46,25 @@ func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
 		path string
 		err  error
 	}
-	resultCh := make(chan result, 2)
-	writeDump := func() {
+	firstResultCh := make(chan result, 1)
+	go func() {
 		path, err := endpoint.writeDogstatsdContexts()
-		resultCh <- result{path: path, err: err}
-	}
-
-	go writeDump()
+		firstResultCh <- result{path: path, err: err}
+	}()
 	<-dumpStarted
 
-	secondRequestStarted := make(chan struct{})
-	go func() {
-		close(secondRequestStarted)
-		writeDump()
-	}()
-	<-secondRequestStarted
-	for range 10 {
-		runtime.Gosched()
-	}
+	finalPath := filepath.Join(endpoint.runPath, "dogstatsd_contexts.json.zstd")
+	secondResultCh := endpoint.dumpGroup.DoChan(finalPath, func() (any, error) {
+		return endpoint.writeDogstatsdContextsFile(finalPath)
+	})
 	close(releaseDump)
 
-	firstResult := <-resultCh
-	secondResult := <-resultCh
+	firstResult := <-firstResultCh
+	secondResult := <-secondResultCh
 	require.NoError(t, firstResult.err)
-	require.NoError(t, secondResult.err)
-	require.Equal(t, firstResult.path, secondResult.path)
+	require.NoError(t, secondResult.Err)
+	require.True(t, secondResult.Shared)
+	require.Equal(t, firstResult.path, secondResult.Val)
 	require.Equal(t, int32(1), dumpCalls.Load())
 }
 
