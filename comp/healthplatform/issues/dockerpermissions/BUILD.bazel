@@ -16,6 +16,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
@@ -36,9 +37,13 @@ go_library(
 
 dd_agent_go_test(
     name = "dockerpermissions_test",
-    srcs = ["issue_test.go"],
+    srcs = [
+        "check_test.go",
+        "issue_test.go",
+    ],
     embed = [":dockerpermissions"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/healthplatform/issues",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
