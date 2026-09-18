@@ -4,11 +4,7 @@ Runs `nm` on a binary and checks the resulting symbol list against a set of
 "must include" and "must not include" regex patterns, failing (and printing a
 diagnostic to stderr) if any expectation is violated.
 
-This generalizes the legacy Ruby `fips_check_binary_for_expected_symbol`
-check (omnibus/lib/fips.rb / omnibus/lib/symbols_inspectors.rb), which used
-`go tool nm` to confirm that a FIPS-tagged build actually produced a binary
-containing the expected cgo symbol -- a successful build is not sufficient
-proof that the intended code path was compiled in.
+TODO: Add windows support.
 """
 
 import argparse
@@ -77,7 +73,7 @@ def main(argv):
         return 1
 
     with open(args.output, "w") as f:
-        f.write("ok\n")
+        f.write("PASS\n")
     return 0
 
 

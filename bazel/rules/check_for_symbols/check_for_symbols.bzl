@@ -1,9 +1,13 @@
-"""check_for_symbols_test: verify a binary's symbol table via `nm`.
+"""check_for_symbols_test: verify a binary's symbol table.
 
-Generalizes the legacy Ruby `fips_check_binary_for_expected_symbol` check
+Checks a single binary target for the presense or absence of a one or
+more symbols.
+
+It may be used to determine that a specific library is linked in or not.
+
+Based on the legacy Ruby `fips_check_binary_for_expected_symbol` check
 (omnibus/lib/fips.rb), which confirmed that a FIPS-tagged build actually
-produced a binary containing the expected cgo symbol -- a successful build is
-not sufficient proof that the intended code path was compiled in.
+produced a binary containing the expected cgo symbol.
 
 Usage:
 
@@ -47,7 +51,7 @@ def _check_for_symbols_impl(ctx):
     if not ctx.attr.must_include and not ctx.attr.must_not_include:
         fail("check_for_symbols_test: at least one of 'must_include' or 'must_not_include' must be non-empty")
 
-    out = ctx.actions.declare_file(ctx.label.name + ".ok")
+    out = ctx.actions.declare_file(ctx.label.name + ".status")
 
     args = ctx.actions.args()
     args.add("--nm", ctx.executable._nm)
