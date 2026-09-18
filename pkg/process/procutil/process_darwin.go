@@ -90,10 +90,6 @@ func processFromPID(pid int32, r []string, k *unix.KinfoProc) (*Process, error) 
 	if err != nil {
 		return nil, fmt.Errorf("times: %s", err)
 	}
-	createTime, err := formatElapsedTime(r[4])
-	if err != nil {
-		return nil, fmt.Errorf("etime: %s", err)
-	}
 	rss, err := strconv.Atoi(r[6])
 	if err != nil {
 		return nil, err
@@ -119,7 +115,8 @@ func processFromPID(pid int32, r []string, k *unix.KinfoProc) (*Process, error) 
 			int32(k.Eproc.Pcred.P_svgid),
 		},
 		Stats: &Stats{
-			CreateTime:  createTime,
+			// Use the kernel start time, not ps elapsed time plus a later wall-clock sample.
+			CreateTime:  k.Proc.P_starttime.Sec*1000 + int64(k.Proc.P_starttime.Usec)/1000,
 			Status:      r[5],
 			Nice:        int32(k.Proc.P_nice),
 			CPUTime:     &CPUTimesStat{User: utime, System: stime},
@@ -285,32 +282,4 @@ func makeTimeStat(strUtime, strStime string) (float64, float64, error) {
 		return 0, 0, err
 	}
 	return utime, stime, nil
-}
-
-// formatElapsedTime converts a ps elapsed time string to a Unix millisecond timestamp.
-// Vendored from github.com/DataDog/gopsutil/process.formatElapsedTime.
-func formatElapsedTime(etime string) (int64, error) {
-	elapsedSegments := strings.Split(strings.Replace(etime, "-", ":", 1), ":")
-	var elapsedDurations []time.Duration
-	for i := len(elapsedSegments) - 1; i >= 0; i-- {
-		p, err := strconv.ParseInt(elapsedSegments[i], 10, 0)
-		if err != nil {
-			return 0, err
-		}
-		elapsedDurations = append(elapsedDurations, time.Duration(p))
-	}
-
-	elapsed := time.Duration(elapsedDurations[0]) * time.Second
-	if len(elapsedDurations) > 1 {
-		elapsed += time.Duration(elapsedDurations[1]) * time.Minute
-	}
-	if len(elapsedDurations) > 2 {
-		elapsed += time.Duration(elapsedDurations[2]) * time.Hour
-	}
-	if len(elapsedDurations) > 3 {
-		elapsed += time.Duration(elapsedDurations[3]) * time.Hour * 24
-	}
-
-	start := time.Now().Add(-elapsed)
-	return start.Unix() * 1000, nil
 }

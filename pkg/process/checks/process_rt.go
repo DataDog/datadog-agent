@@ -21,6 +21,7 @@ import (
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
 // Underlying procutil.Probe is responsible for the actual implementation
 func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
+	start := p.clock.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -34,10 +35,11 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	procs, err := p.probe.StatsForPIDs(p.lastPIDs, time.Now())
+	procs, err := p.probe.StatsForPIDs(p.lastPIDs, start)
 	if err != nil {
 		return nil, err
 	}
+	procs = filterRealtimeStats(procs)
 
 	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
 		mergeStatWithSysprobeStats(p.lastPIDs, procs, p.sysprobeClient)
@@ -57,12 +59,12 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	if p.realtimeLastProcs == nil {
 		p.realtimeLastProcs = procs
 		p.realtimeLastCPUTime = cpuTimes[0]
-		p.realtimeLastRun = time.Now()
+		p.realtimeLastRun = start
 		log.Debug("first run of rtprocess check - no stats to report")
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -80,9 +82,8 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		})
 	}
 
-	// Store the last state for comparison on the next run.
-	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
-	p.realtimeLastRun = time.Now()
+	// Store the filtered last state for comparison on the next run.
+	p.realtimeLastRun = start
 	p.realtimeLastProcs = procs
 	p.realtimeLastCPUTime = cpuTimes[0]
 
@@ -106,9 +107,14 @@ func fmtProcessStats(
 	chunk := make([]*model.ProcessStat, 0, chunkSize)
 
 	for pid, fp := range procs {
+		if fp == nil || fp.IsZombie() {
+			continue
+		}
+
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
-		if _, ok := lastProcs[pid]; !ok {
+		previous, ok := lastProcs[pid]
+		if !ok || previous == nil {
 			continue
 		}
 
@@ -121,7 +127,7 @@ func fmtProcessStats(
 				WriteBytesRate: float32(fp.IORateStat.WriteBytesRate),
 			}
 		} else {
-			ioStat = formatIO(fp, lastProcs[pid].IOStat, now, lastRun)
+			ioStat = formatIO(fp, previous.IOStat, now, lastRun)
 		}
 
 		var voluntaryCtxSwitches, involuntaryCtxSwitches uint64
@@ -133,7 +139,7 @@ func fmtProcessStats(
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
 			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, lastProcs[pid], syst2, syst1),
+			Cpu:                    formatCPU(fp, previous, syst2, syst1),
 			Nice:                   fp.Nice,
 			Threads:                fp.NumThreads,
 			OpenFdCount:            fp.OpenFdCount,
@@ -157,8 +163,18 @@ func fmtProcessStats(
 	return chunked
 }
 
-func calculateRate(cur, prev uint64, before time.Time) float32 {
-	now := time.Now()
+func filterRealtimeStats(stats map[int32]*procutil.Stats) map[int32]*procutil.Stats {
+	filtered := make(map[int32]*procutil.Stats, len(stats))
+	for pid, stat := range stats {
+		if stat == nil || stat.IsZombie() {
+			continue
+		}
+		filtered[pid] = stat
+	}
+	return filtered
+}
+
+func calculateRate(cur, prev uint64, now, before time.Time) float32 {
 	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 || prev == 0 || prev > cur {
 		return 0

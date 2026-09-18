@@ -578,13 +578,96 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, true, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
 	proc := procs[""][0]
 	assert.Equal(t, procMap[1].Exe, proc.Command.Exe)
 	assert.Empty(t, proc.Command.Args)
+}
+
+func TestProcessCheckObservationTimestamps(t *testing.T) {
+	standard := RunOptions{RunStandard: true}
+	combined := RunOptions{RunStandard: true, RunRealtime: true}
+	realtime := RunOptions{RunRealtime: true}
+	for _, tc := range []struct {
+		name string
+		runs []RunOptions
+	}{
+		{"standard", []RunOptions{standard, standard}},
+		{"combined", []RunOptions{combined, combined}},
+		{"dedicated realtime", []RunOptions{realtime, realtime}},
+		{"alternating realtime", []RunOptions{combined, realtime, combined}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check, probe, wmeta := processCheckWithMocks(t)
+			clk := check.clock.(*clock.Mock)
+			start := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+			var observationTime time.Time
+			collectionDelay := func(observed time.Time) {
+				assert.Equal(t, observationTime, observed, "probe and rate calculation must use the same timestamp")
+				clk.Add(5 * time.Second)
+			}
+			const pid int32 = 100
+			check.lastPIDs = []int32{pid}
+			process := makeProcessWithCreateTime(pid, "parent", 1000)
+			procs := map[int32]*procutil.Process{pid: process}
+			stats := map[int32]*procutil.Stats{pid: process.Stats}
+			var needsStandard, needsDedicatedRealtime bool
+			for _, options := range tc.runs {
+				needsStandard = needsStandard || options.RunStandard
+				needsDedicatedRealtime = needsDedicatedRealtime || !options.RunStandard && options.RunRealtime
+			}
+			if check.WLMProcessCollectionEnabled() {
+				wmeta.Set(procToWLMProc(process))
+			} else if needsStandard {
+				probe.On("ProcessesByPID", mock.Anything, true).Return(procs, nil).Run(func(args mock.Arguments) {
+					collectionDelay(args.Get(0).(time.Time))
+				})
+			}
+			if check.WLMProcessCollectionEnabled() || needsDedicatedRealtime {
+				probe.On("StatsForPIDs", []int32{pid}, mock.Anything).Return(stats, nil).Run(func(args mock.Arguments) {
+					collectionDelay(args.Get(1).(time.Time))
+				})
+			}
+
+			for i, options := range tc.runs {
+				observationTime = start.Add(time.Duration(i) * 10 * time.Second)
+				clk.Set(observationTime)
+				current := makeProcessWithCreateTime(pid, "parent", 1000)
+				n := int64(i + 1)
+				current.Stats.IOStat = &procutil.IOCountersStat{ReadCount: 100 * n, WriteCount: 200 * n, ReadBytes: 1000 * n, WriteBytes: 2000 * n}
+				procs[pid], stats[pid] = current, current.Stats
+				result, err := check.Run(func() int32 { return 0 }, &options)
+				require.NoError(t, err)
+				assert.Equal(t, observationTime.Add(5*time.Second), clk.Now())
+				if options.RunStandard {
+					assert.Equal(t, observationTime, check.lastRun)
+				}
+				if options.RunRealtime {
+					assert.Equal(t, observationTime, check.realtimeLastRun)
+				}
+				if i == 0 {
+					assert.Equal(t, CombinedRunResult{}, result)
+					continue
+				}
+				wantIO := &model.IOStat{ReadRate: 10, WriteRate: 20, ReadBytesRate: 100, WriteBytesRate: 200}
+				if options.RunStandard {
+					require.Len(t, result.Payloads(), 1)
+					payload := result.Payloads()[0].(*model.CollectorProc)
+					require.Len(t, payload.Processes, 1)
+					assert.Equal(t, wantIO, payload.Processes[0].IoStat)
+				}
+				if options.RunRealtime {
+					require.Len(t, result.RealtimePayloads(), 1)
+					payload := result.RealtimePayloads()[0].(*model.CollectorRealTime)
+					require.Len(t, payload.Stats, 1)
+					assert.Equal(t, wantIO, payload.Stats[0].IoStat)
+				}
+			}
+		})
+	}
 }
 
 func BenchmarkProcessCheck(b *testing.B) {
@@ -610,95 +693,206 @@ func BenchmarkProcessCheck(b *testing.B) {
 	}
 }
 
-func TestProcessCheckZombieToggleFalse(t *testing.T) {
-	processCheck, probe, wmeta := processCheckWithMocks(t)
-	cfg := configmock.New(t)
-	processCheck.config = cfg
-	cfg.SetInTest("process_config.ignore_zombie_processes", false)
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
+	for _, tc := range []struct {
+		ignoreZombies, collectRealtime bool
+	}{
+		{false, false},
+		{true, false},
+		{false, true},
+		{true, true},
+	} {
+		t.Run(fmt.Sprintf("ignore_zombies=%t/realtime=%t", tc.ignoreZombies, tc.collectRealtime), func(t *testing.T) {
+			processCheck, probe, wmeta := processCheckWithMocks(t)
+			cfg := configmock.New(t)
+			cfg.SetInTest(configIgnoreZombies, tc.ignoreZombies)
+			processCheck.config = cfg
+			processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
-	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc2.Stats.Status = "Z"
-	proc3.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
-	expectedModel2 := makeProcessModel(t, proc2, []string{"process_context:foo"})
-	expectedModel2.State = 7
-	expectedModel3 := makeProcessModel(t, proc3, []string{"process_context:datadog-process-agent"})
-	expectedModel3.State = 7
+			now := processCheck.clock.Now().UnixMilli()
+			parent := makeProcessWithCreateTime(1, "parent", now)
+			zombie1 := makeProcessWithCreateTime(2, "zombie-1", now+1)
+			zombie1.Ppid = parent.Pid
+			zombie1.Stats.Status = "Z"
+			zombie2 := makeProcessWithCreateTime(3, "zombie-2", now+2)
+			zombie2.Ppid = parent.Pid
+			zombie2.Stats.Status = "Z"
+			processesByPID := map[int32]*procutil.Process{1: parent, 2: zombie1, 3: zombie2}
+			statsByPID := map[int32]*procutil.Stats{1: parent.Stats, 2: zombie1.Stats, 3: zombie2.Stats}
+			mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPID, statsByPID)
 
-	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
+			var wantRealtimeState map[int32]*procutil.Stats
+			if tc.collectRealtime {
+				wantRealtimeState = map[int32]*procutil.Stats{parent.Pid: parent.Stats}
+			}
+			first, err := processCheck.run(0, tc.collectRealtime)
+			require.NoError(t, err)
+			assert.Equal(t, CombinedRunResult{}, first)
+			assert.ElementsMatch(t, []int32{parent.Pid}, processCheck.lastPIDs)
+			assert.Equal(t, wantRealtimeState, processCheck.realtimeLastProcs)
 
-	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
+			processCheck.clock.(*clock.Mock).Add(10 * time.Second)
+			actual, err := processCheck.run(0, tc.collectRealtime)
+			require.NoError(t, err)
+			require.Len(t, actual.Payloads(), 1)
+			payload := actual.Payloads()[0].(*model.CollectorProc)
+			require.Len(t, payload.Processes, 1)
+			assert.Equal(t, parent.Pid, payload.Processes[0].Pid)
+			assert.Equal(t, !tc.ignoreZombies, payload.Processes[0].HasZombieAggregation)
+			wantZombieCount := uint32(2)
+			if tc.ignoreZombies {
+				wantZombieCount = 0
+			}
+			assert.Equal(t, wantZombieCount, payload.Processes[0].ZombieChildrenCount)
+			assert.Zero(t, payload.Processes[0].ZombieNetRate)
+			assert.Equal(t, wantRealtimeState, processCheck.realtimeLastProcs)
 
-	// The first run returns nothing because processes must be observed on two consecutive runs
-	first, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.Equal(t, CombinedRunResult{}, first)
-
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel2},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel3},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
+			if !tc.collectRealtime {
+				assert.Empty(t, actual.RealtimePayloads())
+				return
+			}
+			require.Len(t, actual.RealtimePayloads(), 1)
+			realtimePayload := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
+			require.Len(t, realtimePayload.Stats, 1)
+			assert.Equal(t, parent.Pid, realtimePayload.Stats[0].Pid)
+			assert.NotEqual(t, model.ProcessState_Z, realtimePayload.Stats[0].ProcessState)
+		})
 	}
-	actual, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads())
 }
 
-func TestProcessCheckZombieToggleTrue(t *testing.T) {
-	processCheck, probe, wmeta := processCheckWithMocks(t)
-	cfg := configmock.New(t)
-	processCheck.config = cfg
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+func TestAggregateZombiesByParent(t *testing.T) {
+	const intervalSeconds = 10
+	lastRun := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := lastRun.Add(intervalSeconds * time.Second)
 
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
-	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc2.Stats.Status = "Z"
-	proc3.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
-	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
-
-	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
-
-	// The first run returns nothing because processes must be observed on two consecutive runs
-	first, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.Equal(t, CombinedRunResult{}, first)
-
-	cfg.SetInTest("process_config.ignore_zombie_processes", true)
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
-			GroupSize: int32(1),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
+	process := func(pid, ppid int32, status string, createTime int64) *procutil.Process {
+		return &procutil.Process{
+			Pid:     pid,
+			Ppid:    ppid,
+			Cmdline: []string{fmt.Sprintf("process-%d", pid)},
+			Stats:   &procutil.Stats{Status: status, CreateTime: createTime},
+		}
+	}
+	newCheck := func(previous map[int32]*procutil.Process) *ProcessCheck {
+		return &ProcessCheck{
+			lastRun:   lastRun,
+			lastProcs: previous,
+		}
 	}
 
-	actual, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
+	t.Run("counts creations and reapings", func(t *testing.T) {
+		previous := map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			200: process(200, 100, "Z", 2000),
+		}
+		check := newCheck(previous)
+		current := map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			201: process(201, 100, "Z", 2010),
+			202: process(202, 100, "Z", 2020),
+		}
+
+		got := check.aggregateZombiesByParent(current, now)
+		require.Contains(t, got, int32(100))
+		assert.Equal(t, uint32(2), got[100].count)
+		assert.InDelta(t, 1.0/intervalSeconds, got[100].netRate, 1e-9)
+	})
+
+	t.Run("persistent zombie is not a new creation after scrubbing", func(t *testing.T) {
+		previousParent := makeProcessWithCreateTime(100, "parent --password=********", 1000)
+		previousZombie := makeProcessWithCreateTime(200, "zombie --password=********", 2000)
+		previousZombie.Ppid = previousParent.Pid
+		previousZombie.Stats.Status = "Z"
+		previous := map[int32]*procutil.Process{100: previousParent, 200: previousZombie}
+		check := newCheck(previous)
+
+		currentParent := makeProcessWithCreateTime(100, "parent --password=secret", 1000)
+		currentZombie := makeProcessWithCreateTime(200, "zombie --password=secret", 2000)
+		currentZombie.Ppid = currentParent.Pid
+		currentZombie.Stats.Status = "Z"
+		current := map[int32]*procutil.Process{100: currentParent, 200: currentZombie}
+
+		got := check.aggregateZombiesByParent(current, now)
+		assert.Equal(t, uint32(1), got[100].count)
+		assert.Zero(t, got[100].netRate)
+	})
+
+	t.Run("zombie PID reuse is a reap and a creation", func(t *testing.T) {
+		previous := map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			101: process(101, 1, "S", 1010),
+			200: process(200, 100, "Z", 2000),
+		}
+		check := newCheck(previous)
+		current := map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			101: process(101, 1, "S", 1010),
+			200: process(200, 101, "Z", 3000),
+		}
+
+		got := check.aggregateZombiesByParent(current, now)
+		assert.Equal(t, uint32(0), got[100].count)
+		assert.InDelta(t, -1.0/intervalSeconds, got[100].netRate, 1e-9)
+		assert.Equal(t, uint32(1), got[101].count)
+		assert.InDelta(t, 1.0/intervalSeconds, got[101].netRate, 1e-9)
+	})
+
+	t.Run("reaping uses parent start time after scrubbing", func(t *testing.T) {
+		previousParent := makeProcessWithCreateTime(100, "parent --password=********", 1000)
+		previousZombie := process(200, 100, "Z", 2000)
+		previous := map[int32]*procutil.Process{100: previousParent, 200: previousZombie}
+		check := newCheck(previous)
+
+		currentParent := makeProcessWithCreateTime(100, "parent --password=secret", 1000)
+		current := map[int32]*procutil.Process{100: currentParent}
+		got := check.aggregateZombiesByParent(current, now)
+		require.Contains(t, got, int32(100))
+		assert.InDelta(t, -1.0/intervalSeconds, got[100].netRate, 1e-9)
+	})
+
+	t.Run("changed parent command does not affect reaping", func(t *testing.T) {
+		previousParent := makeProcessWithCreateTime(100, "parent --password=old", 1000)
+		previousZombie := process(200, 100, "Z", 2000)
+		previous := map[int32]*procutil.Process{100: previousParent, 200: previousZombie}
+		check := newCheck(previous)
+
+		currentParent := makeProcessWithCreateTime(100, "parent --password=new", 1000)
+		current := map[int32]*procutil.Process{100: currentParent}
+
+		got := check.aggregateZombiesByParent(current, now)
+		require.Contains(t, got, int32(100))
+		assert.InDelta(t, -1.0/intervalSeconds, got[100].netRate, 1e-9)
+	})
+
+	t.Run("reaping is not attributed to a reused parent PID", func(t *testing.T) {
+		check := newCheck(map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			200: process(200, 100, "Z", 2000),
+		})
+		current := map[int32]*procutil.Process{
+			100: process(100, 1, "S", 3000),
+		}
+
+		got := check.aggregateZombiesByParent(current, now)
+		assert.Nil(t, got)
+	})
+
+	t.Run("reaping is not attributed to a missing parent", func(t *testing.T) {
+		check := newCheck(map[int32]*procutil.Process{
+			100: process(100, 1, "S", 1000),
+			200: process(200, 100, "Z", 2000),
+		})
+
+		got := check.aggregateZombiesByParent(nil, now)
+		assert.Nil(t, got)
+	})
+
+	t.Run("nil processes and stats are ignored", func(t *testing.T) {
+		check := newCheck(map[int32]*procutil.Process{100: {Pid: 100}, 101: nil})
+		current := map[int32]*procutil.Process{100: {Pid: 100}, 101: nil}
+		got := check.aggregateZombiesByParent(current, now)
+		assert.Nil(t, got)
+	})
 }
 
 func TestProcessContextCollection(t *testing.T) {
@@ -764,13 +958,14 @@ func TestProcessTaggerIntegration(t *testing.T) {
 		procutil.NewDefaultDataScrubber(),
 		nil, // no disallow list
 		procs,
-		procs, // same as last procs for simplicity
-		nil,   // no container mapping
+		procs,
+		nil, // no container mapping
 		syst2,
 		syst1,
 		lastRun,
-		nil,   // no lookup probe
-		false, // don't ignore zombies
+		nil,  // no lookup probe
+		nil,  // no zombie aggregates
+		true, // zombie aggregation enabled
 		serviceExtractor,
 		nil, // no GPU tags
 		taggerMock,
