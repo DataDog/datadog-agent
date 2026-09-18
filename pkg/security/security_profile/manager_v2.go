@@ -562,7 +562,7 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 
 func (m *ManagerV2) withinProfilingStartupDelay(now time.Time) bool {
 	delay := m.config.RuntimeSecurity.SecurityProfileV2ProfilingStartupDelay
-	return delay > 0 && now.Sub(m.startTime) < delay
+	return now.Sub(m.startTime) < delay
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
