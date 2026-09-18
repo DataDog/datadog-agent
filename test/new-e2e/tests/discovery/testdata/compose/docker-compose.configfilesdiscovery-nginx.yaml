@@ -1,0 +1,17 @@
+services:
+  nginx-env-configfilesdiscovery:
+    image: {NGINX_IMAGE}
+    container_name: nginx-env-configfilesdiscovery
+    # NGINX's auto_conf.yaml has discovery enabled, so this fixture intentionally
+    # has no AD label. It verifies selection from the standard nginx image.
+    environment:
+      NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+      NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"
+      # Bitnami's documented settings are included to exercise the shared
+      # policy. The official image safely ignores these unknown settings.
+      NGINX_HTTP_PORT_NUMBER: "8080"
+      NGINX_WORKER_PROCESSES: auto
+      NGINX_ENABLE_STREAM: "yes"
+      NGINX_ENVSUBST_FILTER: "^APP_"
+      NGINX_HTTP_PORT_NUMBER_FILE: /run/secrets/http-port
+      NGINX_PASSWORD: must-not-be-forwarded
