@@ -5,7 +5,6 @@ dd_agent_go_test(
     srcs = [
         "gstatus_nix_test.go",
     ],
-    embed = [":agent-integrations"],
     tags = ["manual"],  # need pulumi installed.
     deps = [
         "//test/e2e-framework/components/os",
