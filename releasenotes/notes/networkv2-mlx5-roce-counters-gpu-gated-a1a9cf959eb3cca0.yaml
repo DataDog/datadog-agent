@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The network check now collects mlx5_core RoCE/PFC ethtool counters on hosts
+    with GPU monitoring enabled (``gpu.enabled`` in ``datadog.yaml``). This adds
+    per-priority PFC counters tagged ``prio:<0-7>`` (pause, pause duration, pause
+    transitions, ECN marking, and buffer/congestion discards), link-level 802.3x
+    pause counters, and device-wide PCIe health, FEC/cable health, pause storm,
+    and module health counters. Pause durations are reported in microseconds.
+    Hosts without ``gpu.enabled`` emit an unchanged set of metrics.
