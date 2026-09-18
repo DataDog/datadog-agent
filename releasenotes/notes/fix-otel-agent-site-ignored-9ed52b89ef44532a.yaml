@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    OTel Agent: fix ``DD_SITE`` being ignored when ``api.site`` is absent from the
+    OTel exporter config. Telemetry was silently sent to ``api.datadoghq.com``
+    instead of the site configured via ``DD_SITE`` or ``datadog.site``.
