@@ -106,7 +106,7 @@ func TestResolveRelativePath(t *testing.T) {
 		// bare token with no trailing path resolves to the prefix itself
 		"run_dir": "${run_path}",
 		// nested setting using the relative notation
-		"sbom.cache_directory": "${run_path}/sbom-agent",
+		"foo.bar": "${run_path}/baz",
 		// plain strings and non-string values must be left untouched
 		"host": "localhost",
 		"port": 8080,
@@ -120,7 +120,7 @@ func TestResolveRelativePath(t *testing.T) {
 	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "agent_ipc.socket"), c.Get("run_socket"))
 	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "agent.log"), c.Get("log_file"))
 	assert.Equal(t, defaultpaths.GetDefaultRunPath(), c.Get("run_dir"))
-	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"), c.Get("sbom.cache_directory"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "baz"), c.Get("foo.bar"))
 
 	// untouched values
 	assert.Equal(t, "localhost", c.Get("host"))

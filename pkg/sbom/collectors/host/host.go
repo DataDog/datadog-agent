@@ -28,18 +28,13 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return nil
-}
-
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	return c.initWithOpts(cfg, wmeta, sbom.ScanOptionsFromConfigForHosts(cfg))
+func (c *Collector) Init(cfg config.Component, _ option.Option[workloadmeta.Component]) error {
+	return c.initWithOpts(cfg, sbom.ScanOptionsFromConfigForHosts(cfg))
 }
 
-func (c *Collector) initWithOpts(cfg config.Component, wmeta option.Option[workloadmeta.Component], opts sbom.ScanOptions) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+func (c *Collector) initWithOpts(cfg config.Component, opts sbom.ScanOptions) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}
@@ -81,7 +76,7 @@ func NewCollectorForCWS(cfg config.Component, opts sbom.ScanOptions) (*Collector
 		resChan: make(chan sbom.ScanResult, channelSize),
 	}
 
-	if err := c.initWithOpts(cfg, option.None[workloadmeta.Component](), opts); err != nil {
+	if err := c.initWithOpts(cfg, opts); err != nil {
 		return nil, err
 	}
 
