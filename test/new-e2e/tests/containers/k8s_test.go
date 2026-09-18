@@ -1895,13 +1895,23 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
+		// Exact set of tags carried by the pod entity at delete time.
+		// kube_service is absent: the pod is removed from the service endpoints
+		// as soon as it starts terminating, so the DCA strips it from the pod
+		// tags before the delete event is emitted.
 		expectedPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^domain:deployment$`),
 			regexp.MustCompile(`^kube_deployment:nginx$`),
 			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
 			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^kube_ownerref_name:nginx-[[:alnum:]]+$`),
 			regexp.MustCompile(`^kube_qos:Burstable$`),
+			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^mail:team-container-platform@datadoghq\.com$`),
+			regexp.MustCompile(`^org:agent-org$`),
+			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
+			regexp.MustCompile(`^pod_phase:running$`),
 			regexp.MustCompile(`^team:contp$`),
 		}
 
