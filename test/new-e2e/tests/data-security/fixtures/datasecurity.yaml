@@ -1,0 +1,25 @@
+init_config:
+
+instances:
+  - min_collection_interval: 0
+    task_id: e2e-datasec-postgres
+    scanning_rules:
+      - id: e2e-owner-pattern
+        pattern: 'owner_[0-9]+'
+    scan_data:
+      - sub_task_id: e2e-accounts
+        connection:
+          host: localhost
+          port: 5432
+          dbname: labdb
+          username: postgres
+          password: postgres_admin_pw
+        entity:
+          platform: postgres
+          database_cluster_name: e2e-cluster
+          database_instance_name: e2e-instance
+          database: labdb
+          schema: public
+          table: accounts
+        query: "SELECT owner FROM accounts"
+        timeout_seconds: 30

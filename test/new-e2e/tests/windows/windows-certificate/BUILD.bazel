@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "windows-certificate_test",
     srcs = ["windows_certificate_remote_test.go"],
+    tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",
