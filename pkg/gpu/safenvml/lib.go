@@ -164,6 +164,35 @@ type safeNvml struct {
 	gpmMutex         sync.Mutex
 	fieldValuesMutex sync.Mutex
 	capabilities     map[string]struct{}
+	deviceWarningsMu sync.Mutex
+	deviceWarnings   map[deviceWarningKey]struct{}
+}
+
+type deviceWarningKey struct {
+	uuid    string
+	message string
+}
+
+// logDeviceWarning logs a device warning if it hasn't been logged yet. Avoids spamming the logs with the same warning each time a device is constructed.
+func (s *safeNvml) logDeviceWarning(uuid, format string, args ...any) {
+	if !logLimiter.ShouldLog() {
+		return
+	}
+
+	message := fmt.Sprintf(format, args...)
+	key := deviceWarningKey{uuid: uuid, message: message}
+	s.deviceWarningsMu.Lock()
+	if _, found := s.deviceWarnings[key]; found {
+		s.deviceWarningsMu.Unlock()
+		return
+	}
+	if s.deviceWarnings == nil {
+		s.deviceWarnings = make(map[deviceWarningKey]struct{})
+	}
+	s.deviceWarnings[key] = struct{}{}
+	s.deviceWarningsMu.Unlock()
+
+	log.Warnf("device %s: %s", uuid, message)
 }
 
 func toNativeName(symbol string) string {
@@ -382,7 +411,7 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
 		return nil, err
 	}
-	return NewPhysicalDevice(dev)
+	return newPhysicalDevice(dev, s)
 }
 
 func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
