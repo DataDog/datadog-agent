@@ -62,12 +62,9 @@ const (
 
 // Annotations written by the webhook.
 const (
-	// AppliedTarget is the JSON of the target that was applied to the pod.
-	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python ":"3"}}
-	AppliedTarget = "internal.apm.datadoghq.com/applied-target"
-	// AppliedPolicy is the compact JSON of the remote-config policy that was applied to the pod.
-	// Example value: {"name":"python","version":3,"ddTraceVersions":{"python":"3"}}
-	AppliedPolicy = "internal.apm.datadoghq.com/applied-policy"
+	// AppliedConfig is the JSON of the config that was applied to the pod.
+	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python":"3"}}
+	AppliedConfig = "internal.apm.datadoghq.com/applied-config"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"
@@ -88,10 +85,25 @@ const (
 	// InjectionStatus is set with the overall outcome of the APM injection attempt.
 	// See the InjectionStatus* constants below for possible values.
 	InjectionStatus = "internal.apm.datadoghq.com/injection-status"
+	// InjectionTrigger identifies the configuration source that triggered APM injection.
+	// See the InjectionTrigger* constants below for possible values.
+	InjectionTrigger = "internal.apm.datadoghq.com/injection-trigger"
 	// InjectedLibraries is set with a JSON array of components effectively injected into the pod.
 	// Each entry has at minimum "name" (component name or language) and "image" (full OCI image reference).
 	// Example value: [{"name":"injector","image":"gcr.io/datadoghq/apm-inject:0.52.0"},{"name":"java","image":"gcr.io/datadoghq/dd-lib-java-init:1.30.0"}]
 	InjectedLibraries = "internal.apm.datadoghq.com/injected-libraries"
+)
+
+// InjectionTrigger annotation values.
+const (
+	// InjectionTriggerAnnotation means injection was requested through pod annotations.
+	InjectionTriggerAnnotation = "annotation"
+	// InjectionTriggerDDI means injection was requested by a DatadogInstrumentation resource.
+	InjectionTriggerDDI = "DDI"
+	// InjectionTriggerTarget means injection was requested by a static configuration target.
+	InjectionTriggerTarget = "target"
+	// InjectionTriggerPolicy means injection was requested by a remote-config policy.
+	InjectionTriggerPolicy = "policy"
 )
 
 // CSIDriverStatus annotation values.

@@ -211,6 +211,7 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			envVars:         envVars,
 			json:            createJSON(t),
 			usesDefaultLibs: usesDefaultLibs,
+			trigger:         annotation.InjectionTriggerTarget,
 		}
 	}
 
@@ -275,7 +276,7 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 			envVars:         envVars,
 			json:            createPolicyJSON(p),
 			usesDefaultLibs: usesDefaultLibs,
-			fromPolicy:      true,
+			trigger:         annotation.InjectionTriggerPolicy,
 		}
 	}
 
@@ -372,18 +373,17 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if target.json != "" {
 		m.addTargetJSONInfo(pod, target)
 	}
+	annotation.Set(pod, annotation.InjectionTrigger, target.trigger)
 
 	return true, nil
 }
 
 func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
 	// A remote-config policy match carries its information on a dedicated env
-	// var / annotation, distinct from configuration targets.
+	// var, distinct from configuration targets.
 	envVarName := AppliedTargetEnvVar
-	annotationKey := annotation.AppliedTarget
-	if target.fromPolicy {
+	if target.trigger == annotation.InjectionTriggerPolicy {
 		envVarName = AppliedPolicyEnvVar
-		annotationKey = annotation.AppliedPolicy
 	}
 
 	// Inject the target json. The is added so that the injector can make use of the target information.
@@ -393,7 +393,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	}), true)
 
 	// Add the annotations to the pod.
-	annotation.Set(pod, annotationKey, target.json)
+	annotation.Set(pod, annotation.AppliedConfig, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -424,10 +424,8 @@ type targetInternal struct {
 	envVars         []corev1.EnvVar
 	json            string
 	usesDefaultLibs bool
-	// fromPolicy is true when this internal target was derived from a
-	// remote-config policy rather than a configuration target. It selects which
-	// annotation/env var carries the applied information.
-	fromPolicy bool
+	// trigger identifies the configuration source that selected this target.
+	trigger string
 }
 
 // getTarget determines which target to use for a given pod, including the tracing libraries to inject.
@@ -506,6 +504,7 @@ func (m *TargetMutator) fromDDIAPMConfig(workload ssi.DDICRTarget, config ssi.DD
 		envVars:         config.TracerConfigs,
 		json:            string(data),
 		usesDefaultLibs: usesDefaultLibs,
+		trigger:         annotation.InjectionTriggerDDI,
 	}
 }
 
@@ -535,6 +534,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 			target: &targetInternal{
 				libVersions: extractedLibraries,
 				envVars:     extractTracerConfigsFromAnnotations(pod),
+				trigger:     annotation.InjectionTriggerAnnotation,
 			},
 		}
 	}
@@ -546,6 +546,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
 				envVars:     extractTracerConfigsFromAnnotations(pod),
+				trigger:     annotation.InjectionTriggerAnnotation,
 			},
 		}
 	}
