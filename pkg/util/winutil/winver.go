@@ -11,6 +11,7 @@ package winutil
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -24,8 +25,6 @@ var (
 	versiondll = windows.NewLazyDLL("version.dll")
 	shlwapi    = windows.NewLazyDLL("shlwapi.dll")
 
-	procGetModuleHandle          = k32.NewProc("GetModuleHandleW")
-	procGetModuleFileName        = k32.NewProc("GetModuleFileNameW")
 	procGetFileVersionInfoSizeEx = versiondll.NewProc("GetFileVersionInfoSizeExW")
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
 	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
@@ -84,13 +83,13 @@ func GetWindowsVersionComponents() (WindowsVersion, error) {
 	if err != nil {
 		return WindowsVersion{}, fmt.Errorf("failed to read CurrentMajorVersionNumber: %w", err)
 	}
-	version.Major = fmt.Sprintf("%d", major)
+	version.Major = strconv.FormatUint(major, 10)
 
 	minor, _, err := key.GetIntegerValue("CurrentMinorVersionNumber")
 	if err != nil {
 		return WindowsVersion{}, fmt.Errorf("failed to read CurrentMinorVersionNumber: %w", err)
 	}
-	version.Minor = fmt.Sprintf("%d", minor)
+	version.Minor = strconv.FormatUint(minor, 10)
 
 	// CurrentBuildNumber is a string value, and is used as-is: it is the build number
 	// users recognise, and reformatting it could only lose information.
@@ -110,7 +109,7 @@ func GetWindowsVersionComponents() (WindowsVersion, error) {
 		}
 		revision = 0
 	}
-	version.Revision = fmt.Sprintf("%d", revision)
+	version.Revision = strconv.FormatUint(revision, 10)
 
 	return version, nil
 }
@@ -195,15 +194,6 @@ func queryFixedFileInfo(block []uint8) (*tagVSFIXEDFILEINFO, error) {
 		return nil, fmt.Errorf("unexpected VS_FIXEDFILEINFO signature 0x%x", ffi.dwSignature)
 	}
 	return ffi, nil
-}
-
-func getVersionInfo(block []uint8) (string, error) {
-	ffi, err := queryFixedFileInfo(block)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%d.%d Build %d", ffi.dwProductVersionMS>>16, ffi.dwProductVersionMS&0xFF, ffi.dwProductVersionLS>>16), nil
 }
 
 // fixedFileVersion returns the file version from the VS_FIXEDFILEINFO structure of a
