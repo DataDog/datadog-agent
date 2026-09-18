@@ -385,7 +385,7 @@ func TestQueryMetadataReturnsIterationError(t *testing.T) {
 func TestSnapshotChunking(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 2
+	c.schemaPayloadChunkSize = 2
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {
@@ -419,7 +419,6 @@ func TestSnapshotChunking(t *testing.T) {
 func TestSnapshotPerContainer(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {
@@ -576,7 +575,7 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 2
+	c.schemaPayloadChunkSize = 2
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {
@@ -903,7 +902,7 @@ func TestForEachTablePageDoesNotMixContainers(t *testing.T) {
 func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 40
+	c.schemaPayloadChunkSize = 40
 
 	var payloads []schemaEvent
 	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
@@ -977,7 +976,7 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.MaxTables = schemaRelationPageSize + 1
 	c.config.Schemas.MaxColumns = 50
-	c.config.Schemas.PayloadChunkSize = 50
+	c.schemaPayloadChunkSize = 50
 	collectViews := false
 	c.config.Schemas.CollectViews = &collectViews
 
@@ -1011,7 +1010,6 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {
@@ -1031,7 +1029,6 @@ func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
 func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {

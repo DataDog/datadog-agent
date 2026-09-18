@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const defaultSchemaPayloadChunkSize = 1000
+
 // A snapshot is scoped to one container. Its payloads share collection_started_at, and only
 // the final payload carries collection_payloads_count.
 
@@ -700,6 +702,7 @@ type schemaCollector struct {
 	check               *Check
 	kind                string
 	emit                schemaEventEmitter
+	payloadChunkSize    int
 	details             map[tableKey]*tableDetails
 	owners              map[ownerKey]string
 	containers          map[int64]string
@@ -725,7 +728,11 @@ func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tab
 }
 
 func newSchemaEventCollector(c *Check, emit schemaEventEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
-	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
+	payloadChunkSize := c.schemaPayloadChunkSize
+	if payloadChunkSize <= 0 {
+		payloadChunkSize = defaultSchemaPayloadChunkSize
+	}
+	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, payloadChunkSize: payloadChunkSize, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
 }
 
 func (s *schemaCollector) startContainer(conID int64) {
@@ -778,7 +785,7 @@ func (s *schemaCollector) baseEvent() schemaEvent {
 }
 
 func (s *schemaCollector) maybeFlush(isLast bool) {
-	if !isLast && s.tableCount < s.check.config.Schemas.PayloadChunkSize {
+	if !isLast && s.tableCount < s.payloadChunkSize {
 		return
 	}
 	if s.tableCount == 0 && !isLast {
