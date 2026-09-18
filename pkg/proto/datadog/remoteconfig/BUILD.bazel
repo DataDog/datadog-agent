@@ -12,10 +12,6 @@ proto_library(
 
 go_proto_library(
     name = "config_go_proto",
-    compilers = [
-        "@rules_go//proto:go_proto",
-        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
-    ],
     importpath = "pkg/proto/pbgo/core",
     proto = ":config_proto",
     visibility = ["//visibility:public"],
