@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "pingprobe",
+    srcs = ["pingprobe.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/probe/failure",
+    ],
+)
+
+dd_agent_go_test(
+    name = "pingprobe_test",
+    srcs = ["pingprobe_test.go"],
+    embed = [":pingprobe"],
+    deps = [
+        "//pkg/networkdevice/probe/failure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
