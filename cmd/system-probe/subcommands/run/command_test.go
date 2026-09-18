@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func prepareRunCommandTest(t *testing.T) string {
+func prepareRunCommandTest(t *testing.T) (string, *configstreamtestutil.FakeCoreAgent) {
 	t.Helper()
 
 	// Because fx.Invoke builds the ipc component, we need to ensure we
@@ -45,11 +45,11 @@ func prepareRunCommandTest(t *testing.T) string {
 		core.MockBundle(),
 	)
 
-	return configPath
+	return configPath, fakeCore
 }
 
 func TestRunCommand(t *testing.T) {
-	configPath := prepareRunCommandTest(t)
+	configPath, fakeCore := prepareRunCommandTest(t)
 
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{
