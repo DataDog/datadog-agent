@@ -437,6 +437,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ExcludePaths      []string                 `json:"exclude_paths,omitempty"`  // File
 		TailingMode       string                   `json:"start_position,omitempty"` // File
 		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
+		Query             string                   `json:"query,omitempty"`          // Windows Event
 		Service           string                   `json:"service,omitempty"`
 		Source            string                   `json:"source,omitempty"`
 		SourceCategory    string                   `json:"source_category,omitempty"`
@@ -452,6 +453,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ExcludePaths:      c.ExcludePaths,
 		TailingMode:       c.TailingMode,
 		ChannelPath:       c.ChannelPath,
+		Query:             c.Query,
 		Service:           c.Service,
 		Source:            c.Source,
 		SourceCategory:    c.SourceCategory,

@@ -265,6 +265,21 @@ func TestPublicJSON(t *testing.T) {
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
+func TestPublicJSONWindowsEventQuery(t *testing.T) {
+	config := LogsConfig{
+		Type:        WindowsEventType,
+		ChannelPath: "Security",
+		Query:       "*[System[EventID=123]]",
+		Service:     "windows",
+		Source:      "windows.events",
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+
+	expectedJSON := `{"type":"windows_event","channel_path":"Security","query":"*[System[EventID=123]]","service":"windows","source":"windows.events"}`
+	assert.Equal(t, expectedJSON, string(ret))
+}
+
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*types.FingerprintConfig{
 		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
