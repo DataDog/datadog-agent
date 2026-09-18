@@ -40,8 +40,11 @@ func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive 
 		}
 
 		if k == "env" {
-			if env, ok := v.([]interface{}); ok {
+			switch env := v.(type) {
+			case []interface{}:
 				scrubEnv(env, scrubber, shouldRedact)
+			case map[string]interface{}:
+				scrubEnvMap(env, scrubber, shouldRedact)
 			}
 			continue
 		}
@@ -77,11 +80,25 @@ func scrubEnv(env []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 		if item, ok := item.(map[string]interface{}); ok {
 			if name, ok := item["name"].(string); ok {
 				if _, ok := item["value"].(string); ok {
-					if scrubber.ContainsSensitiveWord(name) || parentSensitive {
+					if isSensitiveEnvVarName(name, scrubber) || parentSensitive {
 						item["value"] = redactedSecret
 					}
 				}
 			}
 		}
 	}
+}
+
+// scrubEnvMap scrubs sensitive values from map-form environment variables.
+func scrubEnvMap(env map[string]interface{}, scrubber *DataScrubber, parentSensitive bool) {
+	for name, value := range env {
+		if _, ok := value.(string); ok && (isSensitiveEnvVarName(name, scrubber) || parentSensitive) {
+			env[name] = redactedSecret
+		}
+	}
+}
+
+func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
+	lowerName := strings.ToLower(name)
+	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
 }

@@ -28,9 +28,9 @@ func Run(ctx *pulumi.Context) error {
 }
 
 func RunWithParams(ctx *pulumi.Context, gcpEnv resGcp.Environment, params *Params) error {
-	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
-		compute.WithOS(osDesc),
+		compute.WithImageName("rhel-9-v20260908-dd-ci-openshift"),
+		compute.WithOS(os.DescriptorFromString("redhat:9", os.RedHat9)),
 		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
 	)

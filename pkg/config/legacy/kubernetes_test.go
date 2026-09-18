@@ -76,19 +76,19 @@ instances:
 `
 
 	kubeletNewConf string = `instances:
-- cadvisor_port: 0
-  tags:
-  - optional_tag1
-  - optional_tag2
-  enabled_rates:
-  - cpu.*
-  - network.*
-  enabled_gauges:
-  - filesystem.*
+    - cadvisor_port: 0
+      tags:
+        - optional_tag1
+        - optional_tag2
+      enabled_rates:
+        - cpu.*
+        - network.*
+      enabled_gauges:
+        - filesystem.*
 `
 
 	kubeletNewEmptyConf string = `instances:
-- cadvisor_port: 0
+    - cadvisor_port: 0
 `
 )
 
