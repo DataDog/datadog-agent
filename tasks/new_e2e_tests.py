@@ -202,11 +202,21 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
         binary_path = output_path / binary_name
 
-        # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        # Build test binary with Bazel
+        target_name = f"{Path(pkg).name}_test"
+        target = f"//test/new-e2e/{pkg}:{target_name}"
 
-        result = ctx.run(cmd, hide=True)
+        result = ctx.run(f"bazel build {target}", hide=True)
         if result.ok:
+            # Locate the compiled test binary via cquery and copy it to the output path
+            cquery = ctx.run(f"bazel cquery --output=files {target}", hide=True)
+            if not cquery.ok:
+                with print_lock:
+                    print(f"  ✗ Failed to locate {binary_name}: {cquery.stderr}")
+                return (pkg, False, f"Failed to locate {binary_name}: {cquery.stderr}")
+            workspace = ctx.run("bazel info workspace", hide=True).stdout.strip()
+            built_binary = Path(workspace) / cquery.stdout.strip().splitlines()[-1]
+            shutil.copyfile(built_binary, binary_path)
             with print_lock:
                 print(f"  ✓ Built {binary_name}")
             return (pkg, True, f"Built {binary_name}")
@@ -250,27 +260,15 @@ def build_binaries(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    e2e_test_dir = Path("test/new-e2e/tests")
     output_path = Path(output_dir).absolute()
 
     # Create output directory
     output_path.mkdir(exist_ok=True, parents=True)
 
-    # Find all test packages
-    test_packages = []
-    for root, _, files in os.walk(e2e_test_dir):
-        # Check if directory contains Go test files
-        has_go_tests = any(f.endswith("_test.go") for f in files)
-        if has_go_tests:
-            # Convert to Go package path
-            pkg_path = os.path.relpath(root, "./test/new-e2e")
-            test_packages.append(pkg_path)
+    # Only build the agent-runtimes test package
+    test_packages = ["tests/agent-runtimes"]
 
-    if not test_packages:
-        print("No test packages found")
-        return
-
-    print(f"Found {len(test_packages)} test packages to build")
+    print(f"Building {len(test_packages)} test package")
 
     # Build tags
     build_tags = ",".join(tags) if tags else "test"
@@ -280,7 +278,7 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
+    with ctx.cd("test/new-e2e"):
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {
