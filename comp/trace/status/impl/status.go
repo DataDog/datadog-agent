@@ -11,25 +11,15 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
+	"expvar"
 	"io"
-	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
 	tracestatus "github.com/DataDog/datadog-agent/comp/trace/status/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
-
-// Requires defines the dependencies of the status component.
-type Requires struct {
-	Config config.Component
-	Client ipc.HTTPClient
-}
 
 // Provides defines the output of the status component.
 type Provides struct {
@@ -41,17 +31,11 @@ type Provides struct {
 
 type statusProvider struct {
 	pbcore.UnimplementedStatusProviderServer
-
-	Config config.Component
-	Client ipc.HTTPClient
 }
 
 // NewComponent creates a new trace agent status component.
-func NewComponent(reqs Requires) Provides {
-	provider := &statusProvider{
-		Config: reqs.Config,
-		Client: reqs.Client,
-	}
+func NewComponent() Provides {
+	provider := &statusProvider{}
 
 	return Provides{
 		Comp:           provider,
@@ -72,55 +56,49 @@ func (s statusProvider) Section() string {
 	return "APM Agent"
 }
 
-func (s statusProvider) getStatusInfo(ctx context.Context) map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	values := s.populateStatus(ctx)
-
-	stats["apmStats"] = values
-
-	return stats
-}
-
-func (s statusProvider) populateStatus(ctx context.Context) map[string]interface{} {
-	port := s.Config.GetInt("apm_config.debug.port")
-	timeout := s.Config.GetDuration("server_timeout") * time.Second
-
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithContext(ctx), ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
+func (s statusProvider) getStatusInfo() (map[string]interface{}, []byte, error) {
+	values := make(map[string]json.RawMessage)
+	// Read the same published values as /debug/vars, including the scrubbed config.
+	expvar.Do(func(kv expvar.KeyValue) {
+		values[kv.Key] = json.RawMessage(kv.Value.String())
+	})
+	// InitInfo publishes config last, after all fields used by the templates.
+	if _, ready := values["config"]; !ready {
+		values = map[string]json.RawMessage{
+			"error": json.RawMessage(`"Trace Agent is not initialized yet"`),
+		}
+	}
+	payload, err := json.Marshal(map[string]interface{}{"apmStats": values})
 	if err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
+		return nil, nil, err
 	}
 
-	statusMap := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &statusMap); err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
+	// Templates need decoded maps and float64 numbers; keep the original JSON
+	// for the RAR payload so large counters don't lose precision.
+	var stats map[string]interface{}
+	if err := json.Unmarshal(payload, &stats); err != nil {
+		return nil, nil, err
 	}
-	return statusMap
+	return stats, payload, nil
 }
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
-	values := s.populateStatus(context.Background())
-
-	stats["apmStats"] = values
-
+	values, _, err := s.getStatusInfo()
+	if err != nil {
+		return err
+	}
+	stats["apmStats"] = values["apmStats"]
 	return nil
 }
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return s.renderText(context.Background(), buffer)
-}
-
-func (s statusProvider) renderText(ctx context.Context, buffer io.Writer) error {
-	return s.renderTextFromStatus(s.getStatusInfo(ctx), buffer)
+	stats, _, err := s.getStatusInfo()
+	if err != nil {
+		return err
+	}
+	return s.renderTextFromStatus(stats, buffer)
 }
 
 func (s statusProvider) renderTextFromStatus(stats map[string]interface{}, buffer io.Writer) error {
@@ -129,21 +107,22 @@ func (s statusProvider) renderTextFromStatus(stats map[string]interface{}, buffe
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return corestatus.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo(context.Background()))
+	stats, _, err := s.getStatusInfo()
+	if err != nil {
+		return err
+	}
+	return corestatus.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, stats)
 }
 
 // GetStatusDetails returns the Trace Agent status rendered as text.
-func (s statusProvider) GetStatusDetails(ctx context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	stats := map[string]interface{}{
-		"apmStats": s.populateStatus(ctx),
+func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	stats, payload, err := s.getStatusInfo()
+	if err != nil {
+		return nil, err
 	}
 
 	var details bytes.Buffer
 	if err := s.renderTextFromStatus(stats, &details); err != nil {
-		return nil, err
-	}
-	payload, err := json.Marshal(stats)
-	if err != nil {
 		return nil, err
 	}
 

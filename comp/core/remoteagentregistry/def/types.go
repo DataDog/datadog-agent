@@ -5,7 +5,10 @@
 
 package remoteagentregistry
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
@@ -31,8 +34,8 @@ type StatusData struct {
 	FailureReason string
 	MainSection   StatusSection
 	NamedSections map[string]StatusSection
-	JSONPayload   map[string]interface{} `json:"-"`
-	JSONError     string                 `json:"-"`
+	JSONPayload   map[string]json.RawMessage `json:"-"`
+	JSONError     string                     `json:"-"`
 }
 
 // FlareData contains the flare data for a remote agent

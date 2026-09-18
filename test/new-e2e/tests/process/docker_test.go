@@ -52,9 +52,8 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		status := getAgentStatus(collect, s.Env().Agent.Client)
 
-		// Process checks run in the core agent; verify the standalone process-agent is not running.
-		assert.NotEmpty(collect, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.Empty(collect, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+		// Process checks run in the core agent; no standalone process-agent status data is expected.
+		assert.Empty(collect, status.ProcessAgentStatus, "status: %+v", status)
 
 		// Verify the process component is running in the core agent.
 		assert.ElementsMatch(collect, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)

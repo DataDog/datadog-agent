@@ -61,7 +61,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 		out.NamedSections = sections
 
 		if len(in.JsonPayload) > 0 {
-			var payload map[string]interface{}
+			var payload map[string]json.RawMessage
 			if err := json.Unmarshal(in.JsonPayload, &payload); err != nil {
 				out.JSONError = fmt.Sprintf("invalid remote status JSON from %s: %v", details.DisplayName, err)
 			} else if payload == nil {

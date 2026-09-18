@@ -7,6 +7,7 @@ package status
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,7 @@ func TestStatusRendering(t *testing.T) {
 		},
 	}
 	provider := Provider{registry: registry}
+	selected := provider.SectionProviders()[0]
 
 	t.Run("full text", func(t *testing.T) {
 		var output bytes.Buffer
@@ -67,21 +69,20 @@ func TestStatusRendering(t *testing.T) {
 	})
 	t.Run("selected text", func(t *testing.T) {
 		var output bytes.Buffer
-		require.NoError(t, provider.TextBySection("apm agent", false, &output))
+		require.NoError(t, selected.Text(false, &output))
 		assert.Equal(t, rawStatus, output.String())
 	})
 	t.Run("selected HTML", func(t *testing.T) {
 		var output bytes.Buffer
-		require.NoError(t, provider.HTMLBySection("apm agent", false, &output))
+		require.NoError(t, selected.HTML(false, &output))
 		assert.Contains(t, output.String(), "Trace Agent")
 		assert.NotContains(t, output.String(), "Legacy Agent")
 		assert.NotContains(t, output.String(), "No remote agents registered")
 	})
 	t.Run("selected unreachable agent", func(t *testing.T) {
 		registry.statuses[0].FailureReason = "APM agent unreachable"
-		provider := Provider{registry: registry}
 		var output bytes.Buffer
-		require.NoError(t, provider.TextBySection("APM Agent", false, &output))
+		require.NoError(t, selected.Text(false, &output))
 		assert.Equal(t, "APM agent unreachable", output.String())
 	})
 }
@@ -94,40 +95,58 @@ func TestStatusJSONAndSections(t *testing.T) {
 		{},                           // Older agents do not advertise sections.
 	}
 	statuses := []remoteagentregistry.StatusData{
-		{RegisteredAgent: agents[0], JSONPayload: map[string]interface{}{"apmStats": "APM status"}},
-		{RegisteredAgent: agents[1], JSONPayload: map[string]interface{}{"processAgentStatus": "Process status"}},
+		{RegisteredAgent: agents[0], JSONPayload: map[string]json.RawMessage{"apmStats": json.RawMessage(`{"receiver":"running"}`)}},
+		{RegisteredAgent: agents[1], JSONPayload: map[string]json.RawMessage{"processAgentStatus": json.RawMessage(`{"pid":123}`)}},
 	}
 	provider := Provider{registry: statusRegistry{agents: agents, statuses: statuses}}
-	assert.Equal(t, []string{"APM Agent", "Process Agent"}, provider.Sections())
+	sections := provider.SectionProviders()
+	require.Len(t, sections, 2)
+	assert.Equal(t, "APM Agent", sections[0].Section())
+	assert.Equal(t, "Process Agent", sections[1].Section())
 
 	stats := make(map[string]interface{})
 	require.NoError(t, provider.JSON(false, stats))
 	assert.Equal(t, agents, stats["registeredAgents"])
 	assert.Equal(t, statuses, stats["registeredAgentStatuses"])
-	assert.Equal(t, "APM status", stats["apmStats"])
-	assert.Equal(t, "Process status", stats["processAgentStatus"])
+	assert.Equal(t, json.RawMessage(`{"receiver":"running"}`), stats["apmStats"])
+	assert.Equal(t, json.RawMessage(`{"pid":123}`), stats["processAgentStatus"])
 
 	stats = make(map[string]interface{})
-	require.NoError(t, provider.JSONBySection("apm agent", false, stats))
-	assert.Equal(t, map[string]interface{}{"apmStats": "APM status"}, stats)
+	require.NoError(t, sections[0].JSON(false, stats))
+	encoded, err := json.Marshal(stats)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"apmStats":{"receiver":"running"}}`, string(encoded))
 }
 
 func TestJSONErrorsPreserveOtherPayloads(t *testing.T) {
 	provider := Provider{registry: statusRegistry{
 		statuses: []remoteagentregistry.StatusData{
 			{JSONError: "invalid remote status JSON"},
-			{JSONPayload: map[string]interface{}{"firstOnly": "first agent", "shared": "first value"}},
-			{JSONPayload: map[string]interface{}{"secondOnly": "second agent", "shared": "second value", "stats": "remote value"}},
+			{JSONPayload: map[string]json.RawMessage{"firstOnly": json.RawMessage(`"first agent"`), "shared": json.RawMessage(`"first value"`)}},
+			{JSONPayload: map[string]json.RawMessage{"secondOnly": json.RawMessage(`"second agent"`), "shared": json.RawMessage(`"second value"`), "stats": json.RawMessage(`"remote value"`), "errors": json.RawMessage(`[]`)}},
 		},
 	}}
-	stats := map[string]interface{}{"stats": "local value"}
+	stats := map[string]interface{}{"stats": "local value", "registeredAgents": "local value"}
 	err := provider.JSON(false, stats)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid remote status JSON")
 	assert.Contains(t, err.Error(), `duplicate remote status JSON key "shared"`)
 	assert.Contains(t, err.Error(), `duplicate remote status JSON key "stats"`)
-	assert.Equal(t, "first value", stats["shared"])
+	assert.Contains(t, err.Error(), `duplicate remote status JSON key "registeredAgents"`)
+	assert.Contains(t, err.Error(), `reserved remote status JSON key "errors"`)
+	assert.NotContains(t, stats, "errors")
+	assert.Equal(t, "local value", stats["registeredAgents"])
+	assert.Equal(t, json.RawMessage(`"first value"`), stats["shared"])
 	assert.Equal(t, "local value", stats["stats"])
-	assert.Equal(t, "first agent", stats["firstOnly"])
-	assert.Equal(t, "second agent", stats["secondOnly"])
+	assert.Equal(t, json.RawMessage(`"first agent"`), stats["firstOnly"])
+	assert.Equal(t, json.RawMessage(`"second agent"`), stats["secondOnly"])
+}
+
+func TestUnavailableStatusJSON(t *testing.T) {
+	provider := Provider{section: "Process Agent", registry: statusRegistry{statuses: []remoteagentregistry.StatusData{{
+		RegisteredAgent: remoteagentregistry.RegisteredAgent{DisplayName: "Process Agent", StatusSection: "Process Agent"},
+		FailureReason:   "connection refused",
+	}}}}
+	err := provider.JSON(false, make(map[string]interface{}))
+	require.ErrorContains(t, err, "connection refused")
 }

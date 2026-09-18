@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
@@ -28,13 +29,20 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		payload  string
-		wantJSON map[string]interface{}
+		wantJSON string
 		invalid  bool
 	}{
 		{name: "no JSON"},
-		{name: "valid JSON", payload: `{"apmStats":{"receiver":"running"}}`, wantJSON: map[string]interface{}{"apmStats": map[string]interface{}{"receiver": "running"}}},
+		{name: "valid JSON", payload: `{"apmStats":{"receiver":"running"}}`, wantJSON: `{"apmStats":{"receiver":"running"}}`},
+		{name: "large integer and nested values", payload: `{"apmStats":{"count":9007199254740993,"values":[null,true,"running"]}}`, wantJSON: `{"apmStats":{"count":9007199254740993,"values":[null,true,"running"]}}`},
+		{name: "null nested value", payload: `{"apmStats":null}`, wantJSON: `{"apmStats":null}`},
+		{name: "empty object", payload: `{}`, wantJSON: `{}`},
 		{name: "malformed JSON", payload: "[", invalid: true},
 		{name: "null JSON", payload: "null", invalid: true},
+		{name: "array JSON", payload: "[]", invalid: true},
+		{name: "number JSON", payload: "42", invalid: true},
+		{name: "string JSON", payload: `"status"`, invalid: true},
+		{name: "boolean JSON", payload: "true", invalid: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			provides, _, _, _, ipcComp := buildComponent(t)
@@ -54,7 +62,13 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 			assert.Equal(t, "APM Agent", statuses[0].StatusSection)
 			assert.Equal(t, "test_value", statuses[0].MainSection["test_key"])
 			assert.Equal(t, "running", statuses[0].NamedSections["receiver"]["state"])
-			assert.Equal(t, test.wantJSON, statuses[0].JSONPayload)
+			if test.wantJSON == "" {
+				assert.Nil(t, statuses[0].JSONPayload)
+			} else {
+				payload, err := json.Marshal(statuses[0].JSONPayload)
+				require.NoError(t, err)
+				assert.Equal(t, test.wantJSON, string(payload))
+			}
 			if test.invalid {
 				assert.Contains(t, statuses[0].JSONError, "invalid remote status JSON")
 			} else {

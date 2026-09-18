@@ -11,10 +11,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -23,8 +20,6 @@ import (
 	processstatus "github.com/DataDog/datadog-agent/comp/process/status/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 type dependencies struct {
@@ -58,9 +53,8 @@ func NewComponent(deps dependencies) Provides {
 type statusProvider struct {
 	pbcore.UnimplementedStatusProviderServer
 
-	testServerURL string
-	config        config.Component
-	hostname      hostnameinterface.Component
+	config   config.Component
+	hostname hostnameinterface.Component
 }
 
 //go:embed status_templates
@@ -76,42 +70,13 @@ func (s statusProvider) Section() string {
 	return "Process Agent"
 }
 
-func (s statusProvider) getStatusInfo(ctx context.Context) map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	values := s.populateStatus(ctx)
-
-	stats["processAgentStatus"] = values
-
-	return stats
+func (s statusProvider) getStatusInfo() map[string]interface{} {
+	return map[string]interface{}{"processAgentStatus": s.populateStatus()}
 }
 
-func (s statusProvider) populateStatus(ctx context.Context) map[string]interface{} {
+func (s statusProvider) populateStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-
-	var url string
-	if s.testServerURL != "" {
-		url = s.testServerURL
-	} else {
-
-		// Get expVar server address
-		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
-		ipcKey := "cmd_host"
-		if s.config.IsConfigured("ipc_address") {
-			log.Warn("ipc_address is deprecated, use cmd_host instead")
-			ipcKey = "ipc_address"
-		}
-		ipcAddr, err := system.IsLocalAddress(s.config.GetString(ipcKey))
-		if err != nil {
-			status["error"] = fmt.Sprintf("%s: %s", ipcKey, err)
-			return status
-		}
-
-		addr := net.JoinHostPort(ipcAddr, strconv.Itoa(s.config.GetInt("process_config.expvar_port")))
-		url = fmt.Sprintf("http://%s/debug/vars", addr)
-	}
-
-	agentStatus, err := processStatus.GetStatusWithContext(ctx, s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetLocalStatus(s.config, s.hostname)
 	if err != nil {
 		status["error"] = err.Error()
 		return status
@@ -136,20 +101,14 @@ func (s statusProvider) populateStatus(ctx context.Context) map[string]interface
 
 // JSON populates the status map
 func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
-	values := s.populateStatus(context.Background())
-
-	stats["processAgentStatus"] = values
+	stats["processAgentStatus"] = s.populateStatus()
 
 	return nil
 }
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return s.renderText(context.Background(), buffer)
-}
-
-func (s statusProvider) renderText(ctx context.Context, buffer io.Writer) error {
-	return s.renderTextFromStatus(s.getStatusInfo(ctx), buffer)
+	return s.renderTextFromStatus(s.getStatusInfo(), buffer)
 }
 
 func (s statusProvider) renderTextFromStatus(stats map[string]interface{}, buffer io.Writer) error {
@@ -162,10 +121,8 @@ func (s statusProvider) HTML(_ bool, _ io.Writer) error {
 }
 
 // GetStatusDetails returns the Process Agent status rendered as text.
-func (s statusProvider) GetStatusDetails(ctx context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	stats := map[string]interface{}{
-		"processAgentStatus": s.populateStatus(ctx),
-	}
+func (s statusProvider) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	stats := s.getStatusInfo()
 
 	var details bytes.Buffer
 	if err := s.renderTextFromStatus(stats, &details); err != nil {

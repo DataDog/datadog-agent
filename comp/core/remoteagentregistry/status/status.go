@@ -18,18 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
-// populateStatus populates the status stats
-func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
-	stats["registeredAgents"] = registry.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
-}
-
 //go:embed status_templates
 var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
 	registry remoteagentregistry.Component
+	section  string
 }
 
 // GetProvider returns status.Provider
@@ -38,11 +33,19 @@ func GetProvider(registry remoteagentregistry.Component) status.Provider {
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	populateStatus(p.registry, stats)
-
-	return stats
+	statuses := p.statuses()
+	var agents []remoteagentregistry.RegisteredAgent
+	if p.section == "" {
+		agents = p.registry.GetRegisteredAgents()
+	} else {
+		for _, remoteStatus := range statuses {
+			agents = append(agents, remoteStatus.RegisteredAgent)
+		}
+	}
+	return map[string]interface{}{
+		"registeredAgents":        agents,
+		"registeredAgentStatuses": statuses,
+	}
 }
 
 // Name returns the name
@@ -52,49 +55,59 @@ func (p Provider) Name() string {
 
 // Section return the section
 func (p Provider) Section() string {
+	if p.section != "" {
+		return p.section
+	}
 	return "Remote Agents"
 }
 
-// Sections returns the status sections advertised by registered remote agents.
-func (p Provider) Sections() []string {
-	sections := make([]string, 0)
+// SectionProviders exposes advertised sections through the standard status interface.
+func (p Provider) SectionProviders() []status.Provider {
+	providers := make([]status.Provider, 0)
+	seen := make(map[string]bool)
 	for _, agent := range p.registry.GetRegisteredAgents() {
-		if agent.StatusSection == "" {
+		key := strings.ToLower(agent.StatusSection)
+		if key == "" || seen[key] {
 			continue
 		}
-
-		seen := false
-		for _, section := range sections {
-			if strings.EqualFold(section, agent.StatusSection) {
-				seen = true
-				break
-			}
-		}
-		if !seen {
-			sections = append(sections, agent.StatusSection)
-		}
+		seen[key] = true
+		providers = append(providers, Provider{registry: p.registry, section: agent.StatusSection})
 	}
 
-	sort.Slice(sections, func(i, j int) bool {
-		return strings.ToLower(sections[i]) < strings.ToLower(sections[j])
+	sort.Slice(providers, func(i, j int) bool {
+		return strings.ToLower(providers[i].Section()) < strings.ToLower(providers[j].Section())
 	})
-	return sections
+	return providers
 }
 
-func (p Provider) statusesForSection(section string) []remoteagentregistry.StatusData {
+func (p Provider) statuses() []remoteagentregistry.StatusData {
 	statuses := p.registry.GetRegisteredAgentStatuses()
+	if p.section == "" {
+		return statuses
+	}
 	matching := make([]remoteagentregistry.StatusData, 0, len(statuses))
 	for _, remoteStatus := range statuses {
-		if strings.EqualFold(remoteStatus.StatusSection, section) {
+		if strings.EqualFold(remoteStatus.StatusSection, p.section) {
 			matching = append(matching, remoteStatus)
 		}
 	}
 	return matching
 }
 
+func addJSONField(stats map[string]interface{}, key string, value interface{}) error {
+	if _, exists := stats[key]; exists {
+		return fmt.Errorf("duplicate remote status JSON key %q", key)
+	}
+	stats[key] = value
+	return nil
+}
+
 func mergeJSONPayloads(stats map[string]interface{}, statuses []remoteagentregistry.StatusData) error {
 	var errs []error
 	for _, remoteStatus := range statuses {
+		if remoteStatus.FailureReason != "" {
+			errs = append(errs, fmt.Errorf("%s: %s", remoteStatus.DisplayName, remoteStatus.FailureReason))
+		}
 		if remoteStatus.JSONError != "" {
 			errs = append(errs, errors.New(remoteStatus.JSONError))
 		}
@@ -106,11 +119,13 @@ func mergeJSONPayloads(stats map[string]interface{}, statuses []remoteagentregis
 		sort.Strings(keys)
 
 		for _, key := range keys {
-			if _, exists := stats[key]; exists {
-				errs = append(errs, fmt.Errorf("duplicate remote status JSON key %q", key))
+			if key == "errors" || key == "registeredAgents" || key == "registeredAgentStatuses" {
+				errs = append(errs, fmt.Errorf("reserved remote status JSON key %q", key))
 				continue
 			}
-			stats[key] = remoteStatus.JSONPayload[key]
+			if err := addJSONField(stats, key, remoteStatus.JSONPayload[key]); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	return errors.Join(errs...)
@@ -138,44 +153,26 @@ func renderTextStatuses(buffer io.Writer, statuses []remoteagentregistry.StatusD
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	statuses := p.registry.GetRegisteredAgentStatuses()
-	stats["registeredAgents"] = p.registry.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = statuses
-
-	return mergeJSONPayloads(stats, statuses)
-}
-
-// JSONBySection populates the status map from matching remote agents.
-func (p Provider) JSONBySection(section string, _ bool, stats map[string]interface{}) error {
-	return mergeJSONPayloads(stats, p.statusesForSection(section))
+	statuses := p.statuses()
+	var err error
+	if p.section == "" {
+		err = errors.Join(
+			addJSONField(stats, "registeredAgents", p.registry.GetRegisteredAgents()),
+			addJSONField(stats, "registeredAgentStatuses", statuses),
+		)
+	}
+	return errors.Join(err, mergeJSONPayloads(stats, statuses))
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
+	if p.section != "" {
+		return renderTextStatuses(buffer, p.statuses())
+	}
 	return status.RenderText(templatesFS, "remote_agents.tmpl", buffer, p.getStatusInfo())
-}
-
-// TextBySection renders text status from matching remote agents.
-func (p Provider) TextBySection(section string, _ bool, buffer io.Writer) error {
-	return renderTextStatuses(buffer, p.statusesForSection(section))
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, p.getStatusInfo())
-}
-
-// HTMLBySection renders HTML status from matching remote agents.
-func (p Provider) HTMLBySection(section string, _ bool, buffer io.Writer) error {
-	statuses := p.statusesForSection(section)
-	agents := make([]remoteagentregistry.RegisteredAgent, 0, len(statuses))
-	for _, remoteStatus := range statuses {
-		agents = append(agents, remoteStatus.RegisteredAgent)
-	}
-
-	stats := map[string]interface{}{
-		"registeredAgents":        agents,
-		"registeredAgentStatuses": statuses,
-	}
-	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, stats)
 }

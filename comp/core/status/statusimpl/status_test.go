@@ -33,6 +33,7 @@ import (
 
 type mockProvider struct {
 	data        map[string]interface{}
+	populate    func(map[string]interface{}) error
 	text        string
 	html        string
 	name        string
@@ -42,41 +43,11 @@ type mockProvider struct {
 
 type mockDynamicSectionProvider struct {
 	mockProvider
-	sections    []string
-	sectionData map[string]interface{}
-	sectionText string
-	sectionHTML string
+	providers []status.Provider
 }
 
-func (m mockDynamicSectionProvider) Sections() []string {
-	return m.sections
-}
-
-func (m mockDynamicSectionProvider) JSONBySection(section string, _ bool, stats map[string]interface{}) error {
-	if section != m.sections[0] {
-		return fmt.Errorf("unexpected dynamic section %q", section)
-	}
-
-	maps.Copy(stats, m.sectionData)
-	return nil
-}
-
-func (m mockDynamicSectionProvider) TextBySection(section string, _ bool, buffer io.Writer) error {
-	if section != m.sections[0] {
-		return fmt.Errorf("unexpected dynamic section %q", section)
-	}
-
-	_, err := buffer.Write([]byte(m.sectionText))
-	return err
-}
-
-func (m mockDynamicSectionProvider) HTMLBySection(section string, _ bool, buffer io.Writer) error {
-	if section != m.sections[0] {
-		return fmt.Errorf("unexpected dynamic section %q", section)
-	}
-
-	_, err := buffer.Write([]byte(m.sectionHTML))
-	return err
+func (m mockDynamicSectionProvider) SectionProviders() []status.Provider {
+	return m.providers
 }
 
 func (m mockProvider) Name() string {
@@ -90,6 +61,9 @@ func (m mockProvider) Section() string {
 func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return errors.New("JSON error")
+	}
+	if m.populate != nil {
+		return m.populate(stats)
 	}
 
 	maps.Copy(stats, m.data)
@@ -838,13 +812,12 @@ func TestGetStatusByDynamicSection(t *testing.T) {
 			name:    "dynamic provider",
 			section: status.CollectorSection,
 		},
-		sections: []string{"APM Agent"},
-		sectionData: map[string]interface{}{
-			"apmStats": map[string]interface{}{
-				"receiver": "running",
-			},
-		},
-		sectionText: "  Receiver: running\n",
+		providers: []status.Provider{mockProvider{
+			section: "APM Agent",
+			data:    map[string]interface{}{"apmStats": map[string]interface{}{"receiver": "running"}},
+			text:    "  Receiver: running\n",
+			html:    "<span>Receiver: running</span>",
+		}},
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -871,28 +844,42 @@ APM Agent
 	jsonOutput, err := statusComponent.GetStatusBySections([]string{"apm agent"}, "json", false)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"apmStats":{"receiver":"running"}}`, string(jsonOutput))
+	htmlOutput, err := statusComponent.GetStatusBySections([]string{"apm agent"}, "html", false)
+	require.NoError(t, err)
+	assert.Equal(t, "<span>Receiver: running</span>", string(htmlOutput))
 
 	unknownOutput, err := statusComponent.GetStatusBySections([]string{"unknown"}, "json", false)
 	assert.Nil(t, unknownOutput)
 	assert.EqualError(t, err, `unknown status section 'unknown', available sections are: ["header","collector","apm agent"]`)
 
-	dynamicProvider.sections = []string{"Later Section", "LATER SECTION"}
+	dynamicProvider.providers = []status.Provider{
+		mockProvider{section: "Later Section", text: "registered later"},
+		mockProvider{section: "LATER SECTION"},
+		mockProvider{section: "collector", text: "must not replace the local section"},
+	}
 	assert.Equal(t, []string{"header", "collector", "later section"}, statusComponent.GetSections())
+	textOutput, err = statusComponent.GetStatusBySections([]string{"later section"}, "text", false)
+	require.NoError(t, err)
+	assert.Contains(t, string(textOutput), "registered later")
+	textOutput, err = statusComponent.GetStatusBySections([]string{"collector"}, "text", false)
+	require.NoError(t, err)
+	assert.NotContains(t, string(textOutput), "must not replace the local section")
+	_, err = statusComponent.GetStatusBySections([]string{"apm agent"}, "text", false)
+	require.ErrorContains(t, err, "unknown status section")
 }
 
 func TestGetStatusJSONPreservesLocalValuesBeforeDynamicProviders(t *testing.T) {
-	dynamicData := map[string]interface{}{
-		"dynamicOnly": "dynamic value",
-		"shared":      "dynamic value",
+	populate := func(stats map[string]interface{}) error {
+		stats["dynamicOnly"] = stats["shared"]
+		return nil
 	}
 	dynamicProvider := &mockDynamicSectionProvider{
 		mockProvider: mockProvider{
-			data:    dynamicData,
-			name:    "dynamic",
-			section: "a dynamic section",
+			populate: populate,
+			name:     "dynamic",
+			section:  "a dynamic section",
 		},
-		sections:    []string{"Dynamic Section"},
-		sectionData: dynamicData,
+		providers: []status.Provider{mockProvider{section: "Dynamic Section", populate: populate}},
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -957,8 +944,8 @@ func TestGetStatusJSONPreservesLocalValuesBeforeDynamicProviders(t *testing.T) {
 				assert.Empty(t, result.DynamicOnly)
 				assert.Empty(t, result.Errors)
 			} else {
-				assert.Equal(t, "dynamic value", result.DynamicOnly)
-				assert.Equal(t, []string{`duplicate status JSON key "shared" from provider "dynamic"`}, result.Errors)
+				assert.Equal(t, "static value", result.DynamicOnly, "dynamic providers receive the populated shared map")
+				assert.Empty(t, result.Errors)
 			}
 		})
 	}

@@ -9,28 +9,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net"
-	"net/http"
+	"expvar"
+	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestStatusOut(t *testing.T) {
-	reqs := Requires{
-		Config: config.NewMock(t),
-		Client: ipcmock.New(t).GetClient(),
-	}
-
-	provides := NewComponent(reqs)
+	traceStatusFixture(t)
+	provides := NewComponent()
 
 	headerProvider := provides.StatusProvider.Provider
 
@@ -40,9 +33,11 @@ func TestStatusOut(t *testing.T) {
 	}{
 		{"JSON", func(t *testing.T) {
 			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
+			require.NoError(t, headerProvider.JSON(false, stats))
 
 			assert.NotEmpty(t, stats)
+			apmStats := stats["apmStats"].(map[string]interface{})
+			assert.Equal(t, float64(10), apmStats["uptime"])
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -51,6 +46,7 @@ func TestStatusOut(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.NotEmpty(t, b.String())
+			assert.Contains(t, b.String(), "Hostname: trace-host")
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -59,6 +55,7 @@ func TestStatusOut(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.NotEmpty(t, b.String())
+			assert.Contains(t, b.String(), "Hostname: trace-host")
 		}},
 	}
 
@@ -97,114 +94,85 @@ func TestSemanticCoreRendered(t *testing.T) {
 	assert.Contains(t, out, "rc-1.0")
 }
 
-func TestGetStatusDetailsMatchesText(t *testing.T) {
-	responseBody := []byte(`{
-		"pid": 123,
+var traceStatusFixtureOnce sync.Once
+
+func traceStatusFixture(t *testing.T) map[string]json.RawMessage {
+	t.Helper()
+	var fixture map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"pid": "123",
 		"uptime": 10,
-		"memstats": {"Alloc": 1024},
 		"config": {
 			"Hostname": "trace-host",
 			"ReceiverHost": "localhost",
 			"ReceiverPort": 8126,
-			"Endpoints": [{"Host": "https://trace.agent.example"}]
+			"Endpoints": [{"Host": "https://trace.agent.example"}],
+			"APIKey": "********"
 		},
 		"receiver": [],
-		"ratebyservice_filtered": {},
-		"trace_writer": {"Payloads": 2, "Traces": 3, "Events": 4, "Bytes": 1024, "Errors": 0},
+		"ratebyservice_filtered": {"service:,env:": 0.5},
+		"trace_writer": {"Payloads": 2, "Traces": 3, "Events": 4, "Bytes": 1024, "Errors": 1},
 		"stats_writer": {"Payloads": 5, "StatsBuckets": 6, "Bytes": 2048, "Errors": 0},
 		"trace_semantics": {"Source": "remote-config", "ContentHash": "hash-rc", "Version": "rc-1.0"}
-	}`)
-	var requestCount atomic.Int32
-	ipc := ipcmock.New(t)
-	server := ipc.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requestCount.Add(1)
-		_, err := w.Write(responseBody)
-		assert.NoError(t, err)
-	}))
-
-	port := server.Listener.Addr().(*net.TCPAddr).Port
-
-	configComponent := config.NewMock(t)
-	configComponent.SetInTest("apm_config.debug.port", port)
-	configComponent.SetInTest("server_timeout", 1)
-
-	provides := NewComponent(Requires{
-		Config: configComponent,
-		Client: ipc.GetClient(),
+	}`), &fixture))
+	// These immutable fixtures are published once because expvar has no delete API.
+	traceStatusFixtureOnce.Do(func() {
+		t.Run("before_trace_init", func(t *testing.T) {
+			require.Nil(t, expvar.Get("config"))
+			provides := NewComponent()
+			response, err := provides.Comp.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"apmStats":{"error":"Trace Agent is not initialized yet"}}`, string(response.JsonPayload))
+			require.Contains(t, response.NamedSections, "Details")
+			text := response.NamedSections["Details"].Fields[""]
+			assert.Contains(t, text, "Trace Agent is not initialized yet")
+			assert.NotContains(t, text, "localhost:")
+			var html bytes.Buffer
+			require.NoError(t, provides.StatusProvider.Provider.HTML(false, &html))
+			assert.Contains(t, html.String(), "Trace Agent is not initialized yet")
+			assert.NotContains(t, html.String(), "localhost:")
+		})
+		for key, value := range fixture {
+			require.Nil(t, expvar.Get(key), "unexpected expvar publisher for %s", key)
+			expvar.Publish(key, expvar.Func(func() interface{} { return value }))
+		}
 	})
+	return fixture
+}
+
+func TestGetStatusDetailsMatchesText(t *testing.T) {
+	fixture := traceStatusFixture(t)
+	snapshot, _ := expvar.Get(t.Name()).(*expvar.Map)
+	if snapshot == nil {
+		snapshot = expvar.NewMap(t.Name())
+	}
+	t.Cleanup(func() { snapshot.Init() })
+	var samples atomic.Int32
+	snapshot.Set("samples", expvar.Func(func() interface{} { return samples.Add(1) }))
+	snapshot.Set("counter", expvar.Func(func() interface{} { return int64(9007199254740993) }))
+
+	provides := NewComponent()
 	response, err := provides.Comp.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
 	require.NoError(t, err)
 	require.Contains(t, response.NamedSections, "Details")
-	assert.EqualValues(t, 1, requestCount.Load(), "rendered and JSON status must share one snapshot")
+	assert.EqualValues(t, 1, samples.Load(), "rendered and JSON status must share one snapshot")
+	var rawPayload struct {
+		APMStats map[string]json.RawMessage `json:"apmStats"`
+	}
+	require.NoError(t, json.Unmarshal(response.JsonPayload, &rawPayload))
+	for key, value := range fixture {
+		assert.JSONEq(t, string(value), string(rawPayload.APMStats[key]), key)
+	}
+	assert.JSONEq(t, `{"samples":1,"counter":9007199254740993}`, string(rawPayload.APMStats[t.Name()]))
+	assert.Contains(t, string(rawPayload.APMStats[t.Name()]), "9007199254740993")
+	assert.Contains(t, rawPayload.APMStats, "memstats")
 
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(response.JsonPayload, &payload))
-	var expectedAPMStats map[string]interface{}
-	require.NoError(t, json.Unmarshal(responseBody, &expectedAPMStats))
-	require.Equal(t, expectedAPMStats, payload["apmStats"])
 	var expected bytes.Buffer
 	require.NoError(t, status.RenderText(templatesFS, "traceagent.tmpl", &expected, payload))
 	assert.Equal(t, expected.String(), response.NamedSections["Details"].Fields[""])
-}
-
-func TestGetStatusDetailsCancellation(t *testing.T) {
-	const testTimeout = 5 * time.Second
-
-	requestStarted := make(chan struct{})
-	requestCanceled := make(chan struct{})
-	releaseRequest := make(chan struct{})
-
-	ipc := ipcmock.New(t)
-	server := ipc.NewMockServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
-		close(requestStarted)
-		select {
-		case <-request.Context().Done():
-			close(requestCanceled)
-		case <-releaseRequest:
-		}
-	}))
-	defer close(releaseRequest)
-
-	configComponent := config.NewMock(t)
-	configComponent.SetInTest("apm_config.debug.port", server.Listener.Addr().(*net.TCPAddr).Port)
-	configComponent.SetInTest("server_timeout", 30)
-
-	provider := NewComponent(Requires{
-		Config: configComponent,
-		Client: ipc.GetClient(),
-	}).Comp
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	type result struct {
-		response *pbcore.GetStatusDetailsResponse
-		err      error
-	}
-	resultCh := make(chan result, 1)
-	go func() {
-		response, err := provider.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
-		resultCh <- result{response: response, err: err}
-	}()
-
-	select {
-	case <-requestStarted:
-	case <-time.After(testTimeout):
-		t.Fatal("trace status request did not start")
-	}
-	cancel()
-
-	select {
-	case <-requestCanceled:
-	case <-time.After(testTimeout):
-		t.Fatal("trace status request was not canceled")
-	}
-
-	select {
-	case result := <-resultCh:
-		require.NoError(t, result.err)
-		require.Contains(t, result.response.NamedSections, "Details")
-		assert.Contains(t, result.response.NamedSections["Details"].Fields[""], context.Canceled.Error())
-	case <-time.After(testTimeout):
-		t.Fatal("GetStatusDetails did not return after cancellation")
-	}
+	assert.Contains(t, expected.String(), "Hostname: trace-host")
+	assert.Contains(t, expected.String(), "Default priority sampling rate: 50.0%")
+	assert.Contains(t, expected.String(), "WARNING: Traces API errors (1 min): 1")
 }
