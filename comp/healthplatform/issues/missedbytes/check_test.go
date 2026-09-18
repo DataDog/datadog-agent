@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,9 @@ import (
 func newTestChecker(t *testing.T, hostname string) *checker {
 	t.Helper()
 	logsmetrics.ResetMissedBytesForTest()
+	logsmetrics.ResetPipelineMonitorForTest()
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
+	t.Cleanup(logsmetrics.ResetPipelineMonitorForTest)
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostname))
 	return newChecker(hn)
 }
@@ -35,11 +38,18 @@ func reportSources(t *testing.T, ctx map[string]string) []sourceLoss {
 	return got
 }
 
+func reportBackpressure(t *testing.T, ctx map[string]string) backpressureWire {
+	t.Helper()
+	var got backpressureWire
+	require.NoError(t, json.Unmarshal([]byte(ctx[contextKeyBackpressure]), &got))
+	return got
+}
+
 // The tracker is empty for reasons unrelated to loss, and the scheduler reads zero
 // issues as "everything resolved".
 func TestCheck_LogsAgentNotRunningErrors(t *testing.T) {
 	c := newTestChecker(t, "host-a")
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024)
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
 
 	reports, err := c.Run()
 	require.ErrorIs(t, err, errLogsAgentNotRunning)
@@ -59,9 +69,9 @@ func TestCheck_NoLossReportsNothing(t *testing.T) {
 func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 4000000)
-	logsmetrics.RecordMissedBytes("nginx", "web", 200000)
-	logsmetrics.RecordMissedBytes("redis", "cache", 512)
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "web", 200000, time.Now())
+	logsmetrics.RecordMissedBytes("redis", "cache", 512, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -88,8 +98,8 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 func TestCheck_SourceCountIgnoresServices(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 4000000)
-	logsmetrics.RecordMissedBytes("nginx", "api", 200000)
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000, time.Now())
+	logsmetrics.RecordMissedBytes("nginx", "api", 200000, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -114,7 +124,7 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	// Named so snapshot order is the reverse of byte order: source-00 loses least.
 	const total = maxBreakdownSources + 2
 	for i := 0; i < total; i++ {
-		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000)
+		logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", int64(i+1)*1000, time.Now())
 	}
 
 	reports, err := c.Run()
@@ -142,9 +152,9 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 func TestCheck_BreakdownOrderIsDeterministicOnTies(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("beta", "two", 1000)
-	logsmetrics.RecordMissedBytes("alpha", "two", 1000)
-	logsmetrics.RecordMissedBytes("alpha", "one", 1000)
+	logsmetrics.RecordMissedBytes("beta", "two", 1000, time.Now())
+	logsmetrics.RecordMissedBytes("alpha", "two", 1000, time.Now())
+	logsmetrics.RecordMissedBytes("alpha", "one", 1000, time.Now())
 
 	reports, err := c.Run()
 	require.NoError(t, err)
@@ -166,4 +176,224 @@ func TestHostIssueID_StableAndHostScoped(t *testing.T) {
 	assert.Equal(t, base, hostIssueID("host-a"))
 	assert.True(t, strings.HasPrefix(base, IssueID+":"), "id %q must keep the kebab-case prefix", base)
 	assert.NotEqual(t, base, hostIssueID("host-b"), "hostname must scope the id")
+}
+
+// An unmeasured pipeline must not be encoded as a healthy one, or the issue would claim the
+// pipeline was keeping up. The snapshot is enrichment, so the loss is still reported.
+func TestCheck_UnmeasuredPipelineOmitsBackpressure(t *testing.T) {
+	for name, registered := range map[string]bool{
+		"no monitor registered":               false,
+		"registered monitor measures nothing": true,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := newTestChecker(t, "host-a")
+			logsmetrics.MarkLogsAgentRunning()
+			if registered {
+				logsmetrics.RegisterFakePipelineMonitorForTest(nil)
+			}
+			logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+
+			reports, err := c.Run()
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+
+			assert.NotContains(t, reports[0].Context, contextKeyBackpressure)
+			assert.Equal(t, "1024", reports[0].Context[contextKeyBytes], "the loss must still be reported")
+			assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck,
+				"an unmeasured pipeline must not be attributed to NoBottleneck")
+		})
+	}
+}
+
+func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.12, 0, false),
+		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
+	})
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	bp := reportBackpressure(t, reports[0].Context)
+	assert.Equal(t, logsmetrics.BackpressureSaturated, bp.State)
+	require.NotNil(t, bp.Bottleneck)
+	assert.Equal(t, "destination_reliable_0", bp.Bottleneck.Component)
+	assert.Equal(t, int64(29*60), bp.Bottleneck.Saturated30mSeconds)
+	assert.Equal(t, 0, bp.ComponentsOmitted)
+	require.Len(t, bp.Components, 2)
+	assert.Equal(t, "destination_reliable_0", bp.Components[0].Component, "worst component first")
+
+	// The loss was recorded against the live pipeline, so the tuple carries the same stage.
+	sources := reportSources(t, reports[0].Context)
+	require.Len(t, sources, 1)
+	assert.Equal(t, "destination_reliable_0", sources[0].Bottleneck)
+	assert.Equal(t, int64(1), sources[0].BottleneckRotations)
+}
+
+// Worker is the host-wide winner even though it is the runner-up for both tuples, so the
+// count cannot come from each tuple's local winner.
+func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+
+	record := func(source, component string, count int) {
+		logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
+		})
+		for i := 0; i < count; i++ {
+			logsmetrics.RecordMissedBytes(source, "svc", 1, time.Now().Add(-time.Minute))
+		}
+	}
+	record("source-a", "processor", 6)
+	record("source-a", "worker", 5)
+	record("source-b", "strategy", 6)
+	record("source-b", "worker", 5)
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+
+	assert.Equal(t, "worker", ctx[contextKeyLossBottleneck])
+	assert.Equal(t, "10", ctx[contextKeyLossBottleneckRotations])
+	assert.Equal(t, []string{"processor", "strategy"}, []string{
+		reportSources(t, ctx)[0].Bottleneck,
+		reportSources(t, ctx)[1].Bottleneck,
+	}, "the source breakdown may still show each tuple's local winner")
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`worker`")
+	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "10 of 22 rotations")
+}
+
+func TestCheck_GlobalBottleneckSurvivesReportCaps(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	const winner = "destination_reliable_99"
+	for i := 0; i <= maxBackpressureComponents; i++ {
+		component := fmt.Sprintf("destination_reliable_%02d", i)
+		bytes, rotations := int64(1000), 1
+		if i == maxBackpressureComponents {
+			component, bytes, rotations = winner, 1, 20
+		}
+		logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
+		})
+		for j := 0; j < rotations; j++ {
+			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, time.Now().Add(-time.Minute))
+		}
+	}
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+	assert.Equal(t, winner, ctx[contextKeyLossBottleneck])
+	assert.Equal(t, "20", ctx[contextKeyLossBottleneckRotations])
+	assert.Equal(t, "1", ctx[contextKeyPairsOmitted])
+	for _, source := range reportSources(t, ctx) {
+		assert.NotEqual(t, winner, source.Bottleneck, "the winner's tuple is outside the displayed breakdown")
+	}
+}
+
+// A healthy pipeline at loss time is the signal that says "raise close_timeout".
+func TestCheck_HealthyPipelineRecordsNoBottleneck(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.05, 0, false),
+	})
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	bp := reportBackpressure(t, reports[0].Context)
+	assert.Equal(t, logsmetrics.BackpressureHealthy, bp.State)
+	assert.Nil(t, bp.Bottleneck)
+	assert.Equal(t, logsmetrics.NoBottleneck, reportSources(t, reports[0].Context)[0].Bottleneck)
+}
+
+func TestCheck_BackpressureComponentsAreCappedAndCounted(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+
+	const overflow = 4
+	snaps := make([]logsmetrics.ComponentSnapshot, 0, maxBackpressureComponents+overflow)
+	for i := 0; i < maxBackpressureComponents+overflow; i++ {
+		// Descending saturation, so the ranking has an unambiguous worst-first order.
+		snaps = append(snaps, logsmetrics.SaturatedSnapshotForTest(
+			fmt.Sprintf("destination_%02d", i), "0", 0.9, time.Duration(100-i)*time.Second, false))
+	}
+	logsmetrics.RegisterFakePipelineMonitorForTest(snaps)
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+
+	bp := reportBackpressure(t, reports[0].Context)
+	assert.Len(t, bp.Components, maxBackpressureComponents)
+	assert.Equal(t, overflow, bp.ComponentsOmitted)
+	assert.Equal(t, "destination_00", bp.Components[0].Component,
+		"the cap must keep the most saturated components, not an arbitrary ten")
+}
+
+// The backend stores one row per issue type; a payload that churns every tick is noise.
+func TestCheck_BackpressureEncodingIsStable(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		// A ratio with more precision than the wire keeps.
+		logsmetrics.SaturatedSnapshotForTest("worker", "q0s0", 0.98123456789, time.Minute, true),
+		logsmetrics.SaturatedSnapshotForTest("strategy", "0", 0.98123456789, time.Minute, true),
+	})
+	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+
+	first, err := c.Run()
+	require.NoError(t, err)
+	second, err := c.Run()
+	require.NoError(t, err)
+
+	assert.Equal(t, first[0].Context[contextKeyBackpressure], second[0].Context[contextKeyBackpressure])
+	assert.Contains(t, first[0].Context[contextKeyBackpressure], "0.981")
+	assert.NotContains(t, first[0].Context[contextKeyBackpressure], "0.98123",
+		"ratios must be rounded so float noise does not churn the payload")
+}
+
+func TestDominantBottleneck(t *testing.T) {
+	tests := []struct {
+		name          string
+		counts        map[string]int64
+		wantComponent string
+		wantRotations int64
+	}{
+		{name: "nil counts attribute nothing", counts: nil},
+		{
+			name:          "the stage blamed most often wins",
+			counts:        map[string]int64{"strategy": 3, "worker": 9},
+			wantComponent: "worker",
+			wantRotations: 9,
+		},
+		{
+			name:          "ties break on name so ticks are byte-identical",
+			counts:        map[string]int64{"worker": 5, "processor": 5, "strategy": 5},
+			wantComponent: "processor",
+			wantRotations: 5,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			component, rotations := dominantBottleneck(tc.counts)
+			assert.Equal(t, tc.wantComponent, component)
+			assert.Equal(t, tc.wantRotations, rotations)
+		})
+	}
 }

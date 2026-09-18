@@ -6,6 +6,8 @@
 package missedbytes
 
 import (
+	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 // last_loss_at reaches Extra but not the prose: the platform tracks last-seen.
@@ -129,6 +133,13 @@ func TestBuildIssue(t *testing.T) {
 			},
 		},
 		{
+			name:           "malformed backpressure only drops enrichment",
+			ctx:            map[string]string{contextKeyBackpressure: "{not json", contextKeyBytes: "512"},
+			title:          "Lost 512 B of logs from 0 sources in the last 24 hours",
+			descNotSubstrs: []string{"pipeline"},
+			extraBytes:     512,
+		},
+		{
 			name:        "nil context falls back to defaults",
 			ctx:         nil,
 			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
@@ -201,12 +212,17 @@ func TestBuildIssue(t *testing.T) {
 			steps := issue.GetRemediation().GetSteps()
 			require.NotEmpty(t, steps)
 			assert.Contains(t, steps[0].GetText(), "agent status", "step 1 is the fastest diagnostic command")
+			assert.Contains(t, steps[1].GetText(), "`logs_config.close_timeout`")
+			assert.Contains(t, steps[1].GetText(), "from its current value (default: 60 seconds)")
+			assert.NotContains(t, steps[4].GetText(), "auto_multi_line_detection",
+				"multiline aggregation runs before the measured processor, so disabling it can raise its load")
 			for i, step := range steps {
 				assert.Equal(t, int32(i+1), step.GetOrder(), "Order must be contiguous and 1-indexed")
 			}
 
 			require.NotNil(t, issue.GetExtra())
 			fields := issue.GetExtra().GetFields()
+			assert.NotContains(t, fields, contextKeyBackpressure)
 			for _, key := range []string{
 				contextKeyBytes, contextKeyRotations, contextKeySourceCount,
 				contextKeyPairsOmitted, contextKeyLastLossAt, contextKeySources,
@@ -254,6 +270,124 @@ func TestSanitizeName(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 			assert.LessOrEqual(t, utf8.RuneCountInString(got), maxNameLen)
 			assert.True(t, utf8.ValidString(got), "a multi-byte name must not be split into invalid UTF-8")
+		})
+	}
+}
+
+func backpressureContext(t *testing.T, bp backpressureWire) string {
+	t.Helper()
+	encoded, err := json.Marshal(bp)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+func saturatedComponent(name string, sat30m int64) *logsmetrics.ComponentBackpressure {
+	return &logsmetrics.ComponentBackpressure{
+		Component:           name,
+		Instance:            "0",
+		AvgRatio:            0.98,
+		Saturated30mSeconds: sat30m,
+		CurrentlySaturated:  true,
+	}
+}
+
+// Step 1 names what to fix, so every claim it makes has to be backed by what was measured.
+func TestBuildIssue_FirstRemediationStep(t *testing.T) {
+	tests := []struct {
+		name        string
+		component   string
+		blamed      int64
+		rotations   int64
+		bp          *backpressureWire
+		wantStep    []string
+		notWantStep []string
+		wantDesc    []string
+		notWantDesc []string
+	}{
+		{
+			name:      "loss-time attribution outranks the check-time snapshot",
+			component: "strategy", blamed: 7, rotations: 9,
+			bp:          &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("processor", 1740)},
+			wantStep:    []string{"`strategy`", "7 of 9 rotations"},
+			notWantStep: []string{"`processor`"},
+			wantDesc:    []string{"The strategy stage of the logs pipeline was saturated during 7 of these rotations."},
+			notWantDesc: []string{"processor stage"},
+		},
+		{
+			name:      "all losses attributed to one stage",
+			component: "worker", blamed: 9, rotations: 9,
+			wantStep: []string{"`worker` component was saturated", "sudo datadog-agent status"},
+		},
+		{
+			name:      "healthy at loss time points at close_timeout",
+			component: logsmetrics.NoBottleneck, blamed: 4, rotations: 4,
+			bp:       &backpressureWire{State: logsmetrics.BackpressureHealthy},
+			wantStep: []string{"No monitored blocking stage was saturated", "`logs_config.close_timeout`"},
+			wantDesc: []string{"no monitored blocking stage of the logs pipeline was saturated"},
+		},
+		{
+			name:      "saturation after the loss is still named",
+			component: logsmetrics.NoBottleneck, blamed: 4, rotations: 4,
+			bp:       &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("strategy", 60)},
+			wantStep: []string{"No monitored blocking stage was saturated", "`logs_config.close_timeout`", "`strategy` is saturated now"},
+		},
+		{
+			name:      "partial healthy attribution stays qualified",
+			component: logsmetrics.NoBottleneck, blamed: 6, rotations: 11,
+			wantStep:    []string{"6 of 11 rotations", "`logs_config.close_timeout`"},
+			notWantStep: []string{"No monitored blocking stage was saturated"},
+		},
+		{
+			name:      "unmeasured attribution falls back to the live snapshot",
+			rotations: 4,
+			bp:        &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("destination_reliable_0", 1740)},
+			wantStep:  []string{"was not measured", "`destination_reliable_0` is saturated now"},
+			wantDesc:  []string{"destination_reliable_0 stage of the logs pipeline is saturated"},
+		},
+		{
+			name:      "a recovered snapshot is described as history",
+			rotations: 4,
+			bp: &backpressureWire{
+				State:      logsmetrics.BackpressureWarning,
+				Bottleneck: &logsmetrics.ComponentBackpressure{Component: "strategy", Saturated30mSeconds: 120},
+			},
+			wantStep:    []string{"`strategy`", "was saturated earlier in the last 30 minutes"},
+			notWantStep: []string{"`strategy` is saturated now"},
+		},
+		{
+			name:        "unknown loss and snapshot fall back to status",
+			rotations:   4,
+			wantStep:    []string{"Run `sudo datadog-agent status`"},
+			notWantDesc: []string{"pipeline"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := map[string]string{
+				contextKeyRotations:               strconv.FormatInt(tc.rotations, 10),
+				contextKeyLossBottleneck:          tc.component,
+				contextKeyLossBottleneckRotations: strconv.FormatInt(tc.blamed, 10),
+			}
+			if tc.bp != nil {
+				ctx[contextKeyBackpressure] = backpressureContext(t, *tc.bp)
+			}
+			issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+			require.NoError(t, err)
+			assert.NotContains(t, issue.GetDescription(), "\n")
+			step1 := issue.GetRemediation().GetSteps()[0].GetText()
+			for _, substr := range tc.wantStep {
+				assert.Contains(t, step1, substr)
+			}
+			for _, substr := range tc.notWantStep {
+				assert.NotContains(t, step1, substr)
+			}
+			for _, substr := range tc.wantDesc {
+				assert.Contains(t, issue.GetDescription(), substr)
+			}
+			for _, substr := range tc.notWantDesc {
+				assert.NotContains(t, issue.GetDescription(), substr)
+			}
 		})
 	}
 }

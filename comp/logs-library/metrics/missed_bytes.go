@@ -34,6 +34,8 @@ const (
 	// annotations), so bounding the entry count alone does not bound memory.
 	// Two names sharing a prefix this long fold into one tuple.
 	missedBytesMaxNameLen = 64
+
+	missedBytesMaxBottlenecks = 8
 )
 
 // MissedBytesSummary is one (source, service) tuple's loss over the trailing window.
@@ -43,6 +45,8 @@ type MissedBytesSummary struct {
 	Bytes      int64
 	Rotations  int64
 	LastLossAt time.Time
+	// Bottlenecks counts this tuple's rotations by the stage saturated at loss time.
+	Bottlenecks map[string]int64
 }
 
 type missedBytesKey struct {
@@ -53,6 +57,20 @@ type missedBytesKey struct {
 type missedBytesBucket struct {
 	bytes     int64
 	rotations int64
+	// Lazily allocated: nothing is recorded when the pipeline monitor cannot answer.
+	bottlenecks map[string]int64
+}
+
+func (b *missedBytesBucket) recordBottleneck(component string) {
+	if component == "" {
+		return
+	}
+	if b.bottlenecks == nil {
+		b.bottlenecks = make(map[string]int64, missedBytesMaxBottlenecks)
+	} else if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
+		return
+	}
+	b.bottlenecks[component]++
 }
 
 type missedBytesEntry struct {
@@ -61,18 +79,31 @@ type missedBytesEntry struct {
 	lastLossNano int64
 }
 
-// pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
-// The only place buckets are removed.
-func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64) {
-	for start, bucket := range e.buckets {
+// prune drops the buckets no longer overlapping the window ending at cutoffNano.
+func (e *missedBytesEntry) prune(cutoffNano int64) {
+	for start := range e.buckets {
 		if start+int64(missedBytesBucketSize) <= cutoffNano {
 			delete(e.buckets, start)
-			continue
 		}
+	}
+}
+
+// pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
+// bottlenecks is nil when nothing was attributed. Its size is bounded by the bucket
+// count and each bucket's label cap; capping again would discard counts in map order.
+func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64, bottlenecks map[string]int64) {
+	e.prune(cutoffNano)
+	for _, bucket := range e.buckets {
 		bytes += bucket.bytes
 		rotations += bucket.rotations
+		for component, count := range bucket.bottlenecks {
+			if bottlenecks == nil {
+				bottlenecks = make(map[string]int64)
+			}
+			bottlenecks[component] += count
+		}
 	}
-	return bytes, rotations
+	return bytes, rotations, bottlenecks
 }
 
 // missedBytesTracker holds the trailing window of loss per tuple. Bounded without a
@@ -90,7 +121,7 @@ func newMissedBytesTracker(clk clock.Clock) *missedBytesTracker {
 	}
 }
 
-func (t *missedBytesTracker) record(source, service string, bytes int64) {
+func (t *missedBytesTracker) record(source, service string, bytes int64, bottleneck string) {
 	if bytes <= 0 {
 		return
 	}
@@ -114,7 +145,7 @@ func (t *missedBytesTracker) record(source, service string, bytes int64) {
 	}
 
 	// Pruned here too: nothing reads the tracker when health_platform.enabled is false.
-	entry.pruneAndSum(nowNano - int64(missedBytesWindow))
+	entry.prune(nowNano - int64(missedBytesWindow))
 
 	start := alignMissedBytesBucket(nowNano)
 	bucket, ok := entry.buckets[start]
@@ -124,6 +155,7 @@ func (t *missedBytesTracker) record(source, service string, bytes int64) {
 	}
 	bucket.bytes += bytes
 	bucket.rotations++
+	bucket.recordBottleneck(bottleneck)
 	entry.lastLossNano = nowNano
 }
 
@@ -137,7 +169,7 @@ func (t *missedBytesTracker) collectAndPrune() []MissedBytesSummary {
 
 	summaries := make([]MissedBytesSummary, 0, len(t.entries))
 	for key, entry := range t.entries {
-		bytes, rotations := entry.pruneAndSum(cutoff)
+		bytes, rotations, bottlenecks := entry.pruneAndSum(cutoff)
 
 		if bytes <= 0 {
 			delete(t.entries, key)
@@ -145,11 +177,12 @@ func (t *missedBytesTracker) collectAndPrune() []MissedBytesSummary {
 		}
 
 		summaries = append(summaries, MissedBytesSummary{
-			Source:     key.source,
-			Service:    key.service,
-			Bytes:      bytes,
-			Rotations:  rotations,
-			LastLossAt: time.Unix(0, entry.lastLossNano),
+			Source:      key.source,
+			Service:     key.service,
+			Bytes:       bytes,
+			Rotations:   rotations,
+			LastLossAt:  time.Unix(0, entry.lastLossNano),
+			Bottlenecks: bottlenecks,
 		})
 	}
 
@@ -190,10 +223,11 @@ var missedBytes = newMissedBytesTracker(clock.New())
 // not read as a resolution.
 var logsAgentRunning atomic.Bool
 
-// RecordMissedBytes records bytes lost when a rotation closed a file early. Never
-// reached on Windows, where the tailer holds no os.File to size the loss with.
-func RecordMissedBytes(source, service string, bytes int64) {
-	missedBytes.record(source, service, bytes)
+// RecordMissedBytes records bytes lost when a rotation closed a file early and correlates the
+// loss with saturation observed since lossWindowStartedAt. Never reached on Windows, where the
+// tailer holds no os.File to size the loss with.
+func RecordMissedBytes(source, service string, bytes int64, lossWindowStartedAt time.Time) {
+	missedBytes.record(source, service, bytes, currentBottleneckComponent(lossWindowStartedAt))
 }
 
 // MissedBytesSnapshot returns in-window losses, sorted by source then service.
