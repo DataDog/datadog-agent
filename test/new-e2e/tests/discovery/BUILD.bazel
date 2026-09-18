@@ -13,6 +13,7 @@ dd_agent_go_test(
     data = [
         "config/helm-values.tmpl",
         "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-nginx.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
@@ -43,6 +44,7 @@ dd_agent_go_test(
     embedsrcs = [
         "config/helm-values.tmpl",
         "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-nginx.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
@@ -92,6 +94,8 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/docker",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
         "//test/new-e2e/tests/process",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
