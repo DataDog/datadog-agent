@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "localpackage",
+    srcs = [
+        "install.go",
+        "masks.go",
+        "verify.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/host/localpackage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os/types",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/installers/agentbuild",
+        "//test/e2e-framework/testing/installers/agentconfig",
+        "//test/e2e-framework/testing/installers/host/configure",
+        "//test/e2e-framework/testing/receivers",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+    ],
+)
+
+dd_agent_go_test(
+    name = "localpackage_test",
+    srcs = [
+        "install_test.go",
+        "masks_test.go",
+        "package_smoke_test.go",
+    ],
+    embed = [":localpackage"],
+    deps = [
+        "//test/e2e-framework/components/os/types",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/installers/agentbuild",
+    ],
+)

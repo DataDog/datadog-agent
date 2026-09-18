@@ -8,22 +8,22 @@ package installscript
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"regexp"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/host/configure"
 	"strings"
 
-	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentconfig"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 // Params configures an install-script Agent installation.
 type Params struct {
+	Routing      *receivers.Plan
+	APIKey       string // transient native credential; never needed for capture/sink
 	AgentVersion string
 	// AgentConfig is merged over the installer's generated datadog.yaml.
 	AgentConfig string
@@ -40,48 +40,39 @@ func Install(_ context.Context, env *environments.Host, p Params) error {
 		return errors.New("installing host agent: environment's RemoteHost is not initialized")
 	}
 
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	if err != nil {
-		return fmt.Errorf("resolving Agent API key: %w", err)
+	if p.Routing != nil && p.AgentVersion != "7.83.0" {
+		return fmt.Errorf("install-script released routing profile supports Agent 7.83.0 only")
 	}
-	config, err := buildAgentConfig(env, apiKey, p.AgentConfig)
+
+	apiKey := p.APIKey
+	var config string
+	var err error
+	if p.Routing != nil {
+		if p.Routing.APIKeyRef == "" {
+			apiKey = receivers.DummyAPIKey
+		}
+		config, err = agentconfig.GenerateWithRouting(*p.Routing, apiKey, p.AgentConfig)
+	} else {
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if err != nil {
+			return fmt.Errorf("resolving Agent API key: %w", err)
+		}
+		config, err = buildAgentConfig(env, apiKey, p.AgentConfig)
+	}
 	if err != nil {
 		return err
 	}
-	for folder := range p.Integrations {
-		if !integrationFolderPattern.MatchString(folder) {
-			return fmt.Errorf("invalid integration folder %q", folder)
-		}
+
+	if err := configure.ValidateIntegrations(p.Integrations); err != nil {
+		return err
 	}
 
-	cmd := command(p.AgentVersion, apiKey)
+	// Install-only must never carry the real key in a command or start a native sender.
+	cmd := command(p.AgentVersion, receivers.DummyAPIKey)
 	if _, err := env.RemoteHost.Execute(cmd); err != nil {
 		return fmt.Errorf("running agent install script: %w", err)
 	}
-	if err := writeRemoteFile(env, "/etc/datadog-agent/datadog.yaml", config); err != nil {
-		return err
-	}
-	for folder, content := range p.Integrations {
-		configDir := "/etc/datadog-agent/conf.d/" + folder
-		if _, err := env.RemoteHost.Execute("sudo mkdir -p " + configDir); err != nil {
-			return fmt.Errorf("creating integration directory %s: %w", configDir, err)
-		}
-		if err := writeRemoteFile(env, configDir+"/conf.yaml", content); err != nil {
-			return err
-		}
-	}
-	if _, err := env.RemoteHost.Execute("sudo systemctl restart datadog-agent"); err != nil {
-		return fmt.Errorf("restarting Agent: %w", err)
-	}
-
-	if env.Agent == nil {
-		env.Agent = &components.RemoteHostAgent{}
-	}
-	env.Agent.HostAgentOutput = compout.HostAgentOutput{Host: env.RemoteHost.HostOutput}
-	if err := env.Agent.InitFromHost(env.RemoteHost); err != nil {
-		return fmt.Errorf("initializing installed Agent: %w", err)
-	}
-	return nil
+	return configure.Apply(env, config, p.Integrations)
 }
 
 // command builds the same curl-pipe-to-bash install command
@@ -103,30 +94,9 @@ func command(version, apiKey string) string {
 		major, strings.Join(envVars, " "))
 }
 
-var integrationFolderPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-
-// buildAgentConfig delegates to the shared agentconfig policy so the install
-// script (on a provisioned VM) and the binary installer (in a container) wire
-// fakeintake identically.
-func buildAgentConfig(env *environments.Host, apiKey, extraConfig string) (string, error) {
-	var endpoint *agentconfig.Endpoint
-	if env.FakeIntake != nil {
-		endpoint = &agentconfig.Endpoint{
-			Scheme: env.FakeIntake.Scheme,
-			Host:   env.FakeIntake.Host,
-			Port:   int(env.FakeIntake.Port),
-		}
-	}
-	return agentconfig.Generate(apiKey, endpoint, extraConfig)
-}
-
-func writeRemoteFile(env *environments.Host, filePath, content string) error {
-	encoded := base64.StdEncoding.EncodeToString([]byte(content))
-	cmd := fmt.Sprintf("printf '%%s' '%s' | base64 --decode | sudo tee %s >/dev/null", encoded, filePath)
-	if _, err := env.RemoteHost.Execute(cmd); err != nil {
-		return fmt.Errorf("writing %s: %w", filePath, err)
-	}
-	return nil
+// buildAgentConfig is retained for the existing script renderer tests.
+func buildAgentConfig(env *environments.Host, apiKey, extra string) (string, error) {
+	return configure.Generate(env, apiKey, extra)
 }
 
 func splitAgentVersion(version string) (major, minor string, ok bool) {

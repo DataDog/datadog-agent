@@ -9,6 +9,7 @@ package helm
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -24,12 +25,19 @@ import (
 	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 // Params configures a Helm-based Kubernetes Agent installation.
 type Params struct {
+	// Profile is supplied by the artifact owner; never inferred from a tag.
+	Profile *receivers.ProducerProfile
+	Image   *ImageArtifact
+	Routing *receivers.Plan
+	// APIKey is transient and used only by an explicit native route.
+	APIKey              string
 	AgentVersion        string
 	ClusterAgentVersion string
 	Namespace           string
@@ -45,19 +53,42 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 		return errors.New("installing Kubernetes agent: environment's KubernetesCluster is not initialized")
 	}
 
-	secretStore := runner.GetProfile().SecretStore()
-	apiKey, err := secretStore.Get(parameters.APIKey)
-	if err != nil {
-		return fmt.Errorf("resolving Agent API key: %w", err)
+	if p.Routing != nil {
+		if err := validateProducerProfile(p); err != nil {
+			return err
+		}
 	}
-	appKey, err := secretStore.Get(parameters.APPKey)
-	if err != nil {
-		return fmt.Errorf("resolving Agent application key: %w", err)
+
+	apiKey, appKey := p.APIKey, ""
+	var err error
+	if p.Routing != nil {
+		if err := p.Routing.Validate(); err != nil {
+			return err
+		}
+		if err := ValidateRoutingValues(p.Values); err != nil {
+			return err
+		}
+		if p.Routing.APIKeyRef == "" {
+			apiKey = receivers.DummyAPIKey
+		}
+		if apiKey == "" {
+			return errors.New("explicit native route requires APIKey")
+		}
+	} else {
+		secretStore := runner.GetProfile().SecretStore()
+		apiKey, err = secretStore.Get(parameters.APIKey)
+		if err != nil {
+			return fmt.Errorf("resolving Agent API key: %w", err)
+		}
+		appKey, err = secretStore.Get(parameters.APPKey)
+		if err != nil {
+			return fmt.Errorf("resolving Agent application key: %w", err)
+		}
 	}
 
 	var fi *compout.FakeintakeOutput
 	var rcRootJSON string
-	if env.FakeIntake != nil {
+	if env.FakeIntake != nil && p.Routing == nil {
 		fi = &env.FakeIntake.FakeintakeOutput
 		rcRootJSON, err = compout.RCRootJSON()
 		if err != nil {
@@ -73,6 +104,8 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 		AppKey:              appKey,
 		RCRootJSON:          rcRootJSON,
 		Values:              p.Values,
+		Routing:             p.Routing,
+		Image:               p.Image,
 	})
 	if err != nil {
 		return err
@@ -88,6 +121,8 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 const releaseName = "dda-linux"
 
 type chartParams struct {
+	Image                                        *ImageArtifact
+	Routing                                      *receivers.Plan
 	AgentVersion, ClusterAgentVersion, Namespace string
 	APIKey, AppKey, RCRootJSON                   string
 	Values                                       map[string]interface{}
@@ -118,7 +153,17 @@ func installChart(kubeconfig, clusterName string, fi *compout.FakeintakeOutput, 
 	if p.Values != nil {
 		mergeMaps(values, p.Values)
 	}
-	if err := installOrUpgradeRelease(actionConfig, releaseName, p.Namespace, values); err != nil {
+	applyImageArtifact(values, p.Image)
+	if p.Routing != nil {
+		if p.Image == nil {
+			mergeMaps(values, map[string]interface{}{"clusterChecksRunner": map[string]interface{}{"image": map[string]interface{}{"tag": p.AgentVersion}}})
+		}
+
+		if err := ApplyRoutingValues(values, *p.Routing); err != nil {
+			return compout.KubernetesAgentOutput{}, err
+		}
+	}
+	if err := installOrUpgradeRelease(actionConfig, releaseName, p.Namespace, values, p.Routing); err != nil {
 		return compout.KubernetesAgentOutput{}, err
 	}
 
@@ -149,6 +194,12 @@ func installChart(kubeconfig, clusterName string, fi *compout.FakeintakeOutput, 
 
 func mergeMaps(dst, src map[string]interface{}) {
 	for k, v := range src {
+		if k == "env" {
+			if merged, err := MergeEnv(dst[k], v); err == nil {
+				dst[k] = merged
+				continue
+			}
+		}
 		if srcMap, ok := v.(map[string]interface{}); ok {
 			if dstMap, ok := dst[k].(map[string]interface{}); ok {
 				mergeMaps(dstMap, srcMap)
@@ -159,19 +210,36 @@ func mergeMaps(dst, src map[string]interface{}) {
 	}
 }
 
-func installOrUpgradeRelease(cfg *helmaction.Configuration, name, namespace string, values map[string]interface{}) error {
+func installOrUpgradeRelease(cfg *helmaction.Configuration, name, namespace string, values map[string]interface{}, routing *receivers.Plan) error {
 	settings := cli.New()
 
 	chartPathOpts := helmaction.ChartPathOptions{RepoURL: "https://helm.datadoghq.com"}
+	if routing != nil {
+		chartPathOpts.Version = ManagedChartVersion
+	}
 	chartPath, err := chartPathOpts.LocateChart("datadog", settings)
 	if err != nil {
 		return fmt.Errorf("locating datadog chart: %w", err)
+	}
+	if routing != nil {
+		archive, err := os.ReadFile(chartPath)
+		if err != nil {
+			return fmt.Errorf("reading pinned chart archive: %w", err)
+		}
+		if fmt.Sprintf("%x", sha256.Sum256(archive)) != ManagedChartSHA256 {
+			return fmt.Errorf("managed chart checksum mismatch")
+		}
 	}
 	chartRequested, err := loader.Load(chartPath)
 	if err != nil {
 		return err
 	}
 
+	if routing != nil {
+		if err := validateRenderedRouting(chartRequested, values, *routing); err != nil {
+			return err
+		}
+	}
 	history := helmaction.NewHistory(cfg)
 	history.Max = 1
 	if _, err := history.Run(name); errors.Is(err, driver.ErrReleaseNotFound) {
