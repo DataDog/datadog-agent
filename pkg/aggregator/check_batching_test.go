@@ -243,6 +243,83 @@ func TestCheckBatchStatefulMetrics(t *testing.T) {
 	}
 }
 
+// Bucket baselines outlive batch-expired contexts, but still expire after the
+// configured number of check runs without a bucket submission.
+func TestCheckBatchBucketBaselines(t *testing.T) {
+	for _, tc := range []struct {
+		multiple, firstValue bool
+		expiry               int
+	}{
+		{false, false, 2}, {false, true, 1},
+		{true, false, 1}, {true, true, 2},
+	} {
+		t.Run(fmt.Sprintf("multiple=%v/first-value=%v", tc.multiple, tc.firstValue), func(t *testing.T) {
+			agg := newBatchTestAggregator(t, 1)
+			defer agg.health.Deregister()
+			id := checkid.ID("batch_test:test")
+			agg.handleRegisterSampler(id)
+			cs := agg.checkSamplers[id]
+			cs.contextResolver.expireCountInterval = int64(tc.expiry)
+			clk := agg.batchClock.(*batchTestClock)
+			bucketCount, weight := 1, int64(1)
+			if tc.multiple {
+				bucketCount, weight = 2, 3 // Two bounds contribute value and 2*value.
+			}
+			commit := func() {
+				clk.Add(time.Second)
+				agg.handleSenderSample(senderMetricSample{id: id, commit: true})
+			}
+			for run := range 2 {
+				for step := range 2 {
+					for bound := range bucketCount {
+						agg.handleSenderBucket(senderHistogramBucket{id: id, bucket: &metrics.HistogramBucket{
+							Name: "batch_test.bucket", Value: int64((100 + 25*(2*run+step)) * (bound + 1)),
+							LowerBound: float64(bound * 10), UpperBound: float64((bound + 1) * 10),
+							Timestamp: float64(clk.Now().Unix() - 1), Monotonic: true,
+							MultipleBuckets: tc.multiple, FlushFirstValue: tc.firstValue,
+						}})
+					}
+					// Enough unrelated batches to expire the bucket's context.
+					for n := range tc.expiry + 1 {
+						clk.Add(time.Second)
+						agg.handleSenderSample(senderMetricSample{id: id, metricSample: &metrics.MetricSample{
+							Name: fmt.Sprintf("batch_test.other.%d", n), Value: 1, Mtype: metrics.GaugeType,
+						}})
+					}
+					_, found := cs.contextResolver.get(generateContextKey(&metrics.HistogramBucket{Name: "batch_test.bucket"}))
+					require.False(t, found)
+					require.LessOrEqual(t, cs.contextResolver.length(), tc.expiry)
+					_, sketches := agg.GetSeriesAndSketches(clk.Now())
+					var count int64
+					for _, s := range sketches {
+						for _, p := range s.Points {
+							count += p.Sketch.Basic.Cnt
+						}
+					}
+					want := 25 * weight
+					if run == 0 && step == 0 {
+						want = 0
+						if tc.firstValue {
+							want = 100 * weight
+						}
+					}
+					require.Equal(t, want, count, "run %d, step %d", run, step)
+				}
+				commit()
+			}
+			for missed := range tc.expiry {
+				require.Equal(t, 1, len(cs.lastBucketValue)+len(cs.lastBucketValueByBound))
+				commit()
+				if missed == tc.expiry-1 {
+					require.Empty(t, cs.lastBucketValue)
+					require.Empty(t, cs.lastBucketValueByBound)
+					require.Empty(t, cs.bucketLastSeen)
+				}
+			}
+		})
+	}
+}
+
 // Intermediate commits preserve historate's previous sample, but the end of a
 // collection still resets it, including when the last sample filled a batch.
 func TestCheckBatchHistorate(t *testing.T) {
