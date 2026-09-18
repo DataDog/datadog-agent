@@ -318,7 +318,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 	}
 
-	ddc, err := getDDExporterConfig(cfg)
+	ddc, err := getDDExporterConfig(cfg, pkgconfig)
 	if err == ErrNoDDExporter {
 		return pkgconfig, err
 	}
@@ -514,7 +514,7 @@ func getDogtelExtensionConfig(cfg *confmap.Conf) (*dogtelextensionimpl.Config, e
 	return nil, nil
 }
 
-func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
+func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*datadogconfig.Config, error) {
 	var configs []*datadogconfig.Config
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
@@ -527,7 +527,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
 				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
-				m, err := setSiteIfEmpty(v)
+				m, err := setSiteIfEmpty(v, pkgconfig)
 				if err != nil {
 					return nil, err
 				}
@@ -562,13 +562,13 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 		return nil, errors.New("multiple datadog exporters found")
 	}
 
-	datadogConfig := configs[0]
-	return datadogConfig, nil
+	return configs[0], nil
 }
 
-// setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)
-// Returns an error if the input datadog exporter config is invalid
-func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
+// setSiteIfEmpty populates datadog::api::site from pkgconfig when it is absent or empty in the
+// OTel exporter config. This ensures Unmarshal constructs endpoint URLs with the correct site.
+// Returns an error if the input datadog exporter config is invalid.
+func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	if ddcfg == nil {
 		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
 	}
@@ -578,6 +578,7 @@ func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
+		ddcfgMap["api"] = map[string]any{"site": pkgconfig.GetString("site")}
 		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
@@ -586,7 +587,7 @@ func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	}
 	apiSite, ok := apicfgMap["site"]
 	if !ok || apiSite == "" {
-		apicfgMap["site"] = "datadoghq.com"
+		apicfgMap["site"] = pkgconfig.GetString("site")
 	}
 	return ddcfgMap, nil
 }
