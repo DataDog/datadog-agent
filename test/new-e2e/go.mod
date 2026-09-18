@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.6
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.210
+	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -39,10 +39,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/kr/pretty v0.3.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
-	github.com/pulumi/pulumi/sdk/v3 v3.261.0
+	github.com/pulumi/pulumi/sdk/v3 v3.262.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -64,7 +64,7 @@ require (
 	al.essio.dev/pkg/shellescape v1.6.1 // indirect
 	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.67.0 // indirect
+	cloud.google.com/go/compute v1.68.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -126,7 +126,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.99.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect

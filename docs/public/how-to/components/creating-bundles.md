@@ -1,11 +1,6 @@
-# Creating a bundle
+# Create a component bundle
 
-A bundle is a grouping of related components. The goal of a bundle is to ease the usage of multiple components working together to constitute a product.
-
-One example is `DogStatsD`, a server to receive metrics locally from customer apps. `DogStatsD` is composed of 9+
-components, but at the binary level we want to include `DogStatsD` as a whole.
-
-For use cases like that of DogStatsD, create a bundle.
+Use a bundle to include related components together. See the [bundle overview](../../architecture/components/index.md#bundles) for when to use one.
 
 ## Creating a bundle
 
@@ -42,8 +37,7 @@ func Bundle() fxutil.BundleOptions {
 ```
 ///
 
-A bundle doesn't need to import all sub components. The idea is to offer a default, easy to use grouping of components.
-But nothing prevents users from cherry-picking the components they want to use.
+A bundle doesn't need to import all sub components. The idea is to offer a default, easy to use grouping of components. But nothing prevents users from cherry-picking the components they want to use.
 
 <!-- ## Bundle level params
 

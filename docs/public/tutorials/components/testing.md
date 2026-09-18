@@ -1,10 +1,10 @@
-# Testing components
+# Test a component
 
-Testing is an essential part of the software development life cycle. This page covers everything you need to know about testing components.
+This tutorial tests the compression component from the [creation tutorial](creating-components.md), including its dependencies, public interface, and lifecycle hooks.
 
 One of the core benefits of using components is that each component isolates its internal logic behind its interface. Focus on asserting that each implementation behaves correctly.
 
-To recap from the [previous page](creating-components.md), a component was created that compresses the payload before sending it to the Datadog backend. The component has two separate implementations.
+The component compresses payloads before sending them to the Datadog backend and has two implementations to test separately.
 
 This is the component's interface:
 
@@ -58,7 +58,6 @@ func TestCompress(t *testing.T) {
 
 To create the log and config component, use their respective mocks. The [mock package](creating-components.md#the-mock-folder) was mentioned previously in the [Creating a Component page](creating-components.md).
 
-
 ### Testing the component's interface
 
 Now that the `Require` struct is created, an instance of the component can be created and its functionality tested:
@@ -96,7 +95,7 @@ func TestCompress(t *testing.T) {
 
 ### Testing lifecycle hooks
 
-Sometimes a component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well.
+Sometimes a component uses [Fx lifecycle](../../architecture/components/fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well.
 
 For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:
 
@@ -207,3 +206,7 @@ func TestStartHook(t *testing.T) {
 ///
 
 For this example, a type cast operation had to be performed because the `started` field is private. Depending on the component, this may not be necessary.
+
+## Next steps
+
+See how to [use components in a binary](../../how-to/components/using-components.md), or return to the [component framework overview](../../architecture/components/index.md).
