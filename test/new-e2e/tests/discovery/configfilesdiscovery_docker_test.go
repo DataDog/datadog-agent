@@ -77,6 +77,7 @@ const (
 const (
 	pgbouncerContainerName   = "pgbouncer-env-configfilesdiscovery"
 	pgbouncerIntegrationName = "pgbouncer"
+	pgbouncerConfigPath      = "/etc/pgbouncer/pgbouncer.ini"
 )
 
 const (
@@ -470,7 +471,7 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutConfigFile() {
+func (s *configFilesDiscoveryDockerSuite) TestPgbouncerConfigFileAndEnvVarsDiscovered() {
 	t := s.T()
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: pgbouncerIntegrationName,
@@ -491,7 +492,31 @@ func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutC
 
 		for _, payload := range pgbouncerPayloads {
 			assertAgentDiscoveryPayload(c, payload, pgbouncerIntegrationName)
-			assert.Empty(c, payload.ConfigFiles)
+
+			pgbouncerConfigs := findConfigFilePayloads([]*aggregator.AgentDiscoveryPayload{payload}, pgbouncerIntegrationName, pgbouncerConfigPath)
+			if !assert.NotEmpty(c, pgbouncerConfigs, "no pgbouncer config file in payload %+v", payload) {
+				return
+			}
+			for _, pgbouncerConfig := range pgbouncerConfigs {
+				assertConfigFilePayload(c, pgbouncerConfig, configFilePayloadExpectation{
+					integrationName: pgbouncerIntegrationName,
+					configPath:      pgbouncerConfigPath,
+					payloadFormat:   agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_INI,
+				})
+				content := string(pgbouncerConfig.config.Content)
+				assert.Contains(c, content, "auth_type = md5")
+				assert.Contains(c, content, "pool_mode = transaction")
+				assert.Contains(c, content, "max_client_conn = 100")
+				assert.Contains(c, content, "auth_user=configfilesdiscovery")
+				// The config file must never carry the secrets that back it: the
+				// generated [databases] section only references the auth_user, and
+				// credentials live solely in userlist.txt, which this collector
+				// never reads.
+				assert.NotContains(c, content, "must-not-be-forwarded")
+				assert.NotContains(c, content, "DATABASE_URL")
+				assert.NotContains(c, content, "postgres://")
+				assert.NotContains(c, strings.ToLower(content), "password")
+			}
 
 			envVars := make(map[string]string, len(payload.EnvVars))
 			for _, envVar := range payload.EnvVars {
@@ -507,7 +532,7 @@ func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutC
 			assert.NotContains(c, envVars, "DB_PASSWORD")
 			assert.NotContains(c, envVars, "SERVER_RESET_QUERY")
 		}
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for pgbouncer env var discovery payload")
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for pgbouncer config file discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
