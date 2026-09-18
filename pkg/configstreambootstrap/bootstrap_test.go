@@ -23,7 +23,7 @@ func TestSeedGlobalBuilderResolvesIPCArtifactsNextToDatadogYaml(t *testing.T) {
 	require.Equal(t, filepath.Join(dir, "auth_token"), AuthTokenFilepath())
 }
 
-func envVarSettings(t *testing.T, cfg pkgconfigmodel.Reader) map[string]string {
+func envVarSettings(t *testing.T, cfg pkgconfigmodel.Reader) map[string][]string {
 	t.Helper()
 	control, ok := cfg.(pkgconfigmodel.EnvVarControl)
 	require.True(t, ok, "the global config must implement EnvVarControl")
@@ -40,14 +40,18 @@ func TestEnvVarSettingsNamesOnlyTheVarsSetOnThisProcess(t *testing.T) {
 	cfg.Set("api_key", "from-cli", pkgconfigmodel.SourceCLI)
 
 	settings := envVarSettings(t, cfg)
-	require.Equal(t, "DD_SITE", settings["site"])
-	require.Equal(t, "DD_API_KEY", settings["api_key"])
+	require.Equal(t, []string{"DD_SITE"}, settings["site"])
+	require.Equal(t, []string{"DD_API_KEY"}, settings["api_key"])
 	require.NotContains(t, settings, "log_level", "DD_LOG_LEVEL is not set on this process")
 }
 
 func TestDescribeEnvSettingsNamesSettingsAndTheirVars(t *testing.T) {
 	require.Equal(t,
-		[]string{"api_key (DD_API_KEY)", "site (DD_SITE)"},
-		describeEnvSettings(map[string]string{"site": "DD_SITE", "api_key": "DD_API_KEY"}))
+		[]string{"api_key (DD_API_KEY)", "process_config.log_level (DD_PROCESS_CONFIG_LOG_LEVEL or DD_PROCESS_AGENT_LOG_LEVEL)", "site (DD_SITE)"},
+		describeEnvSettings(map[string][]string{
+			"site":                     {"DD_SITE"},
+			"api_key":                  {"DD_API_KEY"},
+			"process_config.log_level": {"DD_PROCESS_CONFIG_LOG_LEVEL", "DD_PROCESS_AGENT_LOG_LEVEL"},
+		}))
 	require.Empty(t, describeEnvSettings(nil))
 }

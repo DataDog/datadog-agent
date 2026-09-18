@@ -83,6 +83,7 @@ var (
 func DisableLocalEnvLayer(clientName string) {
 	control, ok := pkgconfigsetup.Datadog().(pkgconfigmodel.EnvVarControl)
 	if !ok {
+		pkglog.Errorf("configstreamconsumer[%s]: config does not implement EnvVarControl, so local DD_* env vars will keep overriding streamed values", clientName)
 		return
 	}
 	ignoredEnvVarsMu.Lock()
@@ -94,10 +95,10 @@ func DisableLocalEnvLayer(clientName string) {
 
 // describeEnvSettings renders each setting as "key (DD_VAR)", sorted. Names only, never values:
 // several of these settings are credentials.
-func describeEnvSettings(envSettings map[string]string) []string {
+func describeEnvSettings(envSettings map[string][]string) []string {
 	described := make([]string, 0, len(envSettings))
-	for key, envVar := range envSettings {
-		described = append(described, fmt.Sprintf("%s (%s)", key, envVar))
+	for key, envVars := range envSettings {
+		described = append(described, fmt.Sprintf("%s (%s)", key, strings.Join(envVars, " or ")))
 	}
 	slices.Sort(described)
 	return described

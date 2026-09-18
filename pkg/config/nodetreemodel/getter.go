@@ -40,12 +40,34 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
-// EnvVarSettings returns a copy of the env layer's contents: each setting an env var is currently
-// providing, mapped to the var it was read from.
-func (c *ntmConfig) EnvVarSettings() map[string]string {
+// EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
+// the schema binds to that setting. Computed on demand: only a config-stream consumer asks for it.
+func (c *ntmConfig) EnvVarSettings() map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
-	return maps.Clone(c.envSettings)
+
+	settings := map[string][]string{}
+	if c.envs == nil {
+		return settings
+	}
+	var collect func(node *nodeImpl, path string)
+	collect = func(node *nodeImpl, path string) {
+		for _, name := range node.ChildrenKeys() {
+			child, _ := node.GetChild(name)
+			key := name
+			if path != "" {
+				key = path + "." + name
+			}
+			if child.IsLeafNode() {
+				// Which of several bound vars won is not recoverable here; name them all.
+				settings[key] = slices.Clone(c.configEnvVars[key])
+				continue
+			}
+			collect(child, key)
+		}
+	}
+	collect(c.envs, "")
+	return settings
 }
 
 // GetProxies returns the proxy settings from the configuration

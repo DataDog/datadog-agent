@@ -227,8 +227,8 @@ type Reader interface {
 // EnvVarControl is implemented by configs whose env layer can be inspected and dropped, so a
 // process taking its configuration from elsewhere can stop env vars from overriding it.
 type EnvVarControl interface {
-	// EnvVarSettings maps each setting the env layer is providing to the env var it was read from.
-	EnvVarSettings() map[string]string
+	// EnvVarSettings maps each setting the env layer is providing to the env vars bound to it.
+	EnvVarSettings() map[string][]string
 	// ClearEnvVars empties the env layer.
 	ClearEnvVars()
 }
