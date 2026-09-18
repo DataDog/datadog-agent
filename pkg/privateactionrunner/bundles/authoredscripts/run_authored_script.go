@@ -64,6 +64,9 @@ func (h *RunAuthoredScriptHandler) Run(
 	}
 
 	fqn := task.GetFQN()
+	if err := h.catalog.WaitForReady(ctx); err != nil {
+		return nil, fmt.Errorf("waiting for authored-script catalog: %w", err)
+	}
 	descriptor, err := h.catalog.Lookup(fqn)
 	if err != nil {
 		return nil, fmt.Errorf("could not look up authored-script package %q: %w", fqn, err)

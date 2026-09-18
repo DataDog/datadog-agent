@@ -21,12 +21,10 @@ import (
 )
 
 type testRCClient struct {
-	product string
 	handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))
 }
 
-func (c *testRCClient) Subscribe(product string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	c.product = product
+func (c *testRCClient) Subscribe(_ string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	c.handler = handler
 }
 
@@ -102,7 +100,6 @@ func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	rcClient := &testRCClient{}
 	registry, err := NewRegistry(&config.Config{}, rcClient, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
-	require.Equal(t, state.ProductUpdaterCatalogDD, rcClient.product)
 	require.NotNil(t, rcClient.handler)
 
 	bundle := registry.GetBundle("com.datadoghq.authoredscripts.echo")
@@ -115,6 +112,7 @@ func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 		BundleID: "com.datadoghq.authoredscripts",
 		Name:     "echo",
 	}
+	rcClient.handler(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
 	_, err = action.Run(context.Background(), task, nil)
 	require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 }

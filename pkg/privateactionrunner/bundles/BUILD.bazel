@@ -18,7 +18,6 @@ go_library(
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/rcclient",
-        "//pkg/privateactionrunner/bundle-support/authoredscripts",
         "//pkg/privateactionrunner/bundles/authoredscripts",
         "//pkg/privateactionrunner/bundles/gitlab/branches",
         "//pkg/privateactionrunner/bundles/gitlab/commits",
@@ -64,7 +63,6 @@ go_library(
         "//pkg/privateactionrunner/bundles/temporal",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
-        "//pkg/remoteconfig/state",
     ],
 )
 

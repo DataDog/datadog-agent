@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
-	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	com_datadoghq_authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
@@ -62,7 +61,6 @@ import (
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 var rootRoutedBundles = map[string]struct{}{
@@ -77,14 +75,14 @@ type Registry struct {
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
 func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
-	catalog, err := authoredscriptssupport.NewRemoteCatalog(rcClient, state.ProductUpdaterCatalogDD)
+	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient)
 	if err != nil {
-		return nil, fmt.Errorf("could not create authored-script catalog: %w", err)
+		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
 	}
 
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(catalog),
+			"com.datadoghq.authoredscripts":                      authoredScripts,
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
