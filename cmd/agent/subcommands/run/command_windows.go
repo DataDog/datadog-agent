@@ -13,6 +13,7 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/lite"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
@@ -105,6 +106,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 	// run startAgent in an app, so that the log and config components get initialized
 	go func() {
+		state := &startupState{params: lite.Params{DefaultConfigPath: config.DefaultConfPath}}
 		err := fxutil.OneShot(func(
 			log log.Component,
 			config config.Component,
@@ -186,6 +188,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			if err != nil {
 				return err
 			}
+			state.started = true
 
 			// notify outer that startAgent finished
 			errChan <- err
@@ -214,7 +217,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			getPlatformModules(),
 		)
 		// notify caller that fx.OneShot is done
-		errChan <- err
+		errChan <- state.finish(err)
 	}()
 
 	// Wait for startAgent to complete, or for an error

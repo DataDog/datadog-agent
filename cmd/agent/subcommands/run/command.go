@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/lite"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
@@ -231,13 +232,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	runE := func(*cobra.Command, []string) error {
+		state := &startupState{params: lite.Params{
+			ConfigPath:        globalParams.ConfFilePath,
+			DefaultConfigPath: config.DefaultConfPath,
+			ExtraConfigPaths:  cliParams.ExtraConfFilePath,
+			FleetPoliciesDir:  cliParams.FleetPoliciesDirPath,
+		}}
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		configOpts := []func(*config.Params){
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
-		return fxutil.OneShot(run,
+		return state.finish(fxutil.OneShot(run,
+			fx.Supply(state),
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
@@ -251,7 +259,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fxinstrumentation.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
-		)
+		))
 	}
 
 	runCmd := &cobra.Command{
@@ -274,6 +282,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // run starts the main loop.
 func run(log log.Component,
+	startup *startupState,
 	cfg config.Component,
 	flare flare.Component,
 	tlm telemetry.Component,
@@ -394,6 +403,7 @@ func run(log log.Component,
 	); err != nil {
 		return err
 	}
+	startup.started = true
 
 	agentStarted := tlm.NewCounter(
 		"runtime",

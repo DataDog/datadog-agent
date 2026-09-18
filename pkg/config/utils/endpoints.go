@@ -35,7 +35,7 @@ const (
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
 	if c.IsConfigured("site") {
-		log.Debugf("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
+		log.Debugf("'site' and '%s' are both set in config: using '%s' for main endpoint", urlKey, urlKey)
 	}
 	return resolvedDDURL
 }
@@ -301,11 +301,15 @@ func ExtractSiteFromURL(rawURL string) string {
 // Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
+	return buildURLWithPrefix(prefix, site, pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled"))
+}
+
+func buildURLWithPrefix(prefix, site string, convertFQDN bool) string {
 	site = strings.TrimSpace(site)
 	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
 		site = normalized
 	}
-	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if convertFQDN && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site
@@ -317,9 +321,9 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	if c.IsConfigured(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
-		return BuildURLWithPrefix(prefix, c.GetString("site"))
+		return buildURLWithPrefix(prefix, c.GetString("site"), c.GetBool("convert_dd_site_fqdn.enabled"))
 	}
-	return BuildURLWithPrefix(prefix, constants.DefaultSite)
+	return buildURLWithPrefix(prefix, constants.DefaultSite, c.GetBool("convert_dd_site_fqdn.enabled"))
 }
 
 // GetMRFEndpoint returns the generic MRF endpoint to use.
