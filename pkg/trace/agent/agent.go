@@ -758,7 +758,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			if a.SpanModifierV1 != nil {
 				a.SpanModifierV1.ModifySpanV1(chunk, span)
 			}
-			a.obfuscateSpanInternal(span)
+			a.obfuscateSpanInternal(span, true)
 			a.TruncateV1(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevelV1(span)
@@ -1025,9 +1025,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			if shouldObfuscate {
-				a.obfuscateStatsGroup(b)
-			}
+			a.obfuscateStatsGroup(b, shouldObfuscate)
 			b.Resource, _ = a.TruncateResource(b.Resource)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
