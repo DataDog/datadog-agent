@@ -582,6 +582,8 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 			c.applyOverrides()
 			// Finally mark the config as ready, after all other mutations are completed.
 			c.markReady()
+			// Warn once the first snapshot has landed, so the message follows the streaming logs.
+			configstreambootstrap.ReportIgnoredEnvVars(c.params.ClientName)
 		}
 	case *pb.ConfigEvent_Update:
 		if err := c.applyUpdate(e.Update); err != nil {
