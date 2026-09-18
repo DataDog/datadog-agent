@@ -271,6 +271,36 @@ func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
 	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "10 of 22 rotations")
 }
 
+func TestCheck_GlobalBottleneckSurvivesReportCaps(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	const winner = "destination_reliable_99"
+	for i := 0; i <= maxBackpressureComponents; i++ {
+		component := fmt.Sprintf("destination_reliable_%02d", i)
+		bytes, rotations := int64(1000), 1
+		if i == maxBackpressureComponents {
+			component, bytes, rotations = winner, 1, 20
+		}
+		logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+			logsmetrics.SaturatedSnapshotForTest(component, "0", 0.99, time.Minute, true),
+		})
+		for j := 0; j < rotations; j++ {
+			logsmetrics.RecordMissedBytes(fmt.Sprintf("source-%02d", i), "svc", bytes, time.Now().Add(-time.Minute))
+		}
+	}
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+	assert.Equal(t, winner, ctx[contextKeyLossBottleneck])
+	assert.Equal(t, "20", ctx[contextKeyLossBottleneckRotations])
+	assert.Equal(t, "1", ctx[contextKeyPairsOmitted])
+	for _, source := range reportSources(t, ctx) {
+		assert.NotEqual(t, winner, source.Bottleneck, "the winner's tuple is outside the displayed breakdown")
+	}
+}
+
 // A healthy pipeline at loss time is the signal that says "raise close_timeout".
 func TestCheck_HealthyPipelineRecordsNoBottleneck(t *testing.T) {
 	c := newTestChecker(t, "host-a")

@@ -61,23 +61,16 @@ type missedBytesBucket struct {
 	bottlenecks map[string]int64
 }
 
-// addBottleneck credits count to a stage, lazily allocating and dropping names past the
-// cap: a synthetic stage name matches no remediation step.
-func addBottleneck(counts map[string]int64, component string, count int64) map[string]int64 {
-	if counts == nil {
-		counts = make(map[string]int64, missedBytesMaxBottlenecks)
-	} else if _, ok := counts[component]; !ok && len(counts) >= missedBytesMaxBottlenecks {
-		return counts
-	}
-	counts[component] += count
-	return counts
-}
-
 func (b *missedBytesBucket) recordBottleneck(component string) {
 	if component == "" {
 		return
 	}
-	b.bottlenecks = addBottleneck(b.bottlenecks, component, 1)
+	if b.bottlenecks == nil {
+		b.bottlenecks = make(map[string]int64, missedBytesMaxBottlenecks)
+	} else if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
+		return
+	}
+	b.bottlenecks[component]++
 }
 
 type missedBytesEntry struct {
@@ -96,14 +89,18 @@ func (e *missedBytesEntry) prune(cutoffNano int64) {
 }
 
 // pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
-// bottlenecks is nil when nothing was attributed, and capped like a single bucket's.
+// bottlenecks is nil when nothing was attributed. Its size is bounded by the bucket
+// count and each bucket's label cap; capping again would discard counts in map order.
 func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64, bottlenecks map[string]int64) {
 	e.prune(cutoffNano)
 	for _, bucket := range e.buckets {
 		bytes += bucket.bytes
 		rotations += bucket.rotations
 		for component, count := range bucket.bottlenecks {
-			bottlenecks = addBottleneck(bottlenecks, component, count)
+			if bottlenecks == nil {
+				bottlenecks = make(map[string]int64)
+			}
+			bottlenecks[component] += count
 		}
 	}
 	return bytes, rotations, bottlenecks

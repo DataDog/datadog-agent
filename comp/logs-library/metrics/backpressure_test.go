@@ -6,6 +6,9 @@
 package metrics
 
 import (
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,30 +17,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubPipelineMonitor answers Snapshots with a fixed set and counts the reads, so the
-// bottleneck cache's TTL is observable.
+// stubPipelineMonitor can gate reads to exercise cache refresh and invalidation.
 type stubPipelineMonitor struct {
 	NoopPipelineMonitor
-	snaps []ComponentSnapshot
-	reads int
-}
-
-func (s *stubPipelineMonitor) Snapshots() []ComponentSnapshot {
-	s.reads++
-	return s.snaps
-}
-
-type blockingPipelineMonitor struct {
-	NoopPipelineMonitor
 	snaps   []ComponentSnapshot
+	reads   atomic.Int32
 	started chan struct{}
 	release chan struct{}
 }
 
-func (m *blockingPipelineMonitor) Snapshots() []ComponentSnapshot {
-	close(m.started)
-	<-m.release
-	return m.snaps
+func (s *stubPipelineMonitor) Snapshots() []ComponentSnapshot {
+	s.reads.Add(1)
+	if s.started != nil {
+		s.started <- struct{}{}
+	}
+	if s.release != nil {
+		<-s.release
+	}
+	return s.snaps
 }
 
 func saturatedSnapshot(name string, ratio float64, sat1m, sat30m time.Duration, currently bool) ComponentSnapshot {
@@ -149,35 +146,19 @@ func TestSelectBottleneck(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			state, bottleneck := SelectBottleneck(tc.comps)
-			assert.Equal(t, tc.wantState, state)
-			if tc.wantMember == "" {
-				assert.Nil(t, bottleneck)
-				return
-			}
-			require.NotNil(t, bottleneck)
-			assert.Equal(t, tc.wantMember, bottleneck.Component)
-			if tc.wantInstance != "" {
+			for shift := range tc.comps {
+				comps := append(tc.comps[shift:len(tc.comps):len(tc.comps)], tc.comps[:shift]...)
+				state, bottleneck := SelectBottleneck(comps)
+				assert.Equal(t, tc.wantState, state)
+				if tc.wantMember == "" {
+					assert.Nil(t, bottleneck)
+					continue
+				}
+				require.NotNil(t, bottleneck)
+				assert.Equal(t, tc.wantMember, bottleneck.Component)
 				assert.Equal(t, tc.wantInstance, bottleneck.Instance)
 			}
 		})
-	}
-}
-
-// Snapshots arrive in map order, so the same measurements must not blame different stages.
-func TestSelectBottleneckIsOrderIndependent(t *testing.T) {
-	comps := []ComponentBackpressure{
-		{Component: "worker", Instance: "0", AvgRatio: 0.9, CurrentlySaturated: true},
-		{Component: "processor", Instance: "0", AvgRatio: 0.9, CurrentlySaturated: true},
-		{Component: "strategy", Instance: "0", AvgRatio: 0.9, CurrentlySaturated: true},
-	}
-
-	for i := range comps {
-		shuffled := append(comps[i:len(comps):len(comps)], comps[:i]...)
-		state, bottleneck := SelectBottleneck(shuffled)
-		assert.Equal(t, BackpressureSaturated, state)
-		require.NotNil(t, bottleneck)
-		assert.Equal(t, "processor", bottleneck.Component, "rotation %d blamed a different stage", i)
 	}
 }
 
@@ -191,6 +172,41 @@ func TestDeriveBackpressureExcludesUnmeasured(t *testing.T) {
 
 	require.Len(t, summary.Components, 1)
 	assert.Equal(t, "processor", summary.Components[0].Component)
+}
+
+func TestBackpressureExcludesNonblockingDestinations(t *testing.T) {
+	now := time.Now()
+	for _, currently := range []bool{true, false} {
+		for _, blockingSaturated := range []bool{true, false} {
+			t.Run(fmt.Sprintf("current=%t/blocking_saturated=%t", currently, blockingSaturated), func(t *testing.T) {
+				unreliable := saturatedSnapshot("destination_unreliable_0", 0.99, time.Minute, time.Minute, currently)
+				unreliable.Windows.HasLastSaturated = true
+				unreliable.Windows.LastSaturatedAt = now
+				processor := saturatedSnapshot("processor", 0.2, 0, 0, false)
+				wantState, wantLoss := BackpressureHealthy, NoBottleneck
+				if blockingSaturated {
+					processor = saturatedSnapshot("processor", 0.95, time.Second, time.Second, currently)
+					processor.Windows.HasLastSaturated = true
+					processor.Windows.LastSaturatedAt = now.Add(-time.Second)
+					wantState, wantLoss = BackpressureWarning, "processor"
+					if currently {
+						wantState = BackpressureSaturated
+					}
+				}
+
+				summary := DeriveBackpressure([]ComponentSnapshot{unreliable, processor})
+				assert.Equal(t, wantState, summary.State)
+				assert.Equal(t, wantLoss, bottleneckDuringLoss(summary, now.Add(-time.Minute), now))
+				if blockingSaturated {
+					require.NotNil(t, summary.Bottleneck)
+					assert.Equal(t, "processor", summary.Bottleneck.Component)
+				} else {
+					assert.Nil(t, summary.Bottleneck)
+				}
+				assert.Len(t, summary.Components, 2, "nonblocking destination measurements remain visible")
+			})
+		}
+	}
 }
 
 func TestDeriveBackpressureRanksWorstFirst(t *testing.T) {
@@ -225,16 +241,6 @@ func TestDeriveBackpressureUnmeasuredIsUnknownNotHealthy(t *testing.T) {
 	}
 }
 
-// A registered monitor that measures nothing must stay distinguishable from a healthy one:
-// the issue text turns NoBottleneck into "the pipeline was keeping up".
-func TestCurrentBottleneckComponentNoopMonitorIsUnknown(t *testing.T) {
-	RegisterPipelineMonitor(NewNoopPipelineMonitor(""))
-	t.Cleanup(ResetPipelineMonitorForTest)
-
-	assert.Empty(t, BackpressureSnapshot().State)
-	assert.Empty(t, currentBottleneckComponent(time.Now().Add(-time.Minute)), "unmeasured must not be recorded as NoBottleneck")
-}
-
 // A component saturated right now with no 30m history sorts last on duration, so it only
 // survives a truncating caller if the bottleneck key outranks the duration key.
 func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
@@ -255,38 +261,34 @@ func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
 		"the bottleneck must be row 0 or a truncating caller drops it")
 }
 
-func TestBackpressureSnapshotUnregisteredIsUnknownNotHealthy(t *testing.T) {
-	ResetPipelineMonitorForTest()
-
-	summary := BackpressureSnapshot()
-	assert.Empty(t, summary.State, "an unread pipeline must not claim to be healthy")
-	assert.Nil(t, summary.Bottleneck)
-	assert.Empty(t, currentBottleneckComponent(time.Now().Add(-time.Minute)))
-}
-
 func TestCurrentBottleneckComponent(t *testing.T) {
-	ResetPipelineMonitorForTest()
-	t.Cleanup(ResetPipelineMonitorForTest)
-
-	RegisterPipelineMonitor(&stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("destination_reliable_0", 0.97, 0, 30*time.Minute, true)},
-	})
-	assert.Equal(t, "destination_reliable_0", currentBottleneckComponent(time.Now().Add(-time.Minute)))
+	for _, tc := range []struct {
+		name             string
+		monitor          PipelineMonitor
+		state, component string
+	}{
+		{name: "unregistered"},
+		{name: "noop", monitor: NewNoopPipelineMonitor("")},
+		{name: "empty", monitor: &stubPipelineMonitor{}},
+		{
+			name: "saturated", state: BackpressureSaturated, component: "destination_reliable_0",
+			monitor: &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("destination_reliable_0", 0.97, 0, time.Minute, true)}},
+		},
+		{
+			name: "healthy", state: BackpressureHealthy, component: NoBottleneck,
+			monitor: &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			RegisterPipelineMonitor(tc.monitor)
+			t.Cleanup(ResetPipelineMonitorForTest)
+			assert.Equal(t, tc.state, BackpressureSnapshot().State)
+			assert.Equal(t, tc.component, currentBottleneckComponent(time.Now().Add(-time.Minute)))
+		})
+	}
 }
 
-// Nothing saturated anywhere in the window is the one case that can claim the pipeline kept up:
-// it means rotation outran close_timeout rather than the pipeline's throughput.
-func TestCurrentBottleneckComponentHealthyIsNoBottleneck(t *testing.T) {
-	ResetPipelineMonitorForTest()
-	t.Cleanup(ResetPipelineMonitorForTest)
-
-	RegisterPipelineMonitor(&stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)},
-	})
-	assert.Equal(t, NoBottleneck, currentBottleneckComponent(time.Now().Add(-time.Minute)))
-}
-
-// Only saturation after the rotation is causal, even when both samples are inside the
+// Only saturation inside the loss window is attributed, even when both samples are inside the
 // trailing-minute aggregate.
 func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	ResetPipelineMonitorForTest()
@@ -313,27 +315,40 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 		"recovered saturation inside the post-rotation window remains attributable")
 }
 
-func TestCurrentBottleneckComponentMemoizes(t *testing.T) {
-	ResetPipelineMonitorForTest()
-	t.Cleanup(ResetPipelineMonitorForTest)
-
+func TestCurrentBottleneckComponentCoalescesConcurrentMisses(t *testing.T) {
+	const callers = 32
 	clk := clock.NewMock()
 	cache := newBottleneckCache(clk)
+	monitor := &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("worker", 0.95, 0, time.Minute, true)}}
+	RegisterPipelineMonitor(monitor)
+	t.Cleanup(ResetPipelineMonitorForTest)
+	window := clk.Now().Add(-time.Minute)
 
-	stub := &stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("worker", 0.95, 0, time.Minute, true)},
+	// Exercise both a cold cache and an expired one with an unchanged monitor.
+	for wave := 1; wave <= 2; wave++ {
+		monitor.started = make(chan struct{}, callers)
+		monitor.release = make(chan struct{})
+		start := make(chan struct{})
+		results := make(chan string, callers)
+		var ready sync.WaitGroup
+		ready.Add(callers)
+		for i := 0; i < callers; i++ {
+			go func() {
+				ready.Done()
+				<-start
+				results <- cache.get(window)
+			}()
+		}
+		ready.Wait()
+		close(start)
+		<-monitor.started
+		close(monitor.release)
+		for i := 0; i < callers; i++ {
+			assert.Equal(t, "worker", <-results)
+		}
+		assert.Equal(t, int32(wave), monitor.reads.Load(), "one snapshot per burst")
+		clk.Add(bottleneckCacheTTL)
 	}
-	RegisterPipelineMonitor(stub)
-	lossWindowStartedAt := clk.Now().Add(-time.Minute)
-
-	for i := 0; i < 100; i++ {
-		require.Equal(t, "worker", cache.get(lossWindowStartedAt))
-	}
-	assert.Equal(t, 1, stub.reads, "a rotation storm must not re-derive the bottleneck per rotation")
-
-	clk.Add(bottleneckCacheTTL)
-	require.Equal(t, "worker", cache.get(lossWindowStartedAt))
-	assert.Equal(t, 2, stub.reads, "the cache must expire so a recovered pipeline stops being blamed")
 }
 
 // A transport switch builds a new pipeline; the previous one's bottleneck is stale.
@@ -359,7 +374,7 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
 
-	oldMonitor := &blockingPipelineMonitor{
+	oldMonitor := &stubPipelineMonitor{
 		snaps:   []ComponentSnapshot{saturatedSnapshot("strategy", 0.95, 0, time.Minute, true)},
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -391,5 +406,5 @@ func TestRegisterPipelineMonitorDuringSnapshotRetriesWithNewMonitor(t *testing.T
 	}
 
 	assert.Equal(t, "processor", currentBottleneckComponent(time.Now().Add(-time.Minute)))
-	assert.Equal(t, 1, newMonitor.reads, "the replacement snapshot should be cached")
+	assert.Equal(t, int32(1), newMonitor.reads.Load(), "the replacement snapshot should be cached")
 }

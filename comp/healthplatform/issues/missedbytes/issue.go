@@ -93,7 +93,11 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	}
 
 	sources := decodeSources(ctx[contextKeySources])
-	lossBottleneck, lossBottleneckRotations, completeLossAttribution := lossAttribution(ctx, sources)
+	lossBottleneck := sanitizeIfSet(ctx[contextKeyLossBottleneck])
+	lossBottleneckRotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
+	if err != nil || lossBottleneckRotations <= 0 {
+		lossBottleneck = ""
+	}
 
 	// Nameable only when one source and one service are the entire loss.
 	named := sourceCount == 1 && len(sources) == 1 && omitted == 0
@@ -164,7 +168,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 			// Plain text: Summary is not rendered as markdown.
 			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: firstRemediationStep(bp, lossBottleneck, lossBottleneckRotations, completeLossAttribution, rotations, omitted)},
+				{Order: 1, Text: firstRemediationStep(bp, lossBottleneck, lossBottleneckRotations, rotations)},
 				{Order: 2, Text: "Increase `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) from its current value (default: 60 seconds) to give the tailer longer to finish a rotated file."},
 				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
 				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
@@ -269,7 +273,7 @@ func decodeBackpressure(encoded string) *backpressureWire {
 	if bp.State == "" {
 		return nil
 	}
-	// Bounded on the way in too: a persisted report may carry more than the cap.
+	// Keep decoded context bounded too.
 	if len(bp.Components) > maxBackpressureComponents {
 		bp.ComponentsOmitted += len(bp.Components) - maxBackpressureComponents
 		bp.Components = bp.Components[:maxBackpressureComponents]
@@ -333,7 +337,7 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 func describeCause(bp *backpressureWire, atLoss string, rotations int64) string {
 	if atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
-			return fmt.Sprintf("During %d of these %s the logs pipeline was keeping up, so the Agent ran out of time rather than throughput.",
+			return fmt.Sprintf("During %d of these %s no monitored blocking stage of the logs pipeline was saturated.",
 				rotations, pluralize(rotations, "rotation"))
 		}
 		return fmt.Sprintf("The %s stage of the logs pipeline was saturated during %d of these %s.",
@@ -347,43 +351,19 @@ func describeCause(bp *backpressureWire, atLoss string, rotations int64) string 
 		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
 }
 
-// lossAttribution prefers the host-wide attribution emitted by the current check; the capped
-// source breakdown keeps persisted reports from older Agents readable.
-func lossAttribution(ctx map[string]string, sources []sourceLoss) (string, int64, bool) {
-	component, present := ctx[contextKeyLossBottleneck]
-	rotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
-	if present && component != "" && err == nil && rotations > 0 {
-		return sanitizeIfSet(component), rotations, true
-	}
-	component, rotations = lossTimeBottleneck(sources)
-	return component, rotations, false
-}
-
-func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
-	totals := make(map[string]int64, len(sources))
-	for _, s := range sources {
-		if s.Bottleneck != "" && s.BottleneckRotations > 0 {
-			totals[s.Bottleneck] += s.BottleneckRotations
-		}
-	}
-	return dominantBottleneck(totals)
-}
-
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
-func firstRemediationStep(bp *backpressureWire, component string, blamed int64, completeAttribution bool, rotations, omitted int64) string {
-	// The source fallback keeps one stage per tuple and is capped, so what it leaves out
-	// could have been saturated.
-	whole := blamed == rotations && (completeAttribution || omitted == 0)
+func firstRemediationStep(bp *backpressureWire, component string, blamed, rotations int64) string {
+	whole := blamed == rotations
 
 	switch {
 	case component == logsmetrics.NoBottleneck && whole && saturatedNow(bp):
 		// The loss window is 24h, so "not the cause" does not make a live bottleneck ignorable.
-		return fmt.Sprintf("No pipeline component was saturated when this data was lost, so start with the `logs_config.close_timeout` step below. `%s` is saturated now, so follow the step that names it as well.",
+		return fmt.Sprintf("No monitored blocking stage was saturated when this data was lost, so start with the `logs_config.close_timeout` step below. `%s` is saturated now, so follow the step that names it as well.",
 			bp.Bottleneck.Component)
 	case component == logsmetrics.NoBottleneck && whole:
-		return "No pipeline component was saturated when this data was lost, so the `logs_config.close_timeout` step below is the one that applies."
+		return "No monitored blocking stage was saturated when this data was lost, so start with the `logs_config.close_timeout` step below."
 	case component == logsmetrics.NoBottleneck:
-		return fmt.Sprintf("%d of %d %s lost data with nothing saturated: start with the `logs_config.close_timeout` step below, then check this issue's details for rotations that were saturated.",
+		return fmt.Sprintf("%d of %d %s lost data without observed pipeline backpressure: start with the `logs_config.close_timeout` step below, then check this issue's details for rotations that were saturated.",
 			blamed, rotations, pluralize(rotations, "rotation"))
 	case component != "" && whole:
 		return fmt.Sprintf("The `%s` component was saturated when this data was lost. Follow the step below that names it, then confirm with `sudo datadog-agent status`.",

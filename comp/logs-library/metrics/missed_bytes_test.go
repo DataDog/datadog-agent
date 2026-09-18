@@ -265,7 +265,7 @@ func TestMissedBytesBottlenecksAgeOutWithTheirBucket(t *testing.T) {
 		"a stage blamed outside the window must not stay blamed")
 }
 
-// Stage names are a closed set today, but one carrying an instance would grow unbounded.
+// Destination names include endpoint IDs, so each bucket needs its own label cap.
 func TestMissedBytesBottlenecksAreCapped(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 
@@ -286,4 +286,30 @@ func TestMissedBytesBottlenecksAreCapped(t *testing.T) {
 	}
 	assert.Equal(t, int64(missedBytesMaxBottlenecks+overflow), summary.Rotations)
 	assert.Equal(t, int64(missedBytesMaxBottlenecks), attributed)
+}
+
+func TestMissedBytesAggregatesEveryBucketLabel(t *testing.T) {
+	tr, clk := newTestMissedBytesTracker()
+	want := make(map[string]int64)
+	for bucket := 0; bucket < 2; bucket++ {
+		for i := 0; i < missedBytesMaxBottlenecks; i++ {
+			stage := fmt.Sprintf("destination_reliable_%d", bucket*missedBytesMaxBottlenecks+i)
+			tr.record("nginx", "web", 10, stage)
+			want[stage]++
+		}
+		// Give one stage in each bucket more rotations than the others.
+		for i := 0; i < 10; i++ {
+			stage := fmt.Sprintf("destination_reliable_%d", bucket*missedBytesMaxBottlenecks)
+			tr.record("nginx", "web", 10, stage)
+			want[stage]++
+		}
+		clk.Add(missedBytesBucketSize)
+	}
+	tr.record("nginx", "web", 10, "destination_reliable_0")
+	want["destination_reliable_0"]++
+
+	for i := 0; i < 20; i++ {
+		summary := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+		assert.Equal(t, want, summary.Bottlenecks, "map iteration must not change attribution")
+	}
 }

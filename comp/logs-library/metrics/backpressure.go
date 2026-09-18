@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,15 +15,15 @@ import (
 )
 
 const (
-	// BackpressureSaturated means a component is at or above threshold right now.
+	// BackpressureSaturated means a blocking component is at or above threshold right now.
 	BackpressureSaturated = "SATURATED"
-	// BackpressureWarning means a component was saturated in the trailing 30m, but not now.
+	// BackpressureWarning means a blocking component was saturated in the trailing 30m, but not now.
 	BackpressureWarning = "WARNING"
-	// BackpressureHealthy means no component has been saturated in the trailing 30m.
+	// BackpressureHealthy means no blocking component has been saturated in the trailing 30m.
 	BackpressureHealthy = "HEALTHY"
 )
 
-// NoBottleneck labels a loss recorded while the pipeline was healthy.
+// NoBottleneck labels a loss with no observed saturation in a blocking component.
 const NoBottleneck = "none"
 
 // A read fresher than the utilization sampler's interval cannot contain new information.
@@ -66,12 +67,21 @@ func outranks[T int64 | float64](candidate, incumbent *ComponentBackpressure, ca
 	return candidate.Instance < incumbent.Instance
 }
 
-// SelectBottleneck returns the overall state and the component responsible for it.
+// canBackpressure excludes destinations fed through NonBlockingSend: a full buffer drops
+// their payloads rather than blocking the worker and, ultimately, the file tailer.
+func canBackpressure(component string) bool {
+	return !strings.HasPrefix(component, "destination_unreliable_")
+}
+
+// SelectBottleneck returns the overall state and the blocking component responsible for it.
 func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpressure) {
 	var currSat, sat1m, sat30m *ComponentBackpressure
 
 	for i := range comps {
 		c := &comps[i]
+		if !canBackpressure(c.Component) {
+			continue
+		}
 		if c.CurrentlySaturated && (currSat == nil || outranks(c, currSat, c.AvgRatio, currSat.AvgRatio)) {
 			currSat = c
 		}
@@ -192,6 +202,9 @@ func BackpressureSnapshot() BackpressureSummary {
 // bottleneckCache memoizes the derived summary: deriving it walks every component's rolling
 // history, while correlating the result with a rotation window is cheap.
 type bottleneckCache struct {
+	// Only cache misses take refreshMu. Snapshot derivation must not hold mu, since
+	// registration invalidates the cache while holding registeredMonitor's lock.
+	refreshMu  sync.Mutex
 	mu         sync.Mutex
 	clk        clock.Clock
 	summary    BackpressureSummary
@@ -221,6 +234,9 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 	var current, recovered *ComponentBackpressure
 	for i := range summary.Components {
 		component := &summary.Components[i]
+		if !canBackpressure(component.Component) {
+			continue
+		}
 		// CurrentlySaturated is debounced, so it can stay true briefly after recovery. When a
 		// precise sample timestamp is available, it must still fall inside the loss window.
 		saturatedDuringLoss := component.HasLastSaturated &&
@@ -256,20 +272,34 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 
 // get returns the bottleneck's component name without its instance, bounding cardinality.
 func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
+	now := c.clk.Now()
+	c.mu.Lock()
+	if c.fresh(lossWindowStartedAt, now) {
+		summary := c.summary
+		c.mu.Unlock()
+		return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
+	}
+	c.mu.Unlock()
+
+	// Coalesce concurrent misses, then recheck freshness: another rotation may have
+	// already refreshed the cache while this caller waited. Ingestion never takes this lock.
+	c.refreshMu.Lock()
+	defer c.refreshMu.Unlock()
+
 	// Bounded: a pipeline registering in a loop must not spin a rotating tailer.
 	for attempt := 0; attempt < 2; attempt++ {
 		now := c.clk.Now()
 
 		c.mu.Lock()
 		generation := c.generation
-		if c.valid && now.Sub(c.readAt) < bottleneckCacheTTL && !c.readAt.Before(lossWindowStartedAt) {
+		if c.fresh(lossWindowStartedAt, now) {
 			summary := c.summary
 			c.mu.Unlock()
 			return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
 		}
 		c.mu.Unlock()
 
-		// Derived outside the lock: a rotating tailer must not block on another tailer's read.
+		// Registration can invalidate an in-flight read without waiting for derivation.
 		summary := BackpressureSnapshot()
 
 		c.mu.Lock()
@@ -289,10 +319,15 @@ func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
 	return ""
 }
 
+// fresh requires c.mu to be held.
+func (c *bottleneckCache) fresh(lossWindowStartedAt, now time.Time) bool {
+	return c.valid && now.Sub(c.readAt) < bottleneckCacheTTL && !c.readAt.Before(lossWindowStartedAt)
+}
+
 var bottleneck = newBottleneckCache(clock.New())
 
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
-// when the pipeline was measured as healthy throughout it, or "" when attribution is unknown.
+// when no blocking component was observed saturated in it, or "" when attribution is unknown.
 func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
 	return bottleneck.get(lossWindowStartedAt)
 }

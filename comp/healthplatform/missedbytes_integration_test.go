@@ -58,6 +58,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),
 		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
+		logsmetrics.SaturatedSnapshotForTest("destination_unreliable_0", "0", 0.99, 30*time.Minute, true),
 	})
 	logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
 	logsmetrics.RecordMissedBytes("redis", "cache", 1024, time.Now())
@@ -129,5 +130,5 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	require.NotEmpty(t, bp, "backpressure must arrive as an object, not a string")
 	assert.Equal(t, "SATURATED", bp["state"].GetStringValue())
 	assert.Equal(t, "destination_reliable_0", bp["bottleneck"].GetStructValue().GetFields()["component"].GetStringValue())
-	assert.Len(t, bp["components"].GetListValue().GetValues(), 2)
+	assert.Len(t, bp["components"].GetListValue().GetValues(), 3, "nonblocking destination measurements remain visible")
 }

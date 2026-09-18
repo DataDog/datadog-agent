@@ -68,10 +68,8 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 			lastLossAt = s.LastLossAt
 		}
 		for component, count := range s.Bottlenecks {
-			// Each tuple's map is capped; their union is not.
-			if _, seen := bottleneckCounts[component]; !seen && len(bottleneckCounts) >= maxBackpressureComponents {
-				continue
-			}
+			// The tracker bounds tuples, buckets and labels. Keep all recorded counts
+			// here so report-size caps cannot hide the host-wide winner.
 			bottleneckCounts[component] += count
 		}
 	}
