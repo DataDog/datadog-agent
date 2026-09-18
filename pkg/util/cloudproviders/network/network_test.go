@@ -30,6 +30,23 @@ func mockGetVPCSubnetsForHostImpl(t *testing.T, mock func(context.Context) ([]st
 	getVPCSubnetsForHost = mock
 }
 
+// mockNoCloudDetected forces provider detection to be inconclusive, so
+// GetNetworkID falls through to racing GCE/EC2 directly, regardless of what
+// cloud (if any) the machine running the test is actually on.
+func mockNoCloudDetected(t *testing.T) {
+	t.Cleanup(func() { cache.Cache.Delete(networkIDProviderCacheKey) })
+	origEC2, origGCE := isRunningOnEC2, isRunningOnGCE
+	origAzure, origOracle := isRunningOnAzure, isRunningOnOracle
+	t.Cleanup(func() { isRunningOnEC2 = origEC2 })
+	t.Cleanup(func() { isRunningOnGCE = origGCE })
+	t.Cleanup(func() { isRunningOnAzure = origAzure })
+	t.Cleanup(func() { isRunningOnOracle = origOracle })
+	isRunningOnEC2 = func(context.Context) bool { return false }
+	isRunningOnGCE = func(context.Context) bool { return false }
+	isRunningOnAzure = func(context.Context) bool { return false }
+	isRunningOnOracle = func(context.Context) bool { return false }
+}
+
 func TestGetNetworkIDProviderGating(t *testing.T) {
 	gceErr := errors.New("gce error")
 	ec2Err := errors.New("ec2 error")
@@ -74,6 +91,7 @@ func TestGetNetworkIDProviderGating(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
+			mockNoCloudDetected(t)
 
 			cfg := configmock.New(t)
 			cfg.SetInTest("cloud_provider_metadata", tc.providers)
@@ -91,6 +109,75 @@ func TestGetNetworkIDProviderGating(t *testing.T) {
 			require.Equal(t, tc.ec2CallCount, ec2Calls)
 		})
 	}
+}
+
+func TestGetNetworkIDDetectedProviderIsUsedDirectly(t *testing.T) {
+	t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
+	t.Cleanup(func() { cache.Cache.Delete(networkIDProviderCacheKey) })
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{"gcp", "aws"})
+
+	origEC2, origGCE := isRunningOnEC2, isRunningOnGCE
+	origAzure, origOracle := isRunningOnAzure, isRunningOnOracle
+	t.Cleanup(func() { isRunningOnEC2 = origEC2 })
+	t.Cleanup(func() { isRunningOnGCE = origGCE })
+	t.Cleanup(func() { isRunningOnAzure = origAzure })
+	t.Cleanup(func() { isRunningOnOracle = origOracle })
+	isRunningOnGCE = func(context.Context) bool { return false }
+	isRunningOnAzure = func(context.Context) bool { return false }
+	isRunningOnOracle = func(context.Context) bool { return false }
+	ec2Detections := 0
+	isRunningOnEC2 = func(context.Context) bool { ec2Detections++; return true }
+
+	gceCalls, ec2Calls := 0, 0
+	origGCEFn, origEC2Fn := getGCENetworkID, getEC2NetworkID
+	t.Cleanup(func() { getGCENetworkID = origGCEFn })
+	t.Cleanup(func() { getEC2NetworkID = origEC2Fn })
+	getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", errors.New("should not be called") }
+	getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", errors.New("ec2 error") }
+
+	// call GetNetworkID twice; resolution fails both times so the networkID
+	// cache never gets populated, but the detected provider should still only
+	// be probed once, since a positive detection is cached
+	_, err1 := GetNetworkID(context.Background())
+	_, err2 := GetNetworkID(context.Background())
+	require.ErrorContains(t, err1, "ec2 error")
+	require.ErrorContains(t, err2, "ec2 error")
+	require.Equal(t, 1, ec2Detections, "cloud provider detection should be cached")
+	require.Equal(t, 2, ec2Calls, "network ID fetch should be retried")
+	require.Equal(t, 0, gceCalls, "GCE should not be probed once EC2 is positively detected")
+}
+
+func TestGetNetworkIDUnsupportedProviderShortCircuits(t *testing.T) {
+	t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
+	t.Cleanup(func() { cache.Cache.Delete(networkIDProviderCacheKey) })
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{"gcp", "aws"})
+
+	origEC2, origGCE := isRunningOnEC2, isRunningOnGCE
+	origAzure, origOracle := isRunningOnAzure, isRunningOnOracle
+	t.Cleanup(func() { isRunningOnEC2 = origEC2 })
+	t.Cleanup(func() { isRunningOnGCE = origGCE })
+	t.Cleanup(func() { isRunningOnAzure = origAzure })
+	t.Cleanup(func() { isRunningOnOracle = origOracle })
+	isRunningOnEC2 = func(context.Context) bool { return false }
+	isRunningOnGCE = func(context.Context) bool { return false }
+	isRunningOnAzure = func(context.Context) bool { return false }
+	isRunningOnOracle = func(context.Context) bool { return true }
+
+	gceCalls, ec2Calls := 0, 0
+	origGCEFn, origEC2Fn := getGCENetworkID, getEC2NetworkID
+	t.Cleanup(func() { getGCENetworkID = origGCEFn })
+	t.Cleanup(func() { getEC2NetworkID = origEC2Fn })
+	getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", nil }
+	getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", nil }
+
+	_, err := GetNetworkID(context.Background())
+	require.ErrorContains(t, err, "does not support network ID resolution")
+	require.Equal(t, 0, gceCalls, "GCE metadata endpoint should not be probed on a host known not to support it")
+	require.Equal(t, 0, ec2Calls, "EC2 metadata endpoint should not be probed on a host known not to support it")
 }
 
 func TestGetVPCSubnetsForHost(t *testing.T) {
