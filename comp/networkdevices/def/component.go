@@ -9,14 +9,10 @@ package networkdevices
 // team: network-device-monitoring-core
 
 import (
-	"context"
 	"net/http"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
 // Component is the component type.
 type Component interface {
-	CheckConnectivity(ctx context.Context, req connectivity.Request) (connectivity.Result, error)
 	ConnectivityCheckEndpointHandler() http.HandlerFunc
 }

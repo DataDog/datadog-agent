@@ -31,7 +31,7 @@ func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc
 			_ = conn.SetDeadline(time.Time{})
 		}
 
-		res, err := c.CheckConnectivity(r.Context(), req)
+		res, err := c.scan(r.Context(), req)
 		if err != nil {
 			c.logger.Errorf("networkdevices: connectivity check failed: %v", err)
 			status := http.StatusInternalServerError
