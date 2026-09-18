@@ -18,6 +18,7 @@ go_library(
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
+        "//pkg/gui/bootstrap",
         "//pkg/util/fxutil",
         "//pkg/util/system",
         "@com_github_spf13_cobra//:cobra",
