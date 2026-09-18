@@ -18,6 +18,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
+func TestReplaceFileWhenDestinationDoesNotExist(t *testing.T) {
+	runPath := t.TempDir()
+	destinationPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	sourcePath := filepath.Join(runPath, ".dogstatsd_contexts.tmp")
+	require.NoError(t, os.WriteFile(sourcePath, []byte("new dump"), 0644))
+
+	require.NoError(t, replaceFile(sourcePath, destinationPath))
+
+	contents, err := os.ReadFile(destinationPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("new dump"), contents)
+
+	_, err = os.Stat(sourcePath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestReplaceFileWhileDestinationIsOpen(t *testing.T) {
 	runPath := t.TempDir()
 	destinationPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")

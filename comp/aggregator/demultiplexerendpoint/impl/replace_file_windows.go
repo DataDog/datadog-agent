@@ -8,41 +8,23 @@
 package demultiplexerendpointimpl
 
 import (
-	"errors"
 	"os"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
-var replaceFileW = windows.NewLazySystemDLL("kernel32.dll").NewProc("ReplaceFileW")
-
 func replaceFile(sourcePath, destinationPath string) error {
-	if _, err := os.Stat(destinationPath); errors.Is(err, os.ErrNotExist) {
-		return os.Rename(sourcePath, destinationPath)
-	} else if err != nil {
-		return err
-	}
-
-	destination, err := windows.UTF16PtrFromString(destinationPath)
-	if err != nil {
-		return err
-	}
 	source, err := windows.UTF16PtrFromString(sourcePath)
 	if err != nil {
 		return err
 	}
+	destination, err := windows.UTF16PtrFromString(destinationPath)
+	if err != nil {
+		return err
+	}
 
-	success, _, callErr := replaceFileW.Call(
-		uintptr(unsafe.Pointer(destination)),
-		uintptr(unsafe.Pointer(source)),
-		0,
-		0,
-		0,
-		0,
-	)
-	if success == 0 {
-		return os.NewSyscallError("ReplaceFileW", callErr)
+	if err := windows.MoveFileEx(source, destination, windows.MOVEFILE_REPLACE_EXISTING); err != nil {
+		return &os.LinkError{Op: "rename", Old: sourcePath, New: destinationPath, Err: err}
 	}
 	return nil
 }
