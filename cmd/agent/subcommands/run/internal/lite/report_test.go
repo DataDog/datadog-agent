@@ -109,6 +109,7 @@ func TestRescueDoesNotSend(t *testing.T) {
 		{"encrypted key without backend", "api_key: ENC[key]\n", "", errors.New("failed"), false},
 		{"invalid TLS setting", "api_key: dummy\nmin_tls_version: nonsense\n", "", errors.New("failed"), false},
 		{"invalid bool", "api_key: dummy\nhealth_platform:\n  enabled: nonsense\n", "", errors.New("failed"), false},
+		{"invalid FQDN bool", "api_key: dummy\nconvert_dd_site_fqdn.enabled: nonsense\n", "", errors.New("failed"), false},
 		{"invalid proxy", "api_key: dummy\nproxy:\n  http: [broken]\n", "", errors.New("failed"), false},
 		{"invalid duration", "api_key: dummy\ntls_handshake_timeout: [broken]\n", "", errors.New("failed"), false},
 		{"invalid proxy bypass list", "api_key: dummy\nproxy:\n  no_proxy: {bad: value}\n", "", errors.New("failed"), false},

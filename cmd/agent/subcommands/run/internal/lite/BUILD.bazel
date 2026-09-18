@@ -19,6 +19,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/structure",
+        "//pkg/config/utils",
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
@@ -37,6 +38,8 @@ dd_agent_go_test(
     ],
     embed = [":lite"],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/utils",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//require",

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/spf13/cast"
 	"go.yaml.in/yaml/v3"
 )
@@ -39,7 +40,7 @@ type reportingConfig struct {
 
 // Only these settings can enter the private reporting configuration.
 var reportingKeys = []string{
-	"api_key", "site", "dd_url", "hostname", "fleet_policies_dir", "health_platform.enabled",
+	"api_key", "site", "dd_url", "hostname", "fleet_policies_dir", "health_platform.enabled", "convert_dd_site_fqdn.enabled",
 	"proxy.http", "proxy.https", "proxy.no_proxy", "skip_ssl_validation", "min_tls_version", "sslkeylogfile",
 	"tls_handshake_timeout", "http_dial_fallback_delay", "no_proxy_nonexact_match",
 	"use_proxy_for_cloud_metadata", "fips.enabled",
@@ -68,18 +69,30 @@ func recoverConfig(p Params) (*reportingConfig, string, error) {
 			return nil, "", err
 		}
 	}
-	// Fleet policies outrank environment variables, just as in normal startup.
+	return cfg, path, nil
+}
+
+// Normal startup merges Fleet after resolving secrets and sanitizing the key.
+func mergeFleetConfig(cfg *reportingConfig, p Params) error {
 	setup.FleetConfigOverride(cfg)
 	fleetDir := p.FleetPoliciesDir
 	if fleetDir == "" {
 		fleetDir = cfg.GetString("fleet_policies_dir")
 	}
 	if fleetDir != "" {
-		if err = loadSettings(cfg, filepath.Join(fleetDir, "datadog.yaml"), model.SourceFleetPolicies, true); err != nil {
-			return nil, "", err
-		}
+		return loadSettings(cfg, filepath.Join(fleetDir, "datadog.yaml"), model.SourceFleetPolicies, true)
 	}
-	return cfg, path, nil
+	return nil
+}
+
+func (cfg *reportingConfig) sanitizeAPIKey() {
+	original := cfg.GetString("api_key")
+	normalized := configutils.SanitizeAPIKey(original)
+	cfg.rememberSensitive("api_key", original)
+	cfg.rememberSensitive("api_key", normalized)
+	if original != normalized {
+		cfg.Set("api_key", normalized, model.SourceAgentRuntime)
+	}
 }
 
 func selectedPath(p Params) (string, error) {
@@ -263,7 +276,7 @@ func validateSettings(cfg model.Reader) error {
 
 func validValue(key string, value interface{}) bool {
 	switch key {
-	case "health_platform.enabled", "skip_ssl_validation", "no_proxy_nonexact_match", "use_proxy_for_cloud_metadata", "fips.enabled", "secret_backend_command_allow_group_exec_perm", "secret_backend_remove_trailing_line_break":
+	case "health_platform.enabled", "convert_dd_site_fqdn.enabled", "skip_ssl_validation", "no_proxy_nonexact_match", "use_proxy_for_cloud_metadata", "fips.enabled", "secret_backend_command_allow_group_exec_perm", "secret_backend_remove_trailing_line_break":
 		_, err := strconv.ParseBool(fmt.Sprint(value))
 		return err == nil
 	case "tls_handshake_timeout", "http_dial_fallback_delay":

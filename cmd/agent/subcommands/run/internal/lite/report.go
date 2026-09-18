@@ -46,9 +46,6 @@ func Rescue(ctx context.Context, params Params, startupErr error) error {
 	if err = validateSettings(cfg); err != nil {
 		return err
 	}
-	if !cfg.GetBool("health_platform.enabled") {
-		return nil
-	}
 	setup.LoadProxyFromEnv(cfg)
 	for _, key := range reportingKeys {
 		cfg.rememberSensitive(key, cfg.Get(key))
@@ -56,10 +53,21 @@ func Rescue(ctx context.Context, params Params, startupErr error) error {
 	if err = resolveSecrets(ctx, cfg); err != nil {
 		return err
 	}
+	cfg.sanitizeAPIKey()
+	if err = mergeFleetConfig(cfg, params); err != nil {
+		return err
+	}
+	if err = validateSettings(cfg); err != nil {
+		return err
+	}
+	if !cfg.GetBool("health_platform.enabled") {
+		return nil
+	}
 	if err = validateDestination(cfg); err != nil {
 		return err
 	}
-	key := strings.TrimSpace(cfg.GetString("api_key"))
+	cfg.sanitizeAPIKey()
+	key := cfg.GetString("api_key")
 	if key == "" || strings.Contains(key, "ENC[") {
 		return errors.New("no usable reporting API key")
 	}

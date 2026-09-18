@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -85,6 +87,18 @@ func TestReportingBackendPayloadPreservesCase(t *testing.T) {
 	}, settings["secret_backend_config"])
 }
 
+func TestRecoverPrivateFQDNSetting(t *testing.T) {
+	cleanEnv(t)
+	global := mock.New(t)
+	global.Set("convert_dd_site_fqdn.enabled", true, model.SourceAgentRuntime)
+	p := Params{ConfigPath: configFile(t, "api_key: dummy\nsite: datadoghq.eu\nconvert_dd_site_fqdn.enabled: false\nlogs_config: [broken\n")}
+	cfg, _, err := recoverConfig(p)
+	require.NoError(t, err)
+	require.False(t, cfg.GetBool("convert_dd_site_fqdn.enabled"))
+	require.Equal(t, "https://agenthealth-intake.datadoghq.eu", configutils.GetMainEndpoint(cfg, "https://agenthealth-intake.", "dd_url"))
+	require.True(t, global.GetBool("convert_dd_site_fqdn.enabled"))
+}
+
 func TestSelectedSources(t *testing.T) {
 	cleanEnv(t)
 	base := configFile(t, "api_key: base-key\n")
@@ -94,6 +108,7 @@ func TestSelectedSources(t *testing.T) {
 	t.Setenv("DD_API_KEY", "env-key")
 	cfg, _, err := recoverConfig(p)
 	require.NoError(t, err)
+	require.NoError(t, mergeFleetConfig(cfg, p))
 	require.Equal(t, "fleet-key", cfg.GetString("api_key"))
 	p.FleetPoliciesDir = ""
 	cfg, _, err = recoverConfig(p)

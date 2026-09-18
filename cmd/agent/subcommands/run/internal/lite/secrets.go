@@ -49,7 +49,13 @@ func resolveSecrets(ctx context.Context, cfg *reportingConfig) error {
 	if err != nil {
 		return errors.New("cannot encode reporting settings")
 	}
-	resolved, err := r.Resolve(raw, "agent-startup", "", "", false)
+	resolvedKeys := map[string]bool{}
+	r.SubscribeToChanges(func(_, _ string, path []string, _, _ any) {
+		if len(path) > 0 {
+			resolvedKeys[path[0]] = true
+		}
+	})
+	resolved, err := r.Resolve(raw, "agent-startup", "", "", true)
 	if err != nil {
 		return errors.New("cannot resolve reporting secrets")
 	}
@@ -60,11 +66,14 @@ func resolveSecrets(ctx context.Context, cfg *reportingConfig) error {
 		return errors.New("cannot decode reporting settings")
 	}
 	for key, value := range settings {
+		if !resolvedKeys[key] {
+			continue
+		}
 		if !validValue(key, value) {
 			return errors.New("invalid resolved reporting setting")
 		}
 		cfg.rememberSensitive(key, value)
-		cfg.Set(key, value, model.SourceAgentRuntime)
+		cfg.Set(key, value, model.SourceSecret)
 	}
 	return nil
 }

@@ -29,6 +29,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+func TestEndpointDiagnosticDoesNotLeakCredentials(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	defer server.Close()
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "dummy")
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("dd_url", strings.Replace(server.URL, "http://", "http://user-sentinel:password-sentinel@", 1))
+	var messages []string
+	ddlog.SetLogObserver(func(_ ddlog.LogLevel, message string) { messages = append(messages, message) })
+	t.Cleanup(func() { ddlog.SetLogObserver(nil) })
+	_, err := New(cfg).Send(context.Background(), &healthplatform.HealthReport{})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, calls.Load())
+	diagnostic := strings.Join(messages, "\n")
+	require.Contains(t, diagnostic, "dd_url")
+	require.NotContains(t, diagnostic, "sentinel")
+}
+
 func TestProxyWarningDoesNotLeakCredentials(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetInTest("proxy.http", "http://user-sentinel:password-sentinel@proxy.example:8080")
