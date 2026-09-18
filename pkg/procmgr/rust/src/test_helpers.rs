@@ -346,23 +346,26 @@ pub(crate) fn graceful_sleeper_exe() -> String {
     static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHED
         .get_or_init(|| {
-            // BUILD.bazel passes $(rlocationpath :graceful-sleeper) here.
-            let rlocation_path = std::env::var("GRACEFUL_SLEEPER_BIN")
+            // BUILD.bazel passes $(rlocationpath :graceful-sleeper) here. A cargo
+            // run has no runfiles tree, so it points at a built executable instead.
+            let sleeper_bin = std::env::var("GRACEFUL_SLEEPER_BIN")
                 .expect("GRACEFUL_SLEEPER_BIN is set by the Bazel test target");
-            let runfiles = runfiles::Runfiles::create()
-                .expect("graceful-sleeper is a runfile, so this test needs `bazel test`");
-            // What `rlocation!` expands to. The macro reads REPOSITORY_NAME through
-            // `env!`, which only Bazel sets, and that would stop the crate compiling
-            // under cargo. An absent name means the main repo, which is what "" is.
-            let resolved = runfiles
-                .rlocation_from(
-                    &rlocation_path,
-                    option_env!("REPOSITORY_NAME").unwrap_or(""),
-                )
-                .filter(|path| path.is_file())
-                .unwrap_or_else(|| {
-                    panic!("no graceful-sleeper runfile for {rlocation_path:?}");
-                });
+            let sleeper_path = std::path::Path::new(&sleeper_bin);
+            let resolved = if sleeper_path.is_absolute() && sleeper_path.is_file() {
+                sleeper_path.to_path_buf()
+            } else {
+                let runfiles = runfiles::Runfiles::create()
+                    .expect("graceful-sleeper is a runfile, so this test needs `bazel test`");
+                // What `rlocation!` expands to. The macro reads REPOSITORY_NAME through
+                // `env!`, which only Bazel sets, and that would stop the crate compiling
+                // under cargo. An absent name means the main repo, which is what "" is.
+                runfiles
+                    .rlocation_from(&sleeper_bin, option_env!("REPOSITORY_NAME").unwrap_or(""))
+                    .filter(|path| path.is_file())
+                    .unwrap_or_else(|| {
+                        panic!("no graceful-sleeper runfile for {sleeper_bin:?}");
+                    })
+            };
             materialize_windows_test_executable(&resolved)
                 .to_string_lossy()
                 .into_owned()
