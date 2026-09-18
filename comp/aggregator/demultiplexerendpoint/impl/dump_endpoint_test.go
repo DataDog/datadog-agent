@@ -11,7 +11,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/zstd"
@@ -24,22 +26,53 @@ func (f contextDumperFunc) DumpDogstatsdContexts(w io.Writer) error {
 	return f(w)
 }
 
-func TestWriteDogstatsdContextsLocksDump(t *testing.T) {
-	endpoint := demultiplexerEndpoint{runPath: t.TempDir()}
-	lockHeld := false
-	endpoint.demux = contextDumperFunc(func(w io.Writer) error {
-		if endpoint.dumpMu.TryLock() {
-			endpoint.dumpMu.Unlock()
-		} else {
-			lockHeld = true
-		}
-		_, err := io.WriteString(w, "{}\n")
-		return err
-	})
+func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
+	dumpStarted := make(chan struct{})
+	releaseDump := make(chan struct{})
+	var dumpCalls atomic.Int32
 
-	_, err := endpoint.writeDogstatsdContexts()
-	require.NoError(t, err)
-	require.True(t, lockHeld)
+	endpoint := demultiplexerEndpoint{
+		runPath: t.TempDir(),
+		demux: contextDumperFunc(func(w io.Writer) error {
+			if dumpCalls.Add(1) == 1 {
+				close(dumpStarted)
+			}
+			<-releaseDump
+			_, err := io.WriteString(w, "{}\n")
+			return err
+		}),
+	}
+
+	type result struct {
+		path string
+		err  error
+	}
+	resultCh := make(chan result, 2)
+	writeDump := func() {
+		path, err := endpoint.writeDogstatsdContexts()
+		resultCh <- result{path: path, err: err}
+	}
+
+	go writeDump()
+	<-dumpStarted
+
+	secondRequestStarted := make(chan struct{})
+	go func() {
+		close(secondRequestStarted)
+		writeDump()
+	}()
+	<-secondRequestStarted
+	for range 10 {
+		runtime.Gosched()
+	}
+	close(releaseDump)
+
+	firstResult := <-resultCh
+	secondResult := <-resultCh
+	require.NoError(t, firstResult.err)
+	require.NoError(t, secondResult.err)
+	require.Equal(t, firstResult.path, secondResult.path)
+	require.Equal(t, int32(1), dumpCalls.Load())
 }
 
 func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
