@@ -7,6 +7,7 @@ package invalidconfig
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -69,6 +70,76 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Len(t, errorsStruct.GetFields(), 2, "each violation must get its own key")
 	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
 	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
+}
+
+func TestBuildIssue_Remediation(t *testing.T) {
+	for _, tc := range []struct{ name, violations, want string }{
+		{"integer_default", `[{"path":"/dogstatsd_port","actual_type":"object","expected_types":["integer"],"default_status":"known","default_value":8125}]`,
+			"`/dogstatsd_port` received a YAML mapping instead of a whole number. Replace it with a whole number. The default value for this setting is `8125`."},
+		{"false_default", `[{"path":"/logs_enabled","actual_type":"string","expected_types":["boolean"],"default_status":"known","default_value":false}]`,
+			"`/logs_enabled` received a string instead of true or false. Replace it with true or false. The default value for this setting is `false`."},
+		{"zero_default", `[{"path":"/agent_ipc/port","actual_type":"string","expected_types":["integer"],"default_status":"known","default_value":0}]`,
+			"`/agent_ipc/port` received a string instead of a whole number. Replace it with a whole number. The default value for this setting is `0`."},
+		{"empty_default", `[{"path":"/api_key","actual_type":"array","expected_types":["string"],"default_status":"known","default_value":""}]`,
+			"`/api_key` received a YAML list instead of a string. Replace it with a string. The default value for this setting is `\"\"` (an empty string)."},
+		{"no_default", `[{"path":"/agent_ipc","actual_type":"string","expected_types":["object"],"default_status":"none"}]`,
+			"`/agent_ipc` received a string instead of a YAML mapping. Replace it with a YAML mapping. This setting has no default."},
+		{"unknown_default", `[{"path":"/additional_endpoints/example","actual_type":"null","expected_types":["array"],"default_status":"unknown"}]`,
+			"`/additional_endpoints/example` received null instead of a YAML list. Replace it with a YAML list."},
+		{"union", `[{"path":"/setting","actual_type":"boolean","expected_types":["integer","number","string"],"default_status":"unknown"}]`,
+			"`/setting` received true or false instead of a whole number, a number, or a string. Replace it with a whole number, a number, or a string."},
+		{"unusual_path", "[{\"path\":\"/key`[link](https://example.test)\\n\",\"actual_type\":\"number\",\"expected_types\":[\"string\"],\"default_status\":\"unknown\"}]",
+			"``/key`[link](https://example.test) `` received a number instead of a string. Replace it with a string."},
+		{"backtick_default", "[{\"path\":\"/setting\",\"actual_type\":\"array\",\"expected_types\":[\"string\"],\"default_status\":\"known\",\"default_value\":\"`example`\"}]",
+			"`/setting` received a YAML list instead of a string. Replace it with a string. The default value for this setting is ``\"`example`\"``."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+				contextKeyViolationsVersion: "1", contextKeyViolations: tc.violations,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
+		})
+	}
+}
+
+func TestBuildIssue_RemediationFallback(t *testing.T) {
+	for _, raw := range []string{"", "not JSON", "null", "[]", "[{}]",
+		`[{"path":"/setting","actual_type":"string","expected_types":["unsupported"],"default_status":"unknown"}]`,
+		`[{"path":"/setting","actual_type":"string","expected_types":["integer"],"default_status":"known"}]`,
+	} {
+		issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+			contextKeyViolationsVersion: "1", contextKeyViolations: raw,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "Fix each violation listed in the description.", issue.Remediation.Steps[1].Text, raw)
+	}
+}
+
+func TestBuildIssue_MultipleCorrections(t *testing.T) {
+	for _, count := range []int{2, 11, 12} {
+		violations := make([]violationPayload, count)
+		for i := range violations {
+			violations[i] = violationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
+		}
+		raw, err := json.Marshal(violations)
+		require.NoError(t, err)
+		issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+			contextKeyViolationsVersion: "1", contextKeyViolations: string(raw),
+		})
+		require.NoError(t, err)
+		text := issue.Remediation.Steps[1].Text
+		assert.True(t, strings.HasPrefix(text, "- `/setting0` received a string instead of a whole number."))
+		assert.Equal(t, min(count, 10), strings.Count(text, "Replace it with a whole number."))
+		if count > 10 {
+			if count == 11 {
+				assert.Contains(t, text, "1 more violation is listed in the description.")
+			} else {
+				assert.Contains(t, text, "2 more violations are listed in the description.")
+			}
+			assert.NotContains(t, text, "`/setting10`")
+		}
+	}
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
