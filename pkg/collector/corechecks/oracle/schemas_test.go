@@ -38,7 +38,6 @@ func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
 	c.multitenant = true
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 2
 
 	return c, sqlxDB, dbMock, func() { db.Close() }
 }
@@ -318,7 +317,6 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxTables = 1
 	collectViews := false
 	c.config.Schemas.CollectViews = &collectViews
@@ -398,7 +396,6 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	collectViews := false
 	c.config.Schemas.CollectViews = &collectViews
 
@@ -456,7 +453,6 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
 	c.cdbName = "free"
-	c.config.Schemas.PayloadChunkSize = 100
 
 	var payloads []schemaEvent
 	collector := newSchemaCollector(&c, func(b []byte) {
@@ -519,7 +515,6 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 func TestMaxTablesTruncationFlag(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxTables = 1
 
 	var payloads []schemaEvent
@@ -545,7 +540,6 @@ func TestMaxTablesTruncationFlag(t *testing.T) {
 func TestMaxTablesNotTruncatedWhenUnderCap(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxTables = 300
 
 	var payloads []schemaEvent
@@ -570,7 +564,6 @@ func TestMaxTablesNotTruncatedWhenUnderCap(t *testing.T) {
 func TestMaxColumnsCapsColumnsAndFlagsTruncation(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxColumns = 2
 
 	var payloads []schemaEvent
@@ -600,7 +593,6 @@ func TestMaxColumnsCapsColumnsAndFlagsTruncation(t *testing.T) {
 func TestMaxColumnsNotTruncatedWhenUnderCap(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxColumns = 50
 
 	var payloads []schemaEvent
@@ -625,7 +617,6 @@ func TestMaxColumnsNotTruncatedWhenUnderCap(t *testing.T) {
 func TestMaxColumnsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxColumns = 2
 
 	var payloads []schemaEvent
