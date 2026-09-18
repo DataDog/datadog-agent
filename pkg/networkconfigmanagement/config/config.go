@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v2" // not v3 due to the conversion of an integer to a time.Duration
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

@@ -117,6 +117,12 @@
         "enabled": false
       },
       {
+        "description": "DBMON-6923: paused pending a product decision on Oracle version support",
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/sijms/go-ora{,/v*}"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/moby/moby{,/**}"],
         "groupName": "moby/moby"

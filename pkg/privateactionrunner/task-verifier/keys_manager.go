@@ -27,6 +27,7 @@ type UpdateCallback func(map[string]state.RawConfig, func(string, state.ApplySta
 
 type keysManager struct {
 	rcClient               rcclient.Client
+	proofProvider          rcclient.Client
 	stopChan               chan bool
 	keys                   map[string]storedKey
 	mu                     sync.RWMutex
@@ -44,8 +45,21 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	manager, _ := NewKeyManagerWithCallback()
 	if manager, ok := manager.(*keysManager); ok {
 		manager.rcClient = rcClient
+		manager.proofProvider = rcClient
 	}
 	return manager
+}
+
+// SetProofProvider attaches the Remote Config proof provider to a key manager
+// whose update callback was registered eagerly through Fx. Keeping this
+// separate from rcClient avoids subscribing the manager a second time when it
+// starts.
+func SetProofProvider(manager KeysManager, provider rcclient.Client) {
+	if manager, ok := manager.(*keysManager); ok {
+		manager.mu.Lock()
+		manager.proofProvider = provider
+		manager.mu.Unlock()
+	}
 }
 
 // NewKeyManagerWithCallback returns a key manager and the callback to register
@@ -69,14 +83,15 @@ func (k *keysManager) Start(ctx context.Context) {
 func (k *keysManager) GetKey(keyId string) (types.DecodedKey, *types.DirectorKeyProof) {
 	k.mu.RLock()
 	entry, ok := k.keys[keyId]
+	proofProvider := k.proofProvider
 	k.mu.RUnlock()
 	if !ok {
 		return nil, nil
 	}
-	if k.rcClient == nil {
+	if proofProvider == nil {
 		return entry.key, nil
 	}
-	proof, ok := k.rcClient.GetConfigTUFProof(entry.targetPath)
+	proof, ok := proofProvider.GetConfigTUFProof(entry.targetPath)
 	if !ok {
 		return entry.key, nil
 	}

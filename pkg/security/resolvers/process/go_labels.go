@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"go/version"
 	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 
@@ -41,6 +42,15 @@ var (
 	// out of the binary, so we cannot tell whether the runtime keeps g in TLS.
 	errRuntimeIsCgoUnavailable = errors.New("runtime.iscgo value unavailable")
 )
+
+// stripGoVersion reduces a Go buildinfo version string down to its bare
+// "goX.Y.Z" toolchain version.
+func stripGoVersion(goVersion string) string {
+	if i := strings.IndexByte(goVersion, ' '); i >= 0 {
+		return goVersion[:i]
+	}
+	return goVersion
+}
 
 // getGoLabelsOffsets returns the Go runtime struct offsets for pprof label reading,
 // based on the Go version. Kept in sync with the OTel eBPF profiler's
@@ -116,6 +126,7 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	if goVersion == "" {
 		return fmt.Errorf("%w: not a Go binary", errSpanCtxGone)
 	}
+	goVersion = stripGoVersion(goVersion)
 
 	if version.Compare(goVersion, minGoVersion) < 0 || version.Compare(goVersion, maxGoVersion) >= 0 {
 		return fmt.Errorf("%w: Go version %s (need >= %s and < %s)", errSpanCtxUnsupported, goVersion, minGoVersion, maxGoVersion)
