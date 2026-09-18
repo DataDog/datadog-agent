@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,19 +25,35 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
-	var deviceCount int
-	for start := time.Now(); time.Since(start) < timeout; {
-		deviceCount = len(discovery.GetDiscoveredDeviceConfigs())
-		if deviceCount >= expectedDeviceCount {
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
+func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int) error {
+	synctest.Wait()
+	deviceCount := len(discovery.GetDiscoveredDeviceConfigs())
+	if deviceCount == expectedDeviceCount {
+		return nil
 	}
-	return fmt.Errorf("timeout after waiting for %v, expected at least %d devices but %d has been discovered", timeout, expectedDeviceCount, deviceCount)
+	return fmt.Errorf("expected exactly %d devices but %d has been discovered", expectedDeviceCount, deviceCount)
+}
+
+func cacheKey(checkConfig *checkconfig.CheckConfig) string {
+	return fmt.Sprintf("%s:%s", cacheKeyPrefix, checkConfig.DeviceDigest(checkConfig.Network))
+}
+
+func readCachedIPs(t *testing.T, discovery *Discovery, cacheKey string) []string {
+	t.Helper()
+	ips, err := discovery.readCache(&snmpSubnet{cacheKey: cacheKey})
+	assert.NoError(t, err)
+	var ipStrings []string
+	for _, ip := range ips {
+		ipStrings = append(ipStrings, ip.String())
+	}
+	return ipStrings
 }
 
 func TestDiscovery(t *testing.T) {
+	synctest.Test(t, syncTestDiscovery)
+}
+
+func syncTestDiscovery(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetInTest("run_path", t.TempDir())
 
@@ -65,7 +83,7 @@ func TestDiscovery(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 7))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -88,6 +106,10 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
+	synctest.Test(t, syncTestDiscoveryCache)
+}
+
+func syncTestDiscoveryCache(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetInTest("run_path", t.TempDir())
 
@@ -116,7 +138,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 4))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -149,7 +171,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery2 := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery2.Start()
-	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4))
 	discovery2.Stop()
 
 	deviceConfigsFromCache := discovery2.GetDiscoveredDeviceConfigs()
@@ -159,11 +181,16 @@ func TestDiscoveryCache(t *testing.T) {
 		actualDiscoveredIpsFromCache = append(actualDiscoveredIpsFromCache, deviceCk.GetIPAddress())
 	}
 	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIpsFromCache)
+
+	// test readCache directly against what discovery's pass persisted to disk
+	assert.ElementsMatch(t, expectedDiscoveredIps, readCachedIPs(t, discovery2, cacheKey(checkConfig)))
 }
 
 func TestDiscoveryTicker(t *testing.T) {
-	t.Skip() // TODO: FIX ME, currently this test is leading to data race when ran with other tests
+	synctest.Test(t, syncTestDiscoveryTicker)
+}
 
+func syncTestDiscoveryTicker(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetInTest("run_path", t.TempDir())
 
@@ -347,9 +374,27 @@ func TestDiscovery_createDevice(t *testing.T) {
 	device1Digest := subnet.config.DeviceDigest("192.168.0.1")
 	device2Digest := subnet.config.DeviceDigest("192.168.0.2")
 	device3Digest := subnet.config.DeviceDigest("192.168.0.3")
-	discovery.createDevice(device1Digest, subnet, "192.168.0.1", true)
+
+	// loading device1 at startup should not mark the cache dirty
+	assert.False(t, subnet.cacheDirty)
+	discovery.createDevice(device1Digest, subnet, "192.168.0.1", false)
+	assert.False(t, subnet.cacheDirty)
+	discovery.writeCache(subnet)
+	assert.Empty(t, readCachedIPs(t, discovery, subnet.cacheKey))
+
+	// discovering device2 should mark the cache dirty, and writing encompass device1
 	discovery.createDevice(device2Digest, subnet, "192.168.0.2", true)
-	discovery.createDevice(device3Digest, subnet, "192.168.0.3", false)
+	assert.True(t, subnet.cacheDirty)
+	discovery.writeCache(subnet)
+	assert.False(t, subnet.cacheDirty)
+	assert.ElementsMatch(t, []string{"192.168.0.1", "192.168.0.2"}, readCachedIPs(t, discovery, subnet.cacheKey))
+
+	// discovering device3 should also mark the cache dirty, and writing encompass all 3
+	discovery.createDevice(device3Digest, subnet, "192.168.0.3", true)
+	assert.True(t, subnet.cacheDirty)
+	discovery.writeCache(subnet)
+	assert.False(t, subnet.cacheDirty)
+	assert.ElementsMatch(t, []string{"192.168.0.1", "192.168.0.2", "192.168.0.3"}, readCachedIPs(t, discovery, subnet.cacheKey))
 
 	assert.Equal(t, 3, len(discovery.discoveredDevices))
 
@@ -360,11 +405,6 @@ func TestDiscovery_createDevice(t *testing.T) {
 
 	assert.Equal(t, device2Digest, discovery.discoveredDevices[device2Digest].deviceDigest)
 	assert.Equal(t, "192.168.0.2", discovery.discoveredDevices[device2Digest].deviceIP)
-
-	// test that only createDevice with writeCache:true are written to cache
-	ips, err := discovery.readCache(subnet)
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(ips))
 
 	// test deleteDevice
 	assert.Equal(t, 0, subnet.deviceFailures[device1Digest])
@@ -379,9 +419,16 @@ func TestDiscovery_createDevice(t *testing.T) {
 	assert.Equal(t, true, present)
 	discovery.deleteDevice(device1Digest, subnet) // really deletes the device
 	assert.Equal(t, 2, len(discovery.discoveredDevices))
+	discovery.writeCache(subnet)
+	assert.False(t, subnet.cacheDirty)
+	assert.ElementsMatch(t, []string{"192.168.0.2", "192.168.0.3"}, readCachedIPs(t, discovery, subnet.cacheKey))
 }
 
 func TestDeviceScansAreRequested(t *testing.T) {
+	synctest.Test(t, syncTestDeviceScansAreRequested)
+}
+
+func syncTestDeviceScansAreRequested(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetInTest("run_path", t.TempDir())
 
@@ -428,8 +475,206 @@ func TestDeviceScansAreRequested(t *testing.T) {
 
 	discovery := NewDiscovery(checkConfig, sessionFactory, config, scanManager)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 4))
 	discovery.Stop()
 
 	mockScanManager.AssertExpectations(t)
+}
+
+func TestDiscoveryWritesCacheOnceAfterTheWholePass(t *testing.T) {
+	synctest.Test(t, syncTestDiscoveryWritesCacheOnceAfterTheWholePass)
+}
+
+func syncTestDiscoveryWritesCacheOnceAfterTheWholePass(t *testing.T) {
+	config := agentconfig.NewMock(t)
+	config.SetInTest("run_path", t.TempDir())
+
+	sess := session.CreateMockSession()
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+	device1Chan := make(chan time.Time)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).WaitUntil(device1Chan).Return(&packet, nil).Once()
+	device2Chan := make(chan time.Time)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).WaitUntil(device2Chan).Return(&packet, nil).Once()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	checkConfig := &checkconfig.CheckConfig{
+		Network:            "192.168.0.0/30",
+		CommunityString:    "public",
+		DiscoveryInterval:  3600,
+		DiscoveryWorkers:   1,
+		IgnoredIPAddresses: map[string]bool{"192.168.0.2": true, "192.168.0.3": true},
+		ProfileProvider:    profile.StaticProvider(nil),
+	}
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
+
+	returnDevice1 := sync.OnceFunc(func() { close(device1Chan) })
+	returnDevice2 := sync.OnceFunc(func() { close(device2Chan) })
+	discovery.Start()
+	t.Cleanup(func() {
+		// never leave a worker goroutine blocked, even if an assertion fails
+		returnDevice1()
+		returnDevice2()
+		discovery.Stop()
+	})
+
+	// the worker is now durably blocked inside device1's Get
+	synctest.Wait()
+
+	// let device1's check complete: the worker moves on to device2's Get
+	returnDevice1()
+	synctest.Wait()
+
+	// nothing should be written yet: device1 succeeded, but the pass isn't done
+	assert.Empty(t, readCachedIPs(t, discovery, cacheKey(checkConfig)))
+
+	// let device2's check complete: this finishes the pass
+	returnDevice2()
+	synctest.Wait()
+
+	// the completed pass writes the cache once, covering both devices
+	assert.ElementsMatch(t, []string{"192.168.0.0", "192.168.0.1"}, readCachedIPs(t, discovery, cacheKey(checkConfig)))
+}
+
+func TestDiscoveryStopWaitsForInFlightCheck(t *testing.T) {
+	synctest.Test(t, syncTestDiscoveryStopWaitsForInFlightCheck)
+}
+
+func syncTestDiscoveryStopWaitsForInFlightCheck(t *testing.T) {
+	config := agentconfig.NewMock(t)
+	config.SetInTest("run_path", t.TempDir())
+
+	sess := session.CreateMockSession()
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+	deviceChan := make(chan time.Time)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).WaitUntil(deviceChan).Return(&packet, nil)
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	checkConfig := &checkconfig.CheckConfig{
+		Network:           "192.168.0.0/32",
+		CommunityString:   "public",
+		DiscoveryInterval: 3600,
+		DiscoveryWorkers:  1,
+		ProfileProvider:   profile.StaticProvider(nil),
+	}
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
+	discovery.Start()
+
+	returnDevice := sync.OnceFunc(func() { close(deviceChan) })
+	t.Cleanup(returnDevice) // never leave the worker goroutine blocked, even if an assertion fails
+
+	// the worker is now durably blocked inside Get, mid-pass
+	synctest.Wait()
+
+	// Stop is now durably blocked on <-d.done, waiting on the check above
+	stopped := make(chan struct{})
+	go func() {
+		discovery.Stop()
+		close(stopped)
+	}()
+	synctest.Wait()
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned before the in-flight device check completed")
+	default:
+	}
+
+	// releasing the blocked check lets the pass, and Stop, run to completion
+	returnDevice()
+	synctest.Wait()
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("Stop did not return after the in-flight device check completed")
+	}
+
+	// by the time Stop returned, the pass's trailing cache write must already be on disk
+	assert.ElementsMatch(t, []string{"192.168.0.0"}, readCachedIPs(t, discovery, cacheKey(checkConfig)))
+}
+
+func TestDiscoveryStopCancelsPendingSchedule(t *testing.T) {
+	synctest.Test(t, syncTestDiscoveryStopCancelsPendingSchedule)
+}
+
+func syncTestDiscoveryStopCancelsPendingSchedule(t *testing.T) {
+	config := agentconfig.NewMock(t)
+	config.SetInTest("run_path", t.TempDir())
+
+	sess := session.CreateMockSession()
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+	deviceChan := make(chan time.Time)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).WaitUntil(deviceChan).Return(&packet, nil)
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	checkConfig := &checkconfig.CheckConfig{
+		Network:            "192.168.0.0/30",
+		CommunityString:    "public",
+		DiscoveryInterval:  3600,
+		DiscoveryWorkers:   1,
+		IgnoredIPAddresses: map[string]bool{"192.168.0.2": true, "192.168.0.3": true},
+		ProfileProvider:    profile.StaticProvider(nil),
+	}
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
+	discovery.Start()
+
+	returnDevice := sync.OnceFunc(func() { close(deviceChan) })
+	t.Cleanup(returnDevice) // never leave the worker goroutine blocked, even if an assertion fails
+
+	// the single worker is now durably blocked checking 192.168.0.0; with no
+	// worker free, scheduling 192.168.0.1 is durably blocked too
+	synctest.Wait()
+
+	// Stop must not wait for a job that was never picked up by a worker
+	stopped := make(chan struct{})
+	go func() {
+		discovery.Stop()
+		close(stopped)
+	}()
+	synctest.Wait()
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned before the in-flight device check completed")
+	default:
+	}
+
+	// releasing the blocked check lets the pass, and Stop, run to completion
+	returnDevice()
+	synctest.Wait()
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("Stop did not return: it hung waiting on the abandoned job")
+	}
+
+	// only the device that was actually checked made it into the cache
+	assert.ElementsMatch(t, []string{"192.168.0.0"}, readCachedIPs(t, discovery, cacheKey(checkConfig)))
 }
