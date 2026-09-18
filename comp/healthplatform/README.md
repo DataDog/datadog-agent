@@ -56,6 +56,13 @@ The state machine in the store (`store/impl/store.go`):
 
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
+Persistence depends on the process and environment:
+
+- Non-Kubernetes Agents use the local `issues.json` file.
+- Kubernetes Agents with `health_platform.persist_on_kubernetes: true` also use that file, which requires a durable `run_path` volume.
+- The long-running Kubernetes node Agent loads recent open issues from `https://api.<site>` when both `api_key` and `app_key` are configured. The application key must have `apm_read`; use a dedicated least-privileged key. Standard Agent proxy settings apply, but the metrics-intake `dd_url` override does not. This implementation is load-only; the existing Health Platform egress remains the write path.
+- Otherwise on Kubernetes, Cluster Agents, Cluster Check Runners, one-shot Agent commands, node Agents without the required credentials, Agents using the local FIPS proxy, and Agents with TLS certificate verification disabled use no-op persistence.
+
 ## Cluster-wide issue collapse (`deployment_id`)
 
 The backend dedups issues by `id` alone, ignoring hostname. By default this means every issue module

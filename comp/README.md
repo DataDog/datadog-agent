@@ -390,7 +390,7 @@ Package status defines the interface for the health platform status component.
 
 Package store provides the interface for the health platform store component.
 The store is the central state owner: it receives issue reports, owns the
-in-memory issue map, persists state to disk, and exposes the local
+in-memory issue map, persists lifecycle state, and exposes the local
 /health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
