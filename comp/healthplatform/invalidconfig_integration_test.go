@@ -118,7 +118,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			}
 		}
 		return false
-	}, waitTimeout, waitInterval, "invalid-config issue with value-free errors never reached fakeintake")
+	}, waitTimeout, waitInterval, "invalid-config issue never reached fakeintake")
 	require.NotNil(t, receivedIssue)
 
 	errorsStruct := receivedIssue.GetExtra().GetFields()["errors"].GetStructValue()

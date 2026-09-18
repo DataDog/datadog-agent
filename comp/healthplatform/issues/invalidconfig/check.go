@@ -43,7 +43,6 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	// Validate effective customer settings, including locally resolved secrets.
-	// Only value-free diagnostics leave this checker.
 	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {
 		return nil, nil
@@ -126,7 +125,6 @@ func (c *checker) instanceIssueID() string {
 }
 
 // normalizeForSchema coerces a Go-native config map into JSON-native types.
-// Values stay local; only value-free diagnostics are included in the issue.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {

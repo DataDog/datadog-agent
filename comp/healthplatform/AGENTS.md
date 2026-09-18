@@ -398,4 +398,4 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
 | Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |
-| Hardcoding config values or secrets in context maps | Prefer value-free diagnostics; use the existing scrubber for user-supplied text that must be included |
+| Hardcoding config values or secrets in context maps | Keep configured values out of issue reports; use the existing scrubber for user-supplied text that must be included |
