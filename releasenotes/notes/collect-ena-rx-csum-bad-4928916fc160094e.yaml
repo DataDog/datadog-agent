@@ -1,4 +1,10 @@
 ---
 fixes:
   - |
-    Collect per-queue ENA receive checksum error metrics exposed by current Linux drivers.
+    Collect the per-queue ENA ``system.net.ena.queue.rx_csum_bad`` metric.
+    Linux 5.17 renamed the ethtool statistic from ``rx_bad_csum`` to
+    ``rx_csum_bad``, and the Agent now collects both spellings. A host reports
+    only one of them, so on hosts that cross the 5.17 boundary
+    ``system.net.ena.queue.rx_bad_csum`` goes quiet and
+    ``system.net.ena.queue.rx_csum_bad`` appears in its place; monitors and
+    dashboards built on the old metric name need updating.
