@@ -99,7 +99,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
-	if s.observerHandle != nil {
+	if s.observerHandle != nil && isGaugeMetricForObserver(metricSample.Mtype) {
 		context, _ := s.contextResolver.get(contextKey)
 		s.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,

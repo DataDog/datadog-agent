@@ -216,7 +216,9 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
-							if w.observerHandle != nil {
+							// AAD currently analyses only raw gauges. Keep every other
+							// supported type in the normal serialization path below.
+							if w.observerHandle != nil && isGaugeMetricForObserver(sample.Mtype) {
 								contextKey := w.contextKeyGenerator.Generate(sample.Name, sample.Host, w.metricBuffer.Get())
 								w.observerHandle.ObserveMetric(resolvedMetricView{
 									sample: &sample,

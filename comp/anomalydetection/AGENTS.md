@@ -105,7 +105,7 @@ its behavior or cost.
 
 ## Data Ingress (Handle Sources)
 
-Production callers of `observer.GetHandle()` use statically-defined source names:
+Production callers of `observer.GetHandle()` use statically-defined source names. Native metric taps admit only raw gauges (`GaugeType` and `GaugeWithTimestampType`); counters, rates, histograms, sets, and distributions remain in the Agent metrics pipeline until type-specific AAD support exists.
 
 | Source | Wired from |
 |--------|------------|

@@ -97,40 +97,55 @@ func (c *recordingComponent) SubscribeSeverityEventsReader(_ severityeventsdef.S
 	return severityeventsdef.SeverityEventsReaderSubscription{Unsubscribe: func() {}}, nil
 }
 
-// TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each
-// sample fed to the TimeSampler when an observerHandle is wired.
-func TestTimeSamplerObserverHandle(t *testing.T) {
-	store := tags.NewStore(false, "test")
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
-	handle := &recordingHandle{}
-	sampler.observerHandle = handle
+func TestMetricObserverOnlyReceivesGauges(t *testing.T) {
+	type sampler struct {
+		name   string
+		sample func(*metrics.MetricSample, filterlistdef.TagMatcher)
+	}
 
 	matcher := filterlist.NewNoopTagMatcher()
-
-	samples := []metrics.MetricSample{
-		{Name: "metric.a", Host: "host-a", Value: 1.0, Mtype: metrics.GaugeType, Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 1000},
-		{Name: "metric.b", Value: 2.5, Mtype: metrics.CountType, Tags: []string{"service:web"}, SampleRate: 0.5, Timestamp: 2000},
+	for _, newSampler := range []func(*recordingHandle) sampler{
+		func(handle *recordingHandle) sampler {
+			timeSampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), nooptagger.NewComponent(), "host")
+			timeSampler.observerHandle = handle
+			return sampler{name: "DogStatsD", sample: func(metric *metrics.MetricSample, matcher filterlistdef.TagMatcher) {
+				timeSampler.sample(metric, metric.Timestamp, matcher)
+			}}
+		},
+		func(handle *recordingHandle) sampler {
+			checkSampler := newCheckSampler(10, false, false, 0, false, tags.NewStore(false, "test"), "test-check", nooptagger.NewComponent())
+			checkSampler.SetObserverHandle(handle)
+			return sampler{name: "check", sample: checkSampler.addSample}
+		},
+	} {
+		handle := &recordingHandle{}
+		sampler := newSampler(handle)
+		t.Run(sampler.name, func(t *testing.T) {
+			for metricType := metrics.GaugeType; metricType < metrics.NumMetricTypes; metricType++ {
+				sampler.sample(&metrics.MetricSample{
+					Name:       "metric." + metricType.String(),
+					Host:       "host-a",
+					Value:      1,
+					RawValue:   "member",
+					Mtype:      metricType,
+					SampleRate: 1,
+					Timestamp:  1000 + float64(metricType),
+				}, matcher)
+			}
+			require.Len(t, handle.calls, 2)
+			assert.Equal(t, "metric.Gauge", handle.calls[0].name)
+			assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+			assertObservedContextKey(t, handle.calls[0])
+			assert.Equal(t, "metric.GaugeWithTimestamp", handle.calls[1].name)
+			assert.Equal(t, int64(1009), handle.calls[1].timestamp)
+			assertObservedContextKey(t, handle.calls[1])
+		})
 	}
 
-	for _, s := range samples {
-		s := s
-		sampler.sample(&s, s.Timestamp, matcher)
-	}
-
-	require.Len(t, handle.calls, 2)
-	assert.Equal(t, "metric.a", handle.calls[0].name)
-	assert.Equal(t, 1.0, handle.calls[0].value)
-	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
-	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
-	assertObservedContextKey(t, handle.calls[0])
-
-	assert.Equal(t, "metric.b", handle.calls[1].name)
-	assert.Equal(t, 2.5, handle.calls[1].value)
-	assertObservedContextKey(t, handle.calls[1])
+	assert.False(t, isGaugeMetricForObserver(metrics.MetricType(99)), "unknown metric types must not reach the observer")
 }
 
-func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
+func TestTimeSamplerObserverHandlePreservesGaugeTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	store := tags.NewStore(false, "test")
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
@@ -144,14 +159,14 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 		Name:       "metric.filtered",
 		Host:       "host-a",
 		Value:      1,
-		Mtype:      metrics.CounterType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"env:prod", "service:web"},
 		SampleRate: 1,
 	}, 1000, matcher)
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+	assert.Equal(t, []string{"env:prod", "service:web"}, handle.calls[0].tags)
 	assertObservedContextKey(t, handle.calls[0])
 }
 
@@ -194,7 +209,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 				Name:       "metric.origin",
 				Host:       "host-a",
 				Value:      1,
-				Mtype:      metrics.CounterType,
+				Mtype:      metrics.GaugeType,
 				Tags:       []string{"service:web"},
 				SampleRate: 1,
 				OriginInfo: taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://container1", Cardinality: "low"},
@@ -208,8 +223,10 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			filtered := tc.observe(t, setupTagger(t), sample, filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 				"metric.origin": {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t)))
+			// Gauges do not participate in the metrics-pipeline aggregation tag
+			// filter, so AAD must retain their resolved identity unchanged.
 			assert.Equal(t, "host-a", filtered.host)
-			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
+			assert.ElementsMatch(t, []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"}, filtered.tags)
 			assertObservedContextKey(t, filtered)
 		})
 	}
@@ -376,7 +393,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	assertObservedContextKey(t, handle.calls[1])
 }
 
-func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
+func TestCheckSamplerObserverHandlePreservesGaugeTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	store := tags.NewStore(false, "test")
 	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
@@ -390,14 +407,14 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 		Name:       "metric.filtered",
 		Host:       "host-a",
 		Value:      1,
-		Mtype:      metrics.CounterType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"env:prod", "service:web"},
 		SampleRate: 1,
 	}, matcher)
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+	assert.Equal(t, []string{"env:prod", "service:web"}, handle.calls[0].tags)
 	assertObservedContextKey(t, handle.calls[0])
 }
 

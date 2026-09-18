@@ -275,10 +275,11 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 //
 // Requires the observer pipeline to be effectively required and
 // anomaly_detection.metrics.enabled to be true.
-// Every raw metric sample passing through the time-sampler workers, the
-// no-aggregation pipeline, and every CheckSampler will be forwarded to the
-// provided observer handle before aggregation. The call is a no-op when
-// either flag is off or obs is nil, so default overhead is zero.
+// Raw gauge samples passing through the time-sampler workers, the
+// no-aggregation pipeline, and every CheckSampler are forwarded to the
+// provided observer handle before aggregation. Other metric types remain in
+// their normal pipeline and are not observed. The call is a no-op when either
+// flag is off or obs is nil, so default overhead is zero.
 func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	if obs == nil {
 		return
