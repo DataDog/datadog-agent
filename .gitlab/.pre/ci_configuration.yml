@@ -18,7 +18,7 @@ test_gitlab_compare_to:
   variables:
     GIT_DEPTH: 0  # Full history: gitlab_configuration_is_modified uses merge-base and HEAD^
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_gitlab_changes]
   before_script:
     - !reference [.setup_github_token_write]

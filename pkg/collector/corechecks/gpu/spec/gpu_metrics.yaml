@@ -995,7 +995,8 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures: []
+      unsupported_architectures:
+        - hopper
       device_modes:
         mig: false
         physical: true

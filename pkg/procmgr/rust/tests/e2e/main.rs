@@ -14,6 +14,7 @@ mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
+mod identity;
 mod list;
 #[cfg(windows)]
 mod privileged_allowlist;

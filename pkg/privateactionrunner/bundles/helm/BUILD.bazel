@@ -11,10 +11,10 @@ go_library(
     deps = [
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/helmactions/impl",
+        "//comp/kubeactions/kubeactions/def",
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//pkg/trace/log",
         "@io_k8s_api//batch/v1:batch",
     ],
 )
