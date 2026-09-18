@@ -430,37 +430,53 @@ func (c *LogsConfig) Dump(multiline bool) string {
 func (c *LogsConfig) PublicJSON() ([]byte, error) {
 	// Export only fields that are explicitly documented in the public documentation
 	return json.Marshal(&struct {
-		Type              string                   `json:"type,omitempty"`
-		Port              int                      `json:"port,omitempty"`           // Network
-		Path              string                   `json:"path,omitempty"`           // File, Journald
-		Encoding          string                   `json:"encoding,omitempty"`       // File
-		ExcludePaths      []string                 `json:"exclude_paths,omitempty"`  // File
-		TailingMode       string                   `json:"start_position,omitempty"` // File
-		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
-		Query             string                   `json:"query,omitempty"`          // Windows Event
-		Service           string                   `json:"service,omitempty"`
-		Source            string                   `json:"source,omitempty"`
-		SourceCategory    string                   `json:"source_category,omitempty"`
-		Tags              []string                 `json:"tags,omitempty"`
-		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
-		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
-		FingerprintConfig *types.FingerprintConfig `json:"fingerprint_config,omitempty"`
+		Type                        string                      `json:"type,omitempty"`
+		Port                        int                         `json:"port,omitempty"`           // Network
+		Path                        string                      `json:"path,omitempty"`           // File, Journald
+		Encoding                    string                      `json:"encoding,omitempty"`       // File
+		ExcludePaths                []string                    `json:"exclude_paths,omitempty"`  // File
+		TailingMode                 string                      `json:"start_position,omitempty"` // File
+		Format                      string                      `json:"format,omitempty"`         // Parsing format
+		ChannelPath                 string                      `json:"channel_path,omitempty"`   // Windows Event
+		Query                       string                      `json:"query,omitempty"`          // Windows Event
+		Service                     string                      `json:"service,omitempty"`
+		Source                      string                      `json:"source,omitempty"`
+		SourceCategory              string                      `json:"source_category,omitempty"`
+		Tags                        []string                    `json:"tags,omitempty"`
+		ProcessingRules             []*ProcessingRule           `json:"log_processing_rules,omitempty"`
+		ProcessRawMessage           *bool                       `json:"process_raw_message,omitempty"`
+		AttributeParsing            *bool                       `json:"attribute_parsing,omitempty"`
+		DebugAttrParsing            *bool                       `json:"debug_attr_parsing,omitempty"`
+		AutoMultiLine               *bool                       `json:"auto_multi_line_detection,omitempty"`
+		AutoMultiLineSampleSize     int                         `json:"auto_multi_line_sample_size,omitempty"`
+		AutoMultiLineMatchThreshold float64                     `json:"auto_multi_line_match_threshold,omitempty"`
+		AutoMultiLineOptions        *SourceAutoMultiLineOptions `json:"auto_multi_line,omitempty"`
+		MaxMessageSizeBytes         *int                        `json:"max_message_size_bytes,omitempty"`
+		FingerprintConfig           *types.FingerprintConfig    `json:"fingerprint_config,omitempty"`
 	}{
-		Type:              c.Type,
-		Port:              c.Port,
-		Path:              c.Path,
-		Encoding:          c.Encoding,
-		ExcludePaths:      c.ExcludePaths,
-		TailingMode:       c.TailingMode,
-		ChannelPath:       c.ChannelPath,
-		Query:             c.Query,
-		Service:           c.Service,
-		Source:            c.Source,
-		SourceCategory:    c.SourceCategory,
-		Tags:              c.Tags,
-		ProcessingRules:   c.ProcessingRules,
-		AutoMultiLine:     c.AutoMultiLine,
-		FingerprintConfig: c.FingerprintConfig,
+		Type:                        c.Type,
+		Port:                        c.Port,
+		Path:                        c.Path,
+		Encoding:                    c.Encoding,
+		ExcludePaths:                c.ExcludePaths,
+		TailingMode:                 c.TailingMode,
+		Format:                      c.Format,
+		ChannelPath:                 c.ChannelPath,
+		Query:                       c.Query,
+		Service:                     c.Service,
+		Source:                      c.Source,
+		SourceCategory:              c.SourceCategory,
+		Tags:                        c.Tags,
+		ProcessingRules:             c.ProcessingRules,
+		ProcessRawMessage:           c.ProcessRawMessage,
+		AttributeParsing:            c.AttributeParsing,
+		DebugAttrParsing:            c.DebugAttrParsing,
+		AutoMultiLine:               c.AutoMultiLine,
+		AutoMultiLineSampleSize:     c.AutoMultiLineSampleSize,
+		AutoMultiLineMatchThreshold: c.AutoMultiLineMatchThreshold,
+		AutoMultiLineOptions:        c.AutoMultiLineOptions,
+		MaxMessageSizeBytes:         c.MaxMessageSizeBytes,
+		FingerprintConfig:           c.FingerprintConfig,
 	})
 }
 
