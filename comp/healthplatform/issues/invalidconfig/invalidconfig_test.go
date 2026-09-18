@@ -47,8 +47,14 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
 		contextKeyErrorCount: "2",
 	}
-	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
-	ctx[contextErrorKey(1)] = "at '/tags': got object, want array"
+	// the check writes message, pointer and fix as parallel keys; BuildIssue never re-parses
+	ctx[contextErrorKey(0)] = `agent_ipc.port must be a whole number, but it is the text "8125".`
+	ctx[contextPointerKey(0)] = "/agent_ipc/port"
+	ctx[contextFixKey(0)] = "Remove the quotes: `agent_ipc.port: 8125`."
+	ctx[contextErrorKey(1)] = `tags must be a list of text values, but it is a set of key/value pairs.`
+	ctx[contextPointerKey(1)] = "/tags"
+	ctx[contextFixKey(1)] = "Set `tags` to something like `[\"first\", \"second\"]`."
+
 	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
@@ -58,15 +64,36 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations in datadog.yaml", issue.GetTitle())
 	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
-	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
-	assert.Contains(t, issue.GetDescription(), "/tags")
-	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
+	// the description is the only field `agent diagnose` renders, so it must stand alone:
+	// the file, every diagnosis, and the consequence
+	desc := issue.GetDescription()
+	assert.Contains(t, desc, "/etc/datadog-agent/datadog.yaml")
+	assert.Contains(t, desc, "agent_ipc.port must be a whole number")
+	assert.Contains(t, desc, "tags must be a list")
+	assert.Contains(t, desc, "falls back to the default")
+
+	// path-keyed, with the correction alongside the diagnosis so an inline renderer has both
 	errorsStruct := issue.GetExtra().GetFields()[contextKeyErrors].GetStructValue()
 	require.NotNil(t, errorsStruct, "extra.errors must be a struct with one entry per violation")
 	assert.Len(t, errorsStruct.GetFields(), 2, "each violation must get its own key")
-	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
-	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
+	portLines := errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()
+	require.Len(t, portLines, 2, "diagnosis then fix")
+	assert.Contains(t, portLines[0].GetStringValue(), "must be a whole number")
+	assert.Contains(t, portLines[1].GetStringValue(), "Remove the quotes")
+
+	// every violation gets a step naming what to change; nothing restates the problem
+	var texts []string
+	for _, s := range issue.GetRemediation().GetSteps() {
+		texts = append(texts, s.GetText())
+	}
+	assert.Contains(t, texts[0], "in an editor")
+	assert.Contains(t, texts, "Remove the quotes: `agent_ipc.port: 8125`.")
+	assert.NotContains(t, texts, "Fix each violation listed in the description.")
+	assert.Contains(t, texts[len(texts)-1], "datadog-agent diagnose")
+	for i, s := range issue.GetRemediation().GetSteps() {
+		assert.Equal(t, int32(i+1), s.GetOrder(), "Order must be contiguous and 1-indexed")
+	}
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -108,7 +135,12 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
+	// the message uses the dotted key the customer typed; the json pointer travels separately
+	// so a consumer can still attach the violation to a line
+	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc.port")
+	assert.Contains(t, reports[0].Context[contextErrorKey(0)], `the text "not-a-number"`)
+	assert.Equal(t, "/agent_ipc/port", reports[0].Context[contextPointerKey(0)])
+	assert.NotEmpty(t, reports[0].Context[contextFixKey(0)], "every violation must carry a correction")
 }
 
 // Two checkers with the same hostname but different config files must not
