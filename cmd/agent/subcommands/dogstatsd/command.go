@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -146,7 +146,7 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 		fmt.Printf("Wrote %s\n", path)
 	}
 
-	f, err := os.Open(path)
+	f, err := filesystem.OpenShared(path)
 	if err != nil {
 		return err
 	}
