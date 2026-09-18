@@ -65,9 +65,11 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	watchdogStopEventName = "Global\\DatadogInstallerStop"
-	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
-	parServiceName        = "datadog-agent-action"
+	watchdogStopEventName       = "Global\\DatadogInstallerStop"
+	oldInstallerDir             = "C:\\ProgramData\\Datadog Installer"
+	parServiceName              = "datadog-agent-action"
+	ddProcmgrServiceName        = "dd-procmgr-service"
+	datadogInstallerServiceName = "Datadog Installer"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -1087,14 +1089,54 @@ func SetProcessManager(_ context.Context, enabled bool) error {
 				log.Warnf("could not stop service: %v", err)
 			}
 		}
-		processmanager.ReloadOrRestartProcmgr()
-		return nil
-	}
-	processmanager.ReloadOrRestartProcmgr()
-	for _, service := range services {
-		if err := startServiceIfExists(service); err != nil {
-			log.Warnf("could not start service: %v", err)
+		if err := startServiceIfExists(ddProcmgrServiceName); err != nil {
+			log.Warnf("could not start %s: %v", ddProcmgrServiceName, err)
+		}
+	} else {
+		if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
+			log.Warnf("could not stop %s: %v", ddProcmgrServiceName, err)
+		}
+		for _, service := range services {
+			if err := startServiceIfExists(service); err != nil {
+				log.Warnf("could not start service: %v", err)
+			}
 		}
 	}
+	if err := persistProcessManagerEnv(enabled); err != nil {
+		log.Warnf("could not persist process manager selection: %v", err)
+	}
 	return nil
+}
+
+// persistProcessManagerEnv saves the resolved DD_PROCESS_MANAGER_ENABLED choice into the
+// Datadog Installer service's registry Environment value, so it survives a daemon restart.
+// The daemon itself updates its in-memory env immediately after this call returns, so this
+// only needs to be visible the next time the service starts.
+func persistProcessManagerEnv(enabled bool) error {
+	key, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\`+datadogInstallerServiceName,
+		registry.QUERY_VALUE|registry.SET_VALUE,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to open %s service registry key: %w", datadogInstallerServiceName, err)
+	}
+	defer key.Close()
+
+	existing, _, err := key.GetStringsValue("Environment")
+	if err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return fmt.Errorf("failed to read %s service Environment value: %w", datadogInstallerServiceName, err)
+	}
+
+	entry := fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled)
+	updated := make([]string, 0, len(existing)+1)
+	for _, e := range existing {
+		if strings.HasPrefix(e, env.EnvProcessManagerEnabled+"=") {
+			continue
+		}
+		updated = append(updated, e)
+	}
+	updated = append(updated, entry)
+
+	return key.SetStringsValue("Environment", updated)
 }

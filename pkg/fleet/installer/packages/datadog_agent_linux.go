@@ -1243,17 +1243,17 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	pendingActions = append(pendingActions, func() error { return agentService.RestartStable(hookCtx) })
 	if err := agentService.StopStableForProcessManagerSwitch(hookCtx); err != nil {
 		log.Errorf("failed to stop stable units: %v", err)
-		return unwind()
+		return errors.Join(err, unwind())
 	}
 	pendingActions = append(pendingActions, func() error { return agentService.EnableStable(hookCtx) })
 	if err := agentService.DisableStable(hookCtx); err != nil {
 		log.Warnf("failed to disable stable units: %v", err)
-		return unwind()
+		return errors.Join(err, unwind())
 	}
 	pendingActions = append(pendingActions, func() error { return agentService.WriteStable(hookCtx) })
 	if err := agentService.RemoveStable(hookCtx); err != nil {
 		log.Warnf("failed to remove stable units: %v", err)
-		return unwind()
+		return errors.Join(err, unwind())
 	}
 
 	value := "false"
@@ -1262,7 +1262,7 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	}
 	if err := os.Setenv(env.EnvProcessManagerEnabled, value); err != nil {
 		log.Warnf("failed to set process manager state: %v", err)
-		return unwind()
+		return errors.Join(err, unwind())
 	}
 
 	pendingActions = append(pendingActions, func() error { return agentService.WriteProcesses(hookCtx.PackagePath) })
