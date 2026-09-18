@@ -194,7 +194,7 @@ func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) f
 
 		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
 		if url != nil && newURL == nil {
-			warnOnce(noProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+			warnOnce(noProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, logSafeURLString(url))
 			return url, err
 		}
 
@@ -213,7 +213,7 @@ func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) f
 
 		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
 		if url.String() != newURLString {
-			warnOnce(noProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
+			warnOnce(noProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, logSafeURLString(url), logSafeURLString(newURL))
 			return url, err
 		}
 

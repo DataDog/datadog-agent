@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/lite"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
@@ -189,7 +189,6 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -232,42 +231,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
-	runE := func(*cobra.Command, []string) (rErr error) {
-		// best-effort agent lite mode rescue: when init panics or returns an error the
-		// full agent never starts so lite.Rescue tries to run and POSTs an issue directly
-		// to agent health.
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Fprintf(os.Stderr, "rescue firing on panic: %v\n", r)
-				if err := lite.Rescue(context.Background(),
-					globalParams.ConfFilePath,
-					lite.DefaultConfigPath(),
-					fmt.Errorf("agent run panic: %v", r)); err != nil {
-					fmt.Fprintf(os.Stderr, "rescue returned error: %v\n", err)
-				} else {
-					fmt.Fprintln(os.Stderr, "rescue POST succeeded")
-				}
-				panic(r) // re-raise for non-zero exit
-			}
-			if rErr != nil {
-				fmt.Fprintf(os.Stderr, "rescue firing on Fx error: %v\n", rErr)
-				if err := lite.Rescue(context.Background(),
-					globalParams.ConfFilePath,
-					lite.DefaultConfigPath(),
-					rErr); err != nil {
-					fmt.Fprintf(os.Stderr, "rescue returned error: %v\n", err)
-				} else {
-					fmt.Fprintln(os.Stderr, "rescue POST succeeded")
-				}
-			}
-		}()
+	runE := func(*cobra.Command, []string) error {
+		state := &startupState{params: lite.Params{
+			ConfigPath:        globalParams.ConfFilePath,
+			DefaultConfigPath: config.DefaultConfPath,
+			ExtraConfigPaths:  cliParams.ExtraConfFilePath,
+			FleetPoliciesDir:  cliParams.FleetPoliciesDirPath,
+		}}
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		configOpts := []func(*config.Params){
 			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
 			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
 		}
-		return fxutil.OneShot(run,
+		return state.finish(fxutil.OneShot(run,
+			fx.Supply(state),
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
@@ -281,7 +259,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fxinstrumentation.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
-		)
+		))
 	}
 
 	runCmd := &cobra.Command{
@@ -304,6 +282,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // run starts the main loop.
 func run(log log.Component,
+	startup *startupState,
 	cfg config.Component,
 	flare flare.Component,
 	tlm telemetry.Component,
@@ -424,6 +403,7 @@ func run(log log.Component,
 	); err != nil {
 		return err
 	}
+	startup.started = true
 
 	agentStarted := tlm.NewCounter(
 		"runtime",

@@ -5,13 +5,18 @@
 
 //go:build test
 
-package forwarderimpl
+package client
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,18 +25,92 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
+func TestProxyWarningDoesNotLeakCredentials(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("proxy.http", "http://user-sentinel:password-sentinel@proxy.example:8080")
+	cfg.SetInTest("proxy.no_proxy", []string{"example.test"})
+	cfg.SetInTest("no_proxy_nonexact_match", false)
+	var messages []string
+	ddlog.SetLogObserver(func(_ ddlog.LogLevel, message string) { messages = append(messages, message) })
+	t.Cleanup(func() { ddlog.SetLogObserver(nil) })
+	req, err := http.NewRequest(http.MethodPost, "http://credential-warning.example.test", nil)
+	require.NoError(t, err)
+	proxy, err := New(cfg).httpClient.Transport.(*http.Transport).Proxy(req)
+	require.NoError(t, err)
+	require.Equal(t, "proxy.example:8080", proxy.Host)
+	warning := strings.Join(messages, "\n")
+	require.Contains(t, warning, "Deprecation warning")
+	require.NotContains(t, warning, "sentinel")
+}
+
+func TestSendHonorsTLSSettings(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+	server.TLS = &tls.Config{MaxVersion: tls.VersionTLS12}
+	server.StartTLS()
+	defer server.Close()
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "dummy")
+	cfg.SetInTest("dd_url", server.URL)
+	_, err := New(cfg).Send(context.Background(), &healthplatform.HealthReport{})
+	require.Error(t, err, "untrusted certificate must not be accepted by default")
+	require.Zero(t, calls.Load())
+	cfg.SetInTest("skip_ssl_validation", true)
+	_, err = New(cfg).Send(context.Background(), &healthplatform.HealthReport{})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, calls.Load())
+	cfg.SetInTest("min_tls_version", "tlsv1.3")
+	_, err = New(cfg).Send(context.Background(), &healthplatform.HealthReport{})
+	require.Error(t, err, "configured TLS minimum must not be downgraded")
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestSendRejectsCredentialRedirect(t *testing.T) {
+	var received atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		received.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	}))
+	defer redirect.Close()
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "dummy-key")
+	fwd := newTestForwarder(t, cfg)
+	fwd.intakeURL = redirect.URL
+	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	assert.Error(t, err)
+	assert.Zero(t, n)
+	assert.Zero(t, received.Load(), "redirect must never receive the API key")
+}
+
+func TestSendCanceledContext(t *testing.T) {
+	var received atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		received.Add(1)
+	}))
+	defer server.Close()
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "dummy-key")
+	fwd := newTestForwarder(t, cfg)
+	fwd.intakeURL = server.URL
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := fwd.Send(ctx, &healthplatform.HealthReport{})
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, received.Load())
+}
+
+func newTestForwarder(t *testing.T, cfg config.Component) *Client {
 	t.Helper()
-	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
-		httpClient: buildHTTPClient(cfg),
-		log:        logmock.New(t),
-	}
+	return New(cfg)
 }
 
 func TestSend(t *testing.T) {

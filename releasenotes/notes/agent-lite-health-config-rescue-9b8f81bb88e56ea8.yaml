@@ -8,4 +8,9 @@
 ---
 features:
   - |
-    Lite Mode
+    When the Agent fails before startup completes, Lite Mode makes a bounded,
+    best-effort attempt to report an Agent Startup Failure issue to Agent Health.
+    Reporting honors explicit disablement and uses recoverable credentials and
+    transport settings. The original startup error and exit behavior are preserved.
+    Lite Mode does not repair configuration, persist recovery state, or send
+    resolved reports.

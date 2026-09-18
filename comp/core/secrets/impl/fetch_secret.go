@@ -42,15 +42,18 @@ func (r *secretResolver) execCommand(inputPayload string, timeout int) ([]byte, 
 		return r.commandHookFunc(inputPayload)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(timeout)*time.Second)
+	ctx, cancel, waitDelay := r.executionContext(timeout)
 	defer cancel()
+	if err := ctx.Err(); r.quiet && err != nil {
+		return nil, err
+	}
 
 	cmd, done, err := commandContext(ctx, r.backendCommand, r.backendArguments...)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
+	cmd.WaitDelay = waitDelay
 
 	if !r.embeddedBackendPermissiveRights {
 		if err := checkRightsFunc(cmd.Path, r.commandAllowGroupExec); err != nil {
@@ -76,9 +79,12 @@ func (r *secretResolver) execCommand(inputPayload string, timeout int) ([]byte, 
 	// buffer logs until it's initialized. This means the time of the log line will be the one after the package is
 	// initialized and not the creation time. This is an issue when troubleshooting a secret_backend_command in
 	// datadog.yaml.
-	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
+	r.debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
 	start := time.Now()
 	err = cmd.Run()
+	if r.quiet {
+		return stdout.buf.Bytes(), err
+	}
 	elapsed := time.Since(start)
 	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), r.backendCommand, elapsed)
 
@@ -121,6 +127,22 @@ func (r *secretResolver) execCommand(inputPayload string, timeout int) ([]byte, 
 
 	r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, "0")
 	return stdout.buf.Bytes(), nil
+}
+
+func (r *secretResolver) executionContext(timeout int) (context.Context, context.CancelFunc, time.Duration) {
+	if r.oneShotContext == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		return ctx, cancel, 0
+	}
+	// Reserve pipe cleanup inside, not after, the caller's deadline. A child can
+	// keep inherited stdout/stderr open after its parent is killed or exits.
+	const cleanup = 100 * time.Millisecond
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+	if callerDeadline, ok := r.oneShotContext.Deadline(); ok && callerDeadline.Before(deadline) {
+		deadline = callerDeadline
+	}
+	ctx, cancel := context.WithDeadline(r.oneShotContext, deadline.Add(-cleanup))
+	return ctx, cancel, cleanup
 }
 
 func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
