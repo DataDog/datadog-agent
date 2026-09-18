@@ -45,6 +45,7 @@ func saturatedSnapshot(name string, ratio float64, sat1m, sat30m time.Duration, 
 		Name:     name,
 		Instance: "0",
 		AvgRatio: ratio,
+		Measured: true,
 		Windows: WindowStats{
 			Saturated1m:        sat1m,
 			Saturated30m:       sat30m,
@@ -180,11 +181,11 @@ func TestSelectBottleneckIsOrderIndependent(t *testing.T) {
 	}
 }
 
-// "sender" is a capacity-only aggregation point whose ratio is always 0, so including it
-// would put a permanently-healthy row in the breakdown.
-func TestDeriveBackpressureExcludesSender(t *testing.T) {
+// A capacity-only component ("sender") has no utilization monitor, so its zero windows are
+// unobserved rather than saturation-free; including it would claim a healthy row.
+func TestDeriveBackpressureExcludesUnmeasured(t *testing.T) {
 	summary := DeriveBackpressure([]ComponentSnapshot{
-		saturatedSnapshot(SenderTlmName, 0, 0, 0, false),
+		{Name: SenderTlmName},
 		saturatedSnapshot("processor", 0.4, 0, 0, false),
 	})
 
@@ -211,9 +212,9 @@ func TestDeriveBackpressureRanksWorstFirst(t *testing.T) {
 
 func TestDeriveBackpressureUnmeasuredIsUnknownNotHealthy(t *testing.T) {
 	for name, snaps := range map[string][]ComponentSnapshot{
-		"no snapshots":   nil,
-		"only sender":    {saturatedSnapshot(SenderTlmName, 0, 0, 0, false)},
-		"empty registry": {},
+		"no snapshots":       nil,
+		"only capacity-only": {{Name: SenderTlmName}, {Name: "processor"}},
+		"empty registry":     {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			summary := DeriveBackpressure(snaps)
@@ -317,8 +318,7 @@ func TestCurrentBottleneckComponentMemoizes(t *testing.T) {
 	t.Cleanup(ResetPipelineMonitorForTest)
 
 	clk := clock.NewMock()
-	bottleneck = newBottleneckCache(clk)
-	t.Cleanup(func() { bottleneck = newBottleneckCache(clock.New()) })
+	cache := newBottleneckCache(clk)
 
 	stub := &stubPipelineMonitor{
 		snaps: []ComponentSnapshot{saturatedSnapshot("worker", 0.95, 0, time.Minute, true)},
@@ -327,12 +327,12 @@ func TestCurrentBottleneckComponentMemoizes(t *testing.T) {
 	lossWindowStartedAt := clk.Now().Add(-time.Minute)
 
 	for i := 0; i < 100; i++ {
-		require.Equal(t, "worker", currentBottleneckComponent(lossWindowStartedAt))
+		require.Equal(t, "worker", cache.get(lossWindowStartedAt))
 	}
 	assert.Equal(t, 1, stub.reads, "a rotation storm must not re-derive the bottleneck per rotation")
 
 	clk.Add(bottleneckCacheTTL)
-	require.Equal(t, "worker", currentBottleneckComponent(lossWindowStartedAt))
+	require.Equal(t, "worker", cache.get(lossWindowStartedAt))
 	assert.Equal(t, 2, stub.reads, "the cache must expire so a recovered pipeline stops being blamed")
 }
 

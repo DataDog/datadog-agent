@@ -307,7 +307,9 @@ func (t *Tailer) Stop() {
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
-	rotationStartedAt := time.Now()
+	// Starts before the rotation: the backlog that outran the close timeout accumulated
+	// while the tailer was still reading.
+	lossWindowStartedAt := time.Now().Add(-t.closeTimeout)
 	bytesReadAtRotationTime := t.bytesRead.Get()
 	// Resolved before the goroutine, which sleeps for closeTimeout first, to keep
 	// the source lock off that path.
@@ -328,7 +330,7 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
-						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, rotationStartedAt)
+						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, lossWindowStartedAt)
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}

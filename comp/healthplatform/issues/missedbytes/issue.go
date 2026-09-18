@@ -189,8 +189,17 @@ func decodeSources(encoded string) []sourceLoss {
 	for i := range sources {
 		sources[i].Source = sanitizeName(sources[i].Source)
 		sources[i].Service = sanitizeName(sources[i].Service)
+		sources[i].Bottleneck = sanitizeIfSet(sources[i].Bottleneck)
 	}
 	return sources
+}
+
+// sanitizeIfSet leaves an empty name empty: for a stage or an instance, blank means absent.
+func sanitizeIfSet(name string) string {
+	if name == "" {
+		return ""
+	}
+	return sanitizeName(name)
 }
 
 // sanitizeName bounds a name and drops control characters: names come from user
@@ -274,10 +283,16 @@ func decodeBackpressure(encoded string) *backpressureWire {
 	return &bp
 }
 
-// sanitizeComponent bounds the names: they reach Description unescaped.
+// sanitizeComponent bounds a decoded component: the names reach Description unescaped and
+// the numbers reach it as ratios and durations.
 func sanitizeComponent(c *logsmetrics.ComponentBackpressure) {
 	c.Component = sanitizeName(c.Component)
-	c.Instance = sanitizeName(c.Instance)
+	c.Instance = sanitizeIfSet(c.Instance)
+	for _, ratio := range []*float64{&c.AvgRatio, &c.Max5m, &c.Max30m, &c.Max2h, &c.Max5h, &c.Max10h} {
+		*ratio = min(max(*ratio, 0), 1)
+	}
+	c.Saturated1mSeconds = min(max(c.Saturated1mSeconds, 0), 60)
+	c.Saturated30mSeconds = min(max(c.Saturated30mSeconds, 0), 30*60)
 }
 
 // backpressureAsExtra reshapes the snapshot so the backend receives objects, not a string.
@@ -338,7 +353,7 @@ func lossAttribution(ctx map[string]string, sources []sourceLoss) (string, int64
 	component, present := ctx[contextKeyLossBottleneck]
 	rotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
 	if present && component != "" && err == nil && rotations > 0 {
-		return component, rotations, true
+		return sanitizeIfSet(component), rotations, true
 	}
 	component, rotations = lossTimeBottleneck(sources)
 	return component, rotations, false
@@ -361,6 +376,10 @@ func firstRemediationStep(bp *backpressureWire, component string, blamed int64, 
 	whole := blamed == rotations && (completeAttribution || omitted == 0)
 
 	switch {
+	case component == logsmetrics.NoBottleneck && whole && saturatedNow(bp):
+		// The loss window is 24h, so "not the cause" does not make a live bottleneck ignorable.
+		return fmt.Sprintf("No pipeline component was saturated when this data was lost, so start with the `logs_config.close_timeout` step below. `%s` is saturated now, so follow the step that names it as well.",
+			bp.Bottleneck.Component)
 	case component == logsmetrics.NoBottleneck && whole:
 		return "No pipeline component was saturated when this data was lost, so the `logs_config.close_timeout` step below is the one that applies."
 	case component == logsmetrics.NoBottleneck:
@@ -372,7 +391,7 @@ func firstRemediationStep(bp *backpressureWire, component string, blamed int64, 
 	case component != "":
 		return fmt.Sprintf("The `%s` component was saturated during %d of %d %s. Follow the step below that names it, then check the others in this issue's details.",
 			component, blamed, rotations, pluralize(rotations, "rotation"))
-	case bp != nil && bp.Bottleneck != nil && bp.State == logsmetrics.BackpressureSaturated:
+	case saturatedNow(bp):
 		return fmt.Sprintf("The saturated component at loss time was not measured, but `%s` is saturated now. Follow the step below that names it.",
 			bp.Bottleneck.Component)
 	case bp != nil && bp.Bottleneck != nil:
@@ -381,6 +400,10 @@ func firstRemediationStep(bp *backpressureWire, component string, blamed int64, 
 			bp.Bottleneck.Component)
 	}
 	return "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."
+}
+
+func saturatedNow(bp *backpressureWire) bool {
+	return bp != nil && bp.Bottleneck != nil && bp.State == logsmetrics.BackpressureSaturated
 }
 
 func fmtSeconds(seconds int64) string {

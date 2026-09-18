@@ -68,6 +68,10 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 			lastLossAt = s.LastLossAt
 		}
 		for component, count := range s.Bottlenecks {
+			// Each tuple's map is capped; their union is not.
+			if _, seen := bottleneckCounts[component]; !seen && len(bottleneckCounts) >= maxBackpressureComponents {
+				continue
+			}
 			bottleneckCounts[component] += count
 		}
 	}
@@ -159,11 +163,19 @@ func dominantBottleneck(counts map[string]int64) (string, int64) {
 	var name string
 	var top int64
 	for component, count := range counts {
-		if count > top || (count == top && component < name) {
+		if count > top || (count == top && outranksStage(component, name)) {
 			name, top = component, count
 		}
 	}
 	return name, top
+}
+
+// outranksStage breaks a tie toward a stage the reader can act on, then on name.
+func outranksStage(candidate, incumbent string) bool {
+	if (candidate == logsmetrics.NoBottleneck) != (incumbent == logsmetrics.NoBottleneck) {
+		return incumbent == logsmetrics.NoBottleneck
+	}
+	return candidate < incumbent
 }
 
 // rankSources keeps the maxBreakdownSources largest tuples and returns how many it

@@ -380,13 +380,15 @@ func TestBuildIssue_FirstRemediationStep(t *testing.T) {
 		},
 		{
 			// The loss window is 24h and the check runs every 15m, so the pipeline can be
-			// healthy at loss time and saturated by the time the issue is built.
-			name:        "saturation that started after the loss is not blamed",
-			rotations:   4,
-			sources:     `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
-			bp:          &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("strategy", 60)},
-			wantStep:    []string{"No pipeline component was saturated when this data was lost"},
-			notWantStep: []string{"`strategy`"},
+			// healthy at loss time and saturated by the time the issue is built. That does not
+			// make it the cause, but it is still live and must not be hidden.
+			name:      "saturation that started after the loss is not blamed but is still named",
+			rotations: 4,
+			sources:   `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+			bp:        &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("strategy", 60)},
+			wantStep: []string{"No pipeline component was saturated when this data was lost",
+				"`logs_config.close_timeout`", "`strategy` is saturated now"},
+			wantDesc: []string{"ran out of time rather than throughput"},
 		},
 		{
 			// rankSources keeps one stage per tuple, so a tuple that was 3 unsaturated and 2

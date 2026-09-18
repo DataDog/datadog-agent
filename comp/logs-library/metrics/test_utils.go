@@ -45,6 +45,7 @@ func SaturatedSnapshotForTest(name, instance string, ratio float64, sat30m time.
 		Name:     name,
 		Instance: instance,
 		AvgRatio: ratio,
+		Measured: true,
 		Windows: WindowStats{
 			Max5m:              ratio,
 			Max30m:             ratio,

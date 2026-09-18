@@ -99,8 +99,8 @@ func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpres
 func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 	comps := make([]ComponentBackpressure, 0, len(snaps))
 	for _, s := range snaps {
-		// "sender" has no utilization monitor, so its ratio is always 0.
-		if s.Name == SenderTlmName {
+		// A capacity-only component ("sender") reports zeroes it never measured.
+		if !s.Measured {
 			continue
 		}
 		comps = append(comps, ComponentBackpressure{
@@ -211,8 +211,8 @@ func (c *bottleneckCache) invalidate() {
 	c.valid = false
 }
 
-// bottleneckDuringLoss names a component that saturated during the post-rotation read window.
-// Saturation that ended before the rotation cannot have caused the loss.
+// bottleneckDuringLoss names a component that saturated inside the loss window, which brackets
+// the rotation. Saturation that ended before the window cannot have caused the loss.
 func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now time.Time) string {
 	if summary.State == "" || lossWindowStartedAt.IsZero() || lossWindowStartedAt.After(now) {
 		return ""
@@ -256,7 +256,8 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 
 // get returns the bottleneck's component name without its instance, bounding cardinality.
 func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
-	for {
+	// Bounded: a pipeline registering in a loop must not spin a rotating tailer.
+	for attempt := 0; attempt < 2; attempt++ {
 		now := c.clk.Now()
 
 		c.mu.Lock()
@@ -285,6 +286,7 @@ func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
 
 		return bottleneckDuringLoss(summary, lossWindowStartedAt, now)
 	}
+	return ""
 }
 
 var bottleneck = newBottleneckCache(clock.New())

@@ -98,10 +98,9 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 	snaps := b.pipelineMonitor.Snapshots()
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
-		// "sender" is a capacity-only aggregation point (items/bytes between the strategy and the
-		// workers) with no utilization monitor, so its ratio/saturation is always 0. It carries no
-		// signal for the backpressure table, so omit it.
-		if s.Name == logsMetrics.SenderTlmName {
+		// A capacity-only aggregation point ("sender", between the strategy and the workers)
+		// has no utilization monitor, so it carries no signal for this table.
+		if !s.Measured {
 			continue
 		}
 		lastSat := ""
@@ -146,17 +145,13 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
+	// Only the fields SelectBottleneck ranks on: the max windows are for the table.
 	comps := make([]logsMetrics.ComponentBackpressure, 0, len(utils))
 	for _, u := range utils {
 		comps = append(comps, logsMetrics.ComponentBackpressure{
 			Component:           u.Name,
 			Instance:            u.Instance,
 			AvgRatio:            u.AvgRatio,
-			Max5m:               u.Max5m,
-			Max30m:              u.Max30m,
-			Max2h:               u.Max2h,
-			Max5h:               u.Max5h,
-			Max10h:              u.Max10h,
 			Saturated1mSeconds:  u.Saturated1mSeconds,
 			Saturated30mSeconds: u.Saturated30mSeconds,
 			CurrentlySaturated:  u.CurrentlySaturated,

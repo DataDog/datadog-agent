@@ -61,19 +61,23 @@ type missedBytesBucket struct {
 	bottlenecks map[string]int64
 }
 
-// recordBottleneck counts one rotation against a stage. Past the cap it goes unattributed:
-// a synthetic stage name matches no remediation step.
+// addBottleneck credits count to a stage, lazily allocating and dropping names past the
+// cap: a synthetic stage name matches no remediation step.
+func addBottleneck(counts map[string]int64, component string, count int64) map[string]int64 {
+	if counts == nil {
+		counts = make(map[string]int64, missedBytesMaxBottlenecks)
+	} else if _, ok := counts[component]; !ok && len(counts) >= missedBytesMaxBottlenecks {
+		return counts
+	}
+	counts[component] += count
+	return counts
+}
+
 func (b *missedBytesBucket) recordBottleneck(component string) {
 	if component == "" {
 		return
 	}
-	if _, ok := b.bottlenecks[component]; !ok && len(b.bottlenecks) >= missedBytesMaxBottlenecks {
-		return
-	}
-	if b.bottlenecks == nil {
-		b.bottlenecks = make(map[string]int64, 4)
-	}
-	b.bottlenecks[component]++
+	b.bottlenecks = addBottleneck(b.bottlenecks, component, 1)
 }
 
 type missedBytesEntry struct {
@@ -92,20 +96,14 @@ func (e *missedBytesEntry) prune(cutoffNano int64) {
 }
 
 // pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
-// bottlenecks is nil when nothing was attributed.
+// bottlenecks is nil when nothing was attributed, and capped like a single bucket's.
 func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64, bottlenecks map[string]int64) {
-	for start, bucket := range e.buckets {
-		if start+int64(missedBytesBucketSize) <= cutoffNano {
-			delete(e.buckets, start)
-			continue
-		}
+	e.prune(cutoffNano)
+	for _, bucket := range e.buckets {
 		bytes += bucket.bytes
 		rotations += bucket.rotations
 		for component, count := range bucket.bottlenecks {
-			if bottlenecks == nil {
-				bottlenecks = make(map[string]int64, len(bucket.bottlenecks))
-			}
-			bottlenecks[component] += count
+			bottlenecks = addBottleneck(bottlenecks, component, count)
 		}
 	}
 	return bytes, rotations, bottlenecks
