@@ -7,16 +7,30 @@
 package networkdevicesimpl
 
 import (
+	"context"
+	"sync"
+
+	"golang.org/x/sync/semaphore"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networkdevices "github.com/DataDog/datadog-agent/comp/networkdevices/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
+
+// workersConfigKey sizes the interactive probe budget, separate from the
+// discovery sweep budget.
+const workersConfigKey = "network_devices.connectivity_check.workers"
 
 // Requires defines the dependencies for the networkdevices component.
 type Requires struct {
 	compdef.In
-	Logger log.Component
+
+	Lifecycle compdef.Lifecycle
+	Logger    log.Component
+	Config    config.Component
 }
 
 // Provides defines the output of the networkdevices component.
@@ -28,12 +42,33 @@ type Provides struct {
 }
 
 type networkDevicesImpl struct {
-	logger log.Component
+	logger     log.Component
+	maxWorkers int
+	sem        *semaphore.Weighted
+
+	pingOnce sync.Once
+	ping     pingprobe.Capability
+}
+
+func newImpl(logger log.Component, maxWorkers int) *networkDevicesImpl {
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
+	return &networkDevicesImpl{
+		logger:     logger,
+		maxWorkers: maxWorkers,
+		sem:        semaphore.NewWeighted(int64(maxWorkers)),
+	}
 }
 
 // NewComponent creates a new networkdevices component.
 func NewComponent(reqs Requires) Provides {
-	comp := &networkDevicesImpl{logger: reqs.Logger}
+	comp := newImpl(reqs.Logger, reqs.Config.GetInt(workersConfigKey))
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: func(context.Context) error {
+		comp.pingCapability()
+		return nil
+	}})
+
 	return Provides{
 		Comp: comp,
 		ConnectivityCheckEndpoint: api.NewAgentEndpointProvider(
