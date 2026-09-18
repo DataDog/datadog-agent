@@ -105,6 +105,10 @@ func TestOverlayFS(t *testing.T) {
 			ID:         "test_rule_renamed_parent",
 			Expression: `open.file.path == "{{.Root}}/bind/renamed/child"`,
 		},
+		{
+			ID:         "test_rule_copyup_parent",
+			Expression: `open.file.path == "{{.Root}}/bind/copyup/canary.txt"`,
+		},
 	}
 
 	testDrive, err := newTestDrive(t, "xfs", nil, "")
@@ -144,6 +148,16 @@ func TestOverlayFS(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Mkdir(testDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// A directory that exists only in the lower layer and that no other subtest touches, so
+	// that the first write into it is guaranteed to trigger a copy-up of the directory itself.
+	testCopyUpDir, _, err := test.Path("lower", "copyup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(testCopyUpDir, 0777); err != nil {
 		t.Fatal(err)
 	}
 
@@ -333,6 +347,35 @@ func TestOverlayFS(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_renamed_parent")
 		}, "test_rule_renamed_parent")
+	})
+
+	// Regression test: creating a file in a directory that only exists in the lower layer makes
+	// overlayfs copy the *directory* up first. On 6.17 / 6.18 / 6.19 this was causing a bug
+	// and the open event was stamped with this internal path instead of the real one.
+	t.Run("create-in-lower-only-dir-triggers-parent-copy-up", func(t *testing.T) {
+		testFile, _, err := test.Path("bind/copyup/canary.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignalFromRule(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_copyup_parent")
+
+			assert.NoError(t, event.Open.File.PathResolutionError, "path resolution should not fail")
+			assert.Equal(t, testFile, event.Open.File.PathnameStr,
+				"event should carry the real path, not the overlayfs workdir temp")
+			assert.NotEqual(t, model.MountOriginUnknown, event.Open.File.MountOrigin,
+				"mount should have been resolved")
+			assert.NotEqual(t, model.MountSourceUnknown, event.Open.File.MountSource,
+				"mount should have been resolved")
+		}, "test_rule_copyup_parent")
 	})
 
 	t.Run("rmdir-lower", func(t *testing.T) {

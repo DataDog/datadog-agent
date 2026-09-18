@@ -60,7 +60,7 @@ type Component interface {
 	ResolveAllIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
-	// with the given IssueName (e.g. "Docker File Tailing Disabled").
+	// with the given IssueName (e.g. "Docker Socket Permission").
 	GetActiveIssueIDsByIssueName(issueName string) []string
 
 	// IssueDiscriminator returns the identifier issue ids should be scoped by:

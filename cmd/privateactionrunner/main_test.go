@@ -37,3 +37,12 @@ func TestPrivateActionRunnerCommandCreation(t *testing.T) {
 	require.NotNil(t, runCmd, "Run command should be registered")
 	require.Equal(t, "Run the Private Action Runner", runCmd.Short)
 }
+
+func TestPrivateActionRunnerExtraConfigFromEnv(t *testing.T) {
+	t.Setenv(command.ExtraConfigPathEnvVar, "/etc/privateactionrunner/privateactionrunner.yaml")
+	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
+
+	paths, err := rootCmd.PersistentFlags().GetStringArray("extracfgpath")
+	require.NoError(t, err)
+	require.Equal(t, []string{"/etc/privateactionrunner/privateactionrunner.yaml"}, paths)
+}

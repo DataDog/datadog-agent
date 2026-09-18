@@ -212,19 +212,41 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 
 // ClusterID must bound how long it blocks a caller made before resolution
 // settles — long enough to give a one-shot startup check a real chance at
-// getting the id, but not indefinitely.
+// getting the id, but not indefinitely. When every lookup fails, the retry
+// budget (resolveRetries*resolveRetryDelay) settles the resolver before
+// clusterResolveTimeout, so the budget is what releases the caller.
+//
+// Runs inside a synctest bubble with a stubbed lookup so the wait is virtual
+// and the resolver can't race the assertions: the caller's elapsed time is
+// exactly the retry budget rather than a wall-clock upper bound a loaded CI
+// worker could bust.
 func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	s := New(nil)
-	s.resolveRetries = 3
-	s.resolveRetryDelay = 10 * time.Millisecond
+	synctest.Test(t, func(t *testing.T) {
+		stubClusterIDFuncs(t,
+			func() (string, error) { return "", errors.New("cluster agent unreachable") },
+			func() (string, error) { return "", errors.New("unused") },
+		)
 
-	start := time.Now()
-	first := s.ClusterID()
-	elapsed := time.Since(start)
-	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
-	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
+		s := New(nil)
+		s.resolveRetries = 3
+		s.resolveRetryDelay = 10 * time.Millisecond
+
+		start := time.Now()
+		first := s.ClusterID()
+		elapsed := time.Since(start)
+
+		assert.Empty(t, first, "every lookup failed, so resolution settles on empty")
+		assert.Equal(t, time.Duration(s.resolveRetries)*s.resolveRetryDelay, elapsed,
+			"the caller must be released by the exhausted retry budget, not by clusterResolveTimeout")
+		assert.Less(t, elapsed, s.clusterResolveTimeout,
+			"the retry budget must settle before the caller's bounded wait, or this test would assert the wrong bound")
+
+		// Let the resolver goroutine finish before t.Cleanup restores the stub
+		// globals it reads.
+		synctest.Wait()
+	})
 }
 
 // ClusterID must not block a caller for the duration of a hung lookup: the
