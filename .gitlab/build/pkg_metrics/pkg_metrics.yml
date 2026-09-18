@@ -7,7 +7,7 @@ send_pkg_size:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: always
       allow_failure: true
   needs:
