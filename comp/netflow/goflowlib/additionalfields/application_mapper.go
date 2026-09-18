@@ -11,6 +11,8 @@ import (
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/producer"
+
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IANA IPFIX Information Element numbers for in Options Data records (RFC 6759)
@@ -46,9 +48,11 @@ func (m *ApplicationMapper) Lookup(exporterIP string, appID uint32) (string, boo
 // addToCache extracts applicationId/applicationName pairs from IPFIX Options Data records
 // and stores them, scoped to exporterIP, for later lookup.
 func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []netflow.OptionsDataFlowSet) {
+	ddlog.Debugf("DEBUGTMP addToCache exporterIP=%s optionsDataFlowSets=%d", exporterIP, len(optionsDataFlowSet))
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
 			appID, haveID, appName, haveName := extractApplicationIDAndName(record.OptionsValues)
+			ddlog.Debugf("DEBUGTMP options record: appID=%d haveID=%v appName=%q haveName=%v rawFields=%+v", appID, haveID, appName, haveName, record.OptionsValues)
 			if haveID && haveName {
 				m.set(exporterIP, appID, appName)
 			}
@@ -61,9 +65,12 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 func (m *ApplicationMapper) lookupApplicationName(exporterIP string, rawAppID []byte) (string, bool) {
 	var id uint64
 	if err := producer.DecodeUNumber(rawAppID, &id); err != nil {
+		ddlog.Debugf("DEBUGTMP lookupApplicationName decode error exporterIP=%s rawAppID=%x err=%v", exporterIP, rawAppID, err)
 		return "", false
 	}
-	return m.Lookup(exporterIP, uint32(id))
+	name, found := m.Lookup(exporterIP, uint32(id))
+	ddlog.Debugf("DEBUGTMP lookupApplicationName exporterIP=%s appID=%d found=%v name=%q", exporterIP, uint32(id), found, name)
+	return name, found
 }
 
 func extractApplicationIDAndName(fields []netflow.DataField) (appID uint32, haveID bool, appName string, haveName bool) {
