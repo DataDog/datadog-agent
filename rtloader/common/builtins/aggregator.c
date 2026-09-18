@@ -200,7 +200,11 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
+    // Submission may block on the bounded Go channel.
+    // All arguments remain alive until this call returns; do not hold up other checks.
+    Py_BEGIN_ALLOW_THREADS
     cb_submit_metric(check_id, mt, name, value, tags, hostname, flush_first_value);
+    Py_END_ALLOW_THREADS
 
     free_tags(tags);
 

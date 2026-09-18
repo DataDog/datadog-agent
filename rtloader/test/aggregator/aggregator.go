@@ -62,6 +62,8 @@ var (
 	monotonic       bool
 )
 
+var metricGILReleased bool
+
 type event struct {
 	title          string
 	text           string
@@ -162,6 +164,10 @@ func charArrayToSlice(array **C.char) (res []string) {
 
 //export submitMetric
 func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.double, t **C.char, hname *C.char, fFirstValue C.bool) {
+	// ensure_gil returns the previous state; restore it before returning to Python.
+	state := C.ensure_gil(rtloader)
+	metricGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	metricType = int(mt)
 	name = C.GoString(mname)
