@@ -90,6 +90,8 @@ func TestNoAggStreamWorkerSampleToSerieFields(t *testing.T) {
 	deps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	demux.statsd.noAggStreamWorkers[0].serializer = serializer
+	handle := &recordingHandle{}
+	demux.statsd.noAggStreamWorkers[0].observerHandle = handle
 	// Flush as soon as the batch has been processed, instead of waiting for the
 	// idle ticker, so the test can wait on the flush rather than on a clock.
 	demux.statsd.noAggStreamWorkers[0].maxMetricsPerPayload = 0
@@ -153,6 +155,9 @@ func TestNoAggStreamWorkerSampleToSerieFields(t *testing.T) {
 	}
 
 	require.Len(mockSerializer.series, len(batch))
+	require.Len(handle.calls, 1)
+	require.Equal("gauge.metric", handle.calls[0].name)
+	assertObservedContextKey(t, handle.calls[0])
 	for i, sample := range batch {
 		serie := mockSerializer.series[i]
 

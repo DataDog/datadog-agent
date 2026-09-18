@@ -41,6 +41,13 @@ type resolvedMetricView struct {
 	tags   tagset.CompositeTags
 }
 
+// isGaugeMetricForObserver reports whether a raw metric sample is meaningful to
+// the anomaly-detection observer. The observer currently analyses gauge values
+// only; other metric types need type-specific normalization before ingestion.
+func isGaugeMetricForObserver(metricType metrics.MetricType) bool {
+	return metricType == metrics.GaugeType || metricType == metrics.GaugeWithTimestampType
+}
+
 func (v resolvedMetricView) GetName() string               { return v.sample.GetName() }
 func (v resolvedMetricView) GetValue() float64             { return v.sample.GetValue() }
 func (v resolvedMetricView) GetTags() tagset.CompositeTags { return v.tags }

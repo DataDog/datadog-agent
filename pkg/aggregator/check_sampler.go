@@ -77,7 +77,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
-	if cs.observerHandle != nil {
+	if cs.observerHandle != nil && isGaugeMetricForObserver(metricSample.Mtype) {
 		context, _ := cs.contextResolver.get(contextKey)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
