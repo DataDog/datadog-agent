@@ -211,3 +211,20 @@ anomaly_detection:
 		})
 	}
 }
+
+func TestLogPatternLimitFromAgentConfig(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  int
+	}{
+		{"7", 7}, {"0", 10000}, {"-1", 10000},
+	} {
+		t.Run(test.value, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_pattern_extractor:\n      max_patterns: "+test.value+"\n")
+			settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+			actual := settings.configs[LogPatternExtractorName].(LogPatternExtractorConfig)
+			require.Equal(t, test.want, actual.MaxPatterns)
+			require.Equal(t, test.want, NewLogPatternExtractor(actual).taggedClusterer.MaxPatterns)
+		})
+	}
+}

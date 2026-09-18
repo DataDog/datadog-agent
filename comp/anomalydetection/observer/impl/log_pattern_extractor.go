@@ -26,6 +26,9 @@ const defaultGarbageCollectionInterval = 1 * time.Hour
 
 // LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
 type LogPatternExtractorConfig struct {
+	// MaxPatterns caps live patterns across all tag groups, including patterns
+	// below the emission threshold. Non-positive values use the default.
+	MaxPatterns int `json:"max_patterns,omitempty"`
 	// This will disable all optimizations like MinClusterSizeBeforeEmit, ClusterTimeToLiveSec, etc.
 	DisableOptimizations bool `json:"disable_optimizations,omitempty"`
 	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
@@ -65,6 +68,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 	parseHexDump := true
 
 	return LogPatternExtractorConfig{
+		MaxPatterns:                  10000,
 		MinClusterSizeBeforeEmit:     5,
 		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
 		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),
@@ -120,6 +124,9 @@ var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
 func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
 	// Apply defaults first and then refresh config to finalize it
 	defaults := DefaultLogPatternExtractorConfig()
+	if cfg.MaxPatterns <= 0 {
+		cfg.MaxPatterns = defaults.MaxPatterns
+	}
 	if cfg.MinClusterSizeBeforeEmit <= 0 {
 		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
 	}
@@ -145,6 +152,7 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
 	tc := NewTaggedPatternClustererWithFactory(registry, newSub)
+	tc.MaxPatterns = cfg.MaxPatterns
 	if cfg.MaxPatternsPerGroup > 0 {
 		tc.MaxClustersPerGroup = cfg.MaxPatternsPerGroup
 	}
