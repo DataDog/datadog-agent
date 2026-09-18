@@ -114,7 +114,19 @@ static __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgr
     u64 cgroup_inode = cgroup->path_key.ino;
     int ret = bpf_map_update_elem(&traced_cgroups, &cgroup_inode, &cookie, BPF_NOEXIST);
     if (ret < 0) {
-        // we didn't get a lock, skip this cgroup for now and go back to it later
+        // we didn't get a lock, skip this cgroup for now and go back to it later.
+        // Debug aid: this rejection is the only one that leaves nothing behind in any
+        // map, so record it here with the errno that distinguishes a full traced_cgroups
+        // (E2BIG) from a cgroup that was already reserved (EEXIST). Count in the high
+        // half, latest errno in the low half; a plain read-modify-write is enough for a
+        // debug counter and keeps this off the atomics the older JITs reject.
+        u64 *failed = bpf_map_lookup_elem(&traced_cgroups_reserve_failed, &cgroup_inode);
+        if (failed != NULL) {
+            *failed = ((*failed + ((u64)1 << 32)) & 0xFFFFFFFF00000000ULL) | ((u64)(-ret) & 0xFFFFFFFF);
+        } else {
+            u64 init = ((u64)1 << 32) | ((u64)(-ret) & 0xFFFFFFFF);
+            bpf_map_update_elem(&traced_cgroups_reserve_failed, &cgroup_inode, &init, BPF_ANY);
+        }
         return false;
     }
 
