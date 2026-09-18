@@ -190,6 +190,29 @@ dd_agent_go_test(
     srcs = ["process_zombie_benchmark_test.go"],
     data = glob(["testdata/**"]),
     embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+dd_agent_go_test(
+    name = "process_darwin_test",
+    srcs = ["process_darwin_test.go"],
+    # Synthetic ps/sysctl inputs do not use the Linux procfs fixtures.
+    data = [],  # keep
+    embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

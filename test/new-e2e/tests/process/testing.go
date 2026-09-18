@@ -118,6 +118,57 @@ func assertProcessCollected(
 	assertProcesses(t, procs, withIOStats, process)
 }
 
+// assertProcessPIDCollected asserts that a process with the exact PID appears
+// in at least one standard process payload.
+func assertProcessPIDCollected(t require.TestingT, payloads []*aggregator.ProcessPayload, pid int32) {
+	for _, payload := range payloads {
+		for _, process := range payload.Processes {
+			if process != nil && process.Pid == pid {
+				return
+			}
+		}
+	}
+	require.Failf(t, "process PID not collected", "PID %d not found in process payloads: %+v", pid, payloads)
+}
+
+// assertZombieAggregationPayloads checks the mode-specific zombie aggregation
+// contract across standard process payloads received after a fakeintake flush.
+func assertZombieAggregationPayloads(
+	t require.TestingT,
+	payloads []*aggregator.ProcessPayload,
+	parentPID, zombiePID int32,
+	aggregationEnabled bool,
+) {
+	require.NotEmpty(t, payloads, "no process payloads returned")
+	parentFound := false
+	positiveAggregateFound := false
+	for _, payload := range payloads {
+		for _, process := range payload.Processes {
+			require.NotNil(t, process, "process payload contains a nil process")
+			assert.Equalf(t, aggregationEnabled, process.HasZombieAggregation,
+				"process %d has an unexpected zombie aggregation capability flag", process.Pid)
+			assert.NotEqualf(t, zombiePID, process.Pid, "zombie PID %d was emitted as a standalone process", zombiePID)
+			if process.Pid != parentPID {
+				continue
+			}
+			parentFound = true
+			if aggregationEnabled {
+				if process.ZombieChildrenCount >= 1 && process.ZombieNetRate > 0 {
+					positiveAggregateFound = true
+				}
+			} else {
+				assert.Zero(t, process.ZombieChildrenCount, "disabled aggregation reported zombie children for parent %d", parentPID)
+				assert.Zero(t, process.ZombieNetRate, "disabled aggregation reported a zombie rate for parent %d", parentPID)
+			}
+		}
+	}
+	require.Truef(t, parentFound, "parent PID %d not found in process payloads: %+v", parentPID, payloads)
+	if aggregationEnabled {
+		require.Truef(t, positiveAggregateFound,
+			"parent PID %d never reported both a zombie child and a positive creation rate: %+v", parentPID, payloads)
+	}
+}
+
 func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
 	for _, proc := range processes {
 		// command arguments include the first command/program which can differ depending on the path,
@@ -396,6 +447,19 @@ func assertManualRTProcessCheck(t require.TestingT, check string) {
 	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
 	require.NoError(t, err)
 	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
+}
+
+// assertManualRTProcessNotCollected asserts that an exact PID is absent from a
+// non-empty realtime process check response.
+func assertManualRTProcessNotCollected(t require.TestingT, check string, pid int32) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err, "failed to decode realtime process check output: %s", check)
+	require.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
+	for _, stats := range rt.Stats {
+		require.NotNil(t, stats, "realtime output contains a nil process stat")
+		assert.NotEqualf(t, pid, stats.Pid, "zombie PID %d was emitted in realtime output: %s", pid, check)
+	}
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check

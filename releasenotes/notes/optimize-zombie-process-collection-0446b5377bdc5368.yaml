@@ -1,4 +1,12 @@
 ---
 enhancements:
   - |
+    Aggregate zombie processes by parent in standard process payloads when
+    ``process_config.ignore_zombie_processes`` is disabled. Parent records
+    include ``zombie_children_count`` and ``zombie_net_rate``, and advertise
+    aggregation support through ``has_zombie_aggregation``. When
+    ``process_config.ignore_zombie_processes`` is enabled, zombie processes
+    remain ignored and ``has_zombie_aggregation`` is false. Standalone zombie
+    records are excluded from realtime payloads in both modes.
+  - |
     Reduce process collection overhead on Linux hosts with zombie processes by avoiding procfs reads for data that is unavailable after process exit.

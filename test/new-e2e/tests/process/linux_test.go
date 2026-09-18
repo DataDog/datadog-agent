@@ -6,7 +6,10 @@
 package process
 
 import (
+	_ "embed"
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
+
+const (
+	zombieFixtureScriptPath = "/tmp/cxp-zombie-parent.py"
+	zombieFixtureStateDir   = "/tmp/cxp-zombie-aggregation"
+)
+
+//go:embed fixtures/zombie_parent.py
+var zombieParentScript string
 
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -159,6 +170,105 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 		assertProcessCollected(c, payloads, false, "stress")
 	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestZombieProcessAggregation() {
+	t := s.T()
+
+	configForMode := func(ignoreZombies bool) string {
+		return fmt.Sprintf("%s\n  ignore_zombie_processes: %t\n", strings.TrimRight(processCheckConfigStr, "\n"), ignoreZombies)
+	}
+	updateEnv := func(ignoreZombies bool) {
+		s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(configForMode(ignoreZombies)),
+			agentparams.WithFile(zombieFixtureScriptPath, zombieParentScript, false),
+		))))
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			assertRunningChecks(c, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery"}, false)
+		}, 2*time.Minute, 5*time.Second)
+	}
+	cleanupFixture := func() {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			"sudo sh -c 'if test -f %[1]s/parent.pid; then kill $(cat %[1]s/parent.pid) 2>/dev/null || true; fi; rm -rf %[1]s'",
+			zombieFixtureStateDir,
+		))
+	}
+	waitForPID := func(path string) int32 {
+		var pid int64
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			output := s.Env().RemoteHost.MustExecuteOn(c, "cat "+path)
+			parsed, err := strconv.ParseInt(strings.TrimSpace(output), 10, 32)
+			require.NoError(c, err, "failed to parse PID from %s: %q", path, output)
+			pid = parsed
+		}, time.Minute, time.Second)
+		return int32(pid)
+	}
+	assertRealtimeExcludesPID := func(pid int32) {
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks rtprocess --json")
+			assertManualRTProcessNotCollected(c, check, pid)
+		}, 2*time.Minute, 10*time.Second)
+	}
+
+	updateEnv(false)
+	cleanupFixture()
+	t.Cleanup(func() {
+		if t.Failed() {
+			fixtureLog, err := s.Env().RemoteHost.Execute("cat " + zombieFixtureStateDir + "/fixture.log")
+			if err != nil {
+				t.Logf("failed to collect zombie fixture log: %v", err)
+			} else {
+				t.Logf("zombie fixture log:\n%s", fixtureLog)
+			}
+		}
+		cleanupFixture()
+	})
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"mkdir -p %[1]s && nohup python3 %[2]s %[1]s >%[1]s/fixture.log 2>&1 </dev/null &",
+		zombieFixtureStateDir,
+		zombieFixtureScriptPath,
+	))
+	parentPID := waitForPID(zombieFixtureStateDir + "/parent.pid")
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+		assertProcessPIDCollected(c, payloads, parentPID)
+	}, 2*time.Minute, 10*time.Second)
+
+	// Start the zombie only after its parent is established in the previous
+	// process collection, making the positive creation rate observable.
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	s.Env().RemoteHost.MustExecute("touch " + zombieFixtureStateDir + "/trigger")
+	zombiePID := waitForPID(zombieFixtureStateDir + "/child.pid")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		state := s.Env().RemoteHost.MustExecuteOn(c, fmt.Sprintf("awk '$1 == \"State:\" {print $2}' /proc/%d/status", zombiePID))
+		assert.Equal(c, "Z", strings.TrimSpace(state), "fixture child %d is not a zombie", zombiePID)
+	}, time.Minute, time.Second)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+		assertZombieAggregationPayloads(c, payloads, parentPID, zombiePID, true)
+	}, 2*time.Minute, 5*time.Second)
+	assertRealtimeExcludesPID(zombiePID)
+
+	// Preserve the same fixture across the Agent restart and verify the
+	// compatibility mode disables aggregation while continuing to omit zombies.
+	updateEnv(true)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		state := s.Env().RemoteHost.MustExecuteOn(c, fmt.Sprintf("awk '$1 == \"State:\" {print $2}' /proc/%d/status", zombiePID))
+		assert.Equal(c, "Z", strings.TrimSpace(state), "fixture zombie %d did not survive the Agent update", zombiePID)
+	}, time.Minute, time.Second)
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+		assertZombieAggregationPayloads(c, payloads, parentPID, zombiePID, false)
+	}, 2*time.Minute, 10*time.Second)
+	assertRealtimeExcludesPID(zombiePID)
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
