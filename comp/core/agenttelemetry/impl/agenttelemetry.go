@@ -25,7 +25,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -48,6 +48,11 @@ type atel struct {
 	sender  sender
 	runner  runner
 	atelCfg *Config
+
+	// dynamicProfiles owns the dynamic additive profiles (see dynamic_profiles.go).
+	// nil when the feature is disabled. It never mutates atelCfg; dynamic profiles
+	// are published as a separate immutable snapshot.
+	dynamicProfiles *dynamicProfilesManager
 
 	localEmitter string
 
@@ -109,28 +114,37 @@ type Provides struct {
 
 // Interfacing with runner.
 //
-// A single job type drives both the periodic metric-profile flush and
-// the errortracking flush. The profiles slice doubles as a
-// discriminator: a nil profiles slice means "this is the errortracking
-// flush job"; a non-nil slice means "this is a metric-profile tick".
-// Threading both behaviours through the same job avoids widening the
-// runner's interface for a one-off second consumer.
+// A single job type drives every runner tick: the periodic metric-profile flush, the
+// errortracking flush, and the dynamic profiles poll. They are distinguished by an
+// explicit kind rather than by inspecting the profiles slice -- two of the three kinds
+// carry no profiles, so a nil-slice discriminator would be ambiguous.
+type jobKind uint8
+
+const (
+	jobKindMetrics jobKind = iota
+	jobKindErrortracking
+	jobKindDynamicProfilesPoll
+)
+
 type job struct {
 	a        *atel
+	kind     jobKind
 	profiles []*Profile
 	schedule Schedule
 }
 
 func (j job) Run() {
-	if j.profiles == nil {
-		// Errortracking runner tick: use the lifecycle context so an
-		// in-flight POST cancels promptly when the agent stops. The
-		// final shutdown drain in atel.stop uses a fresh background
+	switch j.kind {
+	case jobKindErrortracking:
+		// Use the lifecycle context so an in-flight POST cancels promptly when the
+		// agent stops. The final shutdown drain in atel.stop uses a fresh background
 		// context with a bounded timeout instead.
 		j.a.flushErrortracking(j.a.cancelCtx)
-		return
+	case jobKindDynamicProfilesPoll:
+		j.a.dynamicProfiles.poll(j.a.cancelCtx)
+	case jobKindMetrics:
+		j.a.run(j.profiles)
 	}
-	j.a.run(j.profiles)
 }
 
 // Passing metrics to sender Interfacing with sender
@@ -198,19 +212,19 @@ func createAtel(
 	// out without needing a separate exclusion list.
 	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
 
-	bufferSize := getNonNegativeErrortrackingInt(
+	bufferSize := getNonNegativeIntSetting(
 		cfgComp,
 		logComp,
 		"agent_telemetry.errortracking.buffer_size",
 		defaultErrortrackingBufferSize,
 	)
-	flushIntervalSeconds := getNonNegativeErrortrackingInt(
+	flushIntervalSeconds := getNonNegativeIntSetting(
 		cfgComp,
 		logComp,
 		"agent_telemetry.errortracking.flush_interval_seconds",
 		defaultErrortrackingFlushIntervalSeconds,
 	)
-	startupJitterSeconds := getNonNegativeErrortrackingInt(
+	startupJitterSeconds := getNonNegativeIntSetting(
 		cfgComp,
 		logComp,
 		"agent_telemetry.errortracking.startup_jitter_seconds",
@@ -224,14 +238,14 @@ func createAtel(
 
 	// Final-drain context budget — bounded so a hung intake cannot
 	// block agent shutdown. See atel.stop for usage.
-	shutdownDrainTimeoutSeconds := getNonNegativeErrortrackingInt(
+	shutdownDrainTimeoutSeconds := getNonNegativeIntSetting(
 		cfgComp,
 		logComp,
 		"agent_telemetry.errortracking.shutdown_drain_timeout_seconds",
 		defaultErrortrackingShutdownDrainTimeoutSecs,
 	)
 
-	return &atel{
+	a := &atel{
 		enabled: true,
 		cfgComp: cfgComp,
 		logComp: logComp,
@@ -257,9 +271,33 @@ func createAtel(
 		errLogsStartupJitter: time.Duration(startupJitterSeconds) * time.Second,
 		shutdownDrainTimeout: time.Duration(shutdownDrainTimeoutSeconds) * time.Second,
 	}
+
+	// The dynamic profiles manager is constructed here but deliberately left without a
+	// fetcher: NewComponent is the only place that wires one. That keeps every
+	// createAtel caller (i.e. every unit test) network-inert by construction --
+	// do not wire a default fetcher here.
+	if cfgComp.GetBool("agent_telemetry.dynamic_profiles.enabled") {
+		a.dynamicProfiles = newDynamicProfilesManager(a, cfgComp, logComp)
+	}
+
+	return a
 }
 
-func getNonNegativeErrortrackingInt(cfgComp config.Component, logComp log.Component, key string, defaultValue int) int {
+// normalizedFlavor returns the process flavor in the same form agent telemetry uses for
+// the mandatory "emitter" tag. Keeping one convention means the flavor a payload is
+// tagged with and the flavor reported to the dynamic profiles endpoint always agree
+// (flavor.GetFlavor returns e.g. "trace_agent", the emitter tag is "trace-agent").
+func normalizedFlavor() string {
+	f := strings.ReplaceAll(flavor.GetFlavor(), "_", "-")
+	if f == "" {
+		return defaultEmitter
+	}
+	return f
+}
+
+// getNonNegativeIntSetting reads an int setting, falling back to the default when the
+// configured value is negative.
+func getNonNegativeIntSetting(cfgComp config.Component, logComp log.Component, key string, defaultValue int) int {
 	value := cfgComp.GetInt(key)
 	if value >= 0 {
 		return value
@@ -278,11 +316,14 @@ func NewComponent(deps Requires) Provides {
 		nil,
 		nil,
 	)
-	localEmitter := strings.ReplaceAll(flavor.GetFlavor(), "_", "-")
-	if localEmitter == "" {
-		localEmitter = defaultEmitter
+	a.localEmitter = normalizedFlavor()
+
+	// Sole place the dynamic profiles poller becomes able to reach the network. Reuses the core agent transport, as
+	// the telemetry sender does, to inherit proxy settings, min_tls_version and skip_ssl_validation.
+	if a.dynamicProfiles != nil {
+		a.dynamicProfiles.httpClient = httputils.NewResetClient(
+			httpClientResetInterval, httpClientFactory(deps.Config, dynamicProfilesFetchTimeout))
 	}
-	a.localEmitter = localEmitter
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
@@ -676,6 +717,48 @@ func (a *atel) run(profiles []*Profile) {
 	}
 }
 
+// allProfiles returns the baseline profiles followed by the profiles published by the
+// dynamic profiles, in a freshly allocated slice.
+//
+// atelCfg is written once in createAtel and never mutated afterwards -- that invariant
+// is what lets the unsynchronized readers here and in start() stay correct without a
+// lock, and it is why dynamic profiles are published as a separate snapshot instead of being
+// merged into atelCfg. Nothing may append to atelCfg.Profiles.
+func (a *atel) allProfiles() []*Profile {
+	baseline := a.atelCfg.Profiles
+
+	snapshot := a.dynamicProfiles.load()
+	if snapshot == nil || len(snapshot.profiles) == 0 {
+		return baseline
+	}
+
+	profiles := make([]*Profile, 0, len(baseline)+len(snapshot.profiles))
+	profiles = append(profiles, baseline...)
+	profiles = append(profiles, snapshot.profiles...)
+	return profiles
+}
+
+// lookupEvent resolves a registered event by name, baseline first.
+//
+// Baseline always wins. compileEvents flattens every profile's events into one map
+// keyed by name, last writer winning, so merging a dynamic document's event map would let a
+// remote document re-point the request_type and payload_key of an event that is
+// already shipping. Checking baseline first makes that structurally impossible rather
+// than dependent on merge order.
+func (a *atel) lookupEvent(name string) (*Event, bool) {
+	if e, ok := a.atelCfg.events[name]; ok {
+		return e, true
+	}
+
+	if snapshot := a.dynamicProfiles.load(); snapshot != nil {
+		if e, ok := snapshot.events[name]; ok {
+			return e, true
+		}
+	}
+
+	return nil, false
+}
+
 func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	if !a.enabled {
 		httputils.SetJSONError(w, errors.New("agent-telemetry is not enabled. See https://docs.datadoghq.com/data_security/agent/?tab=datadogyaml#telemetry-collection for more info"), 400)
@@ -693,7 +776,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *atel) getAsJSON() ([]byte, error) {
-	session, err := a.loadPayloads(a.atelCfg.Profiles)
+	session, err := a.loadPayloads(a.allProfiles())
 	if err != nil {
 		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
 	}
@@ -725,7 +808,7 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	}
 
 	// Check if the payload type is registered
-	eventInfo, ok := a.atelCfg.events[eventType]
+	eventInfo, ok := a.lookupEvent(eventType)
 	if !ok {
 		a.logComp.Errorf("Payload type `%s` has to be registered to be sent", eventType)
 		return fmt.Errorf("Payload type `%s` is not registered", eventType)
@@ -867,6 +950,7 @@ func (a *atel) start() error {
 	for sh, pp := range a.atelCfg.schedule {
 		a.runner.addJob(job{
 			a:        a,
+			kind:     jobKindMetrics,
 			profiles: pp,
 			schedule: sh,
 		})
@@ -893,12 +977,25 @@ func (a *atel) start() error {
 			startAfterSec = uint(time.Duration(rand.Int63n(int64(a.errLogsStartupJitter))) / time.Second)
 		}
 		a.runner.addJob(job{
-			a: a,
+			a:    a,
+			kind: jobKindErrortracking,
 			schedule: Schedule{
 				Period:     flushPeriodSec,
 				Iterations: 0,
 				StartAfter: startAfterSec,
 			},
+		})
+	}
+
+	// Dynamic additive profiles. The on-disk cache is applied synchronously so
+	// dynamic-profile collection begins immediately rather than waiting out the first
+	// (jittered) poll; the poll job then refreshes it periodically.
+	if a.dynamicProfiles != nil {
+		a.dynamicProfiles.applyCachedAtStartup()
+		a.runner.addJob(job{
+			a:        a,
+			kind:     jobKindDynamicProfilesPoll,
+			schedule: a.dynamicProfiles.pollSchedule(),
 		})
 	}
 
