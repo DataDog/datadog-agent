@@ -539,6 +539,29 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	require.ElementsMatch(t, expectedLibs, libs)
 }
 
+func BenchmarkGetLibrariesFromMapsFile(b *testing.B) {
+	pid := 1
+	procRoot := kernel.CreateFakeProcFS(b, []kernel.FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
+	config := AttacherConfig{
+		ProcRoot: procRoot,
+	}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
+	require.NoError(b, err)
+	require.NotNil(b, ua)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		libs, err := ua.getLibrariesFromMapsFile(pid)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(libs) == 0 {
+			b.Fatal("should return at least one libraries")
+		}
+	}
+}
+
 func TestComputeRequestedSymbols(t *testing.T) {
 	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{}, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
 	require.NoError(t, err)

@@ -578,11 +578,18 @@ profiles:
       - name: data_plane.preflight_mode_result
         preserve_tags:
           - result
-      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/capture.go` for the fixed set
-      # of values that we except to have for the `finding` tag.
+      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/report_test.go` for the fixed set
+      # of values that we expect to have for the `finding` tag.
+      #
+      # `source_file` and `source_line` are the Agent Data Plane source location that logged the problem, and are
+      # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
+      # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
+      # from any log message, and the number of distinct locations reported per finding is capped.
       - name: data_plane.preflight_mode_finding
         preserve_tags:
           - finding
+          - source_file
+          - source_line
       - name: data_plane.preflight_mode_duration_seconds
   schedule:
     # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see

@@ -177,11 +177,24 @@ func (c *ContainerdUtil) connect() error {
 	if err != nil {
 		return err
 	}
+
+	// containerd.New does not dial, it only builds a lazy gRPC client, so this
+	// is the first call that actually reaches the daemon. If it fails we have to
+	// close the client ourselves: callers discard the ContainerdUtil when the
+	// initial connection fails and never get a chance to. An unclosed
+	// ClientConn is kept alive forever by the callback serializers that its
+	// idle mode re-arms, so every orphan is a permanent leak.
 	ver, err := c.Metadata()
-	if err == nil {
-		log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
+	if err != nil {
+		if errClose := c.cl.Close(); errClose != nil {
+			log.Warnf("Could not close the containerd client after a failed connection attempt: %v", errClose)
+		}
+		c.cl = nil
+		return err
 	}
-	return err
+
+	log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
+	return nil
 }
 
 // GetEvents interfaces with the containerd api to get the event service.

@@ -2965,8 +2965,10 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 // three metrics, and a metric missing from this allowlist is dropped rather than shipped.
 // The label allowlists matter just as much: an unlisted label is stripped and its
 // timeseries summed into the others, which would collapse every distinct finding into one
-// meaningless number. The matching tripwire on the producing side is
-// TestFindingsAreAllowlisted in comp/dataplane/preflightmode/impl.
+// meaningless number — and for source_file/source_line, every log site a finding was
+// reported from into one. The matching tripwires on the producing side are
+// TestFindingsAreAllowlisted and TestTelemetryNamesAreStable in
+// comp/dataplane/preflightmode/impl.
 func TestDataPlanePreflightModeProfile(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, defaultProfiles)
 	atCfg, err := parseConfig(cfg)
@@ -2984,7 +2986,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 

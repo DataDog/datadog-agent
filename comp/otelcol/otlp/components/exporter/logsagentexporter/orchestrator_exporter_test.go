@@ -6,13 +6,17 @@
 package logsagentexporter
 
 import (
-	"encoding/json"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
@@ -47,12 +51,13 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-1", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		require.Len(t, first.Chunks, 1)
-		assert.Len(t, first.Chunks[0], 1)
+		first := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		assert.Len(t, first[0].Chunks[0], 1)
 
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		assert.Empty(t, second.Chunks, "duplicate pull manifest should be skipped")
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		assert.Empty(t, second, "duplicate pull manifest should produce no results")
 	})
 
 	t.Run("updated resourceVersion is not deduplicated", func(t *testing.T) {
@@ -60,29 +65,82 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		ld1 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v1", false)
 		ld2 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v2", false)
 
-		logsmapping.TranslateK8sObjects(ld1, cache, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, false, 0)
-		require.Len(t, second.Chunks, 1)
-		assert.Len(t, second.Chunks[0], 1, "updated resourceVersion should not be skipped")
+		logsmapping.TranslateK8sObjects(ld1, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1)
+		assert.Len(t, second[0].Chunks[0], 1, "updated resourceVersion should not be skipped")
 	})
 
 	t.Run("watch events bypass deduplication cache", func(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-3", "v1", true)
 
-		logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false, 0)
-		require.Len(t, second.Chunks, 1, "watch events should always be forwarded")
+		logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "watch events should always be forwarded")
 	})
 
 	t.Run("nil cache disables deduplication", func(t *testing.T) {
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-4", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
-		second := logsmapping.TranslateK8sObjects(ld, nil, logger, false, 0)
-		require.Len(t, first.Chunks, 1)
-		require.Len(t, second.Chunks, 1, "nil cache should not deduplicate")
+		first := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "nil cache should not deduplicate")
 	})
+}
+
+// TestConsumeK8sObjects_MultiCluster verifies that consumeK8sObjects sends one HTTP request per
+// cluster chunk and stamps each request with the correct X-Dd-Orchestrator-ClusterID header.
+// This catches regressions where all clusters' manifests are sent under one cluster ID.
+func TestConsumeK8sObjects_MultiCluster(t *testing.T) {
+	type requestRecord struct {
+		clusterID string
+	}
+	var mu sync.Mutex
+	var received []requestRecord
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		received = append(received, requestRecord{clusterID: r.Header.Get("X-Dd-Orchestrator-ClusterID")})
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	exporter := &Exporter{
+		set: component.TelemetrySettings{Logger: zap.NewNop()},
+		orchestratorExporter: orchestratorExporter{
+			config: OrchestratorConfig{
+				Enabled:  true,
+				Hostname: stubHostname{"test-host"},
+				Key:      "test-key",
+				Endpoint: srv.URL,
+			},
+			manifestCache: logsmapping.NewManifestCache(),
+		},
+	}
+
+	ldA := buildK8sLogs("uid-cluster-A", "cluster-A", "pod-a", "v1", false)
+	ldB := buildK8sLogs("uid-cluster-B", "cluster-B", "pod-b", "v1", false)
+	ldB.ResourceLogs().MoveAndAppendTo(ldA.ResourceLogs())
+
+	require.NoError(t, exporter.consumeK8sObjects(context.Background(), ldA))
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, received, 2, "expected one request per cluster")
+
+	seen := make(map[string]bool, 2)
+	for _, r := range received {
+		seen[r.clusterID] = true
+	}
+	assert.True(t, seen["uid-cluster-A"], "expected request for cluster A")
+	assert.True(t, seen["uid-cluster-B"], "expected request for cluster B")
 }
 
 // TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
@@ -488,33 +546,6 @@ func TestToManifest(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCreateClusterManifest(t *testing.T) {
-	logger := zap.NewNop()
-	clusterID := "test-cluster-123"
-	nodes := []*agentmodel.Manifest{
-		{
-			Uid:             "node-1",
-			ResourceVersion: "v1",
-			Kind:            "Node",
-		},
-	}
-
-	manifest := logsmapping.CreateClusterManifest(clusterID, nodes, logger)
-
-	require.NotNil(t, manifest)
-	assert.Equal(t, clusterID, manifest.Uid)
-	assert.Equal(t, "Cluster", manifest.Kind)
-	assert.Equal(t, "virtual.datadoghq.com/v1", manifest.ApiVersion)
-	assert.Equal(t, "application/json", manifest.ContentType)
-	assert.Equal(t, "v1", manifest.Version)
-	assert.False(t, manifest.IsTerminated)
-
-	// Verify content is valid JSON
-	var clusterData map[string]interface{}
-	err := json.Unmarshal(manifest.Content, &clusterData)
-	require.NoError(t, err)
 }
 
 func TestToManifestPayload(t *testing.T) {
