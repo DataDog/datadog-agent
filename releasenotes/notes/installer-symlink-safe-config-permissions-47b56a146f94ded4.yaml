@@ -8,13 +8,16 @@
 ---
 security:
   - |
-    The Linux install and upgrade hooks no longer resolve symbolic links when
-    they write configuration files or apply ownership and permissions inside
-    ``/etc/datadog-agent`` and the Agent package directory. Both are owned by
-    the unprivileged ``dd-agent`` user, so a symlink placed there previously
-    redirected these root-run operations onto the file it pointed at, which
-    could transfer ownership of an arbitrary root-owned file to ``dd-agent``.
-    A symlink in place of a package-managed DDOT configuration file is now
-    reported as an error instead of being followed, and the recursive ownership
-    pass walks through directory handles so no component of a path it visits can
-    be replaced to redirect it.
+    The DDOT install and upgrade hooks no longer follow symbolic links when they
+    read or write Agent configuration files. This applies on Linux and Windows
+    alike: a link in place of a package-managed DDOT configuration file is now
+    reported as an error instead of being followed, and configuration reads and
+    writes are anchored to the directory meant to contain them, so a link
+    pointing outside that directory is rejected. On Linux the hooks additionally
+    stopped resolving links when they apply ownership and permissions inside
+    ``/etc/datadog-agent`` and the Agent package directory. Both are owned by the
+    unprivileged ``dd-agent`` user, so a link placed there previously redirected
+    these root-run operations onto the file it pointed at, which could transfer
+    ownership of an arbitrary root-owned file to ``dd-agent``. The recursive
+    ownership pass now walks through directory handles, so no component of a path
+    it visits can be replaced to redirect it.
