@@ -20,8 +20,12 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	workloadselection "github.com/DataDog/datadog-agent/comp/workloadselection/def"
+	installerpaths "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+const apmInjectPackage = "datadog-apm-inject"
 
 var (
 	configPath = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
@@ -32,6 +36,14 @@ var (
 
 	// getInstallPath is a variable that can be overridden in tests
 	getInstallPath = config.GetInstallPath
+	// getPolicySchemaPath is a variable that can be overridden in tests.
+	getPolicySchemaPath = func() (string, error) {
+		packagePath, err := getAPMInjectPackagePath(installerpaths.PackagesPath)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(packagePath, "policy.bfbs"), nil
+	}
 )
 
 // Requires defines the dependencies for the workloadselection component
@@ -208,4 +220,43 @@ func (c *workloadselectionComponent) removeConfig() error {
 		return fmt.Errorf("failed to remove workload selection binary policy: %w", err)
 	}
 	return nil
+}
+
+// getAPMInjectPackagePath returns the package path currently selected by the
+// installer. An installed experiment takes precedence over the stable package.
+func getAPMInjectPackagePath(packagesPath string) (string, error) {
+	repo := repository.NewRepositories(packagesPath, nil).Get(apmInjectPackage)
+	state, err := repo.GetState()
+	if err != nil {
+		return "", fmt.Errorf("failed to get APM injector package state: %w", err)
+	}
+	if state.HasExperiment() {
+		return repo.ExperimentPath(), nil
+	}
+	return repo.StablePath(), nil
+}
+
+// compilePolicyCommandArgs returns the compiler arguments, using the schema
+// shipped by the active APM injector package when it is available. This lets a
+// newer injector consume policy fields that the Agent's built-in schema does
+// not know yet.
+func (c *workloadselectionComponent) compilePolicyCommandArgs(rawConfig []byte, outputPath string) []string {
+	args := []string{"--input-string", string(rawConfig), "--output-file", outputPath}
+
+	schemaPath, err := getPolicySchemaPath()
+	if err != nil {
+		c.log.Warnf("failed to resolve APM workload selection policy schema: %v", err)
+		return args
+	}
+	info, err := os.Stat(schemaPath)
+	if err == nil {
+		if info.Mode().IsRegular() {
+			return append(args, "--schema-file", schemaPath)
+		}
+		c.log.Warnf("APM workload selection policy schema is not a regular file: %s", schemaPath)
+	} else if !os.IsNotExist(err) {
+		c.log.Warnf("failed to stat APM workload selection policy schema: %v", err)
+	}
+
+	return args
 }
