@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "agentbuild",
+    srcs = [
+        "container.go",
+        "invoke.go",
+        "manifest.go",
+        "package.go",
+        "process_unix.go",
+        "process_windows.go",
+        "profile.go",
+        "repackage.go",
+        "runtime.go",
+        "summary.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentbuild",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/receivers"],
+)
+
+dd_agent_go_test(
+    name = "agentbuild_test",
+    srcs = [
+        "manifest_test.go",
+        "profile_test.go",
+        "repackage_test.go",
+        "runtime_test.go",
+    ],
+    embed = [":agentbuild"],
+    deps = ["//test/e2e-framework/testing/receivers"],
+)

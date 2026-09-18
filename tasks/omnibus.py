@@ -43,13 +43,14 @@ def _format_omnibus_overrides(**overrides):
 
 
 def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None
+    ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None, package_dir=None
 ):
     with ctx.cd("omnibus"):
         overrides = _format_omnibus_overrides(
             base_dir=base_dir,
             cache_dir=cache_dir,
             host_distribution=host_distribution,
+            **({'package_dir': package_dir} if package_dir else {}),
         )
 
         omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
@@ -452,12 +453,38 @@ def manifest(
 
 
 @task()
-def build_repackaged_agent(ctx, log_level="info"):
+def build_repackaged_agent(
+    ctx, log_level="info", base_package_url=None, base_package_sha256=None, result_manifest=None
+):
     """
     Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
 
     Currently only expected to work for debian packages, and requires the `dpkg` command to be available.
     """
+    from pathlib import Path
+    from urllib.parse import urlparse
+
+    from tasks.libs.agentbuild.manifest import invalidate, package_result, source_provenance, target, write_result
+
+    invalidate(result_manifest)
+    if bool(base_package_url) != bool(base_package_sha256):
+        raise Exit('Explicit base requires both --base-package-url and --base-package-sha256')
+    if base_package_url:
+        url = urlparse(base_package_url)
+        if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
+            raise Exit('Base package must be a credential-free HTTPS URL')
+        if not re.fullmatch(r'/[A-Za-z0-9/._-]+\.deb', url.path):
+            raise Exit('Base package URL must name a shell-safe DEB path')
+        if not re.fullmatch(r'[a-f0-9]{64}', base_package_sha256):
+            raise Exit('Base package SHA256 must be 64 lowercase hex characters')
+    provenance = None
+    package_dir = None
+    if result_manifest:
+        target()
+        provenance = source_provenance('omnibus-repackage')
+        # Empty invocation-owned output dir, never choose a stale package from pkg/.
+        package_dir = tempfile.mkdtemp(prefix='repackage-')
+
     # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
     agent_path = "/opt/datadog-agent"
     if os.path.exists(agent_path):
@@ -475,20 +502,23 @@ def build_repackaged_agent(ctx, log_level="info"):
     # Fetch the Packages file from the nightly repository and get the datadog-agent package with the highest pipeline ID
     # The assumption here is that only nightlies from master are pushed to the nightly repository
     # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
-    packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
-    with requests.get(packages_url, stream=True, timeout=10) as response:
-        response.raise_for_status()
-        lines = response.iter_lines(decode_unicode=True)
+    if not base_package_url:
+        packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
+        with requests.get(packages_url, stream=True, timeout=10) as response:
+            response.raise_for_status()
+            lines = response.iter_lines(decode_unicode=True)
 
-        latest_package = max(
-            (pkg for pkg in _packages_from_deb_metadata(lines) if pkg.package_name == "datadog-agent"),
-            key=_pipeline_id_of_package,
-        )
+            latest_package = max(
+                (pkg for pkg in _packages_from_deb_metadata(lines) if pkg.package_name == "datadog-agent"),
+                key=_pipeline_id_of_package,
+            )
+        base_package_url = f"https://apt.datad0g.com/{latest_package.filename}"
+        base_package_sha256 = latest_package.sha256
 
     env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base, install_dir=install_dir_for_project("agent"))
 
-    env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
-    env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    env['OMNIBUS_REPACKAGE_SOURCE_URL'] = base_package_url
+    env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = base_package_sha256
     base_dir = _resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR")
     if base_dir:
         env['OMNIBUS_BASE_DIR'] = base_dir
@@ -521,7 +551,29 @@ def build_repackaged_agent(ctx, log_level="info"):
         env=env,
         log_level=log_level,
         cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
+        **({'package_dir': package_dir} if package_dir else {}),
     )
+    if result_manifest:
+        candidates = []
+        for path in Path(package_dir).glob('*.deb'):
+            try:
+                candidates.append(package_result(path, provenance))
+            except ValueError:
+                continue  # debug/other products are not the Agent package
+        if len(candidates) != 1:
+            raise Exit('Expected exactly one newly produced datadog-agent DEB')
+        result = candidates[0]
+        # Copy the exact selected file beside the receipt so container teardown
+        # cannot invalidate it. No new repacking machinery is involved here.
+        output = Path(result_manifest).absolute().parent / 'agent.deb'
+        shutil.copy2(result['package']['file']['path'], output)
+        # Container builds may run as root. These non-secret outputs must be
+        # readable by the caller; the caller-owned staging directory is private.
+        output.chmod(0o644)
+        result = package_result(output, provenance)
+        provenance.update(baseReference=base_package_url, baseIdentity='sha256:' + base_package_sha256)
+        write_result(result_manifest, result)
+        Path(result_manifest).chmod(0o644)
 
 
 class DebPackageInfo(NamedTuple):

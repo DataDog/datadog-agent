@@ -36,6 +36,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_version,
     gitlab_section,
+    join_command,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -76,6 +77,7 @@ def build(
     glibc=True,
     legacy_rtloader_cmake=False,
     enable_bazel=False,
+    result_manifest=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -94,6 +96,15 @@ def build(
     Example invokation:
         dda inv agent.build --build-exclude=systemd
     """
+    from tasks.libs.agentbuild.manifest import binary_result, invalidate, source_provenance, target, write_result
+
+    invalidate(result_manifest)
+    provenance = None
+    if result_manifest:
+        target()
+        if legacy_rtloader_cmake or exclude_rtloader or skip_assets or flavor != AgentFlavor.base.name:
+            raise Exit('Artifact export requires the default complete Bazel embedded runtime and assets')
+        provenance = source_provenance('invoke-binary')
     flavor = AgentFlavor[flavor]
     target_platform = _resolve_target_platform()
 
@@ -224,6 +235,17 @@ def build(
             build_tags=build_tags,
             development=development,
             windows_sysprobe=windows_sysprobe,
+        )
+
+    if result_manifest:
+        provenance['options'] = {
+            'race': str(race),
+            'development': str(development),
+            'buildTags': ','.join(sorted(build_tags)),
+            'runtimeLayout': 'bazel-embedded-absolute-prefix',
+        }
+        write_result(
+            result_manifest, binary_result(agent_bin, embedded_path, os.path.join(BIN_PATH, 'dist'), provenance)
         )
 
 
@@ -464,10 +486,28 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
     build_exclude=None,
+    result_manifest=None,
 ):
     """
     Builds the agent or cluster-agent Docker image.
     """
+    from tasks.libs.agentbuild.manifest import (
+        image_record,
+        invalidate,
+        source_provenance,
+        target,
+        validate_image_reference,
+        write_result,
+    )
+
+    invalidate(result_manifest)
+    provenance = None
+    if result_manifest:
+        native = target()
+        validate_image_reference(target_image)
+        if arch is not None and arch != native['arch']:
+            raise Exit('Image artifact export requires a native build')
+        provenance = source_provenance('invoke-image')
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
@@ -491,6 +531,18 @@ def hacky_dev_image_build(
             if ver > latest_release:
                 latest_release = ver
         base_image = f"registry.datadoghq.com/agent:{latest_release}"
+
+    if result_manifest:
+        # Resolve before building: nested tasks and final Dockerfile consume this
+        # same local identity even if the source tag moves during compilation.
+        validate_image_reference(base_image)
+        ctx.run(join_command(['docker', 'pull', base_image]))
+        base, base_target = image_record(base_image)
+        if base_target != native:
+            raise Exit('Base image target differs from native build target')
+        provenance.update(baseReference=base_image, baseIdentity=base['id'])
+        base_image = 'localhost/e2ectl-base:7.0.0-' + base['id'].removeprefix('sha256:')
+        ctx.run(join_command(['docker', 'tag', base['id'], base_image]))
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -669,6 +721,35 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
         if push:
             ctx.run(f'docker push {target_image}')
+
+    if result_manifest:
+        rebuilt = ['agent']
+        components = {
+            'process-agent': process_agent,
+            'trace-agent': trace_agent,
+            'system-probe': system_probe,
+            'security-agent': security_agent,
+            'trace-loader': trace_loader,
+            'privateactionrunner': privateactionrunner,
+        }
+        rebuilt.extend(name for name, enabled in components.items() if enabled)
+        provenance.update(rebuilt=rebuilt, inherited=[name for name, enabled in components.items() if not enabled])
+        provenance['options'] = {
+            'race': str(race),
+            'development': str(development),
+            'buildExclude': build_exclude or '',
+            'runtimeLayout': 'image-python-legacy-rtloader',
+        }
+        image, image_target = image_record(target_image)
+        result = {'schema': 1, 'target': image_target, 'provenance': provenance, 'image': image}
+        # Bounded trusted-local-source attestation, not a tag-based claim about
+        # arbitrary existing images, nor a signature/security certification.
+        if provenance['baseReference'] == 'registry.datadoghq.com/agent:7.83.0':
+            result['profile'] = {
+                'RouteContract': 'agent-outbound-v1',
+                'Roles': ['core-agent', 'trace-agent', 'process-agent', 'cluster-checks-runner'],
+            }
+        write_result(result_manifest, result)
 
 
 @task
