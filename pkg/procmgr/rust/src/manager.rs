@@ -1045,8 +1045,15 @@ mod tests {
     mod config_gate {
         use super::*;
         use crate::config::RestartPolicy;
-        use crate::config_gate::ConditionConfigFile;
+        use crate::config_gate::{ConditionConfigFile, TestEnvGuard, test_env_guard};
         use std::io::Write;
+
+        /// Every test in this module evaluates gates, which read the live process
+        /// environment, so each one needs the shared guard that excludes the
+        /// `config_gate` tests mutating `DD_*` values.
+        fn gate_env() -> (TestEnvGuard, tempfile::TempDir) {
+            (test_env_guard(), tempfile::tempdir().unwrap())
+        }
 
         fn gate_on_process_collection(agent_yaml: &str) -> Vec<ConditionConfigFile> {
             vec![ConditionConfigFile {
@@ -1098,7 +1105,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_auto_start_runs_when_config_gate_open() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), true);
             let mgr = ProcessManager::new(
                 loader(vec![gated_sleep_def("gated-svc", &yaml)]),
@@ -1118,7 +1125,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_auto_start_skips_when_config_gate_closed() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), false);
             let mgr = ProcessManager::new(
                 loader(vec![gated_sleep_def("gated-svc", &yaml)]),
@@ -1142,7 +1149,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_on_failure_restart_skips_when_config_gate_closes() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), true);
             let mgr = ProcessManager::new(
                 loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
@@ -1177,7 +1184,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reload_starts_created_process_when_gate_opens() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), false);
             let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
                 "gated-svc",
@@ -1209,7 +1216,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reload_does_not_start_cycle_skipped_process() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), false);
             let mut a = gated_sleep_def("svc-a", &yaml);
             let mut b = gated_sleep_def("svc-b", &yaml);
@@ -1233,7 +1240,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reload_does_not_restart_stopped_process() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), true);
             let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
                 "gated-svc",
@@ -1260,7 +1267,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_manual_start_bypasses_closed_gate() -> anyhow::Result<()> {
-            let dir = tempfile::tempdir().unwrap();
+            let (_env, dir) = gate_env();
             let yaml = write_agent_yaml(dir.path(), false);
             let mgr = ProcessManager::new(
                 loader(vec![gated_sleep_def("gated-svc", &yaml)]),
