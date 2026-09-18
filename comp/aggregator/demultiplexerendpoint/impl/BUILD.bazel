@@ -18,6 +18,7 @@ go_library(
         "//comp/dogstatsd/config",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
+        "@org_golang_x_sync//singleflight",
     ] + select({
         "@rules_go//go/platform:windows": ["@org_golang_x_sys//windows"],
         "//conditions:default": [],
