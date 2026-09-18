@@ -182,6 +182,7 @@ dd_agent_go_test(
     name = "process_test",
     srcs = [
         "go_labels_test.go",
+        "otel_tls_test.go",
         "resolver_test.go",
     ],
     embed = [":process"],
@@ -193,6 +194,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",
             "//pkg/security/secl/model",
+            "//pkg/util/kernel",
             "//pkg/util/ktime",
             "//pkg/util/safeelf",
             "@com_github_datadog_datadog_go_v5//statsd",
@@ -207,6 +209,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",
             "//pkg/security/secl/model",
+            "//pkg/util/kernel",
             "//pkg/util/ktime",
             "//pkg/util/safeelf",
             "@com_github_datadog_datadog_go_v5//statsd",
