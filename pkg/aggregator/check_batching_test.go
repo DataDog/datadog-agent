@@ -243,6 +243,51 @@ func TestCheckBatchStatefulMetrics(t *testing.T) {
 	}
 }
 
+// Intermediate commits preserve historate's previous sample, but the end of a
+// collection still resets it, including when the last sample filled a batch.
+func TestCheckBatchHistorate(t *testing.T) {
+	for _, batchSize := range []int{0, 1, 2, 3, 4} {
+		t.Run(fmt.Sprintf("batch-size=%d", batchSize), func(t *testing.T) {
+			agg := newBatchTestAggregator(t, batchSize)
+			defer agg.health.Deregister()
+			id := checkid.ID("batch_test:test")
+			agg.handleRegisterSampler(id)
+			clk := agg.batchClock.(*batchTestClock)
+			for run := range 2 {
+				for n, value := range []float64{10, 30, 60, 100} {
+					clk.Add(time.Second)
+					agg.handleSenderSample(senderMetricSample{id: id, metricSample: &metrics.MetricSample{
+						Name: "batch_test.historate", Value: value, Mtype: metrics.HistorateType,
+						Timestamp: float64(10 + run*10 + n),
+					}})
+				}
+				clk.Add(time.Second)
+				agg.handleSenderSample(senderMetricSample{id: id, commit: true})
+				series, _ := agg.GetSeriesAndSketches(clk.Now())
+				counts, averages := map[float64]float64{}, map[float64]float64{}
+				for _, s := range series {
+					for _, p := range s.Points {
+						switch s.Name {
+						case "batch_test.historate.count":
+							counts[p.Ts] = p.Value
+						case "batch_test.historate.avg":
+							averages[p.Ts] = p.Value
+						}
+					}
+				}
+				var count, sum float64
+				for ts, n := range counts {
+					require.Contains(t, averages, ts)
+					count += n
+					sum += n * averages[ts]
+				}
+				require.Equal(t, float64(3), count, "run %d", run)
+				require.Equal(t, float64(90), sum, "run %d", run)
+			}
+		})
+	}
+}
+
 // Rapid batches and the final remainder must survive whole-second serialization
 // without duplicate timestamps that would overwrite count contributions at intake.
 func TestCheckBatchTimestamps(t *testing.T) {
