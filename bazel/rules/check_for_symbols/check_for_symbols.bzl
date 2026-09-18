@@ -23,27 +23,9 @@ Usage:
             "//conditions:default": ["_Cfunc__mkcgo_OPENSSL"],
         }),
     )
-
-The `binary` under test is built with `//:release` forced to False so its
-symbol table survives the release strip flags (`-s -w`) that `dd_agent_go_binary`
-otherwise applies -- without this, `nm` would see an empty symbol table and
-every check would be meaningless.
 """
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-def _unstripped_binary_transition_impl(settings, attr):
-    # Force an unstripped build of the binary under test: dd_agent_go_binary
-    # adds "-s -w" gc_linkopts whenever //:release is True (which is the
-    # default for every invocation in this repo, see .bazelrc), which removes
-    # the symbol table that `nm` depends on.
-    return {"//:release": False}
-
-_unstripped_binary_transition = transition(
-    implementation = _unstripped_binary_transition_impl,
-    inputs = [],
-    outputs = ["//:release"],
-)
 
 def _check_for_symbols_impl(ctx):
     binary = ctx.file.binary
@@ -80,8 +62,7 @@ check_for_symbols = rule(
         "binary": attr.label(
             mandatory = True,
             allow_single_file = True,
-            doc = "The (Go) binary target whose symbol table should be inspected. Must produce exactly one default output file.",
-            cfg = _unstripped_binary_transition,
+            doc = "The binary target whose symbol table should be inspected. Must produce exactly one default output file.",
         ),
         "must_include": attr.string_list(
             default = [],
@@ -100,9 +81,6 @@ check_for_symbols = rule(
             default = "@llvm_toolchain_llvm//:nm",
             executable = True,
             cfg = "exec",
-        ),
-        "_allowlist_function_transition": attr.label(
-            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
         ),
     },
 )

@@ -22,7 +22,7 @@ def _test_wires_checker_action(name):
 
 def _test_wires_checker_action_impl(env, target):
     subject = env.expect.that_target(target)
-    out_path = target.label.package + "/" + target.label.name + ".ok"
+    out_path = target.label.package + "/" + target.label.name + ".status"
     subject.default_outputs().contains(out_path)
 
     action = subject.actual.actions[0]

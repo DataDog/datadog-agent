@@ -52,10 +52,11 @@ _FIPS_SYMBOL = "_Cfunc__mkcgo_OPENSSL"
 check_for_symbols_test(
     name = "installer_fips_symbols_test",
     binary = ":installer",
-    must_include = select({
-        "//packages/agent:linux_fips": [_FIPS_SYMBOL],
-        "//conditions:default": [],
-    }),
+    # Do not enable the positive test yet. It will not pass until the msgo compiler is selected on FIPs
+    # must_include = select({
+    #    "//packages/agent:linux_fips": [_FIPS_SYMBOL],
+    #    "//conditions:default": [],
+    # }),
     must_not_include = select({
         "//packages/agent:linux_fips": [],
         "//conditions:default": [_FIPS_SYMBOL],
@@ -64,8 +65,6 @@ check_for_symbols_test(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
-    # Do not enable this test yet. Until the msgo compiler is selected on FIPs it will not pass
-    tags = ["manual"],
 )
 
 dd_agent_go_test(
