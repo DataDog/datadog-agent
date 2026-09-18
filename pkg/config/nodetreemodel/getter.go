@@ -41,7 +41,7 @@ func (c *ntmConfig) GetEnvVars() []string {
 }
 
 // EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
-// the schema binds to that setting. Computed on demand: only a config-stream consumer asks for it.
+// the schema binds to that setting. The layer is walked on each call rather than kept as it is built.
 func (c *ntmConfig) EnvVarSettings() map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
@@ -59,7 +59,7 @@ func (c *ntmConfig) EnvVarSettings() map[string][]string {
 				key = path + "." + name
 			}
 			if child.IsLeafNode() {
-				// Which of several bound vars won is not recoverable here; name them all.
+				// The layer does not record which of the bound vars provided the value, so return all of them.
 				settings[key] = slices.Clone(c.configEnvVars[key])
 				continue
 			}
