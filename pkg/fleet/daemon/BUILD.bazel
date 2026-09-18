@@ -102,3 +102,19 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
     ],
 )
+
+dd_agent_go_test(
+    name = "ddot_state_test",
+    srcs = ["ddot_state_test.go"],
+    embed = [":daemon"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/repository",
+        "//pkg/procmgr/coat",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//nacl/box",
+    ],
+)

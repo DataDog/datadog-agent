@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_test file
@@ -39,6 +39,20 @@ dd_agent_go_test(
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "user_manual_test",
+    srcs = ["user_manual_test.go"],
+    embed = [":windows"],
+    gotags = ["test"],
+    tags = ["manual"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),
