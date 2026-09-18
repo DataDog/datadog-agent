@@ -64,14 +64,16 @@ fn has_console() -> bool {
 /// Signaling a child means leaving the caller's own console, so a regression in
 /// `CallerConsoleGuard` leaves the supervisor running normally with nowhere to log.
 /// Tests compare a snapshot taken before the stop against one taken after.
+#[cfg(test)]
 #[derive(Debug, PartialEq, Eq)]
-pub struct CallerConsoleState {
+pub(crate) struct CallerConsoleState {
     has_console: bool,
     stdout: bool,
     stderr: bool,
 }
 
-pub fn caller_console_state() -> CallerConsoleState {
+#[cfg(test)]
+pub(crate) fn caller_console_state() -> CallerConsoleState {
     CallerConsoleState {
         has_console: has_console(),
         stdout: stdout_inheritable(),
