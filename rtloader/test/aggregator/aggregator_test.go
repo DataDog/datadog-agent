@@ -60,6 +60,9 @@ func TestSubmitMetric(t *testing.T) {
 	if flushFirstValue != false {
 		t.Fatalf("Unexpected flushFirstValue: %v", flushFirstValue)
 	}
+	if !metricGILReleased {
+		t.Fatal("metric callback holds the GIL while it may block on submission")
+	}
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
