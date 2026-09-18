@@ -707,7 +707,6 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
@@ -763,7 +762,6 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
@@ -1773,7 +1771,6 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxViews = 1
 	c.config.Schemas.ExcludeTables = []string{"^TMP_"}
 
@@ -2014,7 +2011,6 @@ func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxViews = 2
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
@@ -2053,7 +2049,6 @@ func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxViews = 50
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
@@ -2090,7 +2085,6 @@ func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxViews = 2
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
@@ -2128,7 +2122,6 @@ func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.PayloadChunkSize = 100
 	c.config.Schemas.MaxViews = 2
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
