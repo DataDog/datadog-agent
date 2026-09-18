@@ -8,12 +8,31 @@
 package privatebundles
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+type testRCClient struct {
+	product string
+	handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
+
+func (c *testRCClient) Subscribe(product string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	c.product = product
+	c.handler = handler
+}
+
+func (*testRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
 
 type testBundle struct {
 	name string
@@ -77,4 +96,25 @@ func TestRegistryGetBundle(t *testing.T) {
 			assert.Same(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
+	rcClient := &testRCClient{}
+	registry, err := NewRegistry(&config.Config{}, rcClient, nil, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, state.ProductUpdaterCatalogDD, rcClient.product)
+	require.NotNil(t, rcClient.handler)
+
+	bundle := registry.GetBundle("com.datadoghq.authoredscripts.echo")
+	require.NotNil(t, bundle)
+	action := bundle.GetAction("echo")
+	require.NotNil(t, action)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		BundleID: "com.datadoghq.authoredscripts",
+		Name:     "echo",
+	}
+	_, err = action.Run(context.Background(), task, nil)
+	require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 }
