@@ -260,7 +260,7 @@ def build_binaries(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    e2e_test_dir = Path("test/new-e2e/tests/agent-runtimes")
+    e2e_test_dir = Path("test/new-e2e/tests/")
     output_path = Path(output_dir).absolute()
 
     # Create output directory
