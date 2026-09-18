@@ -11,16 +11,17 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestProcessQueues(t *testing.T) {
@@ -200,11 +201,6 @@ func TestProcessContainer(t *testing.T) {
 	}, p.containersQueue.data)
 }
 
-// TestFlushTags tests tag enrichment at flush time.
-// Test partitions:
-// - entity kind: container | pod | task
-// - tagger state: known entity | unknown entity
-// - entity ID: set | empty
 func TestFlushTags(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "cont1"), "kubelet", []string{"kube_namespace:default"}, nil, []string{"kube_deployment:ben"}, nil)
