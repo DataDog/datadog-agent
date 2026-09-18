@@ -51,6 +51,34 @@ pub fn stderr_inheritable() -> bool {
     std_handle_live(STD_ERROR_HANDLE)
 }
 
+/// True when the process is attached to a console.
+///
+/// `GetConsoleWindow` is also NULL for a windowless console. `GetConsoleCP` returns
+/// 0 only when the process has no console at all, which is the service case.
+fn has_console() -> bool {
+    unsafe { GetConsoleCP() != 0 }
+}
+
+/// The console state a graceful stop has to leave exactly as it found it.
+///
+/// Signaling a child means leaving the caller's own console, so a regression in
+/// `CallerConsoleGuard` leaves the supervisor running normally with nowhere to log.
+/// Tests compare a snapshot taken before the stop against one taken after.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CallerConsoleState {
+    has_console: bool,
+    stdout: bool,
+    stderr: bool,
+}
+
+pub fn caller_console_state() -> CallerConsoleState {
+    CallerConsoleState {
+        has_console: has_console(),
+        stdout: stdout_inheritable(),
+        stderr: stderr_inheritable(),
+    }
+}
+
 /// Detach from the current console without clearing std handles.
 fn leave_console() {
     unsafe {
@@ -107,9 +135,7 @@ struct CallerConsoleGuard {
 impl CallerConsoleGuard {
     fn capture() -> Self {
         Self {
-            // GetConsoleWindow is also NULL for a windowless console. GetConsoleCP returns
-            // 0 only when the process has no console at all, which is the service case.
-            had_console: unsafe { GetConsoleCP() != 0 },
+            had_console: has_console(),
         }
     }
 }

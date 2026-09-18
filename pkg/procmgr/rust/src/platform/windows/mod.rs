@@ -32,7 +32,8 @@ pub use child_env::agent_service_env_var;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 pub(crate) use console::console_lock;
 pub use console::{
-    last_signal, send_force_kill, send_graceful_stop, stderr_inheritable, stdout_inheritable,
+    CallerConsoleState, caller_console_state, last_signal, send_force_kill, send_graceful_stop,
+    stderr_inheritable, stdout_inheritable,
 };
 pub use job_object::JobObject;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
