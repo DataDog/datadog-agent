@@ -292,11 +292,9 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   merge-queue gate; that trade-off was intentionally declined in favor of a
   simpler main-only publish.
 - `:latest` is still published (`publish_fakeintake_latest`) for external/manual
-  consumers. The standalone `e2ectl` local Docker helper
-  (`test/e2e-framework/cmd/e2ectl/internal/localinfra/fakeintake.go`) is a current
-  exception to framework pinning: it still hardcodes `:latest`. Migrate it through
-  a Pulumi-free image/default helper before relying on reproducible receiver
-  capabilities; do not import Pulumi solely to obtain the image selection policy.
+  consumers. Standalone `e2ectl` local Docker fixtures use the same pinned tag and
+  runner override through the Pulumi-free `common/fakeintakeconfig.ImageURL`
+  helper. Do not import Pulumi solely to obtain image selection policy.
 
 ## Key files
 

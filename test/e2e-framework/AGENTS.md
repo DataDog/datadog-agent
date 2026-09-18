@@ -158,13 +158,41 @@ Packages are organized first by environment type, then by installation method:
 
 - `testing/installers/kubernetes/helm` installs the Helm chart in an
   `environments.Kubernetes` through `helm.Install(ctx, env, params)`.
+- `testing/installers/host/localpackage` installs a verified DEB on an Ubuntu SSH
+  host. It shares private configuration/restart logic with `host/installscript`,
+  returns upload/package-manager errors, and requires explicit unsigned-file
+  permission. Same-version updates must force reinstall, then verify package status
+  and every declared executable against the uploaded archive before publishing
+  success. This does not attest the full postinst/conffile filesystem. Existing
+  permanent/runtime service masks must not be adopted or unconditionally removed.
+  RPM/MSI and package receiver capability attestations are not yet supported.
+- `testing/installers/agentbuild` is a Pulumi-free artifact boundary: typed requests,
+  verified result receipts, Invoke/existing-artifact adapters, immutable staging,
+  and isolated Omnibus repack execution. Framework callers do not need CLI config
+  or an environment store. Binary runtime receipts include the complete embedded
+  tree plus an immutable runtime-image/Python ABI dependency; they are not portable
+  executable-only bundles. Existing-artifact adapters never build.
 - `testing/installers/host/installscript` runs the official install script in an
   `environments.Host` through `installscript.Install(ctx, env, params)`. It configures
   the environment's FakeIntake automatically and accepts additional Agent YAML and
   integration configs through `installscript.Params`.
 
-Installers resolve API and application keys through the active runner profile's
-secret parameter store. They take initialized environments rather than state files or other
+Legacy installers resolve API and application keys through the active runner
+profile's secret parameter store. Explicit outbound plans under `testing/receivers`
+separate routing from provisioning and credentials: standalone installers accept
+`Routing` plus a transient API key, capture/sink plans use a dummy key, and pure
+renderers never read the runner. `e2ectl` selects type-owned `agent.receiver`
+sections through an explicit CLI registry; omission remains legacy. Binary
+receiver apply requires byte-bound core-source capability evidence, then reuses
+recorded pins/image identity without rebuilding. Unprofiled binary receipts and
+legacy pin-only snapshots cannot enter managed routing through runtime probes;
+require an explicit rebuild and any necessary state migration. Script/Helm
+route-only apply and receiver RC are not yet implemented; unsupported requests
+fail rather than falling back. Producer profiles attest emitting roles and a route contract, independently of
+build recipes and artifact identities. Helm image delivery evidence distinguishes
+local Docker image IDs plus verified tags from genuine repository digests. See the
+receiver section of `cmd/e2ectl/README.md` for the bounded profiles and limitations.
+ They take initialized environments rather than state files or other
 provisioner-specific representations and update `env.Agent`. The same installer
 therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
 State serialization and persistence belong to the caller that owns that state.
@@ -185,6 +213,20 @@ method does not consume (e.g. `image` for a script install) do not exist there, 
 section contents are validated at install/update time, so `start` may use an
 infrastructure-only config. See
 `cmd/e2ectl/README.md` and `cmd/internal/configschema/README.md`.
+
+Artifact acquisition is independently selected by `agent.build.provider` and its
+provider-owned section. Explicit registrations live in `cmd/e2ectl/internal/buildprovider`;
+main commands/drivers must not gain task names or format switches. Legacy Helm
+image install AND update consume an existing image without building; local image
+rebuilds require `invoke-image`. `--skip-build` verifies installed environment-owned
+receipts, never silently re-pins checkout outputs. Preparation and runtime checks
+must finish before stopping the old Agent. Mutable binary-Agent runtime/RC data
+belongs in an owned Docker named volume, not a host envstore bind mount: root-owned
+private nested files otherwise break normal teardown. Verify its label and recorded
+identity on reuse, remove only that exact volume after stopping the container, and
+serialize teardown with Agent operations. Intermediate legacy bind state is not
+automatically migrated or discarded. See the README's source YAML and the bounded
+trusted-local-build receiver capability policy.
 
 Forward normalized parameter YAML to the executor, not a re-marshalled struct
 with `omitempty`: explicit false/zero values and defaults must survive the process

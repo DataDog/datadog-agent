@@ -177,3 +177,14 @@ py_binary(
 > (2-4 lines each) and include *why* the idiom is needed.
 
 <!-- Add new idioms below this line -->
+
+- Agent artifact consumers use optional `--result-manifest` hooks on `agent.build`,
+  `agent.hacky-dev-image-build`, and `omnibus.build-repackaged-agent`. Keep output
+  inventory/checksum logic Invoke-free in `libs/agentbuild`; invalidate a requested
+  old receipt before work and publish only after verified success. Binary builds
+  use `dev/embedded` by default; the hacky image task deliberately uses legacy
+  rtloader matched to its base image's Python, not interchangeable runtime layouts.
+- `omnibus.build-repackaged-agent` can overwrite `/opt/datadog-agent`. Preserve its
+  safety prompt; automated consumers must use an isolated native build container,
+  never host installed-tree mounts. Explicit base URL/SHA256 options preserve the
+  existing latest-nightly default for callers that do not opt in.

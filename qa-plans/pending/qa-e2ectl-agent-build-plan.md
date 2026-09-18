@@ -1,13 +1,18 @@
 # e2ectl: an agent-build layer — one contract, many build kinds
 
-> **Category C — pending plan.** How e2ectl and the e2e framework should
-> integrate agent builds: single binary, dev docker image, full omnibus
-> package, prebuilt pipeline artifacts — as one extensible contract.
+> **Partially implemented roadmap.** How e2ectl and the e2e framework integrate
+> agent builds: single binary, dev docker image, full package and future pipeline
+> artifacts. See [implementation status](../notes/qa-e2ectl-receivers-artifacts-implementation.md)
+> for the supported subset, actual validation and remaining boundaries.
 > Ideas and design; no code. See the
 > [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
 
-**Status:** plan only, grounded in the current installers and the repo's
-invoke tasks.
+**Status:** a bounded native-Linux build layer is now implemented in the working tree;
+this document retains the broader design ideas, including unimplemented follow-ups.
+For the current source assessment, decisions, file-level edits and validation
+sequence, use the [agent-build code plan](qa-e2ectl-agent-build-code-plan.md).
+It supersedes the API/config sketches below where they differ, notably artifact
+format versus source/backend, runtime layout, package reuse, and cache identity.
 
 ## 1. The problem
 
@@ -16,18 +21,17 @@ its own build by hand:
 
 | Installer | Artifact it needs | How it builds today |
 |---|---|---|
-| `binary` (local container) | the core agent **binary** + rtloader libs | `dda inv agent.build` → pins `bin/agent/agent` + `dev/lib/*.so*` into the env dir |
-| `helm` (kind) | a dev **docker image** | `dda inv agent.hacky-dev-image-build --target-image=<ref>` → `kind load` |
-| `script` (ec2-host) | a released **package** | nothing — released versions only; no way to test a local build on a VM |
+| `binary` (local container) | the core agent **binary** + runtime | `dda inv agent.build` → copies `bin/agent/agent` + legacy `dev/lib` outputs; this needs correction because the task now defaults to `dev/embedded` |
+| `helm` (kind) | a dev **docker image** | Update runs `dda inv agent.hacky-dev-image-build --target-image=<ref>` → `kind load`; install only consumes an existing image |
+| `script` (ec2-host) | a released **package** | e2ectl supports released versions only; the Pulumi framework already has `WithLocalPackage`/`WithPipeline`, not yet exposed by the standalone installer |
 | (nothing) | full binaries set / omnibus deb/rpm/msi | not reachable from e2ectl at all |
 
 The build knowledge (which dda task, which flags, which side artifacts) is
-scattered across installers, and each new artifact form means a new bespoke
-integration. Meanwhile the repo already has every build kind as invoke tasks:
-`agent.build` (single binary), `agent.hacky-dev-image-build` (image, with
-`--process-agent/--trace-agent/--system-probe/--security-agent/…` toggles),
-`omnibus.build` (packages), plus pipeline-image helpers in the framework
-(`utils.BuildDockerImagePath`).
+scattered across installers. Reuse the existing producers and acquisition paths:
+`agent.build`, `agent.hacky-dev-image-build` (with flags selecting rebuilt
+components), Linux Omnibus and evolving Bazel packaging, native `msi.build`,
+and `package.download`. Framework pipeline-image resolution also exists, but
+`utils.BuildDockerImagePath` alone is not a pipeline lookup/download service.
 
 ## 2. Principles (extend what exists)
 
@@ -51,9 +55,9 @@ integration. Meanwhile the repo already has every build kind as invoke tasks:
 | `binary` | `agent.build` | binary installer (container host), future local-host installs | fastest (single Go binary) | needs rtloader libs pinned alongside; single core agent only — no trace/process agents |
 | `binaries` | `agent.build` + friends | host installs wanting subagents (the status-suite boundary is exactly this) | fast | the full set: agent, trace-agent, process-agent, security-agent, system-probe |
 | `image` | `agent.hacky-dev-image-build` | helm installer (kind) | minutes | flags already parameterize which subagents ship in the image — surface them |
-| `package` | `omnibus.build` | script installer (VMs), full host parity | slow (minutes–tens of minutes) | deb/rpm (and msi on Windows); makes "test my branch on a real VM" possible |
-| `pipeline` | CI (prebuilt) | any installer, instead of building | none (download) | pull the dev image/binaries from the agent QA registry by pipeline ID — reproducible, no local toolchain; the framework already models this for images |
-| `remote` | `agent.build_remote_agent` | anything, from a weak laptop | network-bound | offload heavy builds (omnibus) to a beefy machine |
+| `package` | platform-specific packaging tasks | future standalone package installer | slow | Linux Omnibus/Bazel and Windows MSI have distinct toolchains and output contracts |
+| `pipeline` (source, not format) | CI artifacts via existing acquisition helpers | compatible image/package installers | download time | resolve concrete pipeline/commit and published artifact identity; not every source supplies loose binaries |
+| `remote` (backend, not format) | not implemented as a general build backend | future providers | unmeasured | `agent.build_remote_agent` builds an example client locally; it is **not** build offloading |
 
 ## 4. Proposed shape
 
@@ -131,9 +135,11 @@ Two candidate expressions, not mutually exclusive:
 
 ### 4.4 Caching and fingerprints
 
-- `update --skip-build` already exists; make skip the *default when nothing
-  changed*: fingerprint the working tree (git SHA + dirty marker + variant)
-  and reuse the pinned artifact when it matches.
+- `update --skip-build` exists, but binary update still re-pins current
+  worktree outputs. Specify verified reuse semantics first. Automatic cache
+  reuse needs source-content hashes, effective options and runtime/base/toolchain
+  identities: git SHA + a dirty boolean collides across different local edits.
+  Do not enable it by default before those inputs and concurrency are covered.
 - Keep per-environment pins (current behavior — environments are
   independent) plus a shared cache keyed by fingerprint, so ten environments
   on one build do not rebuild ten times.
@@ -157,9 +163,9 @@ Not required for the contract; it falls out of it.
 - **Pipeline artifacts as first-class builds** — the fastest correct loop for
   QA: a CI pipeline builds once, every developer attaches. Needs artifact
   naming conventions + a `source:` selector.
-- **Remote builds** — omnibus on a laptop is painful; `agent.build_remote_agent`
-  or a plain SSH offload fits the e2ectl-worker pattern (a separate process,
-  the CLI stays thin).
+- **Remote builds** — a possible future execution backend, not an existing
+  reuse path. `agent.build_remote_agent` is unrelated. Keep the Pulumi executor
+  separate from build workers unless a later design explicitly joins them.
 - **Cross-compile matrix** — build arm64 on amd64 and vice versa; matters for
   the ec2-host path (pick the VM's arch, not the laptop's).
 - **Windows** — `binary` gets an exe flavor, `package` an msi; the windows-host

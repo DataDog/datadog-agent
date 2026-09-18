@@ -7,15 +7,22 @@ environment — no Pulumi for local operations.
 
 ## Install
 
-From the repository root:
+From the repository root, using the Go toolchain required by `go.work`:
 
 ```sh
-bazel build //test/e2e-framework/cmd/e2ectl:e2ectl
-bazel cquery //test/e2e-framework/cmd/e2ectl:e2ectl --output=files   # locate it
+go install ./test/e2e-framework/cmd/e2ectl
+
+# Optional: also install the matching worker for EC2 provisioning.
+go install ./test/e2e-framework/cmd/e2ectl-worker
 ```
 
-Copy it on your `PATH` as `e2ectl`. You also need Docker running, the `kind`
-CLI, and an Agent API key (`~/.test_infra_config.yaml` or `E2E_API_KEY`).
+The binaries go into `GOBIN` (default: `$(go env GOPATH)/bin`); add that
+directory to your `PATH`. Use a checkout rather than `go install …@latest`:
+the framework depends on local modules through `replace` directives.
+
+For kind environments, you also need Docker running, the `kind` and `kubectl`
+CLIs, and API/application keys (`~/.test_infra_config.yaml` or `E2E_API_KEY`
+and `E2E_APP_KEY`).
 
 ## First environment (~5 minutes)
 
@@ -30,8 +37,9 @@ That's the loop: the last command shows the Agent's heartbeat — you just
 deployed a working Agent. To iterate on Agent code:
 
 ```sh
+# First select an invoke-image provider (see Artifact sources below).
 # ...edit Agent Go code...
-e2ectl update --env dev                # rebuild + redeploy, infrastructure untouched
+e2ectl update --env dev                # prepare selected source + redeploy
 ```
 
 And to clean up: `e2ectl stop --env dev` (or `e2ectl list` to see what you have).
@@ -221,3 +229,75 @@ example/default/selector override produce an explicit generation error.
 The executor protocol also carries normalized common fixture options separately from
 provider parameters, preserving `fakeintake: false`. The CLI checks the executor protocol
 before provisioning, so rebuild **both binaries** after protocol changes.
+
+## Receivers and artifact sources
+
+The installer consumes a prepared artifact; `agent.build.provider` independently
+selects its typed source. New provider paths are absolute. Receivers are explicit
+routing intent, not permission to trust arbitrary bytes or to reconfigure fixtures.
+
+| Installer / environment | Sources | Managed receiver boundary |
+|---|---|---|
+| `binary` / local | `invoke-binary`, `existing-binary` | Core-source capability receipt and verified native runtime required |
+| `helm` / kind | `invoke-image`, `existing-image` | Tested 7.83.0-base source receipt; DCA stays separately released 7.83.0 |
+| `package` / EC2 Ubuntu | `existing-package`, `omnibus-repackage` | Currently legacy routing only; explicit receivers fail closed |
+| `script` / host | Released install script | Released managed profile limited to 7.83.0 |
+
+For local image iteration, retain your existing environment settings and use:
+
+```yaml
+agent:
+  install: helm
+  helm:
+    values: |
+      agents:
+        customAgentConfig:
+          log_level: debug
+  receiver:
+    type: fakeintake
+    fakeintake: {remote-config: disabled}
+  build:
+    provider: invoke-image
+    invoke-image:
+      repository: /home/me/datadog-agent
+      reference: localhost/datadog-agent:7.99.0-dev
+      base-image: registry.datadoghq.com/agent:7.83.0
+      rebuild-components: [trace-agent, process-agent]
+```
+
+To consume the same build without compiling, replace only `agent.build`:
+
+```yaml
+  build:
+    provider: existing-image
+    existing-image:
+      reference: localhost/datadog-agent:7.99.0-dev
+      manifest: /home/me/artifacts/image-result.json
+```
+
+Use an actual exported receipt; a tag/version alone is not capability evidence.
+Existing images and packages **never build**, even on normal update. Legacy
+`helm.image` now consumes an existing image on both install and update; select
+`invoke-image` explicitly to rebuild. Legacy binary configs still build from the
+invocation's repository root on ordinary install/update. Released script/version
+paths retain their behavior. `--skip-build` verifies installed pins or errors;
+it never silently acquires new source outputs.
+
+New binary runtime state uses a private, owned Docker volume; normal stop removes
+only that exact volume after stopping the Agent. Meaningful intermediate host-bind
+state requires explicit migration/recreation. Unprofiled receipts cannot enter
+managed routing via install, reuse or receiver apply; rebuild explicitly rather
+than editing profile metadata. `stop --force` does not repair root-owned host paths.
+
+`receiver apply` is Binary-only and reuses its attested pins/runtime; it is not an
+install/update fallback. Capture/sink routing uses dummy credentials, but readiness
+is not ingestion evidence and routing is not a whole-environment egress sandbox.
+Package failures can leave owned runtime masks for repair; no automatic rollback
+or state migration is promised.
+
+- [Receiver integration guide](../../testing/receivers/README.md): supported
+  signals, diagnostic exclusions, native/fakeintake/blackhole examples, capability
+  contracts and truthful state.
+- [Artifact integration guide](../../testing/installers/agentbuild/README.md): all
+  source-selection YAML, exact receipt/runtime dependencies, isolated Omnibus
+  safety, package verification scope, compatibility and extension recipe.
