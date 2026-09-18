@@ -1,21 +1,21 @@
 # Remote Observer ablations
 
-The manual CI jobs run the component-combination search and Bayesian tuning through
+The manual CI job runs the component-combination search and Bayesian tuning through
 Agent CI API in DDBuild. The worker runs the testbench and its built-in scorer;
 CI only builds/publishes the binary and orchestrates experiments. Agent CI API must
 include dd-source PR [#96928](https://github.com/ddoghq/dd-source/pull/96928).
 
 ## CI usage
 
-1. Run `observer-build-upload-ddeval-testbench` in your branch's pipeline. This job
-   can run independently; it does not trigger evaluations. It uploads once to
+1. Run `observer-ablation-ddeval` in your branch's pipeline. It builds and uploads
+   the testbench once, then starts the ablation study. Each trial uses that exact
+   binary SHA-256. Binaries are stored under
    `s3://observer-log-ad-eval-artifacts-ddbuild/official-releases/<commit>/<sha256>/linux-amd64/anomalydetection-testbench`.
-2. Run `observer-ablation-ddeval` in the same pipeline. It consumes the publishing
-   job's JSON artifact; each trial uses that exact binary SHA-256.
-3. Open the job's artifacts: `summary.md`, `report.json`, `best_config.json`, and
+2. Open the job's `observer-ablation-ddeval/` artifacts: `testbench.json`,
+   `summary.md`, `report.json`, `best_config.json`, and
    `study.json`. Every completed trial includes its experiment URL, metrics,
-   exact config, workflow ID, and duration. A failed or interrupted job retains
-   its state in `study.json` and exits unsuccessfully.
+   exact config, workflow ID, and duration. Once evaluation starts, a failed or
+   interrupted job retains its state in `study.json` and exits unsuccessfully.
 
 Set these variables when starting the ablation job:
 
@@ -30,7 +30,7 @@ Set these variables when starting the ablation job:
 | `SEED` | `42` | Reproducible combination selection and TPE sampling |
 | `LIMIT` | `0` | Dataset record limit; use `1` for smoke tests |
 | `FORCE_ENABLE`, `FORCE_DISABLE` | empty | Comma-separated components |
-| `CONFIG_TEMPLATE` | publish job's config | Optional experiment JSON path in the checkout; the published binary overrides its artifact |
+| `CONFIG_TEMPLATE` | generated binary config | Optional experiment JSON path in the checkout; the published binary overrides its artifact |
 | `WORKFLOW_TIMEOUT` | `7200` | Seconds to poll each experiment before stopping |
 | `RESUME_JOB_ID` | empty | Previous ablation job whose checkpoints should be restored |
 
@@ -49,7 +49,8 @@ projects; worker-wide admission control is separate.
 
 Set `RESUME_JOB_ID` to the interrupted job's numeric GitLab ID, keeping the same
 source revision, binary, seed, dataset selection, and study settings. The job
-downloads its artifacts using `CI_JOB_TOKEN`. Completed results are replayed
+downloads its artifacts using `CI_JOB_TOKEN` and reuses the binary in `testbench.json`
+without rebuilding or uploading again. Completed results are replayed
 locally to reconstruct the optimizer; in-flight workflows are polled using their
 original IDs. Optuna is pinned in CI, and checkpoint fingerprints reject changed
 inputs or search code. No pickle is loaded from artifacts.
@@ -68,12 +69,12 @@ old study before starting unrelated runs that could overlap it.
 
 ## Command line
 
-With `observer-ddeval-testbench.json` downloaded from the publish job:
+With `testbench.json` downloaded from the ablation job's artifacts:
 
 ```sh
 dda inv --dep 'optuna==4.5.0' anomalydetection.eval-pipeline \
   --eval-backend ddeval \
-  --ddeval-config-template observer-ddeval-testbench.json \
+  --ddeval-config-template testbench.json \
   --ddeval-dataset 'Golden 25' --ddeval-dataset-version 0 \
   --ddeval-jobs 6 --n-combos 1 --n-trials-search 1 --n-trials-tune 1 \
   --ddeval-limit 1 --seed 42 --output-dir /tmp/observer-ablation-smoke

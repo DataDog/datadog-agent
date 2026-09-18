@@ -1557,9 +1557,8 @@ def _remote_ablation(
     return run_ablation(Path(output_dir), spec, client, resume=resume, timeout=workflow_timeout)
 
 
-@task
-def publish_ddeval_testbench(ctx):
-    """Build and publish this CI commit's Linux/amd64 testbench and artifact manifest."""
+def _publish_ddeval_testbench(ctx):
+    """Build and publish this CI commit's Linux/amd64 testbench, returning its config."""
     from tasks.libs.anomalydetection.ablation import ARTIFACT_BUCKET
 
     commit = os.environ.get("CI_COMMIT_SHA", "")
@@ -1601,25 +1600,27 @@ def publish_ddeval_testbench(ctx):
         },
         "input_parameters": {"trial_metadata": {"binary_commit": commit}},
     }
-    write_json(Path("observer-ddeval-testbench.json"), config)
-    Path("observer-ddeval-testbench.env").write_text(
-        f"OBSERVER_ABLATION_TESTBENCH_URI={uri}\nOBSERVER_ABLATION_TESTBENCH_SHA256={digest}\n",
-        encoding="utf-8",
-    )
     print(f"Published {binary.stat().st_size} bytes: {uri}")
+    return config
 
 
 @task
 def ablation_ci(ctx):
-    """Run the manual CI ablation using the published artifact and OBSERVER_ABLATION_* variables."""
+    """Build/publish once, then run or resume the manual CI ablation."""
     from tasks.libs.anomalydetection.ablation_ci import restore_checkpoint
 
     output = Path("observer-ablation-ddeval")
+    manifest = output / "testbench.json"
     resume_job = os.environ.get("OBSERVER_ABLATION_RESUME_JOB_ID", "")
     if resume_job:
         restore_checkpoint(resume_job, output)
-    template = os.environ.get("OBSERVER_ABLATION_CONFIG_TEMPLATE") or "observer-ddeval-testbench.json"
-    published = json.loads(Path("observer-ddeval-testbench.json").read_text())
+    else:
+        if output.exists():
+            raise Exit(f"Refusing to overwrite existing ablation output: {output}")
+        write_json(manifest, _publish_ddeval_testbench(ctx))
+    # Resume uses the original binary; rebuilding could change its digest and invalidate the study.
+    published = json.loads(manifest.read_text(encoding="utf-8"))
+    template = os.environ.get("OBSERVER_ABLATION_CONFIG_TEMPLATE") or str(manifest)
     artifact = published["executor_config"]["binary_artifacts"]["testbench"]
     return eval_pipeline(
         ctx,

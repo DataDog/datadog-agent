@@ -15,7 +15,8 @@ observer-ablation-driver-tests:
   script:
     - dda inv --dep 'optuna==4.5.0' invoke-unit-tests.run --directory=tasks/unit_tests --tests=anomalydetection_ablation,anomalydetection_ddeval,anomalydetection_eval
 
-.observer-ddeval-job:
+observer-ablation-ddeval:
+  extends: .dd_octo_sts
   stage: functional_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -27,11 +28,10 @@ observer-ablation-driver-tests:
   interruptible: false
   # A failed orchestration job may still have a live workflow. Resume explicitly from its artifacts.
   retry: 0
-
-observer-build-upload-ddeval-testbench:
-  extends: [.observer-ddeval-job, .dd_octo_sts]
   needs: []
-  timeout: 30m
+  # One job builds/publishes once, then runs sequential experiments.
+  resource_group: observer-ablation-ddeval
+  timeout: 6h
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
@@ -42,36 +42,6 @@ observer-build-upload-ddeval-testbench:
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
     AWS_SHARED_CREDENTIALS_FILE: "$CI_PROJECT_DIR/.aws/credentials-by-job-id/$CI_JOB_ID"
-  script:
-    - |
-      identity_client="$CI_PROJECT_DIR/ci-identities-gitlab-job-client"
-      aws s3 cp --only-show-errors \
-        s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/v0.6.6/ci-identities-gitlab-job-client-linux-amd64 \
-        "$identity_client"
-      chmod +x "$identity_client"
-      mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
-      "$identity_client" assume-role
-    - dda inv anomalydetection.publish-ddeval-testbench
-  artifacts:
-    expire_in: 2 weeks
-    reports:
-      dotenv: observer-ddeval-testbench.env
-    paths:
-      - observer-ddeval-testbench.json
-      - observer-ddeval-testbench.env
-
-observer-ablation-ddeval:
-  extends: .observer-ddeval-job
-  needs:
-    - job: observer-build-upload-ddeval-testbench
-      artifacts: true
-  # Serialize ablation drivers across this project's pipelines; each driver runs one experiment at a time.
-  resource_group: observer-ablation-ddeval
-  timeout: 6h
-  variables:
-    KUBERNETES_CPU_REQUEST: "1"
-    KUBERNETES_MEMORY_REQUEST: "1Gi"
-    KUBERNETES_MEMORY_LIMIT: "2Gi"
     # Leave time to collect checkpoints when the script exceeds its budget.
     RUNNER_SCRIPT_TIMEOUT: 5h50m
     OBSERVER_ABLATION_DATASET: "Golden 25"
@@ -84,6 +54,14 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_LIMIT: "0"
     OBSERVER_ABLATION_RESUME_JOB_ID: ""
   script:
+    - |
+      identity_client="$CI_PROJECT_DIR/ci-identities-gitlab-job-client"
+      aws s3 cp --only-show-errors \
+        s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/v0.6.6/ci-identities-gitlab-job-client-linux-amd64 \
+        "$identity_client"
+      chmod +x "$identity_client"
+      mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
+      "$identity_client" assume-role
     - dda inv --dep 'optuna==4.5.0' anomalydetection.ablation-ci
   artifacts:
     when: always

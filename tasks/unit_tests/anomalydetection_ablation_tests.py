@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from tasks.anomalydetection import eval_pipeline, publish_ddeval_testbench
+from tasks.anomalydetection import _publish_ddeval_testbench, ablation_ci, eval_pipeline
 from tasks.libs.anomalydetection.ablation import (
     AgentCIClient,
     RemoteStudy,
@@ -205,14 +205,53 @@ class TestAblationArtifacts(unittest.TestCase):
                 patch.dict("os.environ", {"CI_COMMIT_SHA": "a" * 40}),
                 patch("tasks.anomalydetection._build_testbench") as build,
             ):
-                publish_ddeval_testbench.body(ctx)
+                published = _publish_ddeval_testbench(ctx)
             build.assert_called_once_with(ctx, env={"GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0"})
-            artifact = read_json(Path("observer-ddeval-testbench.json"))["executor_config"]["binary_artifacts"][
-                "testbench"
-            ]
+            artifact = published["executor_config"]["binary_artifacts"]["testbench"]
             self.assertIn(f"/official-releases/{'a' * 40}/{artifact['sha256']}/", artifact["uri"])
             self.assertIn(artifact["uri"], ctx.run.call_args.args[0])
-            self.assertIn(artifact["sha256"], Path("observer-ddeval-testbench.env").read_text())
+
+    def test_fresh_ci_job_publishes_once_before_evaluating(self):
+        published = spec()["experiment_config"]
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            chdir(directory),
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.anomalydetection._publish_ddeval_testbench", return_value=published) as publish,
+            patch("tasks.anomalydetection.eval_pipeline") as evaluate,
+        ):
+            ctx = Mock()
+
+            def check_manifest(*_, **kwargs):
+                self.assertEqual(read_json(Path(kwargs["ddeval_config_template"])), published)
+                self.assertFalse(kwargs["resume"])
+
+            evaluate.side_effect = check_manifest
+            ablation_ci.body(ctx)
+            publish.assert_called_once_with(ctx)
+            evaluate.assert_called_once()
+
+    def test_resume_ci_job_reuses_original_binary_without_publishing(self):
+        published = spec()["experiment_config"]
+
+        def restore(_job, output):
+            output.mkdir()
+            (output / "testbench.json").write_text(json.dumps(published))
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            chdir(directory),
+            patch.dict("os.environ", {"OBSERVER_ABLATION_RESUME_JOB_ID": "123"}, clear=True),
+            patch("tasks.libs.anomalydetection.ablation_ci.restore_checkpoint", side_effect=restore) as checkpoint,
+            patch("tasks.anomalydetection._publish_ddeval_testbench") as publish,
+            patch("tasks.anomalydetection.eval_pipeline") as evaluate,
+        ):
+            ablation_ci.body(Mock())
+            checkpoint.assert_called_once_with("123", Path("observer-ablation-ddeval"))
+            publish.assert_not_called()
+            self.assertTrue(evaluate.call_args.kwargs["resume"])
+            self.assertEqual(evaluate.call_args.kwargs["ddeval_testbench_sha256"], "a" * 64)
+            self.assertEqual(evaluate.call_args.kwargs["ddeval_testbench_binary_s3_uri"], "s3://bucket/binary")
 
     def test_restore_only_reads_checkpoint_artifacts_and_excludes_sqlite_lock(self):
         archive = io.BytesIO()

@@ -1,5 +1,4 @@
 *                                    @DataDog/agent-devx
-observer-build-upload-ddeval-testbench @DataDog/agent-anomaly-detection
 observer-ablation-ddeval              @DataDog/agent-anomaly-detection
 observer-ablation-driver-tests        @DataDog/agent-anomaly-detection
 
