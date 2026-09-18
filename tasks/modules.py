@@ -224,6 +224,22 @@ def validate_used_by_otel(ctx: Context):
         raise Exit(message)
 
 
+def _strip_toml_comment(line: str) -> str:
+    """
+    Drop a trailing `# ...` comment, ignoring `#` inside quoted strings.
+    """
+    in_quote = None
+    for i, ch in enumerate(line):
+        if in_quote:
+            if ch == in_quote:
+                in_quote = None
+        elif ch in ('"', "'"):
+            in_quote = ch
+        elif ch == '#':
+            return line[:i]
+    return line
+
+
 @task
 def validate_cargo(_: Context):
     """
@@ -233,8 +249,9 @@ def validate_cargo(_: Context):
     should reference them with `dep.workspace = true`. This only prints violations for
     now; it does not fail the build.
     """
+    quoted = r'(?:"[^"]*"|\'[^\']*\')'
     section_re = re.compile(r'^\[(.+)\]$')
-    version_re = re.compile(r'^[A-Za-z0-9_.-]+\s*=\s*("[^"]*"|\{.*\bversion\s*=\s*"[^"]*".*\})\s*$')
+    version_re = re.compile(rf'^[A-Za-z0-9_.-]+\s*=\s*({quoted}|\{{.*\bversion\s*=\s*{quoted}.*\}})$')
     failures = []
     for path in sorted(glob('**/Cargo.toml', recursive=True)):
         if path == 'Cargo.toml' or path.split(os.sep)[0].startswith('bazel-'):
@@ -242,7 +259,7 @@ def validate_cargo(_: Context):
         in_deps_section = False
         with open(path) as f:
             for lineno, line in enumerate(f, start=1):
-                stripped = line.strip()
+                stripped = _strip_toml_comment(line).strip()
                 section = section_re.match(stripped)
                 if section:
                     in_deps_section = 'dependencies' in section.group(1)
