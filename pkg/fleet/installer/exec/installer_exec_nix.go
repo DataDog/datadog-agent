@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultGetStatesTimeout   = 30 * time.Second
-	defaultGetStatesWaitDelay = 5 * time.Second
+	defaultGetStatesWaitDelay = 15 * time.Second
 )
 
 func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
@@ -46,9 +46,9 @@ func (i *InstallerExec) getStatesWithTimeout(ctx context.Context, timeout, waitD
 	defer cancel()
 
 	cmd := i.newInstallerCmd(stateCtx, "get-states")
-	// get-states is read-only, so bound how long graceful cancellation may take.
-	// After Cancel sends SIGINT, os/exec kills the child and closes its pipes once
-	// WaitDelay elapses.
+	// Bound how long graceful cancellation may take. The installer waits 10 seconds
+	// after SIGINT before cancelling its work, so allow that handler to complete
+	// before os/exec forcibly kills the child and closes its pipes.
 	cmd.WaitDelay = waitDelay
 	defer func() { cmd.span.Finish(err) }()
 	var stdout bytes.Buffer
