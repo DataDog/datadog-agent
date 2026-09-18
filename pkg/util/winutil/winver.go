@@ -40,7 +40,7 @@ const windowsCurrentVersionKey = `SOFTWARE\Microsoft\Windows NT\CurrentVersion`
 
 // WindowsVersion contains the version fields reported by the running Windows installation.
 // For example, version 10.0.26100.4652 has Major "10", Minor "0", Build "26100", and
-// Revision "4652". Build is kept as the registry string so callers do not lose information.
+// Revision "4652".
 type WindowsVersion struct {
 	// Major is the first version component, such as "10".
 	Major string
