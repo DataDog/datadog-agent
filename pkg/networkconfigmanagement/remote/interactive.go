@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 // maxInteractiveOutput caps how much data we buffer while waiting for a prompt,
@@ -26,25 +27,32 @@ const maxInteractiveOutput = 16 << 20 // 16 MiB
 // required for devices (e.g. PAN-OS) whose CLI only produces command output on
 // an interactive TTY: a non-interactive exec returns only the login banner.
 //
-// The flow is expect-style: wait for the login prompt, send each SetupCommand
-// (waiting for the prompt after each), send Command, read until the prompt, and
-// then request a clean exit. The returned string is the command output with the
-// echoed command line and the trailing prompt stripped.
+// The flow is expect-style: wait for the login prompt, then send each
+// SetupCommand and the Command in turn, reading until the prompt after each.
+//
+// It returns one CommandResult per command actually run (setup commands, then
+// the main command), each with the echoed command line and trailing prompt
+// stripped from its Output. This lets callers surface the whole session — e.g.
+// so a setup command that printed "% Invalid input" is visible rather than
+// silently swallowed. The results collected so far are returned even when an
+// error occurs partway through, since the raw output is often the most useful
+// thing for debugging a failure.
 //
 // Cancellation is handled by the caller (ExecuteCommand runs this in a goroutine
 // and closes the session on context timeout, which unblocks the reads here).
-func runInteractive(session *ssh.Session, cmd *profile.PlainCommand) (string, error) {
+func runInteractive(session *ssh.Session, cmd *profile.PlainCommand) (types.ResultList, error) {
+	var results types.ResultList
 	if cmd.Prompt == nil {
-		return "", fmt.Errorf("interactive command %q has no prompt matcher", cmd.Command)
+		return results, fmt.Errorf("interactive command %q has no prompt matcher", cmd.Command)
 	}
 
 	stdin, err := session.StdinPipe()
 	if err != nil {
-		return "", fmt.Errorf("open stdin: %w", err)
+		return results, fmt.Errorf("open stdin: %w", err)
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("open stdout: %w", err)
+		return results, fmt.Errorf("open stdout: %w", err)
 	}
 
 	// Disable local echo; use a large window to reduce the chance of pager
@@ -55,41 +63,56 @@ func runInteractive(session *ssh.Session, cmd *profile.PlainCommand) (string, er
 		ssh.TTY_OP_OSPEED: 14400,
 	}
 	if err := session.RequestPty("vt100", 1000, 1000, modes); err != nil {
-		return "", fmt.Errorf("request pty: %w", err)
+		return results, fmt.Errorf("request pty: %w", err)
 	}
 	if err := session.Shell(); err != nil {
-		return "", fmt.Errorf("start shell: %w", err)
+		return results, fmt.Errorf("start shell: %w", err)
 	}
 
 	// Wait for the initial prompt after the login banner.
 	if _, err := readUntilPrompt(stdout, cmd.Prompt); err != nil {
-		return "", fmt.Errorf("waiting for initial prompt: %w", err)
+		return results, fmt.Errorf("waiting for initial prompt: %w", err)
 	}
 
-	// Send setup commands (e.g. `set cli pager off`), discarding their output.
+	// runOne sends a command, reads until the next prompt, and records a
+	// CommandResult (populating Output even on error).
+	runOne := func(command string) (*types.CommandResult, error) {
+		res := &types.CommandResult{CommandStr: command}
+		if _, err := io.WriteString(stdin, command+"\n"); err != nil {
+			res.Error = errorStr(fmt.Errorf("sending command: %w", err))
+			return res, err
+		}
+		raw, err := readUntilPrompt(stdout, cmd.Prompt)
+		res.Output = cleanInteractiveOutput(string(raw), command, cmd.Prompt)
+		if err != nil {
+			res.Error = errorStr(err)
+			return res, err
+		}
+		return res, nil
+	}
+
+	// Setup commands (e.g. `set cli pager off`), capturing each output so a
+	// failure like "% Invalid input" is visible rather than silently dropped.
 	for _, setup := range cmd.SetupCommands {
-		if _, err := io.WriteString(stdin, setup+"\n"); err != nil {
-			return "", fmt.Errorf("sending setup %q: %w", setup, err)
-		}
-		if _, err := readUntilPrompt(stdout, cmd.Prompt); err != nil {
-			return "", fmt.Errorf("running setup %q: %w", setup, err)
+		res, err := runOne(setup)
+		results = append(results, res)
+		if err != nil {
+			return results, fmt.Errorf("running setup %q: %w", setup, err)
 		}
 	}
 
-	// Send the actual command and capture everything up to the next prompt.
-	if _, err := io.WriteString(stdin, cmd.Command+"\n"); err != nil {
-		return "", fmt.Errorf("sending command %q: %w", cmd.Command, err)
-	}
-	raw, err := readUntilPrompt(stdout, cmd.Prompt)
+	// The actual command whose output is the config we care about.
+	res, err := runOne(cmd.Command)
+	results = append(results, res)
 	if err != nil {
-		return "", fmt.Errorf("running %q: %w", cmd.Command, err)
+		return results, fmt.Errorf("running %q: %w", cmd.Command, err)
 	}
 
 	// Best-effort clean exit; ignore errors since we already have the output.
 	_, _ = io.WriteString(stdin, "exit\n")
 	_ = stdin.Close()
 
-	return cleanInteractiveOutput(string(raw), cmd.Command, cmd.Prompt), nil
+	return results, nil
 }
 
 // readUntilPrompt reads from r until prompt matches the tail of the accumulated

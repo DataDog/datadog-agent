@@ -9,6 +9,8 @@ package remote
 
 import (
 	"context"
+	"errors"
+	"regexp"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 const panOSPrompt = "cwadmin@PRDC-IF01> "
@@ -66,11 +69,12 @@ func TestInteractiveCommand_PanOSCurlyConfig(t *testing.T) {
 	assert.NotContains(t, result.Output, panOSGetRunningCommand)
 	assert.NotContains(t, result.Output, panOSPrompt)
 
-	// The pager was disabled before the command, and we exited cleanly.
+	// The pager was disabled before the command. (The trailing "exit" is a
+	// best-effort cleanup write that races with session teardown, so it is not
+	// asserted here.)
 	received := srv.Received()
 	assert.Contains(t, received, "set cli pager off")
 	assert.Contains(t, received, panOSGetRunningCommand)
-	assert.Contains(t, received, "exit")
 	// Setup runs before the command.
 	assert.Less(t, indexOf(received, "set cli pager off"), indexOf(received, panOSGetRunningCommand))
 }
@@ -91,6 +95,72 @@ func TestInteractiveCommand_BannerOnlyFails(t *testing.T) {
 	_, err := ExecuteCommand(ctx, client, panOSRunningCmd(t))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not match required regex")
+}
+
+// Test_runInteractive_CapturesSetupOutput verifies the interactive session
+// returns a result per command run (setup + main), and that a setup command's
+// output (e.g. "% Invalid input") is captured rather than silently dropped.
+func Test_runInteractive_CapturesSetupOutput(t *testing.T) {
+	srv := StartFakeInteractiveSSHServer(t, panOSPrompt, map[string]FakeResponse{
+		"set cli pager off":    Ok("% Invalid input\n"),
+		panOSGetRunningCommand: Ok(curlyConfig),
+	})
+	client := MustConnect(t, srv)
+	session, err := client.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	results, err := runInteractive(session, panOSRunningCmd(t))
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	assert.Equal(t, "set cli pager off", results[0].CommandStr)
+	assert.Contains(t, results[0].Output, "% Invalid input")
+
+	assert.Equal(t, panOSGetRunningCommand, results[1].CommandStr)
+	assert.Contains(t, results[1].Output, "config {")
+}
+
+// Test_runInteractive_CustomPrompt verifies the session is driven by the
+// command's prompt (not a hardcoded one), so an operator whose device uses a
+// customized CLI prompt can override it. The chosen prompt intentionally does
+// not match the built-in pan-os default.
+func Test_runInteractive_CustomPrompt(t *testing.T) {
+	const customPrompt = "myfw# "
+	require.False(t, panOSRunningCmd(t).Prompt.MatchString(customPrompt),
+		"custom prompt should not match the built-in default")
+
+	srv := StartFakeInteractiveSSHServer(t, customPrompt, map[string]FakeResponse{
+		"set cli pager off":    Ok(""),
+		panOSGetRunningCommand: Ok(curlyConfig),
+	})
+	client := MustConnect(t, srv)
+	session, err := client.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	clone := *panOSRunningCmd(t)
+	clone.Prompt = regexp.MustCompile(`(?m)^myfw#\s?$`)
+
+	results, err := runInteractive(session, &clone)
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+	assert.Contains(t, results[len(results)-1].Output, "config {")
+}
+
+// Test_collapseInteractiveResults_ErrorKeepsOutput verifies that when the
+// session errors before the main command produces config, the collapsed result
+// still carries the captured transcript and the error (raw output isn't lost).
+func Test_collapseInteractiveResults_ErrorKeepsOutput(t *testing.T) {
+	cmd := &profile.PlainCommand{Command: panOSGetRunningCommand}
+	results := types.ResultList{
+		{CommandStr: "set cli pager off", Output: "% Invalid input"},
+	}
+	r := collapseInteractiveResults(results, cmd, errors.New("running setup failed"))
+
+	assert.Equal(t, panOSGetRunningCommand, r.CommandStr)
+	assert.Contains(t, r.Output, "% Invalid input")
+	assert.Contains(t, r.Error, "running setup failed")
 }
 
 func indexOf(s []string, target string) int {
