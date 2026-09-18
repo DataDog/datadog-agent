@@ -84,7 +84,11 @@ INLINE_LITERAL_MASK = '\0'
 
 
 def mask_inline_literals(line: str) -> str:
-    """Blank out RST inline literals so their content is not matched as Markdown.
+    """Blank out RST inline literals.
+
+    This ensures that any content _within_ an inline literal cannot be misintepreted by subsequent
+    validation steps, but that the length of the inline literal (both content and backticks) is
+    preserved so that reported line numbers stay accurate.
 
     Args:
         line: A single line of RST text.
