@@ -224,8 +224,14 @@ func macosGUIAuthenticatedClient(t require.TestingT, host *components.RemoteHost
 	defer intentResp.Body.Close()
 	require.Equal(t, http.StatusOK, intentResp.StatusCode)
 
-	intentToken, err := io.ReadAll(intentResp.Body)
+	intentBody, err := io.ReadAll(intentResp.Body)
 	require.NoError(t, err)
+
+	var intentToken struct {
+		ID     string `json:"id"`
+		Secret string `json:"secret"`
+	}
+	require.NoError(t, json.Unmarshal(intentBody, &intentToken))
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
@@ -233,8 +239,13 @@ func macosGUIAuthenticatedClient(t require.TestingT, host *components.RemoteHost
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
-	authURL := fmt.Sprintf("http://localhost:%d/auth?%s", macosGUIPort, url.Values{"intent": {string(intentToken)}}.Encode())
-	authResp, err := guiClient.Get(authURL)
+	// The intent token is POSTed rather than put in the URL, which would leak
+	// it through the argv of the OS URL-opener (VULN-92705).
+	authURL := fmt.Sprintf("http://localhost:%d/auth", macosGUIPort)
+	authResp, err := guiClient.PostForm(authURL, url.Values{
+		"id":     {intentToken.ID},
+		"secret": {intentToken.Secret},
+	})
 	require.NoError(t, err)
 	defer authResp.Body.Close()
 	require.Equal(t, http.StatusOK, authResp.StatusCode)
