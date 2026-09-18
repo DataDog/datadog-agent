@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Add opt-in metric batching to reduce memory spikes during large check
+    collections. Configure ``check_sampler_batch_sizes`` with a check name and
+    sample limit (for example, ``sqlserver: 100000``) to commit and flush batches,
+    allowing collection to wait for the metric pipeline to drain. Disabled by default.
