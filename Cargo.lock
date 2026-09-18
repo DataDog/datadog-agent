@@ -994,12 +994,14 @@ name = "dd-procmgrd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
  "clap",
  "dd-agent-log",
  "dd-procmgr-client",
  "libc",
  "log",
  "nix",
+ "saphyr-parser",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -3025,7 +3027,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools",
  "log",
  "multimap",
@@ -4260,7 +4262,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "287f59010008f0d7cf5e3b03196d666c1acc46c8d3e9cf34c28a1a7157601e72"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4475,7 +4477,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
@@ -5646,9 +5648,9 @@ dependencies = [
 
 [[package]]
 name = "yaml-rust2"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6edb26322e610d4f04b7cd34478317685d24d0999437e551fb97c5441151041"
+checksum = "57e5b818a27a4cd30884ea380857a5e56f7ec3ba24a3990a3cc0b95af3238e18"
 dependencies = [
  "arraydeque",
  "encoding_rs",

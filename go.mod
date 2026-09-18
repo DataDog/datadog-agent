@@ -208,7 +208,7 @@ require (
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
-	github.com/DataDog/ebpf-manager v0.8.6
+	github.com/DataDog/ebpf-manager v0.8.7
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.4
 	github.com/DataDog/jsonapi v0.13.0
@@ -230,7 +230,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.4
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.129.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.0
@@ -406,10 +406,10 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.4.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.6.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.33
-	go.mongodb.org/mongo-driver/v2 v2.9.0
+	go.mongodb.org/mongo-driver/v2 v2.9.1
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
 	go.opentelemetry.io/collector/component/componenttest v0.159.0
@@ -522,7 +522,7 @@ require (
 	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.4.3 // indirect
-	cloud.google.com/go/compute v1.67.0 // indirect
+	cloud.google.com/go/compute v1.68.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.7.0 // indirect
 	cloud.google.com/go/kms v1.31.0 // indirect

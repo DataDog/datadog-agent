@@ -38,11 +38,12 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/uuid v1.6.0
 	github.com/hairyhenderson/go-codeowners v0.7.1
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
-	github.com/pulumi/pulumi/sdk/v3 v3.261.0
+	github.com/pulumi/pulumi/sdk/v3 v3.262.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -64,7 +65,7 @@ require (
 	al.essio.dev/pkg/shellescape v1.6.1 // indirect
 	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.67.0 // indirect
+	cloud.google.com/go/compute v1.68.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -126,7 +127,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.99.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
@@ -232,6 +233,8 @@ require (
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
