@@ -6,9 +6,15 @@
 package demultiplexerendpointimpl
 
 import (
+	"bytes"
+	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,4 +40,87 @@ func TestWriteDogstatsdContextsLocksDump(t *testing.T) {
 	_, err := endpoint.writeDogstatsdContexts()
 	require.NoError(t, err)
 	require.True(t, lockHeld)
+}
+
+func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
+	runPath := t.TempDir()
+	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0644))
+
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	var finishOnce sync.Once
+	releaseDump := func() {
+		finishOnce.Do(func() { close(finish) })
+	}
+	t.Cleanup(releaseDump)
+
+	endpoint := demultiplexerEndpoint{
+		runPath: runPath,
+		demux: contextDumperFunc(func(w io.Writer) error {
+			_, err := io.WriteString(w, `{"name":"new dump"}`)
+			close(started)
+			<-finish
+			return err
+		}),
+	}
+
+	type result struct {
+		path string
+		err  error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		path, err := endpoint.writeDogstatsdContexts()
+		resultCh <- result{path: path, err: err}
+	}()
+
+	<-started
+	contents, err := os.ReadFile(finalPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("previous dump"), contents)
+
+	releaseDump()
+	writeResult := <-resultCh
+	require.NoError(t, writeResult.err)
+	require.Equal(t, finalPath, writeResult.path)
+
+	contents, err = os.ReadFile(finalPath)
+	require.NoError(t, err)
+	decoder := zstd.NewReader(bytes.NewReader(contents))
+	decompressed, err := io.ReadAll(decoder)
+	require.NoError(t, err)
+	decoder.Close()
+	require.JSONEq(t, `{"name":"new dump"}`, string(decompressed))
+
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
+	require.NoError(t, err)
+	require.Empty(t, tempFiles)
+}
+
+func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
+	runPath := t.TempDir()
+	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0644))
+
+	dumpErr := errors.New("dump failed")
+	endpoint := demultiplexerEndpoint{
+		runPath: runPath,
+		demux: contextDumperFunc(func(w io.Writer) error {
+			_, err := io.WriteString(w, "partial dump")
+			require.NoError(t, err)
+			return dumpErr
+		}),
+	}
+
+	_, err := endpoint.writeDogstatsdContexts()
+	require.ErrorIs(t, err, dumpErr)
+
+	contents, err := os.ReadFile(finalPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("previous dump"), contents)
+
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
+	require.NoError(t, err)
+	require.Empty(t, tempFiles)
 }

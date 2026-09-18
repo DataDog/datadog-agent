@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/DataDog/zstd"
@@ -92,10 +92,24 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 	demuxendpoint.dumpMu.Lock()
 	defer demuxendpoint.dumpMu.Unlock()
 
-	path := path.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
+	finalPath := filepath.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
 
-	f, err := os.Create(path)
+	f, err := os.CreateTemp(demuxendpoint.runPath, ".dogstatsd_contexts-*.tmp")
 	if err != nil {
+		return "", err
+	}
+	tempPath := f.Name()
+	defer os.Remove(tempPath)
+
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(finalPath); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		_ = f.Close()
+		return "", statErr
+	}
+	if err := f.Chmod(mode); err != nil {
+		_ = f.Close()
 		return "", err
 	}
 
@@ -109,5 +123,9 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 		}
 	}
 
-	return path, nil
+	if err := replaceFile(tempPath, finalPath); err != nil {
+		return "", err
+	}
+
+	return finalPath, nil
 }
