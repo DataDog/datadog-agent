@@ -457,6 +457,63 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"rshell:journalctl", "rshell:systemctl"})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"truncate", "rshell:journalctl"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellPrivilegedElevatableCommands)
+	assert.Contains(t, logs, `"truncate"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:truncate"`)
+	assert.NotContains(t, logs, `"rshell:journalctl"`)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
+
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:*"})
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/"})
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")

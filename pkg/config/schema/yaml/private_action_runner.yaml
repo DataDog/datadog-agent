@@ -173,6 +173,10 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
+
+          When explicitly configured, this also narrows privileged execution
+          (see restricted_shell.privileged), the same way it narrows the
+          ordinary restricted shell.
       allowed_system_services:
         node_type: setting
         type: object
@@ -187,6 +191,9 @@ properties:
           unset, backend grants pass through; an explicit empty map denies all.
           The "*" action admits every backend-granted action for an exact service.
           The environment variable accepts a JSON object only.
+
+          When explicitly configured, this also narrows privileged execution's
+          system-service grants (see restricted_shell.privileged).
       disable_detailed_telemetry:
         node_type: setting
         type: boolean
@@ -213,6 +220,21 @@ properties:
             node_type: setting
             type: string
             default: /run/datadog/rshell-privileged.sock
+          elevatable_commands:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            env_parser: json_list_or_comma_separated
+            comment: |-
+              Commands that may temporarily regain root (via a sudo prefix)
+              inside the privileged helper's one-shot worker. Defaults to an
+              empty list: elevation is opt-in per command, never granted by
+              a wildcard default. Like allowed_commands/allowed_paths, this
+              only narrows the signed backend task and the optional local
+              policy.json; it can never grant elevation beyond what those
+              already allow.
   skip_connection_creation:
     node_type: setting
     type: boolean

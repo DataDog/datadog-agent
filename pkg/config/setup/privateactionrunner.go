@@ -38,12 +38,15 @@ const (
 	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
 	PARRestrictedShellPrivilegedEnabled        = "private_action_runner.restricted_shell.privileged.enabled"
 	PARRestrictedShellPrivilegedSocket         = "private_action_runner.restricted_shell.privileged.socket"
-	RShellCommandNamespacePrefix               = "rshell:"
-	RShellCommandAllowAllWildcard              = RShellCommandNamespacePrefix + "*"
-	RShellPathAllowAll                         = "/"
-	RShellPathAllowMapContainerizedKey         = "containerized"
-	RShellPathAllowMapDefaultKey               = "default"
-	RShellPrivilegedSocketDefault              = "/run/datadog/rshell-privileged.sock"
+	// PARRestrictedShellPrivilegedElevatableCommands lists commands allowed to
+	// sudo-elevate inside the privileged helper. Defaults to empty (opt-in).
+	PARRestrictedShellPrivilegedElevatableCommands = "private_action_runner.restricted_shell.privileged.elevatable_commands"
+	RShellCommandNamespacePrefix                   = "rshell:"
+	RShellCommandAllowAllWildcard                  = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                             = "/"
+	RShellPathAllowMapContainerizedKey             = "containerized"
+	RShellPathAllowMapDefaultKey                   = "default"
+	RShellPrivilegedSocketDefault                  = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
