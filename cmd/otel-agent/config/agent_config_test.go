@@ -494,6 +494,30 @@ func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
+func (suite *ConfigTestSuite) TestNilDDAPISectionWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_malformed_api.yaml"
