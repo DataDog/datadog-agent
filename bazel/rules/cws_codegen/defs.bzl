@@ -8,6 +8,7 @@ via `write_source_file`. They follow the same shape as
 
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 def _operators_impl(name, output, visibility):
     gen = "{}_gen".format(name)
@@ -105,6 +106,90 @@ bpf_maps_generator = macro(
         "header": attr.label(mandatory = True, configurable = False, allow_single_file = [".h"], doc = "Label of the BPF maps header file to scan (e.g. //pkg/security/ebpf/c/include:maps.h)."),
         "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. consts_map_names_linux.go)."),
         "package_name": attr.string(mandatory = True, configurable = False, doc = "Go package name to write into the generated file."),
+    },
+)
+
+def _easyjson_impl(name, package, package_path, src, output, build_tags, visibility):
+    bootstrap = "{}_bootstrap".format(name)
+    gen = "{}_gen".format(name)
+
+    # A -build_tags value means the annotated types only exist on that platform,
+    # so the generator can only be compiled and run there. Deriving the bootstrap
+    # itself is just parsing, so that step stays platform-neutral.
+    compatible_with = ["@platforms//os:{}".format(build_tags)] if build_tags else None
+
+    args = [
+        "-input=$(execpath {})".format(src),
+        "-output=$(execpath {}/bootstrap.go)".format(name),
+        "-package-path={}".format(package_path),
+        "-out-basename={}".format(output),
+    ]
+    if build_tags:
+        args.append("-build-tags={}".format(build_tags))
+
+    run_binary(
+        name = bootstrap,
+        srcs = [src],
+        args = args,
+        outs = ["{}/bootstrap.go".format(name)],
+        tool = "//pkg/security/generators/easyjson_bootstrap",
+    )
+
+    go_library(
+        name = "{}_lib".format(name),
+        srcs = [":{}".format(bootstrap)],
+        importpath = "github.com/DataDog/datadog-agent/bazel/rules/cws_codegen/easyjson/{}/{}".format(native.package_name(), name),
+        target_compatible_with = compatible_with,
+        deps = [
+            package,
+            "@com_github_mailru_easyjson//gen",
+        ],
+    )
+
+    go_binary(
+        name = "{}_bin".format(name),
+        embed = [":{}_lib".format(name)],
+        target_compatible_with = compatible_with,
+    )
+
+    run_binary(
+        name = gen,
+        args = ["-output=$(execpath {}/{})".format(name, output)],
+        outs = ["{}/{}".format(name, output)],
+        target_compatible_with = compatible_with,
+        tool = ":{}_bin".format(name),
+    )
+    native.exports_files([output], visibility)
+    write_source_file(
+        name = name,
+        in_file = ":{}".format(gen),
+        out_file = output,
+        check_that_out_file_exists = False,
+    )
+
+easyjson = macro(
+    implementation = _easyjson_impl,
+    doc = """Generate easyjson marshalers for a source file and write the result back to the source tree.
+
+The easyjson CLI writes a bootstrap program into the target package, `go run`s
+it, and gofmts the output, which needs a Go toolchain and a writable source
+tree. This splits the two halves: //pkg/security/generators/easyjson_bootstrap
+derives the program from the `easyjson:json` comments in `src`, and Bazel
+compiles and runs it. Types are never listed here — the annotations stay the
+single source of truth.
+
+The generator links `package`, which already contains the checked-in output, so
+generation is a fixed point: easyjson calls a nested type's MarshalEasyJSON when
+that method exists and inlines a decoder when it does not. Generating from a
+stubbed or stale output therefore yields a different file, and one further run
+converges back.
+""",
+    attrs = {
+        "package": attr.label(mandatory = True, configurable = False, doc = "go_library of the package the marshalers are generated for."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
+        "src": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Annotated .go file holding the easyjson:json comments (the one carrying the //go:generate directive)."),
+        "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_easyjson.go)."),
+        "build_tags": attr.string(configurable = False, default = "", doc = "Value of the CLI's -build_tags flag, when the annotated file is platform-specific. Doubles as the OS the generator is constrained to, so it must name a @platforms//os value."),
     },
 )
 
