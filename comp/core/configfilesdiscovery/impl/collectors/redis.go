@@ -200,13 +200,13 @@ func (t *redisIncludeTraversal) collectFileIncludes(file configfilesdiscoveryimp
 // collectInclude resolves one include directive and returns its newly collected
 // matching files to inspect later.
 func (t *redisIncludeTraversal) collectInclude(include string, parentPath string, depth int) []redisConfigFileAtDepth {
-	pattern, err := resolveRedisIncludePattern(include, t.workingDir, t.rootDir.String())
+	search, err := resolveRedisIncludeSearch(include, t.workingDir, t.rootDir)
 	if err != nil {
 		log.Debugf("config files discovery skipped unsafe or unresolved redis include %q from %q: %v", include, parentPath, err)
 		return nil
 	}
 
-	matchesPath, err := compileRedisIncludePattern(pattern)
+	matchesPath, err := compileRedisIncludePattern(search.Pattern())
 	if err != nil {
 		log.Debugf("config files discovery skipped malformed redis include %q from %q: %v", include, parentPath, err)
 		return nil
@@ -217,20 +217,10 @@ func (t *redisIncludeTraversal) collectInclude(include string, parentPath string
 		if err != nil || !matched {
 			return matched, err
 		}
-		if !isRedisPathWithinRoot(filePath.String(), t.rootDir.String()) {
-			log.Debugf("config files discovery skipped redis include match %q outside root directory %q", filePath.String(), t.rootDir.String())
-			return false, nil
-		}
 		if _, visited := t.visited[filePath]; visited {
 			return false, nil
 		}
 		return true, nil
-	}
-
-	search, err := configfilesdiscoveryimpl.NewConfigFileSearch(t.rootDir, pattern)
-	if err != nil {
-		log.Debugf("config files discovery skipped unsafe redis include %q from %q: %v", include, parentPath, err)
-		return nil
 	}
 
 	t.includeSearches++
@@ -284,33 +274,32 @@ func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscov
 	return children
 }
 
-// resolveRedisIncludePattern resolves a relative include against workingDir.
-// It returns a cleaned pattern confined to rootDir.
-func resolveRedisIncludePattern(include string, workingDir string, rootDir string) (configfilesdiscoveryimpl.VerifiedConfigFilePattern, error) {
+// resolveRedisIncludeSearch resolves an include against workingDir and returns
+// a verified search confined to rootDir.
+func resolveRedisIncludeSearch(
+	include string,
+	workingDir string,
+	rootDir configfilesdiscoveryimpl.VerifiedConfigFilePath,
+) (configfilesdiscoveryimpl.ConfigFileSearch, error) {
 	if include == "" || strings.Contains(include, "**") {
-		return configfilesdiscoveryimpl.VerifiedConfigFilePattern{}, fmt.Errorf("unsupported include pattern %q", include)
+		return configfilesdiscoveryimpl.ConfigFileSearch{}, fmt.Errorf("unsupported include pattern %q", include)
 	}
 	rawPattern := include
 	if !path.IsAbs(rawPattern) {
 		if !path.IsAbs(workingDir) {
-			return configfilesdiscoveryimpl.VerifiedConfigFilePattern{}, fmt.Errorf("relative include %q has no reliable working directory", include)
+			return configfilesdiscoveryimpl.ConfigFileSearch{}, fmt.Errorf("relative include %q has no reliable working directory", include)
 		}
 		rawPattern = strings.TrimSuffix(workingDir, "/") + "/" + include
 	}
 	pattern, err := configfilesdiscoveryimpl.VerifyConfigFilePattern(configfilesdiscoveryimpl.UnverifiedConfigFilePattern(rawPattern))
 	if err != nil {
-		return configfilesdiscoveryimpl.VerifiedConfigFilePattern{}, err
+		return configfilesdiscoveryimpl.ConfigFileSearch{}, err
 	}
-	if !isRedisPathWithinRoot(pattern.String(), rootDir) {
-		return configfilesdiscoveryimpl.VerifiedConfigFilePattern{}, fmt.Errorf("include pattern %q is outside root directory %q", pattern.String(), rootDir)
+	search, err := configfilesdiscoveryimpl.NewConfigFileSearch(rootDir, pattern)
+	if err != nil {
+		return configfilesdiscoveryimpl.ConfigFileSearch{}, err
 	}
-	return pattern, nil
-}
-
-// isRedisPathWithinRoot returns whether the cleaned absolute path is rootDir or
-// one of its descendants, respecting path-component boundaries.
-func isRedisPathWithinRoot(filePath string, rootDir string) bool {
-	return rootDir == "/" || filePath == rootDir || strings.HasPrefix(filePath, rootDir+"/")
+	return search, nil
 }
 
 // compileRedisIncludePattern returns a matcher that implements Redis glob

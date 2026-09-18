@@ -774,7 +774,8 @@ func TestRedisCollectorSkipsRelativeIncludesWithoutReliableWorkingDir(t *testing
 	assert.Equal(t, []string{"/etc/redis/redis.conf", "/etc/redis/absolute.conf"}, redisConfigFilePaths(files))
 }
 
-func TestResolveRedisIncludePatternRejectsUnsafePaths(t *testing.T) {
+func TestResolveRedisIncludeSearchRejectsUnsafePaths(t *testing.T) {
+	rootDir := verifyTestConfigFilePath(t, "/etc/redis")
 	tests := []string{
 		"../outside.conf",
 		"/etc/redis/../outside.conf",
@@ -785,9 +786,9 @@ func TestResolveRedisIncludePatternRejectsUnsafePaths(t *testing.T) {
 	}
 	for _, include := range tests {
 		t.Run(fmt.Sprintf("%q", include), func(t *testing.T) {
-			pattern, err := resolveRedisIncludePattern(include, "/etc/redis", "/etc/redis")
+			search, err := resolveRedisIncludeSearch(include, "/etc/redis", rootDir)
 			require.Error(t, err)
-			assert.Empty(t, pattern)
+			assert.Empty(t, search)
 		})
 	}
 }
