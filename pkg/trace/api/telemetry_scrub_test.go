@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newTestForwarder returns a TelemetryForwarder with just enough state
@@ -395,8 +396,11 @@ func TestTelemetryProxy_ScrubsInjectionMetadata(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recordedStatusCode(rec))
 	select {
 	case got := <-received:
-		assert.NotContains(t, string(got), "hunter2", "secret leaked to upstream intake")
-		assert.Contains(t, decodeCommandLine(t, got), "********")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		content := batch.Payload.Events[0].Content
+		assert.NotContains(t, string(content), "hunter2", "secret leaked to upstream intake")
+		assert.Contains(t, decodeCommandLine(t, content), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
@@ -432,7 +436,9 @@ func TestTelemetryProxy_DoesNotScrubOtherRequestTypes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recordedStatusCode(rec))
 	select {
 	case got := <-received:
-		assert.Equal(t, body, got, "non-injection-metadata payloads must pass through verbatim")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		assert.Equal(t, body, batch.Payload.Events[0].Content, "non-injection-metadata payloads must pass through verbatim")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
@@ -644,7 +650,11 @@ func TestTelemetryProxy_ScrubsInjectionMetadataField(t *testing.T) {
 	select {
 	case got := <-received:
 		assert.NotContains(t, string(got), "raw-secret-value", "secret leaked to upstream intake")
-		assert.Contains(t, string(decodeMetadata(t, got)), "********")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		content := batch.Payload.Events[0].Content
+		assert.NotContains(t, string(content), "raw-secret-value", "secret leaked to upstream intake")
+		assert.Contains(t, string(decodeMetadata(t, content)), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
