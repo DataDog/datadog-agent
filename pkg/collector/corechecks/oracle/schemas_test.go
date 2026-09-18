@@ -1468,7 +1468,6 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
-	c.config.Schemas.PayloadChunkSize = 100
 	dbMock.MatchExpectationsInOrder(false)
 
 	table := tableKey{conID: 3, owner: "APP", table: "T"}
