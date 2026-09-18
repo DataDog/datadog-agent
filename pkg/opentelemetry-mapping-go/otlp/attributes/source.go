@@ -204,7 +204,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureAppServiceKind,
-			Identifier: appService.instanceID,
+			Identifier: appService.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{
 				Primary: appService.instanceID,
 				Dimensions: map[string]string{
@@ -255,7 +255,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 			}
 			return source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: primary,
+				Identifier: primary, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary:    primary,
 					Dimensions: dims,
@@ -268,7 +268,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 			return source.Source{
 				Kind:             source.AWSECSFargateKind,
-				Identifier:       taskARN.Str(),
+				Identifier:       taskARN.Str(), //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: taskARN.Str()},
 			}, true
 		}
@@ -280,7 +280,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		}
 		return source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       host,
+			Identifier:       host, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: host},
 		}, true
 	}

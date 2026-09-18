@@ -68,7 +68,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testLiteralHost,
+				Identifier:       testLiteralHost, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testLiteralHost},
 			},
 		},
@@ -85,7 +85,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testCustomName,
+				Identifier:       testCustomName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testCustomName},
 			},
 		},
@@ -105,7 +105,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testHostID,
+				Identifier:       testHostID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
 			},
 		},
@@ -122,7 +122,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.AWSECSFargateKind,
-				Identifier:       "example-task-ARN",
+				Identifier:       "example-task-ARN", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: "example-task-ARN"},
 			},
 		},
@@ -140,7 +140,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testAzureAppServiceInstanceID,
+				Identifier: testAzureAppServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: testAzureAppServiceInstanceID,
 					Dimensions: map[string]string{
@@ -164,7 +164,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testAzureAppServiceInstanceID,
+				Identifier: testAzureAppServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: testAzureAppServiceInstanceID,
 					Dimensions: map[string]string{
@@ -188,7 +188,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testServiceInstanceID,
+				Identifier: testServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: testServiceInstanceID,
 					Dimensions: map[string]string{
@@ -213,7 +213,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -238,7 +238,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -264,7 +264,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -289,7 +289,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -312,7 +312,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -337,7 +337,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "replica-1",
+				Identifier: "replica-1", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
@@ -361,7 +361,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureContainerAppsKind,
-				Identifier: "my-app",
+				Identifier: "my-app", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "my-app",
 					Dimensions: map[string]string{
@@ -400,7 +400,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testGCPIntegrationHostname,
+				Identifier:       testGCPIntegrationHostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testGCPIntegrationHostname},
 			},
 		},
@@ -422,7 +422,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testHostID,
+				Identifier:       testHostID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
 			},
 		},
@@ -435,7 +435,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			ok: true,
 			src: source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       testHostID,
+				Identifier:       testHostID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: testHostID},
 			},
 		},
@@ -493,7 +493,7 @@ func TestLiteralHostNonString(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, source.Source{
 		Kind:             source.HostnameKind,
-		Identifier:       "1000",
+		Identifier:       "1000", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		SourceIdentifier: source.SourceIdentifier{Primary: "1000"},
 	}, src)
 }

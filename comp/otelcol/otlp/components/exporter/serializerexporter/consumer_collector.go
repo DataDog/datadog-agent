@@ -83,8 +83,18 @@ func (c *collectorConsumer) ConsumeHost(host string) {
 func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 	sorted := slices.Clone(tags)
 	slices.Sort(sorted)
-	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
-	c.seenTagSets[dedupKey] = sorted
+
+	// Length-prefix each tag before joining so that no two distinct sorted tag
+	// sets can ever collide onto the same dedup key — a plain comma-join would
+	// be ambiguous whenever a tag value itself contains a comma (e.g.
+	// ["name:a,b", "c:d"] and ["name:a", "b,c:d"] both join to "name:a,b,c:d").
+	var dedupKey strings.Builder
+	for _, tag := range sorted {
+		fmt.Fprintf(&dedupKey, "%d:", len(tag))
+		dedupKey.WriteString(tag)
+	}
+	key := tagSetKey{metricSuffix: metricSuffix, sortedTags: dedupKey.String()}
+	c.seenTagSets[key] = sorted
 }
 
 // exporterDefaultMetrics creates built-in metrics to report that an exporter is running
