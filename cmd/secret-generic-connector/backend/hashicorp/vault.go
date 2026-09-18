@@ -347,9 +347,9 @@ func (b *VaultBackend) handleVaultURIFormat(ctx context.Context, secretString st
 			if dataField, ok := sec.Data["data"].(map[string]interface{}); ok {
 				// This is likely KV v2, evaluate the tail against the nested data
 				value, err = tail.Eval(dataField)
-				// datadog-vault-secrets historically used /data/data/<field> for KV v2.
-				// Retry without the redundant data segment when the canonical lookup fails.
-				if err != nil && len(tail) > 1 {
+				// KV v2 pointers may include an extra /data segment.
+				// Retry without it if the first lookup finds no value.
+				if value == nil && len(tail) > 1 {
 					if legacyHead := tail.Head(); legacyHead != nil && *legacyHead == "data" {
 						value, err = tail.Tail().Eval(dataField)
 					}
