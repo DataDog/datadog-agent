@@ -17,6 +17,8 @@ go_library(
     tags = ["manual"],
 )
 
+# Used by analysis test. gazelle does not see it.
+# keep
 go_binary(
     name = "test_binary",
     embed = [":test_binary_lib"],
