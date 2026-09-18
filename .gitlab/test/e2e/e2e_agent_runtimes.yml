@@ -14,6 +14,11 @@
 
 new-e2e-agent-runtimes:
   extends: .new_e2e_template_needs_deb_x64
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - bazel build //cmd/serverless-init:serverless-init
+    - export SERVERLESS_INIT_BINARY="$(bazel cquery --output=files //cmd/serverless-init:serverless-init | head -n 1)"
+    - test -x "$SERVERLESS_INIT_BINARY"
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
