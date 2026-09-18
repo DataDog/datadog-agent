@@ -245,12 +245,6 @@ instances:
       #
       # collection_interval: 600
 
-      ## @param payload_chunk_size - int - optional - default: 1000
-      ## The maximum number of tables (or views) collected before a schema payload is split into
-      ## another chunk.
-      #
-      # payload_chunk_size: 1000
-
       ## @param collect_views - boolean - optional - default: true
       ## Enable collection of view metadata alongside table metadata.
       #

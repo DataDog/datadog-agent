@@ -29,7 +29,6 @@ const (
 	defaultLoader                   = "core"
 	defaultQueryTimeout             = 20
 	defaultSchemaCollectionInterval = 600
-	defaultSchemaPayloadChunkSize   = 1000
 	defaultSchemaMaxViews           = 1000
 	defaultSchemaMaxTables          = 300
 	defaultSchemaMaxColumns         = 50
@@ -87,7 +86,6 @@ type TablespacesConfig struct {
 type SchemasConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	CollectionInterval int64    `yaml:"collection_interval"`
-	PayloadChunkSize   int      `yaml:"payload_chunk_size"`
 	CollectViews       *bool    `yaml:"collect_views"`
 	MaxViews           int      `yaml:"max_views"`
 	MaxTables          int      `yaml:"max_tables"`
@@ -320,7 +318,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.CollectionInterval = 600
 
 	instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
-	instance.Schemas.PayloadChunkSize = defaultSchemaPayloadChunkSize
 	instance.Schemas.MaxViews = defaultSchemaMaxViews
 	instance.Schemas.MaxTables = defaultSchemaMaxTables
 	instance.Schemas.MaxColumns = defaultSchemaMaxColumns
@@ -337,9 +334,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	if instance.Schemas.PayloadChunkSize <= 0 {
-		instance.Schemas.PayloadChunkSize = defaultSchemaPayloadChunkSize
-	}
 	if instance.Schemas.CollectionInterval <= 0 {
 		instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
 	}
