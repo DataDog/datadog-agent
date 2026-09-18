@@ -51,8 +51,9 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 	ddlog.Debugf("DEBUGTMP addToCache exporterIP=%s optionsDataFlowSets=%d", exporterIP, len(optionsDataFlowSet))
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
-			appID, haveID, appName, haveName := extractApplicationIDAndName(record.OptionsValues)
-			ddlog.Debugf("DEBUGTMP options record: appID=%d haveID=%v appName=%q haveName=%v rawFields=%+v", appID, haveID, appName, haveName, record.OptionsValues)
+			appID, haveID := extractApplicationID(record.ScopesValues)
+			appName, haveName := extractApplicationName(record.OptionsValues)
+			ddlog.Debugf("DEBUGTMP options record: appID=%d haveID=%v appName=%q haveName=%v scopes=%+v options=%+v", appID, haveID, appName, haveName, record.ScopesValues, record.OptionsValues)
 			if haveID && haveName {
 				m.set(exporterIP, appID, appName)
 			}
@@ -73,25 +74,35 @@ func (m *ApplicationMapper) lookupApplicationName(exporterIP string, rawAppID []
 	return name, found
 }
 
-func extractApplicationIDAndName(fields []netflow.DataField) (appID uint32, haveID bool, appName string, haveName bool) {
+func extractApplicationID(fields []netflow.DataField) (appID uint32, haveID bool) {
 	for _, f := range fields {
+		if f.Type != ipfixFieldApplicationID {
+			continue
+		}
 		v, ok := f.Value.([]byte)
 		if !ok {
 			continue
 		}
-		switch f.Type {
-		case ipfixFieldApplicationID:
-			var id uint64
-			if err := producer.DecodeUNumber(v, &id); err == nil {
-				appID = uint32(id)
-				haveID = true
-			}
-		case ipfixFieldApplicationName:
-			appName = string(bytes.Trim(v, "\x00"))
-			haveName = true
+		var id uint64
+		if err := producer.DecodeUNumber(v, &id); err == nil {
+			return uint32(id), true
 		}
 	}
-	return appID, haveID, appName, haveName
+	return 0, false
+}
+
+func extractApplicationName(fields []netflow.DataField) (appName string, haveName bool) {
+	for _, f := range fields {
+		if f.Type != ipfixFieldApplicationName {
+			continue
+		}
+		v, ok := f.Value.([]byte)
+		if !ok {
+			continue
+		}
+		return string(bytes.Trim(v, "\x00")), true
+	}
+	return "", false
 }
 
 func (m *ApplicationMapper) set(exporterIP string, appID uint32, appName string) {
