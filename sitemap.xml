@@ -67,6 +67,30 @@
         <loc>https://datadoghq.dev/datadog-agent/how-to/go/modules/</loc>
       </url>
       <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/using-components/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/creating-bundles/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/optional-dependencies/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/flares/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/status/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/agent-schema/settings/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/agent-schema/workflows/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/run-jmxfetch/</loc>
+      </url>
+      <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/</loc>
       </url>
       <url>
@@ -88,6 +112,12 @@
         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/c++/</loc>
       </url>
       <url>
+        <loc>https://datadoghq.dev/datadog-agent/tutorials/components/creating-components/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/tutorials/components/testing/</loc>
+      </url>
+      <url>
         <loc>https://datadoghq.dev/datadog-agent/tutorials/dev/env/</loc>
       </url>
       <url>
@@ -103,6 +133,9 @@
         <loc>https://datadoghq.dev/datadog-agent/guidelines/docs/</loc>
       </url>
       <url>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/components/</loc>
+      </url>
+      <url>
         <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/go/</loc>
       </url>
       <url>
@@ -115,40 +148,28 @@
         <loc>https://datadoghq.dev/datadog-agent/guidelines/conventions/logging/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/overview/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/creating-components/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/testing/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/using-components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/shared_features/flares/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/components/shared_features/status/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/agent-schema/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/agent-schema/keywords/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/agent-schema/examples/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/agent-schema/cli/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/agent-schema/faq/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/examples/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/components/status/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/keywords/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/cli/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/reference/images/dev/</loc>
