@@ -1494,6 +1494,12 @@ func (tm *testModule) describeADKernelState(containerID string) string {
 		b.WriteString(fmt.Sprintf("  %s: %s\n", m.name, tm.dumpInodeKeyedMap(p, m.name, m.valueLen)))
 	}
 
+	// A successful reserve writes traced_cgroups *and* cgroup_wait_list together, with a
+	// 4500s deadline nothing can clear inside a test, so a cgroup missing from both never
+	// reserved. This counter is what says so directly, and its errno separates a full
+	// 5-slot traced_cgroups (E2BIG) from an already-reserved cgroup (EEXIST).
+	b.WriteString(fmt.Sprintf("  traced_cgroups_reserve_failed: %s\n", tm.dumpReserveFailures(p)))
+
 	// a lost cgroup_tracing event is indistinguishable from an offer the kernel never
 	// made, and onEventLost's SyncTracedCgroups frees the traced_cgroups slot while
 	// leaving the wait list entry, which blocks every later offer for that cgroup.
@@ -1536,6 +1542,34 @@ func (tm *testModule) dumpInodeKeyedMap(p *sprobe.EBPFProbe, name string, valueL
 		} else {
 			entries = append(entries, fmt.Sprintf("%d=%d", inode, u64Val))
 		}
+	}
+	if err := it.Err(); err != nil {
+		entries = append(entries, fmt.Sprintf("<iteration failed: %v>", err))
+	}
+
+	return fmt.Sprintf("%d entr(ies) [%s]", len(entries), strings.Join(entries, " "))
+}
+
+// dumpReserveFailures renders traced_cgroups_reserve_failed, whose value packs the
+// rejection count in the high half and the latest errno in the low half.
+func (tm *testModule) dumpReserveFailures(p *sprobe.EBPFProbe) string {
+	m, _, err := p.Manager.Get().GetMap("traced_cgroups_reserve_failed")
+	if err != nil || m == nil {
+		return fmt.Sprintf("unavailable (%v)", err)
+	}
+
+	var (
+		entries       []string
+		inode, packed uint64
+	)
+	it := m.Iterate()
+	for it.Next(&inode, &packed) {
+		errno := unix.Errno(packed & 0xFFFFFFFF)
+		name := unix.ErrnoName(errno)
+		if name == "" {
+			name = strconv.FormatUint(uint64(errno), 10)
+		}
+		entries = append(entries, fmt.Sprintf("%d=%dx%s", inode, packed>>32, name))
 	}
 	if err := it.Err(); err != nil {
 		entries = append(entries, fmt.Sprintf("<iteration failed: %v>", err))

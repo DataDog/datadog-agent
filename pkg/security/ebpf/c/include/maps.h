@@ -71,6 +71,9 @@ BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PRE
 BPF_LRU_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
+// Debug aid: counts the offers reserve_traced_cgroup_spot() rejected per cgroup inode,
+// the one drop that leaves no other trace in any map. See describeADKernelState.
+BPF_LRU_MAP(traced_cgroups_reserve_failed, u64, u64, 512)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
