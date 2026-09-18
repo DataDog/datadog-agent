@@ -82,7 +82,7 @@ func analyzeScript() string {
 	return strings.Join(lines, "\r\n") + "\r\n"
 }
 
-// SetupCdb downloads and extracts the Debugging Tools for Windows (cdb.exe) to the remote host.
+// SetupCdb ensures the Debugging Tools for Windows (cdb.exe) are present on the remote host.
 //
 // cdb.exe is the command-line version of WinDbg. It is used to run !analyze -v on crash dumps
 // non-interactively.
@@ -93,14 +93,21 @@ func analyzeScript() string {
 // Microsoft public symbol server, the Datadog driver symbol server, and the Agent build
 // symbol server.
 func SetupCdb(host *components.RemoteHost) error {
-	err := host.HostArtifactClient.Get("windows-products/debugtools.zip", CdbZipPath)
+	cdbExists, err := host.FileExists(CdbExe)
 	if err != nil {
-		return fmt.Errorf("failed to download debugtools: %w", err)
+		return fmt.Errorf("failed to check whether cdb is already installed: %w", err)
 	}
 
-	_, err = host.Execute(fmt.Sprintf(`if (-Not (Test-Path -Path '%s')) { Expand-Archive -Path '%s' -DestinationPath '%s' }`, CdbPath, CdbZipPath, CdbPath))
-	if err != nil {
-		return fmt.Errorf("failed to extract debugtools: %w", err)
+	if !cdbExists {
+		err = host.HostArtifactClient.Get("windows-products/debugtools.zip", CdbZipPath)
+		if err != nil {
+			return fmt.Errorf("failed to download debugtools: %w", err)
+		}
+
+		_, err = host.Execute(fmt.Sprintf(`Expand-Archive -Path '%s' -DestinationPath '%s' -Force`, CdbZipPath, CdbPath))
+		if err != nil {
+			return fmt.Errorf("failed to extract debugtools: %w", err)
+		}
 	}
 
 	// Verify cdb.exe was extracted
