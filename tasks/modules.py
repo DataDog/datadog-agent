@@ -224,6 +224,42 @@ def validate_used_by_otel(ctx: Context):
         raise Exit(message)
 
 
+@task
+def validate_cargo(_: Context):
+    """
+    Report dependencies with a pinned version in non-top-level Cargo.toml files.
+
+    Only the top-level Cargo.toml should pin dependency versions; other Cargo.toml files
+    should reference them with `dep.workspace = true`. This only prints violations for
+    now; it does not fail the build.
+    """
+    section_re = re.compile(r'^\[(.+)\]$')
+    version_re = re.compile(r'^[A-Za-z0-9_.-]+\s*=\s*("[^"]*"|\{.*\bversion\s*=\s*"[^"]*".*\})\s*$')
+    failures = []
+    for path in sorted(glob('**/Cargo.toml', recursive=True)):
+        if path == 'Cargo.toml' or path.split(os.sep)[0].startswith('bazel-'):
+            continue
+        in_deps_section = False
+        with open(path) as f:
+            for lineno, line in enumerate(f, start=1):
+                stripped = line.strip()
+                section = section_re.match(stripped)
+                if section:
+                    in_deps_section = 'dependencies' in section.group(1)
+                    continue
+                if in_deps_section and version_re.match(stripped):
+                    failures.append(f"{path}:{lineno}: {stripped}")
+
+    if failures:
+        print("modules.validate-cargo: pinned dependency versions found in non-top-level Cargo.toml files:")
+        for failure in failures:
+            print(f"  {failure}")
+        print(
+            "Dependencies should not pin a version outside the top-level Cargo.toml (use `dep.workspace = true` instead)."
+        )
+        print("This check does not fail the build yet; it will in the future.")
+
+
 def get_module_by_path(path: Path) -> GoModule | None:
     """
     Return the GoModule object corresponding to the given path.
