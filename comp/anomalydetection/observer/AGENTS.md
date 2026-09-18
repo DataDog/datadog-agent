@@ -64,7 +64,7 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
-patterns across all tag groups (default 10,000). This includes patterns below
+patterns across all tag groups (default 3,000). This includes patterns below
 the metric emission threshold. Non-positive values use the default. Capacity
 eviction removes the least recently seen existing pattern and sends its metric
 name through engine cleanup. The internal per-group and tag-group safeguards

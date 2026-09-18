@@ -68,7 +68,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 	parseHexDump := true
 
 	return LogPatternExtractorConfig{
-		MaxPatterns:                  10000,
+		MaxPatterns:                  3000,
 		MinClusterSizeBeforeEmit:     5,
 		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
 		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),

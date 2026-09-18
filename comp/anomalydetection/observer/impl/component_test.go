@@ -217,7 +217,7 @@ func TestLogPatternLimitFromAgentConfig(t *testing.T) {
 		value string
 		want  int
 	}{
-		{"7", 7}, {"0", 10000}, {"-1", 10000},
+		{"7", 7}, {"0", 3000}, {"-1", 3000},
 	} {
 		t.Run(test.value, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_pattern_extractor:\n      max_patterns: "+test.value+"\n")

@@ -5165,7 +5165,7 @@ properties:
               max_patterns:
                 node_type: setting
                 type: integer
-                default: 10000
+                default: 3000
                 description: >-
                   Maximum number of log patterns tracked across all tag groups,
                   including patterns that have not emitted metrics yet. At capacity,
