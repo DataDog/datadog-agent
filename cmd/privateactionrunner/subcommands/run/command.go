@@ -15,9 +15,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -31,7 +32,6 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
-	helmactionsfx "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/fx"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
@@ -102,7 +102,8 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
-			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
+			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
+		}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -125,7 +126,6 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		statsdfx.Module(),
 		fx.Invoke(startTelemetryServer),
-		helmactionsfx.Module(),
 		privateactionrunnerfx.Module(),
 	}
 
