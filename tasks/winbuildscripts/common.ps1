@@ -30,7 +30,7 @@ function Enter-BuildRoot() {
     # copy the repository into the container filesystem
     Write-Host "Switching to buildroot $buildroot\datadog-agent"
     Push-Location "$buildroot\datadog-agent" -ErrorAction Stop -StackName AgentBuildRoot
-    robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /xd .cache
+    robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /r:3 /w:5 /xd .cache
     # https://ss64.com/nt/robocopy-exit.html
     if ($LASTEXITCODE -ge 8) {
         exit $LASTEXITCODE

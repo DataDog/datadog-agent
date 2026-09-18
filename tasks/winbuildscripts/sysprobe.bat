@@ -9,7 +9,7 @@ set BUILD_ROOT=c:\buildroot
 mkdir %BUILD_ROOT%\datadog-agent
 if not exist %BUILD_ROOT%\datadog-agent exit /b 2
 cd %BUILD_ROOT%\datadog-agent || exit /b 3
-robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /xd .cache
+robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /r:3 /w:5 /xd .cache
 :: https://ss64.com/nt/robocopy-exit.html
 if %errorlevel% geq 8 exit /b %errorlevel%
 
