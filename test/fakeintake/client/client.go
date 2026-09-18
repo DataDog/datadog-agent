@@ -63,7 +63,7 @@ import (
 )
 
 const (
-	defaultGetTimeout           = 15 * time.Second
+	defaultGetTimeout            = 15 * time.Second
 	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	metricsV1Endpoint            = "/api/v1/series"
