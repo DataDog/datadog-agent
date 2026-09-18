@@ -36,6 +36,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
@@ -50,6 +51,7 @@ dd_agent_go_test(
         "platform_darwin_test.go",
         "platform_linux_test.go",
         "platform_test.go",
+        "platform_windows_test.go",
     ],
     embed = [":platform"],
     deps = [
