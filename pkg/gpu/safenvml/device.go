@@ -210,10 +210,7 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newPhysicalDevice(dev, lib)
-}
 
-func newPhysicalDevice(dev nvml.Device, lib SafeNVML) (*PhysicalDevice, error) {
 	// Create the safe device implementation
 	safeDev := &safeDeviceImpl{
 		nvmlDevice: dev,

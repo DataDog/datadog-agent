@@ -192,7 +192,7 @@ func (s *safeNvml) logDeviceWarning(uuid, format string, args ...any) {
 	s.deviceWarnings[key] = struct{}{}
 	s.deviceWarningsMu.Unlock()
 
-	log.Warnf("device %s: %s", uuid, message)
+	log.Warnf("%s (device UUID %s)", message, uuid)
 }
 
 func toNativeName(symbol string) string {
@@ -411,7 +411,7 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
 		return nil, err
 	}
-	return newPhysicalDevice(dev, s)
+	return NewPhysicalDevice(dev)
 }
 
 func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
