@@ -19,6 +19,7 @@ dda_feature_flags_test_linux:
   tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.manual]
+  needs: []  # start as soon as the job is triggered, without waiting for previous stages
   script:
     - bash $CI_PROJECT_DIR/tools/ci/dda-feature-flags-test.sh
   retry: !reference [.retry_only_infra_failure, retry]
@@ -30,6 +31,7 @@ dda_feature_flags_test_windows:
     - if: $SKIP_WINDOWS == "true"
       when: never
     - !reference [.manual]
+  needs: []  # start as soon as the job is triggered, without waiting for previous stages
   variables:
     ARCH: "x64"
   script:
@@ -55,6 +57,7 @@ dda_feature_flags_test_windows:
 dda_feature_flags_test_macos:
   stage: maintenance_jobs
   tags: ["macos:sonoma-arm64", "specific:true"]
+  needs: []  # start as soon as the job is triggered, without waiting for previous stages
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
