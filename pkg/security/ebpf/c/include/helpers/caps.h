@@ -23,6 +23,7 @@ static __attribute__((always_inline)) void send_capabilities_usage_event(void *c
 
     struct capabilities_event_t event = {
         .caps_usage = entry->usage,
+        .cookie = key->cookie,
     };
 
     u64 pid_tgid = ((u64)key->tgid << 32) | (u64)key->tgid; // Use tgid as tid
@@ -58,6 +59,17 @@ static __attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u
     send_capabilities_usage_event(ctx, &key, entry);
 
     bpf_map_delete_elem(&capabilities_usage, &key);
+}
+
+// tids are reused: a leftover override depth would silently suppress the next thread's tracking
+static __attribute__((always_inline)) void cleanup_capabilities_context(u32 tid) {
+    u64 capabilities_monitoring_enabled = 0;
+    LOAD_CONSTANT("capabilities_monitoring_enabled", capabilities_monitoring_enabled);
+    if (!capabilities_monitoring_enabled) {
+        return;
+    }
+
+    bpf_map_delete_elem(&capabilities_contexts, &tid);
 }
 
 #endif /* _HELPERS_CAPS_H_ */

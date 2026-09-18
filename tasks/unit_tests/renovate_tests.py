@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from tasks.renovate import _extract_urls, _parse_top_level_namespace
+from tasks.renovate import _extract_call_names, _extract_urls, _parse_top_level_namespace
 
 
 class TestParseTopLevelNamespace(unittest.TestCase):
@@ -105,6 +106,28 @@ class TestExtractUrls(unittest.TestCase):
         ns = {"ver": "1.0"}
         body = '    url = "https://example.com/pkg-1.0.tar.gz",\n'
         self.assertEqual(_extract_urls(body, ns), ["https://example.com/pkg-1.0.tar.gz"])
+
+
+class TestExtractCallNames(unittest.TestCase):
+    PATH = Path("deps/repos.MODULE.bazel")
+
+    def test_comment_with_apostrophe_does_not_swallow_following_blocks(self):
+        # Regression test: an apostrophe inside a `#` comment (e.g. "policy's")
+        # used to be mistaken for the start of a string literal, which made the
+        # depth-counting scanner consume the rest of the file, silently
+        # dropping every http_archive block after it, such as "systemd" here.
+        text = (
+            'http_archive(\n'
+            '    name = "foo",\n'
+            "    # This dep's source is mirrored, per some policy.\n"
+            '    url = "https://example.com/foo.tar.gz",\n'
+            ')\n'
+            '\n'
+            'http_archive(\n'
+            '    name = "bar",\n'
+            ')\n'
+        )
+        self.assertEqual(_extract_call_names(text, "http_archive", self.PATH), {"foo", "bar"})
 
 
 class TestSqliteIntegration(unittest.TestCase):

@@ -98,6 +98,10 @@ cc_import(
 # Use in go_library cdeps instead of //rtloader:rtloader to avoid static linking.
 cc_library(
     name = "rtloader_dynamic",
+    # rtloader doesn't link with the python runtime directly but loads it at
+    # runtime. We explicit it here so that dd_collect_dependencies can collect
+    # the needed files during packaging
+    data = [":three_pkg"],
     visibility = ["//visibility:public"],
     deps = [
         ":_rtloader_shared",

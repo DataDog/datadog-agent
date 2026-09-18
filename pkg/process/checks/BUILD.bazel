@@ -229,6 +229,7 @@ dd_agent_go_test(
         "process_test.go",
         "process_windows_test.go",
         "runner_test.go",
+        "sysprobe_stats_linux_test.go",
         "sysprobe_stats_test.go",
         "system_info_darwin_test.go",
         "system_info_test.go",
@@ -288,7 +289,9 @@ dd_agent_go_test(
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/process",
             "@com_github_patrickmn_go_cache//:go-cache",
+            "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/config",
@@ -316,7 +319,9 @@ dd_agent_go_test(
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/process",
             "@com_github_patrickmn_go_cache//:go-cache",
+            "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:netbsd": [
             "@com_github_patrickmn_go_cache//:go-cache",
