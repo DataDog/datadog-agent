@@ -2,7 +2,10 @@
 fixes:
   - |
     Network Config Management: Fixes running configuration collection for Cisco
-    ASA devices. In 7.83.0, device profile setup commands were sent together with
-    the main command in a single SSH exec session, which Cisco ASA does not
-    support. Config collection for Cisco ASA devices could therefore fail or
-    return incomplete output. Setup commands now run in their own exec channel.
+    ASA devices. Device profile setup commands, such as the ``terminal pager 0``
+    used to stop Cisco ASA from truncating long configurations, now run in the
+    same shell session as the command they prepare. Previously they were sent
+    either bundled into a single SSH exec request, which Cisco ASA does not
+    support, or in a separate session, whose terminal settings Cisco ASA does
+    not carry over. Config collection for Cisco ASA devices could therefore
+    fail or return a configuration truncated at a ``<--- More --->`` marker.
