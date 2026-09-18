@@ -561,11 +561,22 @@ var KindsComputed = map[string]struct{}{
 	"producer": {},
 }
 
-func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64) {
+func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64, now int64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	end := s.start + s.duration
 	btime := max(end-end%sc.bsize, sc.oldestTs)
+	if btime > now {
+		// Clamp the bucket to the current time bucket. Spans with a start or duration
+		// far in the future (e.g. from a client with a badly skewed clock) would
+		// otherwise create buckets that are not flushed until the agent's wall clock
+		// reaches them, retaining memory for that entire period.
+		log.Debugf("Unexpected span start time: span start %s, end %s are in the future, clamping bucket to %s",
+			time.Unix(0, s.start).Format(time.RFC3339Nano),
+			time.Unix(0, end).Format(time.RFC3339Nano),
+			time.Unix(0, alignTs(now, sc.bsize)).Format(time.RFC3339Nano))
+		btime = max(alignTs(now, sc.bsize), sc.oldestTs)
+	}
 
 	b, ok := sc.buckets[btime]
 	if !ok {
@@ -586,7 +597,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
 // todo:raphael migrate dd-trace-go API to not depend on containerID/containerTags and add processTags at encoding layer
 func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
-	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1)
+	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1, time.Now().UnixNano())
 }
 
 // Flush deletes and returns complete ClientStatsPayloads.

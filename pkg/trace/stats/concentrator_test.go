@@ -230,8 +230,8 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	blocked := newAdditionalMetricTagStatSpan("blocked")
 	blocked.start = 2
 
-	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1)
-	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
+	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
 
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
@@ -267,6 +267,54 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	refreshedKeys := c.getPeerTagKeys()
 	assert.Contains(t, refreshedKeys, "x.custom.peer", "getPeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
 	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the fingerprint-keyed cache invalidates")
+}
+
+// TestConcentratorFutureClamp tests that spans ending far in the future are clamped
+// into the current time bucket instead of creating a future bucket that would not be
+// flushed until the agent's wall clock reaches it (which can look like a memory leak).
+func TestConcentratorFutureClamp(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	c := NewTestConcentrator(now)
+
+	// Span starting 1 hour in the future with a 10 second duration.
+	futureStart := now.UnixNano() + time.Hour.Nanoseconds()
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      1,
+		ParentID:    0,
+		ServiceRef:  strings.Add("A1"),
+		NameRef:     strings.Add("query"),
+		ResourceRef: strings.Add("resource1"),
+		TypeRef:     strings.Add("db"),
+		Start:       uint64(futureStart),
+		Duration:    uint64((10 * time.Second).Nanoseconds()),
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		},
+	})
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
+	testTrace := &traceutil.ProcessedTraceV1{
+		TraceChunk: chunk,
+		Root:       span,
+		TracerEnv:  "none",
+	}
+	c.addNowV1(testTrace, infraTags{})
+
+	// The span must have been added to the bucket containing `now`, not a future one.
+	alignedNow := now.UnixNano() - now.UnixNano()%testBucketInterval
+	b, ok := c.spanConcentrator.buckets[alignedNow]
+	if !assert.True(ok, "span should be in the current time bucket") {
+		t.FailNow()
+	}
+	assert.Len(b.Export(), 1, "current bucket should contain the clamped span")
+	assert.Len(c.spanConcentrator.buckets, 1, "no future bucket should have been created")
+
+	// The clamped stats are flushed normally once the buffer delay has passed.
+	flushTime := now.UnixNano() + int64(c.spanConcentrator.bufferLen)*testBucketInterval
+	stats := c.flushNow(flushTime, false)
+	assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket")
+	assert.Equal(uint64(alignedNow), stats.Stats[0].Stats[0].Start, "bucket start should be the current time bucket")
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
