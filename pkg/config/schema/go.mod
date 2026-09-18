@@ -12,7 +12,7 @@ require (
 
 require (
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

@@ -54,7 +54,6 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	// Validate effective customer settings, including locally resolved secrets.
-	// Only value-free diagnostics leave this checker.
 	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {
 		return nil, nil
@@ -76,44 +75,42 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "agent",
-			Context:   buildIssueReportContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
+			Context: func() map[string]string {
+				ctx := map[string]string{
+					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+					contextKeyErrorCount: strconv.Itoa(len(violations)),
+				}
+				payloads := make([]violationPayload, 0, len(violations))
+				for i, violation := range violations {
+					path := scrubViolationPath(violation.Path)
+					// Never forward raw schema messages: non-type errors can quote values.
+					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
+					if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
+						continue
+					}
+					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+					defaultStatus, defaultValue := resolveDefault(c.cfg, violation.Path)
+					payloads = append(payloads, violationPayload{
+						Path:          path,
+						ActualType:    violation.ActualType,
+						ExpectedTypes: violation.ExpectedTypes,
+						DefaultStatus: defaultStatus,
+						DefaultValue:  defaultValue,
+					})
+				}
+				if len(payloads) != len(violations) {
+					return ctx
+				}
+				encoded, err := json.Marshal(payloads)
+				if err != nil {
+					return ctx
+				}
+				ctx[contextKeyViolationsVersion] = "1"
+				ctx[contextKeyViolations] = string(encoded)
+				return ctx
+			}(),
 		},
 	}, nil
-}
-
-func buildIssueReportContext(cfg config.Component, configPath string, violations []schema.Violation) map[string]string {
-	ctx := map[string]string{
-		contextKeyConfigPath: configPath,
-		contextKeyErrorCount: strconv.Itoa(len(violations)),
-	}
-	payloads := make([]violationPayload, 0, len(violations))
-	for i, violation := range violations {
-		path := scrubViolationPath(violation.Path)
-		// Never forward raw schema messages: non-type errors can quote values.
-		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
-		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
-			continue
-		}
-		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
-		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
-		payloads = append(payloads, violationPayload{
-			Path:          path,
-			ActualType:    violation.ActualType,
-			ExpectedTypes: violation.ExpectedTypes,
-			DefaultStatus: defaultStatus,
-			DefaultValue:  defaultValue,
-		})
-	}
-	if len(payloads) != len(violations) {
-		return ctx
-	}
-	encoded, err := json.Marshal(payloads)
-	if err != nil {
-		return ctx
-	}
-	ctx[contextKeyViolationsVersion] = "1"
-	ctx[contextKeyViolations] = string(encoded)
-	return ctx
 }
 
 func scrubViolationPath(path string) string {
@@ -121,8 +118,6 @@ func scrubViolationPath(path string) string {
 	if err != nil {
 		return ""
 	}
-	// Map keys can be URLs with credentials. Scrub before JSON-pointer escaping
-	// turns "://" into ":~1~1", which the existing URL scrubber cannot recognize.
 	for i, token := range pointer {
 		pointer[i], err = scrubber.ScrubString(token)
 		if err != nil {
@@ -190,7 +185,6 @@ func (c *checker) instanceIssueID() string {
 }
 
 // normalizeForSchema coerces a Go-native config map into JSON-native types.
-// Values stay local; only value-free diagnostics are included in the issue.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {

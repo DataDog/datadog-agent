@@ -36,6 +36,7 @@ Sub-package roles:
 | `store/` | Persists the current issue set across agent restarts |
 | `egress/` | Periodically fetches issues from the store and sends them |
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
+| `status/` | Renders health platform state (active issues, egress send pipeline health) into `agent status` |
 
 > **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
 > `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly. When a template *is* registered but `BuildIssue` errors, the minimal proto still gets `IssueType` from `Template.IssueType()` — only the fully-unregistered case ships an empty `IssueType`.
@@ -397,4 +398,4 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
 | Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |
-| Hardcoding config values or secrets in context maps | Prefer value-free diagnostics; use the existing scrubber for user-supplied text that must be included |
+| Hardcoding config values or secrets in context maps | Keep configured values out of issue reports; use the existing scrubber for user-supplied text that must be included |

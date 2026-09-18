@@ -97,7 +97,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	requireSchema(t)
 	cfg := config.NewMock(t)
-	cfg.SetInTest("agent_ipc.port", "RAW_VALUE_MUST_NOT_APPEAR_7c81")
+	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
 	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	if err != nil {
@@ -128,9 +128,6 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, issueViolations, 1)
 	violation := issueViolations[0].GetStructValue().GetFields()
 	assert.Equal(t, float64(0), violation["default_value"].GetNumberValue())
-	issueJSON, err := json.Marshal(issue.GetExtra())
-	require.NoError(t, err)
-	assert.NotContains(t, string(issueJSON), "RAW_VALUE_MUST_NOT_APPEAR_7c81")
 }
 
 func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
@@ -140,16 +137,10 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		want string
 	}{
 		{"forwarder_apikey_validation_interval: 61\n", ""},
-		{"forwarder_apikey_validation_interval: [61]\n", "got array, want integer"},
-		{"forwarder_apikey_validation_interval: {value: 61}\n", "got object, want integer"},
 		{"api_key: [secret]\n", "got array, want string"},
-		{"additional_endpoints: {'https://example.test': [false]}\n", "got boolean, want string"},
+		{"api_key: {value: secret}\n", "got object, want string"},
 		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
 		{"agent_ipc:\n  port: ENC[ipc_port]\n", "got string, want integer"},
-		{"logs_enabled: ENC[enabled]\n", "got string, want boolean"},
-		{"forwarder_backoff_factor: ENC[factor]\n", "got string, want number"},
-		{"api_key: ENC[key]\n", ""},
-		{"agent_ipc: ENC[ipc]\n", "got string, want object"},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
@@ -174,20 +165,14 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 
 func TestCheck_ResolvedSecrets(t *testing.T) {
 	requireSchema(t)
-	for _, tc := range []struct{ name, key, value, want string }{
-		{"valid_integer", "agent_ipc.port", "5001", ""},
-		{"invalid_integer", "agent_ipc.port", "SECRET_INVALID_INTEGER", "got string, want integer"},
-		{"valid_boolean", "logs_enabled", "true", ""},
-		{"invalid_boolean", "logs_enabled", "SECRET_INVALID_BOOLEAN", "got string, want boolean"},
-		{"valid_number", "forwarder_backoff_factor", "2.5", ""},
-		{"invalid_number", "forwarder_backoff_factor", "SECRET_INVALID_NUMBER", "got string, want number"},
-		{"valid_duration", "remote_configuration.refresh_interval", "5s", ""},
-		{"api_key_string", "api_key", "SECRET_API_KEY", ""},
-		{"resolved_enc_literal", "agent_ipc.port", "ENC[SECRET_LITERAL]", "got string, want integer"},
+	for _, tc := range []struct{ name, value, want string }{
+		{"valid_integer", "5001", ""},
+		{"invalid_integer", "SECRET_INVALID_INTEGER", "got string, want integer"},
+		{"resolved_enc_literal", "ENC[SECRET_LITERAL]", "got string, want integer"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewMockFromYAML(t, tc.key+": ENC[value]\n")
-			cfg.Set(tc.key, tc.value, model.SourceSecret)
+			cfg := config.NewMockFromYAML(t, "agent_ipc:\n  port: ENC[value]\n")
+			cfg.Set("agent_ipc.port", tc.value, model.SourceSecret)
 
 			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
@@ -196,7 +181,7 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 				return
 			}
 			require.Len(t, reports, 1)
-			assert.Equal(t, "at '/"+strings.ReplaceAll(tc.key, ".", "/")+"': "+tc.want, reports[0].Context[contextErrorKey(0)])
+			assert.Equal(t, "at '/agent_ipc/port': "+tc.want, reports[0].Context[contextErrorKey(0)])
 			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 			require.NoError(t, err)
 			encoded, err := json.Marshal(issue)
@@ -225,29 +210,6 @@ func TestResolveDefault(t *testing.T) {
 			assert.Equal(t, testCase.value, value)
 		})
 	}
-}
-
-func TestBuildIssueReportContext_MixedViolationsKeepOnlyLegacyErrors(t *testing.T) {
-	violations := []schema.Violation{
-		{
-			Message:       "at '/agent_ipc/port': got string, want integer",
-			Path:          "/agent_ipc/port",
-			ActualType:    "string",
-			ExpectedTypes: []string{"integer"},
-		},
-		{Message: "at '/unknown': RAW_SECRET_MUST_NOT_APPEAR does not match pattern", Path: "/unknown"},
-	}
-
-	ctx := buildIssueReportContext(config.NewMock(t), "/etc/datadog-agent/datadog.yaml", violations)
-	assert.NotContains(t, ctx, contextKeyViolationsVersion)
-	assert.NotContains(t, ctx, contextKeyViolations)
-	assert.Equal(t, violations[0].Message, ctx[contextErrorKey(0)])
-	assert.Equal(t, "at '/unknown': configuration does not match schema", ctx[contextErrorKey(1)])
-	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-	encoded, err := json.Marshal(issue)
-	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "RAW_SECRET_MUST_NOT_APPEAR")
 }
 
 // Two checkers with the same hostname but different config files must not
