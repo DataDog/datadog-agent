@@ -321,7 +321,7 @@ instances:
     # data_observability:
 
       ## @param enabled - boolean - optional - default: false
-      ## Set to `true` to enable Data Observability without enabling Database Monitoring.
+      ## Set to `true` to enable Data Observability features
       #
       # enabled: false
 
