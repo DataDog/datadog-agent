@@ -593,7 +593,7 @@
     "@@rules_go+//go:extensions.bzl%orchestrion": {
       "general": {
         "bzlTransitiveDigest": "Uk9zQg4ZQ4dOpNFnw9i3MIsjLKJoNOBdOKwCKR1WsL8=",
-        "usagesDigest": "53JOdTk7at3amIVL6s/kAQ7N16k4Z4LqTF06Lr8AUC0=",
+        "usagesDigest": "v5dc8LiA+/JQnVwgr9mkYWa58jqlFCW/ToBZWQzn9N4=",
         "recordedInputs": [
           "REPO_MAPPING:,go_work_sdk rules_go++go_sdk+go_work_sdk",
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",

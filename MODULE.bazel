@@ -169,7 +169,6 @@ archive_override(
 # directives that cannot resolve in the isolated pin-file context.)
 orchestrion = use_extension("@rules_go//go:extensions.bzl", "orchestrion")
 orchestrion.from_source(
-    version = "v1.12.0",
     dd_trace_go_versions = {
         "github.com/DataDog/dd-trace-go/v2": "v2.10.1",
         "github.com/DataDog/dd-trace-go/contrib/net/http/v2": "v2.10.1",
@@ -177,6 +176,7 @@ orchestrion.from_source(
     },
     go_sdk_root = "@go_work_sdk//:ROOT",
     go_sdk_version = "1.26.7",
+    version = "v1.12.0",
 )
 use_repo(orchestrion, "rules_go_orchestrion_tool")
 # END Datadog Go Orchestrion bootstrap
@@ -188,14 +188,15 @@ use_repo(orchestrion, "rules_go_orchestrion_tool")
 bazel_dep(name = "datadog-rules-test-optimization", version = "1.2.0")
 git_override(
     module_name = "datadog-rules-test-optimization",
-    remote = "https://github.com/DataDog/rules_test_optimization.git",
     commit = "000a454600cc2f41f71c0668b1824b8cfa664ebc",
+    remote = "https://github.com/DataDog/rules_test_optimization.git",
 )
+
 bazel_dep(name = "datadog-rules-test-optimization-go", version = "1.2.0")
 git_override(
     module_name = "datadog-rules-test-optimization-go",
-    remote = "https://github.com/DataDog/rules_test_optimization.git",
     commit = "000a454600cc2f41f71c0668b1824b8cfa664ebc",
+    remote = "https://github.com/DataDog/rules_test_optimization.git",
     strip_prefix = "modules/go",
 )
 
