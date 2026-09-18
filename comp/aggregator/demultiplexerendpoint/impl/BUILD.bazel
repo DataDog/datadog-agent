@@ -32,10 +32,14 @@ dd_agent_go_test(
     srcs = [
         "dump_endpoint_test.go",
         "endpoint_test.go",
+        "replace_file_windows_test.go",
     ],
     embed = [":impl"],
     deps = [
         "@com_github_datadog_zstd//:zstd",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": ["//pkg/util/filesystem"],
+        "//conditions:default": [],
+    }),
 )
