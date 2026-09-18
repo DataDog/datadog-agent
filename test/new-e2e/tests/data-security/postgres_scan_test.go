@@ -6,21 +6,31 @@
 package datasecurity
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
+	pgcomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/postgres"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
+
+// postgresAccountsSeedRows is the number of rows inserted into `accounts` by
+// postgres-init.sql. The workload generator updates balances but does not add
+// or delete account rows.
+const postgresAccountsSeedRows int64 = 200
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
 type postgresScanEnv struct {
@@ -73,6 +83,41 @@ func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
 			}
 		}
 	}, 2*time.Minute, 10*time.Second)
+
+	s.assertAccountsUnchanged()
+}
+
+// assertAccountsUnchanged queries Postgres on the host (not via SDS) so a
+// DELETE/DROP that ran and then failed later still fails the test.
+func (s *postgresScanSuite) assertAccountsUnchanged() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	conn, err := s.openPostgres(ctx)
+	require.NoError(s.T(), err)
+	defer conn.Close(context.Background())
+
+	var n int64
+	err = conn.QueryRow(ctx, `SELECT COUNT(*) FROM accounts`).Scan(&n)
+	require.NoError(s.T(), err, "accounts should still exist after destructive scan queries")
+	assert.Equal(s.T(), postgresAccountsSeedRows, n, "accounts row count changed; a scan query mutated the table")
+}
+
+func (s *postgresScanSuite) openPostgres(ctx context.Context) (*pgx.Conn, error) {
+	dsn := fmt.Sprintf(
+		"postgres://postgres:postgres_admin_pw@127.0.0.1:%d/%s?sslmode=disable",
+		pgcomp.MonitorPort,
+		pgcomp.MonitorDBName,
+	)
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	// Reach Postgres on the VM loopback through the SSH session.
+	cfg.DialFunc = func(_ context.Context, _, _ string) (net.Conn, error) {
+		return s.Env().RemoteHost.DialPort(uint16(pgcomp.MonitorPort))
+	}
+	return pgx.ConnectConfig(ctx, cfg)
 }
 
 func aggregatorSDSResults(payloads []*aggregator.SDSResultPayload) []*sds.SdsResultPayload {

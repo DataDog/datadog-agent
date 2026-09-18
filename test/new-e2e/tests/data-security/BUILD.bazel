@@ -33,6 +33,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/testcommon/check",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
+        "@com_github_jackc_pgx_v5//:pgx",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
