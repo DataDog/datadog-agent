@@ -55,9 +55,6 @@ dd_agent_go_test(
     ],
     data = ["//pkg/network/usm/testdata/site-packages/ddtrace:testdata"],
     embed = [":bininspect"],
-    # Use static linking to prevent symbol stripping. The test introspects the
-    # binary to look at its symbols.
-    static = "on",  # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [

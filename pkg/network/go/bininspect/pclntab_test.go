@@ -9,7 +9,7 @@ package bininspect
 
 import (
 	"os"
-	"strconv"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -27,11 +27,25 @@ const (
 	infoFunction = byte(safeelf.STB_GLOBAL)<<4 | byte(safeelf.STT_FUNC)
 )
 
+func buildPCLNTABFixture(t *testing.T, tmpDir string) string {
+	t.Helper()
+
+	f, err := os.CreateTemp(tmpDir, "pclntab-fixture")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	exe := f.Name()
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", exe, "./testdata/pclntab_fixture.go") // #nosec G204
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "failed to build test binary with `%v`: %s\n%s", cmd.Args, err, out)
+	return exe
+}
+
 // TestGetPCLNTABSymbolParser tests the GetPCLNTABSymbolParser function with strings set symbol filter.
-// We are looking to find all symbols of the current process executable and check if they are found in the PCLNTAB.
+// We are looking to find all symbols of a Go fixture executable and check if they are found in the PCLNTAB.
 func TestGetPCLNTABSymbolParser(t *testing.T) {
-	currentPid := os.Getpid()
-	f, err := safeelf.Open("/proc/" + strconv.Itoa(currentPid) + "/exe")
+	exe := buildPCLNTABFixture(t, t.TempDir())
+	f, err := safeelf.Open(exe)
 	require.NoError(t, err)
 	symbolSet := make(common.StringSet)
 	staticSymbols, _ := f.Symbols()
@@ -47,9 +61,6 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 			}
 			symbolSet[sym.Name] = struct{}{}
 		}
-	}
-	if len(symbolSet) == 0 {
-		t.Skip("No symbols found")
 	}
 
 	got, err := GetPCLNTABSymbolParser(f, newStringSetSymbolFilter(symbolSet))
