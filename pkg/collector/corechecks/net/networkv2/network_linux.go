@@ -347,8 +347,8 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
 	}
 
-	if collectEthtoolMetrics {
-		processedMap := getEthtoolMetrics(driverName, statsMap, collectRoceMetrics)
+	if collectEthtoolMetrics || collectRoceMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap, collectEthtoolMetrics, collectRoceMetrics)
 		for extraTag, keyValuePairing := range processedMap {
 			tags := []string{
 				"device:" + interfaceIO.Name,
@@ -379,7 +379,11 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 	return metrics
 }
 
-func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectRoceMetrics bool) map[string]map[string]uint64 {
+// getEthtoolMetrics resolves ethtool stat names against the per-driver allowlists. The two
+// gates are independent so that either can be enabled without pulling in the other's
+// counters: collectBaseMetrics follows the instance's collect_ethtool_metrics, and
+// collectRoceMetrics follows the agent-level gpu.enabled.
+func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectBaseMetrics bool, collectRoceMetrics bool) map[string]map[string]uint64 {
 	result := map[string]map[string]uint64{}
 	if _, ok := ethtoolMetricNames[driverName]; !ok {
 		return result
@@ -515,7 +519,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectRoc
 		if continueCase {
 			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
-				if slices.Contains(ethtoolGlobalMetrics, statName) ||
+				if (collectBaseMetrics && slices.Contains(ethtoolGlobalMetrics, statName)) ||
 					(collectRoceMetrics && slices.Contains(ethtoolRoceGlobalMetricNames[driverName], statName)) {
 					queueTag = "global"
 					newKey = statName
@@ -528,7 +532,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectRoc
 				// we already guard against parsing unsupported NICs
 				queueMetrics := ethtoolMetricNames[driverName]
 				// skip queues metrics we don't support for the NIC
-				if !slices.Contains(queueMetrics, newKey) &&
+				if !(collectBaseMetrics && slices.Contains(queueMetrics, newKey)) &&
 					!(collectRoceMetrics && slices.Contains(ethtoolRoceMetricNames[driverName], newKey)) {
 					continue
 				}
@@ -1152,7 +1156,8 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		}
 	}
 
-	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics ||
+		c.config.instance.CollectRoceMetrics {
 		c.config.instance.CollectEthtoolStats = true
 	}
 

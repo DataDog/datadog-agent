@@ -7,4 +7,9 @@ enhancements:
     transitions, ECN marking, and buffer/congestion discards), link-level 802.3x
     pause counters, and device-wide PCIe health, FEC/cable health, pause storm,
     and module health counters. Pause durations are reported in microseconds.
-    Hosts without ``gpu.enabled`` emit an unchanged set of metrics.
+
+    ``gpu.enabled`` is sufficient on its own -- the instance option
+    ``collect_ethtool_metrics`` is not required, and enabling GPU monitoring does
+    not turn it on. The two settings gate independent sets of counters: a host with
+    only ``gpu.enabled`` emits the RoCE counters above and nothing else new, and a
+    host without ``gpu.enabled`` emits an unchanged set of metrics.

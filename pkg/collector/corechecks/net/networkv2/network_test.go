@@ -879,8 +879,12 @@ func TestEthtoolParsing(t *testing.T) {
 		// collectRoce mirrors the gpu.enabled gate: when false the RoCE allowlists
 		// are not consulted and the emitted set must be unchanged.
 		collectRoce bool
-		iface       string
-		want        map[string]map[string]uint64
+		// roceOnly additionally turns the base collect_ethtool_metrics gate off. That is
+		// the GPU-monitoring host that never enabled ethtool collection, where only the
+		// RoCE allowlists may contribute.
+		roceOnly bool
+		iface    string
+		want     map[string]map[string]uint64
 	}{
 		{
 			name:  "skips unsupported NIC",
@@ -1208,6 +1212,71 @@ func TestEthtoolParsing(t *testing.T) {
 			},
 		},
 		{
+			name:        "parses only RoCE counters when ethtool collection is off",
+			collectRoce: true,
+			roceOnly:    true,
+			iface:       "mlx5_core_mock",
+			want: map[string]map[string]uint64{
+				"prio:0": {
+					"mlx5_core.prio.rx_bytes":            187,
+					"mlx5_core.prio.rx_packets":          188,
+					"mlx5_core.prio.rx_discards":         189,
+					"mlx5_core.prio.tx_bytes":            190,
+					"mlx5_core.prio.tx_packets":          191,
+					"mlx5_core.prio.rx_pause":            500,
+					"mlx5_core.prio.rx_pause_duration":   501,
+					"mlx5_core.prio.rx_pause_transition": 502,
+					"mlx5_core.prio.rx_buf_discard":      503,
+					"mlx5_core.prio.rx_cong_discard":     504,
+					"mlx5_core.prio.rx_marked":           505,
+					"mlx5_core.prio.tx_pause":            506,
+					"mlx5_core.prio.tx_pause_duration":   507,
+				},
+				"prio:1": {
+					"mlx5_core.prio.rx_bytes":    192,
+					"mlx5_core.prio.rx_packets":  193,
+					"mlx5_core.prio.rx_discards": 194,
+					"mlx5_core.prio.tx_bytes":    195,
+					"mlx5_core.prio.tx_packets":  196,
+				},
+				"prio:7": {
+					"mlx5_core.prio.rx_packets": 508,
+					"mlx5_core.prio.rx_pause":   509,
+					"mlx5_core.prio.tx_pause":   510,
+				},
+				// Only the RoCE-gated globals. Base entries such as ch_arm, the csum
+				// counters and the phy error family must be absent here.
+				"global": {
+					"mlx5_core.rx_if_down_packets":         129,
+					"mlx5_core.rx_pause_ctrl_phy":          168,
+					"mlx5_core.tx_pause_ctrl_phy":          169,
+					"mlx5_core.module_unplug":              197,
+					"mlx5_core.rx_global_pause":            512,
+					"mlx5_core.rx_global_pause_duration":   513,
+					"mlx5_core.rx_global_pause_transition": 514,
+					"mlx5_core.tx_global_pause":            515,
+					"mlx5_core.tx_global_pause_duration":   516,
+					"mlx5_core.rx_pci_signal_integrity":    517,
+					"mlx5_core.rx_corrected_bits_phy":      518,
+					"mlx5_core.rx_bits_phy":                519,
+				},
+				// The per-ring traffic side effect is RoCE-gated, so it survives; the base
+				// per-ring error counters do not.
+				"queue:0": {
+					"mlx5_core.queue.rx_packets": 213,
+					"mlx5_core.queue.rx_bytes":   214,
+					"mlx5_core.queue.tx_packets": 335,
+					"mlx5_core.queue.tx_bytes":   336,
+				},
+				"queue:12": {
+					"mlx5_core.queue.rx_packets": 274,
+					"mlx5_core.queue.rx_bytes":   275,
+					"mlx5_core.queue.tx_packets": 364,
+					"mlx5_core.queue.tx_bytes":   365,
+				},
+			},
+		},
+		{
 			name:  "parses hv_netvsc",
 			iface: "hv_netvsc_mock",
 			want: map[string]map[string]uint64{
@@ -1322,7 +1391,7 @@ func TestEthtoolParsing(t *testing.T) {
 				t.Errorf("%s not implemented in mock", err)
 			}
 			iface := strings.ReplaceAll(tc.iface, "_mock", "")
-			got := getEthtoolMetrics(iface, statsMap, tc.collectRoce)
+			got := getEthtoolMetrics(iface, statsMap, !tc.roceOnly, tc.collectRoce)
 			if diff := gocmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("ethtool statistics result diff (-want +got):\n%s", diff)
 			}
@@ -1908,21 +1977,46 @@ func TestFetchEthtoolStats(t *testing.T) {
 // counters only reach the sender when GPU monitoring is enabled in datadog.yaml.
 // These counters were emitted unconditionally in PR 51523, which is why it was
 // reverted; this gate is what replaces that behavior.
+// The two gates are independent: gpu.enabled turns on the RoCE allowlists, and the
+// instance's collect_ethtool_metrics turns on the base ones. Either alone must emit only
+// its own counters -- in particular gpu.enabled must not pull in the base mlx5 ethtool set
+// on hosts that never asked for ethtool collection, which is the surface that got #51523
+// reverted.
 func TestEthtoolRoceMetricsGatedOnGPUEnabled(t *testing.T) {
 	testcases := []struct {
 		name       string
 		gpuEnabled bool
+		instance   []byte
 		wantPrio   bool
+		wantBase   bool
 	}{
 		{
-			name:       "emits RoCE priority counters when gpu.enabled is true",
+			name:       "emits RoCE counters when gpu.enabled is true and ethtool collection is on",
 			gpuEnabled: true,
+			instance:   []byte(`collect_ethtool_metrics: true`),
 			wantPrio:   true,
+			wantBase:   true,
 		},
 		{
-			name:       "omits RoCE priority counters when gpu.enabled is false",
+			name:       "omits RoCE counters when gpu.enabled is false",
 			gpuEnabled: false,
+			instance:   []byte(`collect_ethtool_metrics: true`),
 			wantPrio:   false,
+			wantBase:   true,
+		},
+		{
+			name:       "emits RoCE counters on the default instance when gpu.enabled is true",
+			gpuEnabled: true,
+			instance:   []byte(``),
+			wantPrio:   true,
+			wantBase:   false,
+		},
+		{
+			name:       "emits nothing on the default instance when gpu.enabled is false",
+			gpuEnabled: false,
+			instance:   []byte(``),
+			wantPrio:   false,
+			wantBase:   false,
 		},
 	}
 
@@ -1944,7 +2038,7 @@ func TestEthtoolRoceMetricsGatedOnGPUEnabled(t *testing.T) {
 			}
 
 			mockSender := mocksender.NewMockSender(t, networkCheck.ID())
-			networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "provider")
+			networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, tc.instance, []byte(``), "test", "provider")
 
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1959,6 +2053,15 @@ func TestEthtoolRoceMetricsGatedOnGPUEnabled(t *testing.T) {
 				mockSender.AssertCalled(t, "MonotonicCount", "system.net.mlx5_core.prio.rx_pause", float64(500), "", prioTags)
 			} else {
 				mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.mlx5_core.prio.rx_pause", float64(500), "", prioTags)
+			}
+
+			// ch_arm is in the base global allowlist and in none of the RoCE ones, so it
+			// tracks the base gate only.
+			globalTags := []string{"device:mlx5_core_mock", "driver_name:mlx5_core", "driver_version:mock_version", "global"}
+			if tc.wantBase {
+				mockSender.AssertCalled(t, "MonotonicCount", "system.net.mlx5_core.ch_arm", float64(100), "", globalTags)
+			} else {
+				mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.mlx5_core.ch_arm", float64(100), "", globalTags)
 			}
 		})
 	}
