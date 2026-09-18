@@ -13,6 +13,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -507,7 +508,7 @@ func TestCache(t *testing.T) {
 				devices:  tt.devices,
 			}
 
-			l.writeCache(subnet)
+			l.writeCacheLocked(subnet)
 
 			cacheContent, err := persistentcache.Read(cacheKey)
 			assert.NoError(t, err)
@@ -593,8 +594,7 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	entityID1 := subnet.config.Digest("192.168.0.1")
 	l.createService(entityID1, subnet, "192.168.0.1", deviceInfo, 0, 0, true)
 
-	assert.Equal(t, 1, len(newSvc))
-	svc := (<-newSvc).(*SNMPService)
+	svc := collectServices(t, newSvc, 1, 2*time.Second)[0]
 	assert.Equal(t, "192.168.0.1", svc.deviceIP)
 	assert.False(t, svc.pending)
 
@@ -602,7 +602,7 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	entityID2 := subnet.config.Digest("192.168.0.2")
 	l.createService(entityID2, subnet, "192.168.0.2", deviceInfo, 0, 0, false)
 
-	assert.Equal(t, 0, len(newSvc), "second IP for same device should not be registered")
+	noMoreServices(t, newSvc, 500*time.Millisecond)
 }
 
 func TestBuildCacheKey(t *testing.T) {
@@ -1098,7 +1098,7 @@ func TestCheckDeviceDeleteAfterAllowedFailures(t *testing.T) {
 	l.config.AllowedFailures = 3
 
 	subnets := l.initializeSubnets()
-	subnet := &subnets[0]
+	subnet := subnets[0]
 
 	// First scan: device is reachable
 	factory.sessions["192.168.0.1"] = makeReachableSession()
@@ -1135,7 +1135,7 @@ func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
 	l.config.AllowedFailures = 3
 
 	subnets := l.initializeSubnets()
-	subnet := &subnets[0]
+	subnet := subnets[0]
 
 	// First scan: device is reachable
 	factory.sessions["192.168.0.1"] = makeReachableSession()
@@ -1166,4 +1166,134 @@ func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
 	device, exists := subnet.devices[entityID]
 	assert.True(t, exists)
 	assert.Equal(t, 0, device.Failures)
+}
+
+// Must be run with -race to be meaningful.
+func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/24", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service)
+	delSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = delSvc
+	l.config.AllowedFailures = 2
+
+	// Unbuffered in production, so draining also covers sends made under a lock.
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		for {
+			select {
+			case <-newSvc:
+			case <-delSvc:
+			case <-l.stop:
+				return
+			}
+		}
+	}()
+
+	subnets := l.initializeSubnets()
+	require.Len(t, subnets, 1)
+	subnet := subnets[0]
+
+	// Half answer, half do not, so the failure-reset and eviction paths run concurrently.
+	const numIPs = 40
+	for i := 1; i <= numIPs; i += 2 {
+		factory.mu.Lock()
+		factory.sessions[fmt.Sprintf("192.168.0.%d", i)] = makeReachableSession()
+		factory.mu.Unlock()
+	}
+
+	const rounds = 5
+	var wg sync.WaitGroup
+	for i := 1; i <= numIPs; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			job := snmpJob{subnet: subnet, currentIP: net.ParseIP(fmt.Sprintf("192.168.0.%d", i))}
+			for r := 0; r < rounds; r++ {
+				l.checkDevice(job)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	close(l.stop)
+	<-drained
+
+	subnet.devicesMu.Lock()
+	found := len(subnet.devices)
+	subnet.devicesMu.Unlock()
+	assert.NotZero(t, found, "expected the concurrent scan to discover at least one device")
+}
+
+func TestCreateServiceDoesNotBlockOnAutodiscovery(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	// Unbuffered and never read from: a stalled consumer.
+	newSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = make(chan Service)
+	defer l.Stop()
+
+	_, ipNet, err := net.ParseCIDR("192.168.0.0/30")
+	require.NoError(t, err)
+
+	subnet := &snmpSubnet{
+		adIdentifier: "snmp",
+		config:       l.config.Configs[0],
+		network:      *ipNet,
+		cacheKey:     "snmp:contention-test",
+		devices:      map[string]deviceCache{},
+	}
+
+	entityID := subnet.config.Digest("192.168.0.1")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		l.createService(entityID, subnet, "192.168.0.1", devicededuper.DeviceInfo{}, 0, 0, false)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("createService blocked while no autodiscovery consumer was reading: discovery is coupled to the consumer's speed")
+	}
+}
+
+func TestServiceEventsPublishedInOrder(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service)
+	delSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = delSvc
+	defer l.Stop()
+
+	svc := &SNMPService{entityID: "entity-1", deviceIP: "192.168.0.1"}
+
+	l.enqueueService(svc, true)
+	l.enqueueService(svc, false)
+
+	// Consume as autodiscovery does: select across both channels.
+	var got []string
+	for i := 0; i < 2; i++ {
+		select {
+		case <-newSvc:
+			got = append(got, "add")
+		case <-delSvc:
+			got = append(got, "del")
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for event %d/2, got %v", i+1, got)
+		}
+	}
+
+	assert.Equal(t, []string{"del", "add"}, got,
+		"the re-addition overtook the pending deletion: autodiscovery would drop the rediscovered device")
 }

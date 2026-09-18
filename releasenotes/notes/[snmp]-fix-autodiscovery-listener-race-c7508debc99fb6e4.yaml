@@ -1,0 +1,19 @@
+---
+fixes:
+  - |
+    Fix a crash in SNMP autodiscovery (``fatal error: concurrent map iteration and map write``)
+    caused by unsynchronized access to a subnet's discovered-device map. Discovery workers read,
+    wrote and serialized that map without holding a lock, so any Agent running
+    ``network_devices.autodiscovery.workers`` above 1 could abort during a scan. The device map
+    and its persistent cache entry are now guarded by a dedicated per-subnet lock.
+  - |
+    Fix SNMP autodiscovery becoming unresponsive on large networks. Service creation and deletion
+    published to autodiscovery while holding the listener lock, so a single slow consumer
+    serialized every discovery worker. Publication is now queued and performed by a dedicated
+    goroutine, preserving event order without blocking on the lock. The per-IP cache writes done
+    when a device is unreachable also no longer take the listener lock.
+other:
+  - |
+    The SNMP autodiscovery listener now logs a warning when
+    ``network_devices.autodiscovery.workers`` is set far above the recommended maximum, and falls
+    back to the default when it is negative. The configured value is still honored.
