@@ -14,9 +14,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
+	"github.com/DataDog/zstd"
+	"golang.org/x/sync/singleflight"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -44,7 +44,7 @@ type demultiplexerEndpoint struct {
 	runPath              string
 	dogstatsdOnDataPlane bool
 	log                  log.Component
-	dumpMu               sync.RWMutex
+	dumpGroup            singleflight.Group
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -89,11 +89,19 @@ func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.Respons
 }
 
 func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	demuxendpoint.dumpMu.Lock()
-	defer demuxendpoint.dumpMu.Unlock()
-
 	finalPath := filepath.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
 
+	result, err, _ := demuxendpoint.dumpGroup.Do(finalPath, func() (any, error) {
+		return demuxendpoint.writeDogstatsdContextsFile(finalPath)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return result.(string), nil
+}
+
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath string) (string, error) {
 	f, err := os.CreateTemp(demuxendpoint.runPath, ".dogstatsd_contexts-*.tmp")
 	if err != nil {
 		return "", err
@@ -101,7 +109,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 	tempPath := f.Name()
 	defer os.Remove(tempPath)
 
-	mode := os.FileMode(0644)
+	mode := os.FileMode(0o644)
 	if info, statErr := os.Stat(finalPath); statErr == nil {
 		mode = info.Mode().Perm()
 	} else if !errors.Is(statErr, os.ErrNotExist) {
@@ -113,11 +121,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 		return "", err
 	}
 
-	c, err := zstd.NewWriter(f)
-	if err != nil {
-		return "", err
-	}
-
+	c := zstd.NewWriter(f)
 	w := bufio.NewWriter(c)
 
 	for _, err := range []error{demuxendpoint.demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
