@@ -31,6 +31,9 @@ type bucketBounds struct {
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	id                     checkid.ID
+	batchSize              int
+	batchSamples           int
+	nextBatchCommit        time.Time
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
 	contextResolver        *countBasedContextResolver
