@@ -523,19 +523,20 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
-	// SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's
-	// reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration
-	// after the profile is created instead of waiting for the first persistence.
+
+	// description: SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration after the profile is created instead of waiting for the first persistence.
+	// visibility: private
+	// default_value: false
 	SecurityProfileV2ProfileReportingDelayTimeBased bool
-	// SecurityProfileV2ProfileReportingDelayDuration is the delay after a profile is created
-	// before it starts reporting out-of-profile events, used only when
-	// SecurityProfileV2ProfileReportingDelayTimeBased is true.
+
+	// description: SecurityProfileV2ProfileReportingDelayDuration is the delay after a profile is created before it starts reporting out-of-profile events, used only when SecurityProfileV2ProfileReportingDelayTimeBased is true.
+	// visibility: private
+	// default_value: 0s
 	SecurityProfileV2ProfileReportingDelayDuration time.Duration
 
-	// SecurityProfileV2ProfilingStartupDelay is the delay after system-probe starts during
-	// which v2 workload profiling ignores events, so profiles don't capture noisy activity
-	// while system-probe is still stabilizing (OS resync, rule loading, programming approvers
-	// and discarders into the kernel). A zero value disables the delay.
+	// description: SecurityProfileV2ProfilingStartupDelay is the delay after system-probe starts during which v2 workload profiling ignores events, so profiles don't capture noisy activity while system-probe is still stabilizing (OS resync, rule loading, programming approvers and discarders into the kernel). A zero value disables the delay.
+	// visibility: private
+	// default_value: 0s
 	SecurityProfileV2ProfilingStartupDelay time.Duration
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
