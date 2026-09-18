@@ -90,7 +90,9 @@ def _global_config_path() -> Path | None:
     dda_config = _run(["dda", "config", "find"])
     if not dda_config:
         return None
-    return Path(dda_config).expanduser().parent / "follow-pr.toml"
+    dir = Path(dda_config).expanduser().parent.parent / "datadog-agent-skills"
+    dir.mkdir(parents=True, exist_ok=True)  # Make sure the config _directory_ exists, if not the file
+    return dir / "follow-pr.toml"
 
 
 def _local_config_path() -> Path | None:
