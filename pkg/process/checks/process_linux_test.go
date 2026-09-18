@@ -113,7 +113,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(tc.statsByPid, nil).Once()
 
 			// TESTING
-			actual, err := processCheck.processesByPID()
+			actual, err := processCheck.processesByPID(mockConstantClock.Now())
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})

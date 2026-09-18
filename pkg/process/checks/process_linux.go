@@ -8,6 +8,8 @@
 package checks
 
 import (
+	"time"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -57,14 +59,14 @@ func (p *ProcessCheck) WLMProcessCollectionEnabled() bool {
 }
 
 // processesByPID returns the processes by pid from workloadmeta.
-func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
+func (p *ProcessCheck) processesByPID(now time.Time) (map[int32]*procutil.Process, error) {
 	wlmProcList := p.wmeta.ListProcesses()
 	pids := make([]int32, len(wlmProcList))
 	for i, wlmProc := range wlmProcList {
 		pids[i] = wlmProc.Pid
 	}
 
-	statsForProcess, err := p.probe.StatsForPIDs(pids, p.clock.Now())
+	statsForProcess, err := p.probe.StatsForPIDs(pids, now)
 	if err != nil {
 		return nil, err
 	}

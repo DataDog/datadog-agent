@@ -52,9 +52,15 @@ dd_agent_go_test(
         "linux_test.go",
         "windows_test.go",
     ],
-    data = ["config/helm-template.tmpl"],
+    data = [
+        "config/helm-template.tmpl",
+        "fixtures/zombie_parent.py",
+    ],
     embed = [":process"],
-    embedsrcs = ["config/helm-template.tmpl"],
+    embedsrcs = [
+        "config/helm-template.tmpl",
+        "fixtures/zombie_parent.py",
+    ],
     tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
