@@ -30,7 +30,12 @@ const (
 
 type runTestCatalog struct {
 	descriptor authoredscriptssupport.Descriptor
+	readyErr   error
 	err        error
+}
+
+func (c runTestCatalog) WaitForReady(context.Context) error {
+	return c.readyErr
 }
 
 func (c runTestCatalog) Lookup(key string) (authoredscriptssupport.Descriptor, error) {
@@ -144,6 +149,19 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 		_, err := handler.Run(context.Background(), task, nil)
 		require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 		require.ErrorContains(t, err, "could not look up authored-script package")
+	})
+
+	t.Run("catalog readiness failure", func(t *testing.T) {
+		expectedErr := errors.New("catalog is unavailable")
+		handler := &RunAuthoredScriptHandler{
+			catalog: runTestCatalog{readyErr: expectedErr},
+		}
+		task := &types.Task{}
+		task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.authoredscripts", Name: "test"}
+
+		_, err := handler.Run(context.Background(), task, nil)
+		require.ErrorIs(t, err, expectedErr)
+		require.ErrorContains(t, err, "waiting for authored-script catalog")
 	})
 
 	t.Run("cache initialization error", func(t *testing.T) {
