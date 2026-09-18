@@ -18,7 +18,7 @@
 .agent_build_common:
   extends: [ .bazel:defs:cache:omnibus-transition ]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -141,7 +141,7 @@ iot-agent-armhf:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -177,7 +177,7 @@ dogstatsd-arm64:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
