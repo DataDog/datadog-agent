@@ -12,7 +12,7 @@ import (
 )
 
 func TestAuthoredScriptsGetAction(t *testing.T) {
-	bundle := NewAuthoredScripts(false, nil)
+	bundle := NewAuthoredScripts(nil)
 	handler := bundle.GetAction("addRepo")
 
 	assert.IsType(t, &RunAuthoredScriptHandler{}, handler)

@@ -20,20 +20,15 @@ import (
 )
 
 type RunAuthoredScriptHandler struct {
-	enabled                 bool
 	catalog                 authoredscriptssupport.Catalog
 	artifactResolver        *authoredscriptssupport.ArtifactResolver
 	artifactResolverInitErr error
 }
 
 // NewRunAuthoredScriptHandler prepares authored-script execution.
-func NewRunAuthoredScriptHandler(enabled bool, catalog authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
+func NewRunAuthoredScriptHandler(catalog authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
 	handler := &RunAuthoredScriptHandler{
-		enabled: enabled,
 		catalog: catalog,
-	}
-	if !enabled {
-		return handler
 	}
 
 	environment := installerenv.FromEnv()
@@ -60,9 +55,6 @@ func (h *RunAuthoredScriptHandler) Run(
 ) (output interface{}, err error) {
 	if h == nil {
 		return nil, errors.New("authored-script handler is not configured")
-	}
-	if !h.enabled {
-		return nil, errors.New("authored script execution is not enabled")
 	}
 	if h.catalog == nil {
 		return nil, errors.New("authored-script handler is not configured")

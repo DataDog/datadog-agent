@@ -20,8 +20,8 @@ import (
 type RunAuthoredScriptHandler struct{}
 
 // NewRunAuthoredScriptHandler returns the Windows stub. Authored scripts are
-// not supported on Windows, so the execution gate and catalog are unused.
-func NewRunAuthoredScriptHandler(_ bool, _ authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
+// not supported on Windows, so the catalog is unused.
+func NewRunAuthoredScriptHandler(_ authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
 	return &RunAuthoredScriptHandler{}
 }
 
@@ -30,5 +30,5 @@ func (h *RunAuthoredScriptHandler) Run(
 	_ *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, errors.New("authored script execution is not implemented")
+	return nil, errors.New("authored script execution is not supported on Windows")
 }

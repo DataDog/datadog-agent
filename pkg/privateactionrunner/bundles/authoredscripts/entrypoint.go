@@ -14,11 +14,10 @@ type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
-// NewAuthoredScripts creates the bundle with its execution gate and
-// artifact catalog supplied by the bundle registry.
-func NewAuthoredScripts(enabled bool, catalog authoredscriptssupport.Catalog) *AuthoredScripts {
+// NewAuthoredScripts creates the bundle with its artifact catalog supplied by the bundle registry.
+func NewAuthoredScripts(catalog authoredscriptssupport.Catalog) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(enabled, catalog),
+		runAuthoredScript: NewRunAuthoredScriptHandler(catalog),
 	}
 }
 
