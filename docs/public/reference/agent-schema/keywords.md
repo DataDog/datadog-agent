@@ -1,18 +1,16 @@
-# Keyword Reference
+# Schema keywords
 
-This page documents keywords supported by the Agent configuration schema.
-Keywords are grouped into two sections: standard JSON Schema keywords and
-Datadog Agent extensions.
+This page documents keywords supported by the Agent configuration schema. Keywords are grouped into two sections: standard JSON Schema keywords and Datadog Agent extensions.
 
 ---
 
 ## Standard JSON Schema keywords
 
-The following keywords come from the [JSON Schema standard](https://json-schema.org/understanding-json-schema/keywords)
-and are understood by all JSON Schema tooling. This section describes how each
-keyword is used **specifically in the Agent schema**.
+The following keywords come from the [JSON Schema standard](https://json-schema.org/understanding-json-schema/keywords) and are understood by all JSON Schema tooling. This section describes how each keyword is used **specifically in the Agent schema**.
 
-> **Note:** not all keywords define in the JSON Schema standard are explain here, only the most commonly used.
+/// note
+This reference covers the JSON Schema keywords most commonly used by the Agent.
+///
 
 ### `type`
 
@@ -30,8 +28,7 @@ Supported types:
 | `array` | ordered list of values |
 | `object` | key/value pairs |
 
-Complex types are composed by combining these primitives — for example, an
-`array` whose `items` are `object`s.
+Complex types are composed by combining these primitives — for example, an `array` whose `items` are `object`s.
 
 ```yaml
 network_devices:
@@ -48,8 +45,7 @@ network_devices:
 
 The default value for a setting node.
 
-- **Mandatory:** yes, for all setting nodes. Mutually exclusive with `platform_default` (one or the other must be
-  specified).
+- **Mandatory:** yes, for all setting nodes. Mutually exclusive with `platform_default` (one or the other must be specified).
 
 The value must match the `type` of the setting.
 
@@ -62,37 +58,41 @@ check_runners:
 
 #### Relative defaults
 
-Some default value are resolved at runtime base on the agent install parameter. Default value are often relative to the
-"install path", "log directory" ...
+Some default value are resolved at runtime base on the agent install parameter. Default value are often relative to the "install path", "log directory" ...
 
-Those concept can be express using the `${}` notation with one of the following variables. The value below show the
-default but could be change by the users. For example, the default configuration directory for Windows is `c:/programdata/datadog` but can be changed at install time. The correct value will be use at startup by the Agent.
+Those concept can be express using the `${}` notation with one of the following variables. The value below show the default but could be change by the users. For example, the default configuration directory for Windows is `c:/programdata/datadog` but can be changed at install time. The correct value will be use at startup by the Agent.
 
 Path are all express using `/` and will be translated to the correct OS version.
 
 Existing variables:
 
 - Configuration directory (`${conf_path}`):
-  - `windows`: `c:/programdata/datadog`
-  - `linux`: `/etc/datadog-agent`
-  - `darwin`: `/opt/datadog-agent/etc`
-  - `aix`: `/etc/datadog-agent`
-- Installation directory (`${install_path}`):
-  - `windows`: `c:/program files/datadog/datadog agent`
-  - `linux`: `/opt/datadog-agent`
-  - `darwin`: `/opt/datadog-agent`
-  - `aix`: `/opt/datadog-agent`
-- Log directory (`${log_path}`):
-  - `windows`: `c:/programdata/datadog/logs`
-  - `linux`: `/var/log/datadog`
-  - `darwin`: `/opt/datadog-agent/logs`
-  - `aix`: `/var/log/datadog`
-- Run directory, where the Agent starts from (`${run_path}`):
-  - `windows`: `c:/programdata/datadog/run`
-  - `linux`: `/opt/datadog-agent/run`
-  - `darwin`: `/opt/datadog-agent/run`
-  - `aix`: `/opt/datadog-agent/run`
 
+    - `windows`: `c:/programdata/datadog`
+    - `linux`: `/etc/datadog-agent`
+    - `darwin`: `/opt/datadog-agent/etc`
+    - `aix`: `/etc/datadog-agent`
+
+- Installation directory (`${install_path}`):
+
+    - `windows`: `c:/program files/datadog/datadog agent`
+    - `linux`: `/opt/datadog-agent`
+    - `darwin`: `/opt/datadog-agent`
+    - `aix`: `/opt/datadog-agent`
+
+- Log directory (`${log_path}`):
+
+    - `windows`: `c:/programdata/datadog/logs`
+    - `linux`: `/var/log/datadog`
+    - `darwin`: `/opt/datadog-agent/logs`
+    - `aix`: `/var/log/datadog`
+
+- Run directory, where the Agent starts from (`${run_path}`):
+
+    - `windows`: `c:/programdata/datadog/run`
+    - `linux`: `/opt/datadog-agent/run`
+    - `darwin`: `/opt/datadog-agent/run`
+    - `aix`: `/opt/datadog-agent/run`
 
 The above variables are available for `default` and `platform_default` keywords.
 
@@ -137,9 +137,9 @@ A short heading used to generate section banners in `datadog.yaml.example`.
 
 - **Available on:** section nodes only.
 
-> **Note:** The Agent schema's use of `title` differs from the JSON Schema standard, where `title` is a
-> concise human-readable summary of a schema. Here, `title` is specifically a banner label applied only
-> to section nodes that begin a new conceptual group in the generated config file.
+/// note
+The Agent schema's use of `title` differs from the JSON Schema standard, where `title` is a concise human-readable summary of a schema. Here, `title` is specifically a banner label applied only to section nodes that begin a new conceptual group in the generated config file.
+///
 
 When a section has a `title`, the config example generator produces a banner like this:
 
@@ -191,8 +191,7 @@ Internal comments about the field. Not rendered into any user-facing artifacts.
 - **Available on:** setting and section nodes.
 - **Mandatory:** no, optional.
 
-Use this for developer-oriented notes that are not meant to be user-facing — for example, explaining
-why an unusual default was chosen, referencing a bug or design decision, or noting a deprecation plan.
+Use this for developer-oriented notes that are not meant to be user-facing — for example, explaining why an unusual default was chosen, referencing a bug or design decision, or noting a deprecation plan.
 
 ```yaml
 hostname_fqdn:
@@ -206,9 +205,7 @@ hostname_fqdn:
 
 ### `items` and `properties`
 
-These keywords describe the structure of complex types and are required by code generation tooling.
-They are listed here separately from the validation keywords below because they define the *shape* of
-a setting's value, not merely constraints on it.
+These keywords describe the structure of complex types and are required by code generation tooling. They are listed here separately from the validation keywords below because they define the *shape* of a setting's value, not merely constraints on it.
 
 #### `items`
 
@@ -243,18 +240,15 @@ cel_workload_exclude:
           type: string
 ```
 
-> **Note:** `properties` on a **section** node defines its child settings (Agent schema nodes), not
-> value sub-schemas. The two uses look identical in YAML but have different meanings depending on
-> `node_type`.
+/// note
+`properties` on a **section** node defines its child settings (Agent schema nodes), not value sub-schemas. The two uses look identical in YAML but have different meanings depending on `node_type`.
+///
 
 ---
 
 ### Validation keywords
 
-Each JSON Schema type comes with built-in validation keywords. The most useful
-ones in the Agent schema are listed below. Validation rules can be arbitrarily
-nested — see [Examples](examples.md#example-3-complex-nested-type-cel_workload_exclude)
-for a real-world demonstration.
+Each JSON Schema type comes with built-in validation keywords. The most useful ones in the Agent schema are listed below. Validation rules can be arbitrarily nested — see [Examples](../../architecture/agent-schema/examples.md#example-3-complex-nested-type-cel_workload_exclude) for a real-world demonstration.
 
 | Keyword | Applies to | Description |
 | --- | --- | --- |
@@ -267,34 +261,25 @@ for a real-world demonstration.
 | `minItems` / `maxItems` | `array` | Array length bounds |
 | `uniqueItems` | `array` | Requires all elements to be distinct |
 
-For the complete specification of these keywords, see
-[Understanding JSON Schema](https://json-schema.org/understanding-json-schema).
+For the complete specification of these keywords, see [Understanding JSON Schema](https://json-schema.org/understanding-json-schema).
 
 ---
 
 ## Datadog Agent extensions
 
-The following keywords extend JSON Schema to meet the Agent's specific needs.
-They are **not** used for config validation — any standard JSON Schema library
-can validate a customer config without them. They are used by the Agent itself
-and by Datadog internal tooling.
+The following keywords extend JSON Schema to meet the Agent's specific needs. They are **not** used for config validation — any standard JSON Schema library can validate a customer config without them. They are used by the Agent itself and by Datadog internal tooling.
 
 ---
 
 ### `node_type`
 
-Declares whether a node is a *section* (group of settings) or a *setting*
-(individual setting).
+Declares whether a node is a *section* (group of settings) or a *setting* (individual setting).
 
 - **Available on:** all nodes.
 - **Mandatory:** yes.
 - **Accepted values:** `section`, `setting`.
 
-This keyword marks the boundary between the schema structure and a setting's
-value. For example, `docker_labels_as_tags` has `type: object` — its value is an
-object of strings to strings. That object is the setting's *value*, so the node is a setting, not
-a section. A node is a section only when its `properties` represent *child
-settings*, not a setting with an object typed value.
+This keyword marks the boundary between the schema structure and a setting's value. For example, `docker_labels_as_tags` has `type: object` — its value is an object of strings to strings. That object is the setting's *value*, so the node is a setting, not a section. A node is a section only when its `properties` represent *child settings*, not a setting with an object typed value.
 
 ```yaml
 apm_config:
@@ -321,23 +306,19 @@ docker_labels_as_tags:
 Sets per-platform default value overrides. Mutually exclusive with `default` (One of them must be specify).
 
 - **Available on:** setting nodes only.
-- **Mandatory:** yes, unless `default` is specified. `platform_default` must cover every platform — either by listing
-  `linux`, `windows`, `darwin`, and `aix` explicitly, or by including an `other` catch-all.
+- **Mandatory:** yes, unless `default` is specified. `platform_default` must cover every platform — either by listing `linux`, `windows`, `darwin`, and `aix` explicitly, or by including an `other` catch-all.
 - **Validation:** values must match the `type` of the setting.
 
 Supported platform keys: `linux`, `windows`, `darwin`, `aix`, `container`, `fargate`, `other`.
 
-As much as possible, avoid assuming all platforms are known, and don't use `other` for a value which is specific to
-a given OS just because the other OSes have been set explicitly.
+As much as possible, avoid assuming all platforms are known, and don't use `other` for a value which is specific to a given OS just because the other OSes have been set explicitly.
 
-**Container fallback logic:** because container environments currently share many
-defaults with Linux, `container`/`fargate` is optional. When resolving the default for a
-setting, the Agent applies the following fallback chain:
+**Container fallback logic:** because container environments currently share many defaults with Linux, `container`/`fargate` is optional. When resolving the default for a setting, the Agent applies the following fallback chain:
 
 1. Use `fargate` if present and running on ECS Farget.
 1. Fall back to `container` if present running in a container.
-2. Fall back to `linux` if present.
-3. Fall back to `other` if present.
+1. Fall back to `linux` if present.
+1. Fall back to `other` if present.
 
 ```yaml
 # Explicit entry for every platform:
@@ -361,7 +342,9 @@ gui_port:
     other: -1             # currently covers linux and aix
 ```
 
-> **Note**: [Relative Path](keywords.md#relative-defaults) is also available for `platform_default`.
+/// note
+[Relative Path](keywords.md#relative-defaults) is also available for `platform_default`.
+///
 
 ---
 
@@ -374,10 +357,7 @@ Marks a setting as containing sensitive data.
 - **Default:** `false`.
 - **Accepted values:** `true`, `false`.
 
-When `true`, the Agent scrubs the value from logs and diagnostic output. Fleet
-Automation treats the setting as a secret — it will not expose the raw value in
-its UI or API responses. Other services that consume the schema may use this flag
-in the future to apply additional protection.
+When `true`, the Agent scrubs the value from logs and diagnostic output. Fleet Automation treats the setting as a secret — it will not expose the raw value in its UI or API responses. Other services that consume the schema may use this flag in the future to apply additional protection.
 
 ```yaml
 api_key:
@@ -393,19 +373,18 @@ api_key:
 
 ### `visibility`
 
-Controls whether a setting is publicly documented and included in
-`datadog.yaml.example`.
+Controls whether a setting is publicly documented and included in `datadog.yaml.example`.
 
 - **Available on:** all nodes (setting and section).
 - **Mandatory:** no.
 - **Default:** `undocumented`.
 - **Accepted values:** `public`, `undocumented`.
 
-Any node with `visibility: public` is included in the generated config examples
-and any public-facing configuration website. Nodes without this keyword (or with
-`visibility: undocumented`) are internal and will not be surfaced.
+Any node with `visibility: public` is included in the generated config examples and any public-facing configuration website. Nodes without this keyword (or with `visibility: undocumented`) are internal and will not be surfaced.
 
-> **Note:** It's not because a setting is undocumented that it's not known or used by customers.
+/// note
+It's not because a setting is undocumented that it's not known or used by customers.
+///
 
 ```yaml
 api_key:
@@ -416,8 +395,9 @@ api_key:
   visibility: public
 ```
 
-> **Note:** the configuration examples are generated following the schema order. Where you add you setting in the schema
-> will determine where is will appear in the examples.
+/// note
+the configuration examples are generated following the schema order. Where you add you setting in the schema will determine where is will appear in the examples.
+///
 
 ---
 
@@ -428,12 +408,9 @@ The list of environment variables that can override this setting node's value.
 - **Available on:** setting nodes only.
 - **Mandatory:** no.
 
-**If omitted**, the Agent uses a default env var derived from the setting's full
-dotted path: `DD_` + the path in upper case with dots replaced by underscores.
-For example, `logs_config.enabled` defaults to `DD_LOGS_CONFIG_ENABLED`.
+**If omitted**, the Agent uses a default env var derived from the setting's full dotted path: `DD_` + the path in upper case with dots replaced by underscores. For example, `logs_config.enabled` defaults to `DD_LOGS_CONFIG_ENABLED`.
 
-When multiple env vars are listed, they are checked in order and the first match
-wins.
+When multiple env vars are listed, they are checked in order and the first match wins.
 
 ```yaml
 api_key:
@@ -449,8 +426,7 @@ api_key:
 
 ### `env_parser`
 
-Defines how the env var value is parsed into the setting's type. This is only require when loading complex types from
-the environment (JSON, maps, ...).
+Defines how the env var value is parsed into the setting's type. This is only require when loading complex types from the environment (JSON, maps, ...).
 
 - **Available on:** setting nodes only.
 - **Mandatory:** no. Most scalar types (`boolean`, `number`, `string`) are parsed automatically.
@@ -488,24 +464,17 @@ tags:
 
 ### `renamed_from`
 
-Maps every previous name this setting was known by to the Agent version that deprecated that name. Each key is a former
-**fully qualified** name (dotted full path from the root of the config).
+Maps every previous name this setting was known by to the Agent version that deprecated that name. Each key is a former **fully qualified** name (dotted full path from the root of the config).
 
 - **Available on:** setting nodes only.
 - **Mandatory:** no.
-- **Validation:** must be a non-empty mapping. Keys are non-empty strings; values are quoted, full semantic Agent
-  versions (for example `"7.71.0"`). Two former names of the same setting cannot share a version.
+- **Validation:** must be a non-empty mapping. Keys are non-empty strings; values are quoted, full semantic Agent versions (for example `"7.71.0"`). Two former names of the same setting cannot share a version.
 
-When a setting has `renamed_from`, the config system looks for any of the previous names in YAML and env vars and
-migrates the value to the new name automatically. Previous names take priority over the canonical name when both are
-present. A deprecation warning is emitted at runtime whenever a previous name is used. Previous names are sorted by
-Agent version in which they were deprecated (oldest to newest).
+When a setting has `renamed_from`, the config system looks for any of the previous names in YAML and env vars and migrates the value to the new name automatically. Previous names take priority over the canonical name when both are present. A deprecation warning is emitted at runtime whenever a previous name is used. Previous names are sorted by Agent version in which they were deprecated (oldest to newest).
 
-The code base **MUST** use the new name only. The old name is no longer accessible through the config but can still be
-used by customer in their configuration or env vars.
+The code base **MUST** use the new name only. The old name is no longer accessible through the config but can still be used by customer in their configuration or env vars.
 
-This provides a single, consistent mechanism for setting renames across all teams, replacing ad-hoc solutions that
-previously produced inconsistent behaviour.
+This provides a single, consistent mechanism for setting renames across all teams, replacing ad-hoc solutions that previously produced inconsistent behaviour.
 
 ```yaml
 apm_config:
@@ -539,20 +508,17 @@ A setting renamed more than once lists every former name with the version that d
         apm_config.max_tps: "7.71.0"
 ```
 
-> **Note:** if no `env_vars` are specified the agent will generate the correct ones from
-> the name and all the deprecated ones. A warning will be emited if any deprecated env vars are used.
->
-> But, similar to BindEnvAndSetDefault, if `env_vars` is set for a setting, no extra env vars are generated and no warning will be
-> emited. When renaming a setting with `env_vars` you **MUST** properly maintain the `env_vars` list. Remember that
-> `env_vars` are sorted from highest to lowest priority.
+/// note
+if no `env_vars` are specified the agent will generate the correct ones from the name and all the deprecated ones. A warning will be emited if any deprecated env vars are used.
+
+But, similar to BindEnvAndSetDefault, if `env_vars` is set for a setting, no extra env vars are generated and no warning will be emited. When renaming a setting with `env_vars` you **MUST** properly maintain the `env_vars` list. Remember that `env_vars` are sorted from highest to lowest priority.
+///
 
 ---
 
 ### `tags`
 
-An arbitrary list of strings for metadata. Used by internal tooling to slice
-and filter settings — for example, to produce different variants of
-`datadog.yaml.example`.
+An arbitrary list of strings for metadata. Used by internal tooling to slice and filter settings — for example, to produce different variants of `datadog.yaml.example`.
 
 - **Available on:** all nodes (setting and section).
 - **Mandatory:** no.
@@ -567,42 +533,37 @@ internal_profiling:
 
 Existing tags:
 
-- `template_section`: controls the different flavor of the configuration example we generate. This is directly inherited
-  from the way we used to generate example from Go templates.
-- `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
-  is often a sign of an issue. The agent code should be easily configurable from YAML types.
-  - `golang_type:duration`: will use a `time.duration`.
-  - `golang_type:int64`: will use a `int64` (only available for `type: integer`).
-  - `golang_type:map[string]float64`: will used a `map[string]float64{}`.
-  - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
+- `template_section`: controls the different flavor of the configuration example we generate. This is directly inherited from the way we used to generate example from Go templates.
+- `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag is often a sign of an issue. The agent code should be easily configurable from YAML types.
+
+    - `golang_type:duration`: will use a `time.duration`.
+    - `golang_type:int64`: will use a `int64` (only available for `type: integer`).
+    - `golang_type:map[string]float64`: will used a `map[string]float64{}`.
+    - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
+
 - `no-env`: mark the settings as not configurable through en vars (should not be used by new settings).
 - `generate_const:<name>`: generate a Go constant from this setting's default value.
 
-  Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named
-  `<name>` in the `pkg/config/setup/constants` package (in `constants/generated.go`) whose value is
-  this setting's default. Reference that constant from your Go code instead of hardcoding the value,
-  so the constant and the setting default can never drift apart — the schema stays the single source
-  of truth.
+    Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named `<name>` in the `pkg/config/setup/constants` package (in `constants/generated.go`) whose value is this setting's default. Reference that constant from your Go code instead of hardcoding the value, so the constant and the setting default can never drift apart — the schema stays the single source of truth.
 
-  Use it when a Go constant in the Agent must always equal a setting's default (for example, a default
-  port, timeout, or path that other code needs to read directly).
+    Use it when a Go constant in the Agent must always equal a setting's default (for example, a default port, timeout, or path that other code needs to read directly).
 
-  - `<name>` is the Go constant name and must contain only letters (upper or lower case) and digits.
-  - Only valid on **setting** nodes, never on sections.
-  - The same `<name>` may be reused on several settings, but they must all share the same default — a
-    constant can only have one value.
+    - `<name>` is the Go constant name and must contain only letters (upper or lower case) and digits.
+    - Only valid on **setting** nodes, never on sections.
+    - The same `<name>` may be reused on several settings, but they must all share the same default — a constant can only have one value.
 
-  ```yaml
-  security_agent:
-    node_type: section
-    properties:
-      cmd_port:
-        node_type: setting
-        type: integer
-        default: 5010
-        tags:
-          - generate_const:DefaultSecurityAgentCmdPort   # emits: DefaultSecurityAgentCmdPort = 5010
-  ```
+    ```yaml
+    security_agent:
+      node_type: section
+      properties:
+        cmd_port:
+          node_type: setting
+          type: integer
+          default: 5010
+          tags:
+            - generate_const:DefaultSecurityAgentCmdPort   # emits: DefaultSecurityAgentCmdPort = 5010
+    ```
 
-> **Note**: except from `template_section` and `generate_const`, all the other tags exists to support legacy behavior
-> and should not be used for new settings.
+/// note
+except from `template_section` and `generate_const`, all the other tags exists to support legacy behavior and should not be used for new settings.
+///
