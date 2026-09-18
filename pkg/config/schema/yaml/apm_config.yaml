@@ -908,6 +908,30 @@ properties:
 
           TODO(apm-auto-instrumentation): once CSI auto-detection has been
           validated in production, remove this flag and the associated wiring in.
+      otel_instrumentation_crd_mode:
+        node_type: setting
+        type: string
+        default: disabled
+        env_vars:
+        - DD_APM_INSTRUMENTATION_OTEL_INSTRUMENTATION_CRD_MODE
+        comment: |-
+          Controls whether the Cluster Agent watches the community OpenTelemetry
+          Operator's Instrumentation custom resources (opentelemetry.io/v1alpha1),
+          and what a pod resolving to one gets injected. One of:
+
+          - "disabled" (default): nothing is watched and Single Step
+            Instrumentation ignores those custom resources.
+          - "otel": inject the community OpenTelemetry SDK named by the custom
+            resource, passing its configuration through unchanged.
+          - "datadog": inject the Datadog tracing library, configured to match the
+            custom resource.
+
+          The value is only a default: a custom resource that deliberately names
+          its own SDK image is honoured in "otel" mode whatever this setting says.
+
+          TODO(apm-auto-instrumentation): proof of concept. "otel" reproduces
+          upstream's pod mutation only in part; the gaps are listed in
+          otelinstrumentation/passthrough.go.
       injection_mode:
         node_type: setting
         type: string

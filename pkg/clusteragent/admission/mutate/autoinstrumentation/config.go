@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -231,6 +232,18 @@ type InstrumentationConfig struct {
 	// structure.ErrorUnused: without this field, setting the flag would
 	// crash the cluster-agent at startup.
 	CSIDriverDetectionEnabled bool `mapstructure:"csi_driver_detection_enabled" json:"csi_driver_detection_enabled"`
+	// OtelInstrumentationCRDMode gates the watch on the community OpenTelemetry
+	// Operator's Instrumentation custom resources, and selects what a pod
+	// resolving to one gets injected. Possible values: "disabled" (default),
+	// "otel" and "datadog". Full config key:
+	// apm_config.instrumentation.otel_instrumentation_crd_mode.
+	//
+	// Like CSIDriverDetectionEnabled, the field is unused by this struct's
+	// consumers: the setting is read directly via config.GetString in the
+	// cluster-agent entry point. It must still be declared here because
+	// NewInstrumentationConfig unmarshals apm_config.instrumentation with
+	// structure.ErrorUnused.
+	OtelInstrumentationCRDMode string `mapstructure:"otel_instrumentation_crd_mode" json:"otel_instrumentation_crd_mode"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
@@ -262,6 +275,13 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 		if target.NamespaceSelector != nil && len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
 			return nil, errors.New("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
 		}
+	}
+
+	// Reject an unknown OpenTelemetry CRD mode rather than falling back to a default:
+	// a typo would otherwise silently disable the feature, or silently pick the wrong
+	// SDK.
+	if _, err := otelinstrumentation.ParseMode(cfg.OtelInstrumentationCRDMode); err != nil {
+		return nil, fmt.Errorf("apm_config.instrumentation.otel_instrumentation_crd_mode: %w", err)
 	}
 
 	return cfg, nil

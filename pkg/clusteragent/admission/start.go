@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -49,6 +50,7 @@ type ControllerContext struct {
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
 	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
+	OtelInstrumentationResolver  *otelinstrumentation.Resolver
 	RcClient                     *rcclient.Client
 }
 
@@ -116,6 +118,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.InstrumentationHandlers,
 		ctx.DynamicInformer,
 		ctx.CSIDriverWatcher,
+		ctx.OtelInstrumentationResolver,
 	)
 
 	go secretController.Run(ctx.StopCh)

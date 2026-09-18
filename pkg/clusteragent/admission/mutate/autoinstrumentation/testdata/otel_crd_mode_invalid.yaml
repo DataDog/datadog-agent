@@ -1,0 +1,5 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    otel_instrumentation_crd_mode: "enabled"

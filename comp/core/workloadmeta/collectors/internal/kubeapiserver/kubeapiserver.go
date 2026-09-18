@@ -171,11 +171,23 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 // for the auto instrumentation configuration. Namespaces are collected in order
 // to utilize namespace labels for target based configuration and to determine
 // pod security policies to apply to restricted namespaces.
+//
+// OpenTelemetry Instrumentation CRD compatibility also reads namespace
+// annotations at pod admission, and can be enabled on its own, so it requests
+// namespaces independently of Single Step Instrumentation.
 func resourcesForAPMConfig(cfg config.Reader) []string {
-	// If APM is not enabled, we don't need to collect any resources for the
-	// auto instrumentation configuration.
+	// If neither feature is enabled, we don't need to collect any resources for
+	// the auto instrumentation configuration.
 	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
-	if !apmEnabled {
+
+	// The mode is a tri-state owned by the admission controller
+	// (otelinstrumentation.Mode); anything but "disabled" watches custom resources
+	// and therefore needs namespaces. Compared as a string rather than imported, to
+	// keep this collector independent of the admission packages.
+	otelCRDMode := cfg.GetString("apm_config.instrumentation.otel_instrumentation_crd_mode")
+	otelCRDEnabled := otelCRDMode == "otel" || otelCRDMode == "datadog"
+
+	if !apmEnabled && !otelCRDEnabled {
 		return nil
 	}
 

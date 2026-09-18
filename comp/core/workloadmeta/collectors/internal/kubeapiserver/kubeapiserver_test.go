@@ -764,6 +764,27 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			},
 			expectedResources: []string{"//namespaces"},
 		},
+		{
+			name: "otel instrumentation crd swap mode enables namespace collection on its own",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.otel_instrumentation_crd_mode": "datadog",
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "otel instrumentation crd passthrough mode enables namespace collection on its own",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.otel_instrumentation_crd_mode": "otel",
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "otel instrumentation crd disabled collects nothing",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.otel_instrumentation_crd_mode": "disabled",
+			},
+			expectedResources: nil,
+		},
 	}
 
 	for _, test := range tests {
