@@ -311,6 +311,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.sql_obfuscation_mode") {
 		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
+	c.QueryAttributeAllowlist = core.GetStringSlice("apm_config.sql_query_attribute_allowlist")
 
 	/**
 	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,
@@ -902,6 +903,9 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
+	}
+	if err := config.ValidateQueryAttributeAllowlist(c.QueryAttributeAllowlist); err != nil {
+		return fmt.Errorf("invalid apm_config.sql_query_attribute_allowlist: %w", err)
 	}
 
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {

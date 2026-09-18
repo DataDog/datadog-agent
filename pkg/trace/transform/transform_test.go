@@ -1033,6 +1033,108 @@ func TestOtelSpanToDDSpan_DBAttributeMappings(t *testing.T) {
 	}
 }
 
+func TestOtelSpanToDDSpanQueryAttributeAllowlist(t *testing.T) {
+	tests := []struct {
+		name      string
+		allowlist []string
+		want      map[string]bool
+	}{
+		{
+			name:      "nil preserves all query attributes",
+			allowlist: nil,
+			want: map[string]bool{
+				config.QueryAttributeDBStatement: true,
+				config.QueryAttributeDBQueryText: true,
+				config.QueryAttributeSQLQuery:    true,
+			},
+		},
+		{
+			name:      "none omits all query attributes",
+			allowlist: []string{config.QueryAttributeNone},
+			want:      map[string]bool{},
+		},
+		{
+			name:      "empty preserves all query attributes",
+			allowlist: []string{},
+			want: map[string]bool{
+				config.QueryAttributeDBStatement: true,
+				config.QueryAttributeDBQueryText: true,
+				config.QueryAttributeSQLQuery:    true,
+			},
+		},
+		{
+			name: "allows a subset of query attributes",
+			allowlist: []string{
+				config.QueryAttributeDBQueryText,
+				config.QueryAttributeSQLQuery,
+			},
+			want: map[string]bool{
+				config.QueryAttributeDBQueryText: true,
+				config.QueryAttributeSQLQuery:    true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.AgentConfig{
+				OTLPReceiver:            &config.OTLP{},
+				QueryAttributeAllowlist: tt.allowlist,
+			}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+			span := ptrace.NewSpan()
+			span.SetName("SELECT * FROM users WHERE id = ?")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1})
+			span.SetSpanID([8]byte{2})
+			span.Attributes().PutStr("span.type", "sql")
+			span.Attributes().PutStr(config.QueryAttributeDBStatement, "SELECT * FROM users WHERE id = 42")
+			span.Attributes().PutStr(config.QueryAttributeDBQueryText, "SELECT * FROM users WHERE id = 42")
+			span.Attributes().PutStr(config.QueryAttributeSQLQuery, "SELECT * FROM users WHERE id = 42")
+			span.Attributes().PutStr("db.system", "postgresql")
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			ddspan := OtelSpanToDDSpan(span, res, pcommon.NewInstrumentationScope(), cfg)
+
+			assert.Equal(t, "sql", ddspan.Type)
+			assert.Equal(t, "SELECT * FROM users WHERE id = 42", ddspan.Resource)
+			assert.Equal(t, "postgresql", ddspan.Meta["db.system"])
+			for _, attribute := range []string{
+				config.QueryAttributeDBStatement,
+				config.QueryAttributeDBQueryText,
+				config.QueryAttributeSQLQuery,
+			} {
+				if tt.want[attribute] {
+					assert.Equal(t, "SELECT * FROM users WHERE id = 42", ddspan.Meta[attribute])
+				} else {
+					assert.NotContains(t, ddspan.Meta, attribute)
+				}
+			}
+		})
+	}
+}
+
+func TestOtelSpanToDDSpanQueryAttributeAllowlistNonString(t *testing.T) {
+	cfg := &config.AgentConfig{
+		OTLPReceiver:            &config.OTLP{},
+		QueryAttributeAllowlist: []string{config.QueryAttributeNone},
+	}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	span := ptrace.NewSpan()
+	span.SetName("SELECT * FROM users")
+	span.SetTraceID([16]byte{1})
+	span.SetSpanID([8]byte{2})
+	span.Attributes().PutInt(config.QueryAttributeSQLQuery, 42)
+
+	ddspan := OtelSpanToDDSpan(span, pcommon.NewResource(), pcommon.NewInstrumentationScope(), cfg)
+
+	assert.NotContains(t, ddspan.Meta, config.QueryAttributeSQLQuery)
+	assert.NotContains(t, ddspan.Metrics, config.QueryAttributeSQLQuery)
+}
+
 // TestOtelSpanToDDSpan_MessagingAttributePreservation tests messaging attribute preservation
 // (messaging.destination, messaging.destination.name, messaging.operation).
 func TestOtelSpanToDDSpan_MessagingAttributePreservation(t *testing.T) {

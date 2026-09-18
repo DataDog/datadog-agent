@@ -187,7 +187,16 @@ func GetDDKeyForOTLPAttribute(k string) string {
 	return mappedKey
 }
 
-func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span) {
+func isQueryAttribute(k string) bool {
+	return k == config.QueryAttributeDBStatement ||
+		k == config.QueryAttributeDBQueryText ||
+		k == config.QueryAttributeSQLQuery
+}
+
+func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span, conf *config.AgentConfig) {
+	if isQueryAttribute(k) && !conf.IsQueryAttributeAllowed(k) {
+		return
+	}
 	mappedKey := GetDDKeyForOTLPAttribute(k)
 	if ddspan.Meta[mappedKey] != "" {
 		return
@@ -317,13 +326,16 @@ func OtelSpanToDDSpan(
 
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
+		if isQueryAttribute(k) && !conf.IsQueryAttributeAllowed(k) {
+			return true
+		}
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
 			conditionallyMapOTLPAttributeToMetric(k, v.Double(), ddspan)
 		case pcommon.ValueTypeInt:
 			conditionallyMapOTLPAttributeToMetric(k, float64(v.Int()), ddspan)
 		default:
-			conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
+			conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan, conf)
 		}
 
 		return true
@@ -378,7 +390,7 @@ func OtelSpanToDDSpan(
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
 		value := v.AsString()
-		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
+		conditionallyMapOTLPAttributeToMeta(k, value, ddspan, conf)
 		return true
 	})
 

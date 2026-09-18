@@ -41,6 +41,8 @@ apm_config:
   env: test
   receiver_port: 18126
   connection_limit: 123
+  sql_query_attribute_allowlist:
+    - db.query.text
   apm_non_local_traffic: yes
   extra_sample_rate: 0.5
   target_traces_per_second: 5

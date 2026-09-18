@@ -149,6 +149,7 @@ func ParseEnvJSONOrComma(key string, config model.Setup) {
 // - apm_config.filter_tags_regex.require
 // - apm_config.filter_tags_regex.reject
 // - apm_config.obfuscation.credit_cards.keep_values
+// - apm_config.sql_query_attribute_allowlist
 //
 // This implements the env_parser ”json_list_or_space_separated”
 func ParseEnvJSONOrSpace(key string, config model.Setup) {
