@@ -265,8 +265,7 @@ func TestMissedBytesBottlenecksAgeOutWithTheirBucket(t *testing.T) {
 		"a stage blamed outside the window must not stay blamed")
 }
 
-// Stage names are a closed set today, but a name that started carrying an instance would
-// otherwise grow the per-bucket map without bound.
+// Stage names are a closed set today, but one carrying an instance would grow unbounded.
 func TestMissedBytesBottlenecksAreCapped(t *testing.T) {
 	tr, _ := newTestMissedBytesTracker()
 

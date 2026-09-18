@@ -62,11 +62,6 @@ func TestSelectBottleneck(t *testing.T) {
 		wantInstance string
 	}{
 		{
-			name:      "no saturation reads healthy",
-			comps:     []ComponentBackpressure{{Component: "processor", AvgRatio: 0.5}},
-			wantState: BackpressureHealthy,
-		},
-		{
 			name:       "currently saturated wins",
 			comps:      []ComponentBackpressure{{Component: "processor", AvgRatio: 0.95, CurrentlySaturated: true}},
 			wantState:  BackpressureSaturated,
@@ -80,7 +75,8 @@ func TestSelectBottleneck(t *testing.T) {
 			wantMember: "processor",
 		},
 		{
-			name:      "frozen ratio with no saturation reads healthy",
+			// Ratio alone does not drive the state: nothing saturated is healthy.
+			name:      "a high ratio with no saturation reads healthy",
 			comps:     []ComponentBackpressure{{Component: "processor", AvgRatio: 0.95}},
 			wantState: BackpressureHealthy,
 		},
@@ -275,37 +271,10 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 		snaps: []ComponentSnapshot{saturatedSnapshot("destination_reliable_0", 0.97, 0, 30*time.Minute, true)},
 	})
 	assert.Equal(t, "destination_reliable_0", currentBottleneckComponent(time.Now().Add(-time.Minute)))
-
-	// A healthy pipeline is a distinct answer from an unread one: it means rotation outran
-	// close_timeout rather than the pipeline's throughput.
-	RegisterPipelineMonitor(&stubPipelineMonitor{
-		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)},
-	})
-	assert.Equal(t, NoBottleneck, currentBottleneckComponent(time.Now().Add(-time.Minute)))
 }
 
-// SelectBottleneck reports WARNING for a component that recovered earlier in the trailing 30m.
-// Blaming it overclaims, and so does calling the pipeline healthy, so this resolves to unknown.
-func TestCurrentBottleneckComponentIgnoresRecoveredSaturation(t *testing.T) {
-	ResetPipelineMonitorForTest()
-	t.Cleanup(ResetPipelineMonitorForTest)
-	now := time.Now()
-	snapshot := saturatedSnapshot("worker", 0.4, 0, 20*time.Minute, false)
-	snapshot.Windows.LastSaturatedAt = now.Add(-10 * time.Minute)
-	snapshot.Windows.HasLastSaturated = true
-
-	RegisterPipelineMonitor(&stubPipelineMonitor{
-		snaps: []ComponentSnapshot{snapshot},
-	})
-
-	summary := BackpressureSnapshot()
-	require.Equal(t, BackpressureWarning, summary.State, "the snapshot still carries the history")
-	require.NotNil(t, summary.Bottleneck)
-	assert.Empty(t, currentBottleneckComponent(now.Add(-time.Minute)),
-		"saturation that ended before the loss is neither the cause nor proof of health")
-}
-
-// Nothing saturated anywhere in the window is the one case that can claim the pipeline kept up.
+// Nothing saturated anywhere in the window is the one case that can claim the pipeline kept up:
+// it means rotation outran close_timeout rather than the pipeline's throughput.
 func TestCurrentBottleneckComponentHealthyIsNoBottleneck(t *testing.T) {
 	ResetPipelineMonitorForTest()
 	t.Cleanup(ResetPipelineMonitorForTest)
@@ -327,8 +296,9 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 
 	snapshot.Windows.LastSaturatedAt = now.Add(-30 * time.Second)
 	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
+	require.Equal(t, BackpressureWarning, BackpressureSnapshot().State, "the snapshot still carries the history")
 	assert.Empty(t, currentBottleneckComponent(now.Add(-5*time.Second)),
-		"saturation before a short close_timeout must not be blamed")
+		"saturation that ended before the loss is neither the cause nor proof of health")
 
 	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
 	// The timestamp still wins when that sample predates the rotation.

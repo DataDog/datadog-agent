@@ -41,8 +41,7 @@ type ComponentBackpressure struct {
 	Saturated1mSeconds  int64   `json:"saturated_1m_s"`
 	Saturated30mSeconds int64   `json:"saturated_30m_s"`
 	CurrentlySaturated  bool    `json:"currently_saturated"`
-	// Used only to correlate saturation with the post-rotation read window. These fields
-	// are intentionally not part of the health-platform wire representation.
+	// Used only to correlate saturation with the post-rotation read window.
 	LastSaturatedAt  time.Time `json:"-"`
 	HasLastSaturated bool      `json:"-"`
 }
@@ -67,8 +66,7 @@ func outranks[T int64 | float64](candidate, incumbent *ComponentBackpressure, ca
 	return candidate.Instance < incumbent.Instance
 }
 
-// SelectBottleneck returns the overall state and the component responsible for it. Callers
-// filter their own input; nothing is excluded here.
+// SelectBottleneck returns the overall state and the component responsible for it.
 func SelectBottleneck(comps []ComponentBackpressure) (string, *ComponentBackpressure) {
 	var currSat, sat1m, sat30m *ComponentBackpressure
 
@@ -172,7 +170,6 @@ func RegisterPipelineMonitor(pm PipelineMonitor) {
 	registeredMonitor.Lock()
 	defer registeredMonitor.Unlock()
 	registeredMonitor.pm = pm
-	// A new pipeline invalidates the old one's bottleneck.
 	bottleneck.invalidate()
 }
 
@@ -192,8 +189,8 @@ func BackpressureSnapshot() BackpressureSummary {
 	return DeriveBackpressure(pm.Snapshots())
 }
 
-// bottleneckCache memoizes the derived summary: reading it walks every component's rolling
-// history, while correlating that immutable summary with each rotation window is cheap.
+// bottleneckCache memoizes the derived summary: deriving it walks every component's rolling
+// history, while correlating the result with a rotation window is cheap.
 type bottleneckCache struct {
 	mu         sync.Mutex
 	clk        clock.Clock
@@ -214,9 +211,8 @@ func (c *bottleneckCache) invalidate() {
 	c.valid = false
 }
 
-// bottleneckDuringLoss names a component that saturated during the actual post-rotation read
-// window. A recovered component is eligible only when its last saturated sample is at or after
-// the rotation; saturation before the rotation cannot have caused this loss.
+// bottleneckDuringLoss names a component that saturated during the post-rotation read window.
+// Saturation that ended before the rotation cannot have caused the loss.
 func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now time.Time) string {
 	if summary.State == "" || lossWindowStartedAt.IsZero() || lossWindowStartedAt.After(now) {
 		return ""
@@ -250,9 +246,8 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 		return recovered.Component
 	}
 
-	// Saturation durations cover the trailing 30 minutes. Inside that observation window, a
-	// healthy summary proves that no measured component saturated after the rotation. For a
-	// longer close_timeout, absence of a timestamp is not enough evidence, so stay unknown.
+	// Saturation durations only cover the trailing 30 minutes, so a healthy summary proves
+	// nothing about a rotation older than that.
 	if summary.State == BackpressureHealthy && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
 		return NoBottleneck
 	}
@@ -278,8 +273,8 @@ func (c *bottleneckCache) get(lossWindowStartedAt time.Time) string {
 
 		c.mu.Lock()
 		if generation != c.generation {
-			// The registered pipeline changed while its snapshot was being derived. Retry so
-			// neither this caller nor the cache observes the stopped pipeline.
+			// The pipeline changed mid-derivation: the stopped one must reach neither the
+			// caller nor the cache.
 			c.mu.Unlock()
 			continue
 		}

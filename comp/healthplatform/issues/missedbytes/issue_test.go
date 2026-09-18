@@ -7,6 +7,7 @@ package missedbytes
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -204,6 +205,10 @@ func TestBuildIssue(t *testing.T) {
 			steps := issue.GetRemediation().GetSteps()
 			require.NotEmpty(t, steps)
 			assert.Contains(t, steps[0].GetText(), "agent status", "step 1 is the fastest diagnostic command")
+			assert.Contains(t, steps[1].GetText(), "`logs_config.close_timeout`")
+			assert.Contains(t, steps[1].GetText(), "from its current value (default: 60 seconds)")
+			assert.NotContains(t, steps[4].GetText(), "auto_multi_line_detection",
+				"multiline aggregation runs before the measured processor, so disabling it can raise its load")
 			for i, step := range steps {
 				assert.Equal(t, int32(i+1), step.GetOrder(), "Order must be contiguous and 1-indexed")
 			}
@@ -335,240 +340,152 @@ func TestBuildIssue_BackpressureReachesExtraAsObjects(t *testing.T) {
 	assert.Equal(t, float64(1740), got["saturated_30m_s"])
 }
 
-// Loss-time attribution is causal; the check-time snapshot is only correlational, so the
-// description must prefer the former when the two disagree.
-func TestBuildIssue_DescriptionPrefersLossTimeBottleneck(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "9",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":9,"bottleneck":"strategy","bottleneck_rotations":7}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{
-			State:      logsmetrics.BackpressureSaturated,
-			Bottleneck: saturatedComponent("processor", 1740),
-		}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	assert.Contains(t, issue.GetDescription(), "The strategy stage of the logs pipeline was saturated during 7 of these rotations.")
-	assert.NotContains(t, issue.GetDescription(), "processor stage")
-
-	// The remediation branches on what lost the data, not on what happens to be saturated
-	// while the check runs.
-	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`strategy`")
-	assert.NotContains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`processor`")
-}
-
-func TestBuildIssue_ProcessorRemediationDoesNotDisableMultiline(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:                   "1024",
-		contextKeyRotations:               "1",
-		contextKeySourceCount:             "1",
-		contextKeyPairsOmitted:            "0",
-		contextKeySources:                 `[{"source":"nginx","service":"web","bytes":1024,"rotations":1,"bottleneck":"processor","bottleneck_rotations":1}]`,
-		contextKeyLossBottleneck:          "processor",
-		contextKeyLossBottleneckRotations: "1",
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	processorStep := issue.GetRemediation().GetSteps()[4].GetText()
-	assert.Contains(t, processorStep, "processing_rules")
-	assert.NotContains(t, processorStep, "auto_multi_line_detection",
-		"multiline aggregation runs before the measured processor and disabling it can increase processor load")
-}
-
-// The loss happened while the pipeline was keeping up: the fix is close_timeout, not
-// relieving saturation, and the prose has to say so.
-func TestBuildIssue_HealthyAtLossTimeSaysSo(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "4",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{State: logsmetrics.BackpressureHealthy}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	assert.Contains(t, issue.GetDescription(), "ran out of time rather than throughput")
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "No pipeline component was saturated when this data was lost")
-	// Step 1 points by setting name, not step number, so reordering cannot make it lie.
-	assert.Contains(t, step1, "`logs_config.close_timeout`")
-	step2 := issue.GetRemediation().GetSteps()[1].GetText()
-	assert.Contains(t, step2, "`logs_config.close_timeout`")
-	assert.Contains(t, step2, "from its current value")
-	assert.Contains(t, step2, "default: 60 seconds")
-}
-
-// The loss window is 24h and the check runs every 15m, so the pipeline can be healthy at loss
-// time and saturated by the time the issue is built. Step 1 must not blame the later component.
-func TestBuildIssue_HealthyAtLossTimeIgnoresLaterSaturation(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "4",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{
-			State:      logsmetrics.BackpressureSaturated,
-			Bottleneck: &logsmetrics.ComponentBackpressure{Component: "strategy", Instance: "0", AvgRatio: 0.98, CurrentlySaturated: true},
-		}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "No pipeline component was saturated when this data was lost")
-	assert.NotContains(t, step1, "`strategy`", "strategy saturated after the loss, so it did not cause it")
-}
-
-// rankSources keeps one stage per tuple, so a tuple that was 3 unsaturated and 2 worker
-// rotations arrives as ("none", 3) with the worker pair discarded. The 2 must not vanish.
-func TestBuildIssue_WithinTupleMixDoesNotRuleOutSaturation(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "5",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":5,"bottleneck":"none","bottleneck_rotations":3}]`,
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "3 of 5 rotations")
-	assert.NotContains(t, step1, "No pipeline component was saturated",
-		"2 of the 5 rotations were attributed to a saturated stage and dropped by rankSources")
-}
-
-// The dominant attribution is a plurality, not a verdict. A healthy majority must not rule
-// out the rotations that were saturated.
-func TestBuildIssue_HealthyMajorityDoesNotRuleOutSaturation(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "2048",
-		contextKeyRotations:    "11",
-		contextKeySourceCount:  "2",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"none","bottleneck_rotations":6},` +
-			`{"source":"redis","service":"cache","bytes":1024,"rotations":5,"bottleneck":"worker","bottleneck_rotations":5}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{State: logsmetrics.BackpressureHealthy}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "6 of 11 rotations")
-	assert.Contains(t, step1, "`logs_config.close_timeout`")
-	assert.NotContains(t, step1, "No pipeline component was saturated",
-		"five rotations were saturated, so saturation cannot be ruled out")
-}
-
-// The mirror case: a saturated plurality must not imply every rotation was saturated.
-func TestBuildIssue_SaturatedMajorityIsCountQualified(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "2048",
-		contextKeyRotations:    "10",
-		contextKeySourceCount:  "2",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"worker","bottleneck_rotations":6},` +
-			`{"source":"redis","service":"cache","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "`worker`")
-	assert.Contains(t, step1, "during 6 of 10 rotations")
-}
-
-// Tuples dropped from the breakdown may have been saturated, so a clean reported set is not
-// enough to rule saturation out.
-func TestBuildIssue_OmittedTuplesPreventRulingOutSaturation(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "9",
-		contextKeySourceCount:  "4",
-		contextKeyPairsOmitted: "3",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	assert.NotContains(t, issue.GetRemediation().GetSteps()[0].GetText(),
-		"No pipeline component was saturated",
-		"three omitted tuples are unaccounted for, so saturation cannot be ruled out")
-}
-
-// Attribution missing entirely is not the same as attribution saying the pipeline was healthy.
-func TestBuildIssue_UnknownAttributionUsesCheckTimeWording(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "4",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{
-			State:      logsmetrics.BackpressureSaturated,
-			Bottleneck: &logsmetrics.ComponentBackpressure{Component: "strategy", Instance: "0", AvgRatio: 0.98, CurrentlySaturated: true},
-		}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "was not measured")
-	assert.Contains(t, step1, "`strategy` is saturated now")
-}
-
-// WARNING still carries a bottleneck, so the fallback must not send the reader after a
-// component that has already recovered.
-func TestBuildIssue_RecoveredCheckTimeBottleneckIsHistorical(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "4",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{
-			State: logsmetrics.BackpressureWarning,
-			Bottleneck: &logsmetrics.ComponentBackpressure{
-				Component:           "strategy",
-				Instance:            "0",
-				AvgRatio:            0.4,
-				Saturated30mSeconds: 120,
+// Step 1 names what to fix, so every claim it makes has to be backed by what was measured.
+func TestBuildIssue_FirstRemediationStep(t *testing.T) {
+	tests := []struct {
+		name        string
+		rotations   int64
+		sourceCount int64
+		omitted     int64
+		sources     string
+		bp          *backpressureWire
+		wantStep    []string
+		notWantStep []string
+		wantDesc    []string
+		notWantDesc []string
+	}{
+		{
+			// Loss-time attribution is causal; the check-time snapshot is only correlational.
+			name:      "loss-time attribution outranks the check-time snapshot",
+			rotations: 9,
+			sources:   `[{"source":"nginx","service":"web","bytes":1024,"rotations":9,"bottleneck":"strategy","bottleneck_rotations":7}]`,
+			bp: &backpressureWire{
+				State:      logsmetrics.BackpressureSaturated,
+				Bottleneck: saturatedComponent("processor", 1740),
 			},
-		}),
+			wantStep:    []string{"`strategy`"},
+			notWantStep: []string{"`processor`"},
+			wantDesc:    []string{"The strategy stage of the logs pipeline was saturated during 7 of these rotations."},
+			notWantDesc: []string{"processor stage"},
+		},
+		{
+			// Nothing was saturated, so close_timeout is the fix rather than relieving saturation.
+			name:      "healthy at loss time points at close_timeout",
+			rotations: 4,
+			sources:   `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+			bp:        &backpressureWire{State: logsmetrics.BackpressureHealthy},
+			// Step 1 points by setting name, not step number, so reordering cannot make it lie.
+			wantStep: []string{"No pipeline component was saturated when this data was lost", "`logs_config.close_timeout`"},
+			wantDesc: []string{"ran out of time rather than throughput"},
+		},
+		{
+			// The loss window is 24h and the check runs every 15m, so the pipeline can be
+			// healthy at loss time and saturated by the time the issue is built.
+			name:        "saturation that started after the loss is not blamed",
+			rotations:   4,
+			sources:     `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+			bp:          &backpressureWire{State: logsmetrics.BackpressureSaturated, Bottleneck: saturatedComponent("strategy", 60)},
+			wantStep:    []string{"No pipeline component was saturated when this data was lost"},
+			notWantStep: []string{"`strategy`"},
+		},
+		{
+			// rankSources keeps one stage per tuple, so a tuple that was 3 unsaturated and 2
+			// worker rotations arrives as ("none", 3). The 2 must not vanish.
+			name:        "a tuple's dropped saturation keeps the claim qualified",
+			rotations:   5,
+			sources:     `[{"source":"nginx","service":"web","bytes":1024,"rotations":5,"bottleneck":"none","bottleneck_rotations":3}]`,
+			wantStep:    []string{"3 of 5 rotations"},
+			notWantStep: []string{"No pipeline component was saturated"},
+		},
+		{
+			// The dominant attribution is a plurality, not a verdict.
+			name:        "a healthy majority does not rule out saturation",
+			rotations:   11,
+			sourceCount: 2,
+			sources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"none","bottleneck_rotations":6},` +
+				`{"source":"redis","service":"cache","bytes":1024,"rotations":5,"bottleneck":"worker","bottleneck_rotations":5}]`,
+			bp:          &backpressureWire{State: logsmetrics.BackpressureHealthy},
+			wantStep:    []string{"6 of 11 rotations", "`logs_config.close_timeout`"},
+			notWantStep: []string{"No pipeline component was saturated"},
+		},
+		{
+			name:        "a saturated majority is count-qualified too",
+			rotations:   10,
+			sourceCount: 2,
+			sources: `[{"source":"nginx","service":"web","bytes":1024,"rotations":6,"bottleneck":"worker","bottleneck_rotations":6},` +
+				`{"source":"redis","service":"cache","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+			wantStep: []string{"`worker`", "during 6 of 10 rotations"},
+		},
+		{
+			// Tuples the cap dropped may have been saturated.
+			name:        "omitted tuples keep the claim qualified",
+			rotations:   9,
+			sourceCount: 4,
+			omitted:     3,
+			sources:     `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+			notWantStep: []string{"No pipeline component was saturated"},
+		},
+		{
+			// Attribution missing entirely is not attribution saying the pipeline was healthy.
+			name:      "unmeasured attribution falls back to the live snapshot",
+			rotations: 4,
+			sources:   `[{"source":"nginx","service":"web","bytes":1024,"rotations":4}]`,
+			bp: &backpressureWire{
+				State:      logsmetrics.BackpressureSaturated,
+				Bottleneck: saturatedComponent("destination_reliable_0", 1740),
+			},
+			wantStep: []string{"was not measured", "`destination_reliable_0` is saturated now"},
+			wantDesc: []string{"destination_reliable_0 stage of the logs pipeline is saturated"},
+		},
+		{
+			// WARNING keeps a bottleneck for 30m after it recovers.
+			name:      "a recovered snapshot is described as history",
+			rotations: 4,
+			sources:   `[{"source":"nginx","service":"web","bytes":1024,"rotations":4}]`,
+			bp: &backpressureWire{
+				State:      logsmetrics.BackpressureWarning,
+				Bottleneck: &logsmetrics.ComponentBackpressure{Component: "strategy", Instance: "0", AvgRatio: 0.4, Saturated30mSeconds: 120},
+			},
+			wantStep:    []string{"`strategy`", "was saturated earlier in the last 30 minutes"},
+			notWantStep: []string{"`strategy` is saturated now"},
+		},
 	}
 
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.sourceCount == 0 {
+				tc.sourceCount = 1
+			}
+			ctx := map[string]string{
+				contextKeyBytes:        "1024",
+				contextKeyRotations:    strconv.FormatInt(tc.rotations, 10),
+				contextKeySourceCount:  strconv.FormatInt(tc.sourceCount, 10),
+				contextKeyPairsOmitted: strconv.FormatInt(tc.omitted, 10),
+				contextKeyLastLossAt:   recentTimestamp(),
+				contextKeySources:      tc.sources,
+			}
+			if tc.bp != nil {
+				ctx[contextKeyBackpressure] = backpressureContext(t, *tc.bp)
+			}
 
-	step1 := issue.GetRemediation().GetSteps()[0].GetText()
-	assert.Contains(t, step1, "`strategy`")
-	assert.Contains(t, step1, "was saturated earlier in the last 30 minutes")
-	assert.NotContains(t, step1, "`strategy` is saturated now")
+			issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+			require.NoError(t, err)
+
+			step1 := issue.GetRemediation().GetSteps()[0].GetText()
+			for _, substr := range tc.wantStep {
+				assert.Contains(t, step1, substr)
+			}
+			for _, substr := range tc.notWantStep {
+				assert.NotContains(t, step1, substr)
+			}
+			for _, substr := range tc.wantDesc {
+				assert.Contains(t, issue.GetDescription(), substr)
+			}
+			for _, substr := range tc.notWantDesc {
+				assert.NotContains(t, issue.GetDescription(), substr)
+			}
+		})
+	}
 }
 
 // agent diagnose prints Description verbatim behind a fixed prefix.
@@ -610,27 +527,4 @@ func TestBuildIssue_MalformedBackpressureDegrades(t *testing.T) {
 
 	assert.Equal(t, "Lost 1.0 kB of logs from source nginx in the last 24 hours", issue.GetTitle())
 	assert.NotContains(t, issue.GetExtra().AsMap(), contextKeyBackpressure)
-}
-
-// Nothing was attributed at loss time, so the check-time snapshot is the only branch
-// available and the step must still name it.
-func TestBuildIssue_FallsBackToCheckTimeBottleneck(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyBytes:        "1024",
-		contextKeyRotations:    "2",
-		contextKeySourceCount:  "1",
-		contextKeyPairsOmitted: "0",
-		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
-		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":2}]`,
-		contextKeyBackpressure: backpressureContext(t, backpressureWire{
-			State:      logsmetrics.BackpressureSaturated,
-			Bottleneck: saturatedComponent("destination_reliable_0", 1740),
-		}),
-	}
-
-	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
-	require.NoError(t, err)
-
-	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`destination_reliable_0`")
-	assert.Contains(t, issue.GetDescription(), "destination_reliable_0 stage of the logs pipeline is saturated")
 }

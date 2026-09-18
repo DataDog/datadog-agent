@@ -35,7 +35,6 @@ const (
 	// Two names sharing a prefix this long fold into one tuple.
 	missedBytesMaxNameLen = 64
 
-	// Caps distinct bottleneck labels per bucket.
 	missedBytesMaxBottlenecks = 8
 )
 
@@ -62,8 +61,8 @@ type missedBytesBucket struct {
 	bottlenecks map[string]int64
 }
 
-// recordBottleneck counts one rotation against a stage. Past the cap the rotation is left
-// unattributed rather than folded: a synthetic stage name matches no remediation step.
+// recordBottleneck counts one rotation against a stage. Past the cap it goes unattributed:
+// a synthetic stage name matches no remediation step.
 func (b *missedBytesBucket) recordBottleneck(component string) {
 	if component == "" {
 		return

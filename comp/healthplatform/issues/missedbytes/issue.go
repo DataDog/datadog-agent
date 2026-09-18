@@ -37,8 +37,7 @@ const (
 	// Encoded backpressureWire. Absent when no pipeline monitor answered.
 	contextKeyBackpressure = "backpressure"
 
-	// Host-wide loss-time attribution, computed before the per-source breakdown is capped or
-	// reduced to one component per tuple.
+	// Host-wide loss-time attribution, computed before the breakdown is capped.
 	contextKeyLossBottleneck          = "loss_time_bottleneck"
 	contextKeyLossBottleneckRotations = "loss_time_bottleneck_rotations"
 
@@ -261,7 +260,7 @@ func decodeBackpressure(encoded string) *backpressureWire {
 	if bp.State == "" {
 		return nil
 	}
-	// Bounded on the way in as well as out: encodeBackpressure caps at the same number.
+	// Bounded on the way in too: a persisted report may carry more than the cap.
 	if len(bp.Components) > maxBackpressureComponents {
 		bp.ComponentsOmitted += len(bp.Components) - maxBackpressureComponents
 		bp.Components = bp.Components[:maxBackpressureComponents]
@@ -319,7 +318,6 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 func describeCause(bp *backpressureWire, atLoss string, rotations int64) string {
 	if atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
-			// Leading with the count keeps the conclusion scoped to those rotations.
 			return fmt.Sprintf("During %d of these %s the logs pipeline was keeping up, so the Agent ran out of time rather than throughput.",
 				rotations, pluralize(rotations, "rotation"))
 		}
@@ -334,8 +332,8 @@ func describeCause(bp *backpressureWire, atLoss string, rotations int64) string 
 		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
 }
 
-// lossAttribution prefers the host-wide attribution emitted by the current check. Falling back
-// to the capped source breakdown keeps persisted reports from older Agents readable.
+// lossAttribution prefers the host-wide attribution emitted by the current check; the capped
+// source breakdown keeps persisted reports from older Agents readable.
 func lossAttribution(ctx map[string]string, sources []sourceLoss) (string, int64, bool) {
 	component, present := ctx[contextKeyLossBottleneck]
 	rotations, err := strconv.ParseInt(ctx[contextKeyLossBottleneckRotations], 10, 64)
@@ -346,7 +344,6 @@ func lossAttribution(ctx map[string]string, sources []sourceLoss) (string, int64
 	return component, rotations, false
 }
 
-// lossTimeBottleneck reports the stage blamed for the most rotations, and how many.
 func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
 	totals := make(map[string]int64, len(sources))
 	for _, s := range sources {
@@ -358,15 +355,13 @@ func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
 }
 
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
-// Loss time wins over check time: it is what lost the data, not what is saturated now.
 func firstRemediationStep(bp *backpressureWire, component string, blamed int64, completeAttribution bool, rotations, omitted int64) string {
-	// New reports aggregate before rankSources, so omitted tuples are already represented.
-	// Persisted reports that use the source fallback still require an uncapped breakdown.
+	// The source fallback keeps one stage per tuple and is capped, so what it leaves out
+	// could have been saturated.
 	whole := blamed == rotations && (completeAttribution || omitted == 0)
 
 	switch {
 	case component == logsmetrics.NoBottleneck && whole:
-		// Naming the check-time component here would claim it was measured at loss time.
 		return "No pipeline component was saturated when this data was lost, so the `logs_config.close_timeout` step below is the one that applies."
 	case component == logsmetrics.NoBottleneck:
 		return fmt.Sprintf("%d of %d %s lost data with nothing saturated: start with the `logs_config.close_timeout` step below, then check this issue's details for rotations that were saturated.",
@@ -392,7 +387,7 @@ func fmtSeconds(seconds int64) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)
 	}
-	// Rounded, not truncated: 119s reads as 2m rather than understating by 59s.
+	// Rounded, not truncated: 119s reads as 2m.
 	return fmt.Sprintf("%dm", (seconds+30)/60)
 }
 

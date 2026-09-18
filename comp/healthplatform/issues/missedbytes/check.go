@@ -29,8 +29,7 @@ const maxBreakdownSources = 10
 // maxBackpressureComponents caps the components listed individually.
 const maxBackpressureComponents = 10
 
-// ratioScale rounds the ratios to 3 decimals so an unchanged pipeline encodes identically
-// each tick.
+// ratioScale rounds ratios to 3 decimals so an unchanged pipeline encodes identically.
 const ratioScale = 1000
 
 type checker struct {

@@ -178,38 +178,31 @@ func TestHostIssueID_StableAndHostScoped(t *testing.T) {
 	assert.NotEqual(t, base, hostIssueID("host-b"), "hostname must scope the id")
 }
 
-// The pipeline snapshot is enrichment: a loss must still be reported when nothing can say
-// why it happened.
-func TestCheck_NoPipelineMonitorOmitsBackpressure(t *testing.T) {
-	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
+// An unmeasured pipeline must not be encoded as a healthy one, or the issue would claim the
+// pipeline was keeping up. The snapshot is enrichment, so the loss is still reported.
+func TestCheck_UnmeasuredPipelineOmitsBackpressure(t *testing.T) {
+	for name, registered := range map[string]bool{
+		"no monitor registered":               false,
+		"registered monitor measures nothing": true,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := newTestChecker(t, "host-a")
+			logsmetrics.MarkLogsAgentRunning()
+			if registered {
+				logsmetrics.RegisterFakePipelineMonitorForTest(nil)
+			}
+			logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
 
-	reports, err := c.Run()
-	require.NoError(t, err)
-	require.Len(t, reports, 1)
+			reports, err := c.Run()
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
 
-	assert.NotContains(t, reports[0].Context, contextKeyBackpressure,
-		"an unread pipeline must not be encoded as a healthy one")
-	assert.Equal(t, "1024", reports[0].Context[contextKeyBytes], "the loss must still be reported")
-	assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck)
-}
-
-// A monitor with no measurable component is registered but blind. Encoding it as HEALTHY
-// would make the issue claim the pipeline was keeping up and send the reader past step 3.
-func TestCheck_BlindPipelineMonitorOmitsBackpressure(t *testing.T) {
-	c := newTestChecker(t, "host-a")
-	logsmetrics.MarkLogsAgentRunning()
-	logsmetrics.RegisterFakePipelineMonitorForTest(nil)
-	logsmetrics.RecordMissedBytes("nginx", "web", 1024, time.Now())
-
-	reports, err := c.Run()
-	require.NoError(t, err)
-	require.Len(t, reports, 1)
-
-	assert.NotContains(t, reports[0].Context, contextKeyBackpressure)
-	assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck,
-		"an unmeasured pipeline must not be attributed to NoBottleneck")
+			assert.NotContains(t, reports[0].Context, contextKeyBackpressure)
+			assert.Equal(t, "1024", reports[0].Context[contextKeyBytes], "the loss must still be reported")
+			assert.Empty(t, reportSources(t, reports[0].Context)[0].Bottleneck,
+				"an unmeasured pipeline must not be attributed to NoBottleneck")
+		})
+	}
 }
 
 func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
@@ -241,8 +234,8 @@ func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
 	assert.Equal(t, int64(1), sources[0].BottleneckRotations)
 }
 
-// Selecting each tuple's winner before aggregating is a mode-of-modes error. Worker is the
-// host-wide winner here even though it is the runner-up for both individual tuples.
+// Worker is the host-wide winner even though it is the runner-up for both tuples, so the
+// count cannot come from each tuple's local winner.
 func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
