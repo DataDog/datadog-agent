@@ -1,0 +1,79 @@
+---
+# Dummy jobs to smoke test the dda feature flags system (`dda self feature`).
+# They validate that feature flags can actually be evaluated from the remote
+# feature flag service on every CI platform:
+#   - linux:   token fetched from the k8s runner vault (DDA_FEATURE_FLAGS_CI_VAULT_KEY / DDA_FEATURE_FLAGS_CI_VAULT_PATH)
+#   - windows: token fetched from SSM (DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS)
+#   - macos:   token fetched from the AWS role vault (DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS / DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS)
+#
+# The flag evaluated can be changed through the DDA_FEATURE_FLAGS_TEST_FLAG CI variable
+# (defaults to 'dd-agent-test').
+#
+# The jobs are manual so that they don't burden regular pipelines: run them on demand
+# from the pipeline view to test the feature flag feature.
+# Owned by: agent-devx
+
+dda_feature_flags_test_linux:
+  stage: maintenance_jobs
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.manual]
+  script:
+    - bash $CI_PROJECT_DIR/tools/ci/dda-feature-flags-test.sh
+  retry: !reference [.retry_only_infra_failure, retry]
+
+dda_feature_flags_test_windows:
+  stage: maintenance_jobs
+  extends: .windows_docker_default
+  rules:
+    - if: $SKIP_WINDOWS == "true"
+      when: never
+    - !reference [.manual]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e GITLAB_CI
+      -e CI_JOB_ID
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
+      -e DDA_FEATURE_FLAGS_TEST_FLAG
+      -e AWS_NETWORKING=true
+      ${WINBUILDIMAGE}
+      powershell.exe -C "C:\mnt\tools\ci\dda-feature-flags-test.ps1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  retry: !reference [.retry_only_infra_failure, retry]
+
+dda_feature_flags_test_macos:
+  stage: maintenance_jobs
+  tags: ["macos:sonoma-arm64", "specific:true"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  variables:
+    # Populate AWS credentials via CI Identities, needed by dda to fetch the feature
+    # flag client token from the vault role (see DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS).
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
+    # Forbid the AWS SDK/CLI from falling back to the EC2 instance profile via IMDS,
+    # so a missing or expired CI Identities credentials file fails loudly.
+    AWS_EC2_METADATA_DISABLED: "true"
+  before_script:
+    - !reference [.aws_retry_config]
+    # Install dda on the runner
+    - !reference [.install_python_dependencies]
+    - ci-identities-gitlab-job-client assume-role
+  after_script:
+    - !reference [.macos_cleanup_python_dependencies]
+  rules:
+    - !reference [.manual]
+  script:
+    - bash $CI_PROJECT_DIR/tools/ci/dda-feature-flags-test.sh
+  retry: !reference [.retry_only_infra_failure, retry]
