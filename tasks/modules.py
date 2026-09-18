@@ -224,20 +224,21 @@ def validate_used_by_otel(ctx: Context):
         raise Exit(message)
 
 
-def _strip_toml_comment(line: str) -> str:
+_DEPENDENCY_TABLE_NAMES = ('dependencies', 'dev-dependencies', 'build-dependencies')
+
+
+def _find_dependency_tables(data: dict, path: tuple[str, ...] = ()):
     """
-    Drop a trailing `# ...` comment, ignoring `#` inside quoted strings.
+    Yield (path, table) for every dependencies-like table nested anywhere in a
+    parsed Cargo.toml (covers top-level, [workspace.*] and [target.*.*] tables).
     """
-    in_quote = None
-    for i, ch in enumerate(line):
-        if in_quote:
-            if ch == in_quote:
-                in_quote = None
-        elif ch in ('"', "'"):
-            in_quote = ch
-        elif ch == '#':
-            return line[:i]
-    return line
+    for key, value in data.items():
+        if not isinstance(value, dict):
+            continue
+        if key in _DEPENDENCY_TABLE_NAMES:
+            yield path + (key,), value
+        else:
+            yield from _find_dependency_tables(value, path + (key,))
 
 
 @task
@@ -249,23 +250,19 @@ def validate_cargo(_: Context):
     should reference them with `dep.workspace = true`. This only prints violations for
     now; it does not fail the build.
     """
-    quoted = r'(?:"[^"]*"|\'[^\']*\')'
-    section_re = re.compile(r'^\[(.+)\]$')
-    version_re = re.compile(rf'^[A-Za-z0-9_.-]+\s*=\s*({quoted}|\{{.*\bversion\s*=\s*{quoted}.*\}})$')
+    import toml
+
     failures = []
     for path in sorted(glob('**/Cargo.toml', recursive=True)):
         if path == 'Cargo.toml' or path.split(os.sep)[0].startswith('bazel-'):
             continue
-        in_deps_section = False
         with open(path) as f:
-            for lineno, line in enumerate(f, start=1):
-                stripped = _strip_toml_comment(line).strip()
-                section = section_re.match(stripped)
-                if section:
-                    in_deps_section = 'dependencies' in section.group(1)
-                    continue
-                if in_deps_section and version_re.match(stripped):
-                    failures.append(f"{path}:{lineno}: {stripped}")
+            data = toml.load(f)
+        for table_path, table in _find_dependency_tables(data):
+            for dep_name, spec in table.items():
+                pinned = isinstance(spec, str) or (isinstance(spec, dict) and 'version' in spec)
+                if pinned:
+                    failures.append(f"{path}: [{'.'.join(table_path)}] {dep_name} = {spec!r}")
 
     if failures:
         print("modules.validate-cargo: pinned dependency versions found in non-top-level Cargo.toml files:")
