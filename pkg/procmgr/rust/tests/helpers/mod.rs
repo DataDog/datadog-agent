@@ -5,7 +5,9 @@
 
 mod spawn_identity;
 
-pub use spawn_identity::{expected_agent_spawn_user, expected_runtime_user_for_pid};
+pub use spawn_identity::{
+    expected_agent_spawn_user, expected_runtime_user_for_pid, expected_spawn_user_for_process,
+};
 
 #[cfg(unix)]
 use nix::sys::signal::{self, Signal};

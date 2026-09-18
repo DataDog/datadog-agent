@@ -276,7 +276,7 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 	}
 
 	if len(ports) == 0 {
-		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
+		fatalErrors = append(fatalErrors, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice))
 	}
 
 	return ports, errors.Join(fatalErrors...)

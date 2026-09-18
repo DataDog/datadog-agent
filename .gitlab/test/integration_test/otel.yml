@@ -21,7 +21,7 @@ integration_tests_otel:
     # TODO: remove once Bazel is used to build the Agent
     - dda inv -- -e schema.codegen
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
 
 docker_image_build_otel:
@@ -84,7 +84,7 @@ docker_image_build_otel:
     - python3 /tmp/otel-ci/otel_agent_build_tests.py
 
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
 
 # Shared caching logic for all DDOT BYOC build jobs.
@@ -188,7 +188,7 @@ docker_image_build_otel:
         { echo "ERROR: ${DDOT_BYOC_BINARY_NAME} not found in ddot extension layer"; exit 1; }
       echo "${DDOT_BYOC_BINARY_NAME} verified in ddot extension layer"
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
 
 ddot_byoc_package_build_test_linux_oci:
@@ -260,5 +260,5 @@ ddot_byoc_binary_build_test_ubuntu2004:
         fi
       fi
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success

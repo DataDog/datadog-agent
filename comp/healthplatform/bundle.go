@@ -31,6 +31,7 @@ import (
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"        // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"     // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"       // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()

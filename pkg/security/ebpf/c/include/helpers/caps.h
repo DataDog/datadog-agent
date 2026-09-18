@@ -61,4 +61,15 @@ static __attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u
     bpf_map_delete_elem(&capabilities_usage, &key);
 }
 
+// tids are reused: a leftover override depth would silently suppress the next thread's tracking
+static __attribute__((always_inline)) void cleanup_capabilities_context(u32 tid) {
+    u64 capabilities_monitoring_enabled = 0;
+    LOAD_CONSTANT("capabilities_monitoring_enabled", capabilities_monitoring_enabled);
+    if (!capabilities_monitoring_enabled) {
+        return;
+    }
+
+    bpf_map_delete_elem(&capabilities_contexts, &tid);
+}
+
 #endif /* _HELPERS_CAPS_H_ */

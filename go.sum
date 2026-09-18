@@ -617,8 +617,8 @@ cloud.google.com/go/compute v1.27.5/go.mod h1:DfwDGujFTdSeiE8b8ZqadF/uxHFBz+ekGs
 cloud.google.com/go/compute v1.28.0/go.mod h1:DEqZBtYrDnD5PvjsKwb3onnhX+qjdCVM7eshj1XdjV4=
 cloud.google.com/go/compute v1.28.1/go.mod h1:b72iXMY4FucVry3NR3Li4kVyyTvbMDE7x5WsqvxjsYk=
 cloud.google.com/go/compute v1.29.0/go.mod h1:HFlsDurE5DpQZClAGf/cYh+gxssMhBxBovZDYkEn/Og=
-cloud.google.com/go/compute v1.67.0 h1:CdAcTBCWUCoymOxOCU5sAwsGekn3KWaHI6mBkAGLQOA=
-cloud.google.com/go/compute v1.67.0/go.mod h1:h1O3BCv0Zd0/8rZ6PGx8aRBhKBtDC0AuvURtWg1hLLE=
+cloud.google.com/go/compute v1.68.0 h1:+8u41+P7i4Cdzbsna+mxfHl/cTm1HYDS+XmLdf0KcPw=
+cloud.google.com/go/compute v1.68.0/go.mod h1:h1O3BCv0Zd0/8rZ6PGx8aRBhKBtDC0AuvURtWg1hLLE=
 cloud.google.com/go/compute/metadata v0.1.0/go.mod h1:Z1VN+bulIf6bt4P/C37K4DyZYZEXYonfTBHHFPO/4UU=
 cloud.google.com/go/compute/metadata v0.2.0/go.mod h1:zFmK7XCadkQkj6TtorcaGlCW1hT1fIilQDwofLpJ20k=
 cloud.google.com/go/compute/metadata v0.2.1/go.mod h1:jgHgmJd2RKBGzXqF5LR2EZMGxBkeanZ9wwa75XHJgOM=
@@ -2552,8 +2552,8 @@ github.com/DataDog/dd-trace-go/v2 v2.10.1 h1:wX/jJcs3Zh6ybwgdMwzRi5IlZ2NIJ6OgASX
 github.com/DataDog/dd-trace-go/v2 v2.10.1/go.mod h1:fHlAl/gA8UuEoPxIoh5xoWvpsH7WT0DBW79vgjgtAjU=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7 h1:N9Ufc+tRU6BaVpxw0D60bvhqwsJ90r5ygXNIbx/kucg=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7/go.mod h1:cy6fMTy/g9yD4GxWUXTTDzKKJE9ZbONxcwiQfpPrv/M=
-github.com/DataDog/ebpf-manager v0.8.6 h1:AcAQByzla0A6MAgtrAuFUFT3GexHugphlU//OuevbLs=
-github.com/DataDog/ebpf-manager v0.8.6/go.mod h1:zlmQH/xpl87sWLv2k0ek5Nw1PsAOEfDYc8+AYd7lYxw=
+github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
+github.com/DataDog/ebpf-manager v0.8.7/go.mod h1:cvd2jNW3M29BSZGk25t8e3ffuaazbMj1fHsANObRkVw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d h1:ErpIQikDqtpE21afk2ExlJn0wg7gGWyUVu/RY4rBlMI=
@@ -2759,8 +2759,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 h1:MUaM4f+kj1ZIBPZfUS8
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3/go.mod h1:6YmVmEVRI5ZZzRjCSsb9SryKH0hAlMRdgA7kG9aDvBU=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 h1:fuSCw4Z2qfRCztMPO3GXJNSiEp6Wee+WOLwrHHUMy9c=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3/go.mod h1:6SxcHheD1pPR5+kWm1wGvjlL/YqUsh267sAfEmN4K7A=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0 h1:UjEOFpZ7KY2tp/PKLHQXakQcSNxKMGMEVTcxQbEQZMk=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0/go.mod h1:2o5yJcnWuaBOsnNqlO1reYs1OQffFkqf2xJ2mmMWNH4=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0 h1:T9rFYUxhZEBmnIgrzKZjd/0xMsWRF+brY/Gpgf5rc40=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0/go.mod h1:2o5yJcnWuaBOsnNqlO1reYs1OQffFkqf2xJ2mmMWNH4=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0 h1:k2IY7d2YZW6eY3jgTL5szmtmnpZgCvHhbhSC59714p8=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0/go.mod h1:iSlv4VibruxMhWfiKrNbn97Yjhe2855EFrgUitSESfM=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.97.0 h1:uzFo5cX+i6nQTI1J0W3n90IYK6RKufkCyR9DfvD853k=
@@ -5017,8 +5017,8 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
-gitlab.com/gitlab-org/api/client-go/v3 v3.4.0 h1:otjawgW54eVmKRGgaHQmH65sfUP+y2Xmcps5EVp/UYE=
-gitlab.com/gitlab-org/api/client-go/v3 v3.4.0/go.mod h1:k7uYxRoIeuSqyWZSJfAPZlf0L32OH0lUBImAl4gWUFc=
+gitlab.com/gitlab-org/api/client-go/v3 v3.6.0 h1:WrbusRg9iMdCQcZbbEUe1k7BLCVerG1Zw0QncwyYBxA=
+gitlab.com/gitlab-org/api/client-go/v3 v3.6.0/go.mod h1:k7uYxRoIeuSqyWZSJfAPZlf0L32OH0lUBImAl4gWUFc=
 go.einride.tech/aip v0.66.0/go.mod h1:qAhMsfT7plxBX+Oy7Huol6YUvZ0ZzdUz26yZsQwfl1M=
 go.einride.tech/aip v0.67.1/go.mod h1:ZGX4/zKw8dcgzdLsrvpOOGxfxI2QSk12SlP7d6c0/XI=
 go.einride.tech/aip v0.68.0/go.mod h1:7y9FF8VtPWqpxuAxl0KQWqaULxW4zFIesD6zF5RIHHg=

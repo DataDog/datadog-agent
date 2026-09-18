@@ -89,8 +89,21 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, string(containerID))
-	return tagger.Tag(entityID, types.OrchestratorCardinality)
+	entityContainerID := types.NewEntityID(types.ContainerID, string(containerID))
+	tags, err := tagger.Tag(entityContainerID, types.OrchestratorCardinality)
+
+	if imageTag := utils.GetTagValue("image_tag", tags); len(imageTag) != 0 {
+		return tags, err
+	}
+	// If we don't have image_tag we fallback and try to get it from the Container Image Metadata
+	if imageID := utils.GetTagValue("image_id", tags); len(imageID) != 0 {
+		entityContainerImageMetadataID := types.NewEntityID(types.ContainerImageMetadata, string(imageID))
+		fallbackTags, _ := tagger.Tag(entityContainerImageMetadataID, types.OrchestratorCardinality)
+		if imageTag := utils.GetTagValue("image_tag", fallbackTags); len(imageTag) != 0 {
+			tags = append(tags, imageTag)
+		}
+	}
+	return tags, err
 }
 
 // GetValue return the tag value for the given id and tag name

@@ -6,6 +6,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -158,10 +159,12 @@ type TestResult struct {
 		Name        string `json:"name,omitempty"`
 		DisplayName string `json:"displayName,omitempty"`
 	} `json:"location"`
-	DD     map[string]interface{} `json:"_dd"` // TestRequestInternalFields
-	Result Result                 `json:"result"`
-	Test   Test                   `json:"test"`
-	V      int                    `json:"v"` // Major result version
+	DD map[string]interface{} `json:"_dd"` // TestRequestInternalFields
+	// Enrichment is opaque metadata copied from the Synthetics test request.
+	Enrichment json.RawMessage `json:"enrichment,omitempty"`
+	Result     Result          `json:"result"`
+	Test       Test            `json:"test"`
+	V          int             `json:"v"` // Major result version
 }
 
 // APIErrorCode represents a specific error code returned by the API.

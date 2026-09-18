@@ -81,7 +81,7 @@ windows_msi_and_bosh_zip_x64-a7:
 windows_msi_and_bosh_zip_x64-a7-fips:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     ARCH: "x64"
@@ -91,7 +91,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
 .windows_zip_base:
   stage: package_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   needs: ["go_deps"]
@@ -166,7 +166,7 @@ windows_zip_ddot_x64:
 .windows_zip_bazel_base:
   stage: package_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   needs: ["go_deps"]

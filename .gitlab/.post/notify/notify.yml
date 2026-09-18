@@ -57,7 +57,7 @@ notify_gitlab_ci_changes:
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64", "specific:true"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - changes:
         paths:
           - .gitlab-ci.yml
