@@ -66,7 +66,7 @@ func (a *Agent) Truncate(s *pb.Span) {
 func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 	r, ok := a.TruncateResource(s.Resource())
 	if !ok {
-		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource())
 		s.SetResource(r)
 	}
 

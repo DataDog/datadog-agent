@@ -65,6 +65,10 @@ func (n *noopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil
 }
 
+func (n *noopHealthPlatform) IssueDiscriminator(hostID string) string {
+	return hostID
+}
+
 func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

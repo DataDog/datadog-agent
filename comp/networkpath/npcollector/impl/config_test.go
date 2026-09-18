@@ -30,6 +30,10 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
 
+	config.basicTestsEnabled = true
+	assert.True(t, config.networkPathCollectorEnabled())
+
+	config.basicTestsEnabled = false
 	config.netflowMonitoringEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 }
@@ -47,6 +51,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -120,6 +125,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
@@ -187,4 +193,31 @@ func TestNewConfigInvalidFilters(t *testing.T) {
 	require.NotNil(t, result)
 
 	assert.Empty(t, result.filterConfig)
+}
+
+func TestNewConfigFiltersFromEnv(t *testing.T) {
+	t.Setenv("DD_NETWORK_PATH_COLLECTOR_FILTERS", `[
+		{"match_domain":"*.example.com","type":"exclude"},
+		{"match_domain":"^api-[0-9]+\\.example\\.com$","match_domain_strategy":"regex","type":"include"},
+		{"match_ip":"10.0.0.0/8","type":"exclude"}
+	]`)
+
+	mockConfig := config.NewMock(t)
+	result := newConfig(mockConfig, logmock.New(t))
+
+	require.Equal(t, []connfilter.Config{
+		{
+			Type:        connfilter.FilterTypeExclude,
+			MatchDomain: "*.example.com",
+		},
+		{
+			Type:                connfilter.FilterTypeInclude,
+			MatchDomain:         `^api-[0-9]+\.example\.com$`,
+			MatchDomainStrategy: connfilter.MatchDomainStrategyRegex,
+		},
+		{
+			Type:    connfilter.FilterTypeExclude,
+			MatchIP: "10.0.0.0/8",
+		},
+	}, result.filterConfig)
 }

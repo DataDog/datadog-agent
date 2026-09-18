@@ -27,6 +27,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 
@@ -45,6 +47,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }
 
@@ -97,6 +100,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
 	var checkRunCount atomic.Int32
@@ -105,7 +109,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		testIssueID = "test-bundle-lifecycle-issue"
 		// Reuse a real issue name registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueName = "Docker File Tailing Disabled"
+		testIssueName = "Docker Socket Permission"
 	)
 	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
@@ -183,13 +187,14 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 
 	const (
 		issueAID      = "test-lifecycle-A"
 		issueBID      = "test-lifecycle-B"
-		testIssueName = "Docker File Tailing Disabled"
-		testIssueType = "docker_file_tailing_disabled"
+		testIssueName = "Docker Socket Permission"
+		testIssueType = "docker_socket_permission"
 		testSource    = "test-lifecycle"
 	)
 

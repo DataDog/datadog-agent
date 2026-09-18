@@ -258,9 +258,15 @@ func (s *testInstallAltDirAndCorruptForUninstallSuite) TestInstallAltDirAndCorru
 		windowsAgent.WithApplicationDataDirectory(configRoot),
 	)
 
+	// Stop the agent before deleting the registry key below: otherwise the running
+	// service (as ddagentuser) can lose track of configRoot and recreate the default
+	// config dir itself, leaving it with an untrusted owner.
+	err := windowsCommon.StopService(vm, "DatadogAgent")
+	s.Require().NoError(err)
+
 	// remove registry key that contains install info to ensure uninstall succeeds
 	// with a corrupted install
-	err := windowsCommon.DeleteRegistryKey(vm, windowsAgent.RegistryKeyPath)
+	err = windowsCommon.DeleteRegistryKey(vm, windowsAgent.RegistryKeyPath)
 	s.Require().NoError(err)
 
 	// uninstall the agent

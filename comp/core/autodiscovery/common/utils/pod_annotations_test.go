@@ -82,11 +82,12 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 	const adID = "docker://foobar"
 
 	tests := []struct {
-		name         string
-		annotations  map[string]string
-		adIdentifier string
-		output       []integration.Config
-		errs         []error
+		name               string
+		annotations        map[string]string
+		adIdentifier       string
+		hybridIgnoreADTags bool
+		output             []integration.Config
+		errs               []error
 	}{
 		{
 			name: "Nominal case with two templates",
@@ -356,6 +357,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 		{
 			name: "v2 annotations with ignore_ad_tags",
@@ -381,6 +385,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					IgnoreAutodiscoveryTags: true,
 				},
 			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 		{
 			name: "v2 annotations with adv1 ignore_ad_tags",
@@ -405,6 +412,37 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers:           []string{adID},
 					IgnoreAutodiscoveryTags: false,
 				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, ad.datadoghq.com/foobar.ignore_autodiscovery_tags, service-discovery.datadoghq.com/foobar.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "hybrid mode consumes the non-legacy ignore_ad_tags and reports the legacy one",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto2"}
+						]
+					}
+				}`,
+				"ad.datadoghq.com/foobar.ignore_autodiscovery_tags":                "true",
+				"service-discovery.datadoghq.com/foobar.ignore_autodiscovery_tags": "true",
+				"service-discovery.datadoghq.com/foobar.check_names":               `["foo"]`,
+			},
+			adIdentifier:       "foobar",
+			hybridIgnoreADTags: true,
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto2"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring service-discovery.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
 			},
 		},
 		{
@@ -473,11 +511,107 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "complete v1 and v2 check configurations on the same identifier",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto"}
+						]
+					}
+				}`,
+				"ad.datadoghq.com/foobar.check_names":  `["http_check"]`,
+				"ad.datadoghq.com/foobar.init_configs": `[{}]`,
+				"ad.datadoghq.com/foobar.instances":    `[{"name":"My service","url":"http://%%host%%"}]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.check_names, ad.datadoghq.com/foobar.init_configs, ad.datadoghq.com/foobar.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "complete v1 and legacy check configurations on the same identifier",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.check_names":                 `["apache"]`,
+				"ad.datadoghq.com/foobar.init_configs":                `[{}]`,
+				"ad.datadoghq.com/foobar.instances":                   `[{"apache_status_url":"http://%%host%%/server-status?auto"}]`,
+				"service-discovery.datadoghq.com/foobar.check_names":  `["http_check"]`,
+				"service-discovery.datadoghq.com/foobar.init_configs": `[{}]`,
+				"service-discovery.datadoghq.com/foobar.instances":    `[{"name":"My service","url":"http://%%host%%"}]`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.check_names takes precedence, ignoring service-discovery.datadoghq.com/foobar.check_names, service-discovery.datadoghq.com/foobar.init_configs, service-discovery.datadoghq.com/foobar.instances: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "standalone ignore_autodiscovery_tags next to a v2 configuration",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto"}
+						]
+					}
+				}`,
+				"ad.datadoghq.com/foobar.ignore_autodiscovery_tags": "true",
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.checks takes precedence, ignoring ad.datadoghq.com/foobar.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "legacy ignore_autodiscovery_tags next to a v1 check configuration",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.check_names":                              `["apache"]`,
+				"ad.datadoghq.com/foobar.init_configs":                             `[{}]`,
+				"ad.datadoghq.com/foobar.instances":                                `[{"apache_status_url":"http://%%host%%/server-status?auto"}]`,
+				"service-discovery.datadoghq.com/foobar.ignore_autodiscovery_tags": "true",
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("ad.datadoghq.com/foobar.check_names takes precedence, ignoring service-discovery.datadoghq.com/foobar.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier)
+			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier, tt.hybridIgnoreADTags)
 			assert.ElementsMatch(t, tt.output, configs)
 			assert.ElementsMatch(t, tt.errs, errs)
 		})

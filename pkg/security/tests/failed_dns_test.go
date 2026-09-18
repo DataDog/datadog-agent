@@ -57,6 +57,8 @@ func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
 	return hex.EncodeToString(decoded), nil
 }
 
+var _ = declare(TestFailedDNSFullResponse, testOpts{networkIngressEnabled: true})
+
 func TestFailedDNSFullResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -72,7 +74,7 @@ func TestFailedDNSFullResponse(t *testing.T) {
 		}
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +103,9 @@ func TestFailedDNSFullResponse(t *testing.T) {
 		}
 	})
 }
+
+var _ = declare(TestFailedDNSRequest, testOpts{networkIngressEnabled: true})
+
 func TestFailedDNSRequest(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -116,7 +121,7 @@ func TestFailedDNSRequest(t *testing.T) {
 		}
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

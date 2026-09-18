@@ -7,8 +7,28 @@
      AIX should add an entry to the current (unreleased) section below. -->
 
 ## Unreleased
-
 <!-- Add entries here for changes not yet in a release. -->
+
+- The services now start automatically on reboot. Install adds an `/etc/inittab` entry via `mkitab` (`datadog-agent:2:once:startsrc -g datadog-agent`) that starts the SRC group when init enters multi-user run level; the entry is removed on uninstall (`rmitab`). Previously the services were only started during install/upgrade and had to be started manually after every reboot.
+- The agent, trace-agent, and agent-data-plane SRC subsystems are now registered in a shared `datadog-agent` SRC group, so all services can be started/stopped together with `startsrc -g datadog-agent` / `stopsrc -g datadog-agent` (and listed with `lssrc -g datadog-agent`) instead of one subsystem at a time. Individual subsystems can still be addressed with `-s` as before, but this might change in the future, group should be used.
+
+
+--
+
+## 7.84.0-devel.git.927.0ff5ac6-1 (2026-09-10)
+
+- Update github.com/power-devops/perfstat to fix various memory leaks, in particular in the disk check.
+
+---
+
+## 7.84.0-devel.git.410.f0f79d8-1 (2026-08-24)
+
+- Bundle the `apache` check in the AIX package so operators can monitor Apache HTTP Server (via `mod_status`) without any manual install step.
+- Build the embedded OpenSSL with `-blibpath` pointing at the embedded library directory so the `openssl` CLI works when invoked directly from a plain shell. Previously it failed with `Dependent module /usr/lib/libssl.a(libssl64.so.3) could not be loaded` unless `LIBPATH` was set manually.
+
+---
+
+## 7.83.0-devel.git.909.f7eb778-1 (2026-08-18)
 
 - Populate `datadog.yaml` automatically on first install from `DD_API_KEY`, `DD_SITE`, `DD_HOSTNAME`, `DD_TAGS`, `DD_ENV`, `DD_INFRASTRUCTURE_MODE`, and proxy (`DD_PROXY_HTTP`/`DD_PROXY_HTTPS`/`DD_PROXY_NO_PROXY`, or generic `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`) environment variables, mirroring the Linux install script; set `DD_INSTALL_ONLY` to skip starting the Agent.
 - Fix uninstallation: `unconfig` now uses `rmssys` only to deregister SRC subsystems, dropping the preceding `odmdelete` calls that left stale entries in the live srcmstr daemon

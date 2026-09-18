@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -25,8 +26,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -68,17 +70,43 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// adpLog writes one log record in ADP's JSON format. Preflight mode forces log_format_json, so
-// the stand-in must emit the same shape as the real binary or the tests would be exercising
-// a format that never occurs.
+// fakeSite is a source location in the stand-in's imaginary Rust source. The line is an int
+// because that is how the real binary emits it, and the location is what the finding telemetry
+// is tagged with, so it is worth the tests and the stand-in agreeing on one definition.
+type fakeSite struct {
+	file string
+	line int
+}
+
+// location is the site in the form the capture reports it.
+func (s fakeSite) location() sourceLocation {
+	return sourceLocation{file: s.file, line: strconv.Itoa(s.line)}
+}
+
+// The sites the stand-in logs from. Distinct per notable record, because the whole point of
+// tagging a finding with its location is telling two log sites apart.
+var (
+	siteDefault       = fakeSite{file: "bin/agent-data-plane/src/main.rs", line: 1}
+	siteNetError      = fakeSite{file: "lib/saluki-io/src/net/mod.rs", line: 412}
+	siteInvalidAPIKey = fakeSite{file: "lib/saluki-components/src/common/datadog/validation.rs", line: 286}
+)
+
+// adpLog writes one log record in ADP's JSON format, from siteDefault.
 func adpLog(w io.Writer, level, target, message string) {
+	adpLogAt(w, level, target, message, siteDefault)
+}
+
+// adpLogAt writes one log record in ADP's JSON format. Preflight mode forces log_format_json, so
+// the stand-in must emit the same shape as the real binary or the tests would be exercising
+// a format that never occurs — including the filename and line_number the real logger attaches.
+func adpLogAt(w io.Writer, level, target, message string, at fakeSite) {
 	rec, err := json.Marshal(map[string]any{
 		"timestamp":   "2026-07-27T12:00:00.000000Z",
 		"level":       level,
 		"message":     message,
 		"target":      target,
-		"filename":    "bin/agent-data-plane/src/main.rs",
-		"line_number": 1,
+		"filename":    at.file,
+		"line_number": at.line,
 	})
 	if err != nil {
 		panic(err)
@@ -190,17 +218,18 @@ func runFakeDataPlane() int {
 
 	if mode == modeErrors {
 		// Two records that differ only in a retry count, so they must collapse into one
-		// signature, plus a multi-line anyhow chain like the real binary emits.
-		adpLog(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 1)")
-		adpLog(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 2)")
-		adpLog(os.Stderr, "ERROR", "agent_data_plane",
-			"Failed to create internal supervisor.\n\nCaused by:\n    No such file or directory (os error 2)")
+		// signature, plus a multi-line anyhow chain like the real binary emits. The chain comes
+		// from a different site, so the run reports two distinct locations.
+		adpLogAt(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 1)", siteNetError)
+		adpLogAt(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 2)", siteNetError)
+		adpLogAt(os.Stderr, "ERROR", "agent_data_plane",
+			"Failed to create internal supervisor.\n\nCaused by:\n    No such file or directory (os error 2)", siteDefault)
 	}
 
 	if mode == modeInvalidAPIKey {
 		// The real binary reports a rejected key at WARN, from this target.
-		adpLog(os.Stderr, "WARN", "saluki_components::common::datadog::validation",
-			"Datadog API key is invalid.")
+		adpLogAt(os.Stderr, "WARN", "saluki_components::common::datadog::validation",
+			"Datadog API key is invalid.", siteInvalidAPIKey)
 	}
 
 	// The real binary only handles SIGINT; see the stopSignal comment in terminate_nix.go.
@@ -264,13 +293,17 @@ func shortTempDir(t *testing.T) string {
 	return dir
 }
 
-// setPreflightModeDuration shortens (or lengthens) the run window for one test. preflightModeDuration
-// is read when the timer is armed, so this must be called before the lifecycle starts.
-func setPreflightModeDuration(t *testing.T, d time.Duration) {
+// setPreflightModeDuration shortens (or lengthens) the run window for one test. The window is
+// read when the timer is armed, so this must be called before the lifecycle starts.
+//
+// The floor moves with the setting because it is what a sub-90s window would otherwise be raised
+// to: leaving it in place would make every shortened test wait out the real window.
+func setPreflightModeDuration(t *testing.T, cfg pkgconfigmodel.Config, d time.Duration) {
 	t.Helper()
-	original := preflightModeDuration
-	preflightModeDuration = d
-	t.Cleanup(func() { preflightModeDuration = original })
+	original := minPreflightModeDuration
+	minPreflightModeDuration = d
+	t.Cleanup(func() { minPreflightModeDuration = original })
+	cfg.Set(DataPlanePreflightModeDuration, d.String(), pkgconfigmodel.SourceAgentRuntime)
 }
 
 // useFakeDataPlane points the component at this test binary and selects a behaviour.
@@ -297,10 +330,10 @@ type harness struct {
 func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *harness {
 	t.Helper()
 	useFakeDataPlane(t, mode)
-	// The real window is 90s; every lifecycle test would pay that in wall clock.
-	setPreflightModeDuration(t, 3*time.Second)
 
 	cfg := configmock.New(t)
+	// The real window is 90s; every lifecycle test would pay that in wall clock.
+	setPreflightModeDuration(t, cfg, 3*time.Second)
 	cfg.Set("run_path", shortTempDir(t), pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("api_key", "0123456789abcdef0123456789abcdef", pkgconfigmodel.SourceFile)
 	cfg.Set(DataPlaneStopTimeout, 2, pkgconfigmodel.SourceAgentRuntime)
@@ -310,7 +343,8 @@ func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *h
 
 	tlm := telemetrymock.New(t)
 	lc := &testLifecycle{}
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
@@ -351,7 +385,9 @@ func (h *harness) capturedContains(sub string) bool {
 	return false
 }
 
-// findingCount returns how many times a finding was reported.
+// findingCount returns how many times a finding was reported, across every log site it was
+// reported from. A finding that came from ADP's log is reported once per distinct site, so this
+// is the number of sites for those and 1 for every other finding.
 //
 // A lookup error means the counter was never registered at all — if that were swallowed and
 // reported as 0, every assert.Zero on a finding would be unfalsifiable, and renaming the
@@ -370,12 +406,32 @@ func (h *harness) findingCount(t *testing.T, f finding) float64 {
 			telemetrySubsystem, metricFinding, telemetrySubsystem, metricResult)
 		return 0
 	}
+	total := 0.0
 	for _, m := range metrics {
 		if m.Tags()[labelFinding] == string(f) {
-			return m.Value()
+			total += m.Value()
 		}
 	}
-	return 0
+	return total
+}
+
+// findingLocations returns the log sites a finding was reported with, one entry per point.
+func (h *harness) findingLocations(t *testing.T, f finding) []sourceLocation {
+	t.Helper()
+	metrics, err := h.tlm.GetCountMetric(telemetrySubsystem, metricFinding)
+	require.NoError(t, err)
+
+	var locations []sourceLocation
+	for _, m := range metrics {
+		if m.Tags()[labelFinding] != string(f) {
+			continue
+		}
+		locations = append(locations, sourceLocation{
+			file: m.Tags()[labelSourceFile],
+			line: m.Tags()[labelSourceLine],
+		})
+	}
+	return locations
 }
 
 // result returns the single reported result label.
@@ -426,10 +482,27 @@ func TestPreflightModeErrorsInLog(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingErrorsInLog), h.result(t))
-	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog))
 	assert.Zero(t, h.findingCount(t, findingProbeFailed))
 	assert.Zero(t, h.findingCount(t, findingWarningsInLog),
 		"the standalone-mode warning is provoked by preflight mode itself")
+
+	// One point per distinct log site: the two retries collapse into the site they share, and
+	// the supervisor failure is reported separately because it came from somewhere else.
+	assert.ElementsMatch(t,
+		[]sourceLocation{siteNetError.location(), siteDefault.location()},
+		h.findingLocations(t, findingErrorsInLog))
+	assert.Equal(t, 2.0, h.findingCount(t, findingErrorsInLog))
+}
+
+// TestPreflightModeFindingsWithoutALogSite covers the other half of the location tags: a finding
+// the pre-flight observed about the process, rather than one ADP logged, has no source location
+// and must not be tagged with a made-up one.
+func TestPreflightModeFindingsWithoutALogSite(t *testing.T) {
+	h := newHarness(t, modeNoListener, nil)
+	h.runToCompletion(t)
+
+	assert.Equal(t, []sourceLocation{{}}, h.findingLocations(t, findingProbeFailed),
+		"a finding with no log site must report both location tags empty")
 }
 
 // TestPreflightModeInvalidAPIKey is the end-to-end version of the case that motivated
@@ -442,6 +515,10 @@ func TestPreflightModeInvalidAPIKey(t *testing.T) {
 	assert.Equal(t, string(findingWarningsInLog), h.result(t))
 	assert.Equal(t, 1.0, h.findingCount(t, findingWarningsInLog))
 	assert.Zero(t, h.findingCount(t, findingErrorsInLog), "ADP reports this at WARN, not ERROR")
+	// Only the rejected key's site: the standalone-mode warning preflight mode provokes itself
+	// is not a finding, so it contributes no location either.
+	assert.Equal(t, []sourceLocation{siteInvalidAPIKey.location()},
+		h.findingLocations(t, findingWarningsInLog))
 }
 
 func TestPreflightModeExitsEarly(t *testing.T) {
@@ -479,6 +556,10 @@ func TestPreflightModePanicIsReported(t *testing.T) {
 
 	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog),
 		"a panic bypasses the JSON logger, so it must still be reported as an error")
+	// Both panic lines are errors, but neither carries a location, so they report as one
+	// unknown site rather than two.
+	assert.Equal(t, []sourceLocation{{file: sourceUnknown, line: sourceUnknown}},
+		h.findingLocations(t, findingErrorsInLog))
 }
 
 // TestPreflightModeStopsGracefully pins the stop signal. The real binary only handles SIGINT, so
@@ -522,7 +603,7 @@ func TestPreflightModeCleansUpWorkDir(t *testing.T) {
 // window: the pre-flight must unwind rather than leave an orphaned process behind.
 func TestPreflightModeStopDuringRun(t *testing.T) {
 	h := newHarness(t, modeNormal, nil)
-	setPreflightModeDuration(t, 120*time.Second)
+	setPreflightModeDuration(t, h.cfg, 120*time.Second)
 
 	h.lc.start(t)
 	// Wait until the process is actually up before pulling the rug out.
@@ -563,7 +644,7 @@ func TestPreflightModeStopDuringRun(t *testing.T) {
 // ended. Only the findings that are artefacts of us stopping it are suppressed.
 func TestPreflightModeInterruptedStillReportsRealErrors(t *testing.T) {
 	h := newHarness(t, modeErrors, nil)
-	setPreflightModeDuration(t, 120*time.Second)
+	setPreflightModeDuration(t, h.cfg, 120*time.Second)
 
 	h.lc.start(t)
 	require.Eventually(t, func() bool {
@@ -581,7 +662,7 @@ func TestPreflightModeInterruptedStillReportsRealErrors(t *testing.T) {
 	<-h.comp.done
 
 	assert.Equal(t, string(findingInterrupted), h.result(t), "interrupted is recorded first")
-	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog),
+	assert.Equal(t, 2.0, h.findingCount(t, findingErrorsInLog),
 		"errors ADP actually logged are real even if the run was cut short")
 }
 
@@ -689,6 +770,35 @@ func TestPreflightModeInertWhenPreflightModeDisabled(t *testing.T) {
 	assert.Empty(t, h.lc.hooks)
 }
 
+// TestPreflightModeDuration covers the clamp on data_plane.preflight_mode_duration. The floor is
+// the point of the setting's contract: the window may only be extended, because a shorter one
+// stops ADP mid-startup and reports a healthy host as a finding.
+func TestPreflightModeDuration(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		want  time.Duration
+	}{
+		{name: "unset", value: nil, want: minPreflightModeDuration},
+		{name: "longer is honoured", value: "15m", want: 15 * time.Minute},
+		{name: "shorter is raised to the floor", value: "30s", want: minPreflightModeDuration},
+		{name: "zero is raised to the floor", value: "0s", want: minPreflightModeDuration},
+		{name: "negative is raised to the floor", value: "-1m", want: minPreflightModeDuration},
+		// A bare number is read as nanoseconds, which is why the floor is not just a default.
+		{name: "unitless number is raised to the floor", value: 900, want: minPreflightModeDuration},
+		{name: "garbage is raised to the floor", value: "soon", want: minPreflightModeDuration},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			if tc.value != nil {
+				cfg.Set(DataPlanePreflightModeDuration, tc.value, pkgconfigmodel.SourceFile)
+			}
+			d := &preflightModeComponent{config: cfg}
+			assert.Equal(t, tc.want, d.duration())
+		})
+	}
+}
+
 // TestPreflightModeInertWhenBinaryMissing covers the common case on builds that do not ship
 // ADP (Heroku, slim container images). It must be silent: reporting it would drown the
 // real signal in hosts that were never going to run ADP.
@@ -703,7 +813,8 @@ func TestPreflightModeInertWhenBinaryMissing(t *testing.T) {
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
 
@@ -728,7 +839,8 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
 
@@ -765,7 +877,7 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 func TestPreflightModePrepareRestrictsWorkDir(t *testing.T) {
 	h := newHarness(t, modeNormal, nil)
 
-	_, _, err := h.comp.prepare()
+	_, _, err := h.comp.prepare(context.Background())
 	require.NoError(t, err)
 
 	workDir := filepath.Join(h.cfg.GetString("run_path"), workDirName)

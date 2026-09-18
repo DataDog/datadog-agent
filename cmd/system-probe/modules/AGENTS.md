@@ -181,7 +181,7 @@ enabled := cfg.GetBool("my_module.enabled")
 eBPF modules require appropriate build tags:
 
 ```go
-//go:build linux && linux_bpf
+//go:build linux && bpf
 ```
 
 This ensures the module only compiles on Linux with eBPF support.
@@ -240,7 +240,7 @@ Modules are tested indirectly through their probe tests:
 
 6. **Build Tags**: Ensure proper platform targeting
    ```go
-   //go:build linux && linux_bpf
+   //go:build linux && bpf
    ```
 
 ## Module Lifecycle

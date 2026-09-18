@@ -18,6 +18,9 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_light_pipeline: &if_light_pipeline
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/)
+
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
@@ -140,6 +143,8 @@ include:
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
   - local: .gitlab/.post/**.yml
+  # AIX jobs
+  - local: .gitlab/aix/**.yml
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
@@ -148,7 +153,7 @@ include:
       - <<: *if_main_branch
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
-      - <<: *if_mergequeue
+      - <<: *if_light_pipeline
       - <<: *if_deploy
       - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
@@ -274,7 +279,6 @@ variables:
   # Symbols for release builds are handled by agent-release-management.
   WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -299,25 +303,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v126430166-27084be1
+  CI_IMAGE_BTF_GEN: v137515717-cbd951c9
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v126430166-27084be1
+  CI_IMAGE_DOCKER_X64: v137515717-cbd951c9
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v126430166-27084be1
+  CI_IMAGE_DOCKER_ARM64: v137515717-cbd951c9
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v126430166-27084be1
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v137515717-cbd951c9
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v126430166-27084be1
+  CI_IMAGE_LINUX: v137515717-cbd951c9
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v126430166-27084be1
+  CI_IMAGE_RPM_X64: v137515717-cbd951c9
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v126430166-27084be1
+  CI_IMAGE_RPM_ARM64: v137515717-cbd951c9
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v126430166-27084be1
+  CI_IMAGE_RPM_ARMHF: v137515717-cbd951c9
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v127592905-6a747366
+  CI_IMAGE_WIN_LTSC2022_X64: v137515717-cbd951c9
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v127592905-6a747366
+  CI_IMAGE_WIN_LTSC2025_X64: v137515717-cbd951c9
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -351,8 +355,8 @@ variables:
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
+  SITEOX_AIX_CI_RUNNER: siteox-aix-ci-runner # agent-runtimes
   ATLASSIAN_WRITE: atlassian-write # agent-delivery
-  CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
@@ -554,7 +558,7 @@ workflow:
     - <<: *if_deploy
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
-    - <<: *if_mergequeue
+    - <<: *if_light_pipeline
     # ADP is shipped in every Agent package and exercised across several test suites.
     # Treat an ADP version bump like a full pipeline so platform-specific regressions
     # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
@@ -602,16 +606,20 @@ workflow:
 # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
 #
 
+.except_light_pipeline:
+  - <<: *if_light_pipeline
+    when: never
+
+.on_light_pipeline:
+  - <<: *if_light_pipeline
+    when: on_success
+
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
 
-.on_mergequeue:
-  - <<: *if_mergequeue
-    when: on_success
-
 .manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - when: manual
     allow_failure: true
 
@@ -646,7 +654,7 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set, or if there are changes to the internal image
 # deployment config file or manually if not
 .on_deploy_internal_or_internal_image_change_or_manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
@@ -668,7 +676,7 @@ workflow:
   - <<: *if_deploy
 
 .on_deploy_stable_or_beta_repo_branch:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
@@ -784,12 +792,12 @@ workflow:
     allow_failure: true
 
 .on_all_builds:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_builds
   - <<: *on_build_changes
 
 .on_all_install_script_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -803,7 +811,7 @@ workflow:
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -814,18 +822,19 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
       paths:
+        - pkg/fleet/installer/packages/**/* # https://github.com/DataDog/datadog-agent/pull/56399
         - test/new-e2e/tests/agent-platform/tests/ddot*
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -836,7 +845,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -847,7 +856,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -858,7 +867,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -869,7 +878,7 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -899,7 +908,7 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
@@ -952,7 +961,7 @@ workflow:
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
@@ -965,7 +974,7 @@ workflow:
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
     when: never
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   # A fakeintake server change rebuilds the image: run e2e against the built
   # v<sha> image via the override. Must precede the run-all/main/release/rc cases
   # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
@@ -991,7 +1000,8 @@ workflow:
     when: on_success
   - changes:
       paths:
-        - .gitlab/test/e2e/e2e.yml
+        - pkg/config/schema/**/* # incident-60254
+        - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
         - test/e2e-framework/**/*
@@ -1025,56 +1035,13 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_container_or_e2e_changes:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - comp/core/tagger/**/*
-        - comp/core/workloadmeta/**/*
-        - comp/core/autodiscovery/listeners/**/*
-        - comp/core/autodiscovery/providers/**/*
-        - comp/forwarder/defaultforwarder/**/*
-        - comp/serializer/**/*
-        - pkg/aggregator/*/**
-        - comp/languagedetection/**/*
-        - pkg/clusteragent/admission/mutate/**/*
-        - pkg/clusteragent/languagedetection/**/*
-        - pkg/collector/corechecks/cluster/**/*
-        - pkg/collector/corechecks/containers/**/*
-        - pkg/collector/corechecks/containerimage/**/*
-        - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/sbom/**/*
-        - pkg/sbom/**/*
-        - pkg/util/clusteragent/**/*
-        - pkg/util/containerd/**/*
-        - pkg/util/containers/**/*
-        - pkg/util/docker/**/*
-        - pkg/util/ecs/**/*
-        - pkg/util/kubernetes/**/*
-        - pkg/util/cgroups/**/*
-        - pkg/util/trivy/**/*
-        - test/new-e2e/tests/containers/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_rc_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/config/remote/**/*
-        - comp/remote-config/**/*
-        - test/new-e2e/tests/remote-config/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_arun_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-runtimes/**/*
+        # TODO: Add paths that should trigger tests for npm
+        - pkg/network/**/*
+        - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
@@ -1087,86 +1054,15 @@ workflow:
         - test/new-e2e/tests/agent-configuration//**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_subcommands_or_e2e_changes:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-subcommands/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_language-detection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/language-detection/**/*
+        - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
         - comp/process/**/*
         - pkg/process/**/*
-        - comp/core/workloadmeta/collectors/internal/process/**/*
-        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_npm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        # TODO: Add paths that should trigger tests for npm
-        - pkg/network/**/*
-        - test/new-e2e/tests/npm/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_discovery_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/dist/conf.d/discovery.d/*
-        - comp/core/autodiscovery/discoverer/**/*
-        - comp/core/autodiscovery/impl/configmgr*
-        - comp/core/autodiscovery/providers/process_log.go
-        - test/new-e2e/tests/discovery/**/*
-        - pkg/collector/corechecks/discovery/**/*
-        - pkg/discovery/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_adp_preflight_mode_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/dataplane/preflightmode/**/*
-        - test/new-e2e/tests/agent-data-plane/**/*
-        # Preflight mode's eligibility gate lives in the config layer, not in the component:
-        # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
-        # source, which is what makes the pre-flight run at all.
-        - pkg/config/setup/config.go
-        # The pre-flight has nothing to run if ADP stops being packaged.
-        - deps/agent_data_plane/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_amp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-metric-pipelines/**/*
-        - cmd/agent/subcommands/dogstatsd*/*
-        - cmd/dogstatsd/**/*
-        - comp/agent/jmxlogger/**/*
-        - comp/aggregator/**/*
-        - comp/collector/**/*
-        - comp/core/agenttelemetry/**/*
-        - comp/dogstatsd/**/*
-        - comp/forwarder/**/*
-        - comp/serializer/**/*
-        - pkg/aggregator/**/*
-        - pkg/collector/**/*
-        - pkg/commonchecks/**/*
-        - pkg/jmxfetch/**/*
-        - pkg/metrics/**/*
-        - pkg/persistentcache/**/*
-        - pkg/serializer/**/*
-        - rtloader/**/*
+        - pkg/config/setup/process.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_alp_or_e2e_changes:
@@ -1188,46 +1084,14 @@ workflow:
       paths: *security_agent_change_paths
       compare_to: $COMPARE_TO_BRANCH
 
-.on_process_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/process/**/*
-        - cmd/process-agent/**/*
-        - comp/process/**/*
-        - pkg/process/**/*
-        - pkg/config/setup/process.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_orchestrator_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/forwarder/defaultforwarder/**/*
-        - pkg/collector/corechecks/cluster/orchestrator/**/*
-        - pkg/collector/corechecks/orchestrator/**/*
-        - test/new-e2e/tests/orchestrator/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_apm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/trace/**/*
-        - cmd/trace-agent/**/*
-        - comp/trace/**/*
-        - test/new-e2e/tests/apm/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
-        - .gitlab/test/e2e/e2e.yml
+        - .gitlab/test/e2e/e2e_templates.yml
+        - .gitlab/test/e2e/e2e_fleet.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
@@ -1238,49 +1102,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
-.on_ndm_netflow_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/netflow/**/*
-        - test/new-e2e/tests/ndm/netflow/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ndm_snmp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/collector/corechecks/snmp/**/*
-        - test/new-e2e/tests/ndm/snmp/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - when: manual
-    allow_failure: true
-
-.on_anomalydetection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/anomalydetection/**/*
-        - test/new-e2e/tests/anomalydetection/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ha_agent_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/haagent/**/*
-        - pkg/aggregator/**/*
-        - test/new-e2e/tests/ha-agent/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_netpath_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1288,6 +1109,8 @@ workflow:
         - cmd/system-probe/modules/traceroute.go
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
+        - pkg/network/sender/sender_linux.go
+        - pkg/process/checks/net.go
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
@@ -1311,7 +1134,7 @@ workflow:
     when: on_success
 
 .on_otel_components_changes:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - !reference [.on_main]
   - changes:
       paths:
@@ -1319,22 +1142,6 @@ workflow:
         - comp/otelcol/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-
-.on_ssi_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
-        - pkg/clusteragent/admission/mutate/common/**/*
-        - pkg/clusteragent/admission/mutate/config/**/*
-        - pkg/clusteragent/admission/mutate/tagsfromlabels/**/*
-        - pkg/clusteragent/admission/common/**/*
-        - pkg/clusteragent/admission/controllers/webhook/**/*
-        - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
-        - comp/languagedetection/**/*
-        - pkg/ssi/**/*
-        - test/new-e2e/tests/ssi/**/*
-      compare_to: $COMPARE_TO_BRANCH
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1350,6 +1157,18 @@ workflow:
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
         - test/new-e2e/tests/windows/service-test/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_powershell_check_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/dist/conf.d/powershell.d/**/*
+        - cmd/agent/dist/protected/**/*
+        - pkg/collector/corechecks/system/powershell/**/*
+        - tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs
+        - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1373,7 +1192,7 @@ workflow:
     when: on_success
 
 .on_trace_agent_changes_or_manual:
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - pkg/trace/**/*
@@ -1382,30 +1201,6 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
-
-.on_cspm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/security/**/*
-        - pkg/compliance/**/*
-        - test/new-e2e/tests/cspm/**/*
-        # The host-benchmark suite validates the bundled benchmark content, whose
-        # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
-        # policy bump must run the suite before it can break the main pipeline.
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_sbom_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/sbom/**/*
-        - pkg/security/resolvers/sbom/**/*
-        - test/new-e2e/tests/sbom/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
 
 .on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1428,41 +1223,6 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_healthplatform_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/healthplatform/**/*
-        - test/new-e2e/tests/agent-health/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_agenttelemetry_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/subcommands/run/**/*
-        - comp/core/agenttelemetry/**/*
-        - pkg/util/log/setup/**/*
-        - pkg/util/log/errortracking/**/*
-        - test/new-e2e/tests/agent-telemetry/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_privateactionrunner_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/privateactionrunner/**/*
-        - comp/privateactionrunner/**/*
-        - pkg/privateactionrunner/**/*
-        - pkg/config/setup/privateactionrunner.go
-        - pkg/proto/datadog/privateactionrunner/**/*
-        - pkg/proto/pbgo/privateactionrunner/**/*
-        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1497,7 +1257,7 @@ workflow:
     when: never
 
 .on_macos_files_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - comp/core/gui/impl/systray/**/*
@@ -1505,7 +1265,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_macos_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - omnibus/**/*
@@ -1518,7 +1278,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
@@ -1567,11 +1327,11 @@ workflow:
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 # macOS runners are scarce and queue for tens of minutes under load. These jobs stay
-# mandatory wherever they gate a merge (main/release/mergequeue/forced runs), but on
+# mandatory wherever they gate a merge (main/release/light pipeline/forced runs), but on
 # regular dev branches they become manual so they don't contend for runners on every push.
-.fast_tests_mergequeue_mandatory_manual_on_dev_branch:
+.fast_tests_light_pipeline_mandatory_manual_on_dev_branch:
   - !reference [.fast_tests_variables_named_branches]
-  - <<: *if_mergequeue
+  - <<: *if_light_pipeline
     variables:
       FAST_TESTS: "true"
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
@@ -1589,9 +1349,9 @@ workflow:
       - .gitlab/**/.*
     compare_to: $COMPARE_TO_BRANCH
 
-.on_gitlab_changes_or_mergequeue_or_main:
+.on_gitlab_changes_or_light_pipeline_or_main:
   - !reference [.on_gitlab_changes]
-  - !reference [.on_mergequeue]
+  - !reference [.on_light_pipeline]
   - !reference [.on_main]
 
 .on_invoke_tasks_changes:
@@ -1600,27 +1360,7 @@ workflow:
       paths:
         - tasks/**/*
         - .gitlab-ci.yml # A buildimage bump can also affect the invoke tasks
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_gpu_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/gpu/**/*
-        - pkg/ebpf/**/*
-        - pkg/util/kernel/**/*
-        - test/new-e2e/tests/gpu/**/*
-        - pkg/collector/corechecks/gpu/**/*
-        - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/listeners/staticconfig.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_autoscaling_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/autoscaling/**/*
-        - pkg/clusteragent/autoscaling/cluster/**/*
+        - packages/agent/dependencies/**/* # Some bazel files are read from invoke unit tests
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
@@ -1632,13 +1372,14 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - .gitlab/build/source_test/linux.yml
+        - tasks/gpu.py
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - !reference [.manual]
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
@@ -1648,7 +1389,7 @@ workflow:
 
 .on_rtloader_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - rtloader/**
@@ -1659,7 +1400,7 @@ workflow:
 
 .on_releasenotes_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - releasenotes/notes/**/*.yaml

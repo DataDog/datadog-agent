@@ -10,6 +10,7 @@ package telemetryimpl
 import (
 	"fmt"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +27,8 @@ func NewMock(t testing.TB) telemetry.Mock {
 		telemetryImpl{
 			mutex:           &mutex,
 			registry:        reg,
+			metricHelpMutex: &sync.RWMutex{},
+			metricHelp:      make(map[string]string),
 			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
@@ -40,6 +43,8 @@ func NewMockComponent() telemetry.Mock {
 		telemetryImpl{
 			mutex:           &mutex,
 			registry:        prometheus.NewRegistry(),
+			metricHelpMutex: &sync.RWMutex{},
+			metricHelp:      make(map[string]string),
 			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}

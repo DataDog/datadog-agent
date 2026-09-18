@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -16,14 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
 
@@ -43,7 +42,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
@@ -133,7 +132,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	}, kernel.WithRealUptime(), kernel.WithRealStat())
 	kernel.WithFakeProcFS(t, fakeProcFS)
 
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
 	cfg.StreamConfig.Timeout = 1 * time.Second // Set inactivity threshold to 1 second
@@ -228,7 +227,7 @@ func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
 	}, kernel.WithRealUptime(), kernel.WithRealStat())
 	kernel.WithFakeProcFS(t, fakeProcFS)
 
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 
 	telemetryMock := testutil.GetTelemetryMock(t)
 	withTelemetryEnabledPools(t, telemetryMock)
@@ -297,7 +296,7 @@ func TestGetExistingStreamNoAllocs(t *testing.T) {
 }
 
 func BenchmarkGetExistingStream(b *testing.B) {
-	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(b)
 	ctx := getTestSystemContext(b)
 	cfg := config.New()
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
@@ -310,7 +309,7 @@ func BenchmarkGetExistingStream(b *testing.B) {
 			Pid_tgid:  pidTgid,
 			Stream_id: streamID,
 		}
-		ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
+		ctx.visibleDevicesCache[int(pid)] = nvmltestutil.PhysicalDevices(b, nvmlMock, 0, 1)
 
 		b.ResetTimer()
 		b.ReportAllocs()

@@ -139,7 +139,6 @@ properties:
       batch of logs before sending.
     tags:
     - generate_const:DefaultBatchWait
-    - golang_type:float64
   close_timeout:
     node_type: setting
     type: integer
@@ -316,8 +315,6 @@ properties:
         node_type: setting
         type: number
         default: 0.75
-        tags:
-        - golang_type:float64
       pattern_table_max_size:
         node_type: setting
         type: integer
@@ -337,8 +334,6 @@ properties:
         node_type: setting
         type: number
         default: 0.5
-        tags:
-        - golang_type:float64
       tokenizer_max_input_bytes:
         node_type: setting
         type: integer
@@ -347,8 +342,6 @@ properties:
     node_type: setting
     type: number
     default: 0.48
-    tags:
-    - golang_type:float64
   auto_multi_line_default_match_timeout:
     node_type: setting
     type: integer
@@ -525,8 +518,6 @@ properties:
         node_type: setting
         type: number
         default: 1000
-        tags:
-        - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
       disabled_sources:
         node_type: setting
@@ -563,8 +554,6 @@ properties:
         node_type: setting
         type: number
         default: 0.9
-        tags:
-        - golang_type:float64
         comment: Fraction of tokens that must match for two logs to be treated as
           the same pattern.
       max_patterns:
@@ -583,8 +572,6 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
       smart_severity_profiles:
         node_type: section
@@ -606,8 +593,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -616,8 +601,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
           medium:
             node_type: section
             type: object
@@ -626,8 +609,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -636,8 +617,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean
@@ -665,8 +644,6 @@ properties:
     node_type: setting
     type: number
     default: 1
-    tags:
-    - golang_type:float64
     comment: Time in seconds
   fingerprint_config:
     node_type: section
@@ -730,8 +707,6 @@ properties:
     node_type: setting
     type: number
     default: 0.8
-    tags:
-    - golang_type:float64
     comment: Do not store logs on disk when the disk usage exceeds 80% of the disk
       capacity.
   k8s_container_use_file:
@@ -790,21 +765,18 @@ properties:
     default: 1
     tags:
     - generate_const:DefaultLogsSenderBackoffBase
-    - golang_type:float64
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
     - generate_const:DefaultLogsSenderBackoffFactor
-    - golang_type:float64
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
     tags:
     - generate_const:DefaultLogsSenderBackoffMax
-    - golang_type:float64
   sender_recovery_interval:
     node_type: setting
     type: integer

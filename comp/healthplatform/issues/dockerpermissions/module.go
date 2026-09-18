@@ -18,13 +18,13 @@ func init() {
 }
 
 const (
-	// IssueName is the identifier for Docker permission issues,
+	// IssueName is the identifier for the Docker socket permission issue,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "Docker File Tailing Disabled"
+	IssueName = "Docker Socket Permission"
 
-	// IssueType is the snake_case type key for Docker permission issues:
-	// IssueName lowercased with spaces replaced by underscores.
-	IssueType = "docker_file_tailing_disabled"
+	// IssueType is the snake_case type key for the Docker socket permission
+	// issue: IssueName lowercased with spaces replaced by underscores.
+	IssueType = "docker_socket_permission"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"

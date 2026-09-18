@@ -6,16 +6,23 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gosym/cli",
     tags = ["manual"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/dyninst/object",
-        "@com_github_spf13_cobra//:cobra",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/object",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/object",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(
     name = "cli",
     embed = [":cli_lib"],
-    gotags = ["linux_bpf"],
+    gotags = ["bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

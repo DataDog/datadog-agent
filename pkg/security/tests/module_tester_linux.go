@@ -161,6 +161,8 @@ runtime_security_config:
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
+    v2:
+      enabled: {{ .EnableSecurityProfileV2 }}
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
@@ -622,6 +624,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+	resolveStaticOpts(t, &opts)
 
 	prevEbpfLessEnabled := ebpfLessEnabled
 	defer func() {
@@ -950,7 +953,7 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	taskPath := utilkernel.HostProc(strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
-	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
+	if event.Task == l.executable || event.Task == "syscall_tester" || (event.Task == "<...>" && err == nil) {
 		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }
@@ -1145,6 +1148,12 @@ type eventKeyValueFilter struct {
 //nolint:unused
 func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
+		// Events forwarded solely for activity dumps are skipped by the rule engine, so they must
+		// not satisfy probe-event assertions either. Security profile v2 force-enables open/connect
+		// sampling, which would otherwise deliver approver-discarded events here and break negative checks.
+		if event.IsSavedByActivityDumps() {
+			return false
+		}
 		for _, filter := range filters {
 			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
 				return false

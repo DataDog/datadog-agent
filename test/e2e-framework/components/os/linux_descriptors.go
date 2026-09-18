@@ -17,6 +17,7 @@ var (
 	Ubuntu2204E2EARM = NewDescriptorWithArch(Ubuntu, "22-04-e2e", ARM64Arch)
 
 	DebianDefault = Debian12
+	Debian11E2E   = NewDescriptor(Debian, "11-e2e")
 	Debian12      = NewDescriptor(Debian, "12")
 
 	AmazonLinuxDefault = AmazonLinux2023
@@ -36,9 +37,6 @@ var (
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
 
-	FedoraDefault = Fedora40
-	Fedora40      = NewDescriptor(Fedora, "40")
-
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
 
@@ -54,6 +52,5 @@ var LinuxDescriptorsDefault = map[Flavor]Descriptor{
 	Debian:         DebianDefault,
 	RedHat:         RedHatDefault,
 	Suse:           SuseDefault,
-	Fedora:         FedoraDefault,
 	CentOS:         CentOSDefault,
 }

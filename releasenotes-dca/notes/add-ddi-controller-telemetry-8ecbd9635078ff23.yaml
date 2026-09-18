@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Adds Cluster Agent telemetry for the ``DatadogInstrumentation`` controller,
+    including the number of resources it tracks and reconciliation outcomes for
+    checks and logs.

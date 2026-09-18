@@ -12,6 +12,7 @@ import (
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -24,8 +25,9 @@ func TestNewComponentReturnsDisabledStubWhenOff(t *testing.T) {
 	cfg := configmock.New(t)
 
 	provides, err := NewComponent(Requires{
-		Config:   cfg,
-		Recorder: option.None[recorderdef.Component](),
+		Config:    cfg,
+		Telemetry: telemetryimpl.NewMock(t),
+		Recorder:  option.None[recorderdef.Component](),
 	})
 	require.NoError(t, err)
 
@@ -45,7 +47,7 @@ logs_config:
 	provides, err := NewComponent(Requires{
 		Lifecycle: lc,
 		Config:    cfg,
-		Log:       &noopLogComponent{},
+		Telemetry: telemetryimpl.NewMock(t),
 		Recorder:  option.None[recorderdef.Component](),
 	})
 	require.NoError(t, err)

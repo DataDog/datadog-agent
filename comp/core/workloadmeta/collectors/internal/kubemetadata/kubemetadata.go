@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -81,6 +82,10 @@ func GetFxOptions() fx.Option {
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+	}
+
+	if helper.IsCLCRunner(c.cfg) {
+		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
 	}
 
 	c.store = store

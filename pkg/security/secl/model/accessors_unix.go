@@ -65,6 +65,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("sysctl"),
 		eval.EventType("unlink"),
 		eval.EventType("unload_module"),
+		eval.EventType("unshare"),
 		eval.EventType("utimes"),
 	}
 }
@@ -2214,6 +2215,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Exec.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Exec.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "exec.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "exec.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Exec.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Exec.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3424,7 +3492,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.PPid)
+				return int(ev.Exec.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3703,6 +3771,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Exit.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Exit.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "exit.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "exit.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Exit.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Exit.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "exit.cap_effective":
@@ -4849,7 +4984,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.PPid)
+				return int(ev.Exit.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5053,6 +5188,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "imds.aws.security_credentials.access_key_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.AWS.SecurityCredentials.AccessKeyID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "imds.aws.security_credentials.type":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5070,6 +5216,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.IMDS.CloudProvider
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "imds.credential_source":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.IMDS.CredentialSource)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11074,14 +11231,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -11624,6 +11781,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.cap_effective":
@@ -14204,7 +14428,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.BaseEvent.ProcessContext.Parent.PPid)
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -14464,7 +14688,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.ProcessContext.Process.PPid)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17549,14 +17773,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -18099,6 +18323,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.PTrace.Tracee.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.PTrace.Tracee.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cap_effective":
@@ -20679,7 +20970,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return 0
 				}
-				return int(ev.PTrace.Tracee.Parent.PPid)
+				return int(ev.PTrace.Tracee.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20939,7 +21230,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.PTrace.Tracee.Process.PPid)
+				return int(ev.PTrace.Tracee.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25452,14 +25743,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -26002,6 +26293,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Setrlimit.Target.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Setrlimit.Target.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.cap_effective":
@@ -28582,7 +28940,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Setrlimit.Target.Parent.PPid)
+				return int(ev.Setrlimit.Target.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -28842,7 +29200,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.Target.Process.PPid)
+				return int(ev.Setrlimit.Target.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -32449,14 +32807,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -32999,6 +33357,73 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.aws_security_credentials.access_key_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Signal.Target.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.AccessKeyID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.AccessKeyID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.aws_security_credentials.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &AWSSecurityCredentialsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.aws_security_credentials.type":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &AWSSecurityCredentialsIterator{Root: ev.Signal.Target.Process.AWSSecurityCredentials}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := element.Type
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Process.AWSSecurityCredentials", ctx, nil, func(ev *Event, current *AWSSecurityCredentials) string {
+					return current.Type
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.cap_effective":
@@ -35579,7 +36004,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Signal.Target.Parent.PPid)
+				return int(ev.Signal.Target.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -35839,7 +36264,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Signal.Target.Process.PPid)
+				return int(ev.Signal.Target.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -36889,6 +37314,28 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "unshare.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Unshare.Flags)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "unshare.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Unshare.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -37405,6 +37852,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.argv",
 		"exec.argv0",
 		"exec.auid",
+		"exec.aws_security_credentials.access_key_id",
+		"exec.aws_security_credentials.length",
+		"exec.aws_security_credentials.type",
 		"exec.cap_effective",
 		"exec.cap_permitted",
 		"exec.caps_attempted",
@@ -37526,6 +37976,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.argv",
 		"exit.argv0",
 		"exit.auid",
+		"exit.aws_security_credentials.access_key_id",
+		"exit.aws_security_credentials.length",
+		"exit.aws_security_credentials.type",
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.caps_attempted",
@@ -37634,8 +38087,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.ssh_public_key",
 		"exit.user_session.ssh_session_id",
 		"imds.aws.is_imds_v2",
+		"imds.aws.security_credentials.access_key_id",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
+		"imds.credential_source",
 		"imds.host",
 		"imds.server",
 		"imds.type",
@@ -38019,6 +38474,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.argv",
 		"process.argv0",
 		"process.auid",
+		"process.aws_security_credentials.access_key_id",
+		"process.aws_security_credentials.length",
+		"process.aws_security_credentials.type",
 		"process.cap_effective",
 		"process.cap_permitted",
 		"process.caps_attempted",
@@ -38358,6 +38816,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.argv",
 		"ptrace.tracee.argv0",
 		"ptrace.tracee.auid",
+		"ptrace.tracee.aws_security_credentials.access_key_id",
+		"ptrace.tracee.aws_security_credentials.length",
+		"ptrace.tracee.aws_security_credentials.type",
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
 		"ptrace.tracee.caps_attempted",
@@ -38825,6 +39286,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.argv",
 		"setrlimit.target.argv0",
 		"setrlimit.target.auid",
+		"setrlimit.target.aws_security_credentials.access_key_id",
+		"setrlimit.target.aws_security_credentials.length",
+		"setrlimit.target.aws_security_credentials.type",
 		"setrlimit.target.cap_effective",
 		"setrlimit.target.cap_permitted",
 		"setrlimit.target.caps_attempted",
@@ -39211,6 +39675,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.argv",
 		"signal.target.argv0",
 		"signal.target.auid",
+		"signal.target.aws_security_credentials.access_key_id",
+		"signal.target.aws_security_credentials.length",
+		"signal.target.aws_security_credentials.type",
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
 		"signal.target.caps_attempted",
@@ -39505,6 +39972,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.syscall.path",
 		"unload_module.name",
 		"unload_module.retval",
+		"unshare.flags",
+		"unshare.retval",
 		"utimes.file.change_time",
 		"utimes.file.extension",
 		"utimes.file.filesystem",
@@ -39925,6 +40394,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", false, nil
 	case "exec.auid":
 		return "exec", reflect.Int, "int", false, nil
+	case "exec.aws_security_credentials.access_key_id":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.aws_security_credentials.length":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.aws_security_credentials.type":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.cap_effective":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.cap_permitted":
@@ -40167,6 +40642,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", false, nil
 	case "exit.auid":
 		return "exit", reflect.Int, "int", false, nil
+	case "exit.aws_security_credentials.access_key_id":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.aws_security_credentials.length":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.aws_security_credentials.type":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.cap_effective":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.cap_permitted":
@@ -40383,10 +40864,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", false, nil
+	case "imds.aws.security_credentials.access_key_id":
+		return "imds", reflect.String, "string", false, nil
 	case "imds.aws.security_credentials.type":
 		return "imds", reflect.String, "string", false, nil
 	case "imds.cloud_provider":
 		return "imds", reflect.String, "string", false, nil
+	case "imds.credential_source":
+		return "imds", reflect.Int, "int", false, nil
 	case "imds.host":
 		return "imds", reflect.String, "string", false, nil
 	case "imds.server":
@@ -41153,6 +41638,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", false, nil
 	case "process.auid":
 		return "", reflect.Int, "int", false, nil
+	case "process.aws_security_credentials.access_key_id":
+		return "", reflect.String, "string", false, nil
+	case "process.aws_security_credentials.length":
+		return "", reflect.Int, "int", false, nil
+	case "process.aws_security_credentials.type":
+		return "", reflect.String, "string", false, nil
 	case "process.cap_effective":
 		return "", reflect.Int, "int", false, nil
 	case "process.cap_permitted":
@@ -41831,6 +42322,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.auid":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.aws_security_credentials.access_key_id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.aws_security_credentials.length":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.aws_security_credentials.type":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.cap_effective":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cap_permitted":
@@ -42765,6 +43262,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.auid":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.aws_security_credentials.access_key_id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.aws_security_credentials.length":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.aws_security_credentials.type":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.cap_effective":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cap_permitted":
@@ -43537,6 +44040,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", false, nil
 	case "signal.target.auid":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.aws_security_credentials.access_key_id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.aws_security_credentials.length":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.aws_security_credentials.type":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.cap_effective":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cap_permitted":
@@ -44125,6 +44634,10 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "unload_module", reflect.String, "string", false, nil
 	case "unload_module.retval":
 		return "unload_module", reflect.Int, "int", false, nil
+	case "unshare.flags":
+		return "unshare", reflect.Int, "int", false, nil
+	case "unshare.retval":
+		return "unshare", reflect.Int, "int", false, nil
 	case "utimes.file.change_time":
 		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.extension":
@@ -44612,6 +45125,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.argv0", &ev.Exec.Process.Argv0, value)
 	case "exec.auid":
 		return ev.setUint32FieldValue("exec.auid", &ev.Exec.Process.Credentials.AUID, value)
+	case "exec.aws_security_credentials.access_key_id":
+		if len(ev.Exec.Process.AWSSecurityCredentials) == 0 {
+			ev.Exec.Process.AWSSecurityCredentials = append(ev.Exec.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("exec.aws_security_credentials.access_key_id", &ev.Exec.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "exec.aws_security_credentials.length":
+		return &eval.ErrFieldReadOnly{Field: "exec.aws_security_credentials.length"}
+	case "exec.aws_security_credentials.type":
+		if len(ev.Exec.Process.AWSSecurityCredentials) == 0 {
+			ev.Exec.Process.AWSSecurityCredentials = append(ev.Exec.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("exec.aws_security_credentials.type", &ev.Exec.Process.AWSSecurityCredentials[0].Type, value)
 	case "exec.cap_effective":
 		return ev.setUint64FieldValue("exec.cap_effective", &ev.Exec.Process.Credentials.CapEffective, value)
 	case "exec.cap_permitted":
@@ -44913,7 +45438,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.pid":
 		return ev.setUint32FieldValue("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
 	case "exec.ppid":
-		return ev.setUint32FieldValue("exec.ppid", &ev.Exec.Process.PPid, value)
+		return ev.setUint32FieldValue("exec.ppid", &ev.Exec.Process.PIDContext.PPid, value)
 	case "exec.sid":
 		return ev.setUint32FieldValue("exec.sid", &ev.Exec.Process.PIDContext.SID, value)
 	case "exec.syscall.path":
@@ -44969,6 +45494,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exit.argv0", &ev.Exit.Process.Argv0, value)
 	case "exit.auid":
 		return ev.setUint32FieldValue("exit.auid", &ev.Exit.Process.Credentials.AUID, value)
+	case "exit.aws_security_credentials.access_key_id":
+		if len(ev.Exit.Process.AWSSecurityCredentials) == 0 {
+			ev.Exit.Process.AWSSecurityCredentials = append(ev.Exit.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("exit.aws_security_credentials.access_key_id", &ev.Exit.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "exit.aws_security_credentials.length":
+		return &eval.ErrFieldReadOnly{Field: "exit.aws_security_credentials.length"}
+	case "exit.aws_security_credentials.type":
+		if len(ev.Exit.Process.AWSSecurityCredentials) == 0 {
+			ev.Exit.Process.AWSSecurityCredentials = append(ev.Exit.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("exit.aws_security_credentials.type", &ev.Exit.Process.AWSSecurityCredentials[0].Type, value)
 	case "exit.cap_effective":
 		return ev.setUint64FieldValue("exit.cap_effective", &ev.Exit.Process.Credentials.CapEffective, value)
 	case "exit.cap_permitted":
@@ -45258,7 +45795,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.pid":
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
+		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PIDContext.PPid, value)
 	case "exit.sid":
 		return ev.setUint32FieldValue("exit.sid", &ev.Exit.Process.PIDContext.SID, value)
 	case "exit.tid":
@@ -45300,10 +45837,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("exit.user_session.ssh_session_id", &ev.Exit.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
+	case "imds.aws.security_credentials.access_key_id":
+		return ev.setStringFieldValue("imds.aws.security_credentials.access_key_id", &ev.IMDS.AWS.SecurityCredentials.AccessKeyID, value)
 	case "imds.aws.security_credentials.type":
 		return ev.setStringFieldValue("imds.aws.security_credentials.type", &ev.IMDS.AWS.SecurityCredentials.Type, value)
 	case "imds.cloud_provider":
 		return ev.setStringFieldValue("imds.cloud_provider", &ev.IMDS.CloudProvider, value)
+	case "imds.credential_source":
+		return ev.setUint32FieldValue("imds.credential_source", &ev.IMDS.CredentialSource, value)
 	case "imds.host":
 		return ev.setStringFieldValue("imds.host", &ev.IMDS.Host, value)
 	case "imds.server":
@@ -46197,7 +46738,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.ancestors.pid":
 		return ev.setUint32FieldValue("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ancestors.ppid":
-		return ev.setUint32FieldValue("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "process.ancestors.sid":
 		return ev.setUint32FieldValue("process.ancestors.sid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "process.ancestors.tid":
@@ -46251,6 +46792,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.argv0", &ev.BaseEvent.ProcessContext.Process.Argv0, value)
 	case "process.auid":
 		return ev.setUint32FieldValue("process.auid", &ev.BaseEvent.ProcessContext.Process.Credentials.AUID, value)
+	case "process.aws_security_credentials.access_key_id":
+		if len(ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials) == 0 {
+			ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials = append(ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("process.aws_security_credentials.access_key_id", &ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "process.aws_security_credentials.length":
+		return &eval.ErrFieldReadOnly{Field: "process.aws_security_credentials.length"}
+	case "process.aws_security_credentials.type":
+		if len(ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials) == 0 {
+			ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials = append(ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("process.aws_security_credentials.type", &ev.BaseEvent.ProcessContext.Process.AWSSecurityCredentials[0].Type, value)
 	case "process.cap_effective":
 		return ev.setUint64FieldValue("process.cap_effective", &ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective, value)
 	case "process.cap_permitted":
@@ -46832,7 +47385,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.parent.pid":
 		return ev.setUint32FieldValue("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
 	case "process.parent.ppid":
-		return ev.setUint32FieldValue("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PPid, value)
+		return ev.setUint32FieldValue("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.PPid, value)
 	case "process.parent.sid":
 		return ev.setUint32FieldValue("process.parent.sid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.SID, value)
 	case "process.parent.tid":
@@ -46875,7 +47428,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.pid":
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
-		return ev.setUint32FieldValue("process.ppid", &ev.BaseEvent.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("process.ppid", &ev.BaseEvent.ProcessContext.Process.PIDContext.PPid, value)
 	case "process.sid":
 		return ev.setUint32FieldValue("process.sid", &ev.BaseEvent.ProcessContext.Process.PIDContext.SID, value)
 	case "process.tid":
@@ -47220,7 +47773,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.ancestors.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.pid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ancestors.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.ancestors.ppid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.ppid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "ptrace.tracee.ancestors.sid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.sid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.SID, value)
 	case "ptrace.tracee.ancestors.tid":
@@ -47274,6 +47827,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("ptrace.tracee.argv0", &ev.PTrace.Tracee.Process.Argv0, value)
 	case "ptrace.tracee.auid":
 		return ev.setUint32FieldValue("ptrace.tracee.auid", &ev.PTrace.Tracee.Process.Credentials.AUID, value)
+	case "ptrace.tracee.aws_security_credentials.access_key_id":
+		if len(ev.PTrace.Tracee.Process.AWSSecurityCredentials) == 0 {
+			ev.PTrace.Tracee.Process.AWSSecurityCredentials = append(ev.PTrace.Tracee.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("ptrace.tracee.aws_security_credentials.access_key_id", &ev.PTrace.Tracee.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "ptrace.tracee.aws_security_credentials.length":
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.aws_security_credentials.length"}
+	case "ptrace.tracee.aws_security_credentials.type":
+		if len(ev.PTrace.Tracee.Process.AWSSecurityCredentials) == 0 {
+			ev.PTrace.Tracee.Process.AWSSecurityCredentials = append(ev.PTrace.Tracee.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("ptrace.tracee.aws_security_credentials.type", &ev.PTrace.Tracee.Process.AWSSecurityCredentials[0].Type, value)
 	case "ptrace.tracee.cap_effective":
 		return ev.setUint64FieldValue("ptrace.tracee.cap_effective", &ev.PTrace.Tracee.Process.Credentials.CapEffective, value)
 	case "ptrace.tracee.cap_permitted":
@@ -47855,7 +48420,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.parent.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.pid", &ev.PTrace.Tracee.Parent.PIDContext.Pid, value)
 	case "ptrace.tracee.parent.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.parent.ppid", &ev.PTrace.Tracee.Parent.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.parent.ppid", &ev.PTrace.Tracee.Parent.PIDContext.PPid, value)
 	case "ptrace.tracee.parent.sid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.sid", &ev.PTrace.Tracee.Parent.PIDContext.SID, value)
 	case "ptrace.tracee.parent.tid":
@@ -47898,7 +48463,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.pid", &ev.PTrace.Tracee.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.ppid", &ev.PTrace.Tracee.Process.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.ppid", &ev.PTrace.Tracee.Process.PIDContext.PPid, value)
 	case "ptrace.tracee.sid":
 		return ev.setUint32FieldValue("ptrace.tracee.sid", &ev.PTrace.Tracee.Process.PIDContext.SID, value)
 	case "ptrace.tracee.tid":
@@ -49075,7 +49640,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.ancestors.ppid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.ppid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "setrlimit.target.ancestors.sid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49252,6 +49817,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.auid", &ev.Setrlimit.Target.Process.Credentials.AUID, value)
+	case "setrlimit.target.aws_security_credentials.access_key_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if len(ev.Setrlimit.Target.Process.AWSSecurityCredentials) == 0 {
+			ev.Setrlimit.Target.Process.AWSSecurityCredentials = append(ev.Setrlimit.Target.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("setrlimit.target.aws_security_credentials.access_key_id", &ev.Setrlimit.Target.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "setrlimit.target.aws_security_credentials.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.aws_security_credentials.length"}
+	case "setrlimit.target.aws_security_credentials.type":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if len(ev.Setrlimit.Target.Process.AWSSecurityCredentials) == 0 {
+			ev.Setrlimit.Target.Process.AWSSecurityCredentials = append(ev.Setrlimit.Target.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("setrlimit.target.aws_security_credentials.type", &ev.Setrlimit.Target.Process.AWSSecurityCredentials[0].Type, value)
 	case "setrlimit.target.cap_effective":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50661,7 +51247,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.parent.ppid", &ev.Setrlimit.Target.Parent.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.parent.ppid", &ev.Setrlimit.Target.Parent.PIDContext.PPid, value)
 	case "setrlimit.target.parent.sid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50812,7 +51398,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.ppid", &ev.Setrlimit.Target.Process.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.ppid", &ev.Setrlimit.Target.Process.PIDContext.PPid, value)
 	case "setrlimit.target.sid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51888,7 +52474,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("signal.target.ancestors.ppid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("signal.target.ancestors.ppid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "signal.target.ancestors.sid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52065,6 +52651,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("signal.target.auid", &ev.Signal.Target.Process.Credentials.AUID, value)
+	case "signal.target.aws_security_credentials.access_key_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if len(ev.Signal.Target.Process.AWSSecurityCredentials) == 0 {
+			ev.Signal.Target.Process.AWSSecurityCredentials = append(ev.Signal.Target.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("signal.target.aws_security_credentials.access_key_id", &ev.Signal.Target.Process.AWSSecurityCredentials[0].AccessKeyID, value)
+	case "signal.target.aws_security_credentials.length":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.aws_security_credentials.length"}
+	case "signal.target.aws_security_credentials.type":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if len(ev.Signal.Target.Process.AWSSecurityCredentials) == 0 {
+			ev.Signal.Target.Process.AWSSecurityCredentials = append(ev.Signal.Target.Process.AWSSecurityCredentials, AWSSecurityCredentials{})
+		}
+		return ev.setStringFieldValue("signal.target.aws_security_credentials.type", &ev.Signal.Target.Process.AWSSecurityCredentials[0].Type, value)
 	case "signal.target.cap_effective":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53474,7 +54081,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("signal.target.parent.ppid", &ev.Signal.Target.Parent.PPid, value)
+		return ev.setUint32FieldValue("signal.target.parent.ppid", &ev.Signal.Target.Parent.PIDContext.PPid, value)
 	case "signal.target.parent.sid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53625,7 +54232,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("signal.target.ppid", &ev.Signal.Target.Process.PPid, value)
+		return ev.setUint32FieldValue("signal.target.ppid", &ev.Signal.Target.Process.PIDContext.PPid, value)
 	case "signal.target.sid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53870,6 +54477,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("unload_module.name", &ev.UnloadModule.Name, value)
 	case "unload_module.retval":
 		return ev.setInt64FieldValue("unload_module.retval", &ev.UnloadModule.SyscallEvent.Retval, value)
+	case "unshare.flags":
+		return ev.setUint64FieldValue("unshare.flags", &ev.Unshare.Flags, value)
+	case "unshare.retval":
+		return ev.setInt64FieldValue("unshare.retval", &ev.Unshare.SyscallEvent.Retval, value)
 	case "utimes.file.change_time":
 		return ev.setUint64FieldValue("utimes.file.change_time", &ev.Utimes.File.FileFields.CTime, value)
 	case "utimes.file.extension":

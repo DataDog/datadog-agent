@@ -92,6 +92,16 @@ func (s *StringTable) Add(str string) uint32 {
 	return s.addUnchecked(str)
 }
 
+// AddBytes is Add for a byte slice. It avoids materializing a string when the value
+// is already interned, which is the common case when decoding a payload. On a miss
+// the string is copied, so the table never aliases the caller's buffer.
+func (s *StringTable) AddBytes(b []byte) uint32 {
+	if idx, ok := s.lookup[string(b)]; ok {
+		return idx
+	}
+	return s.addUnchecked(string(b))
+}
+
 // Get returns the string at the given index - panics if out of bounds
 func (s *StringTable) Get(idx uint32) string {
 	return s.strings[idx]
@@ -729,6 +739,19 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(buf[8:])
 }
 
+// TraceIDHigh returns the high-order 8 bytes of the trace chunk's TraceID as a uint64.
+// A trace ID shorter than the full 16 bytes is right-aligned into a zero-padded 16-byte
+// buffer first (matching LegacyTraceID's interpretation of short trace IDs), so any
+// high-order bytes that were actually supplied are still reflected in the result.
+func (c *InternalTraceChunk) TraceIDHigh() uint64 {
+	if len(c.TraceID) >= 16 {
+		return binary.BigEndian.Uint64(c.TraceID[:8])
+	}
+	var buf [16]byte
+	copy(buf[16-len(c.TraceID):], c.TraceID)
+	return binary.BigEndian.Uint64(buf[:8])
+}
+
 // SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0
 // Warning: This method does not remove any attributes from the chunk or contained spans which might be referring to the upper 8 bytes of the trace ID.
 func (c *InternalTraceChunk) SetLegacyTraceID(legacyTraceID uint64) {
@@ -880,6 +903,24 @@ func (s *InternalSpan) Clone() *InternalSpan {
 		Strings: s.Strings.Clone(),
 		span:    s.span.Clone(),
 	}
+}
+
+// String implements fmt.Stringer so that formatting an InternalSpan with %s or %v
+// resolves the string table instead of dumping the struct, which would otherwise
+// render as "%!s(*idx.Span=&{...})" and make log lines that report an offending
+// span (for example in the normalizer) unreadable.
+//
+// Only the fields needed to identify a span are included. Attributes are
+// deliberately omitted: they are unbounded in size and may carry request data,
+// which makes them unsuitable for a value that gets interpolated into logs. Use
+// DebugString for the full contents.
+//
+// The trace ID is not included: the idx format stores it once per chunk
+// (InternalTraceChunk.TraceID) rather than on each span, so it is not reachable
+// from here.
+func (s *InternalSpan) String() string {
+	return fmt.Sprintf("Span {Service: %s, Name: %s, Resource: %s, Type: %s, SpanID: %d}",
+		s.Service(), s.Name(), s.Resource(), s.Type(), s.span.SpanID)
 }
 
 // DebugString returns a human readable string representation of the span

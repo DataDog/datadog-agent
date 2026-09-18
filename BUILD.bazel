@@ -1,7 +1,7 @@
 # Global build settings
 # gazelle:dd_agent_go_test on
 # gazelle:go_canonical_test_tag_set cel clusterchecks kubeapiserver kubelet orchestrator
-# gazelle:go_canonical_test_tag_set linux_bpf
+# gazelle:go_canonical_test_tag_set bpf
 # gazelle:go_canonical_test_tag_set containerd cel
 # gazelle:go_canonical_test_tag_set docker kubelet cel
 
@@ -290,6 +290,7 @@ write_source_files(
         "//pkg/proto/pbgo/process:write_pb_go",
         "//pkg/proto/pbgo/procmgr:write_pb_go",
         "//pkg/proto/pbgo/sbom:write_pb_go",
+        "//pkg/proto/pbgo/sds:write_pb_go",
         "//pkg/proto/pbgo/trace/idx:write_pb_go",
         "//pkg/proto/pbgo/trace:agent_payload_gen",
         "//pkg/proto/pbgo/trace:span_gen",

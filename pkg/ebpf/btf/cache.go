@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package btf provides utilities for dealing with BPF Type Format (BTF) data
 package btf

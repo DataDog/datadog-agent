@@ -8,5 +8,8 @@ go_library(
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/testing/environments",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

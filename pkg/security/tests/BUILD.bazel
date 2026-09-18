@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:go_canonical_test_tag_set functionaltests linux_bpf
+# gazelle:go_canonical_test_tag_set functionaltests bpf
 
 go_library(
     name = "tests",
@@ -20,9 +20,11 @@ go_library(
         "syscall_tester.go",
         "syscalls_amd64.go",
         "syscalls_arm64.go",
+        "testdecl.go",
         "testdrive.go",
         "testmount.go",
         "testopts.go",
+        "testruns.go",
         "trace_pipe.go",
     ],
     # keep
@@ -221,6 +223,7 @@ dd_agent_go_test(
         "setsockopt_test.go",
         "signal_test.go",
         "simple_test.go",
+        "sk_lookup_pid_test.go",
         "socket_test.go",
         "span_test.go",
         "splice_test.go",
@@ -230,6 +233,7 @@ dd_agent_go_test(
         "tracer_memfd_test.go",
         "umount_test.go",
         "unlink_test.go",
+        "unshare_test.go",
         "user_session_test.go",
         "usergroup_test.go",
         "utimes_test.go",
@@ -248,8 +252,8 @@ dd_agent_go_test(
         "//conditions:default": [],
     }),
     gotags_sets = [[
+        "bpf",
         "functionaltests",
-        "linux_bpf",
     ]],
     include_default = False,
     tags = ["manual"],
@@ -278,6 +282,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/security_profile",
             "//pkg/security/security_profile/activity_tree",
             "//pkg/security/security_profile/dump",
@@ -325,6 +330,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/security_profile",
             "//pkg/security/security_profile/activity_tree",
             "//pkg/security/security_profile/dump",

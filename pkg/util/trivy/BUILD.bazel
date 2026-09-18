@@ -123,5 +123,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_goleak//:goleak",
     ],
 )

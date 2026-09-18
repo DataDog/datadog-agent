@@ -11,13 +11,19 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL org.opencontainers.image.base.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL org.opencontainers.image.title "Datadog Dogstatsd Agent"
 
-# We add mirror.clarkson.edu as a secondary mirror, as it's closest to us-east-1
-# where we build the agent
+# APK mirror resilience: apk tries repositories in listed order and falls over to
+# the next on failure. Keep the default dl-cdn.alpinelinux.org CDN as primary and
+# add mirror.clarkson.edu (closest to us-east-1, where we build) as a secondary,
+# so a degraded CDN fails over instead of stalling the build.
 
-RUN ALPINE_RELEASE=$(cat /etc/alpine-release | sed "s/^\(\d\+\.\d\+\).\+$/\1/") && \
-  echo -e "http://mirror.clarkson.edu/alpine/v${ALPINE_RELEASE}/main\nhttp://mirror.clarkson.edu/alpine/v${ALPINE_RELEASE}/community" >> /etc/apk/repositories
+RUN ALPINE_RELEASE=$(cat /etc/alpine-release | sed "s/^\([0-9][0-9]*\.[0-9][0-9]*\).*$/\1/") && \
+  printf 'http://dl-cdn.alpinelinux.org/alpine/v%s/main\nhttp://dl-cdn.alpinelinux.org/alpine/v%s/community\nhttp://mirror.clarkson.edu/alpine/v%s/main\nhttp://mirror.clarkson.edu/alpine/v%s/community\n' \
+    "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" "${ALPINE_RELEASE}" > /etc/apk/repositories
 
-RUN apk add --no-cache ca-certificates
+# --timeout (a global flag, before the subcommand) bounds each network operation
+# so a slow mirror fails fast and apk moves to the next repository instead of
+# hanging. Default is 60s.
+RUN apk --timeout 10 add --no-cache ca-certificates
 
 COPY entrypoint.sh probe.sh /
 RUN chmod 755 /entrypoint.sh /probe.sh

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an Agent IPC client socket leak when a local service accepts a TLS
+    connection but never completes the handshake.

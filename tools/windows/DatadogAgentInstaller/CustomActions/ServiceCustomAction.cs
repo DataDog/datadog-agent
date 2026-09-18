@@ -164,11 +164,15 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
+        internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
             var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
-            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            // No password to give the services. Only reachable for domain accounts: local accounts
+            // always get a generated password, and IsServiceAccount covers gMSA and the well known
+            // accounts.
+            var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
+            if (passwordNotProvided)
             {
                 _session.Log("Password not provided, will not change service user password");
                 // set to null so we don't modify the service config
@@ -213,15 +217,29 @@ namespace Datadog.CustomActions
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
-            _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
-
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
+            EnableProcmgrService();
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        private void EnableProcmgrService()
+        {
+            try
+            {
+                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {ServiceStartMode.Manual}");
+                _serviceController.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                _session.Log(
+                    $"Service {Constants.ProcmgrServiceName} not found, not changing its start type: {e}");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)

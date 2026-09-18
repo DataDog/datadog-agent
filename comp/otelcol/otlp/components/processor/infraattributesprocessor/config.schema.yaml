@@ -14,3 +14,6 @@ properties:
   logs_tags_as_ddtags:
     description: 'LogsTagsAsDDTags controls whether custom tags emitted by the tagger (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are written as a `ddtags` log record attribute -- which the Datadog logs intake turns into real log tags -- instead of as resource attributes, which surface as log attributes.'
     type: boolean
+  metrics_attributes_as_tags:
+    description: 'MetricsAttributesAsTags controls whether custom tags emitted by the tagger (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are promoted so they survive the metrics translator''s allowlist and become metric tags.'
+    type: boolean

@@ -109,8 +109,8 @@ def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
-    gcc = bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
-    output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
+    gcc = bazel("cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
     mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
@@ -221,7 +221,6 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
     whydeadcode_out = bazel(
-        ctx,
         "run",
         *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
         "@com_github_aarzilli_whydeadcode//:whydeadcode",

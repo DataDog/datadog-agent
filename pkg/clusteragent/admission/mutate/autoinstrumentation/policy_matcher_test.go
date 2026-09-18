@@ -44,8 +44,8 @@ func TestPolicyMatcherPodLabels(t *testing.T) {
 	}
 
 	out, ok := m.Match(podWith("any", map[string]string{"app": "db"}))
-	if !ok || out.TracerVersions["java"] != "latest" {
-		t.Fatalf("db pod: got %+v ok=%v", out, ok)
+	if !ok || out.TracerVersions["php"] != "latest" {
+		t.Fatalf("db pod should hit last TRUE (catch-all): got %+v ok=%v", out, ok)
 	}
 
 	out, ok = m.Match(podWith("any", map[string]string{"app": "web"}))

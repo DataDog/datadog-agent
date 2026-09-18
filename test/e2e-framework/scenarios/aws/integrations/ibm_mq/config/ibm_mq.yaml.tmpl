@@ -1,0 +1,34 @@
+## ibm_mq check config, rendered by the scenario (one instance per queue manager).
+## Option keys are verbatim from integrations-core ibm_mq/datadog_checks/ibm_mq/config.py.
+init_config:
+
+instances:
+{{- range .Instances }}
+  - channel: {{ $.Channel }}
+    queue_manager: {{ .QueueManager }}
+    host: localhost
+    port: {{ .Port }}
+    mq_installation_dir: /opt/mqm/
+{{- if and $.AutoDiscoverQueues (not $.QueueRegex) (not $.ExplicitQueues) }}
+    auto_discover_queues: true
+{{- end }}
+    collect_reset_queue_metrics: {{ $.CollectResetQueue }}
+    min_collection_interval: {{ $.MinCollectionInterval }}
+{{- if $.QueueRegex }}
+    queue_regex:
+      - {{ $.QueueRegex }}
+{{- end }}
+{{- if $.ExplicitQueues }}
+    queues:
+{{- range $.ExplicitQueues }}
+      - {{ . }}
+{{- end }}
+{{- end }}
+{{- if $.MetricPatternsExclude }}
+    metric_patterns:
+      exclude:
+{{- range $.MetricPatternsExclude }}
+        - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,5 +1,5 @@
 {
   "error_patterns": [
-    "defs/SymbolConfig/additionalProperties] additionalProperties 'unknown_field' not allowed"
+    "defs/SymbolConfig/additionalProperties\\]: additional properties 'unknown_field' not allowed"
   ]
 }

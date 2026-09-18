@@ -199,6 +199,37 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
 }
 
+func TestPathtestStoreRunsOneShotOnlyOnce(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	store := NewPathtestStore(Config{
+		ContextsLimit: 10,
+		TTL:           30 * time.Minute,
+		Interval:      10 * time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "one-shot", RunOnce: true})
+
+	require.Len(t, store.Flush(), 1)
+	assert.Zero(t, store.GetContextsCount())
+
+	now = now.Add(10 * time.Minute)
+	assert.Empty(t, store.Flush())
+}
+
+func TestPathtestStoreDoesNotRetryRateLimitedOneShot(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	store := NewPathtestStore(Config{
+		ContextsLimit:    10,
+		TTL:              30 * time.Minute,
+		Interval:         10 * time.Minute,
+		MaxPerMinute:     60,
+		MaxBurstDuration: 0,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "one-shot", RunOnce: true})
+
+	assert.Empty(t, store.Flush())
+	assert.Zero(t, store.GetContextsCount())
+}
+
 func Test_pathtestStore_flush(t *testing.T) {
 	logger := logmock.New(t)
 	setMockTimeNow(mockTimeJan2)

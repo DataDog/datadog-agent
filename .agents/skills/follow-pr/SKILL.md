@@ -83,21 +83,51 @@ You may see:
 ## Step 4: Act on the outcome
 
 - **Pipeline Success:** stop monitoring and report the pipeline succeeded.
-- **Some job failed, but the pipeline is still running**: 
-    Note that most jobs on `datadog-agent` CI have at least one retry for combating flakiness - especially jobs running e2e tests, kmt etc.
-    Unit test, linter or build failures are less likely to be flakes. If you think it is likely the job's failure is just a flake, continue monitoring - gitlab will retry the job once automatically.
-    Otherwise, ask the user whether to continue monitoring, or if this job failure is already a problem. In the latter case, move to [Step 5](#step-5-follow-up-on-failures)
+- **Some job failed, but the pipeline is still running**:
+    Most jobs on `datadog-agent` CI retry once automatically on any failure (`.gitlab-ci.yml`'s
+    default `retry: max: 1, when: always`), so a first-attempt failure alone isn't yet evidence
+    of anything — GitLab will retry it once. A minority of jobs (most e2e, Windows, macOS —
+    `.retry_only_infra_failure`) retry only on GitLab's infra-flavoured `failure_reason` values,
+    so a `script_failure` there gets no automatic retry at all and is worth a closer look sooner.
+    Unit test, linter, and build failures are less likely to be flakes regardless of policy.
+    If you're unsure which policy a job is on: `grep -rn '<job-name>' .gitlab/ .gitlab-ci.yml`.
+    Otherwise, ask the user whether to continue monitoring, or if this job failure is already a
+    problem. In the latter case, move to [Step 5](#step-5-follow-up-on-failures).
 - **Pipeline failed or canceled:** Stop monitoring, report the status, and move to [Step 5](#step-5-follow-up-on-failures).
 - **Timeout `[FINAL]`:** re-invoke `ddgl attach` as in Step 2; this is not a true terminal outcome.
 - **Unexpected error** (from `ddgl` itself, or from the monitoring tool): report what happened. Do not attempt a recovery action.
 
 ## Step 5: follow-up on failures
-Use other `ddgl` features to investigate failures on the pipeline that failed
-Using the pipeline id from the `[FINAL]` line:
-1. `ddgl jobs get --pipeline <id> --failed --json` — failed-job metadata.
-2. `mkdir -p failures && ddgl logs --pipeline <id> --failed --output failures/` — export failed-job log output to `failures/`
-3. Compare the failure evidence against the current PR's diff. Decide
-    whether the failure is likely caused by this PR, needs more evidence, or
-    is unrelated (e.g. flaky infra, an unrelated pre-existing failure).
-4. If PR-caused, propose the smallest concrete fix — do not apply it. If
-    not, or inconclusive, report the evidence and your reasoning.
+
+Invoke `/triage-ci-failure` on the pipeline id from the `[FINAL]` line. It classifies each
+failed job as caused by an active incident, infra/platform flakiness, a code regression, or
+ordinary flakiness, and ends with a verdict plus an `Incident: ...` line per job.
+
+Act on the verdict in context — there is no file or schema to read back, only the conversation.
+The `Incident:` line tells you what to do next:
+- **active, still breaking** — continue to [Step 6](#step-6-watch-an-unresolved-incident) andwait it out.
+- **stable** or **resolved** — tell the user it's safe to rebase onto `main` and re-run, saying plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress).
+  Investigation ends here.
+- **none, or no incident at all** — report the verdict, and if it's PR-caused, the proposed fix (still don't apply it). Investigation ends here.
+
+## Step 6: watch an unresolved incident
+
+Only entered when `/triage-ci-failure` reported an incident that's still **active and breaking** for a failed job — this is the other half of watching a PR through:
+the pipeline is red because of something outside the PR, and it will stay red until that something changes.
+
+Poll the incident on an interval (a few minutes is reasonable; don't busy-loop):
+
+```bash
+.agents/skills/triage-ci-failure/scripts/incidents.py timeline <IR-nnnnn>
+```
+
+Watch for a state transition off `active` — to `stable` (a rollback or workaround has likely landed; rebasing is probably safe even if the root cause isn't fully fixed yet) or `resolved`/`completed` (the stronger signal).
+Once either happens, confirm recovery before telling the user to act — check that the job is passing again on `main`:
+
+```bash
+pup cicd events aggregate \
+  --query='ci_level:job @ci.pipeline.name:DataDog/datadog-agent @git.branch:main @ci.job.name:"<job name>"' \
+  --compute=count --group-by='@ci.status' --from='2h'
+```
+
+Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.

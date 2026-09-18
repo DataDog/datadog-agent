@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Clarify the Process Component status when Service Discovery is enabled
+    without Live Process collection. The enabled checks now report
+    ``service_discovery`` instead of ``process`` and ``rtprocess`` in this
+    configuration.

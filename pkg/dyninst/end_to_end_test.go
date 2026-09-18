@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2025 Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package dyninst_test
 

@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -29,15 +28,15 @@ func newSizeTestTree() *ActivityTree {
 }
 
 // newSizeTestProcessNode returns a ProcessNode populated enough that size() exercises every
-// branch in processStringsBytes — exec path, interpreter path, argv/envs, container, creds.
+// branch in processStringsBytes — exec path, argv/envs, creds.
 func newSizeTestProcessNode(name string) *ProcessNode {
 	return &ProcessNode{
 		NodeBase:       NewNodeBase(),
 		Files:          map[string]*FileNode{},
 		DNSNames:       map[string]*DNSNode{},
-		IMDSEvents:     map[model.IMDSEvent]*IMDSNode{},
+		IMDSEvents:     map[IMDSInfo]*IMDSNode{},
 		NetworkDevices: map[model.NetworkDeviceContext]*NetworkDeviceNode{},
-		Process: model.Process{
+		Process: ProcessInfo{
 			FileEvent: model.FileEvent{
 				PathnameStr: "/usr/bin/" + name,
 				BasenameStr: name,
@@ -46,27 +45,11 @@ func newSizeTestProcessNode(name string) *ProcessNode {
 				PkgVersion:  "9.4",
 				Hashes:      []string{"sha256:deadbeef"},
 			},
-			LinuxBinprm: model.LinuxBinprm{
-				FileEvent: model.FileEvent{
-					PathnameStr: "/usr/bin/python3",
-					BasenameStr: "python3",
-					Filesystem:  "ext4",
-					PkgName:     "python3",
-					PkgVersion:  "3.12",
-					Hashes:      []string{"sha256:cafef00d"},
-				},
-			},
 			Argv0:   name,
 			Comm:    name,
 			TTYName: "pts/0",
 			Argv:    []string{"--flag", "value"},
 			Envs:    []string{"PATH=/usr/bin"},
-			Envp:    []string{"HOME=/root"},
-			ContainerContext: model.ContainerContext{
-				ContainerID: containerutils.ContainerID("container-" + name),
-				Tags:        []string{"env:test", "service:" + name},
-			},
-			CGroup: model.CGroupContext{CGroupID: containerutils.CGroupID("cgroup-" + name)},
 			Credentials: model.Credentials{
 				User: "root", Group: "root",
 				EUser: "root", EGroup: "root",

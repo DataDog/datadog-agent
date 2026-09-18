@@ -1,7 +1,6 @@
 # Datadog Agent
 
 ![GitHub Release](https://img.shields.io/github/v/release/DataDog/datadog-agent?style=flat&logo=datadog&logoColor=%23632CA6&labelColor=%23FFF&color=%23632CA6)
-[![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
 -----
@@ -16,7 +15,7 @@ First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and features read our section on [Components](components/overview.md).
+Read about the Agent's [component framework](architecture/components/index.md) and [configuration schema](architecture/agent-schema/index.md) in Architecture, with links to their tutorials, how-to guides, guidelines, and references.
 
 ## Navigation
 

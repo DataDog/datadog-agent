@@ -167,7 +167,7 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 		oq, err := obfuscateSQLSpan(o, span)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
-			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource())
 			return
 		}
 		if oq == nil {

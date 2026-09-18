@@ -113,7 +113,6 @@ def install_with_bazel(ctx):
 
         # Put static rtloader lib where the go build expects to find it
         bazel(
-            ctx,
             "run",
             "//rtloader:install_static",
             "--",
@@ -121,15 +120,15 @@ def install_with_bazel(ctx):
         )
 
         # Install rtloader and cpython where the Agent expects them at runtime
-        bazel(ctx, "run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
-        bazel(ctx, "run", "@cpython//:install", "--", f"--destdir={bin_dir}")
+        bazel("run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
+        bazel("run", "@cpython//:install", "--", f"--destdir={bin_dir}")
 
         return os.path.join(bin_dir, "embedded3")
 
     embedded = os.path.join(dev_path, "embedded")
 
     # Install rtloader + CPython + all Python deps
-    bazel(ctx, "run", "//rtloader:install_python_env", "--", f"--destdir={dev_path}")
+    bazel("run", "//rtloader:install_python_env", "--", f"--destdir={dev_path}")
 
     # Patch RPATH in all installed binaries/libraries so they find their
     # dependencies under <embedded>/lib at runtime.
@@ -145,7 +144,7 @@ def install_with_bazel(ctx):
         if f
     ]
     if files_to_patch:
-        bazel(ctx, "run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded, *files_to_patch)
+        bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded, *files_to_patch)
 
     return embedded
 
