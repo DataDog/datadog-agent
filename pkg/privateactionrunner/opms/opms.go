@@ -171,9 +171,14 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 }
 
 func (c *client) endpointURL(path string) string {
-	scheme, host := "https", c.config.DDApiHost
+	return EndpointURL(c.config, path)
+}
+
+// EndpointURL builds an OPMS URL from the resolved PAR configuration.
+func EndpointURL(cfg *config.Config, path string) string {
+	scheme, host := "https", cfg.DDApiHost
 	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		host = c.config.DDHost
+		host = cfg.DDHost
 		if strings.HasPrefix(host, "http://") {
 			scheme = "http"
 		}
