@@ -7,7 +7,7 @@ _LINUX = ["@platforms//os:linux"]
 # Map of check name -> cdylib target for each Rust check we ship. Add an entry
 # here to ship a new check.
 ENABLED_CHECKS = {
-    "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity",
+    "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity_packaged",
 }
 
 # Stage every enabled cdylib into checks.d with the loader naming convention
