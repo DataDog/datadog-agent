@@ -6,6 +6,7 @@
 # This job runs early in the pipeline and uploads per-package tarballs to S3
 # so that each test job can download only the binaries it needs.
 go_e2e_test_binaries:
+  extends: .bazel:defs
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]

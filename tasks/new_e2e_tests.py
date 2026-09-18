@@ -260,15 +260,27 @@ def build_binaries(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
+    e2e_test_dir = Path("test/new-e2e/tests/agent-runtimes")
     output_path = Path(output_dir).absolute()
 
     # Create output directory
     output_path.mkdir(exist_ok=True, parents=True)
 
-    # Only build the agent-runtimes test package
-    test_packages = ["tests/agent-runtimes"]
+    # Find all test packages
+    test_packages = []
+    for root, _, files in os.walk(e2e_test_dir):
+        # Check if directory contains Go test files
+        has_go_tests = any(f.endswith("_test.go") for f in files)
+        if has_go_tests:
+            # Convert to Go package path
+            pkg_path = os.path.relpath(root, "./test/new-e2e")
+            test_packages.append(pkg_path)
 
-    print(f"Building {len(test_packages)} test package")
+    if not test_packages:
+        print("No test packages found")
+        return
+
+    print(f"Found {len(test_packages)} test packages to build")
 
     # Build tags
     build_tags = ",".join(tags) if tags else "test"
