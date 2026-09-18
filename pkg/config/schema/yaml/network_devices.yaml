@@ -543,6 +543,21 @@ properties:
         type: string
         default: default
         comment: Namespace used when a range does not set one.
+  connectivity_check:
+    node_type: section
+    type: object
+    comment: |-
+      Interactive connectivity check, driven by the Private Action Runner
+      through the Agent IPC endpoint.
+    properties:
+      workers:
+        node_type: setting
+        type: integer
+        default: 25
+        comment: |-
+          Total concurrent probes shared across every in-flight check. The
+          budget is separate from network_devices.discovery.workers because
+          an interactive check must not wait behind a sweep.
   snmp_traps:
     node_type: section
     type: object

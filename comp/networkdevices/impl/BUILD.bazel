@@ -4,24 +4,26 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
-        "connectivity.go",
         "connectivity_endpoint.go",
+        "dto.go",
         "newcomponent.go",
+        "scan.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkdevices/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
         "//comp/api/api/utils",
+        "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/networkdevices/def",
-        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/probe",
+        "//pkg/networkdevice/probe/pingprobe",
+        "//pkg/networkdevice/probe/snmpprobe",
         "//pkg/networkdevices/connectivity",
-        "//pkg/snmp/gosnmplib",
         "//pkg/util/http",
-        "@com_github_gosnmp_gosnmp//:gosnmp",
-        "@org_golang_x_sync//errgroup",
+        "@org_golang_x_sync//semaphore",
     ],
 )
 
@@ -29,12 +31,17 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "connectivity_endpoint_test.go",
-        "connectivity_test.go",
+        "dto_test.go",
     ],
     embed = [":impl"],
     deps = [
         "//comp/core/log/mock",
+        "//pkg/networkdevice/probe",
+        "//pkg/networkdevice/probe/failure",
+        "//pkg/networkdevice/probe/pingprobe",
+        "//pkg/networkdevice/probe/snmpprobe",
         "//pkg/networkdevices/connectivity",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )
