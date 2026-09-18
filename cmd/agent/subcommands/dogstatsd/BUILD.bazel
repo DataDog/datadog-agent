@@ -19,6 +19,7 @@ go_library(
         "//pkg/aggregator",
         "//pkg/config/helper",
         "//pkg/config/setup",
+        "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "//pkg/zstd",
         "@com_github_spf13_cobra//:cobra",
