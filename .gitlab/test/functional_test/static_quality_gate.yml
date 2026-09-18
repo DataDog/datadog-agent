@@ -12,6 +12,7 @@ static_quality_gates:
     - changes:
         paths:
           - test/static/static_quality_gates.yml
+          - test/static/static_quality_gates_cluster_agent.yml
         compare_to: $COMPARE_TO_BRANCH
     - when: manual
       allow_failure: true
