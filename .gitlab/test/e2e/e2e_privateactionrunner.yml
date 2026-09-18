@@ -16,6 +16,13 @@
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
         - pkg/config/setup/privateactionrunner.go
+        - pkg/fleet/installer/packages/datadog_agent_linux.go
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.service.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.socket.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.service
+        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.socket
+        - omnibus/config/software/datadog-agent.rb
+        - packages/agent/product/BUILD.bazel
         - pkg/proto/datadog/privateactionrunner/**/*
         - pkg/proto/pbgo/privateactionrunner/**/*
         - test/new-e2e/tests/privateactionrunner/**/*

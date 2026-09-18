@@ -73,6 +73,17 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		// Mark FakeIntake as not provisioned
 		env.DisableFakeIntake()
 	}
+
+	for _, hook := range params.preAgentInstallHooks {
+		res, err := hook(&awsEnv, host)
+		if err != nil {
+			return err
+		}
+		if res != nil && params.agentOptions != nil {
+			params.agentOptions = append(params.agentOptions,
+				agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(res)))
+		}
+	}
 	if !params.installUpdater {
 		// Mark Updater as not provisioned
 		env.DisableUpdater()
@@ -123,4 +134,3 @@ func VMRun(ctx *pulumi.Context) error {
 
 	return Run(ctx, awsEnv, env, ParamsFromEnvironment(awsEnv))
 }
-
