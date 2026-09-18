@@ -53,6 +53,7 @@ python3 .agents/skills/follow-pr/scripts/config.py resolve \
 ```
 
 Pass through any `--fix-mode`, `--max-fix-cycles`, or policy text given in this invocation; otherwise the script falls back to environment variables, then worktree-local config, then global config, then its own default (`autofix`).
+> If the config ended up resolving using only the default values, suggest the user create a global/local config file with the settings he just chose for future invocations. Check the script contents to get the appropriate paths and formats.
 
 - **Resolved mode is `autofix` or `no-autofix`:** report the resolved mode, cycle budget, and whether a custom policy is active, then continue to [Step 3](#step-3-start-monitoring).
 - **Resolved mode is `ask`, or the script errors:** ask the user directly, before monitoring starts, whether PR-caused failures this run should be fixed and pushed (`autofix`) or only investigated locally (`no-autofix`). Offer to persist the answer (worktree-local or global config) if they don't want to be asked again; otherwise use it for this run only.
