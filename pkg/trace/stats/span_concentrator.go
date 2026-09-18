@@ -572,9 +572,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 		// otherwise create buckets that are not flushed until the agent's wall clock
 		// reaches them, retaining memory for that entire period.
 		log.Debugf("Unexpected span start time: span start %s, end %s are in the future, clamping bucket to %s",
-			time.Unix(0, s.start).Format(time.RFC3339Nano),
-			time.Unix(0, end).Format(time.RFC3339Nano),
-			time.Unix(0, alignTs(now, sc.bsize)).Format(time.RFC3339Nano))
+			time.Unix(0, s.start), time.Unix(0, end), time.Unix(0, alignTs(now, sc.bsize)))
 		btime = max(alignTs(now, sc.bsize), sc.oldestTs)
 	}
 

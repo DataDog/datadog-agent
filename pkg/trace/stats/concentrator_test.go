@@ -293,13 +293,15 @@ func TestConcentratorFutureClamp(t *testing.T) {
 			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
 		},
 	})
-	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
-	testTrace := &traceutil.ProcessedTraceV1{
-		TraceChunk: chunk,
-		Root:       span,
-		TracerEnv:  "none",
+	// Build the StatSpan through the V1 API, but call addSpan directly with an
+	// explicit timestamp: addNowV1 reads time.Now() internally, and crossing a
+	// bucket boundary between this test's `now` and that clock read would make
+	// the expected bucket non-deterministic.
+	statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(span, c.getPeerTagKeys(), nil)
+	if !assert.True(ok, "span should be eligible for stats") {
+		t.FailNow()
 	}
-	c.addNowV1(testTrace, infraTags{})
+	c.spanConcentrator.addSpan(statSpan, PayloadAggregationKey{Env: "none"}, infraTags{}, "", 1, now.UnixNano())
 
 	// The span must have been added to the bucket containing `now`, not a future one.
 	alignedNow := now.UnixNano() - now.UnixNano()%testBucketInterval
