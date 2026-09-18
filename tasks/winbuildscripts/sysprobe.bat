@@ -9,7 +9,9 @@ set BUILD_ROOT=c:\buildroot
 mkdir %BUILD_ROOT%\datadog-agent
 if not exist %BUILD_ROOT%\datadog-agent exit /b 2
 cd %BUILD_ROOT%\datadog-agent || exit /b 3
-xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
+robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /xd .cache
+:: https://ss64.com/nt/robocopy-exit.html
+if %errorlevel% geq 8 exit /b %errorlevel%
 
 call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
 call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache_tools
