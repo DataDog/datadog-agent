@@ -48,6 +48,7 @@ go_library(
 dd_agent_go_test(
     name = "metrics_test",
     srcs = [
+        "azure_container_apps_test.go",
         "consume_host_test.go",
         "consumer_test.go",
         "dimensions_test.go",
@@ -85,6 +86,9 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.43.0:v1_43_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_zap//:zap",
         "@org_uber_go_zap//zapcore",

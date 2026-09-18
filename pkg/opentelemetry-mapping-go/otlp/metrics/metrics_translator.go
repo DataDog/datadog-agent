@@ -96,7 +96,7 @@ var _ source.Provider = (*noSourceProvider)(nil)
 type noSourceProvider struct{}
 
 func (*noSourceProvider) Source(context.Context) (source.Source, error) {
-	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
+	return source.Source{Kind: source.HostnameKind}, nil
 }
 
 // defaultTranslator is the default metrics translator implementation.
@@ -387,17 +387,13 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
-func tagsFromDimensions(dimensions map[string]string) []string {
-	keys := make([]string, 0, len(dimensions))
-	for key := range dimensions {
-		keys = append(keys, key)
+// tagsFromDimensions converts a Source.SourceIdentifier.Dimensions map into a "key:value" tag slice
+func tagsFromDimensions(dims map[string]string) []string {
+	tags := make([]string, 0, len(dims))
+	for k, v := range dims {
+		tags = append(tags, k+":"+v)
 	}
-	slices.Sort(keys)
-
-	tags := make([]string, 0, len(keys))
-	for _, key := range keys {
-		tags = append(tags, key+":"+dimensions[key])
-	}
+	slices.Sort(tags)
 	return tags
 }
 
@@ -530,7 +526,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -625,8 +621,13 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
+				}
+			case source.AzureContainerAppsKind:
+				dims := src.SourceIdentifier.Dimensions
+				if c, ok := consumer.(TagSetConsumer); ok && attributes.IsAzureContainerAppsIdentified(dims) {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(dims))
 				}
 			case source.AzureAppServiceKind:
 				if c, ok := consumer.(TagSetConsumer); ok {

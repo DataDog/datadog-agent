@@ -26,7 +26,7 @@ def test(ctx, verbose=False) -> None:
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
             go_flags = " -v" if verbose else ""
-            ctx.run(f"go test{go_flags} -tags \"test oracle oracle_test\" ./...")
+            ctx.run(f"go test{go_flags} -count=1 -tags \"test oracle oracle_test\" ./...")
     finally:
         clean(ctx, verbose)
 

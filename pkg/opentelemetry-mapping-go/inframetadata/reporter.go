@@ -121,7 +121,7 @@ func (r *Reporter) hostname(res pcommon.Resource) (string, bool) {
 		// The resource does not identify a host (e.g. serverless resource)
 		return "", false
 	}
-	return src.Identifier, true
+	return src.Identifier, true //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 }
 
 // ConsumeResource for host metadata reporting purposes.
