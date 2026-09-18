@@ -214,8 +214,14 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
                 with print_lock:
                     print(f"  ✗ Failed to locate {binary_name}: {cquery.stderr}")
                 return (pkg, False, f"Failed to locate {binary_name}: {cquery.stderr}")
-            workspace = ctx.run("bazel info workspace", hide=True).stdout.strip()
-            built_binary = Path(workspace) / cquery.stdout.strip().splitlines()[-1]
+            # Resolve the cquery-relative path against the execution root: the workspace
+            # `bazel-out` convenience symlink does not exist in CI (--noexperimental_convenience_symlinks)
+            execroot = ctx.run("bazel info execution_root", hide=True).stdout.strip()
+            built_binary = Path(execroot) / cquery.stdout.strip().splitlines()[-1]
+            if not built_binary.exists():
+                with print_lock:
+                    print(f"  ✗ Built binary not found at {built_binary} for {binary_name}")
+                return (pkg, False, f"Built binary not found at {built_binary}")
             shutil.copyfile(built_binary, binary_path)
             with print_lock:
                 print(f"  ✓ Built {binary_name}")
