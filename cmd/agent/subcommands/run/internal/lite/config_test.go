@@ -61,6 +61,30 @@ func TestRecoverReportingSettings(t *testing.T) {
 	}
 }
 
+func TestReportingKeyCollisions(t *testing.T) {
+	for name, raw := range map[string]string{
+		"case alias":     "api_key: first\nAPI_KEY: second\n",
+		"dotted alias":   "health_platform: {enabled: true}\nHealth_Platform.Enabled: false\n",
+		"nested alias":   "health_platform:\n  enabled: true\n  Enabled: false\n",
+		"parent alias":   "proxy: {http: 'http://one.example'}\nPROXY: {https: 'http://two.example'}\n",
+		"YAML alias":     "health_platform: &health {enabled: true}\nHealth_Platform: *health\n",
+		"recovery alias": "api_key: first\nAPI_KEY: second\nlogs_config: [broken\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := reportingSettings([]byte(raw))
+			require.Error(t, err, "ambiguous reporting aliases must not depend on map iteration")
+		})
+	}
+}
+
+func TestReportingBackendPayloadPreservesCase(t *testing.T) {
+	settings, err := reportingSettings([]byte("Secret_Backend_Config:\n  ClientID: dummy\n  Nested: {CamelCase: value}\n"))
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{
+		"ClientID": "dummy", "Nested": map[string]interface{}{"CamelCase": "value"},
+	}, settings["secret_backend_config"])
+}
+
 func TestSelectedSources(t *testing.T) {
 	cleanEnv(t)
 	base := configFile(t, "api_key: base-key\n")

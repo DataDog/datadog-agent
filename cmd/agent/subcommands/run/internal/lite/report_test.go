@@ -15,6 +15,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -77,6 +79,20 @@ func TestRescueReport(t *testing.T) {
 	}
 }
 
+func TestRescueRejectsAmbiguousBlockBoundary(t *testing.T) {
+	for _, opening := range []string{"{", "["} {
+		t.Run(opening, func(t *testing.T) {
+			cleanEnv(t)
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+			defer server.Close()
+			p := Params{ConfigPath: configFile(t, "api_key: dummy\nlogs_config: "+opening+"\ndd_url: "+server.URL+"\n")}
+			_ = Rescue(context.Background(), p, errors.New("failed"))
+			require.Zero(t, calls.Load(), "a field inside an unclosed block must not become a destination")
+		})
+	}
+}
+
 func TestRescueDoesNotSend(t *testing.T) {
 	for _, tc := range []struct {
 		name, raw, env string
@@ -85,6 +101,9 @@ func TestRescueDoesNotSend(t *testing.T) {
 	}{
 		{"nil error", "api_key: dummy\n", "", nil, false},
 		{"disabled in YAML", "api_key: dummy\nhealth_platform:\n  enabled: false\n", "", errors.New("failed"), false},
+		{"disabled dotted key", "api_key: dummy\nhealth_platform.enabled: false\n", "", errors.New("failed"), false},
+		{"disabled mixed case", "api_key: dummy\nHealth_Platform:\n  Enabled: false\n", "", errors.New("failed"), false},
+		{"disabled mixed dotted key", "api_key: dummy\nHealth_Platform.Enabled: false\n", "", errors.New("failed"), false},
 		{"disabled in env", "api_key: dummy\n", "false", errors.New("failed"), false},
 		{"missing key", "api_kye: candidate\n", "", errors.New("failed"), false},
 		{"encrypted key without backend", "api_key: ENC[key]\n", "", errors.New("failed"), false},
@@ -115,6 +134,48 @@ func TestRescueDoesNotSend(t *testing.T) {
 			}
 			_ = Rescue(ctx, p, tc.startupErr)
 			require.Zero(t, calls.Load())
+		})
+	}
+}
+
+func TestRescueProxyKeyRepresentations(t *testing.T) {
+	for _, setting := range []string{"proxy.http: %s\n", "PROXY.http: %s\n", "PrOxY:\n  HtTp: %s\n"} {
+		t.Run(setting, func(t *testing.T) {
+			cleanEnv(t)
+			var direct, proxied atomic.Int32
+			intake := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { direct.Add(1) }))
+			defer intake.Close()
+			proxy := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { proxied.Add(1) }))
+			defer proxy.Close()
+			raw := "api_key: dummy\ndd_url: " + intake.URL + "\nno_proxy_nonexact_match: false\n" + fmt.Sprintf(setting, proxy.URL)
+			require.NoError(t, Rescue(context.Background(), Params{ConfigPath: configFile(t, raw)}, errors.New("failed")))
+			require.Zero(t, direct.Load(), "configured proxy must not be bypassed")
+			require.EqualValues(t, 1, proxied.Load())
+		})
+	}
+}
+
+func TestRescueSelectedYAMLFile(t *testing.T) {
+	cleanEnv(t)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	defer server.Close()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "datadog.yml")
+	require.NoError(t, os.WriteFile(path, []byte("api_key: dummy\ndd_url: "+server.URL+"\n"), 0600))
+	for _, tc := range []struct {
+		name   string
+		params Params
+		want   int32
+	}{
+		{"explicit directory ignores yml", Params{ConfigPath: dir}, 0},
+		{"default directory ignores yml", Params{DefaultConfigPath: dir}, 0},
+		{"explicit yml file", Params{ConfigPath: path}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls.Store(0)
+			_ = Rescue(context.Background(), tc.params, errors.New("failed"))
+			require.Equal(t, tc.want, calls.Load(), "only a selected configuration may provide credentials and routing")
 		})
 	}
 }

@@ -93,14 +93,6 @@ func selectedPath(p Params) (string, error) {
 	if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
 		return filepath.Abs(path)
 	}
-	for _, name := range []string{"datadog.yaml", "datadog.yml"} {
-		candidate := filepath.Join(path, name)
-		if _, err := os.Stat(candidate); err == nil {
-			return filepath.Abs(candidate)
-		} else if !os.IsNotExist(err) {
-			return "", errors.New("cannot access selected configuration")
-		}
-	}
 	return filepath.Abs(filepath.Join(path, "datadog.yaml"))
 }
 
@@ -156,24 +148,50 @@ func reportingSettings(raw []byte) (map[string]interface{}, error) {
 }
 
 func settingAt(document map[string]interface{}, path []string) (interface{}, bool, error) {
-	value, found := document[path[0]]
-	if !found || len(path) == 1 {
-		return value, found, nil
+	var result interface{}
+	found := false
+	wanted := strings.Join(path, ".")
+	seen := map[string]bool{}
+	for key, value := range document {
+		// Normalize only reporting path names, never opaque backend map values.
+		key = strings.ToLower(key)
+		if key != wanted && key != path[0] {
+			continue
+		}
+		if seen[key] {
+			return nil, false, errors.New("duplicate reporting path")
+		}
+		seen[key] = true
+		matched := true
+		if key != wanted {
+			nested, ok := value.(map[string]interface{})
+			if !ok {
+				return nil, false, errors.New("expected a mapping")
+			}
+			var err error
+			value, matched, err = settingAt(nested, path[1:])
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		if matched {
+			if found {
+				return nil, false, errors.New("conflicting reporting paths")
+			}
+			result, found = value, true
+		}
 	}
-	nested, ok := value.(map[string]interface{})
-	if !ok {
-		return nil, false, errors.New("expected a mapping")
-	}
-	return settingAt(nested, path[1:])
+	return result, found, nil
 }
 
-var topLevelKey = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_]*):(?:[ \t]|$)`)
+var topLevelKey = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_.]*):(?:[ \t]|$)`)
 
 // Invalid YAML is recoverable only as independent, plain top-level blocks.
 // Indented content is never promoted to a top-level setting. Quoted keys,
 // aliases, document boundaries and other ambiguous syntax fail closed.
 func recoverBlocks(raw []byte) (map[string]interface{}, error) {
 	blocks := map[string][]byte{}
+	var order []string
 	var key string
 	for _, line := range bytes.SplitAfter(raw, []byte("\n")) {
 		trimmed := strings.TrimSpace(string(line))
@@ -189,6 +207,7 @@ func recoverBlocks(raw []byte) (map[string]interface{}, error) {
 			if _, exists := blocks[key]; exists {
 				return nil, errors.New("duplicate configuration field")
 			}
+			order = append(order, key)
 		}
 		if key == "" {
 			return nil, errors.New("ambiguous configuration indentation")
@@ -196,10 +215,12 @@ func recoverBlocks(raw []byte) (map[string]interface{}, error) {
 		blocks[key] = append(blocks[key], line...)
 	}
 	document := map[string]interface{}{}
-	for key, block := range blocks {
+	for i, key := range order {
+		block := blocks[key]
 		var parsed map[string]interface{}
 		if err := yaml.Unmarshal(block, &parsed); err != nil {
-			if requiredRoot(key) || bytes.ContainsAny(block, "\"'&*|>") {
+			// A later column-zero field may still belong to this unclosed block.
+			if i != len(order)-1 || requiredRoot(key) || bytes.ContainsAny(block, "\"'&*|>") {
 				return nil, errors.New("unrecoverable reporting configuration")
 			}
 			continue
@@ -212,6 +233,7 @@ func recoverBlocks(raw []byte) (map[string]interface{}, error) {
 }
 
 func requiredRoot(key string) bool {
+	key = strings.ToLower(strings.SplitN(key, ".", 2)[0])
 	for _, wanted := range reportingKeys {
 		if strings.SplitN(wanted, ".", 2)[0] == key {
 			return true
