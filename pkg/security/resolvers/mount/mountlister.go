@@ -144,6 +144,7 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 		Origin:        model.MountOriginListmount,
 		Visible:       true,
 		Detached:      false,
+		MountFlags:    model.NormalizeMountFlagsFromAttr(sm.MntAttr),
 	}
 }
 
