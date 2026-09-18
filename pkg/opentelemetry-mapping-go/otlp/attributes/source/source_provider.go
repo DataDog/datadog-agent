@@ -32,6 +32,8 @@ const (
 	AWSECSFargateKind Kind = "task_arn"
 	// AzureAppServiceKind is a serverless source on Azure App Service.
 	AzureAppServiceKind Kind = "azure_app_service"
+	// AzureFunctionsKind is a serverless source on Azure Functions.
+	AzureFunctionsKind Kind = "azure_functions"
 )
 
 // Source represents a telemetry source.

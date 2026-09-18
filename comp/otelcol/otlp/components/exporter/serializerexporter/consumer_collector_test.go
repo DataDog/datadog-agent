@@ -47,6 +47,18 @@ func TestExporterWorkloadMetrics(t *testing.T) {
 	assert.ElementsMatch(t, tags, serie.Tags.UnsafeToReadOnlySliceString())
 }
 
+func TestExporterAzureFunctionsWorkloadMetrics(t *testing.T) {
+	tags := []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"}
+	serie := exporterWorkloadMetrics("azurefunctions", uint64(2e9), tags)
+
+	assert.Equal(t, "otel.datadog_exporter.metrics.running.azurefunctions", serie.Name)
+	assert.Len(t, serie.Points, 1)
+	assert.Equal(t, float64(2e9), serie.Points[0].Ts)
+	assert.Equal(t, 1.0, serie.Points[0].Value)
+	assert.Empty(t, serie.Host)
+	assert.ElementsMatch(t, tags, serie.Tags.UnsafeToReadOnlySliceString())
+}
+
 func TestAddRuntimeTelemetryMetric_NoTags(t *testing.T) {
 	buildInfo := component.BuildInfo{Version: "1.0", Command: "otelcontribcol"}
 	c := newTestCollectorConsumer(buildInfo)
@@ -110,6 +122,44 @@ func TestAddRuntimeTelemetryMetric_AzureAppServices(t *testing.T) {
 	assert.Len(t, c.series, 1)
 	assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", c.series[0].Name)
 	assert.ElementsMatch(t, tags, c.series[0].Tags.UnsafeToReadOnlySliceString())
+}
+
+func TestAddRuntimeTelemetryMetric_AzureFunctionsIdentity(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	firstApp := []string{
+		"instance:shared-instance",
+		"name:first-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+	firstAppReordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:first-app",
+		"instance:shared-instance",
+	}
+	secondApp := []string{
+		"instance:shared-instance",
+		"name:second-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+
+	// Multiple functions in one app instance have the same four-field identity,
+	// while a different app remains distinct even when its instance string matches.
+	c.ConsumeTagSet("azurefunctions", firstApp)
+	c.ConsumeTagSet("azurefunctions", firstAppReordered)
+	c.ConsumeTagSet("azurefunctions", secondApp)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	require.Len(t, c.series, 2)
+	var got [][]string
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.azurefunctions", serie.Name)
+		assert.Empty(t, serie.Host)
+		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
+	}
+	assert.ElementsMatch(t, [][]string{firstApp, secondApp}, got)
 }
 
 func TestAddRuntimeTelemetryMetric_AzureAppServicesDedupKeyIsUnambiguous(t *testing.T) {

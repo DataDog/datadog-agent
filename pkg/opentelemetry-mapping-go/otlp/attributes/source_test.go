@@ -38,9 +38,11 @@ const (
 	testGCPHostname               = testHostName + ".c." + testCloudAccount + ".internal"
 	testGCPIntegrationHostname    = testHostName + "." + testCloudAccount
 	testAzureAppServiceName       = "example-app"
+	testAzureFunctionsName        = "example-function-app"
 	testAzureSubscriptionID       = "example-subscription"
 	testAzureResourceGroup        = "example-resource-group"
 	testAzureAppServiceInstanceID = "example-instance"
+	testAzureFunctionsInstanceID  = "example-functions-instance"
 	testServiceInstanceID         = "example-service-instance"
 )
 
@@ -239,6 +241,83 @@ func TestSourceFromAttrs(t *testing.T) {
 			assert.Equal(t, testInstance.src, source)
 		})
 
+	}
+}
+
+func TestAzureFunctionsSource(t *testing.T) {
+	want := source.Source{
+		Kind:       source.AzureFunctionsKind,
+		Identifier: testAzureFunctionsInstanceID,
+		SourceIdentifier: source.SourceIdentifier{
+			Primary: testAzureFunctionsInstanceID,
+			Dimensions: map[string]string{
+				"name":            testAzureFunctionsName,
+				"subscription_id": testAzureSubscriptionID,
+				"resource_group":  testAzureResourceGroup,
+				"instance":        testAzureFunctionsInstanceID,
+			},
+		},
+	}
+
+	for _, platform := range []string{cloudPlatformAzureFunctions, cloudPlatformAzureFunctionsLegacy} {
+		t.Run(platform, func(t *testing.T) {
+			attrs := testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  platform,
+				string(conventions.ServiceNameKey):    testAzureFunctionsName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				attributeFaaSInstance:                 testAzureFunctionsInstanceID,
+				"faas.name":                           "ignored-function-name",
+				"cloud.resource_id":                   "/subscriptions/ignored/functions/ignored-function-name",
+				string(conventions.HostIDKey):         testHostID,
+			})
+
+			got, ok := SourceFromAttrs(attrs, nil)
+			assert.True(t, ok)
+			assert.Equal(t, want, got)
+			assert.Empty(t, GetHost(attrs, "fallback-host"))
+		})
+	}
+}
+
+func TestAzureFunctionsSourceRequiresBillingIdentity(t *testing.T) {
+	requiredAttributes := []string{
+		string(conventions.ServiceNameKey),
+		string(conventions.CloudAccountIDKey),
+		attributeAzureResourceGroupName,
+		attributeFaaSInstance,
+	}
+
+	for _, required := range requiredAttributes {
+		for _, testCase := range []struct {
+			name   string
+			mutate func(map[string]string)
+		}{
+			{name: "missing", mutate: func(attrs map[string]string) { delete(attrs, required) }},
+			{name: "empty", mutate: func(attrs map[string]string) { attrs[required] = "" }},
+		} {
+			t.Run(testCase.name+" "+required, func(t *testing.T) {
+				attrs := map[string]string{
+					string(conventions.CloudPlatformKey):  cloudPlatformAzureFunctions,
+					string(conventions.ServiceNameKey):    testAzureFunctionsName,
+					string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+					attributeAzureResourceGroupName:       testAzureResourceGroup,
+					attributeFaaSInstance:                 testAzureFunctionsInstanceID,
+					string(conventions.HostIDKey):         testHostID,
+				}
+				testCase.mutate(attrs)
+
+				got, ok := SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.True(t, ok)
+				assert.Equal(t, source.HostnameKind, got.Kind)
+				assert.Equal(t, testHostID, GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+
+				delete(attrs, string(conventions.HostIDKey))
+				_, ok = SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.False(t, ok)
+				assert.Equal(t, "fallback-host", GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+			})
+		}
 	}
 }
 
