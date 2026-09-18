@@ -9,7 +9,7 @@
         - deps/gstatus/**/*
         - deps/agent_integrations/**/*
         - test/new-e2e/tests/agent-integrations/**/*
-      compare_to: $COMPARE_TO
+      compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-agent-integrations:
   extends: .new_e2e_template_needs_deb_x64
