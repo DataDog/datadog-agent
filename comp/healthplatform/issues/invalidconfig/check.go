@@ -8,10 +8,12 @@ package invalidconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/qri-io/jsonpointer"
 	"go.yaml.in/yaml/v3"
@@ -21,10 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+type violationPayload struct {
+	Path          string   `json:"path"`
+	ActualType    string   `json:"actual_type"`
+	ExpectedTypes []string `json:"expected_types"`
+	DefaultStatus string   `json:"default_status"`
+	DefaultValue  any      `json:"default_value,omitempty"`
+}
 
 // checker validates the merged in-memory config against the schema.
 type checker struct {
@@ -69,14 +80,33 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
 					contextKeyErrorCount: strconv.Itoa(len(violations)),
 				}
+				payloads := make([]violationPayload, 0, len(violations))
 				for i, violation := range violations {
 					path := scrubViolationPath(violation.Path)
 					// Never forward raw schema messages: non-type errors can quote values.
 					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
-					if violation.ActualType != "" && len(violation.ExpectedTypes) > 0 {
-						ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+					if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
+						continue
 					}
+					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+					defaultStatus, defaultValue := resolveDefault(c.cfg, violation.Path)
+					payloads = append(payloads, violationPayload{
+						Path:          path,
+						ActualType:    violation.ActualType,
+						ExpectedTypes: violation.ExpectedTypes,
+						DefaultStatus: defaultStatus,
+						DefaultValue:  defaultValue,
+					})
 				}
+				if len(payloads) != len(violations) {
+					return ctx
+				}
+				encoded, err := json.Marshal(payloads)
+				if err != nil {
+					return ctx
+				}
+				ctx[contextKeyViolationsVersion] = "1"
+				ctx[contextKeyViolations] = string(encoded)
 				return ctx
 			}(),
 		},
@@ -95,6 +125,37 @@ func scrubViolationPath(path string) string {
 		}
 	}
 	return pointer.String()
+}
+
+func resolveDefault(cfg config.Component, pointerPath string) (string, any) {
+	pointer, err := jsonpointer.Parse(pointerPath)
+	if err != nil || pointer.IsEmpty() {
+		return "unknown", nil
+	}
+	for _, token := range pointer {
+		if token == "" || strings.Contains(token, ".") {
+			return "unknown", nil
+		}
+	}
+	key := strings.Join(pointer, ".")
+	if !cfg.IsSetting(key) {
+		return "unknown", nil
+	}
+
+	for _, valueWithSource := range cfg.GetAllSources(key) {
+		if valueWithSource.Source != model.SourceDefault {
+			continue
+		}
+		switch value := valueWithSource.Value.(type) {
+		case nil:
+			return "none", nil
+		case time.Duration:
+			return "known", value.String()
+		default:
+			return "known", value
+		}
+	}
+	return "none", nil
 }
 
 // instanceIssueID scopes IssueID to this agent's discriminator and config

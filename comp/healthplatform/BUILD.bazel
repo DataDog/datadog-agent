@@ -50,6 +50,7 @@ dd_agent_go_test(
     embed = [":healthplatform"],
     deps = [
         "//comp/core/config",
+        "//comp/core/diagnose/def",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",

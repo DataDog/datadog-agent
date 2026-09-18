@@ -6,20 +6,25 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	contextKeyConfigPath = "config_path"
-	contextKeyErrors     = "errors"
-	contextKeyErrorCount = "error_count"
-	contextKeyImpact     = "impact"
+	contextKeyConfigPath        = "config_path"
+	contextKeyErrors            = "errors"
+	contextKeyErrorCount        = "error_count"
+	contextKeyImpact            = "impact"
+	contextKeyViolationsVersion = "violations_version"
+	contextKeyViolations        = "violations"
+	defaultCorrection           = "Fix each violation listed in the description."
 )
 
 // contextErrorKey returns the Context key for the i-th error line.
@@ -73,12 +78,22 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		errMap[path] = slice
 	}
 
-	extra, _ := structpb.NewStruct(map[string]any{
+	extraFields := map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
 		contextKeyErrors:     errMap,
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
-	})
+	}
+	correction := defaultCorrection
+	if ctx[contextKeyViolationsVersion] == "1" {
+		var violations []any
+		if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
+			extraFields[contextKeyViolationsVersion] = 1
+			extraFields[contextKeyViolations] = violations
+			correction = formatCorrections(ctx[contextKeyViolations])
+		}
+	}
+	extra, _ := structpb.NewStruct(extraFields)
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
@@ -95,10 +110,109 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Fix each violation listed in the description."},
+				{Order: 2, Text: correction},
 				{Order: 3, Text: "Restart the Datadog Agent."},
 				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
 			},
 		},
 	}, nil
+}
+
+var typeLabels = map[string]string{
+	"boolean": "true or false",
+	"integer": "a whole number",
+	"number":  "a number",
+	"string":  "a string",
+	"array":   "a YAML list",
+	"object":  "a YAML mapping",
+	"null":    "null",
+}
+
+func formatCorrections(raw string) string {
+	var violations []violationPayload
+	if err := json.Unmarshal([]byte(raw), &violations); err != nil || len(violations) == 0 {
+		return defaultCorrection
+	}
+	const limit = 10
+	corrections := make([]string, 0, min(len(violations), limit))
+	for _, violation := range violations[:min(len(violations), limit)] {
+		correction := formatCorrection(violation)
+		if correction == "" {
+			return defaultCorrection
+		}
+		corrections = append(corrections, correction)
+	}
+	if len(violations) == 1 {
+		return corrections[0]
+	}
+	result := "- " + strings.Join(corrections, "\n- ")
+	if len(violations) > limit {
+		remaining := len(violations) - limit
+		wording := "violations are"
+		if remaining == 1 {
+			wording = "violation is"
+		}
+		result += fmt.Sprintf("\n\n%d more %s listed in the description.", remaining, wording)
+	}
+	return result
+}
+
+func formatCorrection(violation violationPayload) string {
+	actual := typeLabels[violation.ActualType]
+	if actual == "" || len(violation.ExpectedTypes) == 0 {
+		return ""
+	}
+	expected := make([]string, 0, len(violation.ExpectedTypes))
+	for _, kind := range violation.ExpectedTypes {
+		label := typeLabels[kind]
+		if label == "" {
+			return ""
+		}
+		expected = append(expected, label)
+	}
+	want := strings.Join(expected, " or ")
+	if len(expected) > 2 {
+		want = strings.Join(expected[:len(expected)-1], ", ") + ", or " + expected[len(expected)-1]
+	}
+	path := violation.Path
+	if path == "" {
+		path = "/"
+	}
+	correction := fmt.Sprintf("%s received %s instead of %s. Replace it with %s.", inlineCode(path), actual, want, want)
+	switch violation.DefaultStatus {
+	case "known":
+		value, err := json.Marshal(violation.DefaultValue)
+		if err != nil || violation.DefaultValue == nil {
+			return ""
+		}
+		correction += " The default value for this setting is " + inlineCode(string(value))
+		if violation.DefaultValue == "" {
+			correction += " (an empty string)"
+		}
+		correction += "."
+	case "none":
+		correction += " This setting has no default."
+	case "unknown":
+	default:
+		return ""
+	}
+	return correction
+}
+
+func inlineCode(text string) string {
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+	fenceLength := 1
+	for _, ticks := range strings.FieldsFunc(text, func(r rune) bool { return r != '`' }) {
+		fenceLength = max(fenceLength, len(ticks)+1)
+	}
+	fence := strings.Repeat("`", fenceLength)
+	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
+		text = " " + text + " "
+	}
+	return fence + text + fence
 }
