@@ -56,12 +56,7 @@ func TestGstatusAgainstRealGluster(t *testing.T) {
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(
-					ec2.WithOS(os.Ubuntu2204),
-					// WithInternetAccess is required because SetupSuite
-					// installs glusterfs-server via apt-get, which needs
-					// to reach the Ubuntu mirrors. ProvisionerNoFakeIntake
-					// defaults to no internet access.
-					ec2.WithInternetAccess(),
+					ec2.WithOS(os.Ubuntu2204E2E),
 				),
 			),
 		)),
@@ -76,11 +71,7 @@ func (s *gstatusSuite) SetupSuite() {
 
 	host := s.Env().RemoteHost
 
-	// Install GlusterFS server. Ubuntu 22.04 ships glusterfs-server in its
-	// default repos, so no extra repo config is needed.
-	host.MustExecute("sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq")
-	host.MustExecute("sudo DEBIAN_FRONTEND=noninteractive apt-get install -y glusterfs-server")
-
+	// glusterfs-server is prebaked into the Ubuntu2204E2E AMI.
 	// Start glusterd.
 	host.MustExecute("sudo systemctl enable --now glusterd")
 
