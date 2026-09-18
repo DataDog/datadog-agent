@@ -21,6 +21,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/healthplatform/store/def",
+        "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/controllers/secret",
         "//pkg/clusteragent/admission/controllers/webhook",
         "//pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection",
