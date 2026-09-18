@@ -1,0 +1,89 @@
+load("@rules_go//go:def.bzl", "go_sdk", "go_toolchain")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+# `bazel run //bazel/rules/go_civisibility:install -- --destdir=<dir>` materializes
+# the hermetic `go` binary and the CI Visibility stdlib overlay into a plain
+# filesystem directory, for consumption outside Bazel's own sandbox (e.g.
+# tasks/new_e2e_tests.py). See //bazel/rules/go_civisibility:repo.bzl.
+
+pkg_files(
+    name = "go_exe",
+    srcs = ["@go_civisibility_testing_overlay//:go"],
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_files(
+    name = "overlay_file",
+    srcs = ["@go_civisibility_testing_overlay//:overlay.json"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":go_exe",
+        ":overlay_file",
+    ],
+)
+
+# Alternate Go toolchain whose stdlib `testing`/`benchmark` are compiled from
+# the same patched sources as the -overlay above, so ordinary `go_test`
+# targets get CI Visibility instrumentation directly from rules_go's own
+# per-package stdlib compile action -- no opaque action, no companion
+# targets. Only selected when --@rules_go//go/toolchain:sdk_name is set to
+# exactly "go_civisibility_sdk" (see :civisibility_sdk_selected below).
+#
+# root_file (and everything else below) points at
+# @go_civisibility_testing_overlay, a full mirror of @go_work_sdk with just
+# the two patched files swapped in, not at @go_work_sdk itself: rules_go's
+# stdlib-compile action reads $GOROOT off disk directly (see
+# go/tools/builders/stdlib.go's replicate()), keyed off root_file's own
+# directory, not off this srcs/headers/tools depset -- so root_file has to
+# be the one thing that actually changes.
+go_sdk(
+    name = "go_civisibility_sdk",
+    srcs = ["@go_civisibility_testing_overlay//:srcs"],
+    go = "@go_civisibility_testing_overlay//:bin/go",
+    goarch = "amd64",
+    goos = "linux",
+    headers = ["@go_civisibility_testing_overlay//:headers"],
+    libs = ["@go_civisibility_testing_overlay//:libs"],
+    root_file = "@go_civisibility_testing_overlay//:root_file",
+    tools = ["@go_civisibility_testing_overlay//:tools"],
+    version = "civisibility",
+)
+
+go_toolchain(
+    name = "go_civisibility_linux_amd64-impl",
+    builder = "@go_work_sdk//:builder_reset",
+    goarch = "amd64",
+    goos = "linux",
+    pack = "@go_work_sdk//:pack_reset",
+    sdk = ":go_civisibility_sdk",
+    tags = ["manual"],
+)
+
+# No `match_all_sdks`-style fallback clause: this must never be selected
+# except by explicitly passing the exact sdk_name below, since the patched
+# stdlib's //go:linkname calls into dd-trace-go's civisibility internals
+# would fail to link for every other Go target in the repository that
+# doesn't import that package.
+config_setting(
+    name = "civisibility_sdk_selected",
+    flag_values = {"@rules_go//go/toolchain:sdk_name": "go_civisibility_sdk"},
+)
+
+toolchain(
+    name = "go_civisibility_toolchain",
+    exec_compatible_with = [
+        "@rules_go//go/toolchain:linux",
+        "@rules_go//go/toolchain:amd64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_settings = [":civisibility_sdk_selected"],
+    toolchain = ":go_civisibility_linux_amd64-impl",
+    toolchain_type = "@rules_go//go:toolchain",
+)

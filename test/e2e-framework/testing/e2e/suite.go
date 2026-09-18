@@ -968,5 +968,6 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	}
 
 	s.init(options, s)
+	instrumentTestifySuiteRun(t, s)
 	suite.Run(t, s)
 }
