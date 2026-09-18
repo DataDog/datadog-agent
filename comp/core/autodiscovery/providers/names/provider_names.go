@@ -71,6 +71,8 @@ const (
 	InstrumentationChecks = "instrumentation-checks"
 	// NetworkPathRemoteConfig schedules Network Path checks from Remote Configuration.
 	NetworkPathRemoteConfig = "network-path-remote-config"
+	// NDMRemoteConfig is the name of the Network Device Monitoring Remote Configuration config provider
+	NDMRemoteConfig = "ndm-remote-config"
 	// ADContainerDiscovery is the source prefix for configuration discovery file templates resolved
 	// against non-process services (containers, k8s pods, etc.).
 	ADContainerDiscovery = "ad-container-discovery+file"
