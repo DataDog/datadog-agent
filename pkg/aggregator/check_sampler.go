@@ -212,7 +212,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
 
-	series, errors := cs.metrics.Flush(timestamp)
+	flush := cs.metrics.Flush
+	if cs.batchSize > 0 && cs.batchSamples >= cs.batchSize {
+		flush = cs.metrics.FlushBatch
+	}
+	series, errors := flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
