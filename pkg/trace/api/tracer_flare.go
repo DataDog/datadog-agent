@@ -72,15 +72,16 @@ func (r *HTTPReceiver) tracerFlareHandler() http.Handler {
 	apiKey := r.conf.APIKey()
 	site := r.conf.Site
 
-	director := func(req *http.Request) {
-		req.Header.Set("DD-API-KEY", apiKey)
+	rewrite := func(req *httputil.ProxyRequest) {
+		req.SetXForwarded()
+		req.Out.Header.Set("DD-API-KEY", apiKey)
 	}
 
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	transport := r.conf.NewHTTPTransport()
 	agentVersion := r.conf.AgentVersion
 	return &httputil.ReverseProxy{
-		Director:  director,
+		Rewrite:   rewrite,
 		ErrorLog:  stdlog.New(logger, "tracer_flare.Proxy: ", 0),
 		Transport: &tracerFlareTransport{transport, getServerlessFlareEndpoint, agentVersion, site},
 	}

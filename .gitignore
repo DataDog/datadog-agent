@@ -7,6 +7,8 @@ vendor/
 bin/
 /dev/
 /site/
+# local git worktrees
+.worktrees/
 # Remote content fetched while building the documentation.
 /.docs-cache/
 # Link check results remembered between runs.
@@ -256,9 +258,10 @@ AUTO_JIRA.md
 .codex/*
 !.codex/config.toml
 
-# Zed config (commit the shared MCP config; ignore everything else)
+# Zed config (commit shared project config; ignore everything else)
 .zed/*
 !.zed/settings.json
+!.zed/tasks.json
 
 # Devcontainer
 .devcontainer/

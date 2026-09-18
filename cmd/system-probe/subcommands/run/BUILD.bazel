@@ -119,6 +119,7 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/log/mock",
@@ -126,6 +127,7 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],
     }),

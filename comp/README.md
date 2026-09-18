@@ -382,6 +382,10 @@ store, and returns the set of IssueIds that were reported.
 Package scheduler defines the interface for the health platform scheduler
 (the periodic runner of built-in health checks).
 
+### [comp/healthplatform/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/status)
+
+Package status defines the interface for the health platform status component.
+
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
@@ -497,7 +501,7 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 ### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
 
-*Datadog Team*: ebpf-platform
+*Datadog Team*: gpu-monitoring-agent
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 

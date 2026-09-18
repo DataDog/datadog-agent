@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -134,7 +133,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
+		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
@@ -170,13 +169,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
-}
-
-func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
-	// NVML exposes domain, bus, and device as numeric fields, but not the PCI
-	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
-	// functions, when present, represent auxiliary devices such as audio.
-	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
 }
 
 func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
@@ -280,107 +272,119 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(ctx context.Context) error {
-	lib, err := ddnvml.GetSafeNvmlLib()
+	// While NVML is deliberately released, skip quietly: touching the
+	// library would re-initialize it and re-block the GPU reset the window
+	// exists to allow. A pull before the first initialization is NOT skipped.
+	// Hold the NVML gate for the whole pull: a deliberate release waits for
+	// the in-flight pull to finish instead of racing it. The gated helper
+	// keeps the library wrapper from escaping.
+	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
+		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
+		if err := deviceCache.Refresh(); err != nil {
+			return fmt.Errorf("failed to initialize device cache: %w", err)
+		}
+
+		// driver version is equal to all devices of the same vendor
+		// currently we handle only nvidia.
+		// in the future this function should be refactored to support more vendors
+		driverVersion, err := lib.SystemGetDriverVersion()
+		// we try to get the driver version as best effort, just log warning if it fails
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("%v", err)
+			}
+		}
+
+		// attempt getting list of unhealthy devices (if available)
+		unhealthyDevices, err := c.getUnhealthyDevices(ctx)
+		if err != nil && logLimiter.ShouldLog() {
+			log.Warnf("failed getting unhealthy devices: %v", err)
+		}
+
+		// note: the device list can change over time so we need to set/unset for reconciliation
+		allDevices, err := deviceCache.All()
+		if err != nil {
+			// Should not happen as we check the last init error for the library
+			return fmt.Errorf("failed to get all devices: %w", err)
+		}
+
+		// add/update current devices
+		currentUUIDs := map[string]struct{}{}
+		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
+		timestamp := time.Now()
+		var events []workloadmeta.CollectorEvent
+		for _, dev := range allDevices {
+			gpu, err := c.getGPUDeviceInfo(dev)
+			if err != nil {
+				return err
+			}
+
+			gpu.DriverVersion = driverVersion
+
+			_, unhealthy := unhealthyDevices[gpu.ID]
+			gpu.Healthy = !unhealthy
+
+			uuid := dev.GetDeviceInfo().UUID
+			currentUUIDs[uuid] = struct{}{}
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: gpu,
+			})
+
+			if c.integrateWithWorkloadmetaProcesses {
+				for _, pid := range gpu.ActivePIDs {
+					pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
+				}
+			}
+		}
+
+		// remove previous devices that are no more available
+		for uuid := range c.seenUUIDs {
+			if _, ok := currentUUIDs[uuid]; ok {
+				continue
+			}
+
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceNVML,
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: &workloadmeta.GPU{
+					EntityID: workloadmeta.EntityID{
+						ID:   uuid,
+						Kind: workloadmeta.KindGPU,
+					},
+				},
+			})
+		}
+
+		c.seenUUIDs = currentUUIDs
+
+		if c.integrateWithWorkloadmetaProcesses {
+			events = append(events, c.createProcessEvents(pidToGPUs)...)
+		}
+
+		c.store.Notify(events)
+		c.lastCollectionTimestamp = timestamp
+
+		return nil
+	})
 	if err != nil {
+		// While NVML is deliberately released, skip quietly: the pull is
+		// retried on the next cycle.
+		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			return nil
+		}
 		// Do not consider an unloaded driver as an error more than once.
-		// Some installations will have the NVIDIA libraries but not the driver. Report the error
-		// only once to avoid log spam, treat it the same as if there was no library available or
-		// there were no GPUs.
+		// Some installations will have the NVIDIA libraries but not the
+		// driver. Report the error only once to avoid log spam, treat it the
+		// same as if there was no library available or there were no GPUs.
 		if ddnvml.IsDriverNotLoaded(err) && !c.reportedDriverNotLoaded {
 			c.reportedDriverNotLoaded = true
 			return nil
 		}
 
-		return fmt.Errorf("failed to get NVML library : %w", err)
+		return err
 	}
-
-	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
-	if err := deviceCache.Refresh(); err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
-	}
-
-	// driver version is equal to all devices of the same vendor
-	// currently we handle only nvidia.
-	// in the future this function should be refactored to support more vendors
-	driverVersion, err := lib.SystemGetDriverVersion()
-	// we try to get the driver version as best effort, just log warning if it fails
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v", err)
-		}
-	}
-
-	// attempt getting list of unhealthy devices (if available)
-	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if err != nil && logLimiter.ShouldLog() {
-		log.Warnf("failed getting unhealthy devices: %v", err)
-	}
-
-	// note: the device list can change over time so we need to set/unset for reconciliation
-	allDevices, err := deviceCache.All()
-	if err != nil {
-		// Should not happen as we check the last init error for the library
-		return fmt.Errorf("failed to get all devices: %w", err)
-	}
-
-	// add/update current devices
-	currentUUIDs := map[string]struct{}{}
-	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
-	timestamp := time.Now()
-	var events []workloadmeta.CollectorEvent
-	for _, dev := range allDevices {
-		gpu, err := c.getGPUDeviceInfo(dev)
-		if err != nil {
-			return err
-		}
-
-		gpu.DriverVersion = driverVersion
-
-		_, unhealthy := unhealthyDevices[gpu.ID]
-		gpu.Healthy = !unhealthy
-
-		uuid := dev.GetDeviceInfo().UUID
-		currentUUIDs[uuid] = struct{}{}
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNVML,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: gpu,
-		})
-
-		if c.integrateWithWorkloadmetaProcesses {
-			for _, pid := range gpu.ActivePIDs {
-				pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
-			}
-		}
-	}
-
-	// remove previous devices that are no more available
-	for uuid := range c.seenUUIDs {
-		if _, ok := currentUUIDs[uuid]; ok {
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNVML,
-			Type:   workloadmeta.EventTypeUnset,
-			Entity: &workloadmeta.GPU{
-				EntityID: workloadmeta.EntityID{
-					ID:   uuid,
-					Kind: workloadmeta.KindGPU,
-				},
-			},
-		})
-	}
-
-	c.seenUUIDs = currentUUIDs
-
-	if c.integrateWithWorkloadmetaProcesses {
-		events = append(events, c.createProcessEvents(pidToGPUs)...)
-	}
-
-	c.store.Notify(events)
-	c.lastCollectionTimestamp = timestamp
-
 	return nil
 }
 
