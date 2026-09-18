@@ -154,33 +154,33 @@ type LogsConfig struct {
 // for a specific log source, potentially overriding global configurations.
 type SourceAutoMultiLineOptions struct {
 	// EnableJSONDetection allows to enable or disable the detection of multi-line JSON logs for this source.
-	EnableJSONDetection *bool `mapstructure:"enable_json_detection" json:"enable_json_detection" yaml:"enable_json_detection"`
+	EnableJSONDetection *bool `mapstructure:"enable_json_detection" json:"enable_json_detection,omitempty" yaml:"enable_json_detection"`
 
 	// EnableDatetimeDetection allows to enable or disable the detection of multi-lines based on leading datetime stamps for this source.
-	EnableDatetimeDetection *bool `mapstructure:"enable_datetime_detection" json:"enable_datetime_detection" yaml:"enable_datetime_detection"`
+	EnableDatetimeDetection *bool `mapstructure:"enable_datetime_detection" json:"enable_datetime_detection,omitempty" yaml:"enable_datetime_detection"`
 
 	// MatchThreshold sets the similarity threshold to consider a pattern match for this source.
-	TimestampDetectorMatchThreshold *float64 `mapstructure:"timestamp_detector_match_threshold" json:"timestamp_detector_match_threshold" yaml:"timestamp_detector_match_threshold"`
+	TimestampDetectorMatchThreshold *float64 `mapstructure:"timestamp_detector_match_threshold" json:"timestamp_detector_match_threshold,omitempty" yaml:"timestamp_detector_match_threshold"`
 
 	// TokenizerMaxInputBytes sets the maximum number of bytes the tokenizer will read for this source.
-	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes,omitempty" yaml:"tokenizer_max_input_bytes"`
 
 	// PatternTableMaxSize sets the number of patterns auto multi line can use
-	PatternTableMaxSize *int `mapstructure:"pattern_table_max_size" json:"pattern_table_max_size" yaml:"pattern_table_max_size"`
+	PatternTableMaxSize *int `mapstructure:"pattern_table_max_size" json:"pattern_table_max_size,omitempty" yaml:"pattern_table_max_size"`
 
 	// PatternTableMatchThreshold sets the threshold for pattern table match for this source.
-	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold" yaml:"pattern_table_match_threshold"`
+	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold,omitempty" yaml:"pattern_table_match_threshold"`
 
 	// EnableJSONAggregation allows to enable or disable the aggregation of multi-line JSON logs for this source.
-	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation" yaml:"enable_json_aggregation"`
+	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation,omitempty" yaml:"enable_json_aggregation"`
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
-	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json,omitempty" yaml:"tag_aggregated_json"`
 
 	// StackTraceParsers overrides the list of enabled stack trace parsers for this source.
 	// Valid names match keys in the parser registry (e.g. "go"). An empty list disables
 	// stack trace aggregation for this source.
-	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers" yaml:"stack_trace_parsers"`
+	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers,omitempty" yaml:"stack_trace_parsers"`
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
