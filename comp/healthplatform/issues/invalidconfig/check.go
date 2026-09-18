@@ -65,25 +65,23 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "agent",
-			Context:   buildIssueReportContext(c.cfg.ConfigFileUsed(), violations),
+			Context: func() map[string]string {
+				ctx := map[string]string{
+					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+					contextKeyErrorCount: strconv.Itoa(len(violations)),
+				}
+				for i, violation := range violations {
+					path := scrubViolationPath(violation.Path)
+					// Never forward raw schema messages: non-type errors can quote values.
+					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
+					if violation.ActualType != "" && len(violation.ExpectedTypes) > 0 {
+						ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+					}
+				}
+				return ctx
+			}(),
 		},
 	}, nil
-}
-
-func buildIssueReportContext(configPath string, violations []schema.Violation) map[string]string {
-	ctx := map[string]string{
-		contextKeyConfigPath: configPath,
-		contextKeyErrorCount: strconv.Itoa(len(violations)),
-	}
-	for i, violation := range violations {
-		path := scrubViolationPath(violation.Path)
-		// Never forward raw schema messages: non-type errors can quote values.
-		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
-		if violation.ActualType != "" && len(violation.ExpectedTypes) > 0 {
-			ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
-		}
-	}
-	return ctx
 }
 
 func scrubViolationPath(path string) string {
@@ -91,8 +89,6 @@ func scrubViolationPath(path string) string {
 	if err != nil {
 		return ""
 	}
-	// Map keys can be URLs with credentials. Scrub before JSON-pointer escaping
-	// turns "://" into ":~1~1", which the existing URL scrubber cannot recognize.
 	for i, token := range pointer {
 		pointer[i], err = scrubber.ScrubString(token)
 		if err != nil {
