@@ -67,7 +67,7 @@
             "86-fips": "ami-0d0fb96b595c56e03",
             "9": "ami-0d424760e95da7d14",
             "9-fapolicyd": "ami-0838852bcc66ea9a2",
-            "9-selinux-npm": "ami-0000000000000000f",
+            "9-selinux-npm": "ami-04e7f0e0bde783f77",
             "10": "ami-07b1b74df74f960a5"
         }
     },
