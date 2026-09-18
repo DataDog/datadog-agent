@@ -358,23 +358,34 @@ impl ProcessManager {
             }
         }
 
+        // Recomputed before the gate re-evaluation below, which walks it to
+        // start candidates in dependency order and to inherit its exclusion of
+        // processes caught in a dependency cycle.
+        self.update_startup_order().await;
+
         // A process whose conditions were unmet at boot never started, so no
         // earlier reload step covers it. Two guards keep this narrow: `Created`
         // is the only state meaning "never started", so `Stopped`, `Exited`, and
         // `Failed` processes are not resurrected, and a process declaring no
         // condition was never blocked in the first place.
         {
+            let candidates: std::collections::HashSet<&str> = unchanged
+                .iter()
+                .chain(modified.iter())
+                .map(String::as_str)
+                .collect();
+            let order = self.startup_order.read().await;
             let mut procs = self.processes.write().await;
-            for name in unchanged.iter().chain(modified.iter()) {
-                let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
-                    continue;
-                };
-                if proc.state() != ProcessState::Created
+            for &idx in order.iter() {
+                let proc = &mut procs[idx];
+                if !candidates.contains(proc.name())
+                    || proc.state() != ProcessState::Created
                     || !proc.has_start_conditions()
                     || !proc.should_start()
                 {
                     continue;
                 }
+                let name = proc.name().to_owned();
                 info!("[{name}] start conditions now met after reload, starting");
                 if let Err(e) = proc.spawn(exit_tx.clone()) {
                     warn!("[{name}] failed to start after gate re-eval: {e:#}");
@@ -382,7 +393,6 @@ impl ProcessManager {
             }
         }
 
-        self.update_startup_order().await;
         Ok(ReloadResult {
             added,
             removed,
@@ -1194,6 +1204,30 @@ mod tests {
             );
 
             cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_start_cycle_skipped_process() -> anyhow::Result<()> {
+            let dir = tempfile::tempdir().unwrap();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mut a = gated_sleep_def("svc-a", &yaml);
+            let mut b = gated_sleep_def("svc-b", &yaml);
+            a.config.after = vec!["svc-b".to_string()];
+            b.config.after = vec!["svc-a".to_string()];
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![a, b]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            let procs = mgr.processes().await;
+            assert!(
+                procs.iter().all(|p| !p.is_running()),
+                "reload must not start processes the dependency resolver excluded for a cycle"
+            );
             Ok(())
         }
 
