@@ -5817,17 +5817,19 @@ properties:
           downsampler for measurement (see the checksampler_downsampling_samples_total
           and checksampler_downsampling_breakpoints_total telemetry metrics), but
           ship their original data. Nothing the downsampler produces is sent.
-      close_every_n_flushes:
+      max_gap_flushes:
         node_type: setting
         type: integer
         default: 1
         description: |-
-          Force a closing point every N aggregator flushes for downsampled check
-          gauges. The default closes every flush; 4 skips three closes before
-          forcing the fourth. Selected breakpoints still ship every flush.
-          A pending endpoint can wait up to N flush intervals, including when
-          no new samples arrive. Context expiration, check deregistration, and
-          Agent shutdown force a final close.
+          Maximum number of aggregator flush cycles a pending endpoint may wait
+          before a forced close. All metric contexts in a check share a schedule
+          that closes every N flushes, including quiet windows. The default 1
+          closes every flush; 4 skips three closes before forcing the fourth.
+          Selected breakpoints still ship every flush and do not reset the schedule.
+          This bounds deferred endpoint delivery, not the gap between sample
+          timestamps when a check stops producing samples. Context expiration,
+          check deregistration, and Agent shutdown force a final close.
           Dry-run uses the same schedule for measurement but ships original
           points every flush. Values below 1 are treated as 1.
       relative_error:

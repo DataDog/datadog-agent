@@ -134,8 +134,8 @@ type checkSDCDownsampler struct {
 	dryRun bool
 	cfg    downsampler.SDCConfig
 
-	closeEveryNFlushes int
-	flushesSinceClose  int
+	maxGapFlushes     int
+	flushesSinceClose int
 
 	tlmSamples     telemetry.SimpleCounter
 	tlmBreakpoints telemetry.SimpleCounter
@@ -162,8 +162,8 @@ func newCheckSDCDownsampler(id checkid.ID) checkSDCDownsampler {
 	}
 
 	return checkSDCDownsampler{
-		dryRun:             cfg.GetBool("adaptive_downsampling.dry_run"),
-		closeEveryNFlushes: max(1, cfg.GetInt("adaptive_downsampling.close_every_n_flushes")),
+		dryRun:        cfg.GetBool("adaptive_downsampling.dry_run"),
+		maxGapFlushes: max(1, cfg.GetInt("adaptive_downsampling.max_gap_flushes")),
 		cfg: downsampler.SDCConfig{
 			RelativeError:        cfg.GetFloat64("adaptive_downsampling.relative_error"),
 			ScaleSmoothingFactor: cfg.GetFloat64("adaptive_downsampling.scale_smoothing_factor"),
@@ -216,7 +216,7 @@ func (sc *checkSDCDownsampler) flush(retiring bool) metrics.Series {
 		return nil
 	}
 	sc.flushesSinceClose++
-	forceClose := retiring || sc.flushesSinceClose >= sc.closeEveryNFlushes
+	forceClose := retiring || sc.flushesSinceClose >= sc.maxGapFlushes
 	if forceClose {
 		sc.flushesSinceClose = 0
 	}

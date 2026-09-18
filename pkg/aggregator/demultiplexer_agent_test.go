@@ -308,9 +308,9 @@ func TestSDC_ShutdownClosesDeferredEndpointWithoutFlushingIncompleteBuckets(t *t
 		}
 	})
 	setSDCTestConfig(t, map[string]interface{}{
-		"adaptive_downsampling.all":                   true,
-		"adaptive_downsampling.close_every_n_flushes": 4,
-		"dogstatsd_flush_incomplete_buckets":          false,
+		"adaptive_downsampling.all":             true,
+		"adaptive_downsampling.max_gap_flushes": 4,
+		"dogstatsd_flush_incomplete_buckets":    false,
 	})
 	cs := newSDCTestSampler("shutdown_endpoint")
 	for ts := 0.0; ts < 13; ts++ {

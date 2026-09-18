@@ -386,8 +386,8 @@ func TestSDC_IdleContextExpiryDropsDownsamplerImmediately(t *testing.T) {
 
 func TestSDC_PeriodicClosing(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"adaptive_downsampling.all":                   true,
-		"adaptive_downsampling.close_every_n_flushes": 4,
+		"adaptive_downsampling.all":             true,
+		"adaptive_downsampling.max_gap_flushes": 4,
 	})
 	cs := newSDCTestSampler("periodic_close")
 
@@ -428,9 +428,9 @@ func TestSDC_DeferredEndpointAfterQuietWindow(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				setSDCTestConfig(t, map[string]interface{}{
-					"adaptive_downsampling.all":                   true,
-					"adaptive_downsampling.dry_run":               dryRun,
-					"adaptive_downsampling.close_every_n_flushes": 4,
+					"adaptive_downsampling.all":             true,
+					"adaptive_downsampling.dry_run":         dryRun,
+					"adaptive_downsampling.max_gap_flushes": 4,
 				})
 				cs := newSDCTestSampler("quiet_" + name)
 				before := cs.sdcDownsampler.tlmBreakpoints.Get()
@@ -490,8 +490,8 @@ func TestSDC_DeferredEndpointAfterQuietWindow(t *testing.T) {
 
 func TestSDC_PeriodicClosingDrainsBreakpointsEveryFlush(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"adaptive_downsampling.all":                   true,
-		"adaptive_downsampling.close_every_n_flushes": 4,
+		"adaptive_downsampling.all":             true,
+		"adaptive_downsampling.max_gap_flushes": 4,
 	})
 	cs := newSDCTestSampler("periodic_breakpoints")
 	for ts := 0.0; ts <= 10; ts++ {
@@ -518,9 +518,9 @@ func TestSDC_PeriodicClosingDrainsBreakpointsEveryFlush(t *testing.T) {
 
 func TestSDC_PeriodicDryRunMatchesDisabled(t *testing.T) {
 	setSDCTestConfig(t, map[string]interface{}{
-		"adaptive_downsampling.all":                   false,
-		"adaptive_downsampling.checks":                []string{},
-		"adaptive_downsampling.close_every_n_flushes": 4,
+		"adaptive_downsampling.all":             false,
+		"adaptive_downsampling.checks":          []string{},
+		"adaptive_downsampling.max_gap_flushes": 4,
 	})
 	disabled := newSDCTestSampler("periodic_disabled")
 	setSDCTestConfig(t, map[string]interface{}{
@@ -552,14 +552,14 @@ func TestSDC_PeriodicDryRunMatchesDisabled(t *testing.T) {
 	}
 }
 
-func TestSDC_CloseIntervalBelowOneUsesEveryFlush(t *testing.T) {
-	for _, interval := range []int{0, -1} {
+func TestSDC_MaxGapBelowOneUsesEveryFlush(t *testing.T) {
+	for _, maxGap := range []int{0, -1} {
 		setSDCTestConfig(t, map[string]interface{}{
-			"adaptive_downsampling.all":                   true,
-			"adaptive_downsampling.close_every_n_flushes": interval,
+			"adaptive_downsampling.all":             true,
+			"adaptive_downsampling.max_gap_flushes": maxGap,
 		})
-		cs := newSDCTestSampler("invalid_interval")
-		require.Equal(t, 1, cs.sdcDownsampler.closeEveryNFlushes)
+		cs := newSDCTestSampler("invalid_max_gap")
+		require.Equal(t, 1, cs.sdcDownsampler.maxGapFlushes)
 	}
 }
 
@@ -572,7 +572,7 @@ func TestSDC_SerializedTimestampErrorBound(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			setSDCTestConfig(t, map[string]interface{}{
 				"adaptive_downsampling.all":                    true,
-				"adaptive_downsampling.close_every_n_flushes":  1,
+				"adaptive_downsampling.max_gap_flushes":        1,
 				"adaptive_downsampling.relative_error":         0.02,
 				"adaptive_downsampling.scale_smoothing_factor": 0.3,
 			})
@@ -616,7 +616,7 @@ func TestSDC_SerializedBoundAcrossPeriodicFlushes(t *testing.T) {
 	for _, interval := range []int{1, 4} {
 		setSDCTestConfig(t, map[string]interface{}{
 			"adaptive_downsampling.all":                    true,
-			"adaptive_downsampling.close_every_n_flushes":  interval,
+			"adaptive_downsampling.max_gap_flushes":        interval,
 			"adaptive_downsampling.relative_error":         0.02,
 			"adaptive_downsampling.scale_smoothing_factor": 0.3,
 		})
@@ -693,9 +693,9 @@ func TestSDC_RetiringSamplerClosesEndpoint(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				setSDCTestConfig(t, map[string]interface{}{
-					"adaptive_downsampling.all":                   true,
-					"adaptive_downsampling.dry_run":               dryRun,
-					"adaptive_downsampling.close_every_n_flushes": 4,
+					"adaptive_downsampling.all":             true,
+					"adaptive_downsampling.dry_run":         dryRun,
+					"adaptive_downsampling.max_gap_flushes": 4,
 				})
 				cs := newSDCTestSampler("retiring_" + name)
 				for ts := 0.0; ts < 13; ts++ {
