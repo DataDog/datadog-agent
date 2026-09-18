@@ -6,3 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e",
     visibility = ["//visibility:public"],
 )
+
+# Exported for the Orchestrion pin files consumed by dd_e2e_go_test
+# (bazel/rules/go:dd_e2e_go_test.bzl), per the rules_test_optimization
+# Bzlmod onboarding guide ("Manual Orchestrion Pin Files").
+# keep
+exports_files(["go.mod", "go.sum", "orchestrion.tool.go", "orchestrion.yml"])

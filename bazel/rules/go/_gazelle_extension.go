@@ -33,6 +33,7 @@ import (
 )
 
 const extName = "dd_agent_go_test"
+const e2eExtName = "dd_e2e_go_test"
 const canonicalTagSetDirective = "go_canonical_test_tag_set"
 const manualTag = "manual"
 
@@ -41,6 +42,7 @@ const maxEnumeratedAutoTestTags = 12
 
 type ddAgentGoTestConfig struct {
 	enabled bool
+	e2e     bool
 	tagSets [][]string
 }
 
@@ -58,6 +60,16 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
 		kinds[k] = v
+	}
+	kinds["dd_e2e_go_test"] = rule.KindInfo{
+		NonEmptyAttrs: map[string]bool{"embed": true},
+		MergeableAttrs: map[string]bool{
+			"gotags":          true,
+			"include_default": true,
+			"srcs":            true,
+			"gotags_sets":     true,
+		},
+		ResolveAttrs: map[string]bool{"deps": true},
 	}
 	kinds["dd_agent_go_test"] = rule.KindInfo{
 		NonEmptyAttrs: map[string]bool{"embed": true},
@@ -80,16 +92,22 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	if mal, ok := l.Language.(language.ModuleAwareLanguage); ok {
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
-	return append(base, rule.LoadInfo{
-		Name:    "//bazel/rules/go:dd_agent_go_test.bzl",
-		Symbols: []string{"dd_agent_go_test"},
-		After:   []string{"go_test"},
-	})
+	return append(base,
+		rule.LoadInfo{
+			Name:    "//bazel/rules/go:dd_agent_go_test.bzl",
+			Symbols: []string{"dd_agent_go_test"},
+			After:   []string{"go_test"},
+		},
+		rule.LoadInfo{
+			Name:    "//bazel/rules/go:dd_e2e_go_test.bzl",
+			Symbols: []string{"dd_e2e_go_test"},
+			After:   []string{"go_test", "dd_agent_go_test"},
+		})
 }
 
 // KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective)
+	return append(l.Language.KnownDirectives(), extName, e2eExtName, canonicalTagSetDirective)
 }
 
 // Configure reads the inheritable test conversion and canonical tag-set directives.
@@ -106,6 +124,12 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 			switch d.Key {
 			case extName:
 				cfg.enabled = d.Value != "off"
+			case e2eExtName:
+				// Opt-in per subtree: like `dd_agent_go_test on`, but generated
+				// tests are E2E tests wrapped with Orchestrion instrumentation
+				// (dd_e2e_go_test). Requires dd_agent_go_test to be on too
+				// (it is, repo-wide, via the root BUILD file).
+				cfg.e2e = d.Value != "off"
 			case canonicalTagSetDirective:
 				if tags := parseCanonicalTagSet(d.Value); len(tags) > 0 {
 					cfg.tagSets = mergeTagSets(cfg.tagSets, [][]string{tags})
@@ -122,7 +146,11 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
 	if shouldReplace(args.Config) {
-		result = l.replaceGoTests(result, args.File, args.Dir, configuredTagSets(args.Config))
+		kind := "dd_agent_go_test"
+		if cfg, ok := args.Config.Exts[extName].(ddAgentGoTestConfig); ok && cfg.e2e {
+			kind = "dd_e2e_go_test"
+		}
+		result = l.replaceGoTests(result, args.File, args.Dir, configuredTagSets(args.Config), kind)
 	} else {
 		// Preserve the go_build_tags extension's behaviour for non-opted packages:
 		// every go_test still needs the minimal base test tags.
@@ -163,7 +191,9 @@ func configuredTagSets(c *config.Config) [][]string {
 	return cfg.tagSets
 }
 
-// replaceGoTests converts all go_test rules in result to dd_agent_go_test rules.
+// replaceGoTests converts all go_test rules in result to rules of the given
+// kind ("dd_agent_go_test", or "dd_e2e_go_test" for Orchestrion-instrumented E2E
+// tests).
 // file is the parsed existing BUILD file (may be nil for fresh packages); it
 // is consulted to carry over user-managed attrs from any pre-existing go_test
 // rule that the merger would otherwise discard along with the rule itself.
@@ -172,20 +202,28 @@ func configuredTagSets(c *config.Config) [][]string {
 // go_test MergeableAttrs are regenerated from source analysis, and attrs in
 // dd_agent_go_test's MergeableAttrs are owned by the macro. Everything else is hand-maintained and
 // must be carried over.
-func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string, configuredTagSets [][]string) language.GenerateResult {
+func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string, configuredTagSets [][]string, kind string) language.GenerateResult {
 	managed := make(map[string]bool)
 	for attr := range l.Language.Kinds()["go_test"].MergeableAttrs {
 		managed[attr] = true
 	}
-	for attr := range l.Kinds()["dd_agent_go_test"].MergeableAttrs {
+	for attr := range l.Kinds()[kind].MergeableAttrs {
 		managed[attr] = true
 	}
 
 	existing := make(map[string]*rule.Rule)
 	if file != nil {
 		for _, r := range file.Rules {
-			if r.Kind() == "go_test" {
+			switch r.Kind() {
+			case "go_test":
 				existing[r.Name()] = r
+			case "dd_agent_go_test", "dd_e2e_go_test":
+				// Flip macro-kind rules in place toward the kind we are
+				// generating, mirroring revertDdAgentGoTests: the flipped rule
+				// matches the generated candidate by kind+name, so the merger
+				// preserves every hand-maintained attr, `# keep` marker and
+				// comment instead of deleting and regenerating from scratch.
+				r.SetKind(kind)
 			}
 		}
 	}
@@ -207,7 +245,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 			imports = append(imports, imp)
 			continue
 		}
-		nr := rule.NewRule("dd_agent_go_test", r.Name())
+		nr := rule.NewRule(kind, r.Name())
 		for _, attr := range r.AttrKeys() {
 			copyAttr(r, nr, attr)
 		}
@@ -232,7 +270,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 		if srcs := nr.AttrStrings("srcs"); len(srcs) > 0 {
 			includeDefault, tagSets := applicableTagSets(srcs, embeddedSrcs, pkgDir, configuredTagSets)
 			if !includeDefault && len(tagSets) == 0 {
-				if existingDd, ok := findRule(file, "dd_agent_go_test", r.Name()); ok {
+				if existingDd, ok := findRule(file, kind, r.Name()); ok {
 					existingDd.Delete()
 				}
 				// Keep unsupported tag modes available for explicit invocation.
@@ -295,7 +333,7 @@ func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.F
 // proxies through a temporary go_test rule so the Go extension can resolve imports
 // to deps, then copies the resolved deps back.
 func (l *lang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
-	if r.Kind() != "dd_agent_go_test" {
+	if r.Kind() != "dd_agent_go_test" && r.Kind() != "dd_e2e_go_test" {
 		l.Language.Resolve(c, ix, rc, r, imports, from)
 		return
 	}

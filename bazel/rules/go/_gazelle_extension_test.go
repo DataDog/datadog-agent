@@ -87,7 +87,7 @@ func tagsList(tags ...string) []string {
 
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
-	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "", nil, "dd_agent_go_test")
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_library" {
 		t.Errorf("expected go_library to pass through, got %v", result.Gen)
@@ -105,7 +105,7 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	orig.SetAttr("embed", []string{":pkg"})
 	orig.SetAttr("deps", []string{"//some/dep"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil, "dd_agent_go_test")
 
 	if len(result.Gen) != 1 {
 		t.Fatalf("expected 1 gen rule, got %d", len(result.Gen))
@@ -134,7 +134,7 @@ func TestReplaceGoTests_ConfiguredTagSets(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zstd", "zlib")})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zstd", "zlib")}, "dd_agent_go_test")
 
 	got := attrGotagsSets(result.Gen[0])
 	want := [][]string{tagsList("zlib", "zstd")}
@@ -151,7 +151,7 @@ func TestReplaceGoTests_NoApplicableTagSetKeepsManualGoTest(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, nil, "dd_agent_go_test")
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_test" {
 		t.Fatalf("expected one go_test, got %v", result.Gen)
@@ -175,7 +175,7 @@ func TestReplaceGoTests_LinuxBPFStillUsesMacro(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("bpf")})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("bpf")}, "dd_agent_go_test")
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "dd_agent_go_test" {
 		t.Fatalf("expected one dd_agent_go_test, got %v", result.Gen)
@@ -195,7 +195,7 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig.SetAttr("data", []string{"testdata/foo.json"})
 	orig.SetAttr("target_compatible_with", []string{"@platforms//os:linux"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil, "dd_agent_go_test")
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
@@ -226,7 +226,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 	prior.SetAttr("srcs", []string{"stale.go"}) // Gazelle-owned -> should NOT carry over
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
-	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil, "dd_agent_go_test")
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("data"); !stringSlicesEqual(got, []string{"testdata/foo.json"}) {
@@ -267,7 +267,7 @@ func TestReplaceGoTests_KeepCommentPreserved(t *testing.T) {
 	}
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
-	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil, "dd_agent_go_test")
 	r := result.Gen[0]
 	list, ok := r.Attr("tags").(*bzl.ListExpr)
 	if !ok {
@@ -281,7 +281,7 @@ func TestReplaceGoTests_KeepCommentPreserved(t *testing.T) {
 
 func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
 	orig := rule.NewRule("go_test", "t")
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil, "dd_agent_go_test")
 	if len(result.Imports) != len(result.Gen) {
 		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
 	}
@@ -295,7 +295,7 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	tst := rule.NewRule("go_test", "lib_test")
 	bin := rule.NewRule("go_binary", "main")
 
-	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil, "", nil)
+	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil, "", nil, "dd_agent_go_test")
 
 	if len(result.Gen) != 3 {
 		t.Fatalf("expected 3 gen rules, got %d", len(result.Gen))

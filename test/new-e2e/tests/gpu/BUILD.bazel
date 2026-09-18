@@ -1,5 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go:dd_e2e_go_test.bzl", "dd_e2e_go_test")
 
 go_library(
     name = "gpu",
@@ -51,7 +51,7 @@ go_library(
     ],
 )
 
-dd_agent_go_test(
+dd_e2e_go_test(
     name = "gpu_test",
     srcs = ["gpu_test.go"],
     data = glob(["testdata/**"]),
