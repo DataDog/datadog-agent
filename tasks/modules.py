@@ -271,7 +271,7 @@ def validate_cargo(_: Context):
         print(
             "Dependencies should not pin a version outside the top-level Cargo.toml (use `dep.workspace = true` instead)."
         )
-        print("This check does not fail the build yet; it will in the future.")
+        print("This will be an error after the existing violations are cleaned up.")
 
 
 def get_module_by_path(path: Path) -> GoModule | None:
