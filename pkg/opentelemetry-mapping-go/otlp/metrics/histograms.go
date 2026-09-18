@@ -144,35 +144,76 @@ func CreateDDSketchFromHistogramOfDuration(dp *pmetric.HistogramDataPoint, unit 
 	return newSketch, nil
 }
 
-func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDataPointBuckets, mapping *mapping.LogarithmicMapping, base float64, scaleToNanos float64) store.Store {
+// toStoreFromExponentialBucketsWithUnitScale converts the buckets of one half of an
+// exponential histogram into a DDSketch store, returning the store alongside the
+// count of observations that were too small to be indexed and therefore belong in
+// the sketch's zero bin.
+//
+// Every boundary is checked against the mapping's indexable range before being
+// handed to mapping.Index. Index does not validate its argument: it computes
+// Log(value)*multiplier + indexOffset and converts the result to an int, so a value
+// outside the range yields either a non-finite intermediate (Log(0) is -Inf) or an
+// index far too large for DenseStore to allocate. Both crash in DenseStore rather
+// than returning an error.
+func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDataPointBuckets, mapping *mapping.LogarithmicMapping, base float64, scaleToNanos float64) (store.Store, float64, error) {
 	offset := b.Offset()
 	bucketCounts := b.BucketCounts()
 
+	minIndexable := mapping.MinIndexableValue()
+	maxIndexable := mapping.MaxIndexableValue()
+
 	store := store.NewDenseStore()
+	var underflowCount float64
 	for j := 0; j < bucketCounts.Len(); j++ {
 		bucketIndex := j + int(offset)
 		count := bucketCounts.At(j)
 
-		if count > 0 {
-			// Calculate the actual bucket boundary value
-			bucketValue := math.Pow(base, float64(bucketIndex))
+		if count == 0 {
+			continue
+		}
 
-			// Scale the bucket value to nanoseconds
-			scaledValue := bucketValue * scaleToNanos
+		// Calculate the actual bucket boundary value
+		bucketValue := math.Pow(base, float64(bucketIndex))
 
+		// Scale the bucket value to nanoseconds
+		scaledValue := bucketValue * scaleToNanos
+
+		switch {
+		case math.IsNaN(scaledValue):
+			return nil, 0, fmt.Errorf("exponential histogram bucket %d has a non-numeric boundary", bucketIndex)
+		case scaledValue > maxIndexable:
+			return nil, 0, fmt.Errorf(
+				"exponential histogram bucket %d boundary %g exceeds the maximum indexable value %g",
+				bucketIndex, scaledValue, maxIndexable,
+			)
+		case scaledValue < minIndexable:
+			// Indistinguishable from zero at this mapping's resolution. DDSketch
+			// tracks such values in the zero bin.
+			underflowCount += float64(count)
+		default:
 			// Convert back to the index in the nanosecond space
 			// Using the same gamma since we're keeping the same precision
 			scaledIndex := mapping.Index(scaledValue)
 			store.AddWithCount(scaledIndex, float64(count))
 		}
 	}
-	return store
+	return store, underflowCount, nil
 }
 
 // CreateDDSketchFromExponentialHistogramOfDuration creates a DDSketch from exponential histogram data point
 func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHistogramDataPoint, scale int32, unit string) (*ddsketch.DDSketch, error) {
 	// Create the DDSketch stores
 	scaleToNanos := getTimeUnitScaleToNanos(unit)
+
+	// toStoreFromExponentialBucketsWithUnitScale computes each bucket boundary as
+	// base^bucketIndex * scaleToNanos with an unclamped base, so out-of-range indices
+	// reach LogarithmicMapping.Index as +Inf and panic in DenseStore. The gamma clamp
+	// below only bounds the output mapping and does not protect against this.
+	if p != nil {
+		if err := checkExponentialHistogramBounds(*p, scale, scaleToNanos); err != nil {
+			return nil, err
+		}
+	}
 
 	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
 	gammaWithOnePercentAccuracy := 1.01 / 0.99
@@ -184,15 +225,33 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
 
+	// A scale fine enough that gamma is barely above 1 gives the mapping a multiplier
+	// so large that its indexable range inverts, leaving no value it can represent.
+	// Reject rather than folding every observation into the zero bin.
+	if mapping.MinIndexableValue() > mapping.MaxIndexableValue() {
+		return nil, fmt.Errorf(
+			"exponential histogram scale %d leaves no indexable values for unit %q: indexable range is [%g, %g]",
+			scale, unit, mapping.MinIndexableValue(), mapping.MaxIndexableValue(),
+		)
+	}
+
 	// Calculate the base for the exponential histogram
 	base := math.Pow(2, math.Pow(2, float64(-scale)))
 	var positiveStore store.Store
 	var negativeStore store.Store
 	var zeroCount float64
 	if p != nil {
-		positiveStore = toStoreFromExponentialBucketsWithUnitScale(p.Positive(), mapping, base, scaleToNanos)
-		negativeStore = toStoreFromExponentialBucketsWithUnitScale(p.Negative(), mapping, base, scaleToNanos)
-		zeroCount = float64(p.ZeroCount())
+		var posUnderflow, negUnderflow float64
+		positiveStore, posUnderflow, err = toStoreFromExponentialBucketsWithUnitScale(p.Positive(), mapping, base, scaleToNanos)
+		if err != nil {
+			return nil, err
+		}
+		negativeStore, negUnderflow, err = toStoreFromExponentialBucketsWithUnitScale(p.Negative(), mapping, base, scaleToNanos)
+		if err != nil {
+			return nil, err
+		}
+		// Observations too small to index belong in the zero bin, on both halves.
+		zeroCount = float64(p.ZeroCount()) + posUnderflow + negUnderflow
 	} else {
 		positiveStore = store.NewDenseStore()
 		negativeStore = store.NewDenseStore()
