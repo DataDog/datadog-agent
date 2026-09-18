@@ -7,5 +7,6 @@ go_library(
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
     ],
 )

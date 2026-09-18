@@ -53,7 +53,7 @@ func TestSectionExampleIsValid(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The example shows a real, editable version — not an invalid placeholder.
-	if !strings.Contains(string(data), "7.69.0") {
+	if !strings.Contains(string(data), "7.83.0") {
 		t.Fatalf("example should show the version example, got: %s", data)
 	}
 	if _, _, err := Schema.DecodeNode(node, "agent.script"); err != nil {

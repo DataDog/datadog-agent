@@ -81,10 +81,12 @@ func (d *Driver) Start(params kindconfig.Config, cfg *config.File, entry envstor
 
 	if cfg.FakeIntakeEnabled() {
 		fiKey, err := json.Marshal(map[string]any{
-			"host":   ipStr,
-			"scheme": "http",
-			"port":   meta.FakeIntakePort,
-			"url":    fmt.Sprintf("http://%s:%d", ipStr, meta.FakeIntakePort),
+			"host":     ipStr,
+			"scheme":   "http",
+			"port":     meta.FakeIntakePort,
+			"url":      fmt.Sprintf("http://%s:%d", ipStr, meta.FakeIntakePort),
+			"agentURL": fmt.Sprintf("http://%s:%d", ipStr, meta.FakeIntakePort),
+			"queryURL": meta.FakeIntakeURL,
 		})
 		if err != nil {
 			return err

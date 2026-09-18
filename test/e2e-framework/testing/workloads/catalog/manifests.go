@@ -5,7 +5,11 @@
 
 package catalog
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
+	"strings"
+)
 
 // The manifests below are static ports of the framework's Pulumi app
 // definitions (components/datadog/apps/*). Names, images, labels,
@@ -1397,4 +1401,22 @@ spec:
               type: object
 `
 	return []string{manifest}
+}
+
+// The capture variant is opt-in and independent of the main Agent selector.
+// Keep original fixture identities/assertions intact; only this new app rewires
+// the standalone producer. No real secret is interpolated into its manifest.
+func dogstatsdStandaloneCaptureManifests(ns string) []string {
+	manifests := dogstatsdStandaloneManifests(ns)
+	for i, manifest := range manifests {
+		manifest = strings.ReplaceAll(manifest, "{{API_KEY}}", receivers.DummyAPIKey)
+		manifest = strings.ReplaceAll(manifest, "registry.datadoghq.com/dogstatsd:latest", "registry.datadoghq.com/dogstatsd:7.83.0")
+		manifest = strings.ReplaceAll(manifest, `- name: DD_ADDITIONAL_ENDPOINTS
+              value: '{"{{FAKEINTAKE_URL}}": ["FAKEAPIKEY"]}'`, `- name: DD_DD_URL
+              value: "{{FAKEINTAKE_URL}}"
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"`)
+		manifests[i] = manifest
+	}
+	return manifests
 }

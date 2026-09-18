@@ -22,7 +22,7 @@ import (
 // Config is what the Datadog Helm chart installer consumes: a released
 // version, or a local development image.
 type Config struct {
-	Version string `yaml:"version,omitempty" example:"7.69.0" description:"Released agent version; or set image for a local development image."`
+	Version string `yaml:"version,omitempty" example:"7.83.0" description:"Released agent version; or set image for a local development image."`
 	Image   string `yaml:"image,omitempty" description:"Local development image, fully qualified with a semver-shaped tag."`
 	// Values is extra Helm chart values, deep-merged over the installer's
 	// defaults. The escape hatch for chart knobs e2ectl does not type —
@@ -52,9 +52,8 @@ func (Rules) Validate(c Config) error {
 			return errors.New("image: tag is not semver-shaped (expected e.g. \"7.99.0-e2ectl\")")
 		}
 	}
-	if c.Version == "" && c.Image == "" {
-		return errors.New("either version or image is required")
-	}
+	// Artifact-source requiredness belongs to the installer envelope: an
+	// agent.build provider may supply the image without legacy fields here.
 	return nil
 }
 

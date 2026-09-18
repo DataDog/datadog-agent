@@ -8,14 +8,12 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/buildprovider"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentbuild"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"time"
-
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
@@ -25,8 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -34,28 +34,19 @@ import (
 // runtime container: the install bind-mounts it over the image's agent binary.
 const agentBinPathInContainer = "/opt/datadog-agent/bin/agent/agent"
 
-// DefaultRuntimeImage is the pinned official Agent image the locally built
-// binary runs in. The binary is mounted over the image's own binary path, so
-// the image provides the runtime (glibc, embedded python) — not the Agent.
-// The pin location is provisional (see the local agent plan's open decision):
-// it should eventually live with the other pinned runtime dependencies.
+// DefaultRuntimeImage provides Ubuntu system libraries and Agent Python
+// site-packages. The actual executable, CPython and rtloader come from the staged
+// bundle. The adapter verifies matching Python ABI and records the image ID.
 const DefaultRuntimeImage = "registry.datadoghq.com/agent:7.83.0"
-
-// readinessTimeout bounds the wait for the agent heartbeat in the fakeintake.
-// The build happens before this wait starts; this covers agent startup plus
-// the first flush only.
-const readinessTimeout = 3 * time.Minute
-
-// devLibSubpath is where the rtloader shared libraries live relative to the
-// repository root. The dev-container-built binary is dynamically linked
-// against them (found via the worktree dev/lib at build time); inside the
-// container we mount them and point LD_LIBRARY_PATH at the mount.
-const devLibSubpath = "dev/lib"
 
 // Binary installs the Agent built from the working tree, running it in a
 // container on the environment's Docker network. The container is the process
 // handle: `docker rm -f` stops it, `docker logs` is the debugging surface.
-type Binary struct{}
+type Binary struct {
+	adapter agentbuild.Adapter
+	docker  func(...string) (string, error)
+	ready   func(envstore.Entry) error
+}
 
 // ID implements Installer.
 func (b *Binary) ID() string { return "binary" }
@@ -63,9 +54,8 @@ func (b *Binary) ID() string { return "binary" }
 // AgentExample implements Installer: the binary section schema's example.
 func (b *Binary) AgentExample() (*yaml.Node, error) { return binaryconfig.Schema.Example(nil) }
 
-// Artifact implements Installer. The binary installer has no version or
-// image: the Agent is always built from source. The empty values make `list`
-// show the "binary" label via the cmdList tweak.
+// Artifact is the legacy requested-summary API. InstalledSummary reports the
+// verified output receipt for new binary installations.
 func (b *Binary) Artifact(cfg *config.File) (string, string, error) {
 	if _, err := decodeBinarySection(cfg); err != nil {
 		return "", "", err
@@ -75,8 +65,31 @@ func (b *Binary) Artifact(cfg *config.File) (string, string, error) {
 
 // Validate implements Installer: the binary section's own rules.
 func (b *Binary) Validate(cfg *config.File) []error {
-	if _, err := decodeBinarySection(cfg); err != nil {
+	section, err := decodeBinarySection(cfg)
+	if err != nil {
 		return []error{err}
+	}
+	if cfg.Agent.Build != nil {
+		if err := buildprovider.Binaries.Validate(cfg.Agent.Build); err != nil {
+			return []error{err}
+		}
+	}
+	if err := ValidateReceiver(b, cfg); err != nil {
+		return []error{err}
+	}
+	if cfg.Agent.Receiver != nil {
+		if section.RuntimeImage != "" && section.RuntimeImage != DefaultRuntimeImage {
+			return []error{fmt.Errorf("explicit routing requires the pinned runtime image")}
+		}
+		m, err := receivers.ValidateConfig(section.Config)
+		if err != nil {
+			return []error{err}
+		}
+		for _, key := range []string{"apm_config.enabled", "process_config.process_collection.enabled", "process_config.container_collection.enabled"} {
+			if m[key] == true {
+				return []error{fmt.Errorf("%s: Binary runs core only, not separate APM/process subagents", key)}
+			}
+		}
 	}
 	return nil
 }
@@ -89,26 +102,7 @@ func decodeBinarySection(cfg *config.File) (binaryconfig.Config, error) {
 // into the environment, and run it in a container on the environment's
 // network, replacing any container a previous install left behind.
 func (b *Binary) Install(cfg *config.File, entry envstore.Entry) error {
-	section, err := decodeBinarySection(cfg)
-	if err != nil {
-		return err
-	}
-	// The running container bind-mounts the pinned binary: it must be
-	// replaced before the fresh build can be pinned (Linux refuses to
-	// overwrite a file kept busy by the mount).
-	if err := localinfra.RemoveContainer(localinfra.AgentContainer(entry.Name)); err != nil {
-		return fmt.Errorf("replacing the agent container: %w", err)
-	}
-	if err := buildAndPinBinary(entry); err != nil {
-		return err
-	}
-	if err := b.runAgentContainer(entry, section); err != nil {
-		return err
-	}
-	if err := b.waitForFlushedMetrics(entry); err != nil {
-		return err
-	}
-	return b.writeSnapshotOutputs(entry)
+	return b.Update(cfg, entry, false)
 }
 
 // writeSnapshotOutputs records the host and agent components in the
@@ -118,21 +112,18 @@ func (b *Binary) Install(cfg *config.File, entry envstore.Entry) error {
 // AgentClient invokes it directly (the container has no sudo and no
 // datadog-agent wrapper). The existing StaticStackProvisioner rehydrates
 // environments.Host from these resources with zero provisioner changes.
-func (b *Binary) writeSnapshotOutputs(entry envstore.Entry) error {
+func (b *Binary) writeSnapshotOutputs(entry envstore.Entry, result agentbuild.Result) error {
 	hostOut := outputs.HostOutput{
 		CloudProvider: "local",
 		Transport:     "docker",
 		Address:       localinfra.AgentContainer(entry.Name),
 		OSFamily:      e2eostypes.LinuxFamily,
 		OSFlavor:      e2eostypes.Ubuntu,
-		OSVersion:     "24.04",
-		Architecture:  e2eostypes.ARM64Arch,
+		OSVersion:     result.Binary.OSVersion,
+		Architecture:  binaryArchitecture(),
 	}
 	hostJSON, err := json.Marshal(hostOut)
 	if err != nil {
-		return err
-	}
-	if err := provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "remoteHost", hostJSON); err != nil {
 		return err
 	}
 	agentJSON, err := json.Marshal(outputs.HostAgentOutput{
@@ -142,63 +133,144 @@ func (b *Binary) writeSnapshotOutputs(entry envstore.Entry) error {
 	if err != nil {
 		return err
 	}
-	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "agent", agentJSON)
+	return publishArtifact(entry, result, provisioner.RawResources{"remoteHost": hostJSON, "agent": agentJSON})
 }
 
-// Update implements Updatable: prepare (rebuild unless skipBuild), replace
-// the container, pin the fresh binary, restart. The installer owns the entire
-// preparation path — the CLI only passes the skipBuild flag.
+// Update prepares/acquires and verifies a fresh immutable generation before
+// activation. skipBuild reuses installed pins, never current worktree outputs.
 func (b *Binary) Update(cfg *config.File, entry envstore.Entry, skipBuild bool) error {
 	section, err := decodeBinarySection(cfg)
 	if err != nil {
 		return err
 	}
-	if !skipBuild {
-		if err := buildAgentBinary(); err != nil {
-			return err
+	if err := b.preflightRuntimeState(entry); err != nil {
+		return err
+	}
+	agentYAML, err := b.prepareConfig(cfg, entry, section)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := artifactContext()
+	defer cancel()
+	var result agentbuild.Result
+	if skipBuild {
+		result, err = readArtifact(entry)
+		if err == nil && cfg.Agent.Receiver != nil {
+			err = result.RequireBinaryRouting()
+		}
+		if err == nil {
+			err = result.Validate(localTarget())
+		}
+		if err == nil && result.Binary == nil {
+			err = fmt.Errorf("installed artifact is not a binary bundle")
+		}
+		if err == nil {
+			err = b.verifyRuntimeState(entry)
+		}
+		if err == nil {
+			_, err = b.adapter.InspectImage(ctx, result.Binary.RuntimeImageID, result.Target)
+		}
+	} else {
+		selection := cfg.Agent.Build
+		if selection == nil {
+			selection, err = legacyBinarySelection()
+			if err != nil {
+				return err
+			}
+		}
+		if cfg.Agent.Receiver != nil {
+			if err := buildprovider.Binaries.ValidateRouting(selection); err != nil {
+				return err
+			}
+		}
+		image := section.RuntimeImage
+		if image == "" {
+			image = DefaultRuntimeImage
+		}
+		runtimeID, preflightErr := b.adapter.PreflightRuntimeImage(ctx, image, localTarget())
+		if preflightErr != nil {
+			return preflightErr
+		}
+		request := artifactRequest(entry, localTarget())
+		request.Adapter = b.adapter
+		prepared, prepErr := buildprovider.Binaries.Prepare(ctx, selection, request)
+		result, err = prepared.Result, prepErr
+		if err == nil && cfg.Agent.Receiver != nil {
+			err = result.RequireBinaryRouting()
+		}
+		if err == nil {
+			result, err = b.adapter.VerifyRuntime(ctx, result, runtimeID)
 		}
 	}
-	// The running container bind-mounts the pinned binary: replace it before
-	// pinning (Linux refuses to overwrite a file kept busy by the mount).
-	if err := localinfra.RemoveContainer(localinfra.AgentContainer(entry.Name)); err != nil {
-		return fmt.Errorf("replacing the agent container: %w", err)
-	}
-	if err := pinArtifacts(entry); err != nil {
+	if err != nil {
 		return err
 	}
-	if err := b.runAgentContainer(entry, section); err != nil {
+	if result.Binary.RuntimeImageID == "" || result.Binary.PythonPath == "" {
+		return fmt.Errorf("runtime verification receipt missing")
+	}
+	if err := b.prepareRuntimeState(entry); err != nil {
 		return err
 	}
-	if err := b.waitForFlushedMetrics(entry); err != nil {
+	// All builds, staging, identity checks and Python/Go runtime probes finish
+	// before replacing a working Agent or writing its live configuration.
+	if err := artifactPhase(entry, result, "activating"); err != nil {
 		return err
 	}
-	return b.writeSnapshotOutputs(entry)
+	if err := b.runPreparedBinary(entry, section, agentYAML, result); err != nil {
+		_ = artifactPhase(entry, result, "failed")
+		return err
+	}
+	if err := b.waitForReady(entry); err != nil {
+		_ = artifactPhase(entry, result, "failed")
+		return err
+	}
+	return b.writeSnapshotOutputs(entry, result)
 }
 
-func (b *Binary) runAgentContainer(entry envstore.Entry, section binaryconfig.Config) error {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	if err != nil {
-		return fmt.Errorf("resolving Agent API key: %w", err)
-	}
-	if err := writeAgentFiles(entry, section, apiKey); err != nil {
+func (b *Binary) runPreparedBinary(entry envstore.Entry, section binaryconfig.Config, agentYAML string, result agentbuild.Result) error {
+	return b.activatePreparedBinary(entry, section, agentYAML, preparedBinaryRunArgs(entry, *result.Binary))
+}
+
+func (b *Binary) activatePreparedBinary(entry envstore.Entry, section binaryconfig.Config, agentYAML string, args []string) error {
+	if err := writePreparedAgentFiles(entry, section, agentYAML); err != nil {
 		return err
 	}
-	// Replace any container from a previous install or a failed readiness
-	// (the container is left behind on failure so its logs stay inspectable).
-	if err := localinfra.RemoveContainer(localinfra.AgentContainer(entry.Name)); err != nil {
-		return fmt.Errorf("replacing the agent container: %w", err)
+	if _, err := b.dockerCommand("rm", "-f", localinfra.AgentContainer(entry.Name)); err != nil {
+		return err
 	}
-	image := section.RuntimeImage
-	if image == "" {
-		image = DefaultRuntimeImage
+	_, err := b.dockerCommand(args...)
+	return err
+}
+func preparedBinaryBaseArgs(entry envstore.Entry, bundle agentbuild.BinaryBundle) []string {
+	args := []string{"run", "-d", "--pull=never", "--name", localinfra.AgentContainer(entry.Name), "--network", localinfra.NetworkName(entry.Name), "--hostname", localinfra.AgentContainer(entry.Name)}
+	args = append(args, agentbuild.BinaryMountArgs(bundle)...)
+	return append(args, "-v", filepath.Join(entry.Dir, "agent.yaml")+":/etc/datadog-agent/datadog.yaml:ro", "-v", filepath.Join(entry.Dir, "conf.d")+":/etc/datadog-agent/conf.d")
+}
+func preparedBinaryRunArgs(entry envstore.Entry, bundle agentbuild.BinaryBundle) []string {
+	volume := localinfra.AgentRuntimeVolume(entry.Dir, entry.Meta.CreatedAt)
+	// No image-state copy-up. Restrict only the owned volume root before exec.
+	return append(preparedBinaryBaseArgs(entry, bundle), "--mount", "type=volume,source="+volume.Name+",target=/opt/datadog-agent/run,volume-nocopy", "--entrypoint", "sh", bundle.RuntimeImageID, "-ec", "chmod 0700 /opt/datadog-agent/run && exec "+agentBinPathInContainer+" run -c /etc/datadog-agent/datadog.yaml")
+}
+
+// Only receiver apply of an intermediate bind-state installation uses this.
+// Normal install/update must not silently discard or migrate that state.
+func preparedBinaryBindStateArgs(entry envstore.Entry, bundle agentbuild.BinaryBundle) []string {
+	return append(preparedBinaryBaseArgs(entry, bundle), "-v", filepath.Join(entry.Dir, "agent-run")+":/opt/datadog-agent/run", "--entrypoint", agentBinPathInContainer, bundle.RuntimeImageID, "run", "-c", "/etc/datadog-agent/datadog.yaml")
+}
+
+func (b *Binary) prepareConfig(cfg *config.File, entry envstore.Entry, section binaryconfig.Config) (string, error) {
+	if errs := b.Validate(cfg); len(errs) > 0 {
+		return "", config.NewErrors(errs)
 	}
-	cmd := exec.Command("docker", agentRunArgs(entry, image)...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("starting the agent container: %w (inspect with `docker logs %s` once it exits)", err, localinfra.AgentContainer(entry.Name))
+	routing, err := b.PrepareRouting(cfg, entry)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	apiKey, err := bindAPIKey(routing)
+	if err != nil {
+		return "", err
+	}
+	return renderBinaryConfig(entry, section, apiKey, routing)
 }
 
 func agentRunArgs(entry envstore.Entry, image string) []string {
@@ -213,6 +285,7 @@ func agentRunArgs(entry envstore.Entry, image string) []string {
 		"-v", bind(filepath.Join(dir, "dev-lib"), "/opt/datadog-agent/dev-lib"),
 		"-v", bind(filepath.Join(dir, "agent.yaml"), "/etc/datadog-agent/datadog.yaml"),
 		"-v", filepath.Join(dir, "conf.d") + ":/etc/datadog-agent/conf.d",
+		"-v", filepath.Join(dir, "agent-run") + ":/opt/datadog-agent/run",
 		"-e", "LD_LIBRARY_PATH=/opt/datadog-agent/dev-lib:/opt/datadog-agent/embedded/lib",
 		"--entrypoint", "/opt/datadog-agent/bin/agent/agent",
 		image,
@@ -241,22 +314,52 @@ var defaultCoreChecks = map[string]string{
 // the default core-check configs so system metrics work out of the box. All
 // paths are environment-local: the mounted container never touches system paths.
 func writeAgentFiles(entry envstore.Entry, section binaryconfig.Config, apiKey string) error {
-	// The agent runs on the environment's Docker network: it reaches the
-	// fakeintake by container DNS, not by the operator's 127.0.0.1 URL.
-	endpoint := &agentconfig.Endpoint{
-		Scheme: "http",
-		Host:   localinfra.FakeintakeContainer(entry.Name),
-		Port:   80,
-	}
-	agentYAML, err := agentconfig.Generate(apiKey, endpoint, section.Config)
+	agentYAML, err := renderBinaryConfig(entry, section, apiKey, nil)
 	if err != nil {
 		return err
 	}
-	// The hostname must be explicit: a bare container often has no resolvable
-	// name, and the agent exits when it cannot determine one. Naming it after
-	// the environment also makes metrics attributable in the fakeintake.
-	agentYAML = "hostname: " + localinfra.AgentContainer(entry.Name) + "\n" + agentYAML
-	if err := os.WriteFile(filepath.Join(entry.Dir, "agent.yaml"), []byte(agentYAML), 0o600); err != nil {
+	return writePreparedAgentFiles(entry, section, agentYAML)
+}
+
+func renderBinaryConfig(entry envstore.Entry, section binaryconfig.Config, apiKey string, routing *receivers.Plan) (string, error) {
+	var agentYAML string
+	var err error
+	if routing != nil {
+		agentYAML, err = agentconfig.GenerateWithRouting(*routing, apiKey, section.Config)
+	} else {
+		endpoint := &agentconfig.Endpoint{Scheme: "http", Host: localinfra.FakeintakeContainer(entry.Name), Port: 80}
+		agentYAML, err = agentconfig.Generate(apiKey, endpoint, section.Config)
+	}
+	if err != nil {
+		return "", err
+	}
+	var config map[string]interface{}
+	if err := yaml.Unmarshal([]byte(agentYAML), &config); err != nil {
+		return "", err
+	}
+	if _, ok := config["hostname"]; !ok {
+		config["hostname"] = localinfra.AgentContainer(entry.Name)
+	}
+	data, err := yaml.Marshal(config)
+	return string(data), err
+}
+
+func writePreparedAgentFiles(entry envstore.Entry, section binaryconfig.Config, agentYAML string) error {
+	// Atomic replacement prevents the running bind mount from observing partial
+	// config; activation recreates the container against the new inode.
+	f, err := os.CreateTemp(entry.Dir, ".agent-*.yaml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(agentYAML); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(f.Name(), filepath.Join(entry.Dir, "agent.yaml")); err != nil {
 		return err
 	}
 
@@ -285,77 +388,23 @@ func writeAgentFiles(entry envstore.Entry, section binaryconfig.Config, apiKey s
 	return nil
 }
 
-// buildAndPinBinary builds the Agent with the repo's sanctioned task and pins
-// the binary plus its rtloader libraries into the environment directory: a
-// later `git clean` cannot break a running environment, and `update
-// --skip-build` reuses the pinned artifacts. The repository root is the
-// working directory (the same assumption the dev-image build already makes).
-func buildAndPinBinary(entry envstore.Entry) error {
-	if err := buildAgentBinary(); err != nil {
-		return err
-	}
-	return pinArtifacts(entry)
-}
-
-func pinArtifacts(entry envstore.Entry) error {
-	if err := copyFile("bin/agent/agent", filepath.Join(entry.Dir, "agent-binary"), 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(entry.Dir, "dev-lib"), 0o755); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(devLibSubpath)
+// waitForReady uses the installed Agent client, never retained fixture data.
+// Capture delivery remains a separate, explicitly unverified observation.
+func (b *Binary) waitForReady(entry envstore.Entry) error {
+	host := outputs.HostOutput{Transport: "docker", Address: localinfra.AgentContainer(entry.Name), OSFamily: e2eostypes.LinuxFamily}
+	agent, err := client.NewHostAgentClientWithParams(standalone.NewContext(entry.Dir), host,
+		agentclientparams.WithAgentBinPath(agentBinPathInContainer))
 	if err != nil {
-		return fmt.Errorf("reading %s (build the agent first): %w", devLibSubpath, err)
+		return err
 	}
-	for _, e := range entries {
-		if e.IsDir() || strings.HasSuffix(e.Name(), ".so") || strings.HasSuffix(e.Name(), ".so.0.1.0") {
-			if err := copyFile(filepath.Join(devLibSubpath, e.Name()), filepath.Join(entry.Dir, "dev-lib", e.Name()), 0o644); err != nil {
-				return err
-			}
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		_, err = agent.Health()
+		if err == nil || time.Now().After(deadline) {
+			return err
 		}
+		time.Sleep(time.Second)
 	}
-	return nil
-}
-
-func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("pinning %s: %w", src, err)
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	return nil
-}
-
-// waitForFlushedMetrics polls the fakeintake until the Agent has flushed any
-// metric at all — the heartbeat included. Waiting for a specific metric name
-// would misreport readiness exactly when the developer renamed that metric,
-// which is this environment's documented use case. On failure the container is
-// deliberately left behind so `docker logs` remains inspectable; re-running
-// install replaces it.
-func (b *Binary) waitForFlushedMetrics(entry envstore.Entry) error {
-	var fi outputs.FakeintakeOutput
-	if err := provisioner.ReadSnapshotResource(entry.SnapshotPath(), "fakeIntake", &fi); err != nil {
-		return err
-	}
-	client := fakeintakeclient.NewClient(fi.URL, fakeintakeclient.WithoutStrictFakeintakeIDCheck())
-	deadline := time.Now().Add(readinessTimeout)
-	for time.Now().Before(deadline) {
-		if names, err := client.GetMetricNames(); err == nil && len(names) > 0 {
-			return nil
-		}
-		time.Sleep(5 * time.Second)
-	}
-	return fmt.Errorf("no agent metrics reached the fakeintake after %s; inspect with `docker logs %s`",
-		readinessTimeout, localinfra.AgentContainer(entry.Name))
 }
 
 var (
@@ -363,16 +412,9 @@ var (
 	_ Updatable = (*Binary)(nil)
 )
 
-// buildAgentBinary runs the repo's sanctioned agent build. It must be invoked
-// from the repository root (the same working-directory assumption the dev
-// image build already makes).
-func buildAgentBinary() error {
-	fmt.Println("building agent binary (dda inv agent.build)...")
-	cmd := exec.Command("dda", "inv", "agent.build", "--build-exclude=systemd")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("building the agent binary (run from the repository root): %w", err)
+func binaryArchitecture() e2eostypes.Architecture {
+	if runtime.GOARCH == "arm64" {
+		return e2eostypes.ARM64Arch
 	}
-	return nil
+	return e2eostypes.AMD64Arch
 }

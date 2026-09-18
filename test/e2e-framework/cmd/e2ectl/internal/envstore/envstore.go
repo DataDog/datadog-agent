@@ -35,15 +35,16 @@ const (
 
 // Meta is the per-environment metadata.
 type Meta struct {
-	Name           string    `json:"name"`
-	Base           string    `json:"base"`
-	Status         string    `json:"status"`
-	CreatedAt      time.Time `json:"created_at"`
-	FakeIntakeURL  string    `json:"fakeintake_url,omitempty"`
-	FakeIntakePort int       `json:"fakeintake_port,omitempty"`
-	AgentImage     string    `json:"agent_image,omitempty"`
-	AgentVersion   string    `json:"agent_version,omitempty"`
-	AgentInstalled bool      `json:"agent_installed"`
+	Name            string    `json:"name"`
+	Base            string    `json:"base"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	FakeIntakeURL   string    `json:"fakeintake_url,omitempty"`
+	FakeIntakePort  int       `json:"fakeintake_port,omitempty"`
+	AgentArtifactID string    `json:"agent_artifact_id,omitempty"`
+	AgentImage      string    `json:"agent_image,omitempty"`
+	AgentVersion    string    `json:"agent_version,omitempty"`
+	AgentInstalled  bool      `json:"agent_installed"`
 	// DriverMeta is opaque driver bookkeeping, strict-decoded by the driver
 	// alone; the core never reads it (T6). Prefer deriving bookkeeping from
 	// the snapshot — the single source of truth — before using this.
@@ -196,4 +197,20 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// LockInstallation serializes install/update/receiver apply without changing
+// infrastructure ownership. A crashed process leaves a visible lock requiring
+// explicit operator removal, rather than guessing that another writer is dead.
+func (e Entry) LockInstallation() (func(), error) {
+	path := filepath.Join(e.Dir, ".installation.lock")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("environment installation is locked (%s); remove only after checking no operation is running: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return nil, err
+	}
+	return func() { _ = os.Remove(path) }, nil
 }

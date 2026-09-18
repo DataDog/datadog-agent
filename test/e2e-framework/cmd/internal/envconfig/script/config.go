@@ -21,7 +21,7 @@ import (
 
 // Config is what the official install script consumes.
 type Config struct {
-	Version      string            `yaml:"version" config:"required" pattern:"^[0-9]+[.][0-9]+[.][0-9]+$" example:"7.69.0" description:"Released agent version to install."`
+	Version      string            `yaml:"version" config:"required" pattern:"^[0-9]+[.][0-9]+[.][0-9]+$" example:"7.83.0" description:"Released agent version to install."`
 	Config       string            `yaml:"config,omitempty" description:"Extra datadog.yaml configuration."`
 	Integrations map[string]string `yaml:"integrations,omitempty" description:"conf.d folder name -> its conf.yaml contents."`
 }

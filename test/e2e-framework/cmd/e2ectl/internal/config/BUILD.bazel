@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
-    srcs = ["config.go"],
+    srcs = [
+        "build.go",
+        "config.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [
@@ -16,6 +19,10 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["config_test.go"],
+    srcs = [
+        "build_test.go",
+        "config_test.go",
+        "receiver_test.go",
+    ],
     embed = [":config"],
 )

@@ -8,4 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/workloads/catalog",
     visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/receivers"],
 )

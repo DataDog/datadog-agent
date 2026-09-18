@@ -9,10 +9,9 @@
 // they do not know which driver created the environment, so one instance
 // serves every compatible base.
 //
-// NewKubernetes is parameterized by the image-delivery hook: how a locally
-// built agent image reaches the cluster (kind load for kind, a registry push
-// for remote clusters). That hook is the entire semantic difference between
-// cluster drivers.
+// Kubernetes is parameterized by a local-image delivery hook. Current artifact
+// providers require the verified image preloaded on each node (kind load for
+// kind); registry acquisition/push is not implemented by this adapter.
 package installer
 
 import (
@@ -24,16 +23,17 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/buildprovider"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
 	helmconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/helm"
 	scriptconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/script"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentbuild"
 	scriptinstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/host/installscript"
 	helminstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/kubernetes/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
 )
 
 // Installer owns one agent installation method. The interfaces live here
@@ -85,9 +85,8 @@ type Updatable interface {
 // Kubernetes installs or upgrades the agent with the Helm chart on any
 // Kubernetes environment (kind, and later remote clusters).
 type Kubernetes struct {
-	// DeliverImage makes a locally-built image available to the cluster
-	// (e.g. kind load, or a registry push). May be nil when only released
-	// versions are installed.
+	// DeliverImage preloads the exact verified local image/tag on cluster nodes
+	// (e.g. kind load). May be nil when only released versions are installed.
 	DeliverImage func(entry envstore.Entry, image string) error
 }
 
@@ -105,26 +104,117 @@ func (k *Kubernetes) Artifact(cfg *config.File) (string, string, error) {
 
 // Validate implements driver.Installer: the helm section's own rules.
 func (k *Kubernetes) Validate(cfg *config.File) []error {
-	if _, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID()); err != nil {
+	section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
+	if err != nil {
 		return []error{err}
+	}
+	if cfg.Agent.Build == nil && section.Version == "" && section.Image == "" {
+		return []error{fmt.Errorf("agent.helm: either version or image is required without agent.build")}
+	}
+	if err := ValidateReceiver(k, cfg); err != nil {
+		return []error{err}
+	}
+	if cfg.Agent.Build != nil {
+		if err := buildprovider.Images.Validate(cfg.Agent.Build); err != nil {
+			return []error{err}
+		}
+		if section.Image != "" {
+			return []error{fmt.Errorf("agent.helm.image and agent.build are mutually exclusive; the provider owns the reference")}
+		}
+	}
+	if cfg.Agent.Receiver != nil {
+		if cfg.Agent.Build == nil && (section.Version != "7.83.0" || section.Image != "") {
+			return []error{fmt.Errorf("explicit routing currently supports released Agent 7.83.0 only")}
+		}
+		var values map[string]interface{}
+		if err := yaml.Unmarshal([]byte(section.Values), &values); err != nil {
+			return []error{fmt.Errorf("invalid Helm values")}
+		}
+		if err := helminstaller.ValidateRoutingValues(values); err != nil {
+			return []error{err}
+		}
 	}
 	return nil
 }
 
 // Install implements driver.Installer.
 func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
+	return k.install(cfg, entry, false)
+}
+
+func (k *Kubernetes) install(cfg *config.File, entry envstore.Entry, skip bool) error {
 	section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
 	if err != nil {
 		return err
 	}
-	if k.DeliverImage != nil && section.Image != "" {
-		if err := k.DeliverImage(entry, section.Image); err != nil {
+	if errs := k.Validate(cfg); len(errs) > 0 {
+		return config.NewErrors(errs)
+	}
+	routing, err := k.PrepareRouting(cfg, entry)
+	if err != nil {
+		return err
+	}
+	apiKey := ""
+	if routing != nil {
+		apiKey, err = bindAPIKey(routing)
+		if err != nil {
 			return err
 		}
 	}
-	env, err := attach[environments.Kubernetes](entry)
+
+	env, err := attachClusterForInstall(entry)
 	if err != nil {
 		return err
+	}
+	ctx, cancel := artifactContext()
+	defer cancel()
+	var artifact *agentbuild.Result
+	selection := cfg.Agent.Build
+	if selection == nil && section.Image != "" {
+		selection = existingImageSelection(section.Image)
+	}
+	if selection != nil {
+		if k.DeliverImage == nil {
+			return fmt.Errorf("environment cannot deliver local image artifacts")
+		}
+		target, err := clusterTarget(ctx, env)
+		if err != nil {
+			return err
+		}
+		var result agentbuild.Result
+		if skip {
+			result, err = readArtifact(entry)
+			if err == nil {
+				err = result.Validate(target)
+			}
+			if err == nil {
+				err = (agentbuild.Adapter{}).VerifyImage(ctx, result)
+			}
+		} else {
+			if routing != nil {
+				if err := buildprovider.Images.ValidateRouting(selection); err != nil {
+					return err
+				}
+			}
+			prepared, prepErr := buildprovider.Images.Prepare(ctx, selection, artifactRequest(entry, target))
+			result, err = prepared.Result, prepErr
+			if err == nil && routing != nil && result.Profile == nil {
+				return fmt.Errorf("explicit receiver requires a compatible provider receipt; arbitrary existing images are not attested")
+			}
+			if err == nil {
+				result, err = (agentbuild.Adapter{}).DeliverableImage(ctx, result)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		if routing != nil && result.Profile == nil {
+			return fmt.Errorf("explicit receiver requires producer capability receipt")
+		}
+		if err := k.DeliverImage(entry, result.Image.Delivered); err != nil {
+			return err
+		}
+		artifact = &result
 	}
 
 	values := map[string]interface{}{}
@@ -132,8 +222,11 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 		rendered := section.Values
 		if env.FakeIntake != nil {
 			fi := env.FakeIntake.FakeintakeOutput
+			if fi.AgentURL == "" {
+				fi.AgentURL = fi.URL
+			} // legacy kind snapshots already used a producer-routable URL
 			rendered = strings.NewReplacer(
-				"{{FAKEINTAKE_URL}}", fi.URL,
+				"{{FAKEINTAKE_URL}}", fi.AgentURL,
 				"{{FAKEINTAKE_HOST}}", fi.Host,
 				"{{FAKEINTAKE_PORT}}", fmt.Sprintf("%d", fi.Port),
 			).Replace(rendered)
@@ -148,63 +241,49 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 	// (stackid:<stack>); the e2ectl analog is the environment name. Suites
 	// like the containers k8sSuite assert it on cluster-scoped metrics.
 	setAgentTag(values, "stackid:"+entry.Name)
-	params := helminstaller.Params{Values: values}
+	params := helminstaller.Params{Values: values, Routing: routing, APIKey: apiKey}
 	params.Namespace = "datadog"
-	if section.Image != "" {
-		// In the upstream Datadog chart, agents.image.repository is the FULL
-		// image path including the registry (the chart's image-path helper
-		// renders repository:tag verbatim when repository is set).
-		repository, tag := splitImageRef(section.Image)
-		values["agents"] = map[string]interface{}{
-			"image": map[string]interface{}{
-				"repository": repository,
-				"tag":        tag,
-			},
-		}
-		// A custom agent tag such as "7.99.0-e2ectl" is semver, but the
-		// cluster-agent keeps the public chart defaults.
-		params.ClusterAgentVersion = "latest"
+	if artifact != nil {
+		repository, tag := splitImageRef(artifact.Image.Delivered)
+		params.Image = &helminstaller.ImageArtifact{Repository: repository, Tag: tag, LocalImageID: artifact.Image.ID}
+		params.Profile = artifact.Profile
+		params.AgentVersion = tag
+		// The core image is not a rebuilt Cluster Agent. Keep its separately tested
+		// released image instead of silently retagging DCA or using mutable latest.
+		params.ClusterAgentVersion = "7.83.0"
 	} else {
 		params.AgentVersion = section.Version
 		params.ClusterAgentVersion = section.Version
 	}
+	if artifact != nil {
+		if err := artifactPhase(entry, *artifact, "activating"); err != nil {
+			return err
+		}
+	}
 
-	if err := helminstaller.Install(nil, env, params); err != nil {
+	if err := helminstaller.Install(ctx, env, params); err != nil {
+		if artifact != nil {
+			_ = artifactPhase(entry, *artifact, "failed")
+		}
 		return err
 	}
 	if env.Agent != nil {
+		if artifact != nil {
+			data, err := json.Marshal(env.Agent.KubernetesAgentOutput)
+			if err != nil {
+				return err
+			}
+			return publishArtifact(entry, *artifact, provisioner.RawResources{"agent": data})
+		}
 		return writeAgentToSnapshot(entry, env.Agent.KubernetesAgentOutput)
 	}
 	return nil
 }
 
-// Update implements driver.Updatable: the same install path (the chart
-// installer upgrades an existing release), with the dev image prepared first
-// when the section requests one. skipBuild reuses the existing image.
+// Update uses the same provider/consumer path as Install. Existing-image sources
+// never build; skipBuild verifies the installed receipt instead of the source.
 func (k *Kubernetes) Update(cfg *config.File, entry envstore.Entry, skipBuild bool) error {
-	if !skipBuild {
-		section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
-		if err != nil {
-			return err
-		}
-		if section.Image != "" {
-			fmt.Printf("building agent image %s (dda inv agent.hacky-dev-image-build)...\n", section.Image)
-			if err := buildAgentImage(section.Image); err != nil {
-				return err
-			}
-		}
-	}
-	return k.Install(cfg, entry)
-}
-
-// buildAgentImage runs the repo's dev image build, tagging the result exactly
-// as the config references it. It moved here from the CLI: artifact preparation
-// is installer-owned, not command-level knowledge.
-func buildAgentImage(image string) error {
-	cmd := exec.Command("dda", "inv", "agent.hacky-dev-image-build", "--target-image="+image)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return k.install(cfg, entry, skipBuild)
 }
 
 // HostScript installs the agent on a host environment (ec2-host, and later
@@ -226,8 +305,23 @@ func (h *HostScript) Artifact(cfg *config.File) (string, string, error) {
 
 // Validate implements driver.Installer: the script section's own rules.
 func (h *HostScript) Validate(cfg *config.File) []error {
-	if _, err := decodeAgentSection(scriptconfig.Schema, cfg, h.ID()); err != nil {
+	if cfg.Agent.Build != nil {
+		return []error{fmt.Errorf("script installer does not consume agent.build; use package")}
+	}
+	section, err := decodeAgentSection(scriptconfig.Schema, cfg, h.ID())
+	if err != nil {
 		return []error{err}
+	}
+	if err := ValidateReceiver(h, cfg); err != nil {
+		return []error{err}
+	}
+	if cfg.Agent.Receiver != nil {
+		if section.Version != "7.83.0" {
+			return []error{fmt.Errorf("explicit routing currently supports released Agent 7.83.0 only")}
+		}
+		if _, err := receivers.ValidateConfig(section.Config); err != nil {
+			return []error{err}
+		}
 	}
 	return nil
 }
@@ -238,12 +332,28 @@ func (h *HostScript) Install(cfg *config.File, entry envstore.Entry) error {
 	if err != nil {
 		return err
 	}
-	env, err := attach[environments.Host](entry)
+	if errs := h.Validate(cfg); len(errs) > 0 {
+		return config.NewErrors(errs)
+	}
+	routing, err := h.PrepareRouting(cfg, entry)
+	if err != nil {
+		return err
+	}
+	apiKey := ""
+	if routing != nil {
+		apiKey, err = bindAPIKey(routing)
+		if err != nil {
+			return err
+		}
+	}
+
+	env, err := attachHostForInstall(entry)
 	if err != nil {
 		return err
 	}
 	if err := scriptinstaller.Install(nil, env, scriptinstaller.Params{
 		AgentVersion: section.Version,
+		Routing:      routing, APIKey: apiKey,
 		AgentConfig:  section.Config,
 		Integrations: section.Integrations,
 	}); err != nil {
@@ -253,18 +363,6 @@ func (h *HostScript) Install(cfg *config.File, entry envstore.Entry) error {
 		return writeAgentToSnapshot(entry, env.Agent.HostAgentOutput)
 	}
 	return nil
-}
-
-// attach rehydrates a typed environment from the snapshot without any
-// provisioning — the executor is long gone by the time installers run.
-func attach[Env any](entry envstore.Entry) (*Env, error) {
-	p := provisioner.NewStaticStackProvisioner[Env]("", entry.SnapshotPath())
-	ctx := standalone.NewContext(entry.Dir)
-	env, _, err := standalone.ProvisionE[Env](ctx, "attach", p)
-	if err != nil {
-		return nil, fmt.Errorf("attaching to the environment from its snapshot: %w", err)
-	}
-	return env, nil
 }
 
 // LoadKindImage delivers a locally-built docker image into a kind cluster.
@@ -288,7 +386,7 @@ func writeAgentToSnapshot(entry envstore.Entry, output any) error {
 	if err != nil {
 		return err
 	}
-	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "agent", data)
+	return provisioner.UpdateSnapshotResources(entry.SnapshotPath(), provisioner.RawResources{"agent": data}, map[string]any{"_agent_artifact": nil})
 }
 
 // splitImageRef splits "gcr.io/datadoghq/agent:tag" into
@@ -331,8 +429,15 @@ func setAgentTag(values map[string]interface{}, tag string) {
 		values["datadog"] = datadog
 	}
 	var tags []string
-	if existing, ok := datadog["tags"].([]string); ok {
+	switch existing := datadog["tags"].(type) {
+	case []string:
 		tags = existing
+	case []interface{}:
+		for _, value := range existing {
+			if tag, ok := value.(string); ok {
+				tags = append(tags, tag)
+			}
+		}
 	}
 	datadog["tags"] = append(tags, tag)
 }

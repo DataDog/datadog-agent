@@ -10,12 +10,16 @@ package driver
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/receiver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
 )
@@ -43,12 +47,22 @@ type Driver interface {
 
 // Prepared captures typed input so validation and execution use the same value.
 type Prepared struct {
-	Config *config.File
-	start  func(envstore.Entry, *envstore.Store) error
+	Config         *config.File
+	infrastructure any
+	start          func(envstore.Entry, *envstore.Store) error
 }
 
 func (p *Prepared) Start(entry envstore.Entry, store *envstore.Store) error {
 	return p.start(entry, store)
+}
+
+// SameInfrastructure compares validated driver inputs, including defaults, not
+// YAML node presence or formatting. Installation may change Agent inputs but
+// cannot silently rewrite the infrastructure that the environment owns.
+func (p *Prepared) SameInfrastructure(other *Prepared) bool {
+	return other != nil && p.Config.Environment.Base == other.Config.Environment.Base &&
+		reflect.DeepEqual(p.Config.Environment.Fixtures, other.Config.Environment.Fixtures) &&
+		reflect.DeepEqual(p.infrastructure, other.infrastructure)
 }
 
 type typedDriver[P any] struct {
@@ -75,6 +89,9 @@ func (d *typedDriver[P]) Description() string               { return d.impl.Desc
 func (d *typedDriver[P]) Installers() []installer.Installer { return d.impl.Installers() }
 
 func (d *typedDriver[P]) Prepare(cfg *config.File) (*Prepared, error) {
+	if err := receiver.Validate(cfg.Agent.Receiver); err != nil {
+		return nil, err
+	}
 	if cfg.Environment.Base != d.ID() {
 		return nil, fmt.Errorf("driver %q cannot prepare base %q", d.ID(), cfg.Environment.Base)
 	}
@@ -107,7 +124,8 @@ func (d *typedDriver[P]) Prepare(cfg *config.File) (*Prepared, error) {
 	normal.Environment.Section = raw
 	normal.Environment.SectionNode = nil
 	return &Prepared{
-		Config: &normal,
+		Config:         &normal,
+		infrastructure: params,
 		start: func(entry envstore.Entry, store *envstore.Store) error {
 			return d.impl.Start(params, &normal, entry, store)
 		},
@@ -152,7 +170,15 @@ func (d *typedDriver[P]) StarterConfig() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generating %q agent example: %w", d.ID(), err)
 	}
-	data, err := config.Example(d.ID(), d.Description(), d.defaultInstaller, section, agentSection)
+	var receiverNode *yaml.Node
+	if _, ok := inst.(installer.RoutingConsumer); ok {
+		var doc yaml.Node
+		if err := yaml.Unmarshal([]byte("type: fakeintake\nfakeintake:\n  remote-config: disabled\n"), &doc); err != nil {
+			return nil, err
+		}
+		receiverNode = doc.Content[0]
+	}
+	data, err := config.Example(d.ID(), d.Description(), d.defaultInstaller, section, agentSection, receiverNode)
 	if err != nil {
 		return nil, err
 	}

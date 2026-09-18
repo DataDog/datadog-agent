@@ -26,11 +26,10 @@ func TestSectionRoundTrip(t *testing.T) {
 // they now live only where the image field exists.
 func TestSectionImageRules(t *testing.T) {
 	for name, raw := range map[string]string{
-		"version or image required": "",
-		"bad version":               "version: 7.x",
-		"missing registry":          "image: agent:7.99.0-e2ectl",
-		"non-semver tag":            "image: gcr.io/datadoghq/agent:e2ectl-dev",
-		"unknown field":             "version: \"7.69.0\"\nconfig: x",
+		"bad version":      "version: 7.x",
+		"missing registry": "image: agent:7.99.0-e2ectl",
+		"non-semver tag":   "image: gcr.io/datadoghq/agent:e2ectl-dev",
+		"unknown field":    "version: \"7.69.0\"\nconfig: x",
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := Schema.Decode([]byte(raw), "agent.helm")
@@ -49,9 +48,10 @@ func TestSectionErrorAnchors(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "semver-shaped") {
 		t.Fatalf("expected the semver-shaped tag rule, got: %v", err)
 	}
-	_, _, err = Schema.Decode([]byte(""), "agent.helm")
-	if err == nil || !strings.Contains(err.Error(), "either version or image") {
-		t.Fatalf("expected the version-or-image rule, got: %v", err)
+	// The installer envelope owns requiredness because agent.build can supply
+	// an image independently of these legacy version/image fields.
+	if _, _, err := Schema.Decode(nil, "agent.helm"); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -64,7 +64,7 @@ func TestSectionExampleIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "7.69.0") {
+	if !strings.Contains(string(data), "7.83.0") {
 		t.Fatalf("example should show the version example, got: %s", data)
 	}
 	if _, _, err := Schema.DecodeNode(node, "agent.helm"); err != nil {

@@ -102,16 +102,7 @@ func cmdList(args []string) error {
 	}
 	fmt.Printf("%-20s %-10s %-9s %-8s %s\n", "NAME", "BASE", "STATUS", "AGE", "AGENT")
 	for _, e := range entries {
-		agent := "-"
-		if e.Meta.AgentInstalled {
-			if e.Meta.AgentImage != "" {
-				agent = e.Meta.AgentImage
-			} else if e.Meta.AgentVersion != "" {
-				agent = e.Meta.AgentVersion
-			} else {
-				agent = "binary" // built from source: no version or image to show
-			}
-		}
+		agent := installer.ListArtifactDisplay(e)
 		fmt.Printf("%-20s %-10s %-9s %-8s %s\n",
 			e.Name, e.Meta.Base, e.Meta.Status, age(e.Meta.CreatedAt), agent)
 	}
@@ -139,6 +130,12 @@ func cmdInstall(args []string) error {
 	if entry.Meta.Status != envstore.StatusReady {
 		return fmt.Errorf("environment %q is not ready (status: %s)", *name, entry.Meta.Status)
 	}
+	unlock, err := entry.LockInstallation()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	cfg, err := loadOrStoredConfig(*configPath, entry)
 	if err != nil {
 		return err
@@ -154,11 +151,16 @@ func cmdInstall(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := installer.ValidateReceiver(inst, cfg); err != nil {
+		return err
+	}
 	if errs := inst.Validate(cfg); len(errs) > 0 {
 		return config.NewErrors(errs)
 	}
 
-	if err := inst.Install(cfg, entry); err != nil {
+	if err := installer.WithRoutingState(inst, cfg, entry, func() error { return inst.Install(cfg, entry) }); err != nil {
+		entry.Meta.AgentInstalled = false
+		_ = store.UpdateMeta(entry)
 		return err
 	}
 	if err := saveAppliedConfig(cfg, entry); err != nil {
@@ -169,13 +171,14 @@ func cmdInstall(args []string) error {
 	if err := workloads.Deploy(cfg, entry); err != nil {
 		return err
 	}
-	version, image, err := inst.Artifact(cfg)
+	summary, err := installer.InstalledSummary(inst, cfg, entry)
 	if err != nil {
 		return err
 	}
 	entry.Meta.AgentInstalled = true
-	entry.Meta.AgentVersion = version
-	entry.Meta.AgentImage = image
+	entry.Meta.AgentVersion = summary.Version
+	entry.Meta.AgentArtifactID = summary.ID
+	entry.Meta.AgentImage = summary.Image
 	return store.UpdateMeta(entry)
 }
 
@@ -183,7 +186,7 @@ func cmdUpdate(args []string) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	name := fs.String("env", "", "environment name (required)")
 	configPath := fs.String("config", "", "environment config file; replaces the stored config copy (e.g. to change the agent image)")
-	skipBuild := fs.Bool("skip-build", false, "do not rebuild the agent image; reuse the one referenced in the config")
+	skipBuild := fs.Bool("skip-build", false, "reuse the verified installed artifact; error if pins or identity are missing")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -198,6 +201,12 @@ func cmdUpdate(args []string) error {
 	if err != nil {
 		return err
 	}
+	unlock, err := entry.LockInstallation()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	cfg, err := loadOrStoredConfig(*configPath, entry)
 	if err != nil {
 		return err
@@ -217,23 +226,29 @@ func cmdUpdate(args []string) error {
 	if !ok {
 		return fmt.Errorf("update is not supported for base %q with install %q yet", d.ID(), inst.ID())
 	}
+	if err := installer.ValidateReceiver(inst, cfg); err != nil {
+		return err
+	}
 	if errs := inst.Validate(cfg); len(errs) > 0 {
 		return config.NewErrors(errs)
 	}
 
-	if err := updatable.Update(cfg, entry, *skipBuild); err != nil {
+	if err := installer.WithRoutingState(inst, cfg, entry, func() error { return updatable.Update(cfg, entry, *skipBuild) }); err != nil {
+		entry.Meta.AgentInstalled = false
+		_ = store.UpdateMeta(entry)
 		return err
 	}
 	if err := saveAppliedConfig(cfg, entry); err != nil {
 		return err
 	}
-	version, image, err := inst.Artifact(cfg)
+	summary, err := installer.InstalledSummary(inst, cfg, entry)
 	if err != nil {
 		return err
 	}
 	entry.Meta.AgentInstalled = true
-	entry.Meta.AgentVersion = version
-	entry.Meta.AgentImage = image
+	entry.Meta.AgentVersion = summary.Version
+	entry.Meta.AgentArtifactID = summary.ID
+	entry.Meta.AgentImage = summary.Image
 	return store.UpdateMeta(entry)
 }
 
@@ -257,6 +272,17 @@ func loadOrStoredConfig(path string, entry envstore.Entry) (*config.File, error)
 	prepared, err := d.Prepare(cfg)
 	if err != nil {
 		return nil, err
+	}
+	stored, err := entry.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+	original, err := d.Prepare(stored)
+	if err != nil {
+		return nil, err
+	}
+	if !original.SameInfrastructure(prepared) {
+		return nil, fmt.Errorf("installation cannot change provisioned infrastructure or fixture settings")
 	}
 	return prepared.Config, nil
 }
@@ -334,6 +360,12 @@ func cmdStop(args []string) error {
 	if err != nil {
 		return err
 	}
+	unlock, err := entry.LockInstallation()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	d, err := driver.Get(entry.Meta.Base)
 	if err != nil {
 		return err

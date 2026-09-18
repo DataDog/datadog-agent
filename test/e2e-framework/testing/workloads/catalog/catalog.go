@@ -101,6 +101,12 @@ var apps = map[string]App{
 		K8sNamespace: "dogstatsd-standalone",
 		k8sManifests: dogstatsdStandaloneManifests,
 	},
+	"dogstatsd-standalone-capture": {
+		Name:         "dogstatsd-standalone-capture",
+		Description:  "Standalone DogStatsD with a capture-only primary endpoint and public dummy key (independent of the main Agent receiver)",
+		K8sNamespace: "dogstatsd-standalone",
+		k8sManifests: dogstatsdStandaloneCaptureManifests,
+	},
 	"dogstatsd-standalone-clients": {
 		Name:         "dogstatsd-standalone-clients",
 		Description:  "DogStatsD clients reporting to the standalone daemonset (deploy after dogstatsd-standalone)",
@@ -200,7 +206,7 @@ func Summary() string {
 }
 
 func sortedNames() []string {
-	order := []string{"vpa-crd", "nginx", "redis", "cpustress", "dogstatsd", "dogstatsd-standalone", "dogstatsd-standalone-clients", "tracegen", "prometheus", "etcd", "mutated"}
+	order := []string{"vpa-crd", "nginx", "redis", "cpustress", "dogstatsd", "dogstatsd-standalone", "dogstatsd-standalone-capture", "dogstatsd-standalone-clients", "tracegen", "prometheus", "etcd", "mutated"}
 	out := make([]string, 0, len(order))
 	for _, n := range order {
 		if _, ok := apps[n]; ok {

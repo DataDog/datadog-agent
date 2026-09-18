@@ -7,6 +7,7 @@ go_library(
         "commands.go",
         "discovery.go",
         "main.go",
+        "receiver.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl",
     visibility = ["//visibility:private"],
@@ -16,6 +17,7 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/internal/receiver",
         "//test/e2e-framework/cmd/e2ectl/internal/testcmd",
         "//test/e2e-framework/cmd/e2ectl/internal/workloads",
     ],
@@ -33,6 +35,8 @@ dd_agent_go_test(
         "config_test.go",
         "discovery_test.go",
         "lifecycle_test.go",
+        "list_artifact_test.go",
+        "receiver_test.go",
     ],
     embed = [":e2ectl_lib"],
     deps = [
@@ -40,5 +44,6 @@ dd_agent_go_test(
         "//test/e2e-framework/cmd/e2ectl/internal/driver",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/testing/provisioner",
     ],
 )

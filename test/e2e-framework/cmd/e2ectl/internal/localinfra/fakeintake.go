@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 // Package localinfra holds the helpers shared by the Pulumi-free local
 // drivers: the local docker fakeintake and the routable-IP resolution.
@@ -9,18 +9,20 @@ package localinfra
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/fakeintakeconfig"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"net"
 	"os"
 	"os/exec"
 )
 
-// FakeintakeImage is the fakeintake image used for local environments.
-const FakeintakeImage = "public.ecr.aws/datadog/fakeintake:latest"
-
-// DefaultRCSigningKeySeed mirrors components/outputs.DefaultRCSigningKeySeed:
-// the fixed ed25519 seed shared by every fakeintake instance, so the agent's
-// Remote Config root matches the fakeintake started here.
-const DefaultRCSigningKeySeed = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+// fakeintakeImage shares the profile override and reproducible pin with cloud fixtures.
+func fakeintakeImage() string {
+	override, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.FakeintakeImageOverride, "")
+	return fakeintakeconfig.ImageURL("public.ecr.aws/datadog/fakeintake", override)
+}
 
 // RunFakeintake starts the local fakeintake docker container on a free port
 // and returns the port. The container binds every interface: pods must reach
@@ -33,8 +35,9 @@ func RunFakeintake(container string) (int, error) {
 	}
 	cmd := exec.Command("docker", "run", "-d", "--name", container,
 		"-p", fmt.Sprintf("%d:80", port),
-		FakeintakeImage,
-		"--rc-key-data="+DefaultRCSigningKeySeed,
+		fakeintakeImage(),
+		"--remoteconfig=true",
+		"--rc-key-data="+outputs.DefaultRCSigningKeySeed,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

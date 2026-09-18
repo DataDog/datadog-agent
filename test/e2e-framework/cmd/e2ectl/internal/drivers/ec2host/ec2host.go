@@ -29,7 +29,7 @@ func (d *Driver) Description() string {
 }
 
 func (d *Driver) Installers() []installer.Installer {
-	return []installer.Installer{&installer.HostScript{}}
+	return []installer.Installer{&installer.HostScript{}, &installer.HostPackage{}}
 }
 
 // params is prepared by the generic schema adapter. Forward its normalized YAML

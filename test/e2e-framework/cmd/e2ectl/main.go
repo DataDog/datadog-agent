@@ -41,6 +41,8 @@ func main() {
 		err = cmdUpdate(os.Args[2:])
 	case "test":
 		err = testcmd.Run(os.Args[2:])
+	case "receiver":
+		err = cmdReceiver(os.Args[2:])
 	case "fakeintake":
 		err = cmdFakeintake(os.Args[2:])
 	case "stop":
@@ -74,9 +76,11 @@ Usage:
   e2ectl start --config <file> --name <name>        create a named environment
   e2ectl list                                      list my created environments
   e2ectl install --env <name> [--config <file>]     install the agent on it
-  e2ectl update --env <name> [--skip-build]         rebuild agent code and redeploy (kind)
+  e2ectl update --env <name> [--skip-build]         prepare selected artifact and redeploy
   e2ectl test --env <name> --suite <packages>      run a new-e2e suite against the live environment
                                                   [--run pattern] [-- extra go test args]
+  e2ectl receiver <plan|apply|status> --env <name> [--config <file>]
+  e2ectl receiver serve --type blackhole --listen :8080
   e2ectl fakeintake <names|metrics|health> --env <name>
   e2ectl stop --env <name> [--force]               destroy the environment (--force removes the entry even if teardown fails)
 

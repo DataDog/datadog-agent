@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "workloads",
@@ -10,8 +11,23 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/localinfra",
         "//test/e2e-framework/cmd/internal/envconfig/workloads",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/receivers",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/workloads/catalog",
+    ],
+)
+
+dd_agent_go_test(
+    name = "workloads_test",
+    srcs = ["receiver_test.go"],
+    embed = [":workloads"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/receivers",
         "//test/e2e-framework/testing/workloads/catalog",
     ],
 )

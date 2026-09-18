@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/localinfra"
 	wc "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/workloads/catalog"
@@ -74,6 +77,21 @@ func Validate(cfg *config.File) []error {
 func deployKubernetes(cfg *config.File, entry envstore.Entry) error {
 	kubeconfig := entry.KubeconfigPath()
 	decls := cfg.Workloads.Workloads
+	// Resolve every manifest and its required inputs before creating namespaces.
+	prepared := make([][]string, len(decls))
+	for i, w := range decls {
+		manifests, err := resolve(w, cfg.Environment.Base)
+		if err != nil {
+			return fmt.Errorf("workloads[%d]: %w", i, err)
+		}
+		vars, err := templateVarsFor(entry, strings.Join(manifests, "\n"))
+		if err != nil {
+			return err
+		}
+		for _, manifest := range manifests {
+			prepared[i] = append(prepared[i], renderTemplate(manifest, vars))
+		}
+	}
 	// Ensure target namespaces exist before applying (idempotent).
 	namespaces := map[string]bool{}
 	for _, w := range decls {
@@ -92,21 +110,14 @@ func deployKubernetes(cfg *config.File, entry envstore.Entry) error {
 			return err
 		}
 	}
-	vars, err := templateVarsFor(entry)
-	if err != nil {
-		return err
-	}
 	for i, w := range decls {
-		manifests, err := resolve(w, cfg.Environment.Base)
-		if err != nil {
-			return fmt.Errorf("workloads[%d]: %w", i, err)
-		}
-		for _, manifest := range manifests {
-			if err := kubectlApply(kubeconfig, renderTemplate(manifest, vars), w.Namespace); err != nil {
+		for _, manifest := range prepared[i] {
+			if err := kubectlApply(kubeconfig, manifest, w.Namespace); err != nil {
 				return fmt.Errorf("workloads[%d]: %w", i, err)
 			}
 		}
 	}
+
 	return kubectlWait(kubeconfig, cfg.Environment.Base, decls)
 }
 
@@ -229,16 +240,31 @@ type templateVars struct {
 // store: the API key from the runner profile (the same source the
 // installers use), the fakeintake URL and the cluster name from the
 // environment metadata.
-func templateVarsFor(entry envstore.Entry) (templateVars, error) {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	if err != nil {
-		return templateVars{}, fmt.Errorf("resolving API key for workload templates: %w", err)
+func templateVarsFor(entry envstore.Entry, manifest string) (templateVars, error) {
+	vars := templateVars{ClusterName: entry.Name}
+	if strings.Contains(manifest, "{{API_KEY}}") {
+		key, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if err != nil {
+			return vars, fmt.Errorf("resolving API key for legacy workload template failed")
+		}
+		vars.APIKey = key
 	}
-	return templateVars{
-		APIKey:        apiKey,
-		FakeintakeURL: entry.Meta.FakeIntakeURL,
-		ClusterName:   entry.Name,
-	}, nil
+	if strings.Contains(manifest, "{{FAKEINTAKE_URL}}") {
+		var fi outputs.FakeintakeOutput
+		if err := provisioner.ReadSnapshotResource(entry.SnapshotPath(), "fakeIntake", &fi); err != nil {
+			return vars, fmt.Errorf("workload requires the fakeintake fixture: %w", err)
+		}
+		endpoint := fi.AgentURL
+		if endpoint == "" {
+			endpoint = fi.URL
+		} // legacy kind URL was producer-routable, unlike Meta URL
+		endpoint, err := receivers.AgentURL(endpoint, true)
+		if err != nil {
+			return vars, err
+		}
+		vars.FakeintakeURL = endpoint
+	}
+	return vars, nil
 }
 
 // renderTemplate substitutes the {{...}} variables catalog manifests may

@@ -7,6 +7,7 @@ package localinfra
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"os"
 	"os/exec"
 )
@@ -74,7 +75,8 @@ func fakeintakeRunArgs(container, network string, port int) []string {
 		"run", "-d", "--name", container,
 		"--network", network,
 		"-p", fmt.Sprintf("%d:80", port),
-		FakeintakeImage,
-		"--rc-key-data=" + DefaultRCSigningKeySeed,
+		fakeintakeImage(),
+		"--remoteconfig=true",
+		"--rc-key-data=" + outputs.DefaultRCSigningKeySeed,
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
 )
 
 // defaultRunPattern returns the default `go test -run` pattern for an
@@ -80,6 +81,14 @@ func Run(args []string) error {
 		return fmt.Errorf("agent not installed on %q — run:\n  e2ectl install -env %s", *name, *name)
 	}
 
+	state, err := installer.RoutingStatus(entry)
+	if err != nil {
+		return err
+	}
+	if state.Phase != "" && state.Phase != "applied" {
+		return fmt.Errorf("Agent routing is %s; repair it before test attachment", state.Phase)
+	}
+	fmt.Fprintf(os.Stderr, "Agent routing: %s; delivery: %s (retained fixture data may belong to older/other senders)\n", state.Phase, state.Delivery)
 	goArgs := []string{"test", "-tags", "test", "-timeout", *timeout}
 	if *verbose {
 		goArgs = append(goArgs, "-v")

@@ -49,7 +49,21 @@ type Environment struct {
 // (version, image, config, integrations) is defined by the installer's own
 // section schema, so fields irrelevant to an installation method cannot be
 // written at all.
+type ReceiverSelection struct {
+	Type        string
+	Section     []byte
+	SectionNode *yaml.Node
+}
+
+type BuildSelection struct {
+	Provider    string
+	Section     []byte
+	SectionNode *yaml.Node
+}
+
 type Agent struct {
+	Build       *BuildSelection
+	Receiver    *ReceiverSelection
 	Install     string
 	Section     []byte
 	SectionNode *yaml.Node // original positions for schema diagnostics
@@ -172,6 +186,16 @@ func (f *File) parseAgent(n *yaml.Node) error {
 		key, value := n.Content[i], n.Content[i+1]
 		switch key.Value {
 		case "install":
+		case "build":
+			f.Agent.Build, err = parseBuild(value)
+			if err != nil {
+				return err
+			}
+		case "receiver":
+			f.Agent.Receiver, err = parseReceiver(value)
+			if err != nil {
+				return err
+			}
 		case f.Agent.Install:
 			f.Agent.SectionNode = value
 			f.Agent.Section, err = configschema.Encode(value)
@@ -189,7 +213,7 @@ func (f *File) parseAgent(n *yaml.Node) error {
 // and the selected installer's agent section. Only envelope names/selectors are
 // specified here, not provider or installer fields. Secret-store contents and
 // live environment state are never consulted.
-func Example(base, description, install string, section, agentSection *yaml.Node) ([]byte, error) {
+func Example(base, description, install string, section, agentSection *yaml.Node, receiverSection ...*yaml.Node) ([]byte, error) {
 	fixtureNode, err := fixtures.Schema.Example(nil)
 	if err != nil {
 		return nil, err
@@ -200,6 +224,9 @@ func Example(base, description, install string, section, agentSection *yaml.Node
 	agent := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{installKey, str(install)}}
 	if agentSection != nil {
 		agent.Content = append(agent.Content, str(install), agentSection)
+	}
+	if len(receiverSection) > 0 && receiverSection[0] != nil {
+		agent.Content = append(agent.Content, str("receiver"), receiverSection[0])
 	}
 	env := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{str("base"), str(base)}}
 	env.Content = append(env.Content, fixtureNode.Content...)
@@ -242,4 +269,32 @@ func decodeWorkloadList(n *yaml.Node) ([]workloads.Workload, error) {
 		result = append(result, w)
 	}
 	return result, nil
+}
+
+// Receiver contents are decoded by the explicit receiver registry, not by the
+// infrastructure parser. This mirrors the installer-owned section contract.
+func parseReceiver(n *yaml.Node) (*ReceiverSelection, error) {
+	members, err := configschema.Mapping(n, "agent.receiver")
+	if err != nil {
+		return nil, err
+	}
+	typ := members["type"]
+	if typ == nil || typ.Tag != "!!str" || typ.Value == "" {
+		return nil, errf("agent.receiver.type", "expected a nonempty string")
+	}
+	r := &ReceiverSelection{Type: typ.Value}
+	for key, value := range members {
+		if key == "type" {
+			continue
+		}
+		if key != r.Type {
+			return nil, errf("agent.receiver."+key, "section does not match type %q", r.Type)
+		}
+		r.SectionNode = value
+		r.Section, err = configschema.Encode(value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
 }

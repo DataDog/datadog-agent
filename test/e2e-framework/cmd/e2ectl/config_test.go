@@ -36,6 +36,51 @@ func TestCandidateValidationDoesNotReplaceStoredConfig(t *testing.T) {
 	}
 }
 
+func TestExistingInfrastructureComparisonUsesTypedValues(t *testing.T) {
+	const original = `schema: 1
+environment:
+  base: kind
+  kind:
+    nodes: 0 # original comment
+agent:
+  install: helm
+  helm:
+    version: 7.83.0
+`
+	for _, tt := range []struct {
+		name        string
+		environment string
+		wantError   bool
+	}{
+		{"different comments", "  base: kind\n  kind:\n    nodes: 0 # new comment\n", false},
+		{"explicit fixture default", "  fakeintake: true\n  kind: {nodes: 0}\n  base: kind\n", false},
+		{"omitted driver default", "  base: kind\n  kind: {}\n", false},
+		{"different worker count", "  base: kind\n  kind: {nodes: 1}\n", true},
+		{"different fixture intent", "  base: kind\n  fakeintake: false\n  kind: {}\n", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := envstore.Entry{Dir: t.TempDir(), Meta: envstore.Meta{Base: "kind"}}
+			if err := os.WriteFile(entry.ConfigPath(), []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			candidate := filepath.Join(t.TempDir(), "candidate.yaml")
+			// Changing the Agent version is permitted; infrastructure must match.
+			data := "schema: 1\nenvironment:\n" + tt.environment + "agent:\n  install: helm\n  helm:\n    version: 7.69.0\n"
+			if err := os.WriteFile(candidate, []byte(data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := loadOrStoredConfig(candidate, entry)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("want validation error=%v, got %v", tt.wantError, err)
+			}
+			stored, err := os.ReadFile(entry.ConfigPath())
+			if err != nil || string(stored) != original {
+				t.Fatalf("validation changed stored config: %v", err)
+			}
+		})
+	}
+}
+
 func TestSaveAppliedConfigUsesPreparedSource(t *testing.T) {
 	entry := envstore.Entry{Dir: t.TempDir(), Meta: envstore.Meta{Base: "kind"}}
 	source, err := driver.StarterConfig("kind")
@@ -46,6 +91,11 @@ func TestSaveAppliedConfigUsesPreparedSource(t *testing.T) {
 	if err := os.WriteFile(candidate, source, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A live entry has a stored provisioning config; candidate installs may not change it.
+	if err := os.WriteFile(entry.ConfigPath(), source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
 	cfg, err := loadOrStoredConfig(candidate, entry)
 	if err != nil {
 		t.Fatal(err)
