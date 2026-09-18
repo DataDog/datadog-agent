@@ -1,0 +1,33 @@
+# Managed receiver fixture, checked against GenerateWithRouting by
+# TestReceiverRoutingTraceFixtureConformance in the E2E framework.
+# Consumer tests use recording transports only, never this endpoint.
+agent_telemetry.dd_url: https://receiver.invalid:8443
+agent_telemetry.logs_dd_url: https://receiver.invalid:8443
+agent_telemetry.logs_no_ssl: false
+api_key: '00000000000000000000000000000000'
+apm_config.apm_dd_url: https://receiver.invalid:8443
+apm_config.debugger_dd_url: https://receiver.invalid:8443/api/v2/logs
+apm_config.debugger_diagnostics_dd_url: https://receiver.invalid:8443/api/v2/debugger
+apm_config.enabled: true
+apm_config.profiling_dd_url: https://receiver.invalid:8443/api/v2/profile
+apm_config.symdb_dd_url: https://receiver.invalid:8443/api/v2/debugger
+apm_config.telemetry.dd_url: https://receiver.invalid:8443
+container_image.dd_url: https://receiver.invalid:8443
+container_image.logs_dd_url: https://receiver.invalid:8443
+container_image.logs_no_ssl: false
+container_lifecycle.dd_url: https://receiver.invalid:8443
+container_lifecycle.logs_dd_url: https://receiver.invalid:8443
+container_lifecycle.logs_no_ssl: false
+dd_url: https://receiver.invalid:8443
+evp_proxy_config.enabled: false
+hostname: receiver-test
+logs_config.force_use_http: true
+logs_config.logs_dd_url: https://receiver.invalid:8443
+logs_config.logs_no_ssl: false
+ol_proxy_config.enabled: false
+orchestrator_explorer.orchestrator_dd_url: https://receiver.invalid:8443
+process_config.process_dd_url: https://receiver.invalid:8443
+remote_configuration.enabled: false
+sbom.dd_url: https://receiver.invalid:8443
+sbom.logs_dd_url: https://receiver.invalid:8443
+sbom.logs_no_ssl: false

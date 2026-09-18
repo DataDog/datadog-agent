@@ -6,9 +6,9 @@
 package fakeintake
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/fakeintakeconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/fakeintake/version"
 )
 
 // ImageURL returns the fakeintake image for the given registry-qualified image
@@ -17,5 +17,5 @@ func ImageURL(image string) string {
 	if override, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.FakeintakeImageOverride, ""); err == nil && override != "" {
 		return override
 	}
-	return image + ":" + version.Tag
+	return fakeintakeconfig.ImageURL(image, "")
 }

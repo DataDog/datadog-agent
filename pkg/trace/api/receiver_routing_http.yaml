@@ -1,0 +1,33 @@
+# Managed receiver fixture, checked against GenerateWithRouting by
+# TestReceiverRoutingTraceFixtureConformance in the E2E framework.
+# Consumer tests use recording transports only, never this endpoint.
+agent_telemetry.dd_url: http://receiver.invalid:8080
+agent_telemetry.logs_dd_url: http://receiver.invalid:8080
+agent_telemetry.logs_no_ssl: true
+api_key: '00000000000000000000000000000000'
+apm_config.apm_dd_url: http://receiver.invalid:8080
+apm_config.debugger_dd_url: http://receiver.invalid:8080/api/v2/logs
+apm_config.debugger_diagnostics_dd_url: http://receiver.invalid:8080/api/v2/debugger
+apm_config.enabled: true
+apm_config.profiling_dd_url: http://receiver.invalid:8080/api/v2/profile
+apm_config.symdb_dd_url: http://receiver.invalid:8080/api/v2/debugger
+apm_config.telemetry.dd_url: http://receiver.invalid:8080
+container_image.dd_url: http://receiver.invalid:8080
+container_image.logs_dd_url: http://receiver.invalid:8080
+container_image.logs_no_ssl: true
+container_lifecycle.dd_url: http://receiver.invalid:8080
+container_lifecycle.logs_dd_url: http://receiver.invalid:8080
+container_lifecycle.logs_no_ssl: true
+dd_url: http://receiver.invalid:8080
+evp_proxy_config.enabled: false
+hostname: receiver-test
+logs_config.force_use_http: true
+logs_config.logs_dd_url: http://receiver.invalid:8080
+logs_config.logs_no_ssl: true
+ol_proxy_config.enabled: false
+orchestrator_explorer.orchestrator_dd_url: http://receiver.invalid:8080
+process_config.process_dd_url: http://receiver.invalid:8080
+remote_configuration.enabled: false
+sbom.dd_url: http://receiver.invalid:8080
+sbom.logs_dd_url: http://receiver.invalid:8080
+sbom.logs_no_ssl: true

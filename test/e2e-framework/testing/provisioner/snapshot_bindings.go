@@ -69,22 +69,38 @@ func WriteSnapshotFileForEnv(path string, env any, resources RawResources, meta 
 // at an old Pulumi-exported Agent resource. All other resources and metadata are
 // preserved; invalid bindings leave the original file untouched.
 func UpdateSnapshotResource(path, key string, resource []byte) error {
+	return UpdateSnapshotResources(path, RawResources{key: resource}, nil)
+}
+
+// UpdateSnapshotResources atomically publishes component outputs and metadata,
+// preserving all unrelated resources, bindings and artifact facts.
+func UpdateSnapshotResources(path string, updates RawResources, metadataUpdates map[string]any) error {
 	resources, meta, err := ReadSnapshotFile(path)
 	if err != nil {
 		return err
 	}
 	bindings, err := decodeSnapshotBindings(resources, meta)
 	if err != nil {
-		return fmt.Errorf("snapshot %s: %w", path, err)
+		return err
 	}
-	metadata := make(map[string]any, len(meta))
-	for k, value := range meta {
-		metadata[k] = value
+	metadata := make(map[string]any, len(meta)+len(metadataUpdates))
+	for k, v := range meta {
+		metadata[k] = v
 	}
-	resources[key] = resource
+	for k, v := range updates {
+		resources[k] = v
+		if bindings != nil {
+			bindings[k] = k
+		}
+	}
 	if bindings != nil {
-		bindings[key] = key
 		metadata[SnapshotBindingsKey] = bindings
+	}
+	for k, v := range metadataUpdates {
+		if k == SnapshotBindingsKey {
+			return fmt.Errorf("bindings are component-owned")
+		}
+		metadata[k] = v
 	}
 	return WriteSnapshotFile(path, resources, metadata)
 }

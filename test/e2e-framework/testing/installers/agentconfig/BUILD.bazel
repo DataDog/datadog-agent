@@ -3,14 +3,45 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "agentconfig",
-    srcs = ["agentconfig.go"],
+    srcs = [
+        "agentconfig.go",
+        "routing.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentconfig",
     visibility = ["//visibility:public"],
-    deps = ["//test/e2e-framework/common/utils/yamlutil"],
+    deps = [
+        "//test/e2e-framework/common/utils/yamlutil",
+        "//test/e2e-framework/testing/receivers",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )
 
 dd_agent_go_test(
     name = "agentconfig_test",
-    srcs = ["agentconfig_test.go"],
+    srcs = [
+        "agentconfig_test.go",
+        "routing_consumers_test.go",
+        "routing_test.go",
+    ],
+    data = [
+        "//pkg/trace/api:receiver_routing_http.yaml",
+        "//pkg/trace/api:receiver_routing_https.yaml",
+    ],  # keep
     embed = [":agentconfig"],
+    env = {
+        "RECEIVER_ROUTING_HTTP_FIXTURE": "$(rlocationpath //pkg/trace/api:receiver_routing_http.yaml)",
+        "RECEIVER_ROUTING_HTTPS_FIXTURE": "$(rlocationpath //pkg/trace/api:receiver_routing_https.yaml)",
+    },  # keep
+    deps = [
+        "//comp/core/delegatedauth/mock",
+        "//comp/core/secrets/mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//test/e2e-framework/testing/receivers",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@rules_go//go/runfiles",
+    ],
 )

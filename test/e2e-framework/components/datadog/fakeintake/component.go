@@ -23,10 +23,14 @@ type Fakeintake struct {
 	Scheme pulumi.StringOutput `pulumi:"scheme"` // Scheme is a string as it's known in code and is useful to check HTTP/HTTPS
 	Port   pulumi.IntOutput    `pulumi:"port"`   // Same for Port
 
-	URL pulumi.StringOutput `pulumi:"url"`
+	URL      pulumi.StringOutput `pulumi:"url"`
+	AgentURL pulumi.StringOutput `pulumi:"agentURL"`
+	QueryURL pulumi.StringOutput `pulumi:"queryURL"`
 }
 
 func (fi *Fakeintake) Export(ctx *pulumi.Context, out *FakeintakeOutput) error {
+	fi.AgentURL = fi.URL
+	fi.QueryURL = fi.URL
 	return components.Export(ctx, fi, out)
 }
 

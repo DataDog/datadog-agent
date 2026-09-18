@@ -23,7 +23,11 @@ var _ common.Initializable = &FakeIntake{}
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (fi *FakeIntake) Init(common.Context) error {
-	fi.client = client.NewClient(fi.URL)
+	endpoint := fi.QueryURL
+	if endpoint == "" {
+		endpoint = fi.URL
+	}
+	fi.client = client.NewClient(endpoint)
 	return nil
 }
 

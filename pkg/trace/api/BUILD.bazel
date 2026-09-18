@@ -155,6 +155,7 @@ dd_agent_go_test(
         "pipeline_stats_test.go",
         "profiles_bodyclose_test.go",
         "profiles_test.go",
+        "receiver_routing_test.go",
         "responses_test.go",
         "symdb_test.go",
         "telemetry_scrub_test.go",
@@ -164,8 +165,16 @@ dd_agent_go_test(
     ],
     args = ["-test.short"],
     embed = [":api"],
+    embedsrcs = [
+        "receiver_routing_http.yaml",
+        "receiver_routing_https.yaml",
+    ],
     deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/origindetection",
+        "//comp/trace/config/impl",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
@@ -198,4 +207,13 @@ dd_agent_go_test(
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ],
+)
+
+# Data-only conformance bridge: core tests must not import the E2E framework.
+exports_files(
+    [
+        "receiver_routing_http.yaml",
+        "receiver_routing_https.yaml",
+    ],
+    visibility = ["//test/e2e-framework/testing/installers/agentconfig:__pkg__"],
 )

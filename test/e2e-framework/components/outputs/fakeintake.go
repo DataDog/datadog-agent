@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package outputs
 
@@ -23,6 +23,10 @@ type FakeintakeOutput struct { // nolint:revive, We want to keep the name as <Co
 	Scheme string `json:"scheme"`
 	Port   uint32 `json:"port"`
 	URL    string `json:"url"`
+	// AgentURL is reachable from the producer network; QueryURL from the operator.
+	// URL retains its legacy meaning. Missing facts are not reachability proof.
+	AgentURL string `json:"agentURL,omitempty"`
+	QueryURL string `json:"queryURL,omitempty"`
 }
 
 // ImageURL stays in the fakeintake Pulumi package (it depends on the runner

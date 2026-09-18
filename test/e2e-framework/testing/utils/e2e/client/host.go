@@ -349,6 +349,36 @@ func (h *Host) CopyFile(src string, dst string) {
 	}
 }
 
+// CopyFileE is the standalone, error-returning SSH upload API. It does not
+// support Docker transport; destination creation is exclusive and private.
+func (h *Host) CopyFileE(src, dst string) error {
+	if h.client == nil || h.containerName != "" {
+		return errors.New("file upload requires initialized SSH transport")
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	sc, err := sftp.NewClient(h.client)
+	if err != nil {
+		return err
+	}
+	defer sc.Close()
+	out, err := sc.OpenFile(h.convertPathSeparator(dst), os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if err := out.Chmod(0o600); err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
 func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
 	h.context.Logf("Copying folder from local %s to remote %s", srcFolder, dstFolder)
@@ -861,4 +891,41 @@ func convertPathSeparatorFactory(osFamily oscomp.Family) convertPathSeparatorFn 
 	return func(s string) string {
 		return s
 	}
+}
+
+// WritePrivateFile creates a new private file without putting its contents in
+// an Execute command (or its logs). The caller owns the unique staging path and
+// cleanup. This deliberately returns errors instead of test assertions.
+func (h *Host) WritePrivateFile(path string, content []byte) error {
+	if h.containerName != "" {
+		quoted := "'" + strings.ReplaceAll(path, "'", "'\"'\"'") + "'"
+		cmd := exec.Command("docker", "exec", "-i", h.containerName, "sh", "-c", "umask 077; set -C; cat > "+quoted)
+		cmd.Stdin = bytes.NewReader(content)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("streaming private file: %w", err)
+		}
+		return nil
+	}
+	if h.client == nil {
+		return errors.New("private file transfer requires an initialized SSH client")
+	}
+	sc, err := sftp.NewClient(h.client)
+	if err != nil {
+		return err
+	}
+	defer sc.Close()
+	f, err := sc.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := f.Chmod(0o600); err != nil {
+		_ = sc.Remove(path)
+		return err
+	}
+	if _, err := f.Write(content); err != nil {
+		_ = sc.Remove(path)
+		return errors.New("writing private file failed")
+	}
+	return f.Close()
 }
