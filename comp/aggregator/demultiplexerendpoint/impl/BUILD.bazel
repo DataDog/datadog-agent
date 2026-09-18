@@ -20,7 +20,9 @@ go_library(
         "@com_github_datadog_zstd//:zstd",
         "@org_golang_x_sync//singleflight",
     ] + select({
-        "@rules_go//go/platform:windows": ["@org_golang_x_sys//windows"],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
         "//conditions:default": [],
     }),
 )
@@ -37,7 +39,9 @@ dd_agent_go_test(
         "@com_github_datadog_zstd//:zstd",
         "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:windows": ["//pkg/util/filesystem"],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/filesystem",
+        ],
         "//conditions:default": [],
     }),
 )
