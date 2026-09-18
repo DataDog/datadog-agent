@@ -15,7 +15,7 @@ First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and features read our section on [Components](components/overview.md).
+Read about the Agent's [component framework](architecture/components/index.md) and [configuration schema](architecture/agent-schema/index.md) in Architecture, with links to their tutorials, how-to guides, guidelines, and references.
 
 ## Navigation
 

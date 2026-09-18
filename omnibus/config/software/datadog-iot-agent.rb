@@ -54,6 +54,7 @@ build do
     # Clean out the things that invoke agent.build leaves in bin/agent/dist, which we now get via bazel belowe.
     delete 'bin/agent/dist/conf.d'
     delete 'bin/agent/dist/datadog.yaml'
+    delete 'bin/agent/dist/system-probe.yaml'
 
     # Installs: bin/ and run/ dirs
     command "bazel run #{omnibazel_flags} -- " \

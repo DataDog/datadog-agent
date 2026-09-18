@@ -10,7 +10,7 @@ profiler_deps_check:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - changes:
         paths:
           - go.mod

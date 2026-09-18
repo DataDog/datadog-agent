@@ -81,6 +81,17 @@ nav:
       
   - Go:
     - Add nested modules: how-to/go/modules.md
+  - Component framework:
+    - Use components in binaries: how-to/components/using-components.md
+    - Create bundles: how-to/components/creating-bundles.md
+    - Use optional dependencies: how-to/components/optional-dependencies.md
+    - Add flare data: how-to/components/flares.md
+    - Add a status provider: how-to/components/status.md
+  - Agent schema:
+    - Add and document settings: how-to/agent-schema/settings.md
+    - Validate and generate output: how-to/agent-schema/workflows.md
+  - Checks:
+    - Run JMXFetch: how-to/run-jmxfetch.md
   - Debug agents:
     - how-to/debug-agents/index.md
     - Linux: how-to/debug-agents/linux.md
@@ -91,6 +102,9 @@ nav:
     - Python: how-to/memory-profiling/python.md
     - C++: how-to/memory-profiling/c++.md
 - Tutorials:
+  - Component framework:
+    - Create a component: tutorials/components/creating-components.md
+    - Test a component: tutorials/components/testing.md
   - Develop:
     - Environment usage: tutorials/dev/env.md
     - Lab environments:
@@ -99,6 +113,7 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+  - Component framework: guidelines/components.md
   - Languages:
     - Go: guidelines/languages/go.md
     - Rust: guidelines/languages/RUST.md
@@ -106,36 +121,21 @@ nav:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
     - Logging: guidelines/conventions/logging.md
-- Components:
-  - Overview: components/overview.md
-  - Components:
-    - Creating components: components/creating-components.md
-    - Testing components: components/testing.md
-    # - Creating bundles: components/creating-bundles.md
-    - Using components: components/using-components.md
-    # - Common patterns: components/common-patterns.md
-  - Shared features from components:
-    # - Integrating with other components: components/migration.md
-    - Features:
-      - Flare: components/shared_features/flares.md
-      -  Status: components/shared_features/status.md
-  #     - TODO Remote Config: components/shared_features/remote_config.md
-  #     - TODO Metadata: components/shared_features/metadata.md
-  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
-  #     - TODO more ?: TMP
-  # - Fx overview: components/fx.md
-  # - JMXFetch overview: components/jmxfetch.md
-  # - FAQ: components/faq.md
-- Agent Schema:
-  - Introduction: agent-schema/index.md
-  - Keyword Reference: agent-schema/keywords.md
-  - Examples: agent-schema/examples.md
-  - CLI Commands: agent-schema/cli.md
-  - FAQ: agent-schema/faq.md
 - Architecture:
+  - Component framework:
+    - architecture/components/index.md
+    - Fx: architecture/components/fx.md
+  - Agent schema:
+    - architecture/agent-schema/index.md
+    - Annotated examples: architecture/agent-schema/examples.md
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
 - Reference:
+  - Component framework:
+    - Status providers: reference/components/status.md
+  - Agent schema:
+    - Keywords: reference/agent-schema/keywords.md
+    - CLI commands: reference/agent-schema/cli.md
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md

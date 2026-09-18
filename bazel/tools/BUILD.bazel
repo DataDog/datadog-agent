@@ -24,3 +24,21 @@ alias(
     }),
     visibility = ["//visibility:public"],
 )
+
+# @llvm_toolchain_llvm//:readelf is only defined for macos and linux.
+# This acts as a replacement to avoid analysis-time failures on windows.
+write_file(
+    name = "_empty_readelf",
+    out = "empty_readelf",
+    is_executable = True,
+)
+
+alias(
+    name = "readelf",
+    actual = select({
+        "@platforms//os:linux": "@llvm_toolchain_llvm//:readelf",
+        "@platforms//os:macos": "@llvm_toolchain_llvm//:readelf",
+        "//conditions:default": ":_empty_readelf",
+    }),
+    visibility = ["//visibility:public"],
+)

@@ -27,7 +27,7 @@ go_e2e_test_binaries:
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $BUILD_BINARIES_PARALLELISM --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
 
 new-e2e-base-coverage:
@@ -38,7 +38,7 @@ new-e2e-base-coverage:
       artifacts: false
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_coverage_pipeline]
   variables:
     TARGETS: ./tests/agent-devx
@@ -53,7 +53,7 @@ new-e2e-base:
       artifacts: false
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - when: on_success
   variables:

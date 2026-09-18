@@ -197,7 +197,7 @@ func TestMyFeatureLinux(t *testing.T) {
 }
 ```
 
-`myfeature_win_test.go` mirrors it with `myFeatureWindowsSuite` and `e2eos.WindowsServerDefault`. `test/new-e2e/tests/agent-runtimes/infra_basic_*_test.go` is the in-tree version of this pattern.
+`myfeature_win_test.go` mirrors it with `myFeatureWindowsSuite` and `e2eos.WindowsServerDefault`. `test/new-e2e/tests/agent-runtimes/infra-mode/infra_basic_*_test.go` is the in-tree version of this pattern.
 
 CI selects between them by name (`EXTRA_PARAMS: --skip "Windows"` on Linux jobs), so name the Windows entry point so that filter matches.
 

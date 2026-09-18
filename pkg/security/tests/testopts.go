@@ -34,6 +34,7 @@ type testOpts struct {
 	activityDumpLocalStorageFormats            []string
 	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
+	disableSecurityProfileV2                   bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool

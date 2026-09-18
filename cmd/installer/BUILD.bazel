@@ -32,6 +32,13 @@ dd_agent_go_binary(
         "//conditions:default": False,
     }),
     embed = [":installer_lib"],
+    gc_linkopts = select({
+        "@platforms//os:linux": [
+            "-X",
+            "github.com/DataDog/datadog-agent/pkg/util/defaultpaths.runPath=/opt/datadog-packages/run",
+        ],
+        "//conditions:default": [],
+    }),
     gotags = INSTALLER_TAGS,
     visibility = ["//visibility:public"],
 )

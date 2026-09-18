@@ -387,6 +387,20 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
+func tagsFromDimensions(dimensions map[string]string) []string {
+	keys := make([]string, 0, len(dimensions))
+	for key := range dimensions {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	tags := make([]string, 0, len(keys))
+	for _, key := range keys {
+		tags = append(tags, key+":"+dimensions[key])
+	}
+	return tags
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
@@ -613,6 +627,10 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			case source.AWSECSFargateKind:
 				if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
+				}
+			case source.AzureAppServiceKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			}
 		}

@@ -11,8 +11,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -32,14 +30,6 @@ import (
 
 // TestNewComponent tests that the Remote Tagger can be instantiated and started.
 func TestNewComponent(t *testing.T) {
-	// Skip this test if not running in CI, as it may conflict with another Agent.
-	if os.Getenv("CI") != "true" {
-		t.Skip("Skipping test as it is not running in CI.")
-	}
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping test on macOS runners with an existing Agent.")
-	}
-
 	// Instantiate the component.
 	req := Requires{
 		Lc:     compdef.NewTestLifecycle(t),

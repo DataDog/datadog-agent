@@ -5,7 +5,7 @@
   rules:
     - !reference [.on_deploy]
     - !reference [.on_main]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
     OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID

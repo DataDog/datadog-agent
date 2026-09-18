@@ -7,21 +7,17 @@
 
 package http
 
-/*
-#include <stdlib.h>
-#include <memory.h>
-*/
-import "C"
 import (
 	"runtime"
 	"sync"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
-	"golang.org/x/sys/windows"
 )
 
 ///const (

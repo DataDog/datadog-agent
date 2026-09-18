@@ -36,7 +36,7 @@
 datadog-agent-oci-x64-a7:
   extends: [.common_build_oci, .agent_base_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -55,7 +55,7 @@ datadog-agent-oci-x64-a7:
 datadog-agent-oci-arm64-a7:
   extends: [.common_build_oci, .agent_base_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -74,7 +74,7 @@ datadog-agent-oci-arm64-a7:
 datadog-agent-oci-x64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -93,7 +93,7 @@ datadog-agent-oci-x64-a7-fips:
 datadog-agent-oci-arm64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -114,7 +114,7 @@ datadog-agent-oci-arm64-a7-fips:
 #
 installer-install-scripts:
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -177,7 +177,7 @@ installer-install-scripts:
 
 .installer_linux_common:
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
