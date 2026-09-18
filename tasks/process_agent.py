@@ -10,7 +10,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel, fips_platform_flag
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
@@ -41,7 +41,10 @@ def build(
     flavor = AgentFlavor[flavor]
 
     if enable_bazel:
-        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
+        if flavor == AgentFlavor.fips:
+            bazel_args = [fips_platform_flag()]
+        else:
+            bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:

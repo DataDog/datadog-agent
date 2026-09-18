@@ -8,10 +8,11 @@ package(default_visibility = ["//visibility:public"])
 string_flag(
     name = "flavor",
     build_setting_default = "base",
-    # These values match omnibus.
+    # These values match omnibus, minus "fips": unlike omnibus, fips is not a
+    # flavor here, but orthogonal to it (see //bazel/platforms:crypto),
+    # selected via --platforms rather than this flag.
     values = [
         "base",
-        "fips",
         "heroku",
         "iot",
     ],
@@ -24,38 +25,46 @@ alias(
 
 config_setting(
     name = "base_flavor",
-    flag_values = {"@@//packages/agent:flavor": "base"},  # buildifier: disable=canonical-repository
+    flag_values = {"//packages/agent:flavor": "base"},
 )
 
+# fips is orthogonal to flavor: selected via --platforms (see
+# //bazel/platforms:crypto), not via this flag.
 config_setting(
     name = "fips_flavor",
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
+    constraint_values = ["//bazel/platforms:fips"],
 )
 
 config_setting(
     name = "heroku_flavor",
-    flag_values = {"@@//packages/agent:flavor": "heroku"},  # buildifier: disable=canonical-repository
+    flag_values = {"//packages/agent:flavor": "heroku"},
 )
 
 config_setting(
     name = "iot_flavor",
-    flag_values = {"@@//packages/agent:flavor": "iot"},  # buildifier: disable=canonical-repository
+    flag_values = {"//packages/agent:flavor": "iot"},
 )
 
-selects.config_setting_group(
+# linux_default and linux_fips are plain config_setting()s, not
+# selects.config_setting_group()s: Bazel's select() specialization rule
+# (one match wins if its criteria are a strict superset of another match's)
+# only compares the flag_values/constraint_values declared directly on a
+# config_setting, not what a config_setting_group's alias chain resolves to.
+# linux_fips repeats linux_default's criteria plus fips_flavor so it is
+# recognized as more specialized, with no separate exclusion needed.
+config_setting(
     name = "linux_default",
-    match_all = [
-        ":base_flavor",
-        "@platforms//os:linux",
-    ],
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"//packages/agent:flavor": "base"},
 )
 
-selects.config_setting_group(
+config_setting(
     name = "linux_fips",
-    match_all = [
-        ":fips_flavor",
+    constraint_values = [
         "@platforms//os:linux",
+        "//bazel/platforms:fips",
     ],
+    flag_values = {"//packages/agent:flavor": "base"},
 )
 
 selects.config_setting_group(
@@ -87,8 +96,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 config_setting(
@@ -96,8 +105,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 config_setting(
@@ -105,8 +114,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 string_flag(

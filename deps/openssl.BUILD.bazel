@@ -30,8 +30,8 @@ config_setting(
     name = "fips_windows",
     constraint_values = [
         "@platforms//os:windows",
+        "@@//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},
 )
 
 DEFAULT_CONFIG = [

@@ -6,6 +6,39 @@ go_sdk.from_file(
 use_repo(go_sdk, "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
+# ABLD-525: the Microsoft build of Go, required for the fips agent flavor.
+# Pinned to the same Go version as go.work; bump both together.
+# https://github.com/microsoft/go/releases/tag/v1.26.7-1
+# ms_nocgo_opensslcrypto is needed because some Bazel actions building with
+# this SDK have no C toolchain wired in (CGO_ENABLED=0); without it,
+# systemcrypto alone requires CGO_ENABLED=1 on Linux and fails to compile.
+# ms_nocgo_opensslcrypto is a no-op on the windows_amd64 archive in this same
+# SDK, since it only affects linux-only crypto backend source files.
+go_sdk.download(
+    name = "msgo",
+    experiments = [
+        "systemcrypto",
+        "ms_nocgo_opensslcrypto",
+    ],
+    sdks = {
+        "linux_amd64": [
+            "go1.26.7-1.linux-amd64.tar.gz",
+            "8c7c598971462ff2c7b304ee874a8939b68c52a36036c1fd55d1ed0404452711",
+        ],
+        "linux_arm64": [
+            "go1.26.7-1.linux-arm64.tar.gz",
+            "17f2001fa8d2ad1a73f68452f472f5aa66db483474a4eaeb34efcbc6f8c7c8c3",
+        ],
+        "windows_amd64": [
+            "go1.26.7-1.windows-amd64.zip",
+            "763bc4f90ab616ed7b13e0f9079b4344434a25b83abc72dff4fe81f9153b9adb",
+        ],
+    },
+    urls = ["https://aka.ms/golang/release/latest/{}"],
+    version = "1.26.7",
+)
+use_repo(go_sdk, "msgo")
+
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
 # Expose repos for legacy rules, inspired by https://github.com/bazel-contrib/bazel-gazelle/pull/2361

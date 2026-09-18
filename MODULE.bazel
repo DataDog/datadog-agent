@@ -1,5 +1,17 @@
 # Foundational packages
 
+# ABLD-525: fips is selected via --platforms (see //bazel/platforms:BUILD.bazel
+# and bazel/platform_mappings), not a hardware trait, so no auto-detected host
+# platform ever satisfies it. bazel_tools' own default_test_toolchain requires
+# the execution platform to match every constraint of the target platform, so
+# without this override `bazel test` under a fips --platforms value fails
+# resolving @bazel_tools//tools/test:default_test_toolchain_type for any test
+# target, fips-related or not. Registering the fips platforms themselves as
+# execution platforms would "fix" this too, but also makes them candidate
+# execution platforms for unrelated toolchain resolution repo-wide, which is
+# wrong since they do not correspond to any real machine.
+register_toolchains("//bazel/platforms:fips_test_toolchain")
+
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
@@ -115,6 +127,10 @@ archive_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+        # ABLD-525: go_tool_binary never threads the SDK's own GOEXPERIMENT
+        # into its sandboxed builder-tool compilation, which has no C
+        # toolchain wired in; msgo's systemcrypto needs cgo without it.
+        "//bazel/patches:rules_go-tool-binary-goexperiment.patch",
     ],
     sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
     strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
