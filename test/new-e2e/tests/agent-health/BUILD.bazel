@@ -5,6 +5,7 @@ dd_agent_go_test(
     srcs = [
         "admission_probe_test.go",
         "docker_permission_test.go",
+        "dogstatsd_client_drops_test.go",
         "helpers_test.go",
         "provisioner_test.go",
         "resilience_test.go",

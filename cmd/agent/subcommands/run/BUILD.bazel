@@ -33,6 +33,7 @@ go_library(
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
         "//comp/aggregator/demultiplexerendpoint/fx",
+        "//comp/aggregator/dogstatsdclientdropdetector/fx",
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
         "//comp/anomalydetection/observer/fx",
