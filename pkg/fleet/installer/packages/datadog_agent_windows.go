@@ -65,8 +65,11 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	watchdogStopEventName = "Global\\DatadogInstallerStop"
-	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	watchdogStopEventName       = "Global\\DatadogInstallerStop"
+	oldInstallerDir             = "C:\\ProgramData\\Datadog Installer"
+	parServiceName              = "datadog-agent-action"
+	ddProcmgrServiceName        = "dd-procmgr-service"
+	datadogInstallerServiceName = "Datadog Installer"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -143,8 +146,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
 	for _, cfg := range procmgrConfigs {
-		if err := ensureProcmgrConfig(cfg); err != nil {
+		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
 			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
 		}
 	}
@@ -204,25 +208,53 @@ type procmgrConfig struct {
 	label  string
 	write  func(installRoot string) error
 	remove func(installRoot string) error
+	// binaryRoot resolves the root write/remove check for their binary and use for path
+	// placeholders. Defaults to the resolved MSI Program Files install root (ADP, PAR: their
+	// binary ships with the base agent install). DDOT is an extension whose binary instead lives
+	// under the agent package repository, so it needs its own resolver.
+	binaryRoot func() (string, error)
+}
+
+// resolveAgentStablePackagePath resolves the "stable" symlink under the agent package repository
+// to the real versioned directory, mirroring postInstallDDOTExtension so a re-enable after a
+// process-manager switch finds the DDOT binary at the same path the extension installer used.
+func resolveAgentStablePackagePath() (string, error) {
+	stablePath := filepath.Join(paths.PackagesPath, agentPackage, "stable")
+	resolved, err := filepath.EvalSymlinks(stablePath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve stable agent package path: %w", err)
+	}
+	return resolved, nil
 }
 
 var procmgrConfigs = []procmgrConfig{
-	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
-	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
-	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
-	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig, nil},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig, nil},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig, nil},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig, nil},
+	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig, resolveAgentStablePackagePath},
 }
 
-func ensureProcmgrConfig(cfg procmgrConfig) error {
+func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
+	// Always resolve paths.DatadogProgramFilesDir: write/remove use it directly for where
+	// processes.d itself lives, regardless of which root their binary is checked against.
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
-		return cfg.write(installRoot)
+	root := installRoot
+	if cfg.binaryRoot != nil {
+		root, err = cfg.binaryRoot()
+		if err != nil {
+			return fmt.Errorf("failed to resolve %s binary root: %w", cfg.label, err)
+		}
 	}
-	if err := cfg.remove(installRoot); err != nil {
+
+	if processManagerEnabled {
+		return cfg.write(root)
+	}
+	if err := cfg.remove(root); err != nil {
 		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
@@ -1064,4 +1096,74 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 // RestartDatadogAgent restarts the datadog-agent service if it is running
 func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+}
+
+// SetProcessManager enables or disables dd-procmgrd as the supervisor for the processes that
+// support it, moving them off (or back onto) their standalone Windows services.
+func SetProcessManager(_ context.Context, enabled bool) error {
+	if env.FromEnv().ProcessManagerEnabled == enabled {
+		return nil
+	}
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg, enabled); err != nil {
+			return fmt.Errorf("failed to configure %s process manager config: %w", cfg.label, err)
+		}
+	}
+	services := []string{otelServiceName, parServiceName}
+	if enabled {
+		for _, service := range services {
+			if err := stopServiceIfExists(service); err != nil {
+				log.Warnf("could not stop service: %v", err)
+			}
+		}
+		if err := startServiceIfExists(ddProcmgrServiceName); err != nil {
+			log.Warnf("could not start %s: %v", ddProcmgrServiceName, err)
+		}
+	} else {
+		if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
+			log.Warnf("could not stop %s: %v", ddProcmgrServiceName, err)
+		}
+		for _, service := range services {
+			if err := startServiceIfExists(service); err != nil {
+				log.Warnf("could not start service: %v", err)
+			}
+		}
+	}
+	if err := persistProcessManagerEnv(enabled); err != nil {
+		log.Warnf("could not persist process manager selection: %v", err)
+	}
+	return nil
+}
+
+// persistProcessManagerEnv saves the resolved DD_PROCESS_MANAGER_ENABLED choice into the
+// Datadog Installer service's registry Environment value, so it survives a daemon restart.
+// The daemon itself updates its in-memory env immediately after this call returns, so this
+// only needs to be visible the next time the service starts.
+func persistProcessManagerEnv(enabled bool) error {
+	key, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\`+datadogInstallerServiceName,
+		registry.QUERY_VALUE|registry.SET_VALUE,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to open %s service registry key: %w", datadogInstallerServiceName, err)
+	}
+	defer key.Close()
+
+	existing, _, err := key.GetStringsValue("Environment")
+	if err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return fmt.Errorf("failed to read %s service Environment value: %w", datadogInstallerServiceName, err)
+	}
+
+	entry := fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled)
+	updated := make([]string, 0, len(existing)+1)
+	for _, e := range existing {
+		if strings.HasPrefix(e, env.EnvProcessManagerEnabled+"=") {
+			continue
+		}
+		updated = append(updated, e)
+	}
+	updated = append(updated, entry)
+
+	return key.SetStringsValue("Environment", updated)
 }
