@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"regexp"
 	"strconv"
@@ -76,9 +77,6 @@ type otelTLSResolution struct {
 	tlsOffset int64
 	// dtvInfo locates the DTV for dynamic TLS (unused when moduleID == 0).
 	dtvInfo otelDTVInfo
-	// attributeKeys is used to name the attribute in the thread context record.
-	// This is used to fill Tracer.ThreadlocalAttributeKeys
-	attributeKeys []string
 }
 
 // serializeOTelTLSValue serializes res as struct otel_tls_t.
@@ -121,22 +119,12 @@ type otelTargetProcess struct {
 	procCtxAddr uint64
 }
 
-// resolveTLS resolves the OTel TLS reader metadata for a process already
-// known to publish procCtx: classify otel_thread_ctx_v1's access model from
+// resolveTLSOffsets resolves the otel_thread_ctx_v1's access model from
 // its defining ELF object (resolveTLSAccess), then read the loader-resolved
 // GOT/TLSDESC slot from the live process (attachOTelTLS). Mirrors the
 // loader/attach split of DataDog's opentelemetry-ebpf-profiler fork (PR
-// #1229), collapsed into one call since the target here is always already
-// running.
-func (p *otelTargetProcess) resolveTLS(procCtx otelprocessctx.ProcessContext) (otelTLSResolution, error) {
-	// The attribute key names come from the same process context that made this
-	// process worth resolving; their absence means it isn't using the TLS
-	// reader (e.g. it's a Go process, handled instead by go_labels.go).
-	attributeKeys, err := otelprocessctx.KeyAttributeKeyMap(procCtx)
-	if err != nil {
-		return otelTLSResolution{}, fmt.Errorf("%w: %w", errSpanCtxNotApplicable, err)
-	}
-
+// #1229).
+func (p *otelTargetProcess) resolveTLSOffsets() (otelTLSResolution, error) {
 	module, sym, err := p.findOTelTLSModule()
 	if err != nil {
 		return otelTLSResolution{}, err
@@ -166,8 +154,18 @@ func (p *otelTargetProcess) resolveTLS(procCtx otelprocessctx.ProcessContext) (o
 		return otelTLSResolution{}, err
 	}
 	res.runtimeLang = otelRuntimeNative
-	res.attributeKeys = attributeKeys
 	return res, nil
+}
+
+// otelAttributeKeys reads the attribute key names out of procCtx. Their
+// absence means the process isn't using the TLS reader (e.g. it's a Go
+// process, handled instead by go_labels.go).
+func otelAttributeKeys(procCtx otelprocessctx.ProcessContext) ([]string, error) {
+	attributeKeys, err := otelprocessctx.KeyAttributeKeyMap(procCtx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errSpanCtxNotApplicable, err)
+	}
+	return attributeKeys, nil
 }
 
 // processContext reads the OTel process context of the target, which the maps
@@ -220,25 +218,32 @@ func (p *otelTargetProcess) fsPath(path string) string {
 	return kernel.HostProc(p.pidStr, "root", path)
 }
 
-func (p *otelTargetProcess) maps() ([]procfs.MapsEntry, error) {
-	mapsPath := kernel.HostProc(p.pidStr, "maps")
-	file, err := os.Open(mapsPath)
-	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", mapsPath, err)
-	}
-	defer file.Close()
+func (p *otelTargetProcess) maps() (iter.Seq[procfs.MapsEntry], func() error) {
+	var iterErr error
+	seq := func(yield func(v procfs.MapsEntry) bool) {
+		mapsPath := kernel.HostProc(p.pidStr, "maps")
+		file, err := os.Open(mapsPath)
+		if err != nil {
+			iterErr = fmt.Errorf("open %s: %w", mapsPath, err)
+			return
+		}
+		defer file.Close()
 
-	var entries []procfs.MapsEntry
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
-			entries = append(entries, entry)
+		scanner := bufio.NewScanner(file)
+		scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
+		for scanner.Scan() {
+			if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
+				if !yield(entry) {
+					return
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			iterErr = fmt.Errorf("scan %s: %w", mapsPath, err)
+			return
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan %s: %w", mapsPath, err)
-	}
-	return entries, nil
+	return seq, func() error { return iterErr }
 }
 
 func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
@@ -251,15 +256,11 @@ func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsE
 }
 
 func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
-	entries, err := p.maps()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	grouped := make(map[string][]procfs.MapsEntry)
 	var order []string
 	seen := make(map[string]struct{})
-	for _, entry := range entries {
+	entries, errf := p.maps()
+	for entry := range entries {
 		// Since we're already parsing the maps here, set the procCtxAddr
 		if p.procCtxAddr == 0 && otelprocessctx.IsMappingName(entry.Pathname) {
 			p.procCtxAddr = entry.StartAddr
@@ -274,6 +275,9 @@ func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procf
 			seen[path] = struct{}{}
 			order = append(order, path)
 		}
+	}
+	if err := errf(); err != nil {
+		return nil, nil, err
 	}
 	return grouped, order, nil
 }

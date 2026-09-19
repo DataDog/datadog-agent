@@ -100,15 +100,11 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 			}
 		case map[string]string:
 			maps.Copy(metricMappings, val)
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			for k1, v1 := range val {
-				if _, ok := k1.(string); !ok {
-					continue
+				if s, ok := v1.(string); ok {
+					metricMappings[k1] = s
 				}
-				if _, ok := v1.(string); !ok {
-					continue
-				}
-				metricMappings[k1.(string)] = v1.(string)
 			}
 		}
 	}
