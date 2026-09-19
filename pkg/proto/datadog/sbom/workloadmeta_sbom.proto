@@ -9,8 +9,11 @@ message SBOMStreamParams {
 
 message SBOMMessage {
     bytes Data = 1;
+    // Kind is the kind of entity this SBOM enriches: a workloadmeta kind, or
+    // "host" for the host itself, which has no workloadmeta entity.
     string Kind = 2;
-    // ID is the ID for this entity, in a format specific to the entity Kind.
+    // ID is the ID for this entity, in a format specific to the entity Kind. The
+    // host kind carries none: the core agent names the host itself.
     string ID = 3;
 }
 

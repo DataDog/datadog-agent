@@ -21,20 +21,39 @@ const (
 	LastAccessProperty    = "LastSeenRunning"
 	HasSetSuidBitProperty = "HasSetSuidBit"
 	RunningAsRootProperty = "RunningAsRoot"
+
+	// hostReportID seeds the identifier of the host report, which has no
+	// container ID to derive one from.
+	hostReportID = "host"
 )
 
 // PackagesReport wraps package data and implements the sbom.Report interface
 type PackagesReport struct {
 	packages    []sbomtypes.Package
 	containerID containerutils.ContainerID
+	host        bool
 }
 
-// NewPackagesReport creates a new PackagesReport from a slice of packages
+// NewPackagesReport creates a new PackagesReport for the given container
 func NewPackagesReport(packages []sbomtypes.Package, containerID containerutils.ContainerID) *PackagesReport {
 	return &PackagesReport{
 		packages:    packages,
 		containerID: containerID,
 	}
+}
+
+// NewHostPackagesReport creates a new PackagesReport for the host. The core agent
+// identifies the host by its own hostname, so the report carries no id of its own.
+func NewHostPackagesReport(packages []sbomtypes.Package) *PackagesReport {
+	return &PackagesReport{
+		packages: packages,
+		host:     true,
+	}
+}
+
+// IsHost reports whether this report describes the host rather than a container.
+func (r *PackagesReport) IsHost() bool {
+	return r.host
 }
 
 // ToCycloneDX converts the packages to a CycloneDX BOM with LastAccess properties
@@ -96,6 +115,10 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 
 // ID returns a unique identifier for this report
 func (r *PackagesReport) ID() string {
+	if r.host {
+		hash := sha256.Sum256([]byte(hostReportID))
+		return hex.EncodeToString(hash[:])
+	}
 	// Generate ID from container ID
 	hash := sha256.Sum256([]byte(r.containerID))
 	return hex.EncodeToString(hash[:])
