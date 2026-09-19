@@ -737,12 +737,60 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
-func TestFetchFleet(t *testing.T) {
+func TestFetchFleetConfigIDSetByFleetPolicies(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.conf.Set("config_id", "my-config", pkgconfigmodel.SourceFleetPolicies)
+
+	ia.fetchFleetMetadata()
+	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+}
+
+func TestFetchFleetConfigIDClearedWhenNoLongerFromFleetPolicies(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.conf.Set("config_id", "my-config", pkgconfigmodel.SourceFleetPolicies)
+	ia.fetchFleetMetadata()
+	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+
+	// Fleet Policies later drops config_id: a stale cached value must not linger in ia.data.
+	ia.conf.UnsetForSource("config_id", pkgconfigmodel.SourceFleetPolicies)
+	ia.fetchFleetMetadata()
+	_, ok := ia.data["config_id"]
+	assert.False(t, ok)
+}
+
+func TestFetchFleetConfigIDIgnoredWhenSetLocally(t *testing.T) {
+	// A config_id set outside of Fleet Policies must not be reported.
 	ia := getTestInventoryPayload(t, map[string]any{
 		"config_id": "my-config",
 	}, nil)
+
 	ia.fetchFleetMetadata()
-	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+	_, ok := ia.data["config_id"]
+	assert.False(t, ok)
+}
+
+func TestGetConfigsStripsConfigIDFromFullConfigurationWhenSetLocally(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+		"config_id":                         "my-config",
+	}, nil)
+
+	data := make(agentMetadata)
+	ia.getConfigs(data)
+
+	assert.NotContains(t, data["full_configuration"].(string), "config_id")
+}
+
+func TestGetConfigsKeepsConfigIDInFullConfigurationWhenSetByFleetPolicies(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+	ia.conf.Set("config_id", "my-config", pkgconfigmodel.SourceFleetPolicies)
+
+	data := make(agentMetadata)
+	ia.getConfigs(data)
+
+	assert.Contains(t, data["full_configuration"].(string), "config_id: my-config")
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {

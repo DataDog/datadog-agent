@@ -434,7 +434,12 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchFleetMetadata() {
-	ia.data["config_id"] = ia.conf.GetString("config_id")
+	// Only report config_id if it actually came from Fleet Policies, not a local override.
+	if ia.conf.GetSource("config_id") == model.SourceFleetPolicies {
+		ia.data["config_id"] = ia.conf.GetString("config_id")
+	} else {
+		delete(ia.data, "config_id")
+	}
 }
 
 func (ia *inventoryagent) refreshMetadata() {
@@ -519,7 +524,11 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
+		fullSettings := ia.conf.AllSettingsWithoutSecrets()
+		if ia.conf.GetSource("config_id") != model.SourceFleetPolicies {
+			delete(fullSettings, "config_id")
+		}
+		if yaml, err := ia.marshalAndScrub(fullSettings); err == nil {
 			data["full_configuration"] = yaml
 		}
 	}

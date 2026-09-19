@@ -1,0 +1,9 @@
+---
+security:
+  - |
+    The Agent no longer reports ``config_id`` in inventory metadata unless it
+    was actually set by a Fleet-managed config policy. Previously,
+    ``config_id`` could be set directly in ``datadog.yaml`` by anyone with
+    write access to the file, which could cause a local configuration change
+    to be incorrectly attributed to Fleet Automation in the audit trail
+    instead of Local Deployment.
