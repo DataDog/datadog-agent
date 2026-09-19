@@ -49,6 +49,7 @@ func StartWorkloadAutoscaling(
 	isLeaderFunc func() bool,
 	apiCl *apiserver.APIClient,
 	rcClient workload.RcClient,
+	rcInstanceName string,
 	wlm workloadmeta.Component,
 	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
@@ -64,6 +65,7 @@ func StartWorkloadAutoscaling(
 
 	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
+	workload.InitStatus(store, isLeaderFunc, rcInstanceName)
 
 	// Open the gate the first time a DPA enters the store. This catches every
 	// path that creates a DPA: Kubernetes informer, remote config, and the
