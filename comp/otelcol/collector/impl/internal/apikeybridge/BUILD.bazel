@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "apikeybridge",
+    srcs = ["apikeybridge.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl/internal/apikeybridge",
+    visibility = ["//comp/otelcol/collector/impl:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/config/model",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//agentcomponents",
+    ],
+)
+
+dd_agent_go_test(
+    name = "apikeybridge_test",
+    srcs = ["apikeybridge_test.go"],
+    embed = [":apikeybridge"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/impl",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//agentcomponents",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
+    ],
+)

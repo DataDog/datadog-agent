@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,4 +122,61 @@ func TestRunWithInterval(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertConfigIsSet(t, cs.Config, "api_key", "api_key_core2")
 	}, maxWaitInterval, refreshInterval)
+}
+
+// TestRunWithIntervalFiresOnUpdateForAPIKey pins the contract the Datadog OTel
+// extension's API-key bridge depends on: when configsync pulls a rotated api_key from
+// the core Agent, the write must reach subscribers registered through Config.OnUpdate.
+//
+// The forwarder's domain resolver already relies on this (see
+// comp/forwarder/defaultforwarder/resolver.OnUpdateConfig), but nothing asserted it, so a
+// change to how configsync writes could silently break rotation for every subscriber.
+func TestRunWithIntervalFiresOnUpdateForAPIKey(t *testing.T) {
+	// Two independent config objects, mimicking the core Agent and the otel-agent.
+	configCore := create.NewConfig("test")
+	configCore.SetTestOnlyDynamicSchema(true)
+	configCore.Set("api_key", "api_key_core1", pkgconfigmodel.SourceFile)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, configCore.GetString("api_key"))))
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cs := makeConfigSyncWithServer(t, ctx, handler)
+
+	var (
+		mu       sync.Mutex
+		observed []string
+	)
+	cs.Config.OnUpdate(func(setting string, _ pkgconfigmodel.Source, _, newValue any, _ uint64, _ pkgconfigmodel.Source) {
+		if setting != "api_key" {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		observed = append(observed, fmt.Sprintf("%v", newValue))
+	})
+
+	refreshInterval := time.Millisecond * 200
+	maxWaitInterval := 5 * refreshInterval
+
+	go cs.runWithInterval(refreshInterval)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertConfigIsSet(t, cs.Config, "api_key", "api_key_core1")
+	}, maxWaitInterval, refreshInterval)
+
+	configCore.Set("api_key", "api_key_core2", pkgconfigmodel.SourceAgentRuntime)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Contains(c, observed, "api_key_core2",
+			"configsync must notify OnUpdate subscribers when it rotates api_key")
+	}, maxWaitInterval, refreshInterval)
+
+	// And the notification must carry the value that actually landed in the config.
+	assertConfigIsSet(t, cs.Config, "api_key", "api_key_core2")
 }
