@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 	"syscall"
 	"testing"
 	"time"
@@ -32,6 +33,13 @@ func TestPrCtl(t *testing.T) {
 		{
 			ID:         "test_rule_prctl_get_dumpable",
 			Expression: `prctl.option == PR_GET_DUMPABLE`,
+		},
+		{
+			// PR_GET_NO_NEW_PRIVS is 39. The flag approver holds one bit per approved option
+			// in a 64 bit mask, so an option of 32 or more only reaches user space if the
+			// kernel side reads the upper half of that mask.
+			ID:         "test_rule_prctl_get_no_new_privs",
+			Expression: `prctl.option == PR_GET_NO_NEW_PRIVS`,
 		},
 	}
 
@@ -67,6 +75,21 @@ func TestPrCtl(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl_get_dumpable")
 		}, "test_rule_prctl_get_dumpable")
+	})
+	t.Run("prctl-get-no-new-privs", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_PRCTL,
+				uintptr(unix.PR_GET_NO_NEW_PRIVS),
+				0, 0, 0, 0, 0,
+			)
+			if errno != 0 {
+				return fmt.Errorf("prctl(PR_GET_NO_NEW_PRIVS) failed: %v", errno)
+			}
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_prctl_get_no_new_privs")
+		}, "test_rule_prctl_get_no_new_privs")
 	})
 }
 
