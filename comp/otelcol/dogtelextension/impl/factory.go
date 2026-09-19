@@ -20,7 +20,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -36,15 +35,14 @@ const (
 
 // componentHolder stores FX-injected components for extension creation
 type componentHolder struct {
-	config       coreconfig.Component
-	log          log.Component
-	serializer   serializer.MetricSerializer
-	hostname     hostnameinterface.Component
-	workloadmeta workloadmeta.Component
-	tagger       tagger.Component
-	ipc          ipc.Component
-	telemetry    telemetry.Component
-	secrets      secrets.Component
+	config     coreconfig.Component
+	log        log.Component
+	serializer serializer.MetricSerializer
+	hostname   hostnameinterface.Component
+	tagger     tagger.Component
+	ipc        ipc.Component
+	telemetry  telemetry.Component
+	secrets    secrets.Component
 }
 
 // NewFactory creates a basic factory (for standalone OTel collector builds)
@@ -66,22 +64,20 @@ func NewFactoryForAgent(
 	log log.Component,
 	serializer serializer.MetricSerializer,
 	hostname hostnameinterface.Component,
-	workloadmeta workloadmeta.Component,
 	tagger tagger.Component,
 	ipc ipc.Component,
 	telemetry telemetry.Component,
 	secrets secrets.Component,
 ) extension.Factory {
 	components := &componentHolder{
-		config:       config,
-		log:          log,
-		serializer:   serializer,
-		hostname:     hostname,
-		workloadmeta: workloadmeta,
-		tagger:       tagger,
-		ipc:          ipc,
-		telemetry:    telemetry,
-		secrets:      secrets,
+		config:     config,
+		log:        log,
+		serializer: serializer,
+		hostname:   hostname,
+		tagger:     tagger,
+		ipc:        ipc,
+		telemetry:  telemetry,
+		secrets:    secrets,
 	}
 
 	return extension.NewFactory(
@@ -96,15 +92,14 @@ func NewFactoryForAgent(
 
 // Requires defines the dependencies needed to create a dogtelExtension via FX.
 type Requires struct {
-	Config       coreconfig.Component
-	Log          log.Component
-	Serializer   serializer.MetricSerializer
-	Hostname     hostnameinterface.Component
-	Workloadmeta workloadmeta.Component
-	Tagger       tagger.Component
-	IPC          ipc.Component
-	Telemetry    telemetry.Component
-	Secrets      secrets.Component
+	Config     coreconfig.Component
+	Log        log.Component
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
+	Tagger     tagger.Component
+	IPC        ipc.Component
+	Telemetry  telemetry.Component
+	Secrets    secrets.Component
 }
 
 // NewComponent creates a new dogtelextension instance for use with FX.
@@ -114,17 +109,16 @@ func NewComponent(reqs Requires) (dogtelextension.Component, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 	return &dogtelExtension{
-		config:       cfg,
-		log:          reqs.Log,
-		coreConfig:   reqs.Config,
-		serializer:   reqs.Serializer,
-		hostname:     reqs.Hostname,
-		workloadmeta: reqs.Workloadmeta,
-		tagger:       reqs.Tagger,
-		ipc:          reqs.IPC,
-		telemetry:    reqs.Telemetry,
-		secrets:      reqs.Secrets,
-		buildInfo:    component.BuildInfo{},
+		config:     cfg,
+		log:        reqs.Log,
+		coreConfig: reqs.Config,
+		serializer: reqs.Serializer,
+		hostname:   reqs.Hostname,
+		tagger:     reqs.Tagger,
+		ipc:        reqs.IPC,
+		telemetry:  reqs.Telemetry,
+		secrets:    reqs.Secrets,
+		buildInfo:  component.BuildInfo{},
 	}, nil
 }
 
@@ -154,17 +148,16 @@ func newExtension(
 
 	// Create extension with all dependencies
 	ext := &dogtelExtension{
-		config:       cfg,
-		log:          components.log,
-		serializer:   components.serializer,
-		hostname:     components.hostname,
-		workloadmeta: components.workloadmeta,
-		tagger:       components.tagger,
-		ipc:          components.ipc,
-		telemetry:    components.telemetry,
-		secrets:      components.secrets,
-		coreConfig:   components.config,
-		buildInfo:    buildInfo,
+		config:     cfg,
+		log:        components.log,
+		serializer: components.serializer,
+		hostname:   components.hostname,
+		tagger:     components.tagger,
+		ipc:        components.ipc,
+		telemetry:  components.telemetry,
+		secrets:    components.secrets,
+		coreConfig: components.config,
+		buildInfo:  buildInfo,
 	}
 
 	return ext, nil

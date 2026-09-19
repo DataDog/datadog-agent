@@ -34,7 +34,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -87,7 +86,6 @@ type Requires struct {
 	Ipc                 ipc.Component
 	Telemetry           telemetry.Component
 	AgentTelemetry      agenttelemetry.Component
-	WorkloadMeta        workloadmeta.Component
 	Secrets             secrets.Component
 	Params              Params
 }
@@ -207,7 +205,6 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		reqs.Log,
 		reqs.Serializer,
 		reqs.Hostname,
-		reqs.WorkloadMeta,
 		reqs.Tagger,
 		reqs.Ipc,
 		reqs.Telemetry,

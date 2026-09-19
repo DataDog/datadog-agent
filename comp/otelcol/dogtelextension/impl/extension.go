@@ -7,11 +7,12 @@ package dogtelextensionimpl
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,12 +23,27 @@ import (
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	dogtelmetrics "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
+
+// Azure Container Apps environment variables, mirroring cmd/serverless-init/cloudservice/containerapp.go.
+// CONTAINER_APP_NAME and CONTAINER_APP_REPLICA_NAME are injected by Azure; subscription ID and resource
+// group are not, so customers must set the DD_AZURE_* variables themselves.
+const (
+	containerAppNameEnvVar        = "CONTAINER_APP_NAME"
+	containerAppReplicaNameEnvVar = "CONTAINER_APP_REPLICA_NAME"
+	azureSubscriptionIDEnvVar     = "DD_AZURE_SUBSCRIPTION_ID"
+	azureResourceGroupEnvVar      = "DD_AZURE_RESOURCE_GROUP"
+)
+
+func isAzureContainerApps() bool {
+	_, exists := os.LookupEnv(containerAppNameEnvVar)
+	return exists
+}
 
 // dogtelExtension implements the dogtelextension.Component interface
 type dogtelExtension struct {
@@ -36,13 +52,12 @@ type dogtelExtension struct {
 	coreConfig coreconfig.Component
 
 	// Core components injected from FX
-	serializer   serializer.MetricSerializer
-	hostname     hostnameinterface.Component
-	workloadmeta workloadmeta.Component
-	tagger       tagger.Component
-	ipc          ipc.Component
-	telemetry    telemetry.Component
-	secrets      secrets.Component
+	serializer serializer.MetricSerializer
+	hostname   hostnameinterface.Component
+	tagger     tagger.Component
+	ipc        ipc.Component
+	telemetry  telemetry.Component
+	secrets    secrets.Component
 
 	// Build info for metric tags
 	buildInfo component.BuildInfo
@@ -126,11 +141,38 @@ func (e *dogtelExtension) livenessMetricLoop() {
 }
 
 // sendLivenessMetric sends a gauge metric indicating the extension is running.
+// On ECS Fargate or Azure Container Apps, the metric is tagged with the task ARN or
+// container app identity instead of a hostname, since those workloads have no host identity.
 func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
-	hostname := e.hostname.GetSafe(ctx)
-	now := pcommon.NewTimestampFromTime(time.Now())
+	now := time.Now()
 	buildTags := dogtelmetrics.TagsFromBuildInfo(e.buildInfo)
-	serie := dogtelmetrics.CreateLivenessSerie(hostname, uint64(now), buildTags)
+
+	var serie *agentmetrics.Serie
+	switch {
+	case fargate.GetOrchestrator() == fargate.ECS:
+		taskARN, err := fetchECSTaskARN(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get ECS task ARN: %w", err)
+		}
+		serie = dogtelmetrics.CreateFargateLivenessSerie(taskARN, now, buildTags)
+	case isAzureContainerApps():
+		serie = dogtelmetrics.CreateAzureContainerAppsLivenessSerie(
+			os.Getenv(containerAppReplicaNameEnvVar),
+			os.Getenv(containerAppNameEnvVar),
+			os.Getenv(azureSubscriptionIDEnvVar),
+			os.Getenv(azureResourceGroupEnvVar),
+			now, buildTags,
+		)
+	default:
+		hostname := e.hostname.GetSafe(ctx)
+		serie = dogtelmetrics.CreateLivenessSerie(hostname, now, buildTags)
+	}
+
+	if serie == nil {
+		// e.g. Azure Container Apps identifying attributes are incomplete; skip
+		// rather than emit a partially-tagged billing metric.
+		return nil
+	}
 
 	var serieErr error
 	agentmetrics.Serialize(
