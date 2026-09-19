@@ -18,7 +18,7 @@ dd_agent_expand_template(
     name = "systemd_gen",
     out = "usr/lib/systemd/system/datadog-agent.service",
     attributes = pkg_attributes(mode = "0644"),
-    template = "//packages/agent/iot:systemd.service.in",
+    template = "//packages/iot:systemd.service.in",
 )
 
 pkg_filegroup(
