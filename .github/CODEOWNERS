@@ -81,7 +81,8 @@
 /static-analysis.datadog.yml                    @DataDog/agent-devx
 /rust-toolchain.toml                            @DataDog/agent-build @DataDog/agent-devx
 /Cargo.toml                                     @DataDog/agent-build @DataDog/agent-devx
-/Cargo.lock                                     @DataDog/agent-build @DataDog/agent-devx
+# /Cargo.lock is intentionally unowned: it's a computed file kept consistent by CI checks,
+# not something to gatekeep on its own. New dependencies are still gated via /Cargo.toml.
 /datadog-agent.map                              @DataDog/agent-log-pipelines
 /flakes.yaml                                    @DataDog/agent-devx
 /k8s_versions.json                              @DataDog/container-integrations
