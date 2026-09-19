@@ -847,6 +847,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "abc", cfg.LogFilePath)
 	assert.Equal(t, "test", cfg.DefaultEnv)
 	assert.Equal(t, 123, cfg.ConnectionLimit)
+	assert.Equal(t, []string{traceconfig.QueryAttributeDBQueryText}, cfg.QueryAttributeAllowlist)
 	assert.Equal(t, 18126, cfg.ReceiverPort)
 	assert.Equal(t, 0.5, cfg.ExtraSampleRate)
 	assert.Equal(t, 5.0, cfg.TargetTPS)
@@ -982,6 +983,34 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 
 }
 
+func TestValidateQueryAttributeAllowlist(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		allowlist []string
+		wantError string
+	}{
+		{name: "default"},
+		{name: "subset", allowlist: []string{traceconfig.QueryAttributeDBQueryText}},
+		{name: "unknown", allowlist: []string{"unknown"}, wantError: "unsupported database query attribute"},
+		{name: "none mixed", allowlist: []string{traceconfig.QueryAttributeNone, traceconfig.QueryAttributeSQLQuery}, wantError: "cannot be combined"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := traceconfig.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.DDAgentBin = "agent"
+			cfg.Hostname = "test"
+			cfg.QueryAttributeAllowlist = tt.allowlist
+
+			err := validate(cfg, configcomp.NewMock(t))
+			if tt.wantError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestAcquireHostnameFallback(t *testing.T) {
 	c := traceconfig.New()
 	err := acquireHostnameFallback(c)
@@ -1112,6 +1141,20 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
+	})
+
+	env = "DD_APM_SQL_QUERY_ATTRIBUTE_ALLOWLIST"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "sql.query db.query.text")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.Equal(t, []string{
+			traceconfig.QueryAttributeSQLQuery,
+			traceconfig.QueryAttributeDBQueryText,
+		}, cfg.QueryAttributeAllowlist)
 	})
 
 	env = "DD_APM_ENABLED"

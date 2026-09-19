@@ -586,6 +586,26 @@ properties:
       Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
       Set to "normalize_only" to normalize the query with the new `sqllexer` obfuscator.
       If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
+  sql_query_attribute_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    env_vars:
+    - DD_APM_SQL_QUERY_ATTRIBUTE_ALLOWLIST
+    env_parser: json_list_or_space_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Controls which database query attributes are retained from OpenTelemetry spans or generated during SQL obfuscation.
+      Supported values are `sql.query`, `db.statement`, and `db.query.text`.
+      Set the list to `none` to omit all compatibility copies and keep only the normalized span resource.
+      The `none` value cannot be combined with another value.
+      An empty list preserves the current behavior by allowing all three attributes.
+      Existing `sql.query` attributes are still obfuscated even when omitted from this list.
+    example: |2-
+
+        - db.query.text
   filter_tags:
     node_type: section
     type: object

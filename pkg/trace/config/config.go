@@ -10,6 +10,7 @@ package config
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,6 +47,17 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+
+const (
+	// QueryAttributeNone disables all generated database query attributes.
+	QueryAttributeNone = "none"
+	// QueryAttributeSQLQuery is the legacy Datadog SQL query attribute.
+	QueryAttributeSQLQuery = "sql.query"
+	// QueryAttributeDBStatement is the legacy OpenTelemetry database query attribute.
+	QueryAttributeDBStatement = "db.statement"
+	// QueryAttributeDBQueryText is the stable OpenTelemetry database query attribute.
+	QueryAttributeDBQueryText = "db.query.text"
+)
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -91,6 +103,44 @@ type OTLP struct {
 	// It is kept for backwards compatibility with external packages.
 	// Deprecated: This field is ignored - the Agent now always uses standard OTel semantic conventions.
 	IgnoreMissingDatadogFields bool `mapstructure:"-"`
+}
+
+// IsQueryAttributeAllowed reports whether attribute may be retained during
+// OTLP conversion or generated during SQL obfuscation.
+func (c *AgentConfig) IsQueryAttributeAllowed(attribute string) bool {
+	if c == nil || len(c.QueryAttributeAllowlist) == 0 {
+		return true
+	}
+	for _, allowed := range c.QueryAttributeAllowlist {
+		if allowed == QueryAttributeNone {
+			return false
+		}
+	}
+	for _, allowed := range c.QueryAttributeAllowlist {
+		if attribute == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateQueryAttributeAllowlist validates a database query attribute
+// allowlist.
+func ValidateQueryAttributeAllowlist(allowlist []string) error {
+	hasNone := false
+	for _, attribute := range allowlist {
+		switch attribute {
+		case QueryAttributeNone:
+			hasNone = true
+		case QueryAttributeSQLQuery, QueryAttributeDBStatement, QueryAttributeDBQueryText:
+		default:
+			return fmt.Errorf("unsupported database query attribute %q", attribute)
+		}
+	}
+	if hasNone && len(allowlist) != 1 {
+		return errors.New(`database query attribute "none" cannot be combined with other values`)
+	}
+	return nil
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -502,6 +552,15 @@ type AgentConfig struct {
 
 	// SQLObfuscationMode holds obfuscator mode.
 	SQLObfuscationMode string
+
+	// QueryAttributeAllowlist controls which database query attributes OTLP
+	// conversion retains and SQL obfuscation generates alongside the span
+	// resource. A nil or empty list preserves existing behavior by allowing all
+	// query attributes. A list containing only QueryAttributeNone allows none;
+	// otherwise the listed query attributes are allowed. Attributes already
+	// present on a Datadog span are not removed; an existing sql.query attribute
+	// remains subject to SQL obfuscation.
+	QueryAttributeAllowlist []string
 
 	// MaxResourceLen the maximum length the resource can have
 	MaxResourceLen int

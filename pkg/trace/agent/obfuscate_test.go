@@ -14,12 +14,18 @@ import (
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -404,6 +410,129 @@ func TestSQLResourceQuery(t *testing.T) {
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
+}
+
+func TestSQLQueryAttributeAllowlist(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.QueryAttributeAllowlist = []string{config.QueryAttributeNone}
+	cfg.Features["table_names"] = struct{}{}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	for _, spanType := range []string{"sql", "cassandra"} {
+		t.Run(spanType+" obfuscates existing attribute", func(t *testing.T) {
+			span := &pb.Span{
+				Resource: "SELECT * FROM users WHERE id = 42",
+				Type:     spanType,
+				Meta: map[string]string{
+					"sql.query": "incoming SQL query",
+				},
+			}
+
+			agnt.ObfuscateSpan(span)
+
+			assert.Equal(t, "SELECT * FROM users WHERE id = ?", span.Resource)
+			assert.Equal(t, "SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
+			assert.Equal(t, "users", span.Meta["sql.tables"])
+		})
+	}
+
+	t.Run("does not synthesize attributes", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+
+		agnt.ObfuscateSpan(span)
+
+		assert.Equal(t, "SELECT * FROM users WHERE id = ?", span.Resource)
+		assert.NotContains(t, span.Meta, "sql.query")
+		assert.Equal(t, "users", span.Meta["sql.tables"])
+	})
+
+	t.Run("unparsable", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = '' AND '",
+			Type:     "sql",
+		}
+
+		agnt.ObfuscateSpan(span)
+
+		assert.Equal(t, textNonParsable, span.Resource)
+		assert.NotContains(t, span.Meta, "sql.query")
+	})
+
+	t.Run("unparsable obfuscates existing attribute", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = '' AND '",
+			Type:     "sql",
+			Meta: map[string]string{
+				"sql.query": "raw query which must not survive",
+			},
+		}
+
+		agnt.ObfuscateSpan(span)
+
+		assert.Equal(t, textNonParsable, span.Resource)
+		assert.Equal(t, textNonParsable, span.Meta["sql.query"])
+	})
+}
+
+func TestSQLQueryAttributeAllowlistV1(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.QueryAttributeAllowlist = []string{config.QueryAttributeNone}
+	cfg.Features["table_names"] = struct{}{}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{
+		ResourceRef: strings.Add("SELECT * FROM users WHERE id = 42"),
+		TypeRef:     strings.Add("sql"),
+	})
+
+	agnt.obfuscateSpanInternal(span)
+
+	assert.Equal(t, "SELECT * FROM users WHERE id = ?", span.Resource())
+	_, ok := span.GetAttributeAsString("sql.query")
+	assert.False(t, ok)
+	tables, ok := span.GetAttributeAsString("sql.tables")
+	assert.True(t, ok)
+	assert.Equal(t, "users", tables)
+}
+
+func TestSQLQueryAttributeAllowlistOTLPConversion(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.QueryAttributeAllowlist = []string{config.QueryAttributeNone}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	cfg.Features["table_names"] = struct{}{}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	span := ptrace.NewSpan()
+	span.SetKind(ptrace.SpanKindClient)
+	span.SetTraceID([16]byte{1})
+	span.SetSpanID([8]byte{2})
+	span.Attributes().PutStr("span.type", "sql")
+	span.Attributes().PutStr("db.system", "postgresql")
+	span.Attributes().PutStr(config.QueryAttributeDBStatement, "SELECT * FROM users WHERE id = 42")
+	span.Attributes().PutStr(config.QueryAttributeDBQueryText, "SELECT * FROM users WHERE id = 42")
+	span.Attributes().PutStr(config.QueryAttributeSQLQuery, "SELECT * FROM users WHERE id = 42")
+
+	ddspan := transform.OtelSpanToDDSpan(span, pcommon.NewResource(), pcommon.NewInstrumentationScope(), cfg)
+	agnt.ObfuscateSpan(ddspan)
+
+	assert.Equal(t, "SELECT * FROM users WHERE id = ?", ddspan.Resource)
+	assert.NotContains(t, ddspan.Meta, config.QueryAttributeDBStatement)
+	assert.NotContains(t, ddspan.Meta, config.QueryAttributeDBQueryText)
+	assert.NotContains(t, ddspan.Meta, config.QueryAttributeSQLQuery)
+	assert.Equal(t, "users", ddspan.Meta["sql.tables"])
 }
 
 func TestSQLResourceWithError(t *testing.T) {

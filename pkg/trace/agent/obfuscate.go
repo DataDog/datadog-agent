@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
@@ -89,26 +90,32 @@ func (o *obfuscateSpanV0) MapFilteredAttributes(shouldMap func(k string) bool, m
 
 // ObfuscateSQLSpan obfuscates a SQL span
 func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
-	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span})
+	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span}, true)
 }
 
-func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.ObfuscatedQuery, error) {
+func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan, addSQLQueryAttribute bool) (*obfuscate.ObfuscatedQuery, error) {
 	if span.Resource() == "" {
 		return nil, nil
 	}
+	_, hasSQLQueryAttribute := span.GetAttributeAsString(tagSQLQuery)
+	setSQLQueryAttribute := addSQLQueryAttribute || hasSQLQueryAttribute
 	dbms, _ := span.GetAttributeAsString(tagDBMS)
 	oq, err := o.ObfuscateSQLStringForDBMS(span.Resource(), dbms)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		span.SetResource(textNonParsable)
-		span.SetStringAttribute(tagSQLQuery, textNonParsable)
+		if setSQLQueryAttribute {
+			span.SetStringAttribute(tagSQLQuery, textNonParsable)
+		}
 		return nil, err
 	}
 	span.SetResource(oq.Query)
 	if len(oq.Metadata.TablesCSV) > 0 {
 		span.SetStringAttribute("sql.tables", oq.Metadata.TablesCSV)
 	}
-	span.SetStringAttribute(tagSQLQuery, oq.Query)
+	if setSQLQueryAttribute {
+		span.SetStringAttribute(tagSQLQuery, oq.Query)
+	}
 	return oq, nil
 }
 
@@ -164,7 +171,8 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 		if span.Resource() == "" {
 			return
 		}
-		oq, err := obfuscateSQLSpan(o, span)
+		addSQLQueryAttribute := a.conf.IsQueryAttributeAllowed(config.QueryAttributeSQLQuery)
+		oq, err := obfuscateSQLSpan(o, span, addSQLQueryAttribute)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource())

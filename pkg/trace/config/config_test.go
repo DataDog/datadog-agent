@@ -21,6 +21,54 @@ const (
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
+func TestIsQueryAttributeAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *AgentConfig
+		attribute string
+		want      bool
+	}{
+		{name: "nil config", attribute: QueryAttributeSQLQuery, want: true},
+		{name: "nil allowlist", config: &AgentConfig{}, attribute: QueryAttributeSQLQuery, want: true},
+		{name: "empty allowlist", config: &AgentConfig{QueryAttributeAllowlist: []string{}}, attribute: QueryAttributeSQLQuery, want: true},
+		{name: "none", config: &AgentConfig{QueryAttributeAllowlist: []string{QueryAttributeNone}}, attribute: QueryAttributeSQLQuery, want: false},
+		{name: "allowed subset member", config: &AgentConfig{QueryAttributeAllowlist: []string{QueryAttributeDBQueryText}}, attribute: QueryAttributeDBQueryText, want: true},
+		{name: "excluded subset member", config: &AgentConfig{QueryAttributeAllowlist: []string{QueryAttributeDBQueryText}}, attribute: QueryAttributeSQLQuery, want: false},
+		{name: "unknown value", config: &AgentConfig{QueryAttributeAllowlist: []string{"unknown"}}, attribute: QueryAttributeSQLQuery, want: false},
+		{name: "none wins when mixed", config: &AgentConfig{QueryAttributeAllowlist: []string{QueryAttributeNone, QueryAttributeSQLQuery}}, attribute: QueryAttributeSQLQuery, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.config.IsQueryAttributeAllowed(tt.attribute))
+		})
+	}
+}
+
+func TestValidateQueryAttributeAllowlist(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		allowlist []string
+		wantError string
+	}{
+		{name: "nil"},
+		{name: "empty", allowlist: []string{}},
+		{name: "none", allowlist: []string{QueryAttributeNone}},
+		{name: "subset", allowlist: []string{QueryAttributeSQLQuery, QueryAttributeDBQueryText}},
+		{name: "unknown", allowlist: []string{"unknown"}, wantError: "unsupported database query attribute"},
+		{name: "none mixed", allowlist: []string{QueryAttributeNone, QueryAttributeSQLQuery}, wantError: "cannot be combined"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateQueryAttributeAllowlist(tt.allowlist)
+			if tt.wantError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestInAzureAppServices(t *testing.T) {
 	os.Setenv(WebsiteStack, " ")
 	isLinuxAzure := inAzureAppServices()
