@@ -2,6 +2,7 @@
 
 load(
     "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
     "pkg_filegroup",
     "pkg_files",
 )
@@ -17,6 +18,7 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_files(
     name = "installer_binary",
     srcs = ["//cmd/installer"],
+    attributes = pkg_attributes(mode = "0755"),
     prefix = "bin/installer",
 )
 
