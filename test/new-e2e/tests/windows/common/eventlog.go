@@ -98,7 +98,7 @@ func GetFileDeletionEvents(host *components.RemoteHost, start SecurityLogCheckpo
 	}
 
 	xpath := fmt.Sprintf(`*[System[((EventID=4660) or (EventID=4663)) and (EventRecordID > %d) and (EventRecordID <= %d)]]`, start.RecordID, end.RecordID)
-	cmd := fmt.Sprintf(`wevtutil.exe query-events Security /query:"%s" /format:xml /element:Events /reverseDirection:false`, xpath)
+	cmd := fmt.Sprintf(`wevtutil.exe query-events Security /query:"%s" /format:xml /element:Events /rd:false`, xpath)
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("query Security deletion events after record %d through %d: %w", start.RecordID, end.RecordID, err)
