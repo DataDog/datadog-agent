@@ -28,6 +28,17 @@ const xmldoc = `<?xml version="1.0" encoding="UTF-8"?>
 	</testsuite>
 </testsuites>`
 
+const retriedXMLDoc = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="3" failures="0" errors="0" time="0.016097">
+	<testsuite tests="3" failures="0" time="0.002000" name="flakydemo" timestamp="2026-09-19T10:18:42Z">
+		<testcase classname="flakydemo" name="TestFlaky" time="0.000000">
+			<failure message="Failed" type="">first attempt failed</failure>
+		</testcase>
+		<testcase classname="flakydemo" name="TestFlaky" time="0.000000"></testcase>
+		<testcase classname="flakydemo" name="TestAlwaysPass" time="0.000000"></testcase>
+	</testsuite>
+</testsuites>`
+
 func TestXMLDecode(t *testing.T) {
 	buf := bytes.NewBufferString(xmldoc)
 	var suites JUnitTestSuites
@@ -77,6 +88,37 @@ func TestAddProperties(t *testing.T) {
 	for _, s := range suites.Suites {
 		if len(s.Properties) < 4 {
 			t.Fatalf("expected at least 4 properties, got %d", len(s.Properties))
+		}
+	}
+}
+
+func TestMarkRetriedTestCases(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "*.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := f.Name()
+	_, err = f.WriteString(retriedXMLDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if err := markRetriedTestCases(path); err != nil {
+		t.Fatal(err)
+	}
+
+	var suites JUnitTestSuites
+	if err := openAndDecode(path, &suites); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range suites.Suites[0].TestCases {
+		want := "false"
+		if tc.Name == "TestFlaky" {
+			want = "true"
+		}
+		if tc.Retried != want {
+			t.Errorf("testcase %s: got retried=%q, want %q", tc.Name, tc.Retried, want)
 		}
 	}
 }
