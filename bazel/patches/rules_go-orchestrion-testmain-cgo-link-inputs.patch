@@ -1,0 +1,16 @@
+diff --git a/go/private/rules/test.bzl b/go/private/rules/test.bzl
+index a64a149..3425102 100644
+--- a/go/private/rules/test.bzl
++++ b/go/private/rules/test.bzl
+@@ -71,6 +71,11 @@ def _archive_data_for_testmain(go, archive_data):
+         transitive = depset(direct = [archive_data]),
+         x_defs = dict(archive_data._x_defs),
+         cgo_deps = archive_data._cgo_deps,
++        # emit_archive aggregates cgo_link_inputs across transitive archives
++        # (go/private/actions/archive.bzl); without this field the wrapper
++        # struct breaks analysis of test targets whose transitive graph feeds
++        # the synthetic Orchestrion testmain.
++        cgo_link_inputs = depset(transitive = [getattr(archive_data, "_cgo_link_inputs", depset())]),
+         cgo_exports = depset(),
+         runfiles = archive_data.runfiles,
+         _headers = depset(),
