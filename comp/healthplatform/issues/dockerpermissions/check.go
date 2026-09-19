@@ -24,42 +24,82 @@ const (
 	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
 	defaultHostMountPrefix         = "/host"
 
+	unixSocketPrefix   = "unix://"
+	winNamedPipePrefix = "npipe://"
+
 	socketTimeout = 500 * time.Millisecond
 )
 
-// Check reports an issue for every Docker socket/named pipe that exists but
-// is unreachable because of a permission error.
-func Check() ([]runnerdef.IssueReport, error) {
-	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
-	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
-		return nil, nil
+// Check reports an issue for every Docker socket/named pipe that is unreachable, split by permission-denied vs. other dial failures, skipping or narrowing to the DOCKER_HOST-selected socket when it's set.
+func (c *checker) Check() ([]runnerdef.IssueReport, error) {
+	socketPaths := getDockerSocketPaths()
+	if host, ok := os.LookupEnv("DOCKER_HOST"); ok {
+		matched, isDefault := matchingDefaultSocketPath(host, socketPaths)
+		if !isDefault {
+			return nil, nil
+		}
+		socketPaths = []string{matched}
 	}
 
-	var unreachableSockets []string
-	for _, socketPath := range getDockerSocketPaths() {
+	permissionSockets, unavailableSockets := classifySockets(socketPaths)
+
+	var reports []runnerdef.IssueReport
+	if len(permissionSockets) > 0 {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(IssueID),
+			IssueName: IssueName,
+			Source:    "docker",
+			Context: map[string]string{
+				"socketPaths": strings.Join(permissionSockets, ","),
+				"os":          runtime.GOOS,
+			},
+			Tags: []string{"docker-socket", "permissions"},
+		})
+	}
+	if len(unavailableSockets) > 0 {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(SocketUnavailableIssueID),
+			IssueName: SocketUnavailableIssueName,
+			Source:    "docker",
+			Context: map[string]string{
+				"socketPaths": strings.Join(unavailableSockets, ","),
+				"os":          runtime.GOOS,
+			},
+			Tags: []string{"docker-socket", "unavailable"},
+		})
+	}
+
+	return reports, nil
+}
+
+// classifySockets partitions socketPaths into permission-denied and other-dial-failure paths, omitting ones that don't exist or are reachable.
+func classifySockets(socketPaths []string) (permissionSockets, unavailableSockets []string) {
+	for _, socketPath := range socketPaths {
 		exists, err := socket.IsAvailable(socketPath, socketTimeout)
-		if exists && errors.Is(err, os.ErrPermission) {
-			unreachableSockets = append(unreachableSockets, socketPath)
+		switch {
+		case !exists || err == nil:
+			// absent or reachable -> not an issue
+		case errors.Is(err, os.ErrPermission):
+			permissionSockets = append(permissionSockets, socketPath)
+		default:
+			unavailableSockets = append(unavailableSockets, socketPath)
 		}
 	}
+	return permissionSockets, unavailableSockets
+}
 
-	if len(unreachableSockets) > 0 {
-		return []runnerdef.IssueReport{
-			{
-				IssueID:   IssueID,
-				IssueName: IssueName,
-				Source:    "docker",
-				Context: map[string]string{
-					"socketPaths": strings.Join(unreachableSockets, ","),
-					"os":          runtime.GOOS,
-				},
-				Tags: []string{"docker-socket", "permissions"},
-			},
-		}, nil
+// matchingDefaultSocketPath reports which entry in socketPaths host resolves to, as opposed to a genuine user-configured custom endpoint.
+func matchingDefaultSocketPath(host string, socketPaths []string) (path string, ok bool) {
+	prefix := unixSocketPrefix
+	if runtime.GOOS == "windows" {
+		prefix = winNamedPipePrefix
 	}
-
-	// No issue detected
-	return nil, nil
+	for _, p := range socketPaths {
+		if host == prefix+p {
+			return p, true
+		}
+	}
+	return "", false
 }
 
 // getDockerSocketPaths returns the default Docker socket paths to check
