@@ -13,7 +13,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -27,30 +27,34 @@ const (
 	prefix    = "datadog.agent."
 )
 
+// List of metrics to scrape out of the internal telemetry registry.
+//
+// This list is _deliberately_ small, and well documented: these metrics are always sent to the customer's organization,
+// so they're incurring the egress cost for these metrics, no matter how slight, and they are sent for good reason. We should
+// be extremely mindful both of what we add _and_ what we remove.
+var defaultMetrics = []string{
+	// Powers the "HA Agent Overview" out-of-the-box dashboard in customer accounts.
+	"ha_agent__integration_runs",
+
+	// Count of points sent/dropped from the perspective of the forwarder.
+	//
+	// Not used to power any user experiences, but referenced heavily in customer resources, such as monitors and dashboards.
+	// Simply put, we don't want to cause customer monitors to fire because we removed a metric. C'est la vie.
+	"point__sent",
+	"point__dropped",
+}
+
 type checkImpl struct {
 	corechecks.CheckBase
 	telemetry telemetry.Component
 }
 
 func (c *checkImpl) Run() error {
-	mfs, err := c.telemetry.Gather(true)
+	mfs, err := c.telemetry.Gather(telemetry.StaticMetricFilter(defaultMetrics...))
 	if err != nil {
 		log.Warnf("agent_telemetry check: failed to gather default telemetry metrics: %v", err)
 		return err
 	}
-
-	// Remote Agent Registry telemetry lives in the regular registry. Gather it on a best-effort basis so failures there
-	// do not prevent the customer-facing telemetry check from reporting Core Agent default telemetry values.
-	var regularMfs []*dto.MetricFamily
-	if gathered, err := c.telemetry.Gather(false); err != nil {
-		log.Warnf("failed to gather regular telemetry metrics for default telemetry merge: %v", err)
-	} else {
-		regularMfs = gathered
-	}
-
-	mergeLabelsByMetric := discoverMergeLabels(mfs, regularMfs)
-	mergedMetrics := collectMergeMetrics(mfs, false, mergeLabelsByMetric)
-	mergedMetrics.merge(collectMergeMetrics(regularMfs, true, mergeLabelsByMetric))
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -59,7 +63,6 @@ func (c *checkImpl) Run() error {
 
 	sender.SetNoIndex(true)
 
-	c.sendMergedMetrics(mergedMetrics, sender)
 	c.handleMetricFamilies(mfs, sender)
 
 	return nil
@@ -67,9 +70,7 @@ func (c *checkImpl) Run() error {
 
 func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.Sender) {
 	for _, mf := range mfs {
-		// Merged metrics are emitted explicitly by sendMergedMetrics so overlapping regular-registry values can be included
-		// without changing customer-facing metric names or tags.
-		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
+		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 {
 			continue
 		}
 

@@ -72,6 +72,32 @@ MARKDOWN_PATTERNS = [
     (re.compile(r'(?<!`)`([^`<>]+)`(?![_`])'), 'Markdown inline code. Use RST double backticks: ``{0}``'),
 ]
 
+# RST inline literals (``text``) are verbatim: no markup is recognized inside them, so
+# Markdown-looking sequences there are false positives (metric names such as
+# ``point__sent``, Python dunders such as ``__init__``). Non-greedy so that several
+# literals on the same line are masked individually rather than as one big span.
+INLINE_LITERAL_RE = re.compile(r'``.+?``')
+
+# Filler used to blank out inline literals while preserving the length of the line, so
+# reported line numbers stay accurate. NUL cannot trigger any of the patterns above.
+INLINE_LITERAL_MASK = '\0'
+
+
+def mask_inline_literals(line: str) -> str:
+    """Blank out RST inline literals.
+
+    This ensures that any content _within_ an inline literal cannot be misintepreted by subsequent
+    validation steps, but that the length of the inline literal (both content and backticks) is
+    preserved so that reported line numbers stay accurate.
+
+    Args:
+        line: A single line of RST text.
+
+    Returns:
+        The line with every ``inline literal`` span replaced by filler of the same length.
+    """
+    return INLINE_LITERAL_RE.sub(lambda match: INLINE_LITERAL_MASK * len(match.group(0)), line)
+
 
 class RSTLintError:
     """Represents a single RST linting error."""
@@ -131,7 +157,7 @@ def detect_markdown_patterns(text: str) -> list[RSTLintError]:
         return []
 
     errors = []
-    lines = text.split('\n')
+    lines = [mask_inline_literals(line) for line in text.split('\n')]
 
     for pattern, description in MARKDOWN_PATTERNS:
         for line_num, line in enumerate(lines, start=1):
