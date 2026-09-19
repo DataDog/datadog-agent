@@ -1780,7 +1780,15 @@ properties:
             type: string
             default: 30m
             visibility: public
-            description: The traceroute run interval for monitored connections.
+            description: |-
+              The traceroute run interval for monitored connections, as a duration such as "30m" or "30s".
+              A valid, explicitly configured pathtest_interval_sec takes precedence over this setting.
+          pathtest_interval_sec:
+            node_type: setting
+            type: integer
+            default: 1800
+            visibility: public
+            description: Traceroute interval in seconds; overrides pathtest_interval when explicitly set and valid.
           filters:
             node_type: setting
             type: array
