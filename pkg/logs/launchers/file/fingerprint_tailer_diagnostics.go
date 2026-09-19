@@ -17,6 +17,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Active tailers keep collecting when a fingerprint read fails; the skipped-file message below
+// would incorrectly say collection stopped. Record the original message set so source replacement
+// cannot leave a stale warning behind.
+func (s *Launcher) recordFingerprintRotationError(file *tailer.File, err error) {
+	message := fmt.Sprintf("Could not check %s for rotation: its fingerprint could not be computed (%v). The existing tailer is still collecting logs.", file.Path, err)
+	log.Warn(message)
+	if messages := fingerprintSkipMessages(file); messages != nil {
+		scanKey := file.GetScanKey()
+		s.clearFingerprintRotationError(scanKey)
+		if s.fingerprintRotationErrors == nil {
+			s.fingerprintRotationErrors = make(map[string]*config.Messages)
+		}
+		messages.AddMessage("fingerprintRotation:"+scanKey, message)
+		s.fingerprintRotationErrors[scanKey] = messages
+	}
+}
+
+func (s *Launcher) clearFingerprintRotationError(scanKey string) {
+	if messages := s.fingerprintRotationErrors[scanKey]; messages != nil {
+		messages.RemoveMessage("fingerprintRotation:" + scanKey)
+		delete(s.fingerprintRotationErrors, scanKey)
+	}
+}
+
+// Each scan reports only its current failures, clearing recovered or vanished files.
+func (s *Launcher) clearFingerprintRotationErrors() {
+	for scanKey := range s.fingerprintRotationErrors {
+		s.clearFingerprintRotationError(scanKey)
+	}
+}
+
 // fingerprintSkipReason tells apart the two ways a fingerprint can end up unusable.
 type fingerprintSkipReason string
 

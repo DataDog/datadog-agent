@@ -9,6 +9,7 @@ package opener
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/afero"
 )
@@ -16,6 +17,8 @@ import (
 // MockFileOpener is a mock implementation of the opener.Opener interface
 type MockFileOpener struct {
 	MockedFiles map[string]*MockFile
+	OpenCalls   []bool // true for direct reads, false for buffered opens
+	OpenErrors  []error
 }
 
 // NewMockFileOpener creates a new MockFileOpener
@@ -41,6 +44,33 @@ func (m *MockFileOpener) OpenShared(path string) (afero.File, error) {
 
 // OpenLogFile returns the specified mock file or an error if the file was not added to the mock opener.
 func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
+	return m.openLogFile(path, false)
+}
+
+// ReadDirectRange returns up to the first count bytes of the mock file.
+func (m *MockFileOpener) ReadDirectRange(path string, count int) ([]byte, error) {
+	file, err := m.openLogFile(path, true)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	buffer := make([]byte, count)
+	read, err := io.ReadFull(file, buffer)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return nil, err
+	}
+	return buffer[:read], nil
+}
+
+func (m *MockFileOpener) openLogFile(path string, direct bool) (afero.File, error) {
+	m.OpenCalls = append(m.OpenCalls, direct)
+	if len(m.OpenErrors) > 0 {
+		err := m.OpenErrors[0]
+		m.OpenErrors = m.OpenErrors[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	file, ok := m.MockedFiles[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: [ %s ]", path)
