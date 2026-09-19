@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_cross_binary", "go_library")
 
 go_library(
     name = "backend_doc_lib",
@@ -17,4 +17,15 @@ go_binary(
     name = "backend_doc",
     embed = [":backend_doc_lib"],
     visibility = ["//visibility:public"],
+)
+
+# The generator reflects over the serializer types compiled into it, so producing
+# backend_windows.schema.json requires a Windows build of this binary. Cross-built
+# here so that a Linux or macOS host can generate it by running the result under
+# Wine. See //:wine.
+go_cross_binary(
+    name = "backend_doc_windows",
+    platform = "@rules_go//go/toolchain:windows_amd64",
+    target = ":backend_doc",
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
 )
