@@ -29,5 +29,6 @@ dd_agent_go_test(
     deps = [
         "//pkg/collector/corechecks/network-devices/versa/client",
         "//pkg/networkdevice/metadata",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
