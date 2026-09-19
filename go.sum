@@ -4349,8 +4349,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancing
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.159.0/go.mod h1:Z4LOoRqmbNaTVkwZBCnM91xPbh1xqYsuY3Jj/M3Q2vc=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.159.0 h1:9MGptirtNasrWqiJaxxOL35aLMb7kOxNKDaPKWN5fMA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.159.0/go.mod h1:fY+vpUhz2YuMRQ2CCqILSNWQ4eWnivSpIZXsYEA7Uao=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.159.0 h1:+kbR71K3mmbyb6KIqbYpj+Q42MEeTPw846IhylxRKLA=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.159.0/go.mod h1:sMbcDO/HJOPcFmssj3X86GlHe5DJ0ySrcJyXgS6R+xE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.159.0 h1:IXFoitbK+lwdX5Gwiq0MgW0oEWKQH+E3KpWdtlv96+8=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.159.0/go.mod h1:G7SyiB6wP5mt/kiK5Wowh59LhnYhhUJ7U90Pd7RN35E=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.159.0 h1:6rHuPTsBN97q/yZkRsg4mxeSTdnTwloBY3jkbL3D4Xo=
@@ -4936,6 +4934,8 @@ github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c h1:5a2XDQ
 github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c/go.mod h1:g85IafeFJZLxlzZCDRu4JLpfS7HKzR+Hw9qRh3bVzDI=
 github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG81+twTK4=
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
+github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3 h1:XZucr8BOYzardbsAS+z8DG/nhJaN/K0bZmbVhxzTGPY=
+github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3/go.mod h1:sMbcDO/HJOPcFmssj3X86GlHe5DJ0ySrcJyXgS6R+xE=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c h1:u6SKchux2yDvFQnDHS3lPnIRmfVJ5Sxy3ao2SIdysLQ=
 github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c/go.mod h1:hzIxponao9Kjc7aWznkXaL4U4TWaDSs8zcsY4Ka08nM=
