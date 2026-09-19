@@ -5,7 +5,7 @@ import re
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -66,9 +66,72 @@ def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
     tree.write(xml_path)
 
 
-def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEOWNERS"):
+def _testcase_status(testcase: ET.Element) -> str:
+    if testcase.find("failure") is not None or testcase.find("error") is not None:
+        return "failed"
+    if testcase.find("skipped") is not None:
+        return "skipped"
+    return "passed"
+
+
+def _deciding_attempt(attempts: list[ET.Element]) -> ET.Element:
+    """
+    Return the attempt that decides the test status.
+    """
+    for testcase in attempts:
+        if _testcase_status(testcase) == "passed":
+            return testcase
+    return attempts[-1]
+
+
+def collapse_test_retries(xml_path: Path) -> None:
+    """
+    Rewrite the given JUnit XML report so that it holds one testcase per test.
+
+    A retried test is otherwise reported once per attempt. Only the deciding attempt is
+    kept here, with the number of runs that failed as the agent_failed_attempts attribute,
+    so that a retry remains visible.
+    """
+    root = ET.parse(xml_path).getroot()
+
+    out_root = ET.Element(root.tag, dict(root.attrib))
+    totals = Counter()
+    for suite in root.iter("testsuite"):
+        out_suite = ET.SubElement(out_root, suite.tag, dict(suite.attrib))
+        # Suite-level children (<properties>, holding the Go version and bazel.cached)
+        out_suite.extend(child for child in suite if child.tag != "testcase")
+
+        # (classname, test name) -> attempts of that test
+        tests: dict[tuple[str, str], list[ET.Element]] = {}
+        for testcase in suite.iter("testcase"):
+            key = (testcase.get("classname", ""), testcase.get("name", ""))
+            tests.setdefault(key, []).append(testcase)
+
+        counts = Counter()
+        for attempts in tests.values():
+            testcase = _deciding_attempt(attempts)
+            testcase.set("agent_failed_attempts", str(sum(_testcase_status(a) == "failed" for a in attempts)))
+            out_suite.append(testcase)
+            counts[_testcase_status(testcase)] += 1
+
+        out_suite.set("tests", str(counts.total()))
+        out_suite.set("failures", str(counts["failed"]))
+        totals.update(counts)
+
+    # Root-level children that are not test suites, i.e. the <flavor> enrich_junitxml adds
+    out_root.extend(child for child in root if child.tag != "testsuite")
+    out_root.set("tests", str(totals.total()))
+    out_root.set("failures", str(totals["failed"]))
+
+    ET.ElementTree(out_root).write(xml_path, encoding="UTF-8", xml_declaration=True)
+
+
+def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEOWNERS", collapse_retries=False):
     """
     Upload all JUnit XML files contained in given tgz archive.
+
+    collapse_retries reports a test retried by `gotestsum --rerun-fails` once instead of
+    once per attempt.
     """
     from codeowners import CodeOwners
 
@@ -99,6 +162,8 @@ def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEO
             if not xmlfile.is_file():
                 print(f"[WARN] Matched folder named {xmlfile}")
                 continue
+            if collapse_retries:
+                collapse_test_retries(xmlfile)
             generated_xmls += split_junitxml(working_dir, xmlfile, codeowners, flaky_failures, marked_flaky_tests)
         print(f"Created {generated_xmls} JUnit XML files from {junit_tgz}")
         # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
@@ -323,6 +388,8 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         "test.agent_is_marked_flaky=/testcase/@agent_is_marked_flaky",
         "--xpath-tag",
         "bazel.cached=/testcase/@bazel_cached",
+        "--xpath-tag",
+        "test.agent_failed_attempts=/testcase/@agent_failed_attempts",
     ]
     if 'e2e' in flag:
         tags.extend(["--tags", "e2e_internal_error:true"])
