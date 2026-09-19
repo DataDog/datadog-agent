@@ -265,6 +265,47 @@ func TestPublicJSON(t *testing.T) {
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
+func TestPublicJSONWindowsEventQuery(t *testing.T) {
+	config := LogsConfig{
+		Type:        WindowsEventType,
+		ChannelPath: "Security",
+		Query:       "*[System[EventID=123]]",
+		Service:     "windows",
+		Source:      "windows.events",
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+
+	expectedJSON := `{"type":"windows_event","channel_path":"Security","query":"*[System[EventID=123]]","service":"windows","source":"windows.events"}`
+	assert.Equal(t, expectedJSON, string(ret))
+}
+
+func TestPublicJSONAdditionalDocumentedFields(t *testing.T) {
+	processRawMessage := true
+	attributeParsing := true
+	debugAttrParsing := true
+	autoMultiLine := true
+	enableJSONDetection := true
+	maxMessageSizeBytes := 900000
+	config := LogsConfig{
+		Type:                        FileType,
+		Format:                      "syslog",
+		ProcessRawMessage:           &processRawMessage,
+		AttributeParsing:            &attributeParsing,
+		DebugAttrParsing:            &debugAttrParsing,
+		AutoMultiLine:               &autoMultiLine,
+		AutoMultiLineSampleSize:     100,
+		AutoMultiLineMatchThreshold: 0.75,
+		AutoMultiLineOptions:        &SourceAutoMultiLineOptions{EnableJSONDetection: &enableJSONDetection},
+		MaxMessageSizeBytes:         &maxMessageSizeBytes,
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+
+	expectedJSON := `{"type":"file","format":"syslog","process_raw_message":true,"attribute_parsing":true,"debug_attr_parsing":true,"auto_multi_line_detection":true,"auto_multi_line_sample_size":100,"auto_multi_line_match_threshold":0.75,"auto_multi_line":{"enable_json_detection":true},"max_message_size_bytes":900000}`
+	assert.Equal(t, expectedJSON, string(ret))
+}
+
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*types.FingerprintConfig{
 		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},

@@ -26,3 +26,4 @@ Desktop readers can use keyboard shortcuts to navigate.
 | <ul><li><kbd>,</kbd> (comma)</li><li><kbd>p</kbd></li></ul> | Navigate to the "previous" page |
 | <ul><li><kbd>.</kbd> (period)</li><li><kbd>n</kbd></li></ul> | Navigate to the "next" page |
 | <ul><li><kbd>/</kbd></li><li><kbd>s</kbd></li></ul> | Display the search modal |
+| <kbd>b</kbd> | Return to the main docs from an independent navigation root like [Architecture](architecture/index.md) |
