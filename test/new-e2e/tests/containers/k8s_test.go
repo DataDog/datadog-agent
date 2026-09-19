@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -1894,18 +1895,42 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
+		// We are not expected to see kube_service tag on the Delete event
+		expectedPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^domain:deployment$`),
+			regexp.MustCompile(`^kube_deployment:nginx$`),
+			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
+			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
+			regexp.MustCompile(`^kube_ownerref_name:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^kube_qos:Burstable$`),
+			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^mail:team-container-platform@datadoghq\.com$`),
+			regexp.MustCompile(`^org:agent-org$`),
+			regexp.MustCompile(`^parent-name:nginx$`),
+			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
+			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^team:contp$`),
+		}
+
 		foundPodEvent := false
+		foundPodEventWithTags := false
+		var lastTagsErr error
 
 		for _, event := range events {
-			if podEvent := event.GetPod(); podEvent != nil {
-				if types.UID(podEvent.GetPodUID()) == nginxPod.UID {
-					foundPodEvent = true
-					break
+			if podEvent := event.GetPod(); podEvent != nil && types.UID(podEvent.GetPodUID()) == nginxPod.UID && event.GetEventType() == contlcycle.Event_Delete {
+				foundPodEvent = true
+
+				err := assertTags(event.GetTags(), expectedPodEventTags, []*regexp.Regexp{}, false)
+				if err == nil {
+					foundPodEventWithTags = true
+				} else {
+					lastTagsErr = err
 				}
 			}
 		}
 
 		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
+		assert.Truef(c, foundPodEventWithTags, "Pod lifecycle event for pod %s/%s does not carry the expected dd_tags: %v", nginxPod.Namespace, nginxPod.Name, lastTagsErr)
 	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 

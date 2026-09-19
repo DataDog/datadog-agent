@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add tags to container-lifecycle check events. Pod and container events now
+    include the entity tags in the ``dd_tags`` field of the event payload.
