@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/check_for_symbols:check_for_symbols.bzl", "check_for_symbols_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
@@ -41,6 +42,29 @@ dd_agent_go_binary(
     }),
     gotags = INSTALLER_TAGS,
     visibility = ["//visibility:public"],
+)
+
+# Symbol that Go's FIPS-mode cgo shim injects when linked against the FIPS OpenSSL provider
+# A successful build is not sufficient proof that the FIPS code path was actually compiled
+# in -- this checks the binary's symbol table.
+_FIPS_SYMBOL = "_Cfunc__mkcgo_OPENSSL"
+
+check_for_symbols_test(
+    name = "installer_fips_symbols_test",
+    binary = ":installer",
+    # Do not enable the positive test yet. It will not pass until the msgo compiler is selected on FIPs
+    # must_include = select({
+    #    "//packages/agent:linux_fips": [_FIPS_SYMBOL],
+    #    "//conditions:default": [],
+    # }),
+    must_not_include = select({
+        "//packages/agent:linux_fips": [],
+        "//conditions:default": [_FIPS_SYMBOL],
+    }),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
