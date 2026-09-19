@@ -48,6 +48,7 @@ agenttelemetry_metric_vm_reminder*   @DataDog/fleet-remediation
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
+nosys_seccomp-*                      @DataDog/agent-build @DataDog/container-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
