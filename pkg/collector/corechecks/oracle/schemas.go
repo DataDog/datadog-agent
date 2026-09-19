@@ -223,6 +223,13 @@ WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.ge
 	AND /*RELATIONS*/
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position`
 
+const referencedConstraintsQuery = `SELECT c.con_id, c.owner, c.constraint_name, c.table_name, cc.column_name
+FROM cdb_constraints c
+JOIN cdb_cons_columns cc
+	ON cc.con_id = c.con_id AND cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+WHERE /*RELATIONS*/
+ORDER BY c.con_id, c.owner, c.constraint_name, cc.position`
+
 const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_name,
 	NVL(et.default_directory_name, '-'), NVL(el.directory_name, '-'), el.location
 FROM cdb_external_tables et
@@ -456,13 +463,13 @@ type modificationsDetail struct {
 }
 
 type indexKeyPart struct {
-	Column     string `json:"column,omitempty"`
+	Column     string `json:"name,omitempty"`
 	Expression string `json:"expression,omitempty"`
 }
 
 type indexInfo struct {
 	Name    string         `json:"name"`
-	Unique  bool           `json:"unique"`
+	Unique  bool           `json:"is_unique"`
 	Type    string         `json:"index_type,omitempty"`
 	Columns []indexKeyPart `json:"columns,omitempty"`
 }
@@ -476,7 +483,7 @@ type constraintInfo struct {
 	ReferencedTable      string   `json:"referenced_table,omitempty"`
 	ReferencedColumns    []string `json:"referenced_columns,omitempty"`
 	ReferencedConstraint string   `json:"referenced_constraint,omitempty"`
-	referencedKey        string
+	referencedKey        *constraintKey
 	referencedName       string
 }
 
@@ -698,6 +705,12 @@ type tableKey struct {
 	table string
 }
 
+type constraintKey struct {
+	conID int64
+	owner string
+	name  string
+}
+
 type schemaCollector struct {
 	check               *Check
 	kind                string
@@ -829,6 +842,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		s.startContainer(r.ConID)
 	}
 
+	// Flush only at table boundaries; the backend cannot merge a table split across payloads.
 	newTable := s.currentSchema == nil || s.currentSchema.Name != r.Owner || s.currentTable == nil || s.currentTable.Name != r.TableName
 	if newTable {
 		s.maybeFlush(false)
@@ -849,7 +863,6 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		if r.NumRows.Valid {
 			n := r.NumRows.Int64
 			t.NumRows = &n
-			t.RowCount = &n
 		}
 		if r.LastAnalyzed.Valid {
 			t.LastAnalyzed = r.LastAnalyzed.Time.UTC().Format(time.RFC3339)
@@ -858,6 +871,50 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			t.ObjectType = &objectTypeDetail{TypeName: r.ObjectType}
 			if r.ObjectTypeOwner != "" && r.ObjectTypeOwner != "-" {
 				t.ObjectType.TypeOwner = r.ObjectTypeOwner
+			}
+		}
+		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil || r.NumRows.Valid {
+			// Modification counters are deltas since the NUM_ROWS estimate was gathered.
+			var estimate int64
+			known := false
+			if r.NumRows.Valid {
+				estimate = r.NumRows.Int64
+				known = true
+			}
+			if d != nil && d.Modifications != nil {
+				estimate += d.Modifications.Inserts - d.Modifications.Deletes
+				known = true
+			}
+			if known {
+				if estimate < 0 {
+					estimate = 0
+				}
+				t.RowCount = &estimate
+			}
+		}
+		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
+			t.ID = d.ID
+			t.Comment = d.Comment
+			for _, idx := range d.Indexes {
+				if len(idx.Columns) > 0 {
+					t.Indexes = append(t.Indexes, idx)
+				}
+			}
+			t.Constraints = d.Constraints
+			t.External = d.External
+			if d.Mview != nil {
+				t.TableType = "materialized_view"
+				t.Mview = d.Mview
+			}
+			t.Partitioned = d.Partitioned
+			t.Blockchain = d.Blockchain
+			t.Immutable = d.Immutable
+			t.Modifications = d.Modifications
+			if d.Blockchain != nil {
+				t.Properties = append(t.Properties, "blockchain")
+			}
+			if d.Immutable != nil {
+				t.Properties = append(t.Properties, "immutable")
 			}
 		}
 		s.currentTable = t
@@ -875,17 +932,23 @@ func (s *schemaCollector) add(r schemaRowDB) {
 
 	columnPresent := (r.ColumnPresent.Valid && r.ColumnPresent.Int64 == 1) || (!r.ColumnPresent.Valid && r.ColumnName != "")
 	if columnPresent {
-		s.currentTable.Columns = append(s.currentTable.Columns, schemaColumn{
+		col := schemaColumn{
 			Name:      r.ColumnName,
 			DataType:  dataType(r),
 			Nullable:  r.Nullable == "Y",
 			Virtual:   r.VirtualColumn == "YES",
 			Invisible: r.HiddenColumn == "YES",
-		})
+		}
+		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
+			col.Comment = d.ColumnComments[r.ColumnName]
+			col.Default = d.ColumnDefaults[r.ColumnName]
+		}
+		s.currentTable.Columns = append(s.currentTable.Columns, col)
 	}
 }
 
 // Call only after successful collection; the final payload marks the snapshot complete.
+
 func (s *schemaCollector) finish() {
 	if s.conID == -1 {
 		return
@@ -1192,6 +1255,74 @@ func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx
 
 // Missing or version-incompatible optional detail views do not fail collection.
 
+func (c *Check) defaultValueColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
+		return "c.data_default_vc"
+	}
+	return "c.data_default"
+}
+
+// SEARCH_CONDITION_VC exists from 12c; earlier versions require LONG SEARCH_CONDITION.
+func (c *Check) conditionColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 12 {
+		return "c.search_condition_vc"
+	}
+	return "c.search_condition"
+}
+
+// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
+func (c *Check) indexExpressionColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
+		return "tc.data_default_vc"
+	}
+	return "tc.data_default"
+}
+
+// Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
+func truncateLongValue(s string) string {
+	r := []rune(s)
+	if len(r) <= 4000 {
+		return s
+	}
+	return string(r[:4000])
+}
+
+func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []string, scan func(*sqlx.Rows) error) {
+	for _, filter := range filters {
+		query := strings.Replace(template, "/*RELATIONS*/", filter, 1)
+		if err := c.queryMetadata(ctx, query, scan); err != nil {
+			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
+				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
+				return
+			}
+			log.Warnf("%s failed to collect table detail %q: %s", c.logPrompt, name, err)
+			return
+		}
+	}
+}
+
+func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns relationColumnNames, scan func(*sqlx.Rows) error) {
+	c.queryDetailFilters(ctx, name, template, relationFilterChunks(allowed, columns), scan)
+}
+
+func constraintType(t string) string {
+	switch t {
+	case "P":
+		return "primary_key"
+	case "U":
+		return "unique"
+	case "R":
+		return "foreign_key"
+	case "C":
+		return "check"
+	default:
+		return t
+	}
+}
+
 func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	names := make(map[int64]string)
 	err := c.queryMetadata(ctx, containerNamesQuery, func(rows *sqlx.Rows) error {
@@ -1211,6 +1342,370 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	return names
 }
 
+func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
+	return c.tableDetailsForPage(ctx, allowed, allowedColumns, allowed)
+}
+
+func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
+	details := make(map[tableKey]*tableDetails)
+	at := func(conID int64, owner, table string) *tableDetails {
+		k := tableKey{conID: conID, owner: owner, table: table}
+		if _, ok := allowed[k]; !ok {
+			return &tableDetails{}
+		}
+		if details[k] == nil {
+			details[k] = &tableDetails{}
+		}
+		return details[k]
+	}
+
+	scanRetention := func(withHash bool) func(*sqlx.Rows) error {
+		return func(rows *sqlx.Rows) error {
+			var (
+				conID                int64
+				owner, table         string
+				retention, inactive  sql.NullInt64
+				locked               string
+				hashAlgo, tabVersion sql.NullString
+			)
+			var err error
+			if withHash {
+				err = rows.Scan(&conID, &owner, &table, &retention, &locked, &inactive, &hashAlgo, &tabVersion)
+			} else {
+				err = rows.Scan(&conID, &owner, &table, &retention, &locked, &inactive)
+			}
+			if err != nil {
+				return err
+			}
+			d := &retentionDetail{RowRetentionLocked: locked == "YES"}
+			if retention.Valid {
+				d.RowRetentionDays = &retention.Int64
+			}
+			if inactive.Valid {
+				d.InactivityRetentionDays = &inactive.Int64
+			}
+			if hashAlgo.Valid {
+				d.HashAlgorithm = hashAlgo.String
+			}
+			if tabVersion.Valid {
+				d.TableVersion = tabVersion.String
+			}
+			if withHash {
+				at(conID, owner, table).Blockchain = d
+			} else {
+				at(conID, owner, table).Immutable = d
+			}
+			return nil
+		}
+	}
+
+	c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
+	c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
+
+	c.queryDetails(ctx, "modifications", tabModificationsQuery, allowed, relationColumnNames{conID: "con_id", owner: "table_owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+		var (
+			conID                     int64
+			owner, table              string
+			inserts, updates, deletes sql.NullInt64
+			truncated                 sql.NullString
+			ts                        sql.NullTime
+		)
+		if err := rows.Scan(&conID, &owner, &table, &inserts, &updates, &deletes, &truncated, &ts); err != nil {
+			return err
+		}
+		d := &modificationsDetail{
+			Inserts:   inserts.Int64,
+			Updates:   updates.Int64,
+			Deletes:   deletes.Int64,
+			Truncated: truncated.String == "YES",
+		}
+		if ts.Valid {
+			d.LastModified = ts.Time.UTC().Format(time.RFC3339)
+		}
+		at(conID, owner, table).Modifications = d
+		return nil
+	})
+
+	c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, name, mode, method, staleness string
+		var lastRefresh sql.NullTime
+		if err := rows.Scan(&conID, &owner, &name, &mode, &method, &staleness, &lastRefresh); err != nil {
+			return err
+		}
+		d := &mviewDetail{}
+		if mode != "-" {
+			d.RefreshMode = mode
+		}
+		if method != "-" {
+			d.RefreshMethod = method
+		}
+		if staleness != "-" {
+			d.Staleness = staleness
+		}
+		if lastRefresh.Valid {
+			d.LastRefreshDate = lastRefresh.Time.UTC().Format(time.RFC3339)
+		}
+		at(conID, owner, name).Mview = d
+		return nil
+	})
+
+	c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, comment string
+		if err := rows.Scan(&conID, &owner, &table, &comment); err != nil {
+			return err
+		}
+		at(conID, owner, table).Comment = comment
+		return nil
+	})
+
+	c.queryDetails(ctx, "column comments", columnCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, column, comment string
+		if err := rows.Scan(&conID, &owner, &table, &column, &comment); err != nil {
+			return err
+		}
+		d := at(conID, owner, table)
+		if d.ColumnComments == nil {
+			d.ColumnComments = make(map[string]string)
+		}
+		d.ColumnComments[column] = comment
+		return nil
+	})
+
+	defaultsQueryResolved := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", c.defaultValueColumn(), 1)
+	defaultFilters := columnFilterChunks(allowedColumns,
+		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+	c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, column string
+		var value sql.NullString
+		if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
+			return err
+		}
+		if value.Valid {
+			d := at(conID, owner, table)
+			if d.ColumnDefaults == nil {
+				d.ColumnDefaults = make(map[string]string)
+			}
+			d.ColumnDefaults[column] = truncateLongValue(value.String)
+		}
+		return nil
+	})
+
+	indexesQueryResolved := strings.Replace(indexesQuery, "/*EXPRESSION_COL*/", c.indexExpressionColumn(), 1)
+	c.queryDetails(ctx, "indexes", indexesQueryResolved, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, name, uniqueness, indexType, column string
+		var expression sql.NullString
+		if err := rows.Scan(&conID, &owner, &table, &name, &uniqueness, &indexType, &column, &expression); err != nil {
+			return err
+		}
+		d := at(conID, owner, table)
+		var idx *indexInfo
+		if n := len(d.Indexes); n > 0 && d.Indexes[n-1].Name == name {
+			idx = d.Indexes[n-1]
+		} else {
+			idx = &indexInfo{Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
+			d.Indexes = append(d.Indexes, idx)
+		}
+		if expression.Valid {
+			idx.Columns = append(idx.Columns, indexKeyPart{Expression: truncateLongValue(expression.String)})
+		} else {
+			idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
+		}
+		return nil
+	})
+
+	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
+	primaryKeys := make(map[constraintKey]*constraintInfo)
+	constraintsQueryResolved := strings.Replace(constraintsQuery, "/*CONDITION_COL*/", c.conditionColumn(), 1)
+	c.queryDetails(ctx, "constraints", constraintsQueryResolved, allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, name, ctype, rOwner, rName, column string
+		var condition sql.NullString
+		if err := rows.Scan(&conID, &owner, &table, &name, &ctype, &rOwner, &rName, &column, &condition); err != nil {
+			return err
+		}
+		d := at(conID, owner, table)
+		var con *constraintInfo
+		if n := len(d.Constraints); n > 0 && d.Constraints[n-1].Name == name {
+			con = d.Constraints[n-1]
+		} else {
+			con = &constraintInfo{Name: name, Type: constraintType(ctype)}
+			if ctype == "C" && condition.Valid {
+				con.Condition = truncateLongValue(condition.String)
+			}
+			if ctype == "R" {
+				con.ReferencedOwner = rOwner
+				con.referencedKey = &constraintKey{conID: conID, owner: rOwner, name: rName}
+				if rName != "-" {
+					con.referencedName = rName
+				}
+			}
+			d.Constraints = append(d.Constraints, con)
+		}
+		con.Columns = append(con.Columns, column)
+		if ctype == "P" || ctype == "U" {
+			primaryKeys[constraintKey{conID: conID, owner: owner, name: name}] = &constraintInfo{
+				ReferencedTable:   table,
+				ReferencedColumns: con.Columns,
+			}
+		}
+		return nil
+	})
+	for _, d := range details {
+		for _, con := range d.Constraints {
+			if con.referencedKey == nil {
+				continue
+			}
+			if target, ok := primaryKeys[*con.referencedKey]; ok {
+				con.ReferencedTable = target.ReferencedTable
+				con.ReferencedColumns = target.ReferencedColumns
+			} else {
+				// Preserve the constraint name when its owner was not collected.
+				con.ReferencedConstraint = con.referencedName
+			}
+		}
+	}
+	referenced := make(map[constraintKey][]*constraintInfo)
+	for _, d := range details {
+		for _, con := range d.Constraints {
+			if con.referencedKey != nil && con.ReferencedTable == "" {
+				referenced[*con.referencedKey] = append(referenced[*con.referencedKey], con)
+			}
+		}
+	}
+	filters := referencedConstraintFilters(referenced)
+	c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, name, table, column string
+		if err := rows.Scan(&conID, &owner, &name, &table, &column); err != nil {
+			return err
+		}
+		constraints := referenced[constraintKey{conID: conID, owner: owner, name: name}]
+		if len(constraints) == 0 {
+			return nil
+		}
+		if _, ok := selectedTables[tableKey{conID: conID, owner: owner, table: table}]; !ok {
+			return nil
+		}
+		for _, con := range constraints {
+			con.ReferencedTable = table
+			con.ReferencedColumns = append(con.ReferencedColumns, column)
+			con.ReferencedConstraint = ""
+		}
+		return nil
+	})
+
+	c.queryDetails(ctx, "external tables", externalTablesQuery, allowed, relationColumnNames{conID: "et.con_id", owner: "et.owner", relation: "et.table_name"}, func(rows *sqlx.Rows) error {
+		var (
+			conID                  int64
+			owner, table, driver   string
+			directory, locationDir string
+			location               sql.NullString
+		)
+		if err := rows.Scan(&conID, &owner, &table, &driver, &directory, &locationDir, &location); err != nil {
+			return err
+		}
+		d := at(conID, owner, table)
+		if d.External == nil {
+			d.External = &externalDetail{}
+		}
+		d.External.AccessDriver = driver
+		if directory != "-" {
+			d.External.Directory = directory
+		}
+		if location.Valid {
+			loc := location.String
+			if locationDir != "-" {
+				loc = locationDir + ":" + loc
+			}
+			d.External.Locations = append(d.External.Locations, loc)
+		}
+		return nil
+	})
+
+	c.queryDetails(ctx, "object ids", objectIDsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
+		var (
+			conID        int64
+			owner, table string
+			objectID     sql.NullInt64
+		)
+		if err := rows.Scan(&conID, &owner, &table, &objectID); err != nil {
+			return err
+		}
+		if objectID.Valid {
+			at(conID, owner, table).ID = strconv.FormatInt(objectID.Int64, 10)
+		}
+		return nil
+	})
+
+	keys := make(map[tableKey][]string)
+	c.queryDetails(ctx, "partitioning", partTablesQuery, allowed, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
+		var (
+			conID          int64
+			owner, table   string
+			ptype, subtype sql.NullString
+			count          sql.NullInt64
+			col            sql.NullString
+		)
+		if err := rows.Scan(&conID, &owner, &table, &ptype, &subtype, &count, &col); err != nil {
+			return err
+		}
+		d := at(conID, owner, table)
+		if d.Partitioned == nil {
+			d.Partitioned = &partitionDetail{PartitioningType: ptype.String, NumPartitions: count.Int64}
+			if subtype.Valid && subtype.String != "NONE" {
+				d.Partitioned.SubpartitionsType = subtype.String
+			}
+		}
+		if col.Valid {
+			k := tableKey{conID: conID, owner: owner, table: table}
+			keys[k] = append(keys[k], col.String)
+		}
+		return nil
+	})
+	for k, cols := range keys {
+		if d := details[k]; d != nil && d.Partitioned != nil {
+			d.Partitioned.PartitionKey = fmt.Sprintf("%s (%s)", d.Partitioned.PartitioningType, strings.Join(cols, ", "))
+		}
+	}
+
+	return details
+}
+
+func referencedConstraintFilters(referenced map[constraintKey][]*constraintInfo) []string {
+	keys := make([]constraintKey, 0, len(referenced))
+	for key := range referenced {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		return keys[i].name < keys[j].name
+	})
+	var filters []string
+	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
+		end := start + maxSchemaRelationsPerQuery
+		if end > len(keys) {
+			end = len(keys)
+		}
+		parts := make([]string, 0, end-start)
+		for _, key := range keys[start:end] {
+			parts = append(parts, fmt.Sprintf("(c.con_id = %d AND c.owner = '%s' AND c.constraint_name = '%s')",
+				key.conID, escapeSQLLiteral(key.owner), escapeSQLLiteral(key.name)))
+		}
+		filters = append(filters, "("+strings.Join(parts, " OR ")+")")
+	}
+	return filters
+}
+
 func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners map[ownerKey]string, tableFilters string, maxTables int) ([]tableKey, map[int64]struct{}, error) {
 	byContainer := make(map[int64][]tableKey)
 	seen := make(map[tableKey]struct{})
@@ -1223,7 +1718,6 @@ func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners
 		containerIDs = append(containerIDs, conID)
 	}
 	sort.Slice(containerIDs, func(i, j int) bool { return containerIDs[i] < containerIDs[j] })
-
 	for _, conID := range containerIDs {
 		for _, ownerList := range ownerLists {
 			remaining := maxTables + 1 - len(byContainer[conID])
@@ -1282,8 +1776,20 @@ func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners
 }
 
 func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumns int, add func(schemaRowDB)) error {
+	rows, err := c.tablePageRows(ctx, keys, maxColumns)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		add(row)
+	}
+	return nil
+}
+
+func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
 	allowed := make(map[tableKey]struct{}, len(keys))
 	hydrated := make(map[tableKey]struct{}, len(keys))
+	var pageRows []schemaRowDB
 	for _, key := range keys {
 		allowed[key] = struct{}{}
 	}
@@ -1300,18 +1806,18 @@ func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumn
 				return err
 			}
 			hydrated[tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}] = struct{}{}
-			add(row)
+			pageRows = append(pageRows, row)
 			return nil
 		}); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	for key := range allowed {
 		if _, ok := hydrated[key]; !ok {
-			return fmt.Errorf("selected table %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
+			return nil, fmt.Errorf("selected table %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
 		}
 	}
-	return nil
+	return pageRows, nil
 }
 
 func ownerListForKeys(keys []tableKey) string {
@@ -1350,6 +1856,25 @@ func forEachTablePage(keys []tableKey, process func([]tableKey) error) error {
 	return nil
 }
 
+func tableKeysFromRows(rows []schemaRowDB) map[tableKey]struct{} {
+	keys := make(map[tableKey]struct{}, len(rows))
+	for _, r := range rows {
+		keys[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}] = struct{}{}
+	}
+	return keys
+}
+
+func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
+	keys := make(map[columnKey]struct{}, len(rows))
+	for _, r := range rows {
+		keys[columnKey{
+			tableKey: tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName},
+			column:   r.ColumnName,
+		}] = struct{}{}
+	}
+	return keys
+}
+
 func schemaCollectionVersionSupported(version string) bool {
 	major, _, _ := strings.Cut(version, ".")
 	n, err := strconv.Atoi(major)
@@ -1372,6 +1897,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	}
 
 	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
+
 	owners, names, err := c.schemaOwners(ctx, containers)
 	if err != nil {
 		return err
@@ -1400,6 +1926,10 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 
 	tablesTotal := 0
 	activeContainer := int64(-1)
+	selectedTables := make(map[tableKey]struct{}, len(keys))
+	for _, key := range keys {
+		selectedTables[key] = struct{}{}
+	}
 	if err := forEachTablePage(keys, func(page []tableKey) error {
 		conID := page[0].conID
 		if activeContainer != -1 && conID != activeContainer {
@@ -1408,10 +1938,16 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			}
 		}
 		activeContainer = conID
-		collector := newSchemaEventCollector(c, coordinator.add, nil, owners, containers)
-		collector.truncatedContainers = cappedContainers
-		if err := c.hydrateTablePage(ctx, page, c.config.Schemas.MaxColumns, collector.add); err != nil {
+		rows, err := c.tablePageRows(ctx, page, c.config.Schemas.MaxColumns)
+		if err != nil {
 			return err
+		}
+		pageTables := tableKeysFromRows(rows)
+		details := c.tableDetailsForPage(ctx, pageTables, columnKeysFromRows(rows), selectedTables)
+		collector := newSchemaEventCollector(c, coordinator.add, details, owners, containers)
+		collector.truncatedContainers = cappedContainers
+		for _, row := range rows {
+			collector.add(row)
 		}
 		collector.finish()
 		tablesTotal += collector.tablesTotal
