@@ -704,6 +704,36 @@ my_rule(deps = select({":on_linux": [":linux_dep"],
 - `--enable_platform_specific_config` (set in `.bazelrc`) auto-activates `build:linux`, `build:macos`, `build:windows`
   configs based on host OS.
 
+### Cross-compiling macOS x86_64 on Apple Silicon
+
+The Intel macOS runner fleet is retired, so the x86_64 Agent is built on arm64
+runners with `--platforms=//bazel/platforms:macos_x86_64`. Two things needed
+scoped workarounds; expect them to bite again if either dependency moves.
+
+- `toolchains_llvm` fetches one LLVM distribution, for the *host*, so its
+  `libclang_rt.osx.a` has no x86_64 slice and anything using
+  `__builtin_available` fails to link on `__isPlatformVersionAtLeast`. The
+  x86_64 distribution is vendored as `@llvm_darwin_x86_64` purely to link that
+  archive into the darwin-x86_64 targets that need it (see
+  `bazel/toolchains/llvm/compiler_rt.BUILD.bazel`). Replacing the toolchain's
+  own archive is not an option — it would break native arm64.
+- CPython's `configure` rejects a darwin cross host outright, so it used to
+  build x86_64 helper binaries and run them under Rosetta. `deps/cpython`
+  patches the host case statements and passes `--build`/`--host` plus
+  `--with-build-python`, pointing at an exec-configuration interpreter whose
+  minor version must match the CPython we ship.
+
+When adding `ac_cv_*` presets for a cross build, verify them by diffing the
+generated `pyconfig.h` against a native build: autoconf's cross-compile
+fallbacks are silent and several of CPython's are wrong for macOS.
+
+Note that the `.dmg` is only partly a Bazel build: the omnibus software
+definitions still build the Go binaries by shelling out to `dda inv <x>.build`.
+Those take their target from `GOARCH`, which `tasks/omnibus.py` exports
+alongside `OMNIBUS_TARGET_ARCH`. A Bazel-only change to the target platform
+leaves the Go binaries on the host architecture, and the failure surfaces late,
+as unresolved cgo symbols when they link against the cross-built rtloader.
+
 ### Incompatible targets
 
 Use `target_compatible_with` to declare that a target only makes sense on certain platforms. Incompatible targets are

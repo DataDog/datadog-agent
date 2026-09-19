@@ -102,10 +102,6 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
 
-.bazel:runner:macos-amd64:
-  extends: .bazel:defs:cache:macos
-  tags: [ "macos:sonoma-amd64", "specific:true" ]
-
 .bazel:runner:macos-arm64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-arm64", "specific:true" ]

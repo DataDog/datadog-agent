@@ -384,6 +384,19 @@ llvm.toolchain(
     llvm_version = "19.1.7",  # https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
 )
 
+# The LLVM distribution above is fetched for the host only, so its compiler-rt
+# builtins archive has a single slice. Cross-compiling for macOS x86_64 from
+# Apple Silicon needs the x86_64 builtins (clang lowers `__builtin_available`
+# to `__isPlatformVersionAtLeast`, which lives there), so keep the x86_64
+# distribution around for that one archive. Must track `llvm_version` above.
+http_archive(
+    name = "llvm_darwin_x86_64",
+    build_file = "//bazel/toolchains/llvm:compiler_rt.BUILD.bazel",
+    sha256 = "49405e75fbe7ad6f8139a33f59ec8c5112b75b3027405c7b92d19f4c6f02c78a",
+    strip_prefix = "LLVM-19.1.7-macOS-X64",
+    url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-macOS-X64.tar.xz",
+)
+
 # Hermetic MinGW-w64 toolchain sourced from a pinned WinLibs distribution.
 # Variant: GCC 14.2.0 + MinGW-w64 12.0.0, POSIX threads, MSVCRT runtime,
 # no LLVM bundle. URL, sha256 and gcc_version must move together when bumping.
@@ -434,12 +447,27 @@ register_toolchains(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
+# Keep in sync with PYTHON_MAJOR_MINOR in deps/cpython/cpython.MODULE.bazel: this
+# interpreter is only registered to serve as CPython's `--with-build-python` when
+# cross-compiling, and configure rejects a version mismatch.
+CPYTHON_MAJOR_MINOR = "3.13"
+
 python_config = use_extension("@rules_python//python/extensions:config.bzl", "config")
 python_config.explicit_init_py(default = True)
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version_file = "//:.python-version")
-use_repo(python, "pythons_hub", "python_" + PYTHON_VERSION.replace(".", "_"))
+
+# Not the build tooling interpreter: this is the `--with-build-python` CPython
+# uses to generate frozen modules when cross-compiling, so its minor version
+# must match the CPython we ship (see deps/cpython/cpython.MODULE.bazel).
+python.toolchain(python_version = CPYTHON_MAJOR_MINOR)
+use_repo(
+    python,
+    "pythons_hub",
+    "python_" + CPYTHON_MAJOR_MINOR.replace(".", "_"),
+    "python_" + PYTHON_VERSION.replace(".", "_"),
+)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 
