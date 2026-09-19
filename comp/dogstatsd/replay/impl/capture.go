@@ -9,10 +9,12 @@ package replayimpl
 import (
 	"context"
 	"errors"
+	"os"
 	"path"
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/spf13/afero"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const captureShutdownTimeout = 5 * time.Second
 
 type Requires struct {
 	Lc     compdef.Lifecycle
@@ -47,17 +52,29 @@ func NewComponent(deps Requires) replay.Component {
 	}
 	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
+		OnStop:  tc.shutdown,
 	})
 
 	return tc
 }
 
 func (tc *trafficCapture) configure(_ context.Context) error {
-	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"), tc.tagger)
-	if writer == nil {
-		tc.startUpError = errors.New("unable to instantiate capture writer")
+	tc.Lock()
+	defer tc.Unlock()
+	tc.writer = NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"), tc.tagger, clock.New())
+
+	return nil
+}
+
+// shutdown drains an ongoing capture so the file is not left truncated.
+func (tc *trafficCapture) shutdown(_ context.Context) error {
+	tc.RLock()
+	writer := tc.writer
+	tc.RUnlock()
+
+	if writer != nil {
+		writer.StopAndWait(captureShutdownTimeout)
 	}
-	tc.writer = writer
 
 	return nil
 }
@@ -76,16 +93,33 @@ func (tc *trafficCapture) IsOngoing() bool {
 
 // StartCapture starts a TrafficCapture and returns an error in the event of an issue.
 func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed bool) (string, error) {
-	if tc.IsOngoing() {
+	tc.RLock()
+	writer := tc.writer
+	tc.RUnlock()
+
+	if writer == nil {
+		return "", errors.New("capture writer is not initialized")
+	}
+	// Cheap rejection; startCapture below is the authoritative reservation.
+	if writer.IsOngoing() {
 		return "", errors.New("Ongoing capture in progress")
 	}
 
+	// Unlocked on purpose: a pending write lock would starve the per-packet
+	// IsOngoing readers for the duration of this filesystem work.
 	target, path, err := OpenFile(afero.NewOsFs(), p, tc.defaultlocation())
 	if err != nil {
 		return "", err
 	}
 
-	go tc.writer.Capture(target, d, compressed)
+	if _, err := writer.startCapture(target, d, compressed); err != nil {
+		// Still ours: nothing else will write to or close it.
+		target.Close()
+		if rmErr := os.Remove(path); rmErr != nil {
+			log.Warnf("could not remove unused capture file %v: %v", path, rmErr)
+		}
+		return "", err
+	}
 
 	return path, nil
 }
@@ -118,8 +152,14 @@ func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte])
 // Enqueue enqueues a capture buffer so it's written to file.
 func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	tc.RLock()
-	defer tc.RUnlock()
-	return tc.writer.Enqueue(msg)
+	writer := tc.writer
+	tc.RUnlock()
+
+	if writer == nil {
+		return false
+	}
+
+	return writer.Enqueue(msg)
 }
 
 func (tc *trafficCapture) defaultlocation() string {

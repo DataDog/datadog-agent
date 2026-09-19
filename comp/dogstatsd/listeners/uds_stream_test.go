@@ -11,10 +11,13 @@ package listeners
 
 import (
 	"encoding/binary"
+	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -85,4 +88,85 @@ func TestUDSStreamReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+// trackingPacketPool makes release observable — every Get must be matched by
+// exactly one Put; duck-types the pool interface.
+type trackingPacketPool struct {
+	sync.Mutex
+	outstanding int
+	returned    int
+}
+
+func (p *trackingPacketPool) Get() *packets.Packet {
+	p.Lock()
+	defer p.Unlock()
+	p.outstanding++
+	return &packets.Packet{Buffer: make([]byte, 8192)}
+}
+
+func (p *trackingPacketPool) Put(_ *packets.Packet) {
+	p.Lock()
+	defer p.Unlock()
+	p.outstanding--
+	p.returned++
+}
+
+func (p *trackingPacketPool) stats() (outstanding, returned int) {
+	p.Lock()
+	defer p.Unlock()
+	return p.outstanding, p.returned
+}
+
+// TestUDSStreamFailedReadsReleaseBuffers: framing errors that drop the
+// connection must still return the read buffers, though neither capture nor
+// server receives the packet.
+func TestUDSStreamFailedReadsReleaseBuffers(t *testing.T) {
+	handle := func(t *testing.T, newConn func(addr net.Addr) *mockUnixConn) {
+		t.Helper()
+		pool := &trackingPacketPool{}
+		deps := fulfillDepsWithConfig(t, map[string]interface{}{
+			socketPathConfKey("unix"):      testSocketPath(t),
+			"dogstatsd_origin_detection":   false,
+			"dogstatsd_stream_log_too_big": false,
+		})
+		packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+		s, err := NewUDSStreamListener(nil, packets.NewPoolManager[packets.Packet](pool), nil, deps.Config, nil,
+			option.None[workloadmeta.Component](), deps.PidMap, NewTelemetryStore(nil, deps.Telemetry), packetsTelemetryStore, deps.Telemetry)
+		require.NoError(t, err)
+		defer s.Stop()
+
+		mConn := newConn(s.conn.Addr())
+		require.NoError(t, s.handleConnection(mConn, func(c netUnixConn) error { return c.Close() }))
+
+		outstanding, returned := pool.stats()
+		require.Zero(t, outstanding, "failed reads must return the packet buffer to the pool")
+		require.Equal(t, 1, returned)
+	}
+
+	t.Run("connection closed while reading the length header", func(t *testing.T) {
+		handle(t, func(addr net.Addr) *mockUnixConn {
+			mConn := defaultMUnixConn(addr, true)
+			mConn.Write([]byte{1}) // partial length header
+			mConn.Close()
+			return mConn
+		})
+	})
+
+	t.Run("packet too large", func(t *testing.T) {
+		handle(t, func(addr net.Addr) *mockUnixConn {
+			mConn := defaultMUnixConn(addr, true)
+			binary.Write(mConn, binary.LittleEndian, uint32(8193))
+			return mConn
+		})
+	})
+
+	t.Run("connection closed before the payload", func(t *testing.T) {
+		handle(t, func(addr net.Addr) *mockUnixConn {
+			mConn := defaultMUnixConn(addr, true)
+			binary.Write(mConn, binary.LittleEndian, uint32(8))
+			mConn.Close()
+			return mConn
+		})
+	})
 }

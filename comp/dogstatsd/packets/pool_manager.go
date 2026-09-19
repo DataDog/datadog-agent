@@ -7,7 +7,6 @@ package packets
 
 import (
 	"sync"
-	"unsafe"
 
 	"go.uber.org/atomic"
 )
@@ -21,95 +20,64 @@ type genericPool[K managedPoolTypes] interface {
 	Put(x *K)
 }
 
-// PoolManager helps manage sync pools so multiple references to the same pool objects may be held.
+// PoolManager returns objects to their pool after all owners release them.
+// Objects have one owner by default; Retain explicitly adds another owner.
 type PoolManager[K managedPoolTypes] struct {
-	pool genericPool[K]
-	refs sync.Map
-
-	passthru *atomic.Bool
-
-	sync.RWMutex
+	pool     genericPool[K]
+	refs     sync.Map // *K -> *atomic.Int32, including the original owner's reference
+	retained atomic.Int64
 }
 
 // NewPoolManager creates a PoolManager to manage the underlying genericPool.
 func NewPoolManager[K managedPoolTypes](gp genericPool[K]) *PoolManager[K] {
-	return &PoolManager[K]{
-		pool:     gp,
-		passthru: atomic.NewBool(true),
-	}
+	return &PoolManager[K]{pool: gp}
 }
 
-// Get gets an object from the pool.
+// Get gets an object with one reference from the pool.
 func (p *PoolManager[K]) Get() *K {
 	return p.pool.Get()
 }
 
-// Put declares intent to return an object to the pool. In passthru mode the object is immediately
-// returned to the pool, otherwise we wait until the object is put by all (only 2 currently supported)
-// reference holders before actually returning it to the object pool.
-func (p *PoolManager[K]) Put(x *K) {
-
-	if p.IsPassthru() {
-		p.pool.Put(x)
+// Retain adds a reference. The caller must hold one for the whole call and must
+// not release it concurrently: this precondition is what makes Put's fast path
+// safe, and violating it aliases buffers rather than leaking them.
+func (p *PoolManager[K]) Retain(x *K) {
+	if x == nil {
 		return
 	}
-
-	ref := unsafe.Pointer(x)
-
-	// This lock is not to guard the map, it's here to
-	// avoid adding items to the map while flushing.
-	p.RLock()
-
-	_, loaded := p.refs.LoadAndDelete(ref)
+	// Publish the nonempty hint before the entry. The caller's ownership keeps
+	// x alive until the entry is ready; unrelated objects still return normally.
+	p.retained.Inc()
+	refs, loaded := p.refs.LoadOrStore(x, atomic.NewInt32(2))
 	if loaded {
-		p.pool.Put(x)
-	} else {
-		// reference does not exist, account.
-		p.refs.Store(ref, x)
-	}
-
-	// relatively hot path so not deferred
-	p.RUnlock()
-}
-
-// IsPassthru returns a boolean telling us if the PoolManager is in passthru mode or not.
-func (p *PoolManager[K]) IsPassthru() bool {
-	return p.passthru.Load()
-}
-
-// SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
-// enabling passthru mode.
-func (p *PoolManager[K]) SetPassthru(b bool) {
-	if b {
-		p.passthru.Store(true)
-		p.Flush()
-	} else {
-		p.passthru.Store(false)
+		refs.(*atomic.Int32).Inc()
+		p.retained.Dec()
 	}
 }
 
-// Count returns the number of elements accounted by the PoolManager.
+// Put releases a reference, returning the object only after its final owner.
+// The hint is safe to check before the map lookup: Retain increments retained
+// before publishing an entry, and the final Put removes the entry before
+// decrementing, so any live entry implies retained != 0.
+func (p *PoolManager[K]) Put(x *K) {
+	if x == nil {
+		return
+	}
+	// Keep the common path (no capture buffers retained) to one atomic load.
+	if p.retained.Load() != 0 {
+		if refs, ok := p.refs.Load(x); ok {
+			if refs.(*atomic.Int32).Dec() != 0 {
+				return
+			}
+			p.refs.Delete(x)
+			p.retained.Dec()
+		}
+	}
+	p.pool.Put(x)
+}
+
+// Count returns the number of objects with shared ownership still outstanding.
+// Upper bound: a Retain of an already-tracked object inflates it until it returns.
 func (p *PoolManager[K]) Count() int {
-	p.RLock()
-	defer p.RUnlock()
-
-	size := 0
-	p.refs.Range(func(_, _ interface{}) bool {
-		size++
-		return true
-	})
-
-	return size
-}
-
-// Flush flushes all objects back to the object pool, and stops tracking any pending objects.
-func (p *PoolManager[K]) Flush() {
-	p.Lock()
-	defer p.Unlock()
-
-	p.refs.Range(func(k, v any) bool {
-		p.pool.Put(v.(*K))
-		p.refs.Delete(k)
-		return true
-	})
+	return int(p.retained.Load())
 }
