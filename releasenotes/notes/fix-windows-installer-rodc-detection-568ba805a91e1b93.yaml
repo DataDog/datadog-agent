@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Windows installation on a read-only domain controller when domain
+    controller discovery selects a writable controller in another site.
