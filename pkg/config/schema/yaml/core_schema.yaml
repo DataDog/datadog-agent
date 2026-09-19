@@ -5162,6 +5162,15 @@ properties:
             node_type: section
             type: object
             properties:
+              max_patterns:
+                node_type: setting
+                type: integer
+                default: 3000
+                description: >-
+                  Maximum number of log patterns tracked across all tag groups,
+                  including patterns that have not emitted metrics yet. At capacity,
+                  the least recently seen pattern is evicted. Non-positive values
+                  use the default. Existing per-group safeguards also apply.
               enabled:
                 node_type: setting
                 type: boolean
