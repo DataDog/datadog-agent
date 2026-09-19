@@ -9,6 +9,11 @@ rules:
   - apiGroups: [""]
     resources: ["nodes", "nodes/proxy", "nodes/spec"]
     verbs: ["get", "list"]
+  # Kubeadm cluster name discovery.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["kubeadm-config"]
+    verbs: ["get"]
   # Pod and namespace metadata used for Kubernetes profile enrichment.
   - apiGroups: [""]
     resources: ["pods", "namespaces"]
