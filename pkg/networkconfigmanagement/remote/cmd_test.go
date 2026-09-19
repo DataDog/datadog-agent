@@ -11,11 +11,13 @@ import (
 	"context"
 	"io"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
@@ -216,8 +218,59 @@ func TestPagerCommand(t *testing.T) {
 	result, err := ExecuteCommand(context.Background(), client, cmd)
 	require.NoError(t, err)
 	assert.Empty(t, result.Error)
-	assert.Equal(t, config, result.Output)
-	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
+	assert.Equal(t, strings.TrimRight(config, "\n"), result.Output)
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config", "exit"}, srv.Received())
+}
+
+func TestPagerCommand_SetupAppliesToMainCommand(t *testing.T) {
+	config := "ASA Version 9.24(1)\n: Saved\nhostname FW01\ninterface G0/0\n: end\n"
+	srv := StartFakeSSHServerWithSessionFunc(t, FakeASA(config, 2),
+		WithBanner("User datadog logged in to cml-asav\n"),
+		WithPrompt("cml-asav# "),
+	)
+	client := MustConnect(t, srv)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+		Validator: profile.Validator{
+			Require: []*regexp.Regexp{regexp.MustCompile(`ASA Version \d+\.\d+\(\d+\)`)},
+			Reject:  []*regexp.Regexp{regexp.MustCompile(`(?i)(<---\s*More\s*--->|--More--)`)},
+		},
+	}
+
+	result, err := ExecuteCommand(context.Background(), client, cmd)
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimRight(config, "\n"), result.Output)
+	assert.NotContains(t, result.Output, "<--- More --->")
+	assert.NotContains(t, result.Output, "logged in", "banner must not land in the config")
+	assert.NotContains(t, result.Output, "terminal pager 0", "setup echo must not land in the config")
+}
+
+func TestPagerCommand_SeparateSessionsTruncate(t *testing.T) {
+	config := "ASA Version 9.24(1)\n: Saved\nhostname FW01\n: end\n"
+	srv := StartFakeSSHServerWithSessionFunc(t, FakeASA(config, 2))
+	client := MustConnect(t, srv)
+
+	pager := &profile.PlainCommand{Command: "terminal pager 0"}
+	_, err := ExecuteCommand(context.Background(), client, pager)
+	require.NoError(t, err)
+
+	running := &profile.PlainCommand{Command: "more system:running-config"}
+	result, err := ExecuteCommand(context.Background(), client, running)
+	require.NoError(t, err)
+	assert.Contains(t, result.Output, "<--- More --->")
+}
+
+func TestPagerCommand_BundledExecRunsFirstLineOnly(t *testing.T) {
+	config := "ASA Version 9.24(1)\n: Saved\n: end\n"
+	srv := StartFakeSSHServerWithSessionFunc(t, FakeASA(config, 2))
+	client := MustConnect(t, srv)
+
+	bundled := &profile.PlainCommand{Command: "terminal pager 0\nmore system:running-config"}
+	result, err := ExecuteCommand(context.Background(), client, bundled)
+	require.NoError(t, err)
+	assert.Empty(t, result.Output, "only the first line runs, which produces no output")
 }
 
 func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
@@ -243,4 +296,47 @@ func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
 
 	_, err := ExecuteCommand(context.Background(), client, cmd)
 	assert.ErrorContains(t, err, "matches failure regex")
+}
+
+// TestPagerCommand_ReconnectRerunsSetup ensures that when the connection is
+// replaced mid-collection, the setup commands are re-applied on the new
+// connection rather than being stranded on the old one.
+func TestPagerCommand_ReconnectRerunsSetup(t *testing.T) {
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok("from-srv1\n"),
+	})
+	config, err := srv.MakeConfig(MakeKnownHostsFile(t, srv))
+	require.NoError(t, err)
+	reconnect := func() (*ssh.Client, error) {
+		return ssh.Dial("tcp", srv.Addr(), config)
+	}
+
+	r, err := NewRetryingSSHClient(reconnect)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	// Kill the first connection so the initial attempt fails transiently and
+	// Pinned must reconnect.
+	srv.Stop()
+	_ = r.Client.Wait()
+
+	// The reconnect lands on a fresh server: the pager setup must be re-applied
+	// here, on the same connection that serves the config.
+	srv = StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok("from-srv2\n"),
+	})
+	config, err = srv.MakeConfig(MakeKnownHostsFile(t, srv))
+	require.NoError(t, err)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+	}
+
+	result, err := ExecuteCommand(context.Background(), r, cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "from-srv2", result.Output)
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config", "exit"}, srv.Received())
 }
