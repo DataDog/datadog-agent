@@ -149,6 +149,32 @@ func mockProcesses(wlmEnabled bool, probe *mocks.Probe, wmeta workloadmetamock.M
 	}
 }
 
+func TestProcessCheckStatusName(t *testing.T) {
+	tests := []struct {
+		name                     string
+		processCollectionEnabled bool
+		serviceDiscoveryEnabled  bool
+		expected                 []string
+	}{
+		{name: "neither enabled", expected: []string{}},
+		{name: "process collection enabled", processCollectionEnabled: true, expected: []string{ProcessCheckName}},
+		{name: "service discovery enabled", serviceDiscoveryEnabled: true, expected: []string{ServiceDiscoveryCheckName}},
+		{name: "both enabled", processCollectionEnabled: true, serviceDiscoveryEnabled: true, expected: []string{ProcessCheckName, ServiceDiscoveryCheckName}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			config := configmock.New(t)
+			config.SetInTest("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			sysConfig := configmock.New(t)
+			sysConfig.SetInTest("discovery.enabled", tc.serviceDiscoveryEnabled)
+			check := &ProcessCheck{config: config, sysConfig: sysConfig}
+
+			assert.Equal(t, tc.expected, check.StatusNames())
+		})
+	}
+}
+
 func TestProcessCheckFirstRunWithProbe(t *testing.T) {
 	processCheck, probe, wmeta := processCheckWithMocks(t)
 
@@ -659,7 +685,7 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, CombinedRunResult{}, first)
 
-	cfg.SetInTest("process_config.ignore_zombie_processes", "true")
+	cfg.SetInTest("process_config.ignore_zombie_processes", true)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 	expected := []model.MessageBody{
 		&model.CollectorProc{

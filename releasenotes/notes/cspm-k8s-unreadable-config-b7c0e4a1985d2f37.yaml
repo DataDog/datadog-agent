@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: a Kubernetes configuration file the Agent may not read
+    is now reported with its content left out. An unreadable kubelet kubeconfig
+    used to parse into an empty one, matching a kubeconfig that really names no
+    cluster, and the managed environment detection concluded from it that an EKS,
+    GKE or AKS node was unmanaged. The detection now sees an absent kubeconfig,
+    and the payload says as much. The ownership and permissions of an unreadable
+    file are reported too, so the benchmarks that check them see the real mode.

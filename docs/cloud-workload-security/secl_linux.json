@@ -530,7 +530,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.ancestors.sid",
@@ -651,6 +651,21 @@
           "name": "process.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "process.cap_effective",
@@ -1555,7 +1570,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.parent.sid",
@@ -1650,7 +1665,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.sid",
@@ -2801,6 +2816,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exec.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exec.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3278,7 +3308,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exec.sid",
@@ -3413,6 +3443,21 @@
           "name": "exit.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "exit.cap_effective",
@@ -3862,7 +3907,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exit.sid",
@@ -3964,14 +4009,24 @@
           "property_doc_link": "imds-aws-is_imds_v2-doc"
         },
         {
+          "name": "imds.aws.security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
           "name": "imds.aws.security_credentials.type",
-          "definition": "the security credentials type",
-          "property_doc_link": "imds-aws-security_credentials-type-doc"
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "imds.cloud_provider",
           "definition": "the intended cloud provider of the IMDS event",
           "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
         },
         {
           "name": "imds.host",
@@ -5875,7 +5930,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.sid",
@@ -5996,6 +6051,21 @@
           "name": "ptrace.tracee.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "ptrace.tracee.cap_effective",
@@ -6900,7 +6970,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.sid",
@@ -6995,7 +7065,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.sid",
@@ -8264,7 +8334,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.sid",
@@ -8385,6 +8455,21 @@
           "name": "setrlimit.target.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "setrlimit.target.cap_effective",
@@ -9289,7 +9374,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.sid",
@@ -9384,7 +9469,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.sid",
@@ -10230,7 +10315,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.sid",
@@ -10351,6 +10436,21 @@
           "name": "signal.target.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "signal.target.cap_effective",
@@ -11255,7 +11355,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.parent.sid",
@@ -11350,7 +11450,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.sid",
@@ -11870,6 +11970,25 @@
       ]
     },
     {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
@@ -12025,6 +12144,24 @@
     }
   ],
   "properties_doc": [
+    {
+      "name": "*.access_key_id",
+      "link": "common-awssecuritycredentials-access_key_id-doc",
+      "type": "string",
+      "definition": "The access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
     {
       "name": "*.args",
       "link": "common-process-args-doc",
@@ -13630,10 +13767,12 @@
         "chown.file.path",
         "connect.addr.hostname",
         "dns.question.name",
+        "exec.aws_security_credentials",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
         "exec.interpreter.file.path",
+        "exit.aws_security_credentials",
         "exit.file.name",
         "exit.file.path",
         "exit.interpreter.file.name",
@@ -13656,6 +13795,7 @@
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
         "process.ancestors.interpreter.file.path",
+        "process.aws_security_credentials",
         "process.file.name",
         "process.file.path",
         "process.interpreter.file.name",
@@ -13669,6 +13809,7 @@
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
         "ptrace.tracee.ancestors.interpreter.file.path",
+        "ptrace.tracee.aws_security_credentials",
         "ptrace.tracee.file.name",
         "ptrace.tracee.file.path",
         "ptrace.tracee.interpreter.file.name",
@@ -13690,6 +13831,7 @@
         "setrlimit.target.ancestors.file.path",
         "setrlimit.target.ancestors.interpreter.file.name",
         "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.aws_security_credentials",
         "setrlimit.target.file.name",
         "setrlimit.target.file.path",
         "setrlimit.target.interpreter.file.name",
@@ -13705,6 +13847,7 @@
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
         "signal.target.ancestors.interpreter.file.path",
+        "signal.target.aws_security_credentials",
         "signal.target.file.name",
         "signal.target.file.path",
         "signal.target.interpreter.file.name",
@@ -14687,7 +14830,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-process-ppid-doc",
+      "link": "common-pidcontext-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14743,6 +14886,7 @@
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -15078,6 +15222,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-awssecuritycredentials-type-doc",
+      "type": "string",
+      "definition": "The security credentials type",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
       ],
       "constants": "",
       "constants_link": "",
@@ -16035,18 +16197,6 @@
       "examples": []
     },
     {
-      "name": "imds.aws.security_credentials.type",
-      "link": "imds-aws-security_credentials-type-doc",
-      "type": "string",
-      "definition": "the security credentials type",
-      "prefixes": [
-        "imds.aws.security_credentials"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "imds.cloud_provider",
       "link": "imds-cloud_provider-doc",
       "type": "string",
@@ -16056,6 +16206,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
       "examples": []
     },
     {
@@ -17184,6 +17346,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -18509,6 +18683,69 @@
       ]
     },
     {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "CompressionType",
       "link": "compressiontype",
       "description": "Compression algorithm.",
@@ -18539,6 +18776,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

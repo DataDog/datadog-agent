@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "common",
     srcs = [
+        "apm_inject_reinstall_linux.go",
+        "apm_inject_reinstall_other.go",
         "output.go",
         "packages.go",
         "services_nix.go",
@@ -32,6 +34,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/apminject",
             "//pkg/fleet/installer/packages/service/systemd",
             "//pkg/fleet/installer/packages/user",
             "//pkg/util/log",
@@ -74,6 +77,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/apminject",
             "//pkg/fleet/installer/packages/service/systemd",
             "//pkg/fleet/installer/packages/user",
             "//pkg/util/log",
@@ -125,5 +129,11 @@ dd_agent_go_test(
     name = "common_test",
     srcs = ["setup_test.go"],
     embed = [":common"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/repository",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

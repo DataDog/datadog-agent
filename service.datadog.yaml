@@ -24,7 +24,7 @@ links:
   - name: internal-image
     provider: github
     type: repo
-    url: https://github.com/DataDog/images/tree/master/datadog-agent
+    url: https://github.com/ddoghq/images/tree/master/datadog-agent
   - name: deployment
     provider: github
     type: repo
@@ -91,7 +91,7 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.82.x"
+          branch: "7.83.x"
           schedule: "30 2 * * *"
           build_only: true
           parent_environments: ["staging"]
@@ -135,7 +135,7 @@ links:
   - name: internal-image
     type: repo
     provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-cluster-agent
+    url: https://github.com/ddoghq/images/tree/master/datadog-cluster-agent
   - name: deployment
     type: repo
     provider: github
@@ -181,7 +181,7 @@ links:
   - name: internal-image
     type: repo
     provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-agent-cluster-worker
+    url: https://github.com/ddoghq/images/tree/master/datadog-agent-cluster-worker
   - name: deployment
     type: repo
     provider: github

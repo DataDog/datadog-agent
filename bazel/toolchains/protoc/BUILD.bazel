@@ -1,3 +1,6 @@
 load(":defs.bzl", "protoc")
 
-protoc(name = "protoc")
+protoc(
+    name = "protoc",
+    visibility = ["//visibility:public"],
+)

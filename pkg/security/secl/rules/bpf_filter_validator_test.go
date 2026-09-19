@@ -26,7 +26,7 @@ func TestNetworkFilterActionWithInvalidFilter(t *testing.T) {
 	t.Run("precheck", func(t *testing.T) {
 		err := (&NetworkFilterDefinition{
 			BPFFilter: invalidFilter,
-			Policy:    "drop",
+			Policy:    NetworkFilterPolicyDrop,
 			Scope:     "cgroup",
 		}).PreCheck(PolicyLoaderOpts{})
 		require.Error(t, err)
@@ -34,7 +34,7 @@ func TestNetworkFilterActionWithInvalidFilter(t *testing.T) {
 
 		err = (&NetworkFilterDefinition{
 			BPFFilter: validFilter,
-			Policy:    "drop",
+			Policy:    NetworkFilterPolicyDrop,
 			Scope:     "cgroup",
 		}).PreCheck(PolicyLoaderOpts{})
 		assert.NoError(t, err)
@@ -52,7 +52,7 @@ func TestNetworkFilterActionWithInvalidFilter(t *testing.T) {
 						{
 							NetworkFilter: &NetworkFilterDefinition{
 								BPFFilter: invalidFilter,
-								Policy:    "drop",
+								Policy:    NetworkFilterPolicyDrop,
 								Scope:     "cgroup",
 							},
 						},
@@ -67,7 +67,7 @@ func TestNetworkFilterActionWithInvalidFilter(t *testing.T) {
 						{
 							NetworkFilter: &NetworkFilterDefinition{
 								BPFFilter: validFilter,
-								Policy:    "drop",
+								Policy:    NetworkFilterPolicyDrop,
 								Scope:     "cgroup",
 							},
 						},

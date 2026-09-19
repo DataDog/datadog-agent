@@ -4,8 +4,18 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 
 go_shim(
+    name = "golangci-lint",
+    tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
+)
+
+go_shim(
     name = "gotestsum",
     tool = "@tools_gotest_gotestsum//:gotestsum",
+)
+
+go_shim(
+    name = "mockery",
+    tool = "@com_github_vektra_mockery_v3//:v3",
 )
 
 pkg_files(

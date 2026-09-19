@@ -137,9 +137,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 }
 
 func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -205,9 +203,7 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -353,9 +349,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
@@ -443,7 +437,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
-// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// storage.RemoveSeriesByKeys so the per-series tags slice + bucket data
 // + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {

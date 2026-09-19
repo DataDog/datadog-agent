@@ -9,12 +9,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"slices"
 	"strconv"
 	"testing"
-
-	"golang.org/x/net/http2"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -114,9 +113,14 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+
 	deps := getAPIServer(t, map[string]interface{}{
 		"cmd_port":       0,
-		"agent_ipc.port": 56789,
+		"agent_ipc.port": port,
 	})
 
 	registry := deps.Telemetry.GetRegistry()
@@ -239,11 +243,14 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/grpc")
 
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
 	transport := &http.Transport{
 		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+		Protocols:       protocols,
 	}
 
-	http2.ConfigureTransport(transport)
 	http2Client := &http.Client{
 		Transport: transport,
 	}
@@ -284,11 +291,14 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/grpc")
 
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
 	transport := &http.Transport{
 		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+		Protocols:       protocols,
 	}
 
-	http2.ConfigureTransport(transport)
 	http2Client := &http.Client{
 		Transport: transport,
 	}

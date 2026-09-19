@@ -14,29 +14,6 @@ function Is-WindowsServer2025 {
   return $isWindowsServer2025
 }
 
-# function to test if the sshd service is running and if it needs to be replaced
-function Test-SshInstallationNeeded {
-  if (Test-Path $sshInstallMarkerPath) {
-    # Already installed/replaced on a previous boot -- nothing to do.
-    return $false
-  }
-
-  $service = Get-Service -Name sshd -ErrorAction SilentlyContinue
-
-  if ($service -ne $null) {
-    Write-Host "Stop sshd service"
-    Stop-Service sshd
-    if (Is-WindowsServer2025) {
-      # Windows Server 2025 ships a preinstalled OpenSSH that's a different, inconsistent version;
-      # replace it with our pinned MSI version below (only happens once, per $sshInstallMarkerPath).
-      return $true
-    }
-  } else {
-    return $true
-  }
-  return $false
-}
-
 # function to restore the auto inherited flag without affecting the DACL
 # This function applies to Windows Server 2025 only
 # WINA-1694: The root drive on Windows Server 2025 is missing the SE_DACL_AUTO_INHERITED flag
@@ -79,7 +56,7 @@ function Set-SshFirewallConfiguration {
               -Profile Any `
               -RemoteAddress Any `
               -EdgeTraversalPolicy Allow
-                
+
       Write-Host "Universal SSH firewall rule created"
     } else {
         Write-Host "Universal SSH firewall rule already exists"
@@ -90,11 +67,18 @@ function Set-SshFirewallConfiguration {
 }
 
 # Main script execution
-if (Test-SshInstallationNeeded) {
-  Write-Host "sshd service not found or needs replacement, installing OpenSSH Server"
+# The marker indicates that either a previous boot installed OpenSSH, or the AMI shipped with it already
+if (-not (Test-Path $sshInstallMarkerPath)) {
+  Write-Host "OpenSSH not set up on this host yet, installing OpenSSH Server"
+  # Windows Server 2025 ships a preinstalled OpenSSH under System32 that's a different,
+  # inconsistent version; stop it so the pinned MSI below can replace it.
+  if (Get-Service -Name sshd -ErrorAction SilentlyContinue) {
+    Write-Host "Stop sshd service"
+    Stop-Service sshd
+  }
   # Add-WindowsCapability does NOT install a consistent version across Windows versions, this lead to
   # compatibility issues (different command line quoting rules).
-  # Prefer installing sshd via MSI  
+  # Prefer installing sshd via MSI
   $res = start-process -passthru -wait msiexec.exe -args '/i https://github.com/PowerShell/Win32-OpenSSH/releases/download/v9.5.0.0p1-Beta/OpenSSH-Win64-v9.5.0.0.msi /qn'
   if ($res.ExitCode -ne 0) {
     throw "SSH install failed: $($res.ExitCode)"
@@ -112,7 +96,7 @@ if (Test-SshInstallationNeeded) {
     Write-Output "Firewall Rule 'OpenSSH-Server-In-TCP' does not exist, creating it..."
     New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
     $retries++
-  } 
+  }
   Write-Output "Firewall rule 'OpenSSH-Server-In-TCP' created."
   $powershellPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
   $retries = 0
@@ -125,7 +109,7 @@ if (Test-SshInstallationNeeded) {
       Start-Sleep -Seconds 5
     }
     Write-Host "Set powershell as default shell for sshd"
-    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $powershellPath -PropertyType String -Force 
+    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $powershellPath -PropertyType String -Force
     $retries++
   }
   $retries = 0
@@ -162,7 +146,6 @@ if (Test-SshInstallationNeeded) {
     "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
   )
   Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
-  Restart-Service sshd -ErrorAction SilentlyContinue
 
   New-Item -Path $sshInstallMarkerPath -ItemType File -Force | Out-Null
 }
@@ -181,7 +164,7 @@ try {
 
 Write-Host "Resetting ssh authorized keys"
 $retries = 0
-while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) { 
+while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) {
   if ($retries -ge 10) {
     throw "Failed to remove existing administrators_authorized_keys file after 10 retries"
   }
@@ -194,7 +177,7 @@ while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) {
 }
 
 $retries = 0
-while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) { 
+while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
   if ($retries -ge 10) {
     throw "Failed to create administrators_authorized_keys file after 10 retries"
   }
@@ -221,4 +204,3 @@ while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Runnin
   Start-Service sshd
   $retries++
 }
-

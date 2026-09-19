@@ -13,11 +13,32 @@ crate.from_cargo(
     validate_lockfile = True,
 )
 crate.annotation(
+    build_script_env = {
+        "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+    },
+    build_script_tools = ["@@//bazel/toolchains/protoc:protoc"],
+    crate = "datadog-protos",
+)
+
+# Use the MinGW toolchain's import libraries instead of winapi's bundled libraries.
+crate.annotation(
+    build_script_env = {"WINAPI_NO_BUNDLED_LIBRARIES": "1"},
+    crate = "winapi",
+)
+crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
 )
 crate.annotation(
     crate = "protoc-gen-tonic",
     gen_binaries = ["protoc-gen-tonic"],
+)
+crate.annotation(
+    crate = "saluki-core",
+    rustc_flags = ["--cfg=tokio_unstable"],
+)
+crate.annotation(
+    crate = "tokio",
+    rustc_flags = ["--cfg=tokio_unstable"],
 )
 use_repo(crate, "crates")

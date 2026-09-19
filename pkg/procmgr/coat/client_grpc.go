@@ -69,7 +69,7 @@ func processesFromListResponse(resp *pb.ListResponse) map[string]ProcessSnapshot
 	for _, proc := range resp.GetProcesses() {
 		processes[proc.GetName()] = ProcessSnapshot{
 			Name:  proc.GetName(),
-			State: proc.GetState(),
+			State: parseProcmgrState(proc.GetState().String()),
 		}
 	}
 	return processes

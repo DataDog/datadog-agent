@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a crash in the ``kubernetes_state_core`` check (Cluster Agent or Cluster Check Runner)
+    that occurred when using a wildcard entry (``"*"``) in ``kubernetes_namespace_annotations_as_tags``
+    or the equivalent ``kubernetes_resources_annotations_as_tags`` namespace configuration, on any
+    namespace without annotations.
