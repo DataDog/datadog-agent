@@ -1,0 +1,86 @@
+name: io
+fleet_configurable: true
+version: 1.0.0
+files:
+- name: io.yaml
+  options:
+  - template: init_config
+    options:
+    - name: service
+      fleet_configurable: true
+      value:
+        type: string
+        example: "<SERVICE>"
+      description: |
+        Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+
+        Additionally, this sets the default `service` for every log source.
+      required: false
+    - name: device_exclude_re
+      fleet_configurable: true
+      required: false
+      value:
+        type: string
+        example: <REGEX>
+      description: |
+        By default, stats for all block devices (listed in /proc/diskstats on Linux) are collected.
+        Provide a regex pattern acting as an exclusion list to ignore sub-devices and transient devices.
+        Example: "^dm-[0-9]+" excludes LVM logical volumes.
+
+        The legacy option `device_blacklist_re` is accepted as a deprecated alias and will be removed in a future release.
+    - name: lowercase_device_tag
+      fleet_configurable: true
+      required: false
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        Windows only. Set to true to send a lowercased device tag value (e.g. device:c:),
+        consistent with the device tag sent by the disk check.
+        This option is silently ignored on Linux and macOS.
+  - template: instances
+    options:
+    - name: tags
+      fleet_configurable: true
+      required: false
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<KEY_1>:<VALUE_1>", "<KEY_2>:<VALUE_2>"]
+      description: |
+        A list of tags to attach to every metric, event, and service check emitted by this instance.
+
+        Learn more about tagging at https://docs.datadoghq.com/tagging/
+    - name: service
+      fleet_configurable: true
+      value:
+        type: string
+        example: "<SERVICE>"
+      description: |
+        Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+
+        Overrides any `service` defined in the `init_config` section.
+      required: false
+    - name: min_collection_interval
+      fleet_configurable: true
+      value:
+        type: number
+        example: 15
+        default: 15
+      description: |
+        This changes the collection interval of the check. For more information, see:
+        https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+      required: false
+    - name: empty_default_hostname
+      fleet_configurable: true
+      value:
+        type: boolean
+        example: false
+        default: false
+      description: |
+        This forces the check to send metrics with no hostname.
+
+        This is useful for cluster-level checks.
+      required: false
