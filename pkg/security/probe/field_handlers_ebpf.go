@@ -96,6 +96,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFullFilePath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
+			seclog.Errorf("failed to resolve full file path for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
 			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
@@ -104,7 +105,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountOrigin = origin
 		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext)
 		if err != nil && f.PathResolutionError == nil {
-			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			seclog.Warnf("error while resolving the attributes for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
 			ev.SetPathResolutionError(f, err)
 		}
 	}
@@ -132,6 +133,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 			if err != nil {
+				seclog.Errorf("failed to resolve filesystem for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
 				ev.SetPathResolutionError(f, err)
 			}
 			f.Filesystem = fs
@@ -595,7 +597,8 @@ func (fh *EBPFFieldHandlers) ResolveFileMetadata(event *model.Event) *model.File
 		}
 		metadata, err := fh.resolvers.FileMetadataResolver.ResolveFileMetadata(event, &event.Exec.Process.FileEvent)
 		if err != nil || metadata == nil {
-			seclog.Errorf("failed to resolve exec binary metadata: %s", err)
+			f := &event.Exec.Process.FileEvent
+			seclog.Errorf("failed to resolve exec binary metadata for pid %d (%s), inode %d, mountid %d: %s", event.PIDContext.Pid, f.BasenameStr, f.Inode, f.MountID, err)
 			return nil
 		}
 		event.Exec.FileMetadata = *metadata
