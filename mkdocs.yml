@@ -11,6 +11,7 @@ docs_dir: docs/public
 site_dir: site
 theme:
   name: material
+  custom_dir: docs/overrides
   variant: classic
   language: en
   font:
@@ -121,15 +122,6 @@ nav:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
     - Logging: guidelines/conventions/logging.md
-- Architecture:
-  - Component framework:
-    - architecture/components/index.md
-    - Fx: architecture/components/fx.md
-  - Agent schema:
-    - architecture/agent-schema/index.md
-    - Annotated examples: architecture/agent-schema/examples.md
-  - DogStatsD:
-    - Internals: architecture/dogstatsd/internals.md
 - Reference:
   - Component framework:
     - Status providers: reference/components/status.md
@@ -141,6 +133,17 @@ nav:
     - Builders: reference/images/builders.md
   - Agent buildables:
     - Agent components: reference/builds/components.md
+  - Developer docs: reference/docs.md
+- Architecture:
+  - Home: architecture/index.md
+  - Component framework:
+    - architecture/components/index.md
+    - Fx: architecture/components/fx.md
+  - Agent schema:
+    - architecture/agent-schema/index.md
+    - Annotated examples: architecture/agent-schema/examples.md
+  - DogStatsD:
+    - Internals: architecture/dogstatsd/internals.md
 
 watch:
 - .go-version
@@ -271,6 +274,10 @@ markdown_extensions:
 - pymdownx.tilde:
 
 extra:
+  navigation_roots:
+  - url: architecture/
+    back_label: Back to main docs
+    back_key: b
   social:
   - icon: fontawesome/solid/blog
     link: https://www.datadoghq.com/blog/engineering/
@@ -283,3 +290,5 @@ extra:
 extra_css:
 - assets/css/custom.css
 - https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css
+extra_javascript:
+- assets/javascripts/navigation-roots.js
