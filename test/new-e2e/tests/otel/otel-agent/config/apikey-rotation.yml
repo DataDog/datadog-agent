@@ -1,0 +1,43 @@
+extensions:
+  pprof:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+
+processors:
+  infraattributes:
+    cardinality: 2
+
+service:
+  # The `datadog` extension is deliberately not listed here: the converter
+  # autoconfigures it as datadog/dd-autoconfigured from the Agent's api_key,
+  # which is exactly the path this test exercises.
+  extensions: [pprof, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]

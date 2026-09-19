@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -23,6 +24,7 @@ go_library(
         "//comp/def",
         "//comp/otelcol/collector-contrib/def",
         "//comp/otelcol/collector/def",
+        "//comp/otelcol/collector/impl/internal/apikeybridge",
         "//comp/otelcol/ddflareextension/impl",
         "//comp/otelcol/ddprofilingextension/impl",
         "//comp/otelcol/dogtelextension/impl",
@@ -39,6 +41,7 @@ go_library(
         "//pkg/util/log/zap",
         "//pkg/util/option",
         "//pkg/util/otel",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension//:datadogextension",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
@@ -100,4 +103,31 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["collector_test.go"],
+    embed = [":impl"],
+    gotags_sets = [["otlp"]],
+    include_default = False,
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//pkg/config/model",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension//:datadogextension",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
+        "@io_opentelemetry_go_collector_extension//:extension",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_otel_metric//noop",
+        "@io_opentelemetry_go_otel_trace//noop",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+        "@org_uber_go_zap//zaptest/observer",
+    ],
 )

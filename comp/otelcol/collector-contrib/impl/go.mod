@@ -597,6 +597,9 @@ require (
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
+// TEMPORARY (OTAGENT-1353): drop when the extension's WithConfigOptions lands upstream
+replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension => github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (

@@ -1199,8 +1199,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancing
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.163.0/go.mod h1:tkD9dvywQax5IlxUtme/Y2Pq2jLIr1NiHTfInehIE/U=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0 h1:ezvIRoLG+TqctUn3FOKwqFRb6B/mlgRtp8qP6pNNPVw=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0/go.mod h1:l4lOMyckg8WkZRCcQwrU6XQR3U6RsYSQxyyGO9yO5KE=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0 h1:eFSo7ysUXKM/E8/3fHvZuUffzeDBykWsf0Kk3VaJlXk=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0/go.mod h1:OkOSRLBqKxpC3oiOhsxWyrjhEeCJtgEUbr1ZBUmGASE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0 h1:q81KTMTVcskHlGYbVaWeyASLtu/mOabXHTBEqPNy+pc=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0/go.mod h1:1sNa7Hjfc9J7y8+r7oS8IBch+tvmK+VNS815nJyUSBo=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.163.0 h1:67dsvM6MmYQtLYnTx8quaw0goi9u9nI2tFdj0I/w7Zw=
@@ -1699,6 +1697,8 @@ github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c h1:5a2XDQ
 github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c/go.mod h1:g85IafeFJZLxlzZCDRu4JLpfS7HKzR+Hw9qRh3bVzDI=
 github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG81+twTK4=
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
+github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3 h1:XZucr8BOYzardbsAS+z8DG/nhJaN/K0bZmbVhxzTGPY=
+github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3/go.mod h1:sMbcDO/HJOPcFmssj3X86GlHe5DJ0ySrcJyXgS6R+xE=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/twitchtv/twirp v8.1.3+incompatible h1:+F4TdErPgSUbMZMwp13Q/KgDVuI7HJXP61mNV3/7iuU=
 github.com/twitchtv/twirp v8.1.3+incompatible/go.mod h1:RRJoFSAmTEh2weEqWtpPE3vFK5YBhA6bqp2l1kfCC5A=
