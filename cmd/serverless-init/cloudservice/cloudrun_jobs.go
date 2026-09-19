@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
@@ -57,11 +58,25 @@ type CloudRunJobs struct {
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+
+	metadataOnce sync.Once
+	metadata     map[string]string
+}
+
+// resolveMetadata fetches the GCP metadata-service values once and caches them.
+// GetTags and GetInventoryData both trigger it, so exactly one network fetch
+// happens regardless of call order. The cached map is read-only; callers that
+// mutate clone it.
+func (c *CloudRunJobs) resolveMetadata() map[string]string {
+	c.metadataOnce.Do(func() {
+		c.metadata = metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	})
+	return c.metadata
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
-	tags := metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	tags := maps.Clone(c.resolveMetadata())
 	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
@@ -92,8 +107,48 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobTagPrefix+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
+	tags[cloudRunJobTagPrefix+resourceNameTag] = cloudRunJobCCRID(tags["project_id"], tags["location"], jobNameVal)
 	return tags
+}
+
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. It is the
+// stable parent that execution-level CCRIDs nest under.
+func cloudRunJobCCRID(project, region, job string) string {
+	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
+}
+
+// cloudRunJobExecutionCCRID extends a job CCRID with the execution segment. It
+// returns the job CCRID unchanged when the execution is unknown so the
+// resource_id never dangles on a trailing empty segment.
+//
+// Tasks of one execution share this id: they run the same deployed code and
+// differ only in the task index and attempt the enhanced metric tags carry.
+func cloudRunJobExecutionCCRID(jobCCRID, execution string) string {
+	if jobCCRID == "" || execution == "" {
+		return jobCCRID
+	}
+	return fmt.Sprintf("%s/executions/%s", jobCCRID, execution)
+}
+
+// GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.
+// The execution is the deployed instance, so it is the resource_id, and the job
+// it runs under is the parent_resource_id.
+func (c *CloudRunJobs) GetInventoryData() InventoryData {
+	metadata := c.resolveMetadata()
+	project := metadata[projectID]
+	region := metadata[location]
+	job := os.Getenv(cloudRunJobNameEnvVar)
+
+	jobCCRID := cloudRunJobCCRID(project, region, job)
+
+	return InventoryData{
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       cloudRunInventoryID(cloudRunJobExecutionCCRID(jobCCRID, os.Getenv(cloudRunExecutionEnvVar))),
+		ParentResourceID: cloudRunInventoryID(jobCCRID),
+		ResourceName:     job,
+		Region:           region,
+		GCPProjectID:     project,
+	}
 }
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
