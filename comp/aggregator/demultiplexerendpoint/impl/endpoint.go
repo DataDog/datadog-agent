@@ -10,11 +10,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/DataDog/zstd"
+	"golang.org/x/sync/singleflight"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -26,6 +28,10 @@ import (
 
 var errDogstatsdOnDataPlane = errors.New("DogStatsD traffic is being served by the Agent Data Plane; run DogStatsD diagnostic commands against the agent-data-plane process instead")
 
+type contextDumper interface {
+	DumpDogstatsdContexts(io.Writer) error
+}
+
 // Requires defines the dependencies for the demultiplexerendpoint component
 type Requires struct {
 	Log           log.Component
@@ -34,10 +40,11 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux                demultiplexerComp.Component
-	config               config.Component
+	demux                contextDumper
+	runPath              string
 	dogstatsdOnDataPlane bool
 	log                  log.Component
+	dumpGroup            singleflight.Group
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -49,7 +56,7 @@ type Provides struct {
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
 		demux:                reqs.Demultiplexer,
-		config:               reqs.Config,
+		runPath:              reqs.Config.GetString("run_path"),
 		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
 		log:                  reqs.Log,
 	}
@@ -59,7 +66,7 @@ func NewComponent(reqs Requires) Provides {
 	}
 }
 
-func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
 	if demuxendpoint.dogstatsdOnDataPlane {
 		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusNotFound)
 		return
@@ -81,16 +88,40 @@ func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.Response
 	w.Write(resp)
 }
 
-func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	path := path.Join(demuxendpoint.config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
+	finalPath := filepath.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
 
-	f, err := os.Create(path)
+	result, err, _ := demuxendpoint.dumpGroup.Do(finalPath, func() (any, error) {
+		return demuxendpoint.writeDogstatsdContextsFile(finalPath)
+	})
 	if err != nil {
 		return "", err
 	}
 
-	c := zstd.NewWriter(f)
+	return result.(string), nil
+}
 
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath string) (string, error) {
+	f, err := os.CreateTemp(demuxendpoint.runPath, ".dogstatsd_contexts-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	tempPath := f.Name()
+	defer os.Remove(tempPath)
+
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(finalPath); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		_ = f.Close()
+		return "", statErr
+	}
+	if err := f.Chmod(mode); err != nil {
+		_ = f.Close()
+		return "", err
+	}
+
+	c := zstd.NewWriter(f)
 	w := bufio.NewWriter(c)
 
 	for _, err := range []error{demuxendpoint.demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
@@ -99,5 +130,9 @@ func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, err
 		}
 	}
 
-	return path, nil
+	if err := replaceFile(tempPath, finalPath); err != nil {
+		return "", err
+	}
+
+	return finalPath, nil
 }
