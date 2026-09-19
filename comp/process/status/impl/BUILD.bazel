@@ -12,9 +12,9 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/status",
         "//comp/def",
+        "//comp/process/status/def",
         "//pkg/process/util/status",
-        "//pkg/util/log",
-        "//pkg/util/system",
+        "//pkg/proto/pbgo/core",
     ],
 )
 
@@ -22,13 +22,11 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = ["status_test.go"],
     embed = [":impl"],
-    embedsrcs = [
-        "fixtures/expvar_response.tmpl",
-        "fixtures/text_error_response.tmpl",
-    ],
+    embedsrcs = ["fixtures/expvar_response.tmpl"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

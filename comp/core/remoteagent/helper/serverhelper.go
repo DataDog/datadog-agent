@@ -46,6 +46,7 @@ type UnimplementedRemoteAgentServer struct {
 	// server infos
 	agentFlavor       string
 	displayName       string
+	statusSection     string
 	services          []string
 	registeredAPIURI  string
 	cleanupSocketPath string
@@ -183,6 +184,11 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	})
 
 	return remoteAgentServer, nil
+}
+
+// SetStatusSection sets the canonical status section exposed by this remote agent.
+func (s *UnimplementedRemoteAgentServer) SetStatusSection(section string) {
+	s.statusSection = section
 }
 
 // Start begins serving gRPC and starts the RAR registration loop. Impls must
@@ -493,6 +499,7 @@ func dialCoreAgent(agentIpcAddress, authToken string, tlsConfig *tls.Config, vso
 type RegistrationRequest struct {
 	Flavor         string
 	DisplayName    string
+	StatusSection  string
 	APIEndpointURI string
 	Services       []string
 }
@@ -506,6 +513,7 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
 		Flavor:         req.Flavor,
 		DisplayName:    req.DisplayName,
+		StatusSection:  req.StatusSection,
 		ApiEndpointUri: req.APIEndpointURI,
 		Services:       req.Services,
 	})
@@ -529,6 +537,7 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
 		Flavor:         s.agentFlavor,
 		DisplayName:    s.displayName,
+		StatusSection:  s.statusSection,
 		ApiEndpointUri: s.registeredAPIURI,
 		Services:       s.services,
 	}

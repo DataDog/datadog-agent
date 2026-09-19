@@ -3,7 +3,7 @@
   <span class="stat_data">
     {{- with .apmStats -}}
       {{- if .error }}
-        Not running or unreachable on localhost:{{.port}}<br>
+        Status: Unavailable<br>
         Error: {{.error}}<br>
       {{- else}}
         Status: Running<br>

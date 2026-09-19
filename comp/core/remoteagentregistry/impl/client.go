@@ -95,6 +95,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 			PID:                  registration.AgentPID,
 			LastSeen:             time.Now(),
 			SessionID:            uuid.New().String(),
+			StatusSection:        registration.StatusSection,
 		},
 		// gRPC relative
 		conn:                        conn,

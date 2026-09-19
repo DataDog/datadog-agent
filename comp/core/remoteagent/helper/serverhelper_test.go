@@ -466,13 +466,13 @@ func TestRegisteredServicesReported(t *testing.T) {
 	logComp := logmock.New(t)
 	configComp := configmock.New(t)
 
-	var receivedServices []string
+	var receivedRequest *pbcore.RegisterRemoteAgentRequest
 	var mu sync.Mutex
 
 	// Create a mock core agent server that captures the registered services
 	mockCoreAgent := newMockCoreAgentServer(t, ipcComp, func(_ context.Context, req *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
 		mu.Lock()
-		receivedServices = req.Services
+		receivedRequest = req
 		mu.Unlock()
 		return &pbcore.RegisterRemoteAgentResponse{
 			SessionId:                      "test-session-id",
@@ -497,6 +497,7 @@ func TestRegisteredServicesReported(t *testing.T) {
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 	pbcore.RegisterFlareProviderServer(server.GetGRPCServer(), &mockFlareProvider{})
 	pbcore.RegisterTelemetryProviderServer(server.GetGRPCServer(), &mockTelemetryProvider{})
+	server.SetStatusSection("APM Agent")
 
 	// Start the server (impls call this explicitly after registering services).
 	server.Start()
@@ -507,13 +508,16 @@ func TestRegisteredServicesReported(t *testing.T) {
 
 	// Verify that all services were reported
 	mu.Lock()
-	services := receivedServices
+	request := receivedRequest
 	mu.Unlock()
 
+	require.NotNil(t, request)
+	services := request.Services
 	require.NotEmpty(t, services)
 	assert.Contains(t, services, "datadog.remoteagent.status.v1.StatusProvider")
 	assert.Contains(t, services, "datadog.remoteagent.flare.v1.FlareProvider")
 	assert.Contains(t, services, "datadog.remoteagent.telemetry.v1.TelemetryProvider")
+	assert.Equal(t, "APM Agent", request.GetStatusSection())
 }
 
 // TestRegistrationRefreshContention tests what happens when the core agent's

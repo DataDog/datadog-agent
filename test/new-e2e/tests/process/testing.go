@@ -72,13 +72,11 @@ type AgentStatus struct {
 }
 
 func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
-	status := client.Status(agentclient.WithArgs([]string{"--json"}))
-	assert.NotNil(t, status, "failed to get agent status")
+	status, err := client.StatusWithError(agentclient.WithArgs([]string{"--json"}))
+	require.NoError(t, err)
 
 	var statusMap AgentStatus
-	err := json.Unmarshal([]byte(status.Content), &statusMap)
-	assert.NoError(t, err, "failed to unmarshal agent status")
-
+	require.NoError(t, json.Unmarshal([]byte(status.Content), &statusMap))
 	return statusMap
 }
 
@@ -88,7 +86,7 @@ func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
 func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
 	statusMap := getAgentStatus(t, client)
 
-	// Combine enabled checks from both the standalone process-agent and the core agent's process component
+	// Combine enabled checks from both the standalone process-agent and the core agent's process component.
 	var allEnabledChecks []string
 	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks...)
 	allEnabledChecks = append(allEnabledChecks, statusMap.ProcessComponentStatus.Expvars.Map.EnabledChecks...)
@@ -96,7 +94,7 @@ func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []
 	assert.ElementsMatch(t, checks, allEnabledChecks)
 
 	if withSystemProbe {
-		// SysProbeProcessModuleEnabled can be reported by either the process-agent or the core agent component
+		// SysProbeProcessModuleEnabled can be reported by either the process-agent or the core agent component.
 		sysProbeEnabled := statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled ||
 			statusMap.ProcessComponentStatus.Expvars.Map.SysProbeProcessModuleEnabled
 		assert.True(t, sysProbeEnabled, "system probe process module not enabled")

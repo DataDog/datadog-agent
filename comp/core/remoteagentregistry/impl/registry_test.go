@@ -309,6 +309,7 @@ type testRemoteAgentServer struct {
 	// Mock values
 	statusMain    map[string]string
 	statusNamed   map[string]map[string]string
+	statusJSON    []byte
 	flareFiles    map[string][]byte
 	promText      string
 	responseDelay time.Duration
@@ -341,6 +342,7 @@ func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pb.GetStatusD
 			Fields: t.statusMain,
 		},
 		NamedSections: namedSections,
+		JsonPayload:   t.statusJSON,
 	}, nil
 }
 
