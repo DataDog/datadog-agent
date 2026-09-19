@@ -323,6 +323,8 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         "test.agent_is_marked_flaky=/testcase/@agent_is_marked_flaky",
         "--xpath-tag",
         "bazel.cached=/testcase/@bazel_cached",
+        "--xpath-tag",
+        "test.agent_is_retried=/testcase/@agent_is_retried",
     ]
     if 'e2e' in flag:
         tags.extend(["--tags", "e2e_internal_error:true"])

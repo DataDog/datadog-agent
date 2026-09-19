@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
 
 // JUnitTestSuites is a collection of JUnit test suites.
@@ -46,6 +47,7 @@ type JUnitTestCase struct {
 	Time        string            `xml:"time,attr"`
 	SkipMessage *JUnitSkipMessage `xml:"skipped,omitempty"`
 	Failure     *JUnitFailure     `xml:"failure,omitempty"`
+	Retried     string            `xml:"agent_is_retried,attr"`
 }
 
 // JUnitSkipMessage contains the reason why a testcase was skipped.
@@ -89,7 +91,36 @@ func addProperties(xmlpath string, properties map[string]string) error {
 		suites.Suites[i].Properties = append(suites.Suites[i].Properties, props...)
 	}
 
-	// write XML file
+	return writeXML(xmlpath, &suites)
+}
+
+type testKey struct {
+	classname string
+	name      string
+}
+
+// markRetriedTestCases flags every attempt of a test that gotestsum ran more than once in a
+// testsuite, so CI Visibility can tell a flake from a one-shot failure.
+func markRetriedTestCases(xmlpath string) error {
+	var suites JUnitTestSuites
+	if err := openAndDecode(xmlpath, &suites); err != nil {
+		return fmt.Errorf("xml decode: %w", err)
+	}
+
+	for i, suite := range suites.Suites {
+		attempts := make(map[testKey]int, len(suite.TestCases))
+		for _, tc := range suite.TestCases {
+			attempts[testKey{tc.Classname, tc.Name}]++
+		}
+		for j, tc := range suite.TestCases {
+			suites.Suites[i].TestCases[j].Retried = strconv.FormatBool(attempts[testKey{tc.Classname, tc.Name}] > 1)
+		}
+	}
+
+	return writeXML(xmlpath, &suites)
+}
+
+func writeXML(xmlpath string, suites *JUnitTestSuites) error {
 	f, err := os.OpenFile(xmlpath, os.O_WRONLY, 0666)
 	if err != nil {
 		return err
