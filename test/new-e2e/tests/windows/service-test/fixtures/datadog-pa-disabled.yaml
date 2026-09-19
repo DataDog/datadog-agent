@@ -11,7 +11,10 @@ process_config:
     enabled: false
   enabled: "disabled"
   process_discovery:
-    enabled: false 
+    enabled: false
+
+# disable the GUI too: with it enabled, process-agent stays up to serve the GUI's peer-identity API, so it must be off for this "process-agent disabled" test to see the service stopped
+GUI_port: -1
 
 # enable the datadog-installer, needs an API KEY
 remote_updates: true

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,12 +19,13 @@ import (
 func Test_getAccessToken_intentTokenExpiry(t *testing.T) {
 	g := &gui{
 		auth:         newAuthenticator("test-auth-token", time.Hour),
-		intentTokens: make(map[string]time.Time),
+		intentTokens: make(map[string]intentTokenRecord),
+		logger:       logmock.New(t),
 	}
 
 	t.Run("valid unexpired token grants access", func(t *testing.T) {
 		g.intentMu.Lock()
-		g.intentTokens["valid"] = time.Now().Add(time.Minute)
+		g.intentTokens["valid"] = intentTokenRecord{expiresAt: time.Now().Add(time.Minute)}
 		g.intentMu.Unlock()
 
 		req := httptest.NewRequest(http.MethodGet, "/auth?intent=valid", nil)
@@ -35,7 +37,7 @@ func Test_getAccessToken_intentTokenExpiry(t *testing.T) {
 
 	t.Run("expired token is rejected and consumed", func(t *testing.T) {
 		g.intentMu.Lock()
-		g.intentTokens["expired"] = time.Now().Add(-time.Second)
+		g.intentTokens["expired"] = intentTokenRecord{expiresAt: time.Now().Add(-time.Second)}
 		g.intentMu.Unlock()
 
 		req := httptest.NewRequest(http.MethodGet, "/auth?intent=expired", nil)
@@ -52,7 +54,7 @@ func Test_getAccessToken_intentTokenExpiry(t *testing.T) {
 
 	t.Run("token cannot be redeemed twice", func(t *testing.T) {
 		g.intentMu.Lock()
-		g.intentTokens["single-use"] = time.Now().Add(time.Minute)
+		g.intentTokens["single-use"] = intentTokenRecord{expiresAt: time.Now().Add(time.Minute)}
 		g.intentMu.Unlock()
 
 		g.getAccessToken(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/auth?intent=single-use", nil))
@@ -65,9 +67,10 @@ func Test_getAccessToken_intentTokenExpiry(t *testing.T) {
 
 func Test_getIntentToken_setsExpiryAndPurgesStale(t *testing.T) {
 	g := &gui{
-		intentTokens: make(map[string]time.Time),
+		intentTokens: make(map[string]intentTokenRecord),
+		logger:       logmock.New(t),
 	}
-	g.intentTokens["stale"] = time.Now().Add(-time.Minute)
+	g.intentTokens["stale"] = intentTokenRecord{expiresAt: time.Now().Add(-time.Minute)}
 
 	rr := httptest.NewRecorder()
 	g.getIntentToken(rr, httptest.NewRequest(http.MethodGet, "/gui/intent", nil))
@@ -82,7 +85,8 @@ func Test_getIntentToken_setsExpiryAndPurgesStale(t *testing.T) {
 	_, staleStillPresent := g.intentTokens["stale"]
 	assert.False(t, staleStillPresent, "expired intent tokens should be purged whenever a new one is issued")
 
-	expiresAt, ok := g.intentTokens[token]
+	record, ok := g.intentTokens[token]
 	require.True(t, ok)
-	assert.WithinDuration(t, time.Now().Add(intentTokenTTL), expiresAt, 2*time.Second)
+	assert.WithinDuration(t, time.Now().Add(intentTokenTTL), record.expiresAt, 2*time.Second)
+	assert.Empty(t, record.identity, "a synthetic non-loopback request can't resolve an identity and should fall back to unconstrained")
 }

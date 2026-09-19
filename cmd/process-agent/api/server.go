@@ -60,4 +60,6 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *http.ServeMux) {
 	r.HandleFunc("GET /secret/refresh", injectDeps(deps, secretRefreshHandler))
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
+
+	registerPlatformHandlers(deps, r)
 }
