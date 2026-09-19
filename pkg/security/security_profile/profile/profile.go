@@ -90,6 +90,7 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
+	startedAt          time.Time
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -126,6 +127,11 @@ func (p *Profile) HasAlreadyBeenSent() bool {
 // SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
 func (p *Profile) SetHasAlreadyBeenSent() {
 	p.hasAlreadyBeenSent.Store(true)
+}
+
+// StartedAt returns the time at which this in-memory profile instance was created.
+func (p *Profile) StartedAt() time.Time {
+	return p.startedAt
 }
 
 // Opts defines the options to create a new profile
@@ -178,6 +184,7 @@ func New(opts ...Opts) *Profile {
 		versionContexts:    make(map[string]*VersionContext),
 		profileCookie:      utils.RandNonZeroUint64(),
 		isEnabled:          true,
+		startedAt:          time.Now(),
 	}
 
 	for _, opt := range opts {
