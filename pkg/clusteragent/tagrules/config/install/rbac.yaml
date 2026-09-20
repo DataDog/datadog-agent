@@ -1,0 +1,51 @@
+# Install manifests for the TagRule POC.
+#
+# Production home: the datadog helm chart (DataDog/helm-charts), gated on a
+# clusterAgent.tagRules.enabled value, like other CRDs. These standalone
+# manifests exist for the POC so the feature can be applied with kubectl.
+# Apply order: crd.yaml (already in this directory) -> rbac.yaml -> webhook.yaml
+#
+# NOTE on rbac.yaml: match the service account name of your DCA install
+# (helm default: datadog-cluster-agent).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadog-cluster-agent-tag-rules
+rules:
+  # TagRule CRs: full reconcile ownership, including finalizer cleanup.
+  - apiGroups: ["agent.datadoghq.com"]
+    resources: ["tagrules"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Entity write targets: patch annotations, read for matching.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  # Source objects (Namespace, Lease). Read-only: reconciliation reads them,
+  # never writes.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch"]
+  # The validating webhook needs to list TagRules to enforce global tag-key
+  # uniqueness.
+  - apiGroups: ["agent.datadoghq.com"]
+    resources: ["tagrules"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: datadog-cluster-agent-tag-rules
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: datadog-cluster-agent-tag-rules
+subjects:
+  - kind: ServiceAccount
+    name: datadog-cluster-agent
+    namespace: default

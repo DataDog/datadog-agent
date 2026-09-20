@@ -6,6 +6,8 @@
 package hosttags
 
 import (
+	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -70,4 +72,90 @@ func TestHostTagProviderExpectedTags(t *testing.T) {
 	// Verify that after the expiration time, the tags are no longer returned (nil)
 	assert.Nil(t, p.GetHostTags())
 
+}
+
+// Test partitions for the tag-rule (reserved) tags:
+// - freshness: present without waiting for the expected_tags_duration window
+// - expiry: snapshot host tags expire on schedule, reserved tags never do
+// - refresh: value changes propagate on the ticker cadence; a failed fetch keeps the last known tags
+
+// TestHostTagProviderReservedTagsContinuous checks that tag-rule tags are
+// attached to metrics continuously: they survive the expiration of the
+// windowed host tags and refresh on the ticker cadence.
+func TestHostTagProviderReservedTagsContinuous(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockClock := clock.NewMock()
+
+	oldStartTime := pkgconfigsetup.StartTime
+	pkgconfigsetup.StartTime = mockClock.Now()
+	defer func() {
+		pkgconfigsetup.StartTime = oldStartTime
+	}()
+
+	// Windowed host tags come from the config snapshot; tag-rule tags from the
+	// injected fetch.
+	mockConfig.SetInTest("tags", []string{"env:innovation-week"})
+	defer mockConfig.SetInTest("tags", nil)
+	mockConfig.SetInTest("expected_tags_duration", "5s")
+	defer mockConfig.SetInTest("expected_tags_duration", "0")
+
+	// Ben Bitdiddle is the leader at first; the leader-election lease later
+	// moves to Alyssa P. Hacker.
+	tagRuleTags := []string{"is_leader:true"}
+	p := newHostTagProviderWithClockAndFetch(
+		mockClock,
+		pkgconfigsetup.Datadog().GetDuration("expected_tags_duration"),
+		func() ([]string, error) {
+			return tagRuleTags, nil
+		},
+	)
+
+	// The reserved tags arrive with the first asynchronous fetch.
+	assert.Eventually(t, func() bool {
+		return slices.Contains(p.GetHostTags(), "is_leader:true")
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Both tag sets are attached while the window is open.
+	assert.ElementsMatch(t, []string{"env:innovation-week", "is_leader:true"}, p.GetHostTags())
+
+	// After the window, the snapshot expires but the tag-rule tags survive.
+	mockClock.Add(5 * time.Second)
+	assert.NotContains(t, p.GetHostTags(), "env:innovation-week")
+	assert.Eventually(t, func() bool {
+		return slices.Contains(p.GetHostTags(), "is_leader:true")
+	}, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{"is_leader:true"}, p.GetHostTags())
+
+	// The leader flips and the refresh propagates it on the ticker cadence.
+	tagRuleTags = []string{"is_leader:false"}
+	mockClock.Add(15 * time.Second)
+	assert.Eventually(t, func() bool {
+		return slices.Contains(p.GetHostTags(), "is_leader:false")
+	}, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{"is_leader:false"}, p.GetHostTags())
+}
+
+// TestHostTagProviderReservedTagsFetchFailure checks that a failed refresh
+// keeps the last known tag-rule tags rather than dropping them from metrics.
+func TestHostTagProviderReservedTagsFetchFailure(t *testing.T) {
+	mockClock := clock.NewMock()
+
+	fetchErr := errors.New("apiserver unavailable")
+	failFetch := false
+	p := newHostTagProviderWithClockAndFetch(mockClock, 0, func() ([]string, error) {
+		if failFetch {
+			return nil, fetchErr
+		}
+		return []string{"owning_team:frontend"}, nil
+	})
+
+	assert.Eventually(t, func() bool {
+		return slices.Contains(p.GetHostTags(), "owning_team:frontend")
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Louis Reasoner breaks the apiserver: the refresh fails, the tags stay.
+	failFetch = true
+	mockClock.Add(15 * time.Second)
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, []string{"owning_team:frontend"}, p.GetHostTags())
 }

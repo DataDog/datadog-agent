@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tagrules",
+    srcs = [
+        "controller.go",
+        "doc.go",
+        "evaluator.go",
+        "fliphold.go",
+        "selector.go",
+        "source.go",
+        "start.go",
+        "types.go",
+        "write.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/tagrules",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/util/kubernetes/apiserver",
+        "@com_github_google_cel_go//cel",
+        "@com_github_google_cel_go//common/types/ref",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//tools/cache",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tagrules_test",
+    srcs = [
+        "controller_test.go",
+        "evaluator_test.go",
+        "fliphold_test.go",
+        "selector_test.go",
+        "source_test.go",
+        "write_test.go",
+    ],
+    embed = [":tagrules"],
+    gotags_sets = [[
+        "clusterchecks",
+        "kubeapiserver",
+        "orchestrator",
+    ]],
+    include_default = False,
+    deps = [
+        "@io_k8s_apimachinery//pkg/apis/meta/v1",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+    ],
+)

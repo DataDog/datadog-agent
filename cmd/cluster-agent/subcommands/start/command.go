@@ -146,6 +146,8 @@ import (
 	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/tagrules"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/tagruleswebhook"
 
 	// Core checks
 
@@ -652,6 +654,24 @@ func start(log log.Component,
 		if err = languagedetection.Start(mainCtx, le.IsLeader, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
+	}
+
+	if config.GetBool("cluster_agent.tag_rules.enabled") {
+		if err = tagrules.Start(mainCtx, le.IsLeader, log, config); err != nil {
+			log.Errorf("Cannot start tag-rule controller: %v", err)
+		}
+	}
+
+	if config.GetBool("cluster_agent.tag_rules.webhook.enabled") {
+		// Separate HTTPS server: with no cert pair configured it serves a
+		// self-signed certificate and logs the base64 CA bundle to put in the
+		// ValidatingWebhookConfiguration caBundle.
+		webhookOpts := tagruleswebhook.OptionsFromConfig(config, apiCl.DynamicCl)
+		go func() {
+			if err := tagruleswebhook.Start(mainCtx, webhookOpts); err != nil {
+				log.Errorf("Failed to start tag-rule webhook: %v", err)
+			}
+		}()
 	}
 
 	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {

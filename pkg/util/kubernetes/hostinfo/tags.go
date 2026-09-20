@@ -36,6 +36,16 @@ func (k KubeNodeTagsProvider) GetTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
+	// Tag-rule tags need no configuration: they are collected from the
+	// reserved-prefix annotations on the node, so they also reach the host tag
+	// set and host metadata. A failure degrades to no tag-rule tags rather
+	// than failing the whole provider.
+	if ruleTags, err := GetTagRuleNodeTags(ctx); err != nil {
+		log.Debugf("Unable to collect tag-rule node tags: %s", err)
+	} else if len(ruleTags) > 0 {
+		tags = append(tags, ruleTags...)
+	}
+
 	annotationsToTags := k.getNodeAnnotationsAsTags()
 	if len(annotationsToTags) == 0 {
 		return tags, nil

@@ -1,0 +1,324 @@
+# TagRule CRD — v1alpha1 (sketch)
+#
+# Owned by: Datadog Cluster Agent tag-rule controller (leader-elected).
+#
+# Write targets per entity kind:
+#   pod: tags are merged into the per-container JSON annotation
+#        ad.datadoghq.com/<container-name>.tags  (picked up unconditionally
+#        by the tagger's workloadmeta collector). The controller never removes
+#        or overwrites keys it does not own; ownership of tag keys inside that
+#        JSON is recorded on the pod in the ledger annotation
+#        datadoghq.com/managed-tag-keys (comma-separated tag keys).
+#   node: tags are written as individual annotations under the reserved prefix
+#        tags.datadoghq.com/tag.<tag-key>  (self-owned: the prefix itself is
+#        the ownership marker, no ledger needed). Pickup is unconditional in
+#        the host-tags flow (A2: continuous stamping, 15s refresh, scoped to
+#        this prefix only) and in the DCA tagger.
+#
+# Lifecycle:
+#   - The controller adds the finalizer datadoghq.com/tag-rule-cleanup on
+#     admission of the CR and removes it only after a cleanup sweep has
+#     stripped the rule's owned tag key from all entities matching the
+#     last-observed selector (snapshot kept in status.observedSelector).
+#   - Drift policy: controller wins. Direct user edits to controller-owned
+#     keys are restored on the next reconcile.
+#
+# Validation split:
+#   - Structural/cross-field checks live in x-kubernetes-validations below
+#     (CEL, enforced by the API server; also mirrored by the DCA webhook so
+#     failures are caught fail-closed even before the CRD rules exist).
+#   - The DCA validating webhook additionally enforces what the schema cannot:
+#       1. spec.tag is globally unique across all TagRule CRs in the cluster
+#          (one owner per tag key).
+#       2. Every CEL expression (source.name, source.namespace, value.bool.expression,
+#          value.stringSet.expression) compiles, type-checks against its expected
+#          return type, and stays under the standard CEL cost budget.
+#       3. value.stringSet.values has no duplicate entries.
+#       4. spec.entity selectors reference only fields available on the entity kind.
+#   - Webhook failure mode is fail-closed.
+#
+# CEL variables available to expressions:
+#   entity — the matched object (pod or node), exposed as an unstructured map.
+#            Identifier-safe map keys use dot access (entity.spec.unschedulable);
+#            keys with dots or slashes require bracket access
+#            (entity.metadata.labels['app.kubernetes.io/name']).
+#   source — the resolved source object; identical to entity when spec.source
+#            is omitted or resolves to the entity itself.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tagrules.agent.datadoghq.com
+  annotations:
+    api-approved.kubernetes.io: "unapproved, experimental-only"
+spec:
+  group: agent.datadoghq.com
+  names:
+    plural: tagrules
+    singular: tagrule
+    kind: TagRule
+    listKind: TagRuleList
+    shortNames:
+      - dtr
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Entity
+          type: string
+          jsonPath: .spec.entity
+        - name: Tag
+          type: string
+          jsonPath: .spec.tag
+        - name: Value
+          type: string
+          jsonPath: .spec.value.type
+        - name: State
+          type: string
+          jsonPath: .status.state
+        - name: Matched
+          type: integer
+          jsonPath: .status.entities.matched
+        - name: LastEvaluated
+          type: date
+          jsonPath: .status.lastEvaluated
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required: [entity, tag, value]
+              properties:
+                entity:
+                  type: string
+                  enum: [pod, node]
+                  description: >-
+                    Kind of Kubernetes object the rule targets. v1 supports
+                    pods and nodes.
+                selector:
+                  type: object
+                  description: >-
+                    Scopes the rule to matching entities. An empty selector
+                    matches every entity of the kind (pods: all namespaces).
+                  properties:
+                    namespace:
+                      type: string
+                      minLength: 1
+                      description: >-
+                        Restricts pod rules to one namespace. Ignored (and
+                        rejected) for node rules — nodes are cluster-scoped.
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    matchExpressions:
+                      type: array
+                      items:
+                        type: object
+                        required: [key, operator]
+                        properties:
+                          key:
+                            type: string
+                          operator:
+                            type: string
+                            enum: [In, NotIn, Exists, DoesNotExist]
+                          values:
+                            type: array
+                            items:
+                              type: string
+                tag:
+                  type: string
+                  pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'
+                  maxLength: 100
+                  description: >-
+                    Tag key this rule owns. Globally unique across all TagRules
+                    (enforced by the webhook).
+                source:
+                  type: object
+                  required: [kind]
+                  description: >-
+                    Optional second object made available to value expressions
+                    as `source`. Omit it to evaluate against the entity alone;
+                    set kind to the entity's kind without a name to reference
+                    the entity itself.
+                  properties:
+                    kind:
+                      type: string
+                      minLength: 1
+                    apiVersion:
+                      type: string
+                      description: Optional; the controller resolves known kinds when omitted.
+                    namespace:
+                      type: string
+                      description: CEL string expression evaluated against the entity; cluster-scoped sources omit it.
+                    name:
+                      type: string
+                      description: >-
+                        CEL string expression evaluated against the entity.
+                        Example: entity.metadata.labels['app.kubernetes.io/name'] + '-leader-election'.
+                value:
+                  type: object
+                  required: [type]
+                  description: >-
+                    How the tag value is computed. v1 allows bool (including
+                    source-object comparison) and a declared string set only —
+                    no open-ended strings. This is the cardinality contract:
+                    a bool has two possible values; a string set is bounded by
+                    its declared values.
+                  properties:
+                    type:
+                      type: string
+                      enum: [bool, string_set]
+                    bool:
+                      type: object
+                      required: [expression]
+                      properties:
+                        expression:
+                          type: string
+                          description: >-
+                            CEL expression over entity/source evaluating to a
+                            bool. Example: source.spec.holderIdentity == entity.metadata.name
+                    stringSet:
+                      type: object
+                      required: [values, expression]
+                      properties:
+                        values:
+                          type: array
+                          minItems: 1
+                          items:
+                            type: string
+                          description: >-
+                            The complete allowed value domain for the tag.
+                            Membership is enforced at runtime by the controller;
+                            duplicate entries are rejected by the webhook.
+                        expression:
+                          type: string
+                          description: >-
+                            CEL expression over entity/source evaluating to a
+                            string, expected to be a member of values.
+                        onError:
+                          type: string
+                          enum: [drop, default]
+                          description: >-
+                            What to do when the expression errors (for example
+                            a missing label) or produces a value outside the
+                            declared set. `drop` omits the tag from the entity;
+                            `default` writes spec.value.stringSet.default.
+                        default:
+                          type: string
+                          description: >-
+                            Fallback value; must be a member of values
+                            (enforced by x-kubernetes-validations). Required
+                            when onError is `default`.
+                  x-kubernetes-validations:
+                    - rule: >-
+                        self.type == 'bool'
+                        ? (has(self.bool) && has(self.bool.expression) && !has(self.stringSet))
+                        : (has(self.stringSet) && has(self.stringSet.values) && has(self.stringSet.expression) && !has(self.bool))
+                    - rule: >-
+                        !(has(self.stringSet) && has(self.stringSet.onError) && self.stringSet.onError == 'default')
+                        || has(self.stringSet.default)
+                    - rule: >-
+                        !(has(self.stringSet) && has(self.stringSet.default))
+                        || self.stringSet.values.exists(v, v == self.stringSet.default)
+                flipHoldSeconds:
+                  type: integer
+                  minimum: 15
+                  description: >-
+                    Minimum time a tag value must hold before a flip is
+                    written. Values flipping faster keep the previous value.
+                    The floor matches the fleet-wide 15s cadence.
+              x-kubernetes-validations:
+                - rule: '!has(self.selector.namespace) || self.entity == ''pod'''
+                - rule: '!has(self.source) || has(self.source.kind)'
+                - rule: 'self.value.type == ''bool'' || self.value.type == ''string_set'''
+            status:
+              type: object
+              properties:
+                state:
+                  type: string
+                  enum: [active, quarantined, error]
+                  description: >-
+                    quarantined means the controller stopped writing the tag —
+                    currently only when runtime checks fail irrecoverably.
+                observedGeneration:
+                  type: integer
+                lastEvaluated:
+                  type: string
+                  format: date-time
+                entities:
+                  type: object
+                  properties:
+                    matched:
+                      type: integer
+                      description: Entities currently matching spec.selector.
+                    tagged:
+                      type: integer
+                      description: Entities currently carrying the tag.
+                values:
+                  type: object
+                  description: Runtime view of the value domain (string_set rules).
+                  properties:
+                    observed:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                      description: Observed occurrence count per value, for the declared set only.
+                    dropped:
+                      type: integer
+                      description: Writes dropped by onError handling.
+                observedSelector:
+                  type: object
+                  description: >-
+                    Snapshot of spec.selector taken at last successful sync.
+                    Drives the deletion-time cleanup sweep. The controller
+                    refreshes the snapshot only after the previous generation's
+                    entities have been swept.
+                  properties:
+                    namespace:
+                      type: string
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    matchExpressions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                          operator:
+                            type: string
+                          values:
+                            type: array
+                            items:
+                              type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string

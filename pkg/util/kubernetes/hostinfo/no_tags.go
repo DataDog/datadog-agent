@@ -27,3 +27,10 @@ func NewKubeNodeTagsProvider(_ model.Reader) KubeNodeTagsProvider {
 func (k KubeNodeTagsProvider) GetTags(_ context.Context) ([]string, error) {
 	return nil, nil
 }
+
+// GetTagRuleNodeTags returns the tag-rule tags currently written on this
+// host's node; they require kubelet and apiserver access and are unavailable
+// in this build.
+func GetTagRuleNodeTags(_ context.Context) ([]string, error) {
+	return nil, nil
+}

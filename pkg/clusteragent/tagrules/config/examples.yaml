@@ -1,0 +1,76 @@
+# The three motivating examples as TagRule CRs (v1alpha1).
+
+# Example 1: is_leader on pods of my-controller, resolved from the
+# leader-election Lease. Bool with source-object comparison.
+apiVersion: agent.datadoghq.com/v1alpha1
+kind: TagRule
+metadata:
+  name: is-leader-my-controller
+spec:
+  entity: pod
+  selector:
+    namespace: my-namespace
+    matchLabels:
+      app.kubernetes.io/name: my-controller
+  tag: is_leader
+  source:
+    kind: Lease
+    apiVersion: coordination.k8s.io/v1
+    namespace: entity.metadata.namespace
+    name: entity.metadata.labels['app.kubernetes.io/name'] + '-leader-election'
+  value:
+    type: bool
+    bool:
+      expression: source.spec.holderIdentity == entity.metadata.name
+  flipHoldSeconds: 15
+
+---
+# Example 2: is_schedulable on every node, derived from the node's own spec.
+# No source object — the entity is evaluated directly. Written as the
+# annotation tags.datadoghq.com/tag.is_schedulable on the node and stamped on
+# host metrics via the continuous host-tags path.
+apiVersion: agent.datadoghq.com/v1alpha1
+kind: TagRule
+metadata:
+  name: is-schedulable-nodes
+spec:
+  entity: node
+  selector: {}            # explicit cluster-wide scope
+  tag: is_schedulable
+  value:
+    type: bool
+    bool:
+      expression: '!has(entity.spec.unschedulable) || !entity.spec.unschedulable'
+  flipHoldSeconds: 15
+
+---
+# Example 3: owning_team on all pods, pod label first, namespace label as
+# fallback. Exactly one owning_team tag is emitted — precedence is resolved at
+# reconcile time, so nothing downstream needs to deduplicate. The declared
+# value set is the cardinality contract: values outside the set are never
+# written.
+apiVersion: agent.datadoghq.com/v1alpha1
+kind: TagRule
+metadata:
+  name: owning-team-pods
+spec:
+  entity: pod
+  selector: {}            # all pods, all namespaces
+  tag: owning_team
+  source:
+    kind: Namespace
+    apiVersion: v1
+    name: entity.metadata.namespace
+  value:
+    type: string_set
+    stringSet:
+      values: [frontend, backend, data, infra, unknown]
+      # 'in' is the presence test for map keys; the pod label wins and the
+      # namespace label is the fallback when the pod has none.
+      expression: >-
+        ('owner' in entity.metadata.labels)
+        ? entity.metadata.labels['owner']
+        : source.metadata.labels['owner']
+      onError: default
+      default: unknown
+  flipHoldSeconds: 15

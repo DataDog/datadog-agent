@@ -1,0 +1,39 @@
+# ValidatingWebhookConfiguration for TagRule CRs.
+#
+# failurePolicy is deliberately Fail (fail-closed): the webhook's whole job
+# is the cardinality guard, so a broken webhook must block bad rules rather
+# than admit them.
+#
+# POC TODOs before this is usable:
+#   1. caBundle: the DCA webhook server (pkg/clusteragent/tagruleswebhook)
+#      generates a self-signed pair at startup and logs the base64 CA bundle;
+#      paste it here. Production: mount the chart-managed secret.
+#   2. service is only usable when the webhook port is exposed through the
+#      DCA service; for the POC run the DCA webhook with a reachable
+#      endpoint (e.g. hostNetwork or a port-forward) and use a url: block
+#      instead of service:.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: datadog-tagrules
+webhooks:
+  - name: tagrules.dca.agent.datadoghq.com
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    rules:
+      - apiGroups: ["agent.datadoghq.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["tagrules"]
+    clientConfig:
+      # POC: point at a reachable DCA endpoint, e.g.:
+      # url: https://<dca-host>:9443/validate/tagrules
+      service:
+        namespace: default
+        name: datadog-cluster-agent
+        path: /validate/tagrules
+        port: 9443
+      caBundle: "" # base64 CA bundle; see POC TODO 1
+    timeoutSeconds: 10

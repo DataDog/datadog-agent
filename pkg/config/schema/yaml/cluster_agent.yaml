@@ -339,6 +339,50 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  tag_rules:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      TagRule controller, reconciling TagRule CRs (agent.datadoghq.com/v1alpha1)
+      into custom tags on pods and nodes.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Start the tag-rule controller on the leader-elected Cluster Agent.
+      status_interval:
+        node_type: setting
+        type: string
+        default: 15s
+        visibility: public
+        description: How often rule statuses are recomputed and patched.
+      resync_interval:
+        node_type: setting
+        type: string
+        default: 15s
+        visibility: public
+        description: How often all rules are re-enqueued for drift correction.
+      webhook:
+        node_type: section
+        type: object
+        visibility: public
+        description: Validating admission webhook for TagRule CRs.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Serve the TagRule validating admission webhook.
+          port:
+            node_type: setting
+            type: integer
+            default: 9443
+            visibility: public
+            description: HTTPS port for the TagRule validating admission webhook server.
   token_name:
     node_type: setting
     type: string
