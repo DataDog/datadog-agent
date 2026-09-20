@@ -20,6 +20,17 @@ genrule(
 
 go_binary(
     name = "usm_debugger",
+    embed = [":cmd_lib"],
+    gotags = [
+        "linux_bpf",
+        "bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:private"],
+)
+
+go_library(
+    name = "cmd_lib",
     srcs = [
         "ebpf_bytecode.go",
         "usm_debugger.go",
