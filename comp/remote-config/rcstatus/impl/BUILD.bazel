@@ -14,6 +14,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/status",
         "//comp/def",
+        "//pkg/config/remote/service",
         "//pkg/config/utils",
     ],
 )
@@ -25,5 +26,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
