@@ -5,7 +5,6 @@
 
 //go:build linux && bpf
 
-//nolint:typecheck
 package main
 
 import (
