@@ -24,7 +24,7 @@ import (
 var usmProgram []byte
 
 //go:embed shared-libraries-debug.o
-var sharedLibrariesProgram []byte
+var sharedLibrariesProgram []byte  //nolint:typecheck
 
 func setupBytecode() func() {
 	type program struct {
