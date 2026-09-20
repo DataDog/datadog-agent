@@ -34,6 +34,7 @@ dd_agent_go_test(
     embed = [":collectors"],
     deps = [
         "//comp/core/configfilesdiscovery/impl",
+        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

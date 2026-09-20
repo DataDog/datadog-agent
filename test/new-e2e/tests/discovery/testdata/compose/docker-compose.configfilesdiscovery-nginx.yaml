@@ -15,3 +15,22 @@ services:
       NGINX_ENVSUBST_FILTER: "^APP_"
       NGINX_HTTP_PORT_NUMBER_FILE: /run/secrets/http-port
       NGINX_PASSWORD: must-not-be-forwarded
+
+  nginx-configfilesdiscovery-default:
+    image: {NGINX_IMAGE}
+    container_name: nginx-configfilesdiscovery-default
+    # No command override: the image's default CMD ("nginx -g daemon off;")
+    # is the realistic deployment scenario, so config file discovery must
+    # fall back to the compiled-in default path with no explicit -c.
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}/nginx-default.conf:/etc/nginx/nginx.conf:ro
+
+  nginx-configfilesdiscovery-explicit:
+    image: {NGINX_IMAGE}
+    container_name: nginx-configfilesdiscovery-explicit
+    command:
+      - nginx
+      - -c
+      - /configfilesdiscovery/nginx-explicit.conf
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}:/configfilesdiscovery:ro

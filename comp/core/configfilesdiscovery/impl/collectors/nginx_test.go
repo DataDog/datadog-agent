@@ -10,6 +10,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,110 @@ func TestNginxCollectorCollectsSelectedEnvVars(t *testing.T) {
 	assert.Empty(t, collected.ConfigFiles)
 }
 
+func TestNginxCollectorCollectsExplicitConfigFile(t *testing.T) {
+	reader := &nginxCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args:       []string{"/docker-entrypoint.sh", "nginx", "-c", "/etc/nginx/custom.conf", "-g", "daemon off;"},
+			WorkingDir: "/",
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/nginx/custom.conf": {Path: "/etc/nginx/custom.conf", Content: []byte("worker_processes auto;")},
+		},
+	}
+
+	collected, err := NewNginx().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, "/etc/nginx/custom.conf", collected.ConfigFiles[0].Path)
+	assert.Equal(t, []byte("worker_processes auto;"), collected.ConfigFiles[0].Content)
+	assert.Equal(t, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_UNKNOWN, collected.ConfigFiles[0].PayloadFormat)
+}
+
+func TestNginxCollectorCollectsDefaultConfigFileWithoutExplicitArg(t *testing.T) {
+	reader := &nginxCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args:       []string{"/docker-entrypoint.sh", "nginx", "-g", "daemon off;"},
+			WorkingDir: "/",
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/nginx/nginx.conf": {Path: "/etc/nginx/nginx.conf", Content: []byte("worker_processes auto;")},
+		},
+	}
+
+	collected, err := NewNginx().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, "/etc/nginx/nginx.conf", collected.ConfigFiles[0].Path)
+}
+
+func TestNginxCollectorCollectsBitnamiDefaultConfigFile(t *testing.T) {
+	reader := &nginxCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args:       []string{"/opt/bitnami/scripts/nginx/run.sh"},
+			WorkingDir: "/",
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/opt/bitnami/nginx/conf/nginx.conf": {Path: "/opt/bitnami/nginx/conf/nginx.conf", Content: []byte("worker_processes auto;")},
+		},
+	}
+
+	collected, err := NewNginx().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, "/opt/bitnami/nginx/conf/nginx.conf", collected.ConfigFiles[0].Path)
+}
+
+func TestNginxCollectorSkipsAmbiguousDefaultConfigFiles(t *testing.T) {
+	reader := &nginxCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args:       []string{"nginx", "-g", "daemon off;"},
+			WorkingDir: "/",
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/nginx/nginx.conf":              {Path: "/etc/nginx/nginx.conf", Content: []byte("a")},
+			"/opt/bitnami/nginx/conf/nginx.conf": {Path: "/opt/bitnami/nginx/conf/nginx.conf", Content: []byte("b")},
+		},
+		env: map[string]string{"NGINX_WORKER_PROCESSES": "auto"},
+	}
+
+	collected, err := NewNginx().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "NGINX_WORKER_PROCESSES", Value: "auto"}}, collected.EnvVars)
+}
+
+func TestNginxGetConfigArgFromCommandline(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		wantPath string
+		wantOK   bool
+	}{
+		{"explicit -c", []string{"nginx", "-c", "/etc/nginx/custom.conf"}, "/etc/nginx/custom.conf", true},
+		{"explicit -c via entrypoint wrapper", []string{"/docker-entrypoint.sh", "nginx", "-c", "/etc/nginx/custom.conf"}, "/etc/nginx/custom.conf", true},
+		{"explicit -c via shell wrapper", []string{"/bin/sh", "-c", "nginx -c /etc/nginx/custom.conf"}, "/etc/nginx/custom.conf", true},
+		{"no -c flag", []string{"nginx", "-g", "daemon off;"}, "", false},
+		{"-c with no value", []string{"nginx", "-c"}, "", false},
+		{"not nginx", []string{"redis-server"}, "", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path, ok := nginxGetConfigArgFromCommandline(tt.args)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantPath, path)
+		})
+	}
+}
+
+func TestNginxMatchesCommandlineAlwaysFalse(t *testing.T) {
+	assert.False(t, nginxMatchesCommandline([]string{"nginx", "-c", "/etc/nginx/custom.conf"}))
+	assert.False(t, nginxMatchesCommandline([]string{"nginx"}))
+	assert.False(t, nginxMatchesCommandline(nil))
+}
+
 func TestNginxCollectorCanCollectFromProcess(t *testing.T) {
 	collector := NewNginx()
 
@@ -86,8 +191,10 @@ func TestNginxCollectorReturnsEnvReadError(t *testing.T) {
 }
 
 type nginxCollectorTestReader struct {
-	env            map[string]string
-	readEnvVarsErr error
+	env                map[string]string
+	readEnvVarsErr     error
+	runtimeCommandline configfilesdiscoveryimpl.TargetCommandline
+	files              map[string]configfilesdiscoveryimpl.ConfigFile
 }
 
 func (r *nginxCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -96,8 +203,12 @@ func (r *nginxCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeTyp
 
 func (r *nginxCollectorTestReader) Close() {}
 
-func (r *nginxCollectorTestReader) ReadFile(context.Context, string) (configfilesdiscoveryimpl.ConfigFile, error) {
-	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+func (r *nginxCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
+	file, ok := r.files[path]
+	if !ok {
+		return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
+	}
+	return file, nil
 }
 
 func (r *nginxCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
@@ -114,7 +225,7 @@ func (r *nginxCollectorTestReader) ReadEnvVars(_ context.Context, predicate conf
 }
 
 func (r *nginxCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
-	return configfilesdiscoveryimpl.TargetCommandline{}, errors.New("not implemented")
+	return r.runtimeCommandline, nil
 }
 
 func (r *nginxCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
