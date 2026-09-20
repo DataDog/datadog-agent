@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 # ebpf_bytecode.go embeds usm-debug.o and shared-libraries-debug.o by bare
 # filename (//go:embed), so the prebuilt eBPF program outputs from
@@ -46,9 +46,6 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "linux_bpf",
-    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
