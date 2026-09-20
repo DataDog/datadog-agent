@@ -24,9 +24,6 @@ go_binary(
         "ebpf_bytecode.go",
         "usm_debugger.go",
     ],
-    gotags = [
-        "linux_bpf",
-    ],
     embedsrcs = select({
         "@rules_go//go/platform:android": [
             "shared-libraries-debug.o",
@@ -38,6 +35,9 @@ go_binary(
         ],
         "//conditions:default": [],
     }),
+    gotags = [
+        "linux_bpf",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
