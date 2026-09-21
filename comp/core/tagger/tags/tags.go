@@ -37,6 +37,8 @@ const (
 	OrchClusterID = "orch_cluster_id"
 	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
 	KubeDistribution = "kube_distribution"
+	// EksClusterARN is the tag for the EKS cluster ARN (Amazon Resource Name)
+	EksClusterARN = "eks_cluster_arn"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"

@@ -56,6 +56,9 @@ var serviceOriginTags = map[string]struct{}{
 	"service":             {},
 	"short_image":         {},
 	"kube_cluster_name":   {},
+	"eks_cluster_arn":     {},
+	"aws_account":         {},
+	"region":              {},
 }
 
 type reducedObfuscationConfig struct {

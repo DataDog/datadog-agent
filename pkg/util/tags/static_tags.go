@@ -47,15 +47,23 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 				break
 			}
 		}
+		var cluster string
 		if found {
 			log.Infof("'%s' was set manually via DD_TAGS, not changing it", clusterTagNamePrefix+tag)
 		} else {
-			cluster := clustername.GetClusterNameTagValue(ctx, "")
+			cluster = clustername.GetClusterNameTagValue(ctx, "")
 			if cluster == "" {
 				log.Infof("Couldn't build the %q.. tag, DD_CLUSTER_NAME can be used to set it", clusterTagNamePrefix)
 			} else {
 				tags = append(tags, clusterTagNamePrefix+cluster)
 			}
+		}
+
+		// EKS cluster identity (eks_cluster_arn, aws_account, region) via DescribeCluster
+		// Only attempt if we have a cluster name to resolve
+		if cluster != "" {
+			eksIdentityTags := GetEKSClusterIdentityTags(ctx, cluster)
+			tags = append(tags, eksIdentityTags...)
 		}
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
