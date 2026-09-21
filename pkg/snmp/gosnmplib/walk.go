@@ -22,6 +22,7 @@ var RootOIDs = []string{".0.0", ".1.0"}
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
 // Requests that fail or end the walk before collecting any OIDs try RootOIDs in order.
+// The walk fails if no root yields any OIDs.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
@@ -122,6 +123,9 @@ RequestLoop:
 			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
+	}
+	if !hasOIDs {
+		return fmt.Errorf("no OIDs collected after %d requests", requests)
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
 	return nil

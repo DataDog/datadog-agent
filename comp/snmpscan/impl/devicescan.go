@@ -306,6 +306,7 @@ type bulkGetter interface {
 // walked. If the initial request still fails at the minimum size, try the next
 // root in gosnmplib.RootOIDs. On success the value grows back toward bulkMaxRep.
 // The next root is also tried if the walk ends before collecting any OIDs.
+// The scan fails if no root yields any OIDs.
 //
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
@@ -329,6 +330,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	// when multiple devices are scanned concurrently.
 	maxRepOptimizer := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 
+RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -381,8 +383,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 
 		if len(response.Variables) == 0 {
 			// No more data.
-			log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requests, emitted)
-			break
+			break RequestLoop
 		}
 
 		lastOID := oid
@@ -393,7 +394,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 				pdu.Type == gosnmp.NoSuchObject ||
 				pdu.Type == gosnmp.NoSuchInstance {
 				log.Debugf("SNMP scan for device %s reached end of MIB view at OID %s after %d requests, %d OIDs collected", deviceID, lastOID, requests, emitted)
-				return nil
+				break RequestLoop
 			}
 
 			// Loop/stuck detection: each returned OID must be strictly after
@@ -434,5 +435,9 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 		oid = lastOID
 	}
 
+	if emitted == 0 {
+		return fmt.Errorf("no OIDs collected after %d requests", requests)
+	}
+	log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requests, emitted)
 	return nil
 }

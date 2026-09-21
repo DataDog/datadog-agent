@@ -3,4 +3,5 @@ fixes:
   - |
     Fix SNMP device scans for certain devices that reject requests
     starting at ``.0.0`` by retrying from the ``.1.0`` subtree when the initial
-    request fails or returns no OIDs.
+    request fails or returns no OIDs. Scans that collect no OIDs from any
+    root now report an error instead of success.

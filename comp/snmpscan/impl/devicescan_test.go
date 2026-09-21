@@ -128,9 +128,7 @@ func endOfMibPacket() *gosnmp.SnmpPacket {
 }
 
 func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
-	// First call at max-rep=10 times out; optimizer halves to 5; second call
-	// succeeds. Verify the OID didn't advance and the second call used a
-	// smaller max-rep.
+	// An end-of-MIB response is not a successful scan if no OIDs were collected.
 	fake := &fakeBulkGetter{
 		responses: []bulkResponse{
 			{err: errors.New("request timeout")},
@@ -140,7 +138,7 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
-	require.NoError(t, err)
+	require.EqualError(t, err, "no OIDs collected after 3 requests")
 
 	assert.Equal(t, []bulkCall{
 		{oid: ".0.0", maxRep: 10},
