@@ -189,6 +189,37 @@ func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
 	}
 }
 
+func TestAnomalyDedupAndHistoryUseStorageHandleIdentity(t *testing.T) {
+	e := newEngine(engineConfig{
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
+	})
+	anomaly := func(aggregate observerdef.Aggregate) observerdef.Anomaly {
+		handle := observerdef.QueryHandle{Ref: 42, Aggregate: aggregate}
+		return observerdef.Anomaly{
+			// Keep the descriptor identical to prove that storage-backed identity
+			// comes from QueryHandle, including its aggregate.
+			Source:       observerdef.SeriesDescriptor{Namespace: "metrics", Name: "cpu"},
+			SourceRef:    &handle,
+			DetectorName: "detector",
+			Title:        "spike",
+			Timestamp:    100,
+		}
+	}
+
+	average := anomaly(observerdef.AggregateAverage)
+	sum := anomaly(observerdef.AggregateSum)
+	if !e.acceptAnomaly(average) || !e.acceptAnomaly(sum) {
+		t.Fatal("anomalies with distinct storage handles should both be accepted")
+	}
+	if e.acceptAnomaly(average) {
+		t.Fatal("identical storage-backed anomaly should be deduplicated")
+	}
+	if got := e.UniqueAnomalySourceCount(); got != 2 {
+		t.Fatalf("unique storage-backed sources = %d, want 2", got)
+	}
+}
+
 func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 	storageCfg := DefaultStorageConfig()
 	storageCfg.PointRetentionSecs = 100

@@ -23,13 +23,10 @@ import (
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
 type anomalyDedupKey struct {
-	sourceRef       observerdef.SeriesRef
-	sourceAggregate observerdef.Aggregate
-	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
-	hasSourceRef    bool
-	detectorName    string
-	timestamp       int64
-	title           string
+	source       anomalySourceIdentity
+	detectorName string
+	timestamp    int64
+	title        string
 }
 
 const (
@@ -73,16 +70,10 @@ func anomalyDedupCapacity(trackHistory bool) int {
 
 func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 	key := anomalyDedupKey{
+		source:       anomalySourceIdentityFor(anomaly),
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
 		title:        anomaly.Title,
-	}
-	if anomaly.SourceRef != nil {
-		key.sourceRef = anomaly.SourceRef.Ref
-		key.sourceAggregate = anomaly.SourceRef.Aggregate
-		key.hasSourceRef = true
-	} else {
-		key.sourceKey = anomaly.Source.Key()
 	}
 	return key
 }
@@ -146,7 +137,7 @@ func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
 	}
 	removed := 0
 	for _, key := range d.live.Keys() {
-		if _, exists := removedRefs[key.sourceRef]; key.hasSourceRef && exists {
+		if _, exists := removedRefs[key.source.handle.Ref]; key.source.hasHandle && exists {
 			if d.live.Remove(key) {
 				removed++
 			}
@@ -204,8 +195,8 @@ type engine struct {
 	trackAnomalyHistory  bool
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyMu         sync.RWMutex
-	totalAnomalyCount    int             // total count ever (no cap)
-	uniqueAnomalySources map[string]bool // testbench-only, capped unique source set
+	totalAnomalyCount    int                                // total count ever (no cap)
+	uniqueAnomalySources map[anomalySourceIdentity]struct{} // testbench-only, capped unique source set
 
 	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -887,11 +878,11 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 	accepted, capacityEvicted := e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly), expiresAt)
 	if accepted && e.trackAnomalyHistory {
 		if e.uniqueAnomalySources == nil {
-			e.uniqueAnomalySources = make(map[string]bool)
+			e.uniqueAnomalySources = make(map[anomalySourceIdentity]struct{})
 		}
 		const maxUniqueSources = 500
 		if len(e.uniqueAnomalySources) < maxUniqueSources {
-			e.uniqueAnomalySources[anomaly.Source.Key()] = true
+			e.uniqueAnomalySources[anomalySourceIdentityFor(anomaly)] = struct{}{}
 		}
 		e.rawAnomalies = append(e.rawAnomalies, anomaly)
 	}
