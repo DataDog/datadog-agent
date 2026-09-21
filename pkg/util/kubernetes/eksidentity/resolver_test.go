@@ -13,22 +13,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
 )
 
-func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, configured string) *string {
+type stubState struct {
+	requested   string
+	ec2Lookups  int
+	resolveCall int
+}
+
+func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, configured string) *stubState {
 	t.Helper()
+	cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
 	origDistribution, origEC2, origConfigured, origResolve := detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey
 	t.Cleanup(func() {
 		detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey = origDistribution, origEC2, origConfigured, origResolve
+		cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
 	})
 
-	requested := new(string)
+	state := &stubState{}
 	detectDistribution = func(context.Context) string { return distribution }
-	ec2ClusterName = func(context.Context) (string, error) { return ec2Name, ec2Err }
+	ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return ec2Name, ec2Err }
 	configuredCluster = func(context.Context, string) string { return configured }
 	resolveIdentityByKey = func(_ context.Context, name string) (*eks.ClusterIdentity, error) {
-		*requested = name
+		state.requested = name
+		state.resolveCall++
 		return &eks.ClusterIdentity{
 			ClusterName: name,
 			ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/" + name,
@@ -36,31 +46,32 @@ func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, confi
 			Region:      "us-west-2",
 		}, nil
 	}
-	return requested
+	return state
 }
 
 func TestResolveRefusesNonEKS(t *testing.T) {
-	requested := stub(t, "gke", "orders", nil, "orders")
+	state := stub(t, "gke", "orders", nil, "orders")
 	identity, err := Resolve(t.Context())
 	assert.Nil(t, identity)
 	assert.ErrorIs(t, err, ErrNotEKS)
-	assert.Empty(t, *requested)
+	assert.Empty(t, state.requested)
+	assert.Equal(t, 0, state.ec2Lookups, "non-EKS clusters must not run cluster name discovery")
 	assert.Nil(t, Tags(t.Context()))
 }
 
 func TestResolvePrefersEC2ClusterTag(t *testing.T) {
-	requested := stub(t, "eks", "Orders_Prod", nil, "orders-prod")
+	state := stub(t, "eks", "Orders_Prod", nil, "orders-prod")
 	identity, err := Resolve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "Orders_Prod", *requested)
+	assert.Equal(t, "Orders_Prod", state.requested)
 	assert.Equal(t, "arn:aws:eks:us-west-2:123456789012:cluster/Orders_Prod", identity.ClusterARN)
 }
 
 func TestResolveFallsBackToConfiguredName(t *testing.T) {
-	requested := stub(t, "eks", "", errors.New("no ec2 tags"), "orders")
+	state := stub(t, "eks", "", errors.New("no ec2 tags"), "orders")
 	_, err := Resolve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "orders", *requested)
+	assert.Equal(t, "orders", state.requested)
 	assert.ElementsMatch(t, []string{
 		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
 		"aws_account:123456789012",
@@ -69,9 +80,24 @@ func TestResolveFallsBackToConfiguredName(t *testing.T) {
 }
 
 func TestResolveFailsWithoutClusterName(t *testing.T) {
-	requested := stub(t, "eks", "", nil, "")
+	state := stub(t, "eks", "", nil, "")
 	identity, err := Resolve(t.Context())
 	assert.Nil(t, identity)
 	assert.ErrorIs(t, err, ErrClusterNameUnavailable)
-	assert.Empty(t, *requested)
+	assert.Empty(t, state.requested)
+
+	// The absence is cached so repeated node requests do not re-run discovery.
+	_, err = Resolve(t.Context())
+	assert.ErrorIs(t, err, ErrClusterNameUnavailable)
+	assert.Equal(t, 1, state.ec2Lookups)
+}
+
+func TestResolveCachesDiscoveredClusterName(t *testing.T) {
+	state := stub(t, "eks", "orders", nil, "")
+	for range 3 {
+		_, err := Resolve(t.Context())
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, state.ec2Lookups, "cluster name must be discovered once")
+	assert.Equal(t, 3, state.resolveCall, "identity resolution itself is cached by pkg/util/eks")
 }

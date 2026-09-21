@@ -149,6 +149,25 @@ func TestGetClusterIdentityCachesFailure(t *testing.T) {
 	assert.Equal(t, 1, client.calls, "a failing resolution must not be retried on every request")
 }
 
+func TestGetClusterIdentityCachesConfigLoadFailure(t *testing.T) {
+	name := "orders-" + t.Name()
+	client := &mockEKSClient{output: clusterOutput(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name)}
+	stubAWS(t, client)
+	configErr := errors.New("resolve EKS region: IMDS unavailable")
+	configLoads := 0
+	loadAWSConfig = func(context.Context) (aws.Config, error) { configLoads++; return aws.Config{}, configErr }
+
+	identity, err := GetClusterIdentity(t.Context(), name)
+	assert.Nil(t, identity)
+	require.ErrorIs(t, err, configErr)
+	assert.EqualError(t, err, "load AWS configuration: resolve EKS region: IMDS unavailable")
+
+	_, err = GetClusterIdentity(t.Context(), name)
+	require.ErrorIs(t, err, configErr)
+	assert.Equal(t, 1, configLoads, "config failure must be negatively cached")
+	assert.Equal(t, 0, client.calls, "config failure must never reach DescribeCluster")
+}
+
 func TestClusterIdentityTags(t *testing.T) {
 	identity := &ClusterIdentity{
 		ClusterName: "orders",
