@@ -105,6 +105,13 @@ rust_test(
     ],
 )
 
+rust_test(
+    name = "par-control-cli_test",
+    crate = ":par-control",
+    edition = "2024",
+    target_compatible_with = _LINUX_OR_WINDOWS,
+)
+
 pkg_files(
     name = "all_files_linux",
     srcs = [":par-control"],

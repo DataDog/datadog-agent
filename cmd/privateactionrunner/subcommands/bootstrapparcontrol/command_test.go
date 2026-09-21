@@ -125,16 +125,13 @@ func TestBootstrapResolvesConfig(t *testing.T) {
 	cfg := splitConfig(t, map[string]interface{}{
 		"private_action_runner.urn":         validURN(),
 		"private_action_runner.private_key": validPrivateKey(t),
-		"auth_token_file_path":              "/tmp/auth_token",
 	})
 
 	resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
 
 	require.NoError(t, err)
-	assert.NotEmpty(t, resolved.IPCCertFilePath)
 	require.NotNil(t, resolved.Runtime)
 	assert.NotNil(t, resolved.Runtime.OPMSExtraHeaders, "Rust expects an object, not JSON null")
-	assert.NotEmpty(t, resolved.Runtime.ExecutorSocketPath)
 	assert.Positive(t, resolved.Runtime.TaskConcurrency)
 }
 
@@ -190,11 +187,10 @@ func TestBootstrapRuntimeMatchesMonolith(t *testing.T) {
 				t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 			}
 			values := map[string]interface{}{
-				"private_action_runner.urn":                  validURN(),
-				"private_action_runner.private_key":          validPrivateKey(t),
-				"private_action_runner.task_concurrency":     9,
-				"private_action_runner.executor.socket_path": filepath.Join(t.TempDir(), "par.sock"),
-				"private_action_runner.opms_extra_headers":   map[string]string{"X-PAR-Only": "header-value"},
+				"private_action_runner.urn":                validURN(),
+				"private_action_runner.private_key":        validPrivateKey(t),
+				"private_action_runner.task_concurrency":   9,
+				"private_action_runner.opms_extra_headers": map[string]string{"X-PAR-Only": "header-value"},
 				"log_level":               "debug",
 				"site":                    "us3.datadoghq.com",
 				"proxy.http":              "http://http-proxy:3128",
@@ -234,7 +230,6 @@ func TestBootstrapRuntimeMatchesMonolith(t *testing.T) {
 			assert.Equal(t, proxyURL, resolved.Runtime.OPMSProxyURL)
 			assert.Equal(t, monolith.RunnerPoolSize, resolved.Runtime.TaskConcurrency)
 			assert.Equal(t, monolith.OpmsExtraHeaders, resolved.Runtime.OPMSExtraHeaders)
-			assert.Equal(t, values["private_action_runner.executor.socket_path"], resolved.Runtime.ExecutorSocketPath)
 			assert.Equal(t, transport.TLSClientConfig.InsecureSkipVerify, resolved.Runtime.SkipSSLValidation)
 			assert.Equal(t, "tlsv1.3", resolved.Runtime.MinTLSVersion)
 		})

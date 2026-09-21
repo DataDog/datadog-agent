@@ -60,7 +60,6 @@ pub struct BootstrapConfig {
     pub split_mode: bool,
     pub log_level: String,
     identity: BootstrapIdentity,
-    pub ipc_cert_file_path: String,
     runtime: Option<BootstrapRuntimeConfig>,
 }
 
@@ -88,7 +87,6 @@ struct BootstrapIdentity {
 struct BootstrapRuntimeConfig {
     opms_base_url: String,
     task_concurrency: usize,
-    executor_socket_path: PathBuf,
     opms_extra_headers: HashMap<String, String>,
     opms_proxy_url: String,
     skip_ssl_validation: bool,
@@ -107,7 +105,15 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(self) -> Result<Config> {
+    pub fn into_config(self, executor_socket: PathBuf, ipc_cert_file: PathBuf) -> Result<Config> {
+        ensure!(
+            !executor_socket.as_os_str().is_empty(),
+            "--executor-socket is empty"
+        );
+        ensure!(
+            !ipc_cert_file.as_os_str().is_empty(),
+            "--ipc-cert-file is empty"
+        );
         ensure!(
             self.split_mode,
             "bootstrap configuration has split mode disabled"
@@ -117,7 +123,6 @@ impl BootstrapConfig {
             ("identity.urn", self.identity.urn.as_str()),
             ("identity.private_key", self.identity.private_key.as_str()),
             ("identity.runner_id", self.identity.runner_id.as_str()),
-            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
         ] {
             ensure!(
                 !value.is_empty(),
@@ -136,10 +141,6 @@ impl BootstrapConfig {
             "private_action_runner.task_concurrency must be greater than zero"
         );
         ensure!(
-            !runtime.executor_socket_path.as_os_str().is_empty(),
-            "private_action_runner.executor.socket_path is empty"
-        );
-        ensure!(
             !runtime.opms_base_url.is_empty(),
             "bootstrap OPMS URL is empty"
         );
@@ -152,7 +153,7 @@ impl BootstrapConfig {
         Ok(Config {
             opms_base_url: runtime.opms_base_url,
             task_concurrency: runtime.task_concurrency,
-            executor_socket: runtime.executor_socket_path,
+            executor_socket,
             procmgr_socket: dd_procmgr_client::ipc_path(),
             executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
             loop_interval: LOOP_INTERVAL,
@@ -172,7 +173,7 @@ impl BootstrapConfig {
             max_attempts: MAX_ATTEMPTS,
             runner_version: crate::agent_version().to_string(),
             modes: vec!["pull".to_string()],
-            ipc_cert_file: self.ipc_cert_file_path.into(),
+            ipc_cert_file,
             identity: Identity {
                 urn: self.identity.urn,
                 private_key: self.identity.private_key,
@@ -192,11 +193,9 @@ mod tests {
         "split_mode": true,
         "log_level": "debug",
         "identity": {"urn":"urn","private_key":"secret-key","org_id":42,"runner_id":"runner"},
-        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem",
         "runtime": {
             "opms_base_url":"https://api.us3.datadoghq.com",
             "task_concurrency":9,
-            "executor_socket_path":"/from-par.sock",
             "opms_extra_headers":{"X-Test":"secret-header"},
             "opms_proxy_url":"http://user:secret-password@proxy:3128",
             "skip_ssl_validation":true,
@@ -205,12 +204,14 @@ mod tests {
     }"#;
 
     #[test]
-    fn uses_only_the_resolved_bootstrap_snapshot() {
+    fn uses_bootstrap_runtime_and_launch_paths() {
         let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
         assert!(bootstrap.split_mode);
         assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
 
-        let config = bootstrap.into_config().unwrap();
+        let config = bootstrap
+            .into_config("/launch.sock".into(), "/launch/cert.pem".into())
+            .unwrap();
 
         assert_eq!(config.opms_base_url, "https://api.us3.datadoghq.com");
         assert_eq!(
@@ -218,7 +219,8 @@ mod tests {
             ProxyDecision::Direct("http://user:secret-password@proxy:3128".to_string())
         );
         assert_eq!(config.task_concurrency, 9);
-        assert_eq!(config.executor_socket, PathBuf::from("/from-par.sock"));
+        assert_eq!(config.executor_socket, PathBuf::from("/launch.sock"));
+        assert_eq!(config.ipc_cert_file, PathBuf::from("/launch/cert.pem"));
         assert_eq!(config.opms_extra_headers["X-Test"], "secret-header");
         assert!(config.tls.skip_ssl_validation);
         assert_eq!(config.tls.min_tls_version, "tlsv1.3");
@@ -234,7 +236,11 @@ mod tests {
         let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
         payload.as_object_mut().unwrap().remove("runtime");
         let bootstrap: BootstrapConfig = serde_json::from_value(payload).unwrap();
-        let error = bootstrap.into_config().err().unwrap().to_string();
+        let error = bootstrap
+            .into_config("/launch.sock".into(), "/launch/cert.pem".into())
+            .err()
+            .unwrap()
+            .to_string();
         assert!(error.contains("missing runtime"));
     }
 
@@ -242,13 +248,16 @@ mod tests {
     fn rejects_invalid_runtime_settings() {
         for (field, value, message) in [
             ("task_concurrency", json!(0), "task_concurrency"),
-            ("executor_socket_path", json!(""), "socket_path"),
             ("opms_base_url", json!(""), "OPMS URL"),
         ] {
             let mut payload: serde_json::Value = serde_json::from_str(JSON).unwrap();
             payload["runtime"][field] = value;
             let bootstrap: BootstrapConfig = serde_json::from_value(payload).unwrap();
-            let error = bootstrap.into_config().err().unwrap().to_string();
+            let error = bootstrap
+                .into_config("/launch.sock".into(), "/launch/cert.pem".into())
+                .err()
+                .unwrap()
+                .to_string();
             assert!(error.contains(message), "{field}: {error}");
         }
     }
@@ -258,9 +267,27 @@ mod tests {
         let mut bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
         bootstrap.runtime.as_mut().unwrap().opms_proxy_url.clear();
         assert_eq!(
-            bootstrap.into_config().unwrap().opms_proxy,
+            bootstrap
+                .into_config("/launch.sock".into(), "/launch/cert.pem".into())
+                .unwrap()
+                .opms_proxy,
             ProxyDecision::None
         );
+    }
+
+    #[test]
+    fn rejects_empty_launch_paths() {
+        for (socket, cert, flag) in [
+            ("", "/cert.pem", "--executor-socket"),
+            ("/executor.sock", "", "--ipc-cert-file"),
+        ] {
+            let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+            let error = bootstrap
+                .into_config(socket.into(), cert.into())
+                .err()
+                .unwrap();
+            assert!(error.to_string().contains(flag));
+        }
     }
 
     #[test]

@@ -15,10 +15,10 @@ secrets, Fleet policies, and persisted identity; Core Agent-only settings are no
 an alternative source.
 
 The short-lived Go `bootstrap-par-control` command loads configuration in PAR's
-environment and supplies identity, the executor IPC certificate path, and a narrow
-`runtime` snapshot: OPMS URL, concurrency, executor socket, headers, selected proxy,
-and TLS settings. Rust consumes that snapshot without loading the Core Agent config
-stream. The bootstrap and control binaries must come from the same Agent package.
+environment and supplies identity and a narrow `runtime` snapshot: OPMS URL,
+concurrency, headers, selected proxy, and TLS settings. Rust consumes that snapshot
+without loading the Core Agent config stream. The bootstrap and control binaries must
+come from the same Agent package.
 Configuration changes require a restart. Agent version is stamped into Rust at build
 time (`DD_AGENT_VERSION`); unstamped Cargo builds fall back to the crate version.
 
@@ -26,10 +26,39 @@ This draft restores PAR-local runtime configuration. Sharing enrollment logic wi
 the monolith and verifying parity across deployment modes remain follow-up work;
 executor-free startup is deferred.
 
+### Connection paths
+
+Process-manager definitions supply matching `--executor-socket` and `--ipc-cert-file`
+arguments to `par-control` and `run-executor`. These internal paths are owned by launch
+wiring, not the bootstrap snapshot. Go applies supplied paths as CLI configuration
+overrides; manually invoking `run-executor` without them retains config-based defaults.
+Rust requires both arguments and does not load configuration files to discover paths.
+
+Linux packages use the active install/config directories. Windows templates use the
+installer-resolved data directory and the `\\.\pipe\dd-par-executor` pipe. In containers,
+the PAR entrypoint selects the certificate before starting procmgr: explicit
+`DD_IPC_CERT_FILE_PATH`, otherwise beside `DD_AUTH_TOKEN_FILE_PATH`, otherwise beside
+the main config. This preserves the existing Helm/Operator shared auth volume.
+Config-only custom certificate locations are not discovered by this launch contract.
+
+Place both path arguments **before** `--bootstrap-command`, which consumes the remaining
+arguments. For example, on a standard Linux host:
+
+```bash
+par-control \
+  --executor-socket /opt/datadog-agent/run/par-executor.sock \
+  --ipc-cert-file /etc/datadog-agent/ipc_cert.pem \
+  --bootstrap-command privateactionrunner bootstrap-par-control \
+  --cfgpath /etc/datadog-agent/datadog.yaml
+```
+
+### Bootstrap transport
+
 At startup, `par-control` runs the command passed to `--bootstrap-command` and parses
 its stdout as JSON. The bootstrap command disables normal logging, while errors and
 panics still use stderr. Since the payload contains credentials, stdout is never
-forwarded or included in errors.
+forwarded or included in errors. Replacing stdout with an executor gRPC configuration
+RPC is planned separately; the launch-path contract is already in place.
 
 ## Build and test
 

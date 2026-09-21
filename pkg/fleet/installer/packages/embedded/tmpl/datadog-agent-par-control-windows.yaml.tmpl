@@ -1,6 +1,10 @@
 description: Datadog Private Action Runner - Control Plane
 command: '{{.InstallDir}}/bin/agent/par-control.exe'
 args:
+  - --executor-socket
+  - '\\.\pipe\dd-par-executor'
+  - --ipc-cert-file
+  - '{{.EtcDir}}/ipc_cert.pem'
   - --bootstrap-command
   - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
   - bootstrap-par-control

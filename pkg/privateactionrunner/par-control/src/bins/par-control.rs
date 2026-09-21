@@ -11,12 +11,17 @@ use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
+    #[arg(long)]
+    executor_socket: PathBuf,
+    #[arg(long)]
+    ipc_cert_file: PathBuf,
     #[arg(
         long = "bootstrap-command",
         num_args = 1..,
@@ -61,7 +66,7 @@ async fn run() -> Result<()> {
 
     par_control::tls::initialize_crypto_provider()?;
 
-    let config = bootstrapped.into_config()?;
+    let config = bootstrapped.into_config(cli.executor_socket, cli.ipc_cert_file)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
@@ -139,5 +144,47 @@ async fn shutdown_signal() {
             log::warn!("could not listen for CTRL_BREAK, falling back to CTRL_C: {error}");
             let _ = tokio::signal::ctrl_c().await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launch_paths_precede_bootstrap_command() {
+        let cli = Cli::try_parse_from([
+            "par-control",
+            "--executor-socket",
+            "/launch.sock",
+            "--ipc-cert-file",
+            "/auth/ipc_cert.pem",
+            "--bootstrap-command",
+            "privateactionrunner",
+            "bootstrap-par-control",
+            "--cfgpath",
+            "/etc/datadog-agent/datadog.yaml",
+        ])
+        .unwrap();
+        assert_eq!(cli.executor_socket, PathBuf::from("/launch.sock"));
+        assert_eq!(cli.ipc_cert_file, PathBuf::from("/auth/ipc_cert.pem"));
+        assert_eq!(
+            cli.bootstrap_command,
+            [
+                "privateactionrunner",
+                "bootstrap-par-control",
+                "--cfgpath",
+                "/etc/datadog-agent/datadog.yaml"
+            ]
+        );
+    }
+
+    #[test]
+    fn requires_both_launch_paths() {
+        assert!(Cli::try_parse_from(["par-control"]).is_err());
+        assert!(Cli::try_parse_from(["par-control", "--executor-socket", "/launch.sock"]).is_err());
+        assert!(
+            Cli::try_parse_from(["par-control", "--ipc-cert-file", "/auth/ipc_cert.pem"]).is_err()
+        );
     }
 }

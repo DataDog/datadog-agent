@@ -1,6 +1,10 @@
 description: Datadog Private Action Runner - Control Plane
 command: /opt/datadog-agent/embedded/bin/par-control
 args:
+  - --executor-socket
+  - /opt/datadog-agent/run/par-executor.sock
+  - --ipc-cert-file
+  - ${DD_IPC_CERT_FILE_PATH}
   - --bootstrap-command
   - /opt/datadog-agent/embedded/bin/privateactionrunner
   - bootstrap-par-control

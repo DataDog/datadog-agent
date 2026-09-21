@@ -17,7 +17,6 @@ go_library(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/privateactionrunner/def",
-        "//pkg/api/security/cert",
         "//pkg/config/model",
         "//pkg/fips",
         "//pkg/privateactionrunner/adapters/config",

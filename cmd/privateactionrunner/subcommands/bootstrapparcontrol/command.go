@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -49,19 +48,16 @@ type ControlPlaneConfig struct {
 
 	Identity *Identity      `json:"identity,omitempty"`
 	Runtime  *RuntimeConfig `json:"runtime,omitempty"`
-
-	IPCCertFilePath string `json:"ipc_cert_file_path,omitempty"`
 }
 
 // RuntimeConfig contains only the PAR-local settings consumed by the control plane.
 type RuntimeConfig struct {
-	OPMSBaseURL        string            `json:"opms_base_url"`
-	TaskConcurrency    int32             `json:"task_concurrency"`
-	ExecutorSocketPath string            `json:"executor_socket_path"`
-	OPMSExtraHeaders   map[string]string `json:"opms_extra_headers"`
-	OPMSProxyURL       string            `json:"opms_proxy_url"`
-	SkipSSLValidation  bool              `json:"skip_ssl_validation"`
-	MinTLSVersion      string            `json:"min_tls_version"`
+	OPMSBaseURL       string            `json:"opms_base_url"`
+	TaskConcurrency   int32             `json:"task_concurrency"`
+	OPMSExtraHeaders  map[string]string `json:"opms_extra_headers"`
+	OPMSProxyURL      string            `json:"opms_proxy_url"`
+	SkipSSLValidation bool              `json:"skip_ssl_validation"`
+	MinTLSVersion     string            `json:"min_tls_version"`
 }
 
 // Commands returns the bootstrap-par-control subcommand.
@@ -112,8 +108,6 @@ func resolveConfig(ctx context.Context, cfg config.Component, hostnameComp hostn
 		return nil, err
 	}
 
-	cert.PersistCertFilepath(cfg)
-
 	urn := cfg.GetString(par.PARUrn)
 	privateKey := cfg.GetString(par.PARPrivateKey)
 	if urn == "" || privateKey == "" {
@@ -139,7 +133,6 @@ func resolveConfig(ctx context.Context, cfg config.Component, hostnameComp hostn
 			OrgID:      identity.OrgID,
 			RunnerID:   identity.RunnerID,
 		},
-		IPCCertFilePath: cfg.GetString("ipc_cert_file_path"),
 	}, nil
 }
 
@@ -164,13 +157,12 @@ func resolveRuntimeConfig(cfg config.Component) (*RuntimeConfig, error) {
 		}
 	}
 	return &RuntimeConfig{
-		OPMSBaseURL:        endpoint,
-		TaskConcurrency:    parCfg.RunnerPoolSize,
-		ExecutorSocketPath: cfg.GetString(par.PARExecutorSocketPath),
-		OPMSExtraHeaders:   parCfg.OpmsExtraHeaders,
-		OPMSProxyURL:       proxyURL,
-		SkipSSLValidation:  cfg.GetBool("skip_ssl_validation"),
-		MinTLSVersion:      cfg.GetString("min_tls_version"),
+		OPMSBaseURL:       endpoint,
+		TaskConcurrency:   parCfg.RunnerPoolSize,
+		OPMSExtraHeaders:  parCfg.OpmsExtraHeaders,
+		OPMSProxyURL:      proxyURL,
+		SkipSSLValidation: cfg.GetBool("skip_ssl_validation"),
+		MinTLSVersion:     cfg.GetString("min_tls_version"),
 	}, nil
 }
 
