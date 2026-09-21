@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/cache",
         "//pkg/util/ec2/tags",
         "//pkg/util/eks",
         "//pkg/util/kubernetes/cloudprovider",
@@ -19,6 +20,7 @@ dd_agent_go_test(
     srcs = ["resolver_test.go"],
     embed = [":eksidentity"],
     deps = [
+        "//pkg/util/cache",
         "//pkg/util/eks",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
