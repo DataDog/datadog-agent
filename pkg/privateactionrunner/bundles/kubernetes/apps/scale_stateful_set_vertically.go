@@ -17,9 +17,9 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
-	support "github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/bundle-support/kubernetes"
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
-	"github.com/DataDog/dd-source/domains/actionplatform/libs/privateconnection"
+	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type ScaleStatefulSetVerticallyHandler struct {
