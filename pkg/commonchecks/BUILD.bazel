@@ -21,6 +21,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/networkconfigmanagement/def",
+        "//comp/networkdevices/gnmistatus/def",
         "//comp/networkpath/traceroute/def",
         "//comp/remote-config/rcclient/def",
         "//comp/snmpscanmanager/def",

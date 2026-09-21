@@ -11,6 +11,7 @@
 package gnmi
 
 import (
+	gnmistatus "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -19,6 +20,6 @@ import (
 const CheckName = "gnmi"
 
 // Factory returns no check when the agent is built without the gnmi tag.
-func Factory() option.Option[func() check.Check] {
+func Factory(_ gnmistatus.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

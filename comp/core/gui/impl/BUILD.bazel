@@ -85,6 +85,7 @@ dd_agent_go_test(
         "agent_test.go",
         "auth_test.go",
         "checks_test.go",
+        "gnmi_menu_test.go",
         "gui_test.go",
         "platform_darwin_test.go",
         "platform_nix_test.go",
@@ -94,15 +95,9 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/status",
+        "//comp/core/sysprobeconfig/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ] + select({
-        "@rules_go//go/platform:darwin": [
-            "//comp/core/sysprobeconfig/mock",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//comp/core/sysprobeconfig/mock",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
