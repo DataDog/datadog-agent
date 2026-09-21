@@ -89,14 +89,22 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 	host := v.Env().RemoteHost
 	// Kill client traffic generators, server helper processes, and tc rules from previous tests.
-	// Do NOT kill iperf3 on server — it's the persistent -s -D listener.
 	host.MustExecute("docker exec tcp-congestion-client killall -9 iperf3 nc dd 2>/dev/null; " +
 		"docker exec tcp-congestion-server killall -9 python3 2>/dev/null; " +
 		"docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null; " +
 		"docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null; " +
 		"true")
-	// Restart iperf3 server if it died (e.g. crashed during a previous test).
-	host.MustExecute("docker exec tcp-congestion-server pgrep iperf3 >/dev/null 2>&1 || docker exec -d tcp-congestion-server iperf3 -s -p 5201")
+	// Restart the iperf3 server from scratch before every test. Tests usually
+	// succeed while their `iperf3 -t 60` client is still mid-session, so this
+	// BeforeTest's killall aborts the server's current session; a still-finishing
+	// or wedged single-session server can then reject the next test's client
+	// (observed as a failed cookie exchange and a data connection that never
+	// transfers). Kill the daemon, wait for it to release port 5201, start a
+	// fresh listener, and wait until it accepts connections again.
+	host.MustExecute("docker exec tcp-congestion-server killall -9 iperf3 2>/dev/null; true")
+	host.MustExecute("timeout 15 bash -c 'while docker exec tcp-congestion-server pgrep iperf3 >/dev/null 2>&1; do sleep 0.5; done'")
+	host.MustExecute("docker exec -d tcp-congestion-server iperf3 -s -p 5201")
+	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
