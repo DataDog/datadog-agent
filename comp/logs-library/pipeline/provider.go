@@ -69,6 +69,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 	sender                    sender.PipelineComponent
 	foldspaceDriver           *foldspace.Driver
+	foldspaceDualShip         bool
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
@@ -106,6 +107,7 @@ func NewProvider(
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 	var fsDriver *foldspace.Driver
+	dualShip := config.FoldspaceDualShip(cfg)
 
 	if config.FoldspaceEnabled(cfg) && !serverless {
 		if dest, err := foldspace.BuildDestinationConfig(cfg, endpoints); err != nil {
@@ -128,6 +130,7 @@ func NewProvider(
 					ShutdownTimeout:   dest.ShutdownTimeout,
 					StateRequestBytes: dest.StateRequestBytes,
 					BatchWait:         dest.BatchWait,
+					DualShip:          dualShip,
 				})
 			}
 		}
@@ -139,7 +142,7 @@ func NewProvider(
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
-	if fsDriver != nil {
+	if fsDriver != nil && !dualShip {
 		senderImpl = fsDriver
 	}
 
@@ -156,6 +159,7 @@ func NewProvider(
 		senderImpl,
 	).(*provider)
 	p.foldspaceDriver = fsDriver
+	p.foldspaceDualShip = dualShip && fsDriver != nil
 	return p
 }
 
@@ -296,6 +300,9 @@ func newProvider(
 // N forwarder goroutines. Each forwarder reads from its own router channel and
 // routes messages to pipelines with automatic failover when the primary is blocked.
 func (p *provider) Start() {
+	if p.foldspaceDriver != nil && p.foldspaceDualShip {
+		p.foldspaceDriver.Start()
+	}
 	p.sender.Start()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
@@ -311,6 +318,7 @@ func (p *provider) Start() {
 			p.compression,
 			strconv.Itoa(i),
 			p.foldspaceDriver,
+			p.foldspaceDualShip,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
@@ -352,6 +360,9 @@ func (p *provider) Stop() {
 
 	stopper.Stop()
 	p.sender.Stop()
+	if p.foldspaceDriver != nil && p.foldspaceDualShip {
+		p.foldspaceDriver.Stop()
+	}
 	p.pipelines = p.pipelines[:0]
 	p.routerChannels = nil
 }
