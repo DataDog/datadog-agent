@@ -1,9 +1,0 @@
----
-fixes:
-  - |
-    The native HashiCorp Vault secret backend now accepts legacy KV v2
-    ``vault://...#/data/data/<field>`` references when the normal SGC lookup
-    returns no value. Existing KV v1 references and SGC's
-    ``#/data/<field>`` references remain supported without new configuration.
-    If both interpretations resolve a value, the existing SGC interpretation
-    takes precedence.
