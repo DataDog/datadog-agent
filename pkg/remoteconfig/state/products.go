@@ -49,7 +49,7 @@ var validProducts = map[string]struct{}{
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
-	ProductManagedDeploymentsDebug:      {},
+	ProductNDMConfig:                    {},
 }
 
 const (
@@ -144,8 +144,6 @@ const (
 	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
 	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
 	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
-	// ProductManagedDeploymentsDebug is a general-purpose debug product used to
-	// deliver arbitrary payloads to an Agent while a feature's own product is
-	// not yet provisioned backend side.
-	ProductManagedDeploymentsDebug = "MANAGED_DEPLOYMENTS_DEBUG"
+	// ProductNDMConfig receives configuration documents for network device monitoring
+	ProductNDMConfig = "NDM_CONFIG"
 )

@@ -90,7 +90,7 @@ func TestNewListenerSubscribesToOneProductAndRegistersAStreamingProvider(t *test
 
 	require.NoError(t, err)
 	require.Len(t, listener.ListenerProvider, 1, "exactly one product")
-	assert.Contains(t, listener.ListenerProvider, data.ProductManagedDeploymentsDebug)
+	assert.Contains(t, listener.ListenerProvider, data.ProductNDMConfig)
 
 	require.Len(t, adder.added, 1)
 	assert.Equal(t, "ndm-remote-config", adder.added[0].String())

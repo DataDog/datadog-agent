@@ -61,9 +61,9 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{
-		"datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config":   rawConfig(backendDocument),
-		"datadog/2/MANAGED_DEPLOYMENTS_DEBUG/empty-1/config": rawConfig(`{}`),
-		"datadog/2/MANAGED_DEPLOYMENTS_DEBUG/other-1/config": rawConfig(`{"debug-config-pct":10}`),
+		"datadog/2/NDM_CONFIG/ndm-1/config":   rawConfig(backendDocument),
+		"datadog/2/NDM_CONFIG/empty-1/config": rawConfig(`{}`),
+		"datadog/2/NDM_CONFIG/other-1/config": rawConfig(`{"autodiscovery":{"configs":[]}}`),
 	}, rec.callback)
 
 	changes := drain(t, ch)
@@ -82,7 +82,7 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 
 	assert.Len(t, rec.states, 1)
 	assert.Equal(t, state.ApplyStateAcknowledged,
-		rec.states["datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"].State)
+		rec.states["datadog/2/NDM_CONFIG/ndm-1/config"].State)
 	assert.Empty(t, p.GetConfigErrors())
 }
 
@@ -94,7 +94,7 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 
 	ch := p.Stream(context.Background())
 	rec := newRecorder()
-	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
+	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
 		{"ip_address":"10.0.0.1","cred_name":"cred-abc"},
@@ -124,7 +124,7 @@ func TestRemovingTheDocumentUnschedulesEveryDevice(t *testing.T) {
 
 	ch := p.Stream(context.Background())
 	rec := newRecorder()
-	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
+	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(backendDocument)}, rec.callback)
 	require.Len(t, drain(t, ch), 1)
@@ -145,7 +145,7 @@ func TestARepeatedIdenticalDocumentEmitsNothing(t *testing.T) {
 
 	ch := p.Stream(context.Background())
 	rec := newRecorder()
-	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
+	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(backendDocument)}, rec.callback)
 	require.Len(t, drain(t, ch), 1, "the first delivery schedules the two devices")
@@ -164,7 +164,7 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 
 	ch := p.Stream(context.Background())
 	rec := newRecorder()
-	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
+	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
 		{"ip_address":"10.0.0.1","cred_name":"cred-unknown-1"},
