@@ -111,6 +111,7 @@ type testModule struct {
 	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
+	abnormalPaths abnormalPathRecorder
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {

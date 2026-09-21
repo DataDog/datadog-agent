@@ -247,6 +247,7 @@ type testModule struct {
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
 	grpcServer    *grpcutils.Server
+	abnormalPaths abnormalPathRecorder
 }
 
 //nolint:unused
@@ -705,6 +706,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.opts.staticOpts = opts.staticOpts
 		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
+		testMod.abnormalPaths.reset()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -724,6 +726,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
+		testMod.abnormalPaths.reset()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -1016,7 +1019,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected\n%s", tm.abnormalPaths.report())
 }
 
 func (tm *testModule) validateSyscallsInFlight() {
@@ -1040,6 +1043,7 @@ func (tm *testModule) ValidateEndOfTest(zombieCheck bool) {
 	tm.validateSyscallsInFlight()
 
 	tm.statsdClient.Flush()
+	tm.abnormalPaths.reset()
 
 	if tm.msgSender != nil {
 		tm.msgSender.flush()
