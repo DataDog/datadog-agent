@@ -4,7 +4,7 @@ go 1.26.6
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.1
-	cloud.google.com/go/compute v1.67.0
+	cloud.google.com/go/compute v1.68.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
@@ -14,11 +14,11 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.4
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.331.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.97.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.99.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.0
@@ -28,7 +28,7 @@ require (
 	github.com/moby/moby/api v1.56.0
 	github.com/moby/moby/client v0.6.0
 	github.com/pkg/sftp v1.13.11
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.45.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0
@@ -44,7 +44,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0
-	github.com/pulumi/pulumi/sdk/v3 v3.261.0
+	github.com/pulumi/pulumi/sdk/v3 v3.262.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -66,7 +66,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.210 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect

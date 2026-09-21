@@ -87,7 +87,14 @@ pub struct Connection {
     pub application_name: String,
     #[serde(default)]
     pub ssl: SslMode,
-    // TODO(DATASEC-318): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
+    #[serde(default)]
+    pub ssl_root_cert: Option<String>,
+    #[serde(default)]
+    pub ssl_cert: Option<String>,
+    #[serde(default)]
+    pub ssl_key: Option<String>,
+    #[serde(default)]
+    pub ssl_password: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
