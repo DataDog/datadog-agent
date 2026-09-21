@@ -134,13 +134,12 @@ func formatCorrections(raw string) string {
 		return defaultCorrection
 	}
 	const limit = 10
-	corrections := make([]string, 0, min(len(violations), limit))
-	for _, violation := range violations[:min(len(violations), limit)] {
-		correction := formatCorrection(violation)
-		if correction == "" {
+	corrections := make([]string, min(len(violations), limit))
+	for i := range corrections {
+		corrections[i] = formatCorrection(violations[i])
+		if corrections[i] == "" {
 			return defaultCorrection
 		}
-		corrections = append(corrections, correction)
 	}
 	if len(violations) == 1 {
 		return corrections[0]
