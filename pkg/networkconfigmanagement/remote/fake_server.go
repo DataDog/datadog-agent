@@ -75,17 +75,13 @@ func FakeASA(runningConfig string, pagerLines int) SessionFunc {
 	return func() ShellFunc {
 		pagerEnabled := true
 		return func(shell *ShellContext) uint32 {
-			command := shell.command
-			if i := strings.IndexByte(command, '\n'); i >= 0 {
-				command = command[:i]
-			}
-			switch strings.TrimSpace(command) {
+			switch strings.TrimSpace(shell.command) {
 			case "":
 				return 0
 			case "terminal pager 0":
 				pagerEnabled = false
 				return 0
-			case "more system:running-config", "show running-config":
+			case "more system:running-config":
 				out := runningConfig
 				if pagerEnabled {
 					out = paginate(out, pagerLines)
@@ -138,8 +134,9 @@ type FakeSSHServer struct {
 	hostKey   ssh.Signer
 	getOutput SessionFunc
 
-	banner string
-	prompt string
+	banner    string
+	prompt    string
+	eagerEcho bool
 
 	expectedUser     string
 	expectedPassword string
@@ -170,6 +167,13 @@ func WithBanner(banner string) FakeServerOption {
 // WithPrompt sets the prompt written after each command, e.g. "fw01# ".
 func WithPrompt(prompt string) FakeServerOption {
 	return func(s *FakeSSHServer) { s.prompt = prompt }
+}
+
+// WithEagerEcho echoes each line as soon as it is read rather than after the
+// previous command finishes, as real devices do. A client that writes several
+// lines up front then sees their echoes above the output they belong to.
+func WithEagerEcho() FakeServerOption {
+	return func(s *FakeSSHServer) { s.eagerEcho = true }
 }
 
 // StartFakeSSHServer launches an in-process SSH server on 127.0.0.1 with a
@@ -328,17 +332,35 @@ func (s *FakeSSHServer) runShell(ch ssh.Channel, run ShellFunc) {
 		_, _ = io.WriteString(ch, s.prompt)
 	}
 
+	done := make(chan struct{})
+	defer close(done)
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(ch)
+		for scanner.Scan() {
+			command := strings.TrimRight(scanner.Text(), "\r")
+
+			s.mu.Lock()
+			s.received = append(s.received, command)
+			s.mu.Unlock()
+
+			if s.eagerEcho {
+				_, _ = io.WriteString(ch, command+"\n")
+			}
+			select {
+			case lines <- command:
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	var exitStatus uint32
-	scanner := bufio.NewScanner(ch)
-	for scanner.Scan() {
-		command := strings.TrimRight(scanner.Text(), "\r")
-
-		s.mu.Lock()
-		s.received = append(s.received, command)
-		s.mu.Unlock()
-
-		_, _ = io.WriteString(ch, command+"\n")
-
+	for command := range lines {
+		if !s.eagerEcho {
+			_, _ = io.WriteString(ch, command+"\n")
+		}
 		if strings.TrimSpace(command) == "exit" {
 			_, _ = io.WriteString(ch, "\nLogoff\n")
 			break

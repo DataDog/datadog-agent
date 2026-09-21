@@ -199,7 +199,7 @@ func TestPagerCommand(t *testing.T) {
 	srv := StartFakeSSHServer(t, map[string]FakeResponse{
 		"terminal pager 0":           Ok(""),
 		"more system:running-config": Ok(config),
-	})
+	}, WithPrompt("fw01# "))
 	client := MustConnect(t, srv)
 
 	cmd := &profile.PlainCommand{
@@ -262,23 +262,12 @@ func TestPagerCommand_SeparateSessionsTruncate(t *testing.T) {
 	assert.Contains(t, result.Output, "<--- More --->")
 }
 
-func TestPagerCommand_BundledExecRunsFirstLineOnly(t *testing.T) {
-	config := "ASA Version 9.24(1)\n: Saved\n: end\n"
-	srv := StartFakeSSHServerWithSessionFunc(t, FakeASA(config, 2))
-	client := MustConnect(t, srv)
-
-	bundled := &profile.PlainCommand{Command: "terminal pager 0\nmore system:running-config"}
-	result, err := ExecuteCommand(context.Background(), client, bundled)
-	require.NoError(t, err)
-	assert.Empty(t, result.Output, "only the first line runs, which produces no output")
-}
-
 func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
 	truncated := "ASA Version 9.24(1)\nhostname FW01\n <--- More --->"
 	srv := StartFakeSSHServer(t, map[string]FakeResponse{
 		"terminal pager 0":           Ok(""),
 		"more system:running-config": Ok(truncated),
-	})
+	}, WithPrompt("fw01# "))
 	client := MustConnect(t, srv)
 
 	cmd := &profile.PlainCommand{
@@ -305,7 +294,7 @@ func TestPagerCommand_ReconnectRerunsSetup(t *testing.T) {
 	srv := StartFakeSSHServer(t, map[string]FakeResponse{
 		"terminal pager 0":           Ok(""),
 		"more system:running-config": Ok("from-srv1\n"),
-	})
+	}, WithPrompt("fw01# "))
 	config, err := srv.MakeConfig(MakeKnownHostsFile(t, srv))
 	require.NoError(t, err)
 	reconnect := func() (*ssh.Client, error) {
@@ -326,7 +315,7 @@ func TestPagerCommand_ReconnectRerunsSetup(t *testing.T) {
 	srv = StartFakeSSHServer(t, map[string]FakeResponse{
 		"terminal pager 0":           Ok(""),
 		"more system:running-config": Ok("from-srv2\n"),
-	})
+	}, WithPrompt("fw01# "))
 	config, err = srv.MakeConfig(MakeKnownHostsFile(t, srv))
 	require.NoError(t, err)
 
@@ -339,4 +328,48 @@ func TestPagerCommand_ReconnectRerunsSetup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "from-srv2", result.Output)
 	assert.Equal(t, []string{"terminal pager 0", "more system:running-config", "exit"}, srv.Received())
+}
+
+func TestPagerCommand_EagerEcho(t *testing.T) {
+	config := "ASA Version 9.24(1)\n: Saved\nhostname FW01\ninterface G0/0\n: end\n"
+	srv := StartFakeSSHServerWithSessionFunc(t, FakeASA(config, 2),
+		WithBanner("User datadog logged in to cml-asav\n"),
+		WithPrompt("cml-asav# "),
+		WithEagerEcho(),
+	)
+	client := MustConnect(t, srv)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+		Validator: profile.Validator{
+			Require: []*regexp.Regexp{regexp.MustCompile(`ASA Version \d+\.\d+\(\d+\)`)},
+			Reject:  []*regexp.Regexp{regexp.MustCompile(`(?i)(<---\s*More\s*--->|--More--)`)},
+		},
+	}
+
+	result, err := ExecuteCommand(context.Background(), client, cmd)
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimRight(config, "\n"), result.Output)
+	assert.NotContains(t, result.Output, "exit", "the session-end echo must not reach the capture")
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config", "exit"}, srv.Received())
+}
+
+func TestPagerCommand_EmptyCaptureIsAnError(t *testing.T) {
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok(""),
+	}, WithPrompt("fw01# "))
+	client := MustConnect(t, srv)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+		Validator: profile.Validator{
+			Require: []*regexp.Regexp{regexp.MustCompile(`ASA Version \d+\.\d+\(\d+\)`)},
+		},
+	}
+
+	_, err := ExecuteCommand(context.Background(), client, cmd)
+	assert.ErrorContains(t, err, `captured no output for "more system:running-config"`)
 }
