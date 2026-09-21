@@ -408,6 +408,21 @@ docker_build_agent7_full_arm64:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
+# TODO: make the recorder image build on-demand once its development workflow is established.
+docker_build_agent7_recorder_full:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - !reference [.except_light_pipeline]
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      when: on_success
+    - when: never
+  needs:
+    - job: datadog-agent-7-x64-recorder
+    - job: datadog-otel-agent-x64
+  variables:
+    TAG_SUFFIX: -7-recorder-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+
 docker_build_agent7_fips_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:

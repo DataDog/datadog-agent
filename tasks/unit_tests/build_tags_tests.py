@@ -12,7 +12,9 @@ from tasks.build_tags import (
     GAZELLE_OMIT_TAGS,
     TEST_FEATURE_TAGS,
     UNIT_TEST_TAGS,
+    compute_build_tags_for_flavor,
 )
+from tasks.flavor import AgentFlavor
 
 
 def _payload():
@@ -52,6 +54,40 @@ class TestCodegenPayloadSchema(unittest.TestCase):
 
 
 class TestCodegenPayloadData(unittest.TestCase):
+    def test_extra_build_tags_extend_defaults_once(self):
+        defaults = set(
+            compute_build_tags_for_flavor(
+                build="agent",
+                flavor=AgentFlavor.base,
+                build_include=None,
+                build_exclude=None,
+                platform="linux",
+            )
+        )
+        with_recorder = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=AgentFlavor.base,
+            build_include=None,
+            build_exclude=None,
+            extra_build_tags="anomalydetection_recorder,anomalydetection_recorder",
+            platform="linux",
+        )
+
+        self.assertTrue(defaults.issubset(with_recorder))
+        self.assertEqual(with_recorder.count("anomalydetection_recorder"), 1)
+
+    def test_unknown_extra_build_tags_are_not_included(self):
+        tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=AgentFlavor.base,
+            build_include=None,
+            build_exclude=None,
+            extra_build_tags="not_a_build_tag",
+            platform="linux",
+        )
+
+        self.assertNotIn("not_a_build_tag", tags)
+
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
 

@@ -7,6 +7,7 @@ require './lib/ostools.rb'
 require './lib/fips.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
+require 'shellwords'
 
 name 'datadog-agent'
 
@@ -59,6 +60,8 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
+  extra_build_tags = ENV.fetch('DD_AGENT_EXTRA_BUILD_TAGS', '')
+  extra_build_tags_arg = extra_build_tags.empty? ? '' : "--extra-build-tags=#{Shellwords.escape(extra_build_tags)}"
   fips_args = fips_mode? ? "--fips-mode" : ""
   # include embedded path (mostly for `pkg-config` binary)
   #
@@ -102,7 +105,7 @@ build do
   else
     command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{extra_build_tags_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
@@ -152,7 +155,7 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg} #{extra_build_tags_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
