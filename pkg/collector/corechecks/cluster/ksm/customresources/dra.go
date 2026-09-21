@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -185,12 +186,18 @@ func draDeviceCapacity(device map[string]interface{}) map[string]interface{} {
 	return nestedMapNoCopy(device, "capacity")
 }
 
-// draDeviceConsumesCounters reports whether a device draws from a pool-wide
-// counter set, which is the API's own marker that it is one of several
-// mutually exclusive ways to partition the same hardware rather than a
-// separate piece of it. Devices without it are independent and additive.
+// draDeviceCounterSets returns the counter sets a device draws from, sorted and
+// joined into one key, or "" when it draws from none.
+//
+// Drawing from a counter set is the API's own marker that a device is one of
+// several mutually exclusive ways to partition the same hardware rather than a
+// separate piece of it. The exclusion holds only *within* a set, though: a node
+// with four GPUs publishes four counter sets, and a device backed by one of
+// them coexists with devices backed by the others. Callers therefore have to
+// group by this key, not merely test it.
+//
 // Mirrors draDeviceCapacity's handling of the v1beta1 "basic" wrapper.
-func draDeviceConsumesCounters(device map[string]interface{}) bool {
+func draDeviceCounterSets(device map[string]interface{}) string {
 	src := device
 	if basic, found, _ := unstructured.NestedFieldNoCopy(device, "basic"); found {
 		if m, ok := basic.(map[string]interface{}); ok {
@@ -199,10 +206,30 @@ func draDeviceConsumesCounters(device map[string]interface{}) bool {
 	}
 	consumes, found, err := unstructured.NestedFieldNoCopy(src, "consumesCounters")
 	if !found || err != nil {
-		return false
+		return ""
 	}
 	list, ok := consumes.([]interface{})
-	return ok && len(list) > 0
+	if !ok {
+		return ""
+	}
+	names := make([]string, 0, len(list))
+	for _, entry := range list {
+		m, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if name, ok := m["counterSet"].(string); ok && name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	// No driver publishes a device spanning several sets today; joining keeps
+	// such a device grouped with others of the identical footprint, which are
+	// the ones it genuinely competes with.
+	slices.Sort(names)
+	return strings.Join(names, "\x00")
 }
 
 // emptyFamily is the "this object contributes no sample" return value.

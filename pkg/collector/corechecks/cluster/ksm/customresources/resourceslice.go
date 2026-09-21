@@ -141,7 +141,13 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 				// their largest option. The largest is the whole device, since
 				// "do not partition" is itself an advertised option consuming
 				// the entire counter set -- verified against spec.sharedCounters,
-				// which max() reproduces exactly for every capacity key.
+				// which this reproduces exactly for every capacity key.
+				//
+				// The maximum is per counter set, not global. Exclusion holds
+				// only within a set: a four-GPU node publishes four of them,
+				// and a device backed by one coexists with devices backed by
+				// the others. One global maximum would report a single card on
+				// such a node.
 				//
 				// Taking it from the devices rather than from sharedCounters is
 				// deliberate: the counter set also carries allocation tokens
@@ -151,13 +157,14 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 				// device advertises them -- so reading the device side leaves
 				// them out by construction instead of by a name filter.
 				sums := map[string]float64{}
-				maxes := map[string]float64{}
+				// counter set -> capacity name -> largest option in that set.
+				maxes := map[string]map[string]float64{}
 				for _, d := range devices {
 					devMap, ok := d.(map[string]interface{})
 					if !ok {
 						continue
 					}
-					exclusive := draDeviceConsumesCounters(devMap)
+					counterSet := draDeviceCounterSets(devMap)
 					for name, entry := range draDeviceCapacity(devMap) {
 						// In the unstructured API object each resource.Quantity is a
 						// plain string (e.g. "80Gi"), not an object with a "value" key.
@@ -173,9 +180,14 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 						if err != nil {
 							continue
 						}
-						if exclusive {
-							if cur, seen := maxes[name]; !seen || q > cur {
-								maxes[name] = q
+						if counterSet != "" {
+							perSet := maxes[counterSet]
+							if perSet == nil {
+								perSet = map[string]float64{}
+								maxes[counterSet] = perSet
+							}
+							if cur, seen := perSet[name]; !seen || q > cur {
+								perSet[name] = q
 							}
 							continue
 						}
@@ -187,8 +199,10 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 				// independent devices are all present at once, alongside
 				// whichever single partition option is chosen.
 				totals := sums
-				for name, q := range maxes {
-					totals[name] += q
+				for _, perSet := range maxes {
+					for name, q := range perSet {
+						totals[name] += q
+					}
 				}
 				if len(totals) == 0 {
 					return emptyFamily()

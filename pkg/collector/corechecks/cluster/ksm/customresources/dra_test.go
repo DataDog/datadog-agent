@@ -506,6 +506,10 @@ func newClaimObject(namespace, name string) *unstructured.Unstructured {
 // driver advertises the whole card alongside every MIG placement and each
 // placement claims a subset of the 12 memory slices.
 func partitionableDevice(name, memory string, slices ...string) map[string]interface{} {
+	return partitionableDeviceInSet("gpu-0-counter-set", name, memory, slices...)
+}
+
+func partitionableDeviceInSet(counterSet, name, memory string, slices ...string) map[string]interface{} {
 	counters := map[string]interface{}{}
 	for _, s := range slices {
 		counters[s] = map[string]interface{}{"value": "1"}
@@ -514,7 +518,7 @@ func partitionableDevice(name, memory string, slices ...string) map[string]inter
 		"name":     name,
 		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": memory}},
 		"consumesCounters": []interface{}{
-			map[string]interface{}{"counterSet": "gpu-0-counter-set", "counters": counters},
+			map[string]interface{}{"counterSet": counterSet, "counters": counters},
 		},
 	}
 }
@@ -578,4 +582,21 @@ func TestResourceSliceCapacityReadsConsumesCountersUnderBasic(t *testing.T) {
 	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
 	require.Len(t, capacity.Metrics, 1)
 	assert.Equal(t, float64(95*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// A multi-GPU node publishes one counter set per card. Exclusion holds inside a
+// set, not across them, so the cards add up -- a single global maximum would
+// report one card's worth of memory for the whole node.
+func TestResourceSliceCapacitySumsAcrossCounterSets(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "95Gi", "memory-slice-0", "memory-slice-1"),
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0-mig-1g24gb", "24Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1", "95Gi", "memory-slice-0", "memory-slice-1"),
+		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1-mig-1g24gb", "24Gi", "memory-slice-0"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
 }
