@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    End User Device Monitoring: the host system info payload now includes the
+    macOS ``computer_name`` field (the user-assigned device name from
+    System Settings > Sharing), alongside the existing serial number and
+    other hardware identity fields.
