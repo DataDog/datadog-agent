@@ -46,7 +46,10 @@ func BenchmarkGroupedReadableFileMaps(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		p := newOTelTargetProcess(pid)
+		p, err := openOTelTargetProcess(pid)
+		if err != nil {
+			b.Fatal(err)
+		}
 		grouped, order, err := p.computeGroupedReadableFileMaps()
 		if err != nil {
 			b.Fatal(err)
