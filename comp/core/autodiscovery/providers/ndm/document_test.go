@@ -82,7 +82,7 @@ func TestDispatchDoesNotOwnADocumentWithNoRegisteredKey(t *testing.T) {
 	snmp := &fakeHandler{key: "snmp"}
 	p := newTestProvider(t, snmp)
 
-	for _, raw := range []string{`{}`, `{"unknown":{}}`, `{"debug-config-pct":1}`} {
+	for _, raw := range []string{`{}`, `{"unknown":{}}`, `{"autodiscovery":{"configs":[]}}`} {
 		keys, err := parseDocument([]byte(raw))
 		require.NoError(t, err)
 

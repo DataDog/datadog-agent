@@ -154,7 +154,7 @@ func TestUpdateReportsNoApplyStateForADocumentItDoesNotOwn(t *testing.T) {
 
 	p.Update(map[string]state.RawConfig{
 		"empty":      rawConfig(`{}`),
-		"other-team": rawConfig(`{"debug-config-pct":10}`),
+		"future-key": rawConfig(`{"autodiscovery":{"configs":[]}}`),
 		"not-json":   rawConfig(`{`),
 		"json-null":  rawConfig(`null`),
 		"json-array": rawConfig(`[]`),
