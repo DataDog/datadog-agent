@@ -601,28 +601,55 @@ func TestResourceSliceCapacitySumsAcrossCounterSets(t *testing.T) {
 	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
 }
 
-// The API permits a device drawing from several counter sets, which a
-// multi-GPU NVLink device would use. Such a device is an alternative to the
-// per-card options, not an addition to them: grouping {A}, {B} and {A,B}
-// separately and adding the three maxima would report 380Gi of hardware that
-// can only ever present 190Gi.
+// spanningDevice draws from several counter sets at once, which the API permits
+// and a multi-GPU NVLink device would use.
+func spanningDevice(name, memory string, counterSets ...string) map[string]interface{} {
+	consumes := make([]interface{}, 0, len(counterSets))
+	for _, cs := range counterSets {
+		consumes = append(consumes, map[string]interface{}{
+			"counterSet": cs,
+			"counters":   map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}},
+		})
+	}
+	return map[string]interface{}{
+		"name":             name,
+		"capacity":         map[string]interface{}{"memory": map[string]interface{}{"value": memory}},
+		"consumesCounters": consumes,
+	}
+}
+
+// A spanning device is an alternative to the per-card options, not an addition
+// to them: adding {A}, {B} and {A,B} as independent groups would report 380Gi
+// of hardware that can only ever present 190Gi.
 func TestResourceSliceCapacityJoinsOverlappingCounterSets(t *testing.T) {
 	f := &resourceSliceFactory{apiVersion: "v1"}
-	spanning := map[string]interface{}{
-		"name":     "gpu-0-1-nvlink",
-		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "190Gi"}},
-		"consumesCounters": []interface{}{
-			map[string]interface{}{"counterSet": "gpu-0-counter-set", "counters": map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}}},
-			map[string]interface{}{"counterSet": "gpu-1-counter-set", "counters": map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}}},
-		},
-	}
 	obj := newSliceObject(t, []interface{}{
 		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "95Gi", "memory-slice-0"),
 		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1", "95Gi", "memory-slice-0"),
-		spanning,
+		spanningDevice("gpu-0-1-nvlink", "190Gi", "gpu-0-counter-set", "gpu-1-counter-set"),
 	})
 
 	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
 	require.Len(t, capacity.Metrics, 1)
 	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// Overlapping spanning options must not collapse the cards they connect. With
+// A, B and C each 95Gi, an AB and a BC, A+B+C and AB+C both add up to 285Gi --
+// treating the three connected sets as one exclusive group reports 190Gi, and
+// adding the combinations as if independent reports 570Gi. Nothing obliges the
+// driver to advertise an ABC device covering the whole chain.
+func TestResourceSliceCapacityKeepsCompatibleSpanningOptions(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "95Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1", "95Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-2-counter-set", "gpu-2", "95Gi", "memory-slice-0"),
+		spanningDevice("gpu-0-1-nvlink", "190Gi", "gpu-0-counter-set", "gpu-1-counter-set"),
+		spanningDevice("gpu-1-2-nvlink", "190Gi", "gpu-1-counter-set", "gpu-2-counter-set"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(285*1024*1024*1024), capacity.Metrics[0].Value)
 }

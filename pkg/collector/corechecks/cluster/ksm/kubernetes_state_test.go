@@ -2462,11 +2462,11 @@ func TestDiscoverCustomResources_DRABetaVersion(t *testing.T) {
 	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceslices")
 }
 
-// TestDiscoverCustomResources_DRANotEnabledForKubeletMode pins the interaction
-// with node-kubelet pod collection: that mode registers only the kubelet pod
-// factory, so enabling a DRA store there would leave WithEnabledResources with
-// a resource that has no factory behind it.
-func TestDiscoverCustomResources_DRANotEnabledForKubeletMode(t *testing.T) {
+// TestDiscoverCustomResources_DRAInKubeletMode pins that node-kubelet pod
+// collection mode does not drop DRA factories: the mode changes where pod
+// data comes from, not what metrics are produced, and ResourceClaim /
+// ResourceSlice are independent of pod collection.
+func TestDiscoverCustomResources_DRAInKubeletMode(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	k := newKSMCheck(core.NewCheckBase(CheckName),
 		&KSMConfig{CollectDRAResources: true, PodCollectionMode: nodeKubeletPodCollection},
@@ -2474,10 +2474,32 @@ func TestDiscoverCustomResources_DRANotEnabledForKubeletMode(t *testing.T) {
 
 	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
 
-	for _, c := range cr.collectors {
-		assert.NotContains(t, c, "resource.k8s.io",
-			"a DRA store must not be enabled without a factory to back it")
+	// The kubelet pod factory must be registered
+	foundKubelet := false
+	for _, f := range cr.factories {
+		if f.Name() == "pods_extended" {
+			foundKubelet = true
+		}
 	}
+	assert.True(t, foundKubelet, "kubelet mode must register the kubelet pod factory")
+
+	// DRA factories must also be registered
+	foundDRA := false
+	for _, f := range cr.factories {
+		if f.Name() == "resourceclaims" || f.Name() == "resourceslices" {
+			foundDRA = true
+		}
+	}
+	assert.True(t, foundDRA, "DRA factories must be registered in kubelet mode; the mode changes pod data source, not metric scope")
+
+	// DRA collector keys must be present
+	foundDRACollector := false
+	for _, c := range cr.collectors {
+		if strings.Contains(c, "resource.k8s.io") {
+			foundDRACollector = true
+		}
+	}
+	assert.True(t, foundDRACollector, "DRA collector keys must be enabled in kubelet mode")
 }
 
 // TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole

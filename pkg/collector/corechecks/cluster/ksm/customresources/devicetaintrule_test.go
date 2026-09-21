@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/kube-state-metrics/v2/pkg/metric"
 )
 
 // TestDeviceTaintRuleAPIVersion verifies the version detection: 1.37+ clusters
@@ -96,26 +96,12 @@ func TestDeviceTaintRuleInfoMetric(t *testing.T) {
 		},
 	}
 
-	famGenerators := f.MetricFamilyGenerators()
-	assert.Len(t, famGenerators, 1)
+	// Call the production generator, not a reimplementation: the test must
+	// fail if the generator's field paths, labels, or value change.
+	family := generatorByName(t, f.MetricFamilyGenerators(), "kube_devicetaintrule_info").Generate(rule)
 
-	// The generator produces a family; verify through the wrapped function
-	// by calling the inner generator directly.
-	result := f.wrap(func(u *unstructured.Unstructured) *metric.Family {
-		driver, _, _ := unstructured.NestedString(u.Object, "spec", "deviceSelector", "driver")
-		taintKey, _, _ := unstructured.NestedString(u.Object, "spec", "taint", "key")
-		taintEffect, _, _ := unstructured.NestedString(u.Object, "spec", "taint", "effect")
-		return &metric.Family{
-			Metrics: []*metric.Metric{{
-				LabelKeys:   []string{"devicetaintrule", "driver", "taint_key", "taint_effect"},
-				LabelValues: []string{u.GetName(), driver, taintKey, taintEffect},
-				Value:       1,
-			}},
-		}
-	})(rule)
-
-	assert.Len(t, result.Metrics, 1)
-	m := result.Metrics[0]
+	require.Len(t, family.Metrics, 1)
+	m := family.Metrics[0]
 	assert.Equal(t, float64(1), m.Value)
 	assert.Equal(t, []string{"unhealthy-gpu", "gpu.nvidia.com", "gpu.nvidia.com/unhealthy", "NoExecute"}, m.LabelValues)
 }

@@ -80,7 +80,11 @@ func DRAAPIVersion(resources []*metav1.APIResourceList) string {
 // registering the factory against the wrong version starts a reflector
 // against a nonexistent endpoint.
 func DeviceTaintRuleAPIVersion(resources []*metav1.APIResourceList) string {
-	for _, v := range draServedVersions {
+	// DeviceTaintRule graduated later than claims/slices: v1alpha3 (1.35)
+	// -> v1 (1.37). A 1.35 cluster serves it only at v1alpha3 while claims
+	// are already at v1, so the taint list carries the alpha version that
+	// draServedVersions (claims/slices only) does not.
+	for _, v := range []string{"v1", "v1beta2", "v1beta1", "v1alpha3"} {
 		for _, list := range resources {
 			if list == nil {
 				continue

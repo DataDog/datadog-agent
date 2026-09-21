@@ -205,13 +205,18 @@ func parseQuantity(value string) (float64, error) {
 // compete for each unit -- on an RTX PRO 6000 advertising 31 placements over
 // 12 memory slices that is a 12x overcount, 1136Gi reported against 95Gi.
 //
-// Exclusion holds within a counter set, and sets are joined into one group by
-// any device that draws from several at once -- which the API permits and a
-// multi-GPU NVLink device would use. Independent devices add; each group
-// contributes its largest option, since "do not partition" is itself an
-// advertised entry consuming the whole group. On a four-GPU node that yields
-// four groups of 95Gi; given devices A, B and a 190Gi AB spanning both, one
-// group of 190Gi rather than 380Gi.
+// Capacity is therefore attributed to counter sets, which are the budgets the
+// hardware actually has: each set keeps the largest capacity any of its
+// devices can account for, and the sets add up. A device drawing from several
+// sets at once -- which the API permits and a multi-GPU NVLink device would
+// use -- spreads its capacity across them, since that capacity exists only by
+// spanning all of them.
+//
+// This is what makes overlapping options come out right. Three 95Gi cards
+// advertised alongside a 190Gi AB and a 190Gi BC give each set 95Gi and a
+// total of 285Gi: A+B+C and AB+C can both be realised, and both are 285Gi.
+// Treating the connected sets as one exclusive group would report 190Gi, and
+// adding the combinations as if independent would report 570Gi.
 //
 // Taking this from the devices rather than from spec.sharedCounters is
 // deliberate. The counter set also carries allocation tokens --
@@ -222,18 +227,17 @@ func parseQuantity(value string) (float64, error) {
 // filter. Verified against sharedCounters on twelve live pools: the two agree
 // exactly for every capacity key.
 //
-// A group's maximum understates only if the device joining two sets is smaller
-// than the disjoint alternative, which would describe hardware that shrinks
-// when combined. Exactness there is a knapsack over the counter budgets, which
-// is the scheduler's job, not a collector's.
+// The split across a spanning device's sets is even because the API does not
+// say how much of that device's capacity each set contributes: consumesCounters
+// names the counters it draws, but those names are the driver's own and do not
+// have to match the capacity names (an NVIDIA slice spells them copy-engines
+// and copyEngines on the two sides). An uneven spanning device is therefore
+// approximated, not measured.
 func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
-	type deviceCapacity struct {
-		sets     []string
-		capacity map[string]float64
-	}
+	totals := map[string]float64{}
+	// counter set -> capacity name -> largest capacity attributable to it.
+	perSet := map[string]map[string]float64{}
 
-	parsed := make([]deviceCapacity, 0, len(devices))
-	groups := newCounterSetGroups()
 	for _, d := range devices {
 		devMap, ok := d.(map[string]interface{})
 		if !ok {
@@ -260,72 +264,33 @@ func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
 		if len(capacity) == 0 {
 			continue
 		}
-		sets := draDeviceCounterSets(devMap)
-		groups.join(sets)
-		parsed = append(parsed, deviceCapacity{sets: sets, capacity: capacity})
-	}
 
-	totals := map[string]float64{}
-	// group root -> capacity name -> largest option in that group.
-	maxes := map[string]map[string]float64{}
-	for _, d := range parsed {
-		if len(d.sets) == 0 {
-			for name, q := range d.capacity {
+		sets := draDeviceCounterSets(devMap)
+		if len(sets) == 0 {
+			for name, q := range capacity {
 				totals[name] += q
 			}
 			continue
 		}
-		root := groups.root(d.sets[0])
-		perGroup := maxes[root]
-		if perGroup == nil {
-			perGroup = map[string]float64{}
-			maxes[root] = perGroup
-		}
-		for name, q := range d.capacity {
-			if cur, seen := perGroup[name]; !seen || q > cur {
-				perGroup[name] = q
+		share := float64(len(sets))
+		for _, set := range sets {
+			attributed := perSet[set]
+			if attributed == nil {
+				attributed = map[string]float64{}
+				perSet[set] = attributed
+			}
+			for name, q := range capacity {
+				if cur, seen := attributed[name]; !seen || q/share > cur {
+					attributed[name] = q / share
+				}
 			}
 		}
 	}
-	for _, perGroup := range maxes {
-		for name, q := range perGroup {
+
+	for _, attributed := range perSet {
+		for name, q := range attributed {
 			totals[name] += q
 		}
 	}
 	return totals
-}
-
-// counterSetGroups is a union-find over counter-set names. Two sets belong to
-// the same group once a device draws from both, because then the options
-// backed by either are alternatives to that device rather than to each other.
-type counterSetGroups struct {
-	parent map[string]string
-}
-
-func newCounterSetGroups() *counterSetGroups {
-	return &counterSetGroups{parent: map[string]string{}}
-}
-
-func (g *counterSetGroups) root(name string) string {
-	parent, seen := g.parent[name]
-	if !seen {
-		g.parent[name] = name
-		return name
-	}
-	if parent == name {
-		return name
-	}
-	r := g.root(parent)
-	g.parent[name] = r // path compression
-	return r
-}
-
-func (g *counterSetGroups) join(names []string) {
-	if len(names) == 0 {
-		return
-	}
-	first := g.root(names[0])
-	for _, other := range names[1:] {
-		g.parent[g.root(other)] = first
-	}
 }

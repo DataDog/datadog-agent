@@ -248,7 +248,7 @@ type KSMConfig struct {
 	// (ResourceClaim, ResourceSlice), which report accelerator demand and
 	// supply. Off by default: the resource.k8s.io API group is absent on most
 	// clusters, and the Cluster Agent's shipped RBAC has to grant
-	// get/list/watch on it before the informers can start.
+	// list/watch on it before the informers can start.
 	// Example:
 	// collect_dra_resources: true
 	CollectDRAResources bool `yaml:"collect_dra_resources"`
@@ -681,11 +681,29 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	draTaintAPIVersion := customresources.DeviceTaintRuleAPIVersion(resources)
 
 	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// This mode changes where pod data comes from, not what metrics
+		// are produced. DRA resources (ResourceClaim, ResourceSlice) are
+		// independent of pod collection and must not be dropped here.
+		factories := []customresource.RegistryFactory{
+			customresources.NewExtendedPodFactoryForKubelet(),
+		}
+		if k.instance.CollectDRAResources && draAPIVersion != "" {
+			factories = append(factories,
+				customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses),
+				customresources.NewResourceSliceFactory(c, draAPIVersion),
+			)
+			if draTaintAPIVersion != "" {
+				factories = append(factories,
+					customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion),
+				)
+			}
+			collectors = lo.Uniq(append(collectors, draCollectors(draAPIVersion, draTaintAPIVersion)...))
+		} else if k.instance.CollectDRAResources {
+			log.Infof("DRA collection is enabled but this cluster serves no known %s API version (supported: %s); skipping resourceclaim/resourceslice collection", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
+		}
 		return customResources{
 			collectors: collectors,
-			factories: []customresource.RegistryFactory{
-				customresources.NewExtendedPodFactoryForKubelet(),
-			},
+			factories:  factories,
 		}
 	}
 
