@@ -570,7 +570,7 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	if ddcfg == nil {
-		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		return map[string]any{"api": map[string]any{"site": pkgconfig.GetString("site")}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
