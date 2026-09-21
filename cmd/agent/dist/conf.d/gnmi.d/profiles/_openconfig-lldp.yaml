@@ -1,0 +1,21 @@
+# OpenConfig gNMI paths used for LLDP topology link metadata.
+#
+# Include this profile from metric profiles with:
+#   extends:
+#     - _openconfig-lldp
+#
+# Topology is collected only when collect_topology: true is set on the instance.
+
+topology:
+  lldp:
+    keys:
+      interface: name
+      neighbor: id
+    chassis_id: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id
+    chassis_id_type: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id-type
+    port_id: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-id
+    port_id_type: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-id-type
+    system_name: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/system-name
+    system_description: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/system-description
+    port_description: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-description
+    management_address: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/management-address

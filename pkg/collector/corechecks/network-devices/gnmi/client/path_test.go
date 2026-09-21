@@ -16,7 +16,7 @@ import (
 
 func TestSubscribePathFromMetric(t *testing.T) {
 	metric := config.MetricConfig{
-		Path: "/interfaces/interface/state/counters/in-octets",
+		Path: "/openconfig/interfaces/interface/state/counters/in-octets",
 		Tags: map[string]string{
 			"interface": "name",
 		},
@@ -24,14 +24,16 @@ func TestSubscribePathFromMetric(t *testing.T) {
 
 	path, err := subscribePathFromMetric(metric)
 	require.NoError(t, err)
-	require.Len(t, path.GetElem(), 5)
-	require.Equal(t, "interface", path.GetElem()[1].GetName())
-	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[1].GetKey())
+	require.Len(t, path.GetElem(), 6)
+	require.Equal(t, "openconfig", path.GetElem()[0].GetName())
+	require.Equal(t, "interface", path.GetElem()[2].GetName())
+	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[2].GetKey())
 }
 
 func TestCacheKeyFromGNMIPath(t *testing.T) {
 	path := &gnmipb.Path{
 		Elem: []*gnmipb.PathElem{
+			{Name: "openconfig"},
 			{Name: "interfaces"},
 			{Name: "interface", Key: map[string]string{"name": "eth0"}},
 			{Name: "state"},
@@ -41,7 +43,7 @@ func TestCacheKeyFromGNMIPath(t *testing.T) {
 	}
 
 	key := cacheKeyFromGNMIPath(path)
-	require.Equal(t, "/interfaces/interface/state/counters/in-octets", key.Path)
+	require.Equal(t, "/openconfig/interfaces/interface/state/counters/in-octets", key.Path)
 	require.Equal(t, map[string]string{"name": "eth0"}, key.Keys)
 }
 

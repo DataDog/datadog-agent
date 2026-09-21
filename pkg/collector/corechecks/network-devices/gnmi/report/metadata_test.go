@@ -31,16 +31,22 @@ func TestShouldReportMetadata(t *testing.T) {
 }
 
 func TestBuildDeviceMetadata(t *testing.T) {
+	defaultMetadata := config.DefaultOpenConfigMetadata()
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: "10.0.0.5"},
-		Profile:  config.ProfileDefinition{Name: "basic-interfaces"},
+		Profile:  config.ProfileDefinition{Name: "interface-stats"},
 	}
+	chassisKeys := map[string]string{"name": "Chassis"}
+	linecardKeys := map[string]string{"name": "Linecard0"}
 	snapshot := []client.CachedValue{
-		{Key: client.CacheKey{Path: pathHostname}, Entry: client.CacheEntry{Value: "router-1"}},
-		{Key: client.CacheKey{Path: pathVendorName}, Entry: client.CacheEntry{Value: "Cisco"}},
-		{Key: client.CacheKey{Path: pathSerialNumber}, Entry: client.CacheEntry{Value: "ABC123"}},
-		{Key: client.CacheKey{Path: pathPlatform}, Entry: client.CacheEntry{Value: "ASR9000"}},
-		{Key: client.CacheKey{Path: pathSoftwareVersion}, Entry: client.CacheEntry{Value: "7.3.2"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.Hostname}, Entry: client.CacheEntry{Value: "router-1"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.ComponentType, Keys: linecardKeys}, Entry: client.CacheEntry{Value: "openconfig-platform-types:LINECARD"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.VendorName, Keys: linecardKeys}, Entry: client.CacheEntry{Value: "Wrong vendor"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.ComponentType, Keys: chassisKeys}, Entry: client.CacheEntry{Value: "openconfig-platform-types:CHASSIS"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.VendorName, Keys: chassisKeys}, Entry: client.CacheEntry{Value: "Cisco"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.SerialNumber, Keys: chassisKeys}, Entry: client.CacheEntry{Value: "ABC123"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.Platform, Keys: chassisKeys}, Entry: client.CacheEntry{Value: "ASR9000"}},
+		{Key: client.CacheKey{Path: defaultMetadata.Device.SoftwareVersion}, Entry: client.CacheEntry{Value: "7.3.2"}},
 	}
 
 	device := buildDeviceMetadata("default:10.0.0.5", cfg, snapshot, []string{"device_ip:10.0.0.5"})
@@ -53,6 +59,22 @@ func TestBuildDeviceMetadata(t *testing.T) {
 	assert.Equal(t, "gnmi", device.Integration)
 }
 
+func TestBuildDeviceMetadataSkipsArbitraryComponentsWithoutChassis(t *testing.T) {
+	metadata := config.DefaultOpenConfigMetadata()
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: "10.0.0.5"},
+		Profile:  config.ProfileDefinition{Metadata: metadata},
+	}
+	keys := map[string]string{"name": "Linecard0"}
+	snapshot := []client.CachedValue{
+		{Key: client.CacheKey{Path: metadata.Device.ComponentType, Keys: keys}, Entry: client.CacheEntry{Value: "LINECARD"}},
+		{Key: client.CacheKey{Path: metadata.Device.VendorName, Keys: keys}, Entry: client.CacheEntry{Value: "linecard-vendor"}},
+	}
+
+	device := buildDeviceMetadata("default:10.0.0.5", cfg, snapshot, nil)
+	assert.Empty(t, device.Vendor)
+}
+
 func TestBuildInterfaceMetadata(t *testing.T) {
 	snapshot := []client.CachedValue{
 		{
@@ -60,28 +82,28 @@ func TestBuildInterfaceMetadata(t *testing.T) {
 			Entry: client.CacheEntry{Value: "eth0"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/mac-address", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/ethernet/state/hw-mac-address", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "00:11:22:33:44:55"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: int32(42)},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/type", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/type", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "iana-if-type:ethernetCsmacd"},
 		},
 	}
 
-	interfaces := buildInterfaceMetadata("default:10.0.0.5", snapshot)
+	interfaces := buildInterfaceMetadata("default:10.0.0.5", config.DefaultOpenConfigMetadata(), snapshot)
 	require.Len(t, interfaces, 1)
 	assert.Equal(t, int32(42), interfaces[0].Index)
 	assert.Equal(t, "eth0", interfaces[0].Name)
@@ -95,20 +117,20 @@ func TestBuildInterfaceMetadata(t *testing.T) {
 func TestBuildInterfaceMetadataSkipsMissingIfIndex(t *testing.T) {
 	snapshot := []client.CachedValue{
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "eth0"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "eth1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "eth1"}},
 			Entry: client.CacheEntry{Value: "eth1"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth1"}},
 			Entry: client.CacheEntry{Value: int32(7)},
 		},
 	}
 
-	interfaces := buildInterfaceMetadata("default:10.0.0.5", snapshot)
+	interfaces := buildInterfaceMetadata("default:10.0.0.5", config.DefaultOpenConfigMetadata(), snapshot)
 	require.Len(t, interfaces, 1)
 	assert.Equal(t, "eth1", interfaces[0].Name)
 	assert.Equal(t, int32(7), interfaces[0].Index)
@@ -116,47 +138,48 @@ func TestBuildInterfaceMetadataSkipsMissingIfIndex(t *testing.T) {
 }
 
 func TestInterfaceSnapshotComplete(t *testing.T) {
-	assert.True(t, InterfaceSnapshotComplete(nil))
+	metadata := config.DefaultOpenConfigMetadata()
+	assert.True(t, InterfaceSnapshotComplete(nil, metadata))
 
 	incomplete := []client.CachedValue{
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "eth0"},
 		},
 	}
-	assert.False(t, InterfaceSnapshotComplete(incomplete))
+	assert.False(t, InterfaceSnapshotComplete(incomplete, metadata))
 
 	complete := append(incomplete, client.CachedValue{
-		Key:   client.CacheKey{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth0"}},
+		Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "eth0"}},
 		Entry: client.CacheEntry{Value: int32(42)},
 	})
-	assert.True(t, InterfaceSnapshotComplete(complete))
+	assert.True(t, InterfaceSnapshotComplete(complete, metadata))
 }
 
 func TestReportInterfaceStatus(t *testing.T) {
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: "10.0.0.5"},
-		Profile:  config.ProfileDefinition{Name: "basic-interfaces"},
+		Profile:  config.ProfileDefinition{Name: "interface-stats"},
 	}
 	snapshot := []client.CachedValue{
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "Ethernet1"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/description", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/description", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "uplink"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: int32(42)},
 		},
 	}
@@ -181,28 +204,28 @@ func TestReportInterfaceStatus(t *testing.T) {
 func TestReportMetadataSubmitsEvent(t *testing.T) {
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: "10.0.0.5"},
-		Profile:  config.ProfileDefinition{Name: "basic-interfaces"},
+		Profile:  config.ProfileDefinition{Name: "interface-stats"},
 	}
 	snapshot := []client.CachedValue{
-		{Key: client.CacheKey{Path: pathHostname}, Entry: client.CacheEntry{Value: "router-1"}},
+		{Key: client.CacheKey{Path: config.DefaultOpenConfigMetadata().Device.Hostname}, Entry: client.CacheEntry{Value: "router-1"}},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "Ethernet1"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/description", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/description", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "uplink"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/admin-status", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/oper-status", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: "UP"},
 		},
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "Ethernet1"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/ifindex", Keys: map[string]string{"name": "Ethernet1"}},
 			Entry: client.CacheEntry{Value: int32(42)},
 		},
 	}
@@ -249,7 +272,7 @@ func TestReportMetadataSubmitsEvent(t *testing.T) {
 func TestReportMetadataSkipsEmptyPayload(t *testing.T) {
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: "10.0.0.5"},
-		Profile:  config.ProfileDefinition{Name: "basic-interfaces"},
+		Profile:  config.ProfileDefinition{Name: "interface-stats"},
 	}
 
 	mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
