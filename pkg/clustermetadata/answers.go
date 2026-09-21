@@ -32,8 +32,12 @@ func ReducePeerAnswers(answers []LookupAnswer) LookupAnswer {
 	case absent:
 		return LookupAnswer{Kind: AnswerAbsent}
 	case notMine:
-		return LookupAnswer{Kind: AnswerNotReady}
+		// Every synced replica checked its cache and none holds the entity.
+		// A pod created between observation and query is the documented
+		// race; one retry resolves it.
+		return LookupAnswer{Kind: AnswerAbsent}
 	default:
+		// No answers at all (boundary): nothing was checked.
 		return LookupAnswer{Kind: AnswerNotReady}
 	}
 }
