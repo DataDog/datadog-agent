@@ -29,11 +29,11 @@ type pingConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
-// documentInstance carries no credential values: the Agent resolves CredID
+// documentInstance carries no credential values: the Agent resolves CredName
 // against its own configured credentials.
 type documentInstance struct {
 	IPAddress string `json:"ip_address"`
-	CredID    string `json:"cred_id"`
+	CredName  string `json:"cred_name"`
 }
 
 // checkInitConfig is the init config handed to the snmp check. The yaml names
