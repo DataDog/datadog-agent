@@ -1321,7 +1321,7 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 
 	if errResolution != nil {
 		f := &relatedEvent.ProcessCacheEntry.FileEvent
-		seclog.Errorf("path resolution error on related process event for pid %d (%s), inode %d, mountid %d: %s", pce.Pid, f.BasenameStr, f.Inode, f.MountID, err)
+		seclog.Errorf("path resolution error on related process event for %s, inode %d, mountid %d, basename %q: %s", p.fieldHandlers.pathErrorDiag(relatedEvent), f.Inode, f.MountID, f.BasenameStr, err)
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 

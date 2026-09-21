@@ -91,12 +91,49 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, nil)
 }
 
+// pathErrorDiag renders who an event belongs to, for the path-resolution diagnostic logs
+// below. The failures we are chasing carry an all-zero file path_key, and therefore an
+// empty basename, so "pid N, inode 0, mountid 0" never identifies the process; comm, the
+// parent and the container do. Every field is read defensively because these call sites
+// fire while the event is still being resolved, so the process context can be partial or
+// missing entirely.
+func (fh *EBPFFieldHandlers) pathErrorDiag(ev *model.Event) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "pid %d tid %d", ev.PIDContext.Pid, ev.PIDContext.Tid)
+
+	if pc := ev.ProcessContext; pc != nil {
+		fmt.Fprintf(&b, " comm %q exe %q ppid %d", pc.Comm, pc.FileEvent.PathnameStr, pc.PPid)
+		if pc.Parent != nil {
+			fmt.Fprintf(&b, " parent_comm %q", pc.Parent.Comm)
+		}
+		if id := pc.ContainerContext.ContainerID; id != "" {
+			fmt.Fprintf(&b, " container %s", id)
+		}
+		if cg := pc.CGroup.CGroupID; cg != "" {
+			fmt.Fprintf(&b, " cgroup %s", cg)
+		}
+	} else {
+		b.WriteString(" <no process context>")
+	}
+
+	// The execve/execveat pathname argument decides whether the kernel had a path to walk
+	// at all. hook_do_dentry_open is the only thing that ever fills exec.file.path_key, so
+	// an empty argument here (an fd-based or AT_EMPTY_PATH exec) would explain a 0/0 key,
+	// while a real path would rule that explanation out.
+	if ev.GetEventType() == model.ExecEventType {
+		fmt.Fprintf(&b, " execve_path %q", fh.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext))
+	}
+
+	return b.String()
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFullFilePath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
-			seclog.Errorf("failed to resolve full file path for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
+			seclog.Errorf("failed to resolve full file path for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(ev), f.Inode, f.MountID, f.BasenameStr, err)
 			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
@@ -105,7 +142,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountOrigin = origin
 		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext)
 		if err != nil && f.PathResolutionError == nil {
-			seclog.Warnf("error while resolving the attributes for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
+			seclog.Warnf("error while resolving the attributes for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(ev), f.Inode, f.MountID, f.BasenameStr, err)
 			ev.SetPathResolutionError(f, err)
 		}
 	}
@@ -133,7 +170,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 			if err != nil {
-				seclog.Errorf("failed to resolve filesystem for pid %d, inode %d, mountid %d: %s", ev.PIDContext.Pid, f.Inode, f.MountID, err)
+				seclog.Errorf("failed to resolve filesystem for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(ev), f.Inode, f.MountID, f.BasenameStr, err)
 				ev.SetPathResolutionError(f, err)
 			}
 			f.Filesystem = fs
@@ -598,7 +635,7 @@ func (fh *EBPFFieldHandlers) ResolveFileMetadata(event *model.Event) *model.File
 		metadata, err := fh.resolvers.FileMetadataResolver.ResolveFileMetadata(event, &event.Exec.Process.FileEvent)
 		if err != nil || metadata == nil {
 			f := &event.Exec.Process.FileEvent
-			seclog.Errorf("failed to resolve exec binary metadata for pid %d (%s), inode %d, mountid %d: %s", event.PIDContext.Pid, f.BasenameStr, f.Inode, f.MountID, err)
+			seclog.Errorf("failed to resolve exec binary metadata for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(event), f.Inode, f.MountID, f.BasenameStr, err)
 			return nil
 		}
 		event.Exec.FileMetadata = *metadata

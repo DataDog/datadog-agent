@@ -649,8 +649,17 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGro
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
-			f := &event.ProcessCacheEntry.FileEvent
-			seclog.Errorf("failed to resolve new process cache entry for pid %d (%s), inode %d, mountid %d: %s", event.ProcessCacheEntry.Pid, f.BasenameStr, f.Inode, f.MountID, err)
+			pce, f := event.ProcessCacheEntry, &event.ProcessCacheEntry.FileEvent
+			// the interesting failures have a 0/0 path key and so an empty basename; comm
+			// comes straight from the kernel event and is the only thing that names the
+			// process. execve_path is the pathname argument the caller passed, which says
+			// whether the kernel had a path to walk at all.
+			execvePath := "<unresolved>"
+			if event.FieldHandlers != nil {
+				execvePath = event.FieldHandlers.ResolveSyscallCtxArgsStr1(event, &event.Exec.SyscallContext)
+			}
+			seclog.Errorf("failed to resolve new process cache entry for pid %d tid %d comm %q ppid %d container %s execve_path %q, inode %d, mountid %d, basename %q: %s",
+				pce.Pid, pce.Tid, pce.Comm, pce.PPid, pce.ContainerContext.ContainerID, execvePath, f.Inode, f.MountID, f.BasenameStr, err)
 			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 		}
 	} else {
