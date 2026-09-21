@@ -19,24 +19,17 @@ import (
 // Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
 var RootOIDs = []string{".0.0", ".1.0"}
 
+type getNextSession interface {
+	GetNext(oids []string) (*gosnmp.SnmpPacket, error)
+}
+
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
 // When starting at the default root, failed initial requests try RootOIDs in order.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
-	session *gosnmp.GoSNMP,
-	rootOID string,
-	callInterval time.Duration,
-	maxCallCount int,
-	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
-) error {
-	return conditionalWalk(ctx, session.GetNext, session.Logger, rootOID, callInterval, maxCallCount, walkFn)
-}
-
-func conditionalWalk(
-	ctx context.Context,
-	getNext func([]string) (*gosnmp.SnmpPacket, error),
+	session getNextSession,
 	logger gosnmp.Logger,
 	rootOID string,
 	callInterval time.Duration,
@@ -78,7 +71,7 @@ RequestLoop:
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
 
-		response, err := getNext([]string{oid})
+		response, err := session.GetNext([]string{oid})
 		if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError) {
 			rootIndex++
 			logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])

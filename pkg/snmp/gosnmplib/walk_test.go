@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockSession struct {
+	getNext func([]string) (*gosnmp.SnmpPacket, error)
+}
+
+func (s *mockSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	return s.getNext(oids)
+}
+
 func TestRootOIDsEncoding(t *testing.T) {
 	assert.Equal(t, []string{".0.0", ".1.0"}, RootOIDs)
 	for _, tc := range []struct {
@@ -121,7 +129,7 @@ func TestConditionalWalkStartingOID(t *testing.T) {
 				return "", nil
 			}
 
-			err := conditionalWalk(context.Background(), getNext, gosnmp.Logger{}, tc.rootOID, 0, 0, walkFn)
+			err := ConditionalWalk(context.Background(), &mockSession{getNext: getNext}, gosnmp.Logger{}, tc.rootOID, 0, 0, walkFn)
 			if tc.expectedError != nil {
 				require.ErrorIs(t, err, tc.expectedError)
 				assert.IsType(t, &ConnectionError{}, err)
@@ -168,7 +176,7 @@ func TestConditionalWalkTriesRootsInOrder(t *testing.T) {
 				return "", nil
 			}
 
-			err := conditionalWalk(context.Background(), getNext, gosnmp.Logger{}, "", 0, 0, walkFn)
+			err := ConditionalWalk(context.Background(), &mockSession{getNext: getNext}, gosnmp.Logger{}, "", 0, 0, walkFn)
 			if tc.success {
 				require.NoError(t, err)
 				assert.Equal(t, []string{".0.0", ".1.0", ".1.3.6.1.2.1", ".1.3.6.1.2.1.1.1.0"}, calls)
@@ -208,7 +216,7 @@ func TestConditionalWalkFallbackRespectsLimits(t *testing.T) {
 				return "", nil
 			}
 
-			err := conditionalWalk(ctx, getNext, gosnmp.Logger{}, "", 0, tc.maxCallCount, walkFn)
+			err := ConditionalWalk(ctx, &mockSession{getNext: getNext}, gosnmp.Logger{}, "", 0, tc.maxCallCount, walkFn)
 			require.EqualError(t, err, tc.expectedErr)
 			assert.Equal(t, []string{".0.0"}, calls)
 		})
