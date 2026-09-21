@@ -88,7 +88,7 @@ func Detect() Capability {
 	case "darwin", "linux":
 		useRawSocket = false
 	default:
-		return Capability{Reason: fmt.Sprintf("ping is not supported on %s", runtime.GOOS)}
+		return Capability{Reason: "ping is not supported on " + runtime.GOOS}
 	}
 
 	r := Run(detectTarget, Options{
