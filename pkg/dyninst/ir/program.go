@@ -58,6 +58,18 @@ type Program struct {
 	// Redaction is the policy for scrubbing sensitive captured values. It is
 	// nil when no policy is configured, in which case nothing is redacted.
 	Redaction *redaction.Config `json:"-"`
+	// CoordinatedSampling tunes the per-trace sampling rate; nil uses the default.
+	CoordinatedSampling *CoordinatedSampling `json:"-"`
+}
+
+// DefaultSessionSnapshotsPerSecond is the session-wide ceiling used when no
+// CoordinatedSampling config is provided.
+const DefaultSessionSnapshotsPerSecond = 100
+
+// CoordinatedSampling sets the session-wide rate for coordinated sampling.
+type CoordinatedSampling struct {
+	// SnapshotsPerSecond is the session-wide ceiling for the per-trace decision.
+	SnapshotsPerSecond float64
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to

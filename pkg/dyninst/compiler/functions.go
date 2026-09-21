@@ -68,6 +68,13 @@ type ProcessEvent struct {
 	TopPCOffset         int8
 	ThrottleMode        ThrottleMode
 	EventRootType       *ir.EventRootType
+	// Where the context.Context in scope at this probe lives, so the eBPF side
+	// can read the trace id from it. CtxLocKind is one of the ctxLoc* values;
+	// ctxLocNone means there is no context to read.
+	CtxLocKind     uint8
+	CtxRegTab      uint8
+	CtxRegData     uint8
+	CtxStackOffset int32
 }
 
 // String returns a human-readable identifier for the function.
