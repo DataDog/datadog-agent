@@ -9,6 +9,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -710,7 +712,11 @@ func parseCapField(t *testing.T, status, field string) uint64 {
 }
 
 func (s *linuxTestSuite) provisionServer() {
-	err := s.Env().RemoteHost.CopyFolder("testdata/provision", "/home/ubuntu/e2e-test")
+	// Anchor testdata to this source file: prebuilt Bazel test binaries run from
+	// the repository root, so CWD-relative paths break.
+	_, thisFile, _, _ := runtime.Caller(0)
+	testDataDir := path.Join(path.Dir(thisFile), "testdata")
+	err := s.Env().RemoteHost.CopyFolder(path.Join(testDataDir, "provision"), "/home/ubuntu/e2e-test")
 	require.NoError(s.T(), err)
 
 	cmd := "sudo bash /home/ubuntu/e2e-test/provision.sh"

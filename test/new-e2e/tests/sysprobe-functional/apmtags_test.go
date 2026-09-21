@@ -148,6 +148,13 @@ func (v *apmvmSuite) SetupSuite() {
 // c:\tmp\inetpub\{siteName} for the other sites
 
 // pass sitename as empty string for default site
+// assetPath anchors a package-relative asset to this source file's directory:
+// prebuilt Bazel test binaries run from the repository root, not the package dir.
+func assetPath(rel string) string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), rel)
+}
+
 func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetfilename string) error {
 
 	sitepath := path.Join("c:", "inetpub", "wwwroot", targetfilename)
@@ -165,7 +172,7 @@ func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetf
 	}
 
 	// test this out.  Should copy path-relative to assets
-	host.CopyFile(filename, sitepath)
+	host.CopyFile(assetPath(filename), sitepath)
 	return nil
 }
 
@@ -228,11 +235,11 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 	removeIfExists(vm, clientAppConfig)
 
 	if test.clientJSONFile != "" {
-		vm.CopyFile(test.clientJSONFile, clientJSONFile)
+		vm.CopyFile(assetPath(test.clientJSONFile), clientJSONFile)
 	}
 
 	if test.clientAppConfig != "" {
-		vm.CopyFile(test.clientAppConfig, clientAppConfig)
+		vm.CopyFile(assetPath(test.clientAppConfig), clientAppConfig)
 	}
 
 	cleanSites(vm)
@@ -295,13 +302,13 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 
 	// copy test script
 	testScript := path.Join("c:", "users", "administrator", "test_tags.ps1")
-	vm.CopyFile("usmtest/test_tags.ps1", testScript)
+	vm.CopyFile(assetPath("usmtest/test_tags.ps1"), testScript)
 
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
-	vm.CopyFile("usmtest/littleget.exe", testExe)
+	vm.CopyFile(assetPath("usmtest/littleget.exe"), testExe)
 
 	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
-	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
+	vm.CopyFile(assetPath("usmtest/NamedPipeCmd.exe"), pipeExe)
 
 	pscommand := "%s %s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
