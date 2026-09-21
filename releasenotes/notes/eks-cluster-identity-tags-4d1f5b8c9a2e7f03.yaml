@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    On Amazon EKS, the Cluster Agent now resolves the authoritative cluster identity
+    through ``eks:DescribeCluster`` and exposes it to node Agents. The
+    ``eks_cluster_arn``, ``aws_account``, and ``region`` tags are attached to
+    container-sourced data (including APM traces) and to host metadata alongside
+    ``kube_cluster_name``. The tags are omitted when the identity cannot be resolved
+    (non-EKS clusters, missing ``eks:DescribeCluster`` permission, or no Cluster
+    Agent); node-local metadata is never used to infer cluster ownership.
