@@ -141,7 +141,7 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 		// Because ambient capabilities are per-thread and this is a cgo binary (syscall.AllThreadsSyscall is disabled
 		// under cgo), the ambient raise cannot be done process-wide. Instead it is done per-exec here
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			AmbientCaps: []uintptr{unix.CAP_SYS_PTRACE},
+			AmbientCaps: []uintptr{unix.CAP_SYS_PTRACE, unix.CAP_DAC_READ_SEARCH},
 		}
 	}
 
