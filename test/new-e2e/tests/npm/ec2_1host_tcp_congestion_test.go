@@ -75,7 +75,7 @@ func (v *ec2TCPCongestionSuite) SetupSuite() {
 	// Docker and docker-compose are pre-baked into the AWS e2e AMI; ec2.WithDocker()
 	// in the provisioner wires up the docker.Manager.
 	// Write compose file and start containers.
-	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionComposeYaml))
+	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionCompose()))
 	host.MustExecute("cd /tmp/tcp-congestion && docker-compose up -d")
 
 	// Wait for iperf3 server ready
@@ -89,7 +89,7 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 	host := v.Env().RemoteHost
 	// Kill client traffic generators, server helper processes, and tc rules from previous tests.
-	// pkill, not killall: the ubuntu:22.04 containers ship procps (pgrep/pkill) but not
+	// pkill, not killall: the apps-npm-tools containers ship procps (pgrep/pkill) but not
 	// psmisc (killall), so killall silently fails here.
 	host.MustExecute("docker exec tcp-congestion-client pkill -9 -x iperf3 2>/dev/null; " +
 		"docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; " +
