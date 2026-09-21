@@ -77,8 +77,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		// Mark FakeIntake as not provisioned
 		env.DisableFakeIntake()
 		// When not using fakeintake, set the configured Datadog site so the agent
-		// reports directly to that org's backend (default datad0g.com; datadoghq.com
-		// for prod/demo orgs).
+		// reports directly to that org's backend. If empty, agent defaults to datadoghq.com
 		if params.agentOptions != nil {
 			if site := ddagentEnv.Site(); site != "" {
 				params.agentOptions = append(params.agentOptions, agentparams.WithSite(site))
