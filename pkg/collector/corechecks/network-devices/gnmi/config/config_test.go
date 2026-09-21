@@ -168,7 +168,7 @@ func TestCheckConfigStringRedactsPassword(t *testing.T) {
 		Profile: ProfileDefinition{
 			Metrics: []MetricConfig{
 				{
-					Path:   "/interfaces/interface/state/counters/in-octets",
+					Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
 					Metric: "snmp.ifHCInOctets",
 					Type:   MetricTypeMonotonicCount,
 				},
@@ -221,7 +221,7 @@ profile: cisco
 
 const validProfileYAML = `
 metrics:
-  - path: /interfaces/interface/state/counters/in-octets
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
     type: monotonic_count
     tags:

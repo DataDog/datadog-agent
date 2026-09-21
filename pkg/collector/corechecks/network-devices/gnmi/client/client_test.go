@@ -29,7 +29,7 @@ func testProfile() config.ProfileDefinition {
 		Name: "test",
 		Metrics: []config.MetricConfig{
 			{
-				Path:   "/interfaces/interface/state/counters/in-octets",
+				Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
 				Metric: "snmp.ifHCInOctets",
 				Type:   config.MetricTypeMonotonicCount,
 				Tags: map[string]string{
@@ -37,7 +37,7 @@ func testProfile() config.ProfileDefinition {
 				},
 			},
 			{
-				Path:   "/interfaces/interface/state/counters/out-octets",
+				Path:   "/openconfig/interfaces/interface/state/counters/out-octets",
 				Metric: "snmp.ifHCOutOctets",
 				Type:   config.MetricTypeMonotonicCount,
 				Tags: map[string]string{
@@ -111,7 +111,7 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	require.Equal(t, "pass", event.Password)
 	require.NotNil(t, event.Request.GetSubscribe())
 	require.Equal(t, gnmipb.Encoding_JSON_IETF, event.Request.GetSubscribe().GetEncoding())
-	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2+len(client.MetadataSubscriptionPaths()))
+	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2+len(client.MetadataSubscriptionPaths(config.DefaultOpenConfigMetadata())))
 
 	update := fakeserver.InterfaceInOctetsUpdate("eth0", 42)
 	require.NoError(t, server.SendUpdate(event.StreamID, update))
@@ -121,7 +121,7 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 
 	require.Eventually(t, func() bool {
-		entry, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
+		entry, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
 		if !ok {
 			return false
 		}
@@ -199,7 +199,7 @@ func TestCacheEntryRecordsReceiveTime(t *testing.T) {
 	var entry client.CacheEntry
 	require.Eventually(t, func() bool {
 		var ok bool
-		entry, ok = c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
+		entry, ok = c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
 		return ok && entry.Value == uint64(7)
 	}, 2*time.Second, 10*time.Millisecond)
 
@@ -298,7 +298,7 @@ func TestReconnectAfterStreamClose(t *testing.T) {
 	require.NoError(t, server.SendUpdate(first.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", 1)))
 
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
 		return ok
 	}, 2*time.Second, 10*time.Millisecond)
 
@@ -310,7 +310,7 @@ func TestReconnectAfterStreamClose(t *testing.T) {
 	require.NoError(t, server.SendUpdate(second.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", 99)))
 
 	require.Eventually(t, func() bool {
-		entry, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
+		entry, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
 		return ok && entry.Value == uint64(99)
 	}, 2*time.Second, 10*time.Millisecond)
 }
@@ -357,12 +357,13 @@ func TestDeleteRemovesCacheEntry(t *testing.T) {
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth1", 100)))
 
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return ok
 	}, 2*time.Second, 10*time.Millisecond)
 
 	deletePath := &gnmipb.Path{
 		Elem: []*gnmipb.PathElem{
+			{Name: "openconfig"},
 			{Name: "interfaces"},
 			{Name: "interface", Key: map[string]string{"name": "eth1"}},
 			{Name: "state"},
@@ -373,7 +374,7 @@ func TestDeleteRemovesCacheEntry(t *testing.T) {
 	require.NoError(t, server.SendDelete(event.StreamID, deletePath))
 
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return !ok
 	}, 2*time.Second, 10*time.Millisecond)
 }
@@ -386,18 +387,19 @@ func TestDeleteRemovesKeyedSubtree(t *testing.T) {
 	event := waitSubscribeEvent(t, server)
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth1", 100)))
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return ok
 	}, 2*time.Second, 10*time.Millisecond)
 
 	require.NoError(t, server.SendDelete(event.StreamID, &gnmipb.Path{
 		Elem: []*gnmipb.PathElem{
+			{Name: "openconfig"},
 			{Name: "interfaces"},
 			{Name: "interface", Key: map[string]string{"name": "eth1"}},
 		},
 	}))
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return !ok
 	}, 2*time.Second, 10*time.Millisecond)
 }
@@ -438,14 +440,14 @@ func TestReconnectReplacesInitialSnapshot(t *testing.T) {
 	first := waitSubscribeEvent(t, server)
 	require.NoError(t, server.SendUpdate(first.StreamID, fakeserver.InterfaceInOctetsUpdate("eth1", 100)))
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return ok
 	}, 2*time.Second, 10*time.Millisecond)
 
 	require.NoError(t, server.CloseStream(first.StreamID))
 	waitSubscribeEvent(t, server)
 	require.Eventually(t, func() bool {
-		_, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
+		_, ok := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth1"})
 		return !ok
 	}, 2*time.Second, 10*time.Millisecond)
 }
@@ -466,8 +468,8 @@ func TestReplaceUpdatesCache(t *testing.T) {
 	require.NoError(t, server.SendReplace(event.StreamID, replace))
 
 	require.Eventually(t, func() bool {
-		inEntry, inOK := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth2"})
-		outEntry, outOK := c.Get("/interfaces/interface/state/counters/out-octets", map[string]string{"name": "eth2"})
+		inEntry, inOK := c.Get("/openconfig/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth2"})
+		outEntry, outOK := c.Get("/openconfig/interfaces/interface/state/counters/out-octets", map[string]string{"name": "eth2"})
 		return inOK && outOK && inEntry.Value == uint64(10) && outEntry.Value == uint64(20)
 	}, 2*time.Second, 10*time.Millisecond)
 }

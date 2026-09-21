@@ -12,19 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
 func TestBuildTopologyLinks(t *testing.T) {
+	topology := config.DefaultOpenConfigLLDP()
 	deviceID := "default:10.0.0.5"
 	keys := map[string]string{"name": "eth0", "id": "1"}
 	snapshot := []client.CachedValue{
-		{Key: client.CacheKey{Path: pathLLDPChassisIDType, Keys: keys}, Entry: client.CacheEntry{Value: "MAC_ADDRESS"}},
-		{Key: client.CacheKey{Path: pathLLDPChassisID, Keys: keys}, Entry: client.CacheEntry{Value: "00:aa:bb:cc:dd:ee"}},
-		{Key: client.CacheKey{Path: pathLLDPPortIDType, Keys: keys}, Entry: client.CacheEntry{Value: "INTERFACE_NAME"}},
-		{Key: client.CacheKey{Path: pathLLDPPortID, Keys: keys}, Entry: client.CacheEntry{Value: "Gi0/1"}},
-		{Key: client.CacheKey{Path: pathLLDPSystemName, Keys: keys}, Entry: client.CacheEntry{Value: "remote-switch"}},
-		{Key: client.CacheKey{Path: pathLLDPManagementAddress, Keys: keys}, Entry: client.CacheEntry{Value: "10.0.0.9"}},
+		{Key: client.CacheKey{Path: topology.LLDP.ChassisIDType, Keys: keys}, Entry: client.CacheEntry{Value: "MAC_ADDRESS"}},
+		{Key: client.CacheKey{Path: topology.LLDP.ChassisID, Keys: keys}, Entry: client.CacheEntry{Value: "00:aa:bb:cc:dd:ee"}},
+		{Key: client.CacheKey{Path: topology.LLDP.PortIDType, Keys: keys}, Entry: client.CacheEntry{Value: "INTERFACE_NAME"}},
+		{Key: client.CacheKey{Path: topology.LLDP.PortID, Keys: keys}, Entry: client.CacheEntry{Value: "Gi0/1"}},
+		{Key: client.CacheKey{Path: topology.LLDP.SystemName, Keys: keys}, Entry: client.CacheEntry{Value: "remote-switch"}},
+		{Key: client.CacheKey{Path: topology.LLDP.ManagementAddress, Keys: keys}, Entry: client.CacheEntry{Value: "10.0.0.9"}},
 	}
 
 	interfaces := []devicemetadata.InterfaceMetadata{
@@ -35,7 +37,7 @@ func TestBuildTopologyLinks(t *testing.T) {
 		},
 	}
 
-	links := buildTopologyLinks(deviceID, snapshot, interfaces)
+	links := buildTopologyLinks(deviceID, topology, snapshot, interfaces)
 	require.Len(t, links, 1)
 	assert.Equal(t, topologyLinkSourceTypeLLDP, links[0].SourceType)
 	assert.Equal(t, "gnmi", links[0].Integration)
@@ -52,7 +54,7 @@ func TestBuildTopologyLinks(t *testing.T) {
 }
 
 func TestBuildTopologyLinksEmptyWhenNoNeighbors(t *testing.T) {
-	links := buildTopologyLinks("default:10.0.0.5", nil, nil)
+	links := buildTopologyLinks("default:10.0.0.5", config.TopologyConfig{}, nil, nil)
 	assert.Nil(t, links)
 }
 
