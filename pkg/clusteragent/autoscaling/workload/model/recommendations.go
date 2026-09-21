@@ -76,12 +76,6 @@ type HorizontalScalingValues struct {
 	UtilizationPct *float64 `json:"utilization_pct,omitempty"`
 }
 
-// ContainerRuntimeValues holds runtime configuration for a container
-type ContainerRuntimeValues struct {
-	// GoMemLimit is the value for the GOMEMLIMIT environment variable
-	GoMemLimit string `json:"gomemlimit,omitempty"`
-}
-
 // VerticalScalingValues holds the vertical scaling values for a target
 type VerticalScalingValues struct {
 	// Source is the source of the value
@@ -90,14 +84,11 @@ type VerticalScalingValues struct {
 	// Timestamp is the time at which the data was generated
 	Timestamp time.Time `json:"timestamp"`
 
-	// ResourcesHash is the hash of containerResources and runtimeValues
+	// ResourcesHash is the hash of ContainerResources
 	ResourcesHash string `json:"resources_hash"`
 
-	// ContainerResources holds the resources for a container
+	// ContainerResources holds the resources for a container, including optional runtime configuration (e.g. GOMEMLIMIT)
 	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources `json:"container_resources"`
-
-	// RuntimeValues holds runtime configuration per container, keyed by container name
-	RuntimeValues map[string]ContainerRuntimeValues `json:"runtime_values,omitempty"`
 }
 
 // DeepCopy returns a deep copy of the VerticalScalingValues.
@@ -127,13 +118,12 @@ func (v *VerticalScalingValues) DeepCopy() *VerticalScalingValues {
 					cp.Limits[k] = q.DeepCopy()
 				}
 			}
+			if cr.Runtime != nil {
+				cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+					Gomemlimit: cr.Runtime.Gomemlimit,
+				}
+			}
 			out.ContainerResources[i] = cp
-		}
-	}
-	if v.RuntimeValues != nil {
-		out.RuntimeValues = make(map[string]ContainerRuntimeValues, len(v.RuntimeValues))
-		for k, rv := range v.RuntimeValues {
-			out.RuntimeValues[k] = rv
 		}
 	}
 	return out

@@ -598,28 +598,12 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 
 	if status.Vertical != nil {
 		if status.Vertical.Target != nil {
-			vsv := &VerticalScalingValues{
+			p.scalingValues.Vertical = &VerticalScalingValues{
 				Source:             status.Vertical.Target.Source,
 				Timestamp:          status.Vertical.Target.GeneratedAt.Time,
 				ContainerResources: status.Vertical.Target.DesiredResources,
 				ResourcesHash:      status.Vertical.Target.Version,
 			}
-			for _, cr := range status.Vertical.Target.DesiredResources {
-				if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
-					// Defense-in-depth: skip values that do not match the GOMEMLIMIT format
-					// accepted by the Go runtime. The primary validation happens at backend
-					// parse time (config_retriever_values.go), so this should never trigger
-					// in practice.
-					if ValidateGoMemLimit(cr.Runtime.Gomemlimit) != nil {
-						continue
-					}
-					if vsv.RuntimeValues == nil {
-						vsv.RuntimeValues = make(map[string]ContainerRuntimeValues)
-					}
-					vsv.RuntimeValues[cr.Name] = ContainerRuntimeValues{GoMemLimit: cr.Runtime.Gomemlimit}
-				}
-			}
-			p.scalingValues.Vertical = vsv
 		}
 
 		p.verticalLastAction = status.Vertical.LastAction
@@ -1222,9 +1206,9 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 				cp.Limits[res] = qty.DeepCopy()
 			}
 		}
-		if rv, ok := v.RuntimeValues[cr.Name]; ok && rv.GoMemLimit != "" {
+		if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
 			cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
-				Gomemlimit: rv.GoMemLimit,
+				Gomemlimit: cr.Runtime.Gomemlimit,
 			}
 		}
 		result[i] = cp

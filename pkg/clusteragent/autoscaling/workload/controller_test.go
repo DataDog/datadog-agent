@@ -1197,13 +1197,7 @@ func TestVerticalConstraintsIdempotent(t *testing.T) {
 			Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")},
 		},
 	}
-	constrainedHash, err := autoscaling.ObjectHash(struct {
-		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
-		RuntimeValues      map[string]model.ContainerRuntimeValues
-	}{
-		ContainerResources: constrainedResources,
-		RuntimeValues:      nil,
-	})
+	constrainedHash, err := autoscaling.ObjectHash(constrainedResources)
 	require.NoError(t, err)
 
 	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{

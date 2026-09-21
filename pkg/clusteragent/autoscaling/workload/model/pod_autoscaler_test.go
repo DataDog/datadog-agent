@@ -943,10 +943,8 @@ func TestContainerResourcesForStatus_WithRuntimeValues(t *testing.T) {
 				{
 					Name:     "app",
 					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
 				},
-			},
-			RuntimeValues: map[string]ContainerRuntimeValues{
-				"app": {GoMemLimit: "256MiB"},
 			},
 		}
 		got := v.ContainerResourcesForStatus()
@@ -955,14 +953,15 @@ func TestContainerResourcesForStatus_WithRuntimeValues(t *testing.T) {
 		assert.Equal(t, "256MiB", got[0].Runtime.Gomemlimit)
 	})
 
-	t.Run("container without runtime values has no Runtime field in output", func(t *testing.T) {
+	t.Run("container without runtime has no Runtime field in output", func(t *testing.T) {
 		v := &VerticalScalingValues{
 			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+				},
 				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")}},
-			},
-			RuntimeValues: map[string]ContainerRuntimeValues{
-				"app": {GoMemLimit: "256MiB"},
 			},
 		}
 		got := v.ContainerResourcesForStatus()
@@ -972,7 +971,7 @@ func TestContainerResourcesForStatus_WithRuntimeValues(t *testing.T) {
 		assert.Nil(t, got[1].Runtime, "sidecar must not have Runtime set")
 	})
 
-	t.Run("nil RuntimeValues produces no Runtime fields", func(t *testing.T) {
+	t.Run("no Runtime field produces nil Runtime in output", func(t *testing.T) {
 		v := &VerticalScalingValues{
 			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},

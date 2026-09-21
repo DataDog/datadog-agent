@@ -482,28 +482,8 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 
 	verticalRecs.ContainerResources = kept
 
-	// Filter RuntimeValues to only retain entries for containers that were kept
-	if verticalRecs.RuntimeValues != nil {
-		keptNames := make(map[string]struct{}, len(kept))
-		for _, cr := range kept {
-			keptNames[cr.Name] = struct{}{}
-		}
-		for name := range verticalRecs.RuntimeValues {
-			if _, ok := keptNames[name]; !ok {
-				delete(verticalRecs.RuntimeValues, name)
-				modified = true
-			}
-		}
-	}
-
 	if modified {
-		newHash, hashErr := autoscaling.ObjectHash(struct {
-			ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
-			RuntimeValues      map[string]model.ContainerRuntimeValues
-		}{
-			ContainerResources: verticalRecs.ContainerResources,
-			RuntimeValues:      verticalRecs.RuntimeValues,
-		})
+		newHash, hashErr := autoscaling.ObjectHash(verticalRecs.ContainerResources)
 		if hashErr != nil {
 			return nil, autoscaling.NewConditionError(autoscaling.ConditionReasonRecommendationError,
 				fmt.Errorf("failed to recompute resources hash after applying constraints: %w", hashErr))
@@ -618,8 +598,12 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
 	// Force the rollout path so pods are recreated and pick up the new values.
-	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil && len(sv.Vertical.RuntimeValues) > 0 {
-		return true
+	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
+		for _, cr := range sv.Vertical.ContainerResources {
+			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+				return true
+			}
+		}
 	}
 	spec := autoscalerInternal.Spec()
 	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {

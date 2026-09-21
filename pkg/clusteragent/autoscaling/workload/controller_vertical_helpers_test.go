@@ -711,10 +711,7 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 
 	// --- Hash should be recomputed and valid ---
 	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
-	expectedHash, err := autoscaling.ObjectHash(struct {
-		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
-		RuntimeValues      map[string]model.ContainerRuntimeValues
-	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
@@ -758,10 +755,7 @@ func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
 
 	// Hash must be recomputed
 	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
-	expectedHash, err := autoscaling.ObjectHash(struct {
-		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
-		RuntimeValues      map[string]model.ContainerRuntimeValues
-	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
@@ -1134,41 +1128,43 @@ func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
 	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
-	sv := model.ScalingValues{
-		Vertical: &model.VerticalScalingValues{
-			ResourcesHash: "hash-1",
-			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
-			},
-		},
-	}
-
-	t.Run("no RuntimeValues — rollout not forced", func(t *testing.T) {
-		ai := (&model.FakePodAutoscalerInternal{
-			Namespace:     "default",
-			Name:          "ai",
-			ScalingValues: sv,
-		}).Build()
-		assert.False(t, isRolloutRequired(&ai), "no RuntimeValues should not force a rollout")
-	})
-
-	t.Run("RuntimeValues present — rollout forced", func(t *testing.T) {
-		svWithRuntime := model.ScalingValues{
+	t.Run("no runtime — rollout not forced", func(t *testing.T) {
+		sv := model.ScalingValues{
 			Vertical: &model.VerticalScalingValues{
-				ResourcesHash:      "hash-2",
-				ContainerResources: sv.Vertical.ContainerResources,
-				RuntimeValues: map[string]model.ContainerRuntimeValues{
-					"app": {GoMemLimit: "256MiB"},
+				ResourcesHash: "hash-1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
 				},
 			},
 		}
 		ai := (&model.FakePodAutoscalerInternal{
 			Namespace:     "default",
 			Name:          "ai",
-			ScalingValues: svWithRuntime,
+			ScalingValues: sv,
+		}).Build()
+		assert.False(t, isRolloutRequired(&ai), "no GOMEMLIMIT should not force a rollout")
+	})
+
+	t.Run("GOMEMLIMIT present — rollout forced", func(t *testing.T) {
+		sv := model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				ResourcesHash: "hash-2",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name:     "app",
+						Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+						Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+					},
+				},
+			},
+		}
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: sv,
 		}).Build()
 		assert.True(t, isRolloutRequired(&ai),
-			"RuntimeValues must force the rollout path so pods are recreated via the admission webhook")
+			"GOMEMLIMIT must force the rollout path so pods are recreated via the admission webhook")
 	})
 }
 
@@ -1179,15 +1175,13 @@ func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
 			{
 				Name:     "app",
 				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
 			},
 			{
 				Name:     "disabled",
 				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "128MiB"},
 			},
-		},
-		RuntimeValues: map[string]model.ContainerRuntimeValues{
-			"app":      {GoMemLimit: "256MiB"},
-			"disabled": {GoMemLimit: "128MiB"},
 		},
 	}
 
@@ -1201,23 +1195,15 @@ func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, limitErr)
 
-	// "disabled" container must be gone from ContainerResources
+	// "disabled" container (with its Runtime) must be gone from ContainerResources
 	require.Len(t, vertical.ContainerResources, 1)
 	assert.Equal(t, "app", vertical.ContainerResources[0].Name)
-
-	// RuntimeValues for "disabled" must be removed; "app" must be kept
-	require.Len(t, vertical.RuntimeValues, 1)
-	_, hasApp := vertical.RuntimeValues["app"]
-	assert.True(t, hasApp, "RuntimeValues for 'app' must be preserved")
-	_, hasDisabled := vertical.RuntimeValues["disabled"]
-	assert.False(t, hasDisabled, "RuntimeValues for 'disabled' must be removed")
+	require.NotNil(t, vertical.ContainerResources[0].Runtime)
+	assert.Equal(t, "256MiB", vertical.ContainerResources[0].Runtime.Gomemlimit)
 
 	// Hash must be recomputed and consistent with the new state
 	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
-	expectedHash, err := autoscaling.ObjectHash(struct {
-		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
-		RuntimeValues      map[string]model.ContainerRuntimeValues
-	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
