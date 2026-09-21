@@ -6,31 +6,44 @@
 package snmp
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-const credentialsConfigKey = "network_devices.snmp_credentials"
+// credentialsDir is where Fleet Automation writes the credential files,
+// relative to confd_path.
+const credentialsDir = "snmp.d/credentials"
 
-// credential is one entry of network_devices.snmp_credentials. The mapstructure
-// tags match pkg/snmp.Authentication.
+// credential is one entry of a credential file. The yaml names match
+// pkg/snmp.Authentication.
 type credential struct {
-	ID              string `mapstructure:"id"`
-	SNMPVersion     string `mapstructure:"snmp_version"`
-	CommunityString string `mapstructure:"community_string"`
-	User            string `mapstructure:"user"`
-	AuthProtocol    string `mapstructure:"authProtocol"`
-	AuthKey         string `mapstructure:"authKey"`
-	PrivProtocol    string `mapstructure:"privProtocol"`
-	PrivKey         string `mapstructure:"privKey"`
-	ContextName     string `mapstructure:"context_name"`
+	Name            string `yaml:"name"`
+	SNMPVersion     string `yaml:"snmp_version"`
+	CommunityString string `yaml:"community_string"`
+	User            string `yaml:"user"`
+	AuthProtocol    string `yaml:"authProtocol"`
+	AuthKey         string `yaml:"authKey"`
+	PrivProtocol    string `yaml:"privProtocol"`
+	PrivKey         string `yaml:"privKey"`
+	ContextName     string `yaml:"context_name"`
 	// context_engine_id is absent: the snmp check's InstanceConfig has no such field.
 }
 
-// credentialStore reads the credentials from the Agent configuration.
+// credentialsDocument is one credential file.
+type credentialsDocument struct {
+	Credentials []credential `yaml:"credentials"`
+}
+
+// credentialStore reads the credential files Fleet Automation writes under
+// conf.d/snmp.d/credentials.
 type credentialStore struct {
 	cfg model.Reader
 }
@@ -39,27 +52,64 @@ func newCredentialStore(cfg model.Reader) *credentialStore {
 	return &credentialStore{cfg: cfg}
 }
 
-// load returns the configured credentials indexed by id, re-reading the
-// configuration on every call. An entry with no id is skipped and the first
-// of two entries sharing an id wins.
+// dir returns where the credential files are expected.
+func (s *credentialStore) dir() string {
+	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir)
+}
+
+// load returns the credentials indexed by name, re-reading the files on every
+// call. An absent directory is an empty set. A file that cannot be read or
+// parsed is skipped and named in the returned error, the others still load. An
+// entry with no name is skipped and the first of two entries sharing a name
+// wins.
 func (s *credentialStore) load() (map[string]credential, error) {
-	var entries []credential
-	if err := structure.UnmarshalKey(s.cfg, credentialsConfigKey, &entries); err != nil {
-		// The unmarshal error is dropped, not wrapped: it quotes the offending value.
-		return nil, fmt.Errorf("failed to read %s", credentialsConfigKey)
+	dir := s.dir()
+
+	paths, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %s: %w", dir, err)
 	}
 
-	creds := make(map[string]credential, len(entries))
-	for _, e := range entries {
-		if e.ID == "" {
+	creds := make(map[string]credential, len(paths))
+	var failures []error
+
+	for _, path := range paths {
+		doc, err := readCredentialsFile(path)
+		if err != nil {
+			failures = append(failures, err)
 			continue
 		}
-		if _, seen := creds[e.ID]; seen {
-			continue
+		for _, e := range doc.Credentials {
+			if e.Name == "" {
+				continue
+			}
+			if _, seen := creds[e.Name]; seen {
+				continue
+			}
+			creds[e.Name] = e
 		}
-		creds[e.ID] = e
 	}
-	return creds, nil
+
+	return creds, errors.Join(failures...)
+}
+
+// readCredentialsFile parses one credential file. No file content ever reaches
+// the returned error.
+func readCredentialsFile(path string) (credentialsDocument, error) {
+	body, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return credentialsDocument{}, nil
+	}
+	if err != nil {
+		return credentialsDocument{}, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	var doc credentialsDocument
+	if err := yaml.Unmarshal(body, &doc); err != nil {
+		// The parse error is dropped, not wrapped: it quotes the offending value.
+		return credentialsDocument{}, fmt.Errorf("failed to parse %s", path)
+	}
+	return doc, nil
 }
 
 // validate reports why a credential cannot produce a usable check instance,
@@ -73,16 +123,16 @@ func validate(c credential) error {
 		// An empty protocol means "none".
 		if c.AuthProtocol != "" {
 			if _, err := gosnmplib.GetAuthProtocol(c.AuthProtocol); err != nil {
-				return fmt.Errorf("credential %q has an unsupported authProtocol %q", c.ID, c.AuthProtocol)
+				return fmt.Errorf("credential %q has an unsupported authProtocol %q", c.Name, c.AuthProtocol)
 			}
 		}
 		if c.PrivProtocol != "" {
 			if _, err := gosnmplib.GetPrivProtocol(c.PrivProtocol); err != nil {
-				return fmt.Errorf("credential %q has an unsupported privProtocol %q", c.ID, c.PrivProtocol)
+				return fmt.Errorf("credential %q has an unsupported privProtocol %q", c.Name, c.PrivProtocol)
 			}
 		}
 		return nil
 	default:
-		return fmt.Errorf("credential %q has an unknown SNMP version %q (expected 1, 2c, or 3)", c.ID, c.SNMPVersion)
+		return fmt.Errorf("credential %q has an unknown SNMP version %q (expected 1, 2c, or 3)", c.Name, c.SNMPVersion)
 	}
 }
