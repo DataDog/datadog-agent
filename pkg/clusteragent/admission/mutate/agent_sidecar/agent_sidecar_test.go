@@ -8,6 +8,7 @@
 package agentsidecar
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -673,7 +674,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					"token":   []byte("token"),
 				},
 			})
-			injected, err := webhook.injectAgentSidecar(test.Pod, testNamespace, nil, apiClient, test.DryRun)
+			injected, err := webhook.injectAgentSidecar(context.Background(), test.Pod, testNamespace, nil, apiClient, test.DryRun)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -829,7 +830,7 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "pod-name", Namespace: testNamespace},
 				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}},
 			}
-			injected, err := NewWebhook(mockConfig).injectAgentSidecar(pod, testNamespace, nil, apiClient, nil)
+			injected, err := NewWebhook(mockConfig).injectAgentSidecar(context.Background(), pod, testNamespace, nil, apiClient, nil)
 
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectInjection, injected)
@@ -846,6 +847,50 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 			assert.Equal(t, test.expectedReason, agentSidecarSecretSkipReason(test.expectedError))
 		})
 	}
+}
+
+func TestAgentSidecarSecretPrecheckCleansFargateConfigVolumes(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
+	mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+	mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", "[]")
+	mockConfig.SetInTest("admission_controller.agent_sidecar.provider", providerFargate)
+
+	configVolumeName := volumeNamesInjectedByConfigWebhook[0]
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod-name", Namespace: testNamespace},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name: "app",
+				VolumeMounts: []corev1.VolumeMount{{
+					Name:      configVolumeName,
+					MountPath: socketDir,
+				}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: configVolumeName,
+				VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{
+					Path: socketDir,
+				}},
+			}},
+		},
+	}
+
+	injected, err := NewWebhook(mockConfig).injectAgentSidecar(
+		context.Background(),
+		pod,
+		testNamespace,
+		nil,
+		fake.NewSimpleClientset(),
+		nil,
+	)
+
+	assert.NoError(t, err)
+	assert.False(t, injected)
+	assert.Empty(t, pod.Spec.Volumes)
+	assert.Empty(t, pod.Spec.Containers[0].VolumeMounts)
+	assert.Nil(t, pod.Spec.ShareProcessNamespace)
+	assert.Equal(t, agentSidecarInjectionStatusSkipped, pod.Annotations[agentSidecarInjectionStatusAnnotation])
 }
 
 func TestDefaultSidecarTemplateAgentImage(t *testing.T) {

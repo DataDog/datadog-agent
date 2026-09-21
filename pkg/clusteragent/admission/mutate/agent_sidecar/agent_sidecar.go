@@ -168,9 +168,13 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		requestContext := request.Context
+		if requestContext == nil {
+			requestContext = context.Background()
+		}
 		// Create a wrapper function that includes the request context (DryRun and APIClient)
 		injectFunc := func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			return w.injectAgentSidecar(pod, ns, dc, request.APIClient, request.DryRun)
+			return w.injectAgentSidecar(requestContext, pod, ns, dc, request.APIClient, request.DryRun)
 		}
 		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), injectFunc, request.DynamicClient))
 	}
@@ -210,7 +214,7 @@ func mountVolume(c *corev1.Container, vm corev1.VolumeMount) error {
 	return nil
 }
 
-func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
+func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1.Pod, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -222,7 +226,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	podUpdated := false
 
 	if !agentSidecarExists {
-		if err := w.validateAgentSidecarSecret(namespace, apiClient); err != nil {
+		if err := w.validateAgentSidecarSecret(requestContext, namespace, apiClient); err != nil {
 			if reason := agentSidecarSecretSkipReason(err); reason != "" {
 				log.Warnf("Skipping Agent sidecar injection for pod %s/%s: %v", namespace, pod.GetName(), err)
 				if pod.Annotations == nil {
@@ -231,6 +235,9 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 				pod.Annotations[agentSidecarInjectionStatusAnnotation] = agentSidecarInjectionStatusSkipped
 				pod.Annotations[agentSidecarInjectionErrorAnnotation] = err.Error()
 				metrics.AgentSidecarInjectionSkipped.Inc(reason)
+				if w.provider == providerFargate {
+					deleteConfigWebhookVolumesAndMounts(pod)
+				}
 
 				// The pod was annotated, but the sidecar itself was not injected.
 				return false, nil
@@ -364,7 +371,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	return podUpdated, nil
 }
 
-func (w *Webhook) validateAgentSidecarSecret(namespace string, apiClient kubernetes.Interface) error {
+func (w *Webhook) validateAgentSidecarSecret(ctx context.Context, namespace string, apiClient kubernetes.Interface) error {
 	apiKeyOverridden := w.isAgentSidecarCredentialOverridden("DD_API_KEY")
 	tokenOverridden := w.isAgentSidecarCredentialOverridden("DD_CLUSTER_AGENT_AUTH_TOKEN")
 	if apiKeyOverridden && (!w.isClusterAgentEnabled || tokenOverridden) {
@@ -375,7 +382,7 @@ func (w *Webhook) validateAgentSidecarSecret(namespace string, apiClient kuberne
 		return errors.New("Kubernetes API client is unavailable")
 	}
 
-	secret, err := apiClient.CoreV1().Secrets(namespace).Get(context.TODO(), agentSidecarSecretName, metav1.GetOptions{})
+	secret, err := apiClient.CoreV1().Secrets(namespace).Get(ctx, agentSidecarSecretName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return errAgentSidecarSecretNotFound
 	}
