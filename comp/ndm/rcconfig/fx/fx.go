@@ -52,10 +52,8 @@ func newListener(cfg config.Component, logComp log.Component, ad configProviderA
 	// false, 0: the provider streams its changes rather than being polled.
 	ad.AddConfigProvider(provider, false, 0)
 
-	// TODO(NDM): switch to a provisioned NDM product once one exists.
-	// MANAGED_DEPLOYMENTS_DEBUG carries other features' payloads and is staging only.
 	listener.ListenerProvider = rctypes.RCListener{
-		data.ProductManagedDeploymentsDebug: provider.Update,
+		data.ProductNDMConfig: provider.Update,
 	}
 	return listener, nil
 }
