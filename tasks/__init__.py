@@ -38,6 +38,7 @@ from tasks import (
     fakeintake,
     files_inventory,
     fips,
+    foldspace,
     git,
     github_tasks,
     gitlab_helpers,
@@ -225,6 +226,7 @@ ns.add_collection(macos)
 ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
+ns.add_collection(foldspace)
 ns.add_collection(go)
 ns.add_collection(go_deps)
 ns.add_collection(linter)

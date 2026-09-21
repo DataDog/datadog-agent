@@ -526,6 +526,9 @@ include("//deps/curl:curl.MODULE.bazel")
 include("//deps/freetds:freetds.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/foldspace:foldspace.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
