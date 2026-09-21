@@ -127,7 +127,7 @@ def setup(
                 # they are intentionally left unset here.
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
-                "go.lintTool": "golangci-lint",
+                "go.lintTool": "golangci-lint-v2",  # not "golangci-lint" to bypass the v1/v2 detection heuristic
                 "go.lintOnSave": "package",
                 "go.lintFlags": [
                     "--build-tags",
@@ -153,6 +153,8 @@ def setup(
         " && git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}"
         " && dda config set github.auth.token \"$GITHUB_TOKEN\""
         " && dda inv -- -e install-tools && dda inv -- -e deps"
+        ' && golangci_lint="$(go list -f {{.Target}} github.com/golangci/golangci-lint/v2/cmd/golangci-lint)"'
+        ' && bazel run //internal/tools:install_golangci-lint -- --destdir="$(dirname "$golangci_lint")"'
     )
 
     devcontainer["containerEnv"] = {

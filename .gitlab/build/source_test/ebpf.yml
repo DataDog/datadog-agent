@@ -11,14 +11,13 @@
 .tests_linux_ebpf:
   stage: source_test
   extends: .unit_test_base
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "24Gi"
     KUBERNETES_MEMORY_LIMIT: "24Gi"
     KUBERNETES_CPU_REQUEST: 8
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
   script:
     - dda inv -- -e system-probe.object-files
     - dda inv -- -e linter.go --build system-probe-unit-tests --cpus $KUBERNETES_CPU_REQUEST --targets ./pkg
@@ -43,10 +42,6 @@ tests_ebpf_arm64:
   timeout: 25m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["go_deps", "go_tools_deps_arm64"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps_arm64]
   variables:
     ARCH: arm64
     TASK_ARCH: arm64
