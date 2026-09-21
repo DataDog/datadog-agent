@@ -25,7 +25,7 @@ type Provides struct {
 type helmactionsImpl struct{}
 
 // OnRollback is a no-op on platforms built without kubeapiserver support.
-func (h *helmactionsImpl) OnRollback(_ *helmactions.RollbackInputs, _ *batchv1.Job) {
+func (h *helmactionsImpl) OnRollback(_ *helmactions.RollbackInputs, _ helmactions.TaskMeta, _ *batchv1.Job) {
 }
 
 // NewComponent creates a new helmactions component.
