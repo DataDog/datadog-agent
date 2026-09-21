@@ -20,6 +20,8 @@ type schedulerOptions struct {
 	Workers      int64
 	MaxAddresses int
 	Defaults     rangeDefaults
+	// Credentials resolves a range's credential ids once per cycle.
+	Credentials credentialStore
 }
 
 // scheduledRange is one active range and the goroutine sweeping it.
@@ -240,28 +242,21 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
 		return
 	}
 
-	// Prepared per cycle, so a credential rotation lands without a restart.
-	runs := make([]probeRun, 0, len(cfg.Probes))
-	fingerprints := make([]string, 0, len(cfg.Probes))
-	for _, pc := range cfg.Probes {
-		run, err := pc.prepare()
-		if err != nil {
-			s.log.Warnf("ndmdiscovery: range %s: skipping the %s probe for this cycle: %v", cfg.AutodiscoveryID, pc.kind(), err)
-			continue
-		}
-		runs = append(runs, run)
-		fingerprints = append(fingerprints, run.fingerprint())
+	// Resolved per cycle, so a credential rotation lands without a restart.
+	opts, dropped := cfg.Probes.resolve(s.opts.Credentials)
+	for _, reason := range dropped {
+		s.log.Warnf("ndmdiscovery: range %s: %s", cfg.AutodiscoveryID, reason)
 	}
-	if len(runs) == 0 {
+	if opts.Empty() {
 		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", cfg.AutodiscoveryID)
 		return
 	}
 
 	req := sweepRequest{
 		Config:  cfg,
-		Probes:  runs,
+		Options: opts,
 		Plan:    plan,
-		Digest:  rangeDigest(cfg, fingerprints),
+		Digest:  rangeDigest(cfg, opts.Fingerprints()),
 		Workers: s.workerShare(),
 	}
 

@@ -8,7 +8,6 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,6 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
 // fakeForwarder adapts fakeSender to the event platform Forwarder interface.
@@ -44,24 +42,15 @@ func (f fakeEventPlatform) Get() (eventplatform.Forwarder, bool) {
 	return f.forwarder, f.forwarder != nil
 }
 
-// fakeNetworkDevices presents a scripted fakeChecker as the full
-// networkdevices.Component.
-type fakeNetworkDevices struct {
-	*fakeChecker
-}
-
-func (fakeNetworkDevices) ConnectivityCheckEndpointHandler() http.HandlerFunc { return nil }
-
 // testRequires builds the component dependencies from a mock config.
 func testRequires(t *testing.T, cfg config.Component) (Requires, *compdef.TestLifecycle) {
 	t.Helper()
 	lc := compdef.NewTestLifecycle(t)
 	return Requires{
-		Lifecycle:      lc,
-		Log:            logmock.New(t),
-		Config:         cfg,
-		EventPlatform:  fakeEventPlatform{forwarder: fakeForwarder{&fakeSender{}}},
-		NetworkDevices: fakeNetworkDevices{&fakeChecker{}},
+		Lifecycle:     lc,
+		Log:           logmock.New(t),
+		Config:        cfg,
+		EventPlatform: fakeEventPlatform{forwarder: fakeForwarder{&fakeSender{}}},
 	}, lc
 }
 
@@ -156,25 +145,19 @@ func TestNewComponentReadsTheRangeDefaults(t *testing.T) {
 	assert.Equal(t, rangeDefaults{Namespace: "lab", IntervalSec: 900, MaxAddresses: 1024}, comp.defaults)
 }
 
-func TestStartDetectsThePingProbeOnceAndStops(t *testing.T) {
+func TestStartDetectsThePingCapabilityOnceAndStops(t *testing.T) {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"network_devices.discovery.enabled": true,
 	})
 
 	reqs, lc := testRequires(t, cfg)
-	checker := &fakeChecker{respond: func(_ connectivity.Request) (connectivity.Result, error) {
-		return connectivity.Result{}, nil
-	}}
-	reqs.NetworkDevices = fakeNetworkDevices{checker}
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
 
 	require.NoError(t, lc.Start(t.Context()))
 	comp := provides.Comp.(*ndmDiscovery)
-	ping, ok := comp.probes.probes[0].(*pingProbe)
-	require.True(t, ok, "ping is registered first, so its check precedes snmp")
-	assert.False(t, ping.available(), "a ping-incapable agent leaves ping unavailable")
-	assert.Len(t, checker.recorded(), 1, "icmp is detected exactly once, at start")
+	detected := comp.ping
+	assert.Equal(t, detected, comp.pingCapability(), "the capability is detected once, at start")
 
 	require.NoError(t, lc.Stop(t.Context()))
 }
