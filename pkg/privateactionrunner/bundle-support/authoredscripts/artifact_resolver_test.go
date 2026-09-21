@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -109,6 +110,23 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, artifact.Directory, repaired.Directory)
 	assert.Equal(t, 2, materializer.materializationCount())
+}
+
+func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
+	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
+	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
+	require.NoError(t, err)
+	descriptor := testArtifactDescriptor()
+
+	artifact, err := resolver.Resolve(context.Background(), descriptor)
+	require.NoError(t, err)
+
+	lowercaseDescriptor := descriptor
+	lowercaseDescriptor.FQN = strings.ToLower(descriptor.FQN)
+	resolved, err := resolver.Resolve(context.Background(), lowercaseDescriptor)
+	require.NoError(t, err)
+	assert.Equal(t, artifact, resolved)
+	assert.Equal(t, 1, materializer.materializationCount())
 }
 
 func TestArtifactResolverResolveDoesNotPublishFailedMaterialization(t *testing.T) {
