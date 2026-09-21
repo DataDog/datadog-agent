@@ -35,6 +35,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
@@ -82,8 +85,9 @@ type Server struct {
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
 
-	par *parServerState
-	rc  *rcServerState
+	par  *parServerState
+	rc   *rcServerState
+	grpc *grpc.Server
 }
 
 // NewServer creates a new fakeintake server and starts it on localhost:port
@@ -177,12 +181,16 @@ func NewServer(options ...Option) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server.Handler = func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Fakeintake-ID", fi.uuid.String())
-			next.ServeHTTP(w, r)
-		})
-	}(mux)
+	fi.grpc = newStatefulGRPC(fi)
+	h2s := &http2.Server{}
+	fi.server.Handler = h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Fakeintake-ID", fi.uuid.String())
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			fi.grpc.ServeHTTP(w, r)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}), h2s)
 
 	return fi
 }
@@ -322,6 +330,9 @@ func (fi *Server) Stop() error {
 	}
 	defer close(fi.shutdown)
 	defer fi.store.Close()
+	if fi.grpc != nil {
+		fi.grpc.GracefulStop()
+	}
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
