@@ -1085,6 +1085,7 @@ workflow:
         - comp/core/autodiscovery/providers/config_reader*.go
         - comp/core/autodiscovery/providers/file*.go
         - comp/logs/**/*
+        - comp/logs-library/**/*
         - pkg/logs/**/*
       compare_to: $COMPARE_TO_BRANCH
 
