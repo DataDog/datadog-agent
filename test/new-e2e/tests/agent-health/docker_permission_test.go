@@ -249,23 +249,24 @@ func (suite *dockerPermissionSuite) TestDockerSocketUnavailableLifecycle() {
 	breakSocket()
 	restartAgent(t)
 
-	t.Run("IssueDetection", func(t *testing.T) {
-		var issues []*healthplatform.Issue
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			payloads, err := fakeIntake.GetAgentHealth()
-			assert.NoError(ct, err)
-			issues = nil
-			for _, p := range payloads {
-				for _, iss := range findIssuesByPrefix(p, issueID) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
-						issues = append(issues, iss)
-					}
+	// Wait for ACTIVE here, not inside IssueDetection, so Resolution can run standalone via -run.
+	var issues []*healthplatform.Issue
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		payloads, err := fakeIntake.GetAgentHealth()
+		assert.NoError(ct, err)
+		issues = nil
+		for _, p := range payloads {
+			for _, iss := range findIssuesByPrefix(p, issueID) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
+					issues = append(issues, iss)
 				}
 			}
-			assert.NotEmpty(ct, issues, "docker socket unavailable issue not found as ACTIVE in fakeintake")
-		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket unavailable issue not detected as ACTIVE in fakeintake")
+		}
+		assert.NotEmpty(ct, issues, "docker socket unavailable issue not found as ACTIVE in fakeintake")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket unavailable issue not detected as ACTIVE in fakeintake")
+	require.NotEmpty(t, issues)
 
-		require.NotEmpty(t, issues)
+	t.Run("IssueDetection", func(t *testing.T) {
 		issue := issues[0]
 		assert.True(t, strings.HasPrefix(issue.Id, issueID+":"), "issue id %q should be scoped by host discriminator", issue.Id)
 		assert.Equal(t, "Docker Socket Unavailable", issue.IssueName)
