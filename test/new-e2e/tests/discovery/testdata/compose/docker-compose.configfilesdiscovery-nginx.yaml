@@ -1,6 +1,6 @@
 services:
   nginx-env-configfilesdiscovery:
-    image: {NGINX_IMAGE}
+    image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
     container_name: nginx-env-configfilesdiscovery
     # NGINX's auto_conf.yaml has discovery enabled, so this fixture intentionally
     # has no AD label. It verifies selection from the standard nginx image.
@@ -17,7 +17,7 @@ services:
       NGINX_PASSWORD: must-not-be-forwarded
 
   nginx-configfilesdiscovery-default:
-    image: {NGINX_IMAGE}
+    image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
     container_name: nginx-configfilesdiscovery-default
     # No command override: the image's default CMD ("nginx -g daemon off;")
     # is the realistic deployment scenario, so config file discovery must
@@ -26,7 +26,7 @@ services:
       - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}/nginx-default.conf:/etc/nginx/nginx.conf:ro
 
   nginx-configfilesdiscovery-explicit:
-    image: {NGINX_IMAGE}
+    image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
     container_name: nginx-configfilesdiscovery-explicit
     command:
       - nginx

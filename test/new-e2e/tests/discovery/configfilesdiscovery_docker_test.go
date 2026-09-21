@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -105,7 +103,7 @@ var redisComposeTemplate string
 var kafkaCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-nginx.yaml
-var nginxComposeTemplate string
+var nginxCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
@@ -222,11 +220,6 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 	t.Parallel()
 
 	redisCompose := strings.ReplaceAll(redisComposeTemplate, "{APPS_VERSION}", apps.Version)
-	nginxImage := "nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901"
-	if registry, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, ""); registry != "" {
-		nginxImage = strings.SplitN(registry, ",", 2)[0] + "/dockerhub/library/" + nginxImage
-	}
-	nginxCompose := strings.ReplaceAll(nginxComposeTemplate, "{NGINX_IMAGE}", nginxImage)
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_FORWARDER_USE_COMPRESSION", pulumi.StringPtr("false")),

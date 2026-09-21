@@ -94,8 +94,6 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/docker",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
-        "//test/e2e-framework/testing/runner",
-        "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
         "//test/new-e2e/tests/process",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
