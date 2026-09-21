@@ -579,7 +579,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
 		ddcfgMap["api"] = map[string]any{"site": pkgconfig.GetString("site")}
-		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
