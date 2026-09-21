@@ -256,6 +256,42 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "experiment-789", "")
 }
 
+func TestWriteExperimentFailureCanBeRolledBack(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	stableConfigPath := filepath.Join(stablePath, "datadog.yaml")
+	require.NoError(t, os.WriteFile(stableConfigPath, []byte("log_level: info\n"), 0640))
+
+	dirs := &Directories{StablePath: stablePath, ExperimentPath: experimentPath}
+	err := dirs.WriteExperiment(t.Context(), Operations{
+		DeploymentID: "failed-experiment",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level":"debug"}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/security-agent.yaml",
+				Patch:             []byte(`{`),
+			},
+		},
+	})
+	require.Error(t, err)
+	assertDeploymentID(t, dirs, "", "failed-experiment")
+
+	content, err := os.ReadFile(stableConfigPath)
+	require.NoError(t, err)
+	assert.Equal(t, "log_level: debug\n", string(content))
+
+	require.NoError(t, dirs.RemoveExperiment(t.Context()))
+	content, err = os.ReadFile(stableConfigPath)
+	require.NoError(t, err)
+	assert.Equal(t, "log_level: info\n", string(content))
+	assertDeploymentID(t, dirs, "", "")
+}
+
 func TestRemoveExperimentDoesNotRestoreBackupWithoutDeploymentID(t *testing.T) {
 	stablePath := t.TempDir()
 	experimentPath := t.TempDir()

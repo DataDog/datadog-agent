@@ -67,14 +67,14 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
+	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
+	if err != nil {
+		return fmt.Errorf("error writing deployment ID file: %w", err)
+	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(ctx, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error applying operations: %w", err)
-	}
-	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
-	if err != nil {
-		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	return nil
 }
