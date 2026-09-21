@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package networkdevices provides the Agent-side component for NDM.
-package networkdevices
+// Package ndmconnectivitycheck provides the interactive NDM connectivity check.
+package ndmconnectivitycheck
 
 // team: network-device-monitoring-core
 

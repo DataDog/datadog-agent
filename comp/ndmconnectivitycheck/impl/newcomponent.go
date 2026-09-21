@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package networkdevicesimpl implements the networkdevices component interface.
-package networkdevicesimpl
+// Package ndmconnectivitycheckimpl implements the ndmconnectivitycheck component interface.
+package ndmconnectivitycheckimpl
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	networkdevices "github.com/DataDog/datadog-agent/comp/networkdevices/def"
+	ndmconnectivitycheck "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
@@ -24,7 +24,7 @@ import (
 // discovery sweep budget.
 const workersConfigKey = "network_devices.connectivity_check.workers"
 
-// Requires defines the dependencies for the networkdevices component.
+// Requires defines the dependencies for the ndmconnectivitycheck component.
 type Requires struct {
 	compdef.In
 
@@ -33,15 +33,15 @@ type Requires struct {
 	Config    config.Component
 }
 
-// Provides defines the output of the networkdevices component.
+// Provides defines the output of the ndmconnectivitycheck component.
 type Provides struct {
 	compdef.Out
 
-	Comp                      networkdevices.Component
+	Comp                      ndmconnectivitycheck.Component
 	ConnectivityCheckEndpoint api.EndpointProvider `group:"agent_endpoint"`
 }
 
-type networkDevicesImpl struct {
+type connectivityCheck struct {
 	logger     log.Component
 	maxWorkers int
 	sem        *semaphore.Weighted
@@ -50,18 +50,18 @@ type networkDevicesImpl struct {
 	ping     pingprobe.Capability
 }
 
-func newImpl(logger log.Component, maxWorkers int) *networkDevicesImpl {
+func newImpl(logger log.Component, maxWorkers int) *connectivityCheck {
 	if maxWorkers < 1 {
 		maxWorkers = 1
 	}
-	return &networkDevicesImpl{
+	return &connectivityCheck{
 		logger:     logger,
 		maxWorkers: maxWorkers,
 		sem:        semaphore.NewWeighted(int64(maxWorkers)),
 	}
 }
 
-// NewComponent creates a new networkdevices component.
+// NewComponent creates a new ndmconnectivitycheck component.
 func NewComponent(reqs Requires) Provides {
 	comp := newImpl(reqs.Logger, reqs.Config.GetInt(workersConfigKey))
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: func(context.Context) error {
