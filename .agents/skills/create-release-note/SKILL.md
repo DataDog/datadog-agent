@@ -39,15 +39,15 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic>
+reno new <topic> --no-edit
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic>
+reno --rel-notes-dir <directory> new <topic> --no-edit
 ```
 
-This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template. Reno does not open an editor unless `--edit` is passed; there is no `--no-edit` option.
+This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
 
 > **Always create the file with `reno`. The `<hash>` suffix is reno's unique note ID** — it must be a real, unique 16-character hex string that `reno` generates for you. Never hand-write a placeholder like `a1b2c3d4e5f6a7b8` or any sequential/guessed value: reno treats the suffix as the note's UID and fails `release-note-check` with a "UID collision" when two notes share one (this placeholder has broken `main` more than once).
 >
@@ -92,18 +92,20 @@ Release note content must follow these rules:
 
 ### Step 4: Verify
 
-Run Reno directly for local validation:
+Run the release note linter to validate:
 
 ```bash
-reno lint
+dda inv linter.releasenote
 ```
 
-Once the PR exists, `dda inv linter.releasenote` checks whether it includes a
-release note (unless exempted by label), then runs `reno lint`. It skips the
-check when no PR context is available.
+This checks:
+- Valid YAML structure
+- Only known sections are used
+- No empty items
+- Valid RST formatting (no Markdown patterns)
+- No Markdown links `[text](url)`, headers `#`, or single-backtick code
 
-Review RST formatting against the rules above. If linting fails, fix the issues
-and re-run.
+If linting fails, fix the issues and re-run.
 
 ## Section Guidelines
 

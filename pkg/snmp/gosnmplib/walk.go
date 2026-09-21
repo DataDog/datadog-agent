@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	// Note that gosnmp.walk uses ".1.3.6.1.2.1" as its base ID, but we
-	// sometimes want things like LLDP data that are under lower prefixes
-	// (LLDP goes under .1.0.*). So we just start as low as possible.
-	baseOID = ".0.0"
+	// BaseOID starts walks below gosnmp's default .1.3.6.1.2.1 to include
+	// lower prefixes such as LLDP (.1.0.*).
+	BaseOID = ".0.0"
 
 	// FallbackRootOID is the wire representation of Net-SNMP's .1 root.
 	// GoSNMP requires at least two sub-identifiers and cannot encode bare .1.
@@ -52,7 +51,7 @@ func conditionalWalk(
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
 ) error {
 	if rootOID == "" || rootOID == "." {
-		rootOID = baseOID
+		rootOID = BaseOID
 	}
 
 	if !strings.HasPrefix(rootOID, ".") {
@@ -82,8 +81,8 @@ RequestLoop:
 		}
 
 		response, err := getNext([]string{oid})
-		if requests == 1 && oid == baseOID && (err != nil || response.Error != gosnmp.NoError) {
-			logger.Printf("ConditionalWalk failed at .0.0, retrying from %s", FallbackRootOID)
+		if requests == 1 && oid == BaseOID && (err != nil || response.Error != gosnmp.NoError) {
+			logger.Printf("ConditionalWalk failed at %s, retrying from %s", BaseOID, FallbackRootOID)
 			oid = FallbackRootOID
 			continue
 		}

@@ -315,7 +315,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	seenColumns := make(map[string]bool)
 
 	// Start from the beginning of the MIB tree.
-	oid := ".0.0"
+	oid := gosnmplib.BaseOID
 	// prevInts is the parsed form of the last OID we accepted. SNMP walks are
 	// strictly increasing, so comparing each returned OID against it detects
 	// loops and non-advancing devices in O(1) memory - no need to remember
@@ -354,8 +354,8 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 			if maxRepOpt.OnFailure() {
 				continue
 			}
-			if oid == ".0.0" {
-				log.Infof("SNMP scan for device %s failed at .0.0, retrying from %s", deviceID, gosnmplib.FallbackRootOID)
+			if oid == gosnmplib.BaseOID {
+				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, gosnmplib.BaseOID, gosnmplib.FallbackRootOID)
 				oid = gosnmplib.FallbackRootOID
 				prevInts = []int{1, 0}
 				maxRepOpt = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
