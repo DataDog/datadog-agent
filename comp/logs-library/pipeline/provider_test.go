@@ -379,6 +379,47 @@ func TestFoldspaceFactoryPick(t *testing.T) {
 	)
 	p := providerImpl.(*provider)
 	require.NotNil(t, p.foldspaceDriver)
+	assert.False(t, p.foldspaceDualShip)
 	_, ok := p.sender.(*foldspace.Driver)
 	assert.True(t, ok)
+}
+
+func TestFoldspaceDualShipKeepsHTTPSender(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.enabled", true)
+	cfg.SetInTest("logs_config.foldspace.dual_ship", true)
+	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 16)
+	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
+
+	orig := newFoldspaceCore
+	newFoldspaceCore = func(dest *foldspace.DestinationConfig) (foldspace.Core, error) {
+		return foldspace.NewFakeCore(foldspace.FakeCoreConfig{Classes: []foldspace.SenderClass{foldspace.Reliable}}), nil
+	}
+	defer func() { newFoldspaceCore = orig }()
+
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "localhost", "port": 443, "use_ssl": false})
+	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{main}, map[string]interface{}{"use_http": true})
+	endpoints.Main = main
+
+	providerImpl := NewProvider(
+		1,
+		&sender.NoopSink{},
+		&diagnostic.BufferedMessageReceiver{},
+		nil,
+		endpoints,
+		&client.DestinationsContext{},
+		statusinterface.NewStatusProviderMock(),
+		nil,
+		cfg,
+		compressionfx.NewMockCompressor(),
+		false,
+		false,
+		secretsnoopimpl.NewComponent().Comp,
+	)
+	p := providerImpl.(*provider)
+	require.NotNil(t, p.foldspaceDriver)
+	assert.True(t, p.foldspaceDualShip)
+	_, ok := p.sender.(*foldspace.Driver)
+	assert.False(t, ok)
 }
