@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix missing log source configuration fields in public inventory metadata, including Windows Event Log queries, processing options, auto-multiline settings, and maximum message size.
