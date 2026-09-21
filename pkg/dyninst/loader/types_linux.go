@@ -38,7 +38,11 @@ type probeParams struct {
 	Top_pc_offset         int8
 	No_return_reason      int8
 	Throttle_mode         int8
-	X__padding            [2]int8
+	Ctx_loc_kind          uint8
+	Ctx_reg_tab           uint8
+	Ctx_reg_data          uint8
+	X__padding            [3]int8
+	Ctx_stack_offset      int32
 }
 type throttlerParams struct {
 	Ns     uint64
