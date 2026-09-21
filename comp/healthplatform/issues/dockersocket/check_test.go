@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package dockerpermissions
+package dockersocket
 
 import (
 	"net"

@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "dockerpermissions",
+    name = "dockersocket",
     srcs = [
         "check.go",
         "check_noop.go",
@@ -13,7 +13,7 @@ go_library(
         "Fix-DockerSocketPermissions.ps1",
         "fix-docker-socket-permissions.sh",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions",
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockersocket",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
@@ -36,12 +36,12 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "dockerpermissions_test",
+    name = "dockersocket_test",
     srcs = [
         "check_test.go",
         "issue_test.go",
     ],
-    embed = [":dockerpermissions"],
+    embed = [":dockersocket"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/healthplatform/issues",

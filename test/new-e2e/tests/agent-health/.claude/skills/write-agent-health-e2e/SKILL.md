@@ -2,7 +2,7 @@
 name: write-agent-health-e2e
 description: Create an E2E lifecycle test for a new health platform issue in test/new-e2e/tests/agent-health/
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
-argument-hint: "<issue-module-name>  e.g. rofspermissions, invalidconfig, dockerpermissions"
+argument-hint: "<issue-module-name>  e.g. rofspermissions, invalidconfig, dockersocket"
 ---
 
 ## Parse the argument

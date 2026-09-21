@@ -21,7 +21,7 @@ go_library(
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issueregistry/fx",
         "//comp/healthplatform/issues/admissionprobe",
-        "//comp/healthplatform/issues/dockerpermissions",
+        "//comp/healthplatform/issues/dockersocket",
         "//comp/healthplatform/issues/gpupodresources",
         "//comp/healthplatform/issues/invalidconfig",
         "//comp/healthplatform/issues/invalidsysprobeconfig",
