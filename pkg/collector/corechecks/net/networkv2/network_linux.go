@@ -492,26 +492,21 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectBas
 			//   rx_prio3_packets -> (prio:3, rx_packets)
 			//   tx_prio0_pause_duration -> (prio:0, tx_pause_duration)
 			// The literal "global" infix the kernel uses for link-level pause does not
-			// start with "prio", so those stats correctly fall through to the global case.
-			parts := strings.Split(statName, "_")
-			for i, part := range parts {
-				if len(part) > 4 && strings.HasPrefix(part, "prio") {
-					num, err := strconv.Atoi(part[4:])
-					if err != nil {
-						continue
-					}
+			// contain "_prio", so those stats correctly fall through to the global case.
+			if i := strings.Index(statName, "_prio"); i >= 0 {
+				rest := statName[i+len("_prio"):]
+				// the priority digits run up to the next separator
+				if j := strings.IndexByte(rest, '_'); j > 0 {
+					num, err := strconv.Atoi(rest[:j])
 					// PFC defines exactly 8 priorities. An out-of-range index means a
 					// malformed stat name; without this guard rx_prio42_packets would
 					// strip to the allowlisted rx_packets and emit tag prio:42.
-					if num < 0 || num > 7 {
-						break
+					if err == nil && num >= 0 && num <= 7 {
+						queueTag = fmt.Sprintf("prio:%d", num)
+						newKey = statName[:i] + rest[j:]
+						metricPrefix = ".prio."
+						continueCase = false
 					}
-					parts = append(parts[:i], parts[i+1:]...)
-					queueTag = fmt.Sprintf("prio:%d", num)
-					newKey = strings.Join(parts, "_")
-					metricPrefix = ".prio."
-					continueCase = false
-					break
 				}
 			}
 		}
