@@ -24,6 +24,25 @@ func TestAnomalySourceIdentityForStorageBackedAnomaly(t *testing.T) {
 	}
 }
 
+func TestAnomalySourceIdentityStorageBackedLookupDoesNotAllocate(t *testing.T) {
+	handle := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}
+	anomaly := observerdef.Anomaly{SourceRef: &handle}
+	identities := map[anomalySourceIdentity]struct{}{
+		anomalySourceIdentityFor(anomaly): {},
+	}
+
+	var found bool
+	allocations := testing.AllocsPerRun(1_000, func() {
+		_, found = identities[anomalySourceIdentityFor(anomaly)]
+	})
+	if !found {
+		t.Fatal("storage-backed anomaly identity was not found")
+	}
+	if allocations != 0 {
+		t.Fatalf("storage-backed identity lookup allocated %.1f times per run, want 0", allocations)
+	}
+}
+
 func TestAnomalySourceIdentityDistinguishesAggregates(t *testing.T) {
 	average := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}
 	sum := observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateSum}
