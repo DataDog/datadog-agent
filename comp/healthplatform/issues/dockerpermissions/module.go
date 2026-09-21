@@ -9,6 +9,7 @@ package dockerpermissions
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -18,27 +19,29 @@ func init() {
 }
 
 const (
-	// IssueName is the identifier for Docker permission issues,
+	// IssueName is the identifier for the Docker socket permission issue,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "Docker File Tailing Disabled"
+	IssueName = "Docker Socket Permission"
 
-	// IssueType is the snake_case type key for Docker permission issues:
-	// IssueName lowercased with spaces replaced by underscores.
-	IssueType = "docker_file_tailing_disabled"
+	// IssueType is the snake_case type key for the Docker socket permission
+	// issue: IssueName lowercased with spaces replaced by underscores.
+	IssueType = "docker_socket_permission"
 
-	// IssueID is the unique instance id used when reporting this issue
+	// IssueID is the id prefix; the check appends a hostname + socket-set digest (see socketSetIssueID).
 	IssueID = "docker-socket-permissions"
 )
 
 // dockerPermissionsModule implements issues.Module
 type dockerPermissionsModule struct {
 	template *DockerPermissionIssue
+	hostname hostnameinterface.Component
 }
 
 // NewModule creates a new Docker permissions issue module
-func NewModule(issues.ModuleDeps) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &dockerPermissionsModule{
 		template: NewDockerPermissionIssue(),
+		hostname: deps.Hostname,
 	}
 }
 
@@ -60,7 +63,9 @@ func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltI
 	return &runnerdef.BuiltInPeriodicHealthCheck{
 		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
 			Source: "docker",
-			Fn:     Check,
+			Fn: func() ([]runnerdef.IssueReport, error) {
+				return check(m.hostname)
+			},
 		},
 	}
 }

@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -52,7 +54,6 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -92,7 +93,6 @@ type Requires struct {
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
 	Statsd        statsdcomp.Component
-	HelmActions   helmactions.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -166,10 +166,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -194,10 +195,11 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
+	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	runner.shutdowner = reqs.Shutdowner

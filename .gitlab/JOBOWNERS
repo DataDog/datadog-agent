@@ -88,7 +88,7 @@ iot_agent_deb*                       @DataDog/agent-build
 iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
-agent_win_oci                        @DataDog/windows-products
+agent_win_oci*                       @DataDog/windows-products
 installer_oci*                       @DataDog/agent-build
 ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
@@ -240,6 +240,7 @@ new-e2e-apm*                            @DataDog/agent-apm
 new-e2e-cws*                            @DataDog/agent-security
 new-e2e-sbom*                           @DataDog/agent-security
 new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent
 # --- Fleet / installer (non-Windows) ---

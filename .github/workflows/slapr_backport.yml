@@ -13,7 +13,7 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # 1.1.0
+    - uses: DataDog/slapr@1c074e1dfd433f91a679d5113f7f8b956b65d973 # 1.2.0
       # Run the job without the review map to put the emoji on backport PRs in #agent-release-sync
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -21,3 +21,4 @@ jobs:
         slack-channel-id: ${{ vars.AGENT_RELEASE_SYNC_CHANNEL_ID }}
         bot-user-id: ${{ vars.SLAPR_BOT_ID }}
         emoji-approved: done
+        emoji-changes-requested: request-changes

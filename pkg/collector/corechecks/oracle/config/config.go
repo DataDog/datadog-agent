@@ -119,11 +119,12 @@ type CustomQueryColumns struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
-	MetricPrefix string               `yaml:"metric_prefix"`
-	Pdb          string               `yaml:"pdb"`
-	Query        string               `yaml:"query"`
-	Columns      []CustomQueryColumns `yaml:"columns"`
-	Tags         []string             `yaml:"tags"`
+	MetricPrefix       string               `yaml:"metric_prefix"`
+	Pdb                string               `yaml:"pdb"`
+	Query              string               `yaml:"query"`
+	Columns            []CustomQueryColumns `yaml:"columns"`
+	Tags               []string             `yaml:"tags"`
+	CollectionInterval *int64               `yaml:"collection_interval"`
 }
 
 type asmConfig struct {
@@ -291,6 +292,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
+	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {
+		return nil, err
+	}
+	if err := validateCustomQueryCollectionIntervals("global_custom_queries", initCfg.CustomQueries); err != nil {
+		return nil, err
+	}
+
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
 
@@ -398,6 +406,15 @@ func shouldPropagateAgentTags(instancePropagateTags, initConfigPropagateTags *bo
 	}
 	// if neither the instance nor the init_config has set the value, return False
 	return false
+}
+
+func validateCustomQueryCollectionIntervals(configName string, queries []CustomQuery) error {
+	for i, query := range queries {
+		if query.CollectionInterval != nil && *query.CollectionInterval <= 0 {
+			return fmt.Errorf("%s[%d].collection_interval must be greater than zero", configName, i)
+		}
+	}
+	return nil
 }
 
 func warnDeprecated(old string, new string) {
