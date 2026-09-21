@@ -17,7 +17,6 @@ import (
 
 // RootOIDs lists scan roots in the order they are tried when initial requests fail.
 // Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
-// GoSNMP cannot encode bare .1, so use Net-SNMP's wire representation, .1.0.
 var RootOIDs = []string{".0.0", ".1.0"}
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
