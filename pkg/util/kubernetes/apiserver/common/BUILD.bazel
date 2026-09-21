@@ -42,6 +42,7 @@ dd_agent_go_test(
     srcs = [
         "common_test.go",
         "feature_gate_test.go",
+        "metrics_test.go",
         "version_test.go",
     ],
     embed = [":common"],
@@ -56,6 +57,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/util/cache",
         "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/prometheus",
         "@com_github_stretchr_testify//assert",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/errors",

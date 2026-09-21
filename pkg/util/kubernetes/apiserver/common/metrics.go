@@ -17,9 +17,9 @@ import (
 )
 
 // FetchAPIServerMetricFamily queries the API server's /metrics endpoint once (no retry) and
-// returns the parsed metric family matching metricName, or nil if it is not present in the
-// response.
-func FetchAPIServerMetricFamily(ctx context.Context, discoveryClient discovery.DiscoveryInterface, metricName string) (*prometheus.MetricFamily, error) {
+// returns the first parsed metric family present in the response, in the order specified by
+// metricNames. It returns nil if none of the requested families are present.
+func FetchAPIServerMetricFamily(ctx context.Context, discoveryClient discovery.DiscoveryInterface, metricNames ...string) (*prometheus.MetricFamily, error) {
 	metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query /metrics endpoint: %w", err)
@@ -30,11 +30,17 @@ func FetchAPIServerMetricFamily(ctx context.Context, discoveryClient discovery.D
 		return nil, fmt.Errorf("failed to parse /metrics endpoint: %w", err)
 	}
 
-	for _, family := range families {
-		if family.Name == metricName {
-			return &family, nil
+	return findMetricFamily(families, metricNames...), nil
+}
+
+func findMetricFamily(families []prometheus.MetricFamily, metricNames ...string) *prometheus.MetricFamily {
+	for _, metricName := range metricNames {
+		for i := range families {
+			if families[i].Name == metricName {
+				return &families[i]
+			}
 		}
 	}
 
-	return nil, nil
+	return nil
 }

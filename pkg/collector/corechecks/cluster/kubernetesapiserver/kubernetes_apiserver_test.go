@@ -150,24 +150,47 @@ func TestConvertFilter(t *testing.T) {
 }
 
 func TestSubmitStorageObjectsMetrics(t *testing.T) {
-	tagger := taggerfxmock.SetupFakeTagger(t)
-	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
-	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
-
-	family := &prometheus.MetricFamily{
-		Name: "apiserver_storage_objects",
-		Type: "GAUGE",
-		Samples: []prometheus.Sample{
-			{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
-			{Metric: prometheus.Metric{"resource": "customresourcedefinitions.example.com"}, Value: 3},
+	tests := []struct {
+		name   string
+		family *prometheus.MetricFamily
+	}{
+		{
+			name: "legacy metric",
+			family: &prometheus.MetricFamily{
+				Name: storageObjectsMetricName,
+				Type: "GAUGE",
+				Samples: []prometheus.Sample{
+					{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
+					{Metric: prometheus.Metric{"resource": "widgets.example.com"}, Value: 3},
+				},
+			},
+		},
+		{
+			name: "replacement metric",
+			family: &prometheus.MetricFamily{
+				Name: replacementStorageObjectsMetricName,
+				Type: "GAUGE",
+				Samples: []prometheus.Sample{
+					{Metric: prometheus.Metric{"group": "", "resource": "pods"}, Value: 42},
+					{Metric: prometheus.Metric{"group": "example.com", "resource": "widgets"}, Value: 3},
+				},
+			},
 		},
 	}
 
-	mocked.On("Gauge", "kube_apiserver.storage_objects", 42.0, "", []string{"resource:pods"})
-	mocked.On("Gauge", "kube_apiserver.storage_objects", 3.0, "", []string{"resource:customresourcedefinitions.example.com"})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tagger := taggerfxmock.SetupFakeTagger(t)
+			kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
+			mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 
-	submitStorageObjectsMetrics(mocked, family)
+			mocked.On("Gauge", "kube_apiserver.storage_objects", 42.0, "", []string{"resource:pods"})
+			mocked.On("Gauge", "kube_apiserver.storage_objects", 3.0, "", []string{"resource:widgets.example.com"})
 
-	mocked.AssertNumberOfCalls(t, "Gauge", 2)
-	mocked.AssertExpectations(t)
+			submitStorageObjectsMetrics(mocked, test.family)
+
+			mocked.AssertNumberOfCalls(t, "Gauge", 2)
+			mocked.AssertExpectations(t)
+		})
+	}
 }

@@ -47,15 +47,16 @@ const (
 	// CheckName is the name of the check
 	CheckName = "kubernetes_apiserver"
 
-	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
-	storageObjectsMetricName           = "apiserver_storage_objects"
-	eventTokenKey                      = "event"
-	componentStatusMaxVersionString    = "v1.35.0"
-	maxEventCardinality                = 300
-	defaultResyncPeriodInSecond        = 300
-	defaultTimeoutEventCollection      = 2000
-	defaultMaxEstimatedEventTextLength = 3750
-	defaultEventCollectionBufferSize   = 10000
+	KubeControlPaneCheck                = "kube_apiserver_controlplane.up"
+	storageObjectsMetricName            = "apiserver_storage_objects"
+	replacementStorageObjectsMetricName = "apiserver_resource_objects"
+	eventTokenKey                       = "event"
+	componentStatusMaxVersionString     = "v1.35.0"
+	maxEventCardinality                 = 300
+	defaultResyncPeriodInSecond         = 300
+	defaultTimeoutEventCollection       = 2000
+	defaultMaxEstimatedEventTextLength  = 3750
+	defaultEventCollectionBufferSize    = 10000
 
 	// eventCollectionModePoll re-opens a watch against the API server on every check run (legacy behavior).
 	eventCollectionModePoll = "poll"
@@ -632,11 +633,12 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 }
 
 // sendStorageObjectsMetrics scrapes the API server's own /metrics endpoint for
-// apiserver_storage_objects, which reports the number of objects of each resource
-// type (including CRDs) currently held in the underlying storage. Unlike the rest
-// of this check, this reflects cluster-wide storage state rather than the state of
-// whichever API server node happened to answer the request, so it is safe to treat
-// as a single, cluster-level data point emitted once per leader run.
+// apiserver_storage_objects or its replacement, apiserver_resource_objects. They
+// report the number of objects of each resource type (including CRDs) currently held
+// in the underlying storage. Unlike the rest of this check, this reflects cluster-wide
+// storage state rather than the state of whichever API server node happened to answer
+// the request, so it is safe to treat as a single, cluster-level data point emitted
+// once per leader run.
 //
 // The API server's /metrics endpoint is not guaranteed to be reachable in every
 // environment (e.g. restrictive network policies), so any failure here is
@@ -645,13 +647,22 @@ func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	family, err := apiservercommon.FetchAPIServerMetricFamily(ctx, k.ac.Cl.Discovery(), storageObjectsMetricName)
+	family, err := apiservercommon.FetchAPIServerMetricFamily(
+		ctx,
+		k.ac.Cl.Discovery(),
+		storageObjectsMetricName,
+		replacementStorageObjectsMetricName,
+	)
 	if err != nil {
 		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
 		return
 	}
 	if family == nil {
-		log.Debugf("Metric %s not found in the API server's /metrics endpoint", storageObjectsMetricName)
+		log.Debugf(
+			"Metrics %s and %s not found in the API server's /metrics endpoint",
+			storageObjectsMetricName,
+			replacementStorageObjectsMetricName,
+		)
 		return
 	}
 
@@ -659,10 +670,19 @@ func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
 }
 
 // submitStorageObjectsMetrics emits one kube_apiserver.storage_objects gauge per sample
-// in the given apiserver_storage_objects metric family.
+// from either Kubernetes storage-object metric family. The replacement family splits the
+// legacy resource label into group and resource labels, so recombine them to keep the
+// Datadog metric's resource tag backward-compatible.
 func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
 	for _, sample := range family.Samples {
-		tags := []string{"resource:" + sample.Metric["resource"]}
+		resource := sample.Metric["resource"]
+		if family.Name == replacementStorageObjectsMetricName {
+			if group := sample.Metric["group"]; group != "" {
+				resource += "." + group
+			}
+		}
+
+		tags := []string{"resource:" + resource}
 		sender.Gauge("kube_apiserver.storage_objects", sample.Value, "", tags)
 	}
 }
