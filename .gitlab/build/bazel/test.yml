@@ -16,7 +16,7 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
     RESULT_JSON: test_output.json
-    GIT_DEPTH: 0  # Needed by datadog-ci to collect git metadata
+    GIT_DEPTH: 0 # Needed by datadog-ci to collect git metadata
   after_script:
     - dda inv -- -e bazel.process-test-results --bep-file=$BEP_FILE --junit-tar=junit-${CI_JOB_NAME}.tgz --result-json=$RESULT_JSON
     - !reference [.upload_junit_source]
@@ -74,6 +74,24 @@ bazel:test:linux-amd64:
 
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
+
+# One-off diagnosis job: the linux-amd64 unit-test pipeline with ALL Bazel
+# action caches disabled (wrapper-injected --disk_cache and the Buildbarn
+# remote cache), to determine whether the "link: open ... packages.txt: no
+# such file or directory" GoLink failures reproduce without any cache
+# involvement. Manual-only: expect it to be much slower than the normal job
+# (zero cache hits), so it defaults to the observed-failing targets instead
+# of the full //... sweep. Override NO_CACHE_TEST_TARGETS (e.g. to "//...")
+# when triggering manually in the GitLab UI. A link-time pass here means the
+# fork tree is fine and the failures are cache/materialization-related; a
+# repro here means a deterministic fork bug.
+bazel:test:linux-amd64-no-cache:
+  extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
+  script:
+    - !reference [.bazel:test:reporting:ci_links]
+    # --config=no-remote-cache clears the remote cache; --disk_cache= overrides
+    # the wrapper's injected disk cache (user flags come after the wrapper's).
+    - bazel test --config=no-remote-cache --disk_cache= --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
