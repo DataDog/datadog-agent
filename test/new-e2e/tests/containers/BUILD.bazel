@@ -32,6 +32,10 @@ dd_agent_go_test(
         "values.yaml",
     ],
     embed = [":containers"],
+    # Stamped with the pipeline's git commit when built with --stamp (see
+    # bazel/tools/workspace_status.sh and tasks/new_e2e_tests.py _build_single_binary);
+    # the Bazel equivalent of `go test -c -ldflags -X ...containers.GitCommit=<sha>`.
+    x_defs = {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers.GitCommit": "{STABLE_GIT_COMMIT}"},
     embedsrcs = [
         "fixtures/datadog-agent-cel-exclude.yml",
         "fixtures/datadog-agent-legacy-exclude.yml",

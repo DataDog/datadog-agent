@@ -150,7 +150,14 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         target_name = f"{Path(pkg).name}_test"
         target = f"//test/new-e2e/{pkg}:{target_name}"
 
-        result = ctx.run(f"bazel build {target}", hide=True)
+        # Stamp the git commit into the binaries (containers.GitCommit) the same way
+        # `go test -c -ldflags -X ...` used to: {STABLE_GIT_COMMIT} x_defs placeholders in the
+        # BUILD files are substituted at link time from the workspace status script, via --stamp.
+        workspace_status = Path(__file__).parent.parent / "bazel/tools/workspace_status.sh"
+        result = ctx.run(
+            f"bazel build --stamp --workspace_status_command={workspace_status} {target}",
+            hide=True,
+        )
         if result.ok:
             # Locate the compiled test binary via cquery and copy it to the output path
             cquery = ctx.run(f"bazel cquery --output=files {target}", hide=True)
