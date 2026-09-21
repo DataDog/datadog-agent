@@ -15,7 +15,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
 )
 
 // Reachability statuses reported per address.
@@ -24,19 +24,16 @@ const (
 	statusUnreachable = "unreachable"
 )
 
-// connectivityChecker runs the probe checks against a batch of addresses. It is
-// satisfied by the networkdevices component.
-type connectivityChecker interface {
-	CheckConnectivity(ctx context.Context, req connectivity.Request) (connectivity.Result, error)
-}
+// scanFunc probes a batch of addresses. It is satisfied by probe.Scan.
+type scanFunc func(ctx context.Context, workers int, targets []string, opts probe.Options) ([]probe.Result, error)
 
 // sweepRequest is everything one cycle over one range needs.
 type sweepRequest struct {
 	Config rangeConfig
-	// Probes are this cycle's prepared probes, in registry order.
-	Probes []probeRun
-	Plan   *chunkPlan
-	Digest string
+	// Options are this cycle's resolved probes.
+	Options probe.Options
+	Plan    *chunkPlan
+	Digest  string
 	// Workers is this range's share of the global worker budget.
 	Workers int64
 }
@@ -44,7 +41,7 @@ type sweepRequest struct {
 // sweeper runs one cycle over one range, chunk by chunk, persisting a cursor
 // so that a restart resumes instead of starting again.
 type sweeper struct {
-	checker  connectivityChecker
+	scan     scanFunc
 	reporter discoveryReporter
 	cursors  cursorStore
 	sem      *semaphore.Weighted
@@ -56,12 +53,12 @@ type sweeper struct {
 	newRunID func() string
 }
 
-func newSweeper(checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, sem *semaphore.Weighted, budget int64, logger log.Component) *sweeper {
+func newSweeper(scan scanFunc, reporter discoveryReporter, cursors cursorStore, sem *semaphore.Weighted, budget int64, logger log.Component) *sweeper {
 	if budget < 1 {
 		budget = 1
 	}
 	return &sweeper{
-		checker:  checker,
+		scan:     scan,
 		reporter: reporter,
 		cursors:  cursors,
 		sem:      sem,
@@ -204,22 +201,11 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 	}
 	defer s.sem.Release(r.Workers)
 
-	req := connectivity.Request{
-		Targets: chunk.Targets,
-		Workers: int(r.Workers),
-	}
-	for _, p := range r.Probes {
-		p.apply(&req)
-	}
-
-	res, err := s.checker.CheckConnectivity(ctx, req)
+	res, err := s.scan(ctx, int(r.Workers), chunk.Targets, r.Options)
 	if err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, r.Probes, res), nil
+	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
 }
 
 // clampWorkers keeps a range's worker share inside [1, budget]: a larger share
@@ -248,37 +234,73 @@ func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadat
 
 // toDiscoveredDevices converts one chunk's probe results into report documents.
 // Only addresses that answered at least one probe are reported.
-func toDiscoveredDevices(autodiscoveryID, runID string, probes []probeRun, res connectivity.Result) []metadata.DiscoveredDeviceMetadata {
-	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(res.Devices))
-	for _, d := range res.Devices {
-		if d.IPAddress == "" {
-			// The engine pre-allocates its result slice, so a run can leave zero-value holes.
+func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) []metadata.DiscoveredDeviceMetadata {
+	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(results))
+	for _, r := range results {
+		if r.Target == "" {
 			continue
 		}
 
 		device := metadata.DiscoveredDeviceMetadata{
 			AutodiscoveryID: autodiscoveryID,
 			RunID:           runID,
-			IPAddress:       d.IPAddress,
+			IPAddress:       r.Target,
 		}
 		answered := false
-		for _, p := range probes {
-			reading := p.read(d)
-			if reading == nil {
-				continue
+
+		if p := r.Ping; p != nil {
+			result := metadata.ProbeResult{
+				Kind:   kindPing,
+				Status: statusString(p.Success),
+				RttMs:  rttMs(p.Success, p.RTT),
 			}
-			if reading.Result.Status == statusReachable {
+			if p.Success {
 				answered = true
+			} else {
+				result.FailureReason = p.FailureReason
 			}
-			if device.Name == "" {
-				device.Name = reading.Name
-			}
-			device.ProbeResults = append(device.ProbeResults, reading.Result)
+			device.ProbeResults = append(device.ProbeResults, result)
 		}
+
+		if sn := r.SNMP; sn != nil {
+			result := metadata.ProbeResult{
+				Kind:   kindSNMP,
+				Status: statusString(sn.Success),
+				RttMs:  rttMs(sn.Success, sn.RTT),
+			}
+			if sn.Success {
+				answered = true
+				result.CredID = sn.CredID
+				if device.Name == "" {
+					device.Name = sn.SysName
+				}
+			} else {
+				result.FailureReason = sn.FailureReason
+			}
+			device.ProbeResults = append(device.ProbeResults, result)
+		}
+
 		if !answered {
 			continue
 		}
 		devices = append(devices, device)
 	}
 	return devices
+}
+
+func statusString(success bool) string {
+	if success {
+		return statusReachable
+	}
+	return statusUnreachable
+}
+
+// rttMs is the round-trip time in milliseconds, reported only when the probe
+// answered.
+func rttMs(success bool, rtt time.Duration) *int64 {
+	if !success {
+		return nil
+	}
+	ms := rtt.Milliseconds()
+	return &ms
 }

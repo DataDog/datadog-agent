@@ -9,6 +9,7 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"golang.org/x/sync/semaphore"
 
@@ -18,7 +19,8 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
-	networkdevices "github.com/DataDog/datadog-agent/comp/networkdevices/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
 // Config keys. The network_devices.autodiscovery.* prefix belongs to the
@@ -38,11 +40,10 @@ var errDisabled = errors.New("the ndm discovery component is disabled: set netwo
 type Requires struct {
 	compdef.In
 
-	Lifecycle      compdef.Lifecycle
-	Log            log.Component
-	Config         config.Component
-	EventPlatform  eventplatform.Component
-	NetworkDevices networkdevices.Component
+	Lifecycle     compdef.Lifecycle
+	Log           log.Component
+	Config        config.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides declares what the ndmdiscovery component provides.
@@ -55,8 +56,9 @@ type ndmDiscovery struct {
 	sched    *scheduler
 	defaults rangeDefaults
 
-	probes  *probeSet
-	enabled bool
+	pingOnce sync.Once
+	ping     pingprobe.Capability
+	enabled  bool
 }
 
 // NewComponent builds the ndmdiscovery component. When the feature is off it
@@ -88,13 +90,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	comp.enabled = true
 	comp.defaults = defaults
-	comp.probes = newProbeSet(reqs.Log,
-		newPingProbe(reqs.NetworkDevices, reqs.Log),
-		newSNMPProbe(credentials.NewStore(reqs.Config), reqs.Log),
-	)
 	comp.sched = newScheduler(
 		newSweeper(
-			reqs.NetworkDevices,
+			probe.Scan,
 			newPayloadReporter(forwarder, reqs.Log),
 			newPersistentCursorStore(),
 			semaphore.NewWeighted(workers),
@@ -102,7 +100,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 			reqs.Log,
 		),
 		reqs.Log,
-		schedulerOptions{Workers: workers, MaxAddresses: defaults.MaxAddresses, Defaults: defaults},
+		schedulerOptions{
+			Workers:      workers,
+			MaxAddresses: defaults.MaxAddresses,
+			Defaults:     defaults,
+			Credentials:  credentials.NewStore(reqs.Config),
+		},
 	)
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -110,8 +113,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: comp}, nil
 }
 
-func (d *ndmDiscovery) start(ctx context.Context) error {
-	d.probes.detect(ctx)
+// pingCapability detects once whether this process can send ICMP echo requests.
+func (d *ndmDiscovery) pingCapability() pingprobe.Capability {
+	d.pingOnce.Do(func() {
+		d.ping = pingprobe.Detect()
+		if !d.ping.Available {
+			d.log.Warnf("ndmdiscovery: the ping probe is not available: %s", d.ping.Reason)
+		}
+	})
+	return d.ping
+}
+
+func (d *ndmDiscovery) start(_ context.Context) error {
+	d.pingCapability()
 
 	// The scheduler outlives the start hook's context, which is cancelled once
 	// startup finishes.
@@ -138,7 +152,7 @@ func (d *ndmDiscovery) Schedule(ranges []ndmdiscovery.Range) map[string]error {
 
 	scheduled := make(map[string]struct{}, len(ranges))
 	for _, r := range ranges {
-		cfg, err := parseRange(r, d.defaults, d.probes)
+		cfg, err := parseRange(r, d.defaults, d.pingCapability(), d.log)
 		if err != nil {
 			errs[r.ID] = err
 			continue
