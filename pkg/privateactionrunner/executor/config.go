@@ -19,21 +19,15 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// ControlPlaneProtocolVersion identifies the snapshot contract shipped with par-control.
-const ControlPlaneProtocolVersion = 1
-
-// ControlPlaneConfig snapshots the same resolved runner configuration used for execution.
-// A nil runner returns a disabled response without inspecting identity or enrollment.
 func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetControlPlaneConfigResponse, error) {
 	response := &pb.GetControlPlaneConfigResponse{
-		ProtocolVersion: ControlPlaneProtocolVersion,
-		LogLevel:        config.GetString("log_level"),
+		LogLevel: config.GetString("log_level"),
 	}
 	if runner == nil {
 		return response, nil
 	}
 	if runner.IdentityIsIncomplete() {
-		return nil, errors.New("resolved runner identity is incomplete")
+		return nil, errors.New("runner identity is incomplete")
 	}
 	jwk, err := util.EcdsaToJWK(runner.PrivateKey)
 	if err != nil {
@@ -46,13 +40,13 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	endpoint := opms.EndpointURL(runner, "")
 	request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
-		return nil, errors.New("invalid PAR OPMS endpoint")
+		return nil, errors.New("invalid OPMS endpoint")
 	}
 	proxyURL := ""
 	if proxies := config.GetProxies(); proxies != nil {
 		proxy, err := httputils.GetProxyTransportFunc(proxies, config)(request)
 		if err != nil {
-			return nil, errors.New("failed to resolve PAR OPMS proxy")
+			return nil, errors.New("failed to resolve OPMS proxy")
 		}
 		if proxy != nil {
 			proxyURL = proxy.String()

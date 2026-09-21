@@ -470,7 +470,7 @@ func (s *parK8sSuite) verifySplitPodSpec() {
 	}
 	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_ENABLED"])
 	s.Require().Equal("true", agentEnv["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
-	s.Require().Equal("/opt/datadog-agent/run/core-only-executor.sock", agentEnv["DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH"])
+	s.Require().Equal("urn:dd:apps:on-prem-runner:us1:42:core-only-runner", agentEnv["DD_PRIVATE_ACTION_RUNNER_URN"])
 
 	env := make(map[string]string, len(parContainer.Env))
 	for _, variable := range parContainer.Env {
@@ -479,7 +479,6 @@ func (s *parK8sSuite) verifySplitPodSpec() {
 	s.Require().Equal("true", env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
 	s.Require().Equal("/etc/privateactionrunner/privateactionrunner.yaml", env["DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH"])
 	s.Require().Equal("/opt/datadog-agent/run/dd-procmgrd.sock", env["DD_PM_SOCKET_PATH"])
-	s.Require().Equal("/opt/datadog-agent/run/par-local-executor.sock", env["DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH"])
 
 	var runVolumeName string
 	for _, mount := range parContainer.VolumeMounts {

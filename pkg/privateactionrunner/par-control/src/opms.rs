@@ -32,11 +32,9 @@ pub struct TlsConfig {
 /// The proxy decision for OPMS requests, resolved by Go bootstrap in PAR's environment.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ProxyDecision {
-    /// No proxy applies; connect directly.
     #[default]
     None,
-    /// Use this proxy unconditionally: `no_proxy` was already evaluated for the OPMS destination.
-    Direct(String),
+    ViaProxy(String),
 }
 
 /// A dequeued task.
@@ -347,7 +345,7 @@ impl HttpOpms {
             // Go bootstrap already resolved PAR's proxy settings;
             // do not let reqwest independently re-read process environment.
             .no_proxy();
-        if let ProxyDecision::Direct(proxy_url) = options.proxy {
+        if let ProxyDecision::ViaProxy(proxy_url) = options.proxy {
             let proxy = reqwest::Proxy::all(proxy_url)
                 .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?;
             builder = builder.proxy(proxy);
@@ -818,7 +816,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy: ProxyDecision::Direct(format!(
+                proxy: ProxyDecision::ViaProxy(format!(
                     "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
                 )),
                 tls: TlsConfig::default(),

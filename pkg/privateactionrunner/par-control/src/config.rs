@@ -68,12 +68,8 @@ impl fmt::Debug for BootstrapConfig {
 }
 
 impl BootstrapConfig {
-    pub fn new(response: pb::GetControlPlaneConfigResponse) -> Result<Self> {
-        ensure!(
-            response.protocol_version == 1,
-            "unsupported executor configuration protocol version"
-        );
-        Ok(Self(response))
+    pub fn new(response: pb::GetControlPlaneConfigResponse) -> Self {
+        Self(response)
     }
 
     pub fn split_mode(&self) -> bool {
@@ -141,7 +137,7 @@ impl BootstrapConfig {
         let opms_proxy = if runtime.opms_proxy_url.is_empty() {
             ProxyDecision::None
         } else {
-            ProxyDecision::Direct(runtime.opms_proxy_url)
+            ProxyDecision::ViaProxy(runtime.opms_proxy_url)
         };
         Ok(Config {
             opms_base_url: runtime.opms_base_url,
@@ -182,7 +178,6 @@ mod tests {
 
     fn snapshot() -> pb::GetControlPlaneConfigResponse {
         pb::GetControlPlaneConfigResponse {
-            protocol_version: 1,
             split_mode: true,
             log_level: "debug".into(),
             identity: Some(pb::ControlPlaneIdentity {
@@ -203,20 +198,19 @@ mod tests {
     }
 
     fn config(snapshot: pb::GetControlPlaneConfigResponse) -> Result<Config> {
-        BootstrapConfig::new(snapshot)?
-            .into_config("/launch.sock".into(), "/launch/cert.pem".into())
+        BootstrapConfig::new(snapshot).into_config("/launch.sock".into(), "/launch/cert.pem".into())
     }
 
     #[test]
     fn uses_bootstrap_runtime_and_launch_paths() {
-        let bootstrap = BootstrapConfig::new(snapshot()).unwrap();
+        let bootstrap = BootstrapConfig::new(snapshot());
         assert!(bootstrap.split_mode());
         assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
         let config = config(snapshot()).unwrap();
         assert_eq!(config.opms_base_url, "https://api.us3.datadoghq.com");
         assert_eq!(
             config.opms_proxy,
-            ProxyDecision::Direct("http://user:secret-password@proxy:3128".into())
+            ProxyDecision::ViaProxy("http://user:secret-password@proxy:3128".into())
         );
         assert_eq!(config.task_concurrency, 9);
         assert_eq!(config.executor_socket, PathBuf::from("/launch.sock"));
@@ -260,10 +254,7 @@ mod tests {
                     .contains("task_concurrency")
             );
         }
-        let mut invalid = snapshot();
-        invalid.protocol_version = 0;
-        assert!(BootstrapConfig::new(invalid).is_err());
-        let debug = format!("{:?}", BootstrapConfig::new(snapshot()).unwrap());
+        let debug = format!("{:?}", BootstrapConfig::new(snapshot()));
         for secret in ["secret-key", "secret-header", "secret-password"] {
             assert!(!debug.contains(secret));
         }
@@ -283,7 +274,6 @@ mod tests {
             ("/executor.sock", "", "--ipc-cert-file"),
         ] {
             let error = BootstrapConfig::new(snapshot())
-                .unwrap()
                 .into_config(socket.into(), cert.into())
                 .err()
                 .unwrap();
@@ -293,11 +283,7 @@ mod tests {
 
     #[test]
     fn disabled_response_needs_no_identity() {
-        let bootstrap = BootstrapConfig::new(pb::GetControlPlaneConfigResponse {
-            protocol_version: 1,
-            ..Default::default()
-        })
-        .unwrap();
+        let bootstrap = BootstrapConfig::new(pb::GetControlPlaneConfigResponse::default());
         assert!(!bootstrap.split_mode());
     }
 }

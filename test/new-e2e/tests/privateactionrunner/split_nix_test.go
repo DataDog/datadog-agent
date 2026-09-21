@@ -490,14 +490,7 @@ func (s *linuxPARSplitSuite) waitForProcessStates(name string, states []string, 
 
 func (s *linuxPARSplitSuite) waitForProcessInactive(name string, timeout time.Duration) {
 	s.T().Helper()
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
-		))
-		require.NoError(c, err)
-		state := strings.ReplaceAll(output, " ", "")
-		require.True(c, strings.Contains(state, "State:Stopped") || strings.Contains(state, "State:Failed"))
-	}, timeout, time.Second, "%s should stop running", name)
+	s.waitForProcessStates(name, []string{"Created", "Stopped", "Exited", "Failed"}, timeout)
 }
 
 func (s *linuxPARSplitSuite) waitForStableProcessState(name, state string, stableFor, timeout time.Duration) {

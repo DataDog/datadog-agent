@@ -311,7 +311,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.cancelStart = cancel
 	defer p.logger.Flush()
 
-	cfg, err := p.configureExecutor(ctx, runCtx)
+	runCtx, cfg, err := p.configureExecutor(ctx, runCtx)
 	if err != nil {
 		cancel()
 		return err
@@ -343,7 +343,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds))
 	if cfg == nil {
-		idleTimeout = time.Minute // Disabled bootstrap must not leave Go resident.
+		idleTimeout = time.Minute
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
@@ -368,25 +368,25 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	return nil
 }
 
-// configureExecutor resolves identity through the monolith's path exactly once.
+// configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
-func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (*parconfig.Config, error) {
+func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
 	if !p.coreConfig.GetBool(privateactionrunner.PAREnabled) || !splitDeploymentEnabled(
 		p.coreConfig.GetBool(privateactionrunner.PARSplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
 	) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
-		return nil, nil
+		return runCtx, nil, nil
 	}
 	buildFIPS, err := fips.Enabled()
 	if err != nil {
-		return nil, err
+		return runCtx, nil, err
 	}
 	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
-		return nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
+		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
-		return nil, err
+		return runCtx, nil, err
 	}
 	commonTags := observability.CommonTags{
 		RunnerId: cfg.RunnerId, RunnerVersion: cfg.Version, Modes: cfg.Modes, ExtraTags: cfg.Tags,
@@ -408,7 +408,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (*p
 		p.executorServer.SetReady(true)
 		p.logger.Info("Private action runner executor ready to accept actions")
 	}()
-	return cfg, nil
+	return runCtx, cfg, nil
 }
 
 func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {

@@ -22,6 +22,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/jsonapi"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -34,7 +36,6 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -174,7 +175,6 @@ func (c *client) endpointURL(path string) string {
 	return EndpointURL(c.config, path)
 }
 
-// EndpointURL builds an OPMS URL from the resolved PAR configuration.
 func EndpointURL(cfg *config.Config, path string) string {
 	scheme, host := "https", cfg.DDApiHost
 	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {

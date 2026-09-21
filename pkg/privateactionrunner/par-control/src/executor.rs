@@ -84,7 +84,7 @@ impl ExecutorDispatcher {
             .await
             .context("executor GetControlPlaneConfig failed")?
             .into_inner();
-        BootstrapConfig::new(response)
+        Ok(BootstrapConfig::new(response))
     }
 }
 
@@ -184,10 +184,7 @@ mod tests {
             if self.config_calls.fetch_add(1, Ordering::SeqCst) == 0 {
                 return Err(Status::unavailable("configuration is starting"));
             }
-            Ok(Response::new(pb::GetControlPlaneConfigResponse {
-                protocol_version: 1,
-                ..Default::default()
-            }))
+            Ok(Response::new(pb::GetControlPlaneConfigResponse::default()))
         }
 
         async fn health(
@@ -222,7 +219,6 @@ mod tests {
         loop {
             let encoded = pb::RunActionRequest {
                 task: payload.clone(),
-                ..Default::default()
             }
             .encoded_len();
             match encoded.cmp(&target) {

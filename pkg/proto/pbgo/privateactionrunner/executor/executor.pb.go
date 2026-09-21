@@ -58,17 +58,14 @@ func (*GetControlPlaneConfigRequest) Descriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{0}
 }
 
-// Contains credentials. Only the holder of the exact shared Agent IPC certificate
-// may retrieve this snapshot. It is resolved once, before serving RPCs.
 type GetControlPlaneConfigResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ProtocolVersion uint32                 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
-	SplitMode       bool                   `protobuf:"varint,2,opt,name=split_mode,json=splitMode,proto3" json:"split_mode,omitempty"`
-	LogLevel        string                 `protobuf:"bytes,3,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
-	Identity        *ControlPlaneIdentity  `protobuf:"bytes,4,opt,name=identity,proto3" json:"identity,omitempty"`
-	Runtime         *ControlPlaneRuntime   `protobuf:"bytes,5,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SplitMode     bool                   `protobuf:"varint,1,opt,name=split_mode,json=splitMode,proto3" json:"split_mode,omitempty"`
+	LogLevel      string                 `protobuf:"bytes,2,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
+	Identity      *ControlPlaneIdentity  `protobuf:"bytes,3,opt,name=identity,proto3" json:"identity,omitempty"`
+	Runtime       *ControlPlaneRuntime   `protobuf:"bytes,4,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetControlPlaneConfigResponse) Reset() {
@@ -99,13 +96,6 @@ func (x *GetControlPlaneConfigResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetControlPlaneConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetControlPlaneConfigResponse) Descriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_executor_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GetControlPlaneConfigResponse) GetProtocolVersion() uint32 {
-	if x != nil {
-		return x.ProtocolVersion
-	}
-	return 0
 }
 
 func (x *GetControlPlaneConfigResponse) GetSplitMode() bool {
@@ -648,14 +638,13 @@ var File_datadog_privateactionrunner_executor_proto protoreflect.FileDescriptor
 const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\n" +
 	"*datadog/privateactionrunner/executor.proto\x12$datadog.privateactionrunner.executor\x1a,datadog/privateactionrunner/error_code.proto\"\x1e\n" +
-	"\x1cGetControlPlaneConfigRequest\"\xb3\x02\n" +
-	"\x1dGetControlPlaneConfigResponse\x12)\n" +
-	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
+	"\x1cGetControlPlaneConfigRequest\"\x88\x02\n" +
+	"\x1dGetControlPlaneConfigResponse\x12\x1d\n" +
 	"\n" +
-	"split_mode\x18\x02 \x01(\bR\tsplitMode\x12\x1b\n" +
-	"\tlog_level\x18\x03 \x01(\tR\blogLevel\x12V\n" +
-	"\bidentity\x18\x04 \x01(\v2:.datadog.privateactionrunner.executor.ControlPlaneIdentityR\bidentity\x12S\n" +
-	"\aruntime\x18\x05 \x01(\v29.datadog.privateactionrunner.executor.ControlPlaneRuntimeR\aruntime\"}\n" +
+	"split_mode\x18\x01 \x01(\bR\tsplitMode\x12\x1b\n" +
+	"\tlog_level\x18\x02 \x01(\tR\blogLevel\x12V\n" +
+	"\bidentity\x18\x03 \x01(\v2:.datadog.privateactionrunner.executor.ControlPlaneIdentityR\bidentity\x12S\n" +
+	"\aruntime\x18\x04 \x01(\v29.datadog.privateactionrunner.executor.ControlPlaneRuntimeR\aruntime\"}\n" +
 	"\x14ControlPlaneIdentity\x12\x10\n" +
 	"\x03urn\x18\x01 \x01(\tR\x03urn\x12\x1f\n" +
 	"\vprivate_key\x18\x02 \x01(\tR\n" +

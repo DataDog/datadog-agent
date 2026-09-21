@@ -33,7 +33,7 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 		// Dependencies are deliberately absent: disabled startup must not use them.
 		runner := &PrivateActionRunner{coreConfig: cfg}
-		resolved, err := runner.configureExecutor(context.Background(), context.Background())
+		_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
 		require.NoError(t, err)
 		require.Nil(t, resolved)
 		require.NotNil(t, runner.executorServer)

@@ -12,14 +12,11 @@ import "datadog/privateactionrunner/error_code.proto";
 
 message GetControlPlaneConfigRequest {}
 
-// Contains credentials. Only the holder of the exact shared Agent IPC certificate
-// may retrieve this snapshot. It is resolved once, before serving RPCs.
 message GetControlPlaneConfigResponse {
-  uint32 protocol_version = 1;
-  bool split_mode = 2;
-  string log_level = 3;
-  ControlPlaneIdentity identity = 4;
-  ControlPlaneRuntime runtime = 5;
+  bool split_mode = 1;
+  string log_level = 2;
+  ControlPlaneIdentity identity = 3;
+  ControlPlaneRuntime runtime = 4;
 }
 
 message ControlPlaneIdentity {

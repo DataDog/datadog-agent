@@ -452,8 +452,8 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	}
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{
-		ProtocolVersion: 1, SplitMode: true,
-		Identity: &pb.ControlPlaneIdentity{PrivateKey: "never-log-this-key"},
+		SplitMode: true,
+		Identity:  &pb.ControlPlaneIdentity{PrivateKey: "never-log-this-key"},
 	}, serverCert.Certificate[0])
 
 	socketPath := testListenAddr(t)
@@ -509,7 +509,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 
 func TestControlConfigRejectsPlaintext(t *testing.T) {
 	srv := NewServer(nil, "test")
-	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{ProtocolVersion: 1}, []byte("certificate"))
+	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{}, []byte("certificate"))
 	client := startTestServer(t, srv)
 	_, err := client.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))

@@ -14,12 +14,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/stretchr/testify/require"
 )
 
 func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
@@ -49,7 +50,6 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 			})
 			runner, err := parconfig.FromDDConfig(cfg, nil)
 			require.NoError(t, err)
-			// Use the resolved identity, not stale values in the underlying configuration.
 			runner.PrivateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 			require.NoError(t, err)
 			runner.Urn = util.MakeRunnerURN("us3", 42, "runner")
@@ -57,7 +57,6 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 			snapshot, err := ControlPlaneConfig(cfg, runner)
 			require.NoError(t, err)
 			require.True(t, snapshot.SplitMode)
-			require.EqualValues(t, ControlPlaneProtocolVersion, snapshot.ProtocolVersion)
 			require.Equal(t, "debug", snapshot.LogLevel)
 			require.Equal(t, tc.wantURL, snapshot.Runtime.OpmsBaseUrl)
 			require.Equal(t, runner.RunnerPoolSize, snapshot.Runtime.TaskConcurrency)

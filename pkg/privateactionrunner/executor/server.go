@@ -71,14 +71,11 @@ func NewServer(executor actionExecutor, version string) *Server {
 	return s
 }
 
-// SetControlPlaneConfig must be called before Serve. The certificate is the shared
-// IPC leaf DER, not its CA: CA-signed action clients must not retrieve credentials.
 func (s *Server) SetControlPlaneConfig(config *pb.GetControlPlaneConfigResponse, certificate []byte) {
 	s.controlConfig = config
 	s.controlCert = bytes.Clone(certificate)
 }
 
-// GetControlPlaneConfig is independent of action readiness and never enrolls.
 func (s *Server) GetControlPlaneConfig(ctx context.Context, _ *pb.GetControlPlaneConfigRequest) (*pb.GetControlPlaneConfigResponse, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
