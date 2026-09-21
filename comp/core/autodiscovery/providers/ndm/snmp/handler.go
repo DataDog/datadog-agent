@@ -57,7 +57,7 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 
 	creds, err := h.creds.load()
 	if err != nil {
-		return nil, err
+		h.log.Warnf("ndm: some snmp credential files of config %s did not load: %v", path, err)
 	}
 
 	configs := make([]integration.Config, 0, len(doc.Instances))
@@ -96,11 +96,11 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 // scheduled. The reason never names a credential value.
 func resolve(instance documentInstance, creds map[string]credential) (credential, string) {
 	if instance.IPAddress == "" {
-		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredID)
+		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredName)
 	}
-	cred, found := creds[instance.CredID]
+	cred, found := creds[instance.CredName]
 	if !found {
-		return credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredID)
+		return credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredName)
 	}
 	if err := validate(cred); err != nil {
 		return credential{}, fmt.Sprintf("%s cannot be scheduled: %s", instance.IPAddress, err.Error())
