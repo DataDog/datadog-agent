@@ -159,7 +159,7 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 			{err: timeoutErr},
 			{err: timeoutErr},
 			{err: timeoutErr},
-			{err: timeoutErr}, // floor at 1 for the second root
+			{err: timeoutErr},
 		},
 	}
 
