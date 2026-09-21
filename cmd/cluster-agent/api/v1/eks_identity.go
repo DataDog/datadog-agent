@@ -9,6 +9,7 @@ package v1
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -32,6 +33,13 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 
 	identity, err := resolveEKSClusterIdentity(r.Context())
 	if err != nil {
+		// Not running on EKS, or no cluster name to look up, is a permanent and expected
+		// outcome on other distributions. Report it as "not found" without marking the
+		// span errored so non-EKS clusters do not emit a steady stream of false errors.
+		if errors.Is(err, eksidentity.ErrNotEKS) || errors.Is(err, eksidentity.ErrClusterNameUnavailable) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
