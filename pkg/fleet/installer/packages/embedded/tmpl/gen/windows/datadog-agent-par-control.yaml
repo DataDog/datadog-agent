@@ -5,11 +5,6 @@ args:
   - '\\.\pipe\dd-par-executor'
   - --ipc-cert-file
   - '__PAR_ETC_ROOT__/ipc_cert.pem'
-  - --bootstrap-command
-  - '__PAR_INSTALL_ROOT__/bin/agent/privateactionrunner.exe'
-  - bootstrap-par-control
-  - --cfgpath
-  - '__PAR_ETC_ROOT__/datadog.yaml'
 auto_start: true
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180

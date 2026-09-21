@@ -5,11 +5,6 @@ args:
   - /opt/datadog-agent/run/par-executor.sock
   - --ipc-cert-file
   - ${DD_IPC_CERT_FILE_PATH}
-  - --bootstrap-command
-  - /opt/datadog-agent/embedded/bin/privateactionrunner
-  - bootstrap-par-control
-  - --cfgpath
-  - /etc/datadog-agent/datadog.yaml
 auto_start: true
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180

@@ -28,9 +28,10 @@ import (
 
 func TestRunExecutorCommand(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
-		commands := Commands(newGlobalParamsTest(t, false))
-		err := commands[0].RunE(nil, []string{"run-executor"})
-		require.NoError(t, err)
+		fxutil.TestRun(t, func() error {
+			commands := Commands(newGlobalParamsTest(t, false))
+			return commands[0].RunE(nil, []string{"run-executor"})
+		})
 	})
 
 	t.Run("enabled", func(t *testing.T) {

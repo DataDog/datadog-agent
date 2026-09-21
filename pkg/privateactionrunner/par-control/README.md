@@ -1,76 +1,73 @@
 # par-control
 
-`par-control` is the control-plane process for the Private Action Runner in split mode.
-It runs under `dd-procmgrd` and owns the lifecycle of the on-demand executor.
+`par-control` is the Private Action Runner control plane in split mode. It runs
+under `dd-procmgrd`, polls OPMS and starts the on-demand Go executor for actions.
 
-`par-control` runs only when both `private_action_runner.enabled` and `private_action_runner.split_enabled` are true. These are disabled by default for now.
+## Startup and configuration
 
-See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZdtXL9dLda93_Gmo) for details.
+1. Rust asks `dd-procmgrd` to start `privateactionrunner run-executor`.
+2. Go loads PAR's main/extra configuration, environment, secrets and Fleet policies.
+   It selects identity through the same resolution/enrollment path as the monolith.
+3. Rust fetches `GetControlPlaneConfig` over the executor's authenticated gRPC service.
+   The snapshot contains identity, OPMS URL, concurrency, headers, selected proxy and
+   TLS settings. It does not depend on action-signing keys being ready.
 
-## Configuration
+Go resolves the snapshot once per process; repeated RPCs do not enroll again. When
+PAR or split mode is disabled, Go returns a disabled response without resolving
+identity or initializing actions. Rust exits cleanly. An idle executor exits even
+when no signing keys have arrived; disabled bootstrap always has an idle timeout.
 
-PAR owns its configuration and identity. Enabling split mode must preserve the
-monolith's effective configuration, including PAR-specific files, environment,
-secrets, Fleet policies, and persisted identity; Core Agent-only settings are not
-an alternative source.
+Startup has a 120-second budget, 5-second configuration request timeout and 1-second
+retry interval. Transport failures are retried; authorization/protocol errors fail
+immediately. If the executor exits before returning configuration, control fails
+with a pointer to executor logs rather than repeatedly restarting enrollment.
+Shutdown interrupts startup waits.
 
-The short-lived Go `bootstrap-par-control` command loads configuration in PAR's
-environment and supplies identity and a narrow `runtime` snapshot: OPMS URL,
-concurrency, headers, selected proxy, and TLS settings. Rust consumes that snapshot
-without loading the Core Agent config stream. The bootstrap and control binaries must
-come from the same Agent package.
-Configuration changes require a restart. Agent version is stamped into Rust at build
-time (`DD_AGENT_VERSION`); unstamped Cargo builds fall back to the crate version.
+PAR owns its configuration and identity; Core Agent-only settings are not a fallback.
+Restart both control and executor to apply configuration changes. Agent version
+remains stamped into Rust (`DD_AGENT_VERSION`), with a crate-version fallback for
+unstamped Cargo builds. No stdout bootstrap subprocess or Rust config loader is used.
 
-This draft restores PAR-local runtime configuration. Sharing enrollment logic with
-the monolith and verifying parity across deployment modes remain follow-up work;
-executor-free startup is deferred.
+## Connection paths
 
-### Connection paths
+Process definitions supply matching `--executor-socket` and `--ipc-cert-file`
+arguments to both processes. Go applies these as CLI config overrides. Rust requires
+both; it does not discover them through YAML, secrets or Fleet policies.
 
-Process-manager definitions supply matching `--executor-socket` and `--ipc-cert-file`
-arguments to `par-control` and `run-executor`. These internal paths are owned by launch
-wiring, not the bootstrap snapshot. Go applies supplied paths as CLI configuration
-overrides; manually invoking `run-executor` without them retains config-based defaults.
-Rust requires both arguments and does not load configuration files to discover paths.
-
-Linux packages use the active install/config directories. Windows templates use the
-installer-resolved data directory and the `\\.\pipe\dd-par-executor` pipe. In containers,
-the PAR entrypoint selects the certificate before starting procmgr: explicit
+Linux packages use their active install/config directories. Windows uses the
+installer-resolved data directory and `\\.\pipe\dd-par-executor`. In containers,
+the entrypoint selects the certificate before starting procmgr: explicit
 `DD_IPC_CERT_FILE_PATH`, otherwise beside `DD_AUTH_TOKEN_FILE_PATH`, otherwise beside
-the main config. This preserves the existing Helm/Operator shared auth volume.
-Config-only custom certificate locations are not discovered by this launch contract.
-
-Place both path arguments **before** `--bootstrap-command`, which consumes the remaining
-arguments. For example, on a standard Linux host:
+the main config. This preserves existing Helm/Operator auth volumes. Config-only
+custom certificate locations are outside this launch contract.
 
 ```bash
 par-control \
   --executor-socket /opt/datadog-agent/run/par-executor.sock \
-  --ipc-cert-file /etc/datadog-agent/ipc_cert.pem \
-  --bootstrap-command privateactionrunner bootstrap-par-control \
-  --cfgpath /etc/datadog-agent/datadog.yaml
+  --ipc-cert-file /etc/datadog-agent/ipc_cert.pem
 ```
 
-### Bootstrap transport
+## Security
 
-At startup, `par-control` runs the command passed to `--bootstrap-command` and parses
-its stdout as JSON. The bootstrap command disables normal logging, while errors and
-panics still use stderr. Since the payload contains credentials, stdout is never
-forwarded or included in errors. Replacing stdout with an executor gRPC configuration
-RPC is planned separately; the launch-path contract is already in place.
+The configuration response contains the runner private key and potentially proxy
+credentials and sensitive headers. Never log the response; Rust wraps the generated
+protobuf with credential-safe `Debug` output.
+
+Configuration retrieval requires a verified mTLS peer presenting the **exact shared
+IPC certificate**. A different certificate signed by the same CA may submit signed
+actions, but cannot retrieve credentials. This trusts holders of the shared Agent
+IPC private key; it does not distinguish individual Agent processes.
 
 ## Build and test
 
-The crate is Linux/Windows-only. On macOS, use the Linux dev VM to run commands and tests:
+The crate is Linux/Windows-only. On macOS, prefix these commands with
+`dda env dev run --` to use the Linux dev environment:
 
 ```bash
-dda env dev run -- bazel test //pkg/privateactionrunner/par-control:par-control_test
-```
-
-On Linux:
-
-```bash
-bazel test //pkg/privateactionrunner/par-control:par-control_test
-bazel build //pkg/privateactionrunner/par-control:par-control
+bazel test //pkg/privateactionrunner/par-control:par-control_test \
+  //pkg/privateactionrunner/par-control:par-control-cli_test \
+  //pkg/privateactionrunner/executor:executor_test \
+  //comp/privateactionrunner/impl:impl_test
+bazel build //pkg/privateactionrunner/par-control:par-control \
+  //cmd/privateactionrunner:privateactionrunner
 ```

@@ -163,9 +163,9 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 		require.Greater(c, count, 0, "par-control should report runner liveness")
 	}, 90*time.Second, 5*time.Second)
 
-	// The executor must stay cold until work arrives, including after migration
-	// cleanup or a same-host retry.
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited", "Stopped"}, 2*time.Minute)
+	// Startup boots Go to resolve configuration. It must return to idle before
+	// work arrives, even if its action-signing keys have not arrived yet.
+	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
 	setPARTaskSigningKey(s.T(), client, s.signingKey1)
 	taskID := uuid.New().String()
@@ -340,7 +340,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.Require().NoError(err)
 	s.Require().Equal(1, count, "valid persisted identity should not enroll again")
 
-	// A hostname mismatch makes bootstrap-par-control replace the stale identity.
+	// A hostname mismatch makes the executor replace the stale identity.
 	host.MustExecute(
 		`sudo sed -i 's/"hostname":"[^"]*"/"hostname":"definitely-not-this-host"/' ` + parIdentityPath,
 	)
@@ -360,7 +360,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	persistedConfig := splitConfig("not-a-runner-urn", s.inlineKey)
 	s.restartControl(persistedConfig, "Running")
 
-	// A stale hostname makes bootstrap-par-control ignore the persisted identity.
+	// A stale hostname makes the executor ignore the persisted identity.
 	// Invalid persisted values prove the configured inline identity wins.
 	stale := `{"private_key":"invalid","urn":"not-a-runner-urn","hostname":"definitely-not-this-host"}`
 	s.Require().NoError(s.writeIdentity(stale))
@@ -383,6 +383,8 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	host := s.Env().RemoteHost
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
+	_ = s.runProcmgr("stop", parExecutorProcess)
+	s.waitForProcessInactive(parExecutorProcess, 30*time.Second)
 	s.Require().NoError(s.writeConfig(s.baselineConfig))
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
 	s.startControl()
@@ -414,6 +416,8 @@ func splitConfig(urn, privateKey string) string {
 func (s *linuxPARSplitSuite) restartControl(config, expectedState string) {
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 10*time.Second)
+	_ = s.runProcmgr("stop", parExecutorProcess)
+	s.waitForProcessInactive(parExecutorProcess, 30*time.Second)
 	s.Require().NoError(s.writeConfig(config))
 	s.startControl()
 	s.waitForProcessState(parControlProcess, expectedState, 2*time.Minute)

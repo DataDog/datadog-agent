@@ -57,10 +57,9 @@ agents:
   containers:
     agent:
       envDict:
-        DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH: "/opt/datadog-agent/run/core-only-executor.sock"
+        DD_PRIVATE_ACTION_RUNNER_URN: "urn:dd:apps:on-prem-runner:us1:42:core-only-runner"
     privateActionRunner:
       envDict:
-        DD_PRIVATE_ACTION_RUNNER_EXECUTOR_SOCKET_PATH: "/opt/datadog-agent/run/par-local-executor.sock"
         DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
         DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep","rshell:help"]'

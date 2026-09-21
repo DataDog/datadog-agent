@@ -85,6 +85,7 @@ rust_binary(
     deps = [
         ":par-control-lib",
         "//comp/core/log/rust:dd-agent-log",
+        "//pkg/procmgr/rust/client:dd-procmgr-client",
         "@crates//:anyhow",
         "@crates//:clap",
         "@crates//:log",

@@ -442,7 +442,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	ca, caKey := newTestCA(t)
 	caPool := x509.NewCertPool()
 	caPool.AddCert(ca)
-	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageServerAuth)
+	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageAny)
 	clientCert := newLeafCert(t, ca, caKey, "par-control", x509.ExtKeyUsageClientAuth)
 
 	serverTLS := &tls.Config{
@@ -451,7 +451,10 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 		ClientCAs:    caPool,
 	}
 	srv := NewServer(&fakeExecutor{}, "test-version")
-	srv.SetReady(true)
+	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{
+		ProtocolVersion: 1, SplitMode: true,
+		Identity: &pb.ControlPlaneIdentity{PrivateKey: "never-log-this-key"},
+	}, serverCert.Certificate[0])
 
 	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
@@ -484,20 +487,46 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	})
 	_, err = authed.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err, "client with a valid IPC-style cert should be accepted")
+	_, err = authed.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	require.Equal(t, codes.PermissionDenied, status.Code(err), "a CA-signed action client must not retrieve credentials")
+
+	shared := dial(&tls.Config{Certificates: []tls.Certificate{serverCert}, RootCAs: caPool, ServerName: "localhost"})
+	for range 2 {
+		response, err := shared.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+		require.NoError(t, err)
+		require.Equal(t, "never-log-this-key", response.Identity.PrivateKey)
+	}
+	health, err := shared.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	require.False(t, health.Ready, "bootstrap must work before action readiness")
 
 	anon := dial(&tls.Config{RootCAs: caPool, ServerName: "localhost"})
 	shortCtx, shortCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shortCancel()
-	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
+	_, err = anon.GetControlPlaneConfig(shortCtx, &pb.GetControlPlaneConfigRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
 }
 
+func TestControlConfigRejectsPlaintext(t *testing.T) {
+	srv := NewServer(nil, "test")
+	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{ProtocolVersion: 1}, []byte("certificate"))
+	client := startTestServer(t, srv)
+	_, err := client.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
 func TestServeExitsWhenIdle(t *testing.T) {
+	for name, ready := range map[string]bool{"ready": true, "unready": false} {
+		t.Run(name, func(t *testing.T) { testServeExitsWhenIdle(t, ready) })
+	}
+}
+
+func testServeExitsWhenIdle(t *testing.T, ready bool) {
 	mockClock := clock.NewMock()
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.clock = mockClock
 	srv.touch()
-	srv.SetReady(true)
+	srv.SetReady(ready)
 
 	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
@@ -537,7 +566,7 @@ func TestIdleTracking(t *testing.T) {
 
 	const timeout = time.Minute
 	mockClock.Add(2 * timeout)
-	assert.Zero(t, srv.idleFor(), "an unready executor must not idle out")
+	assert.Equal(t, 2*timeout, srv.idleFor(), "waiting for signing keys must not prevent idle shutdown")
 
 	srv.SetReady(true)
 	assert.Zero(t, srv.idleFor(), "becoming ready should reset the idle clock")

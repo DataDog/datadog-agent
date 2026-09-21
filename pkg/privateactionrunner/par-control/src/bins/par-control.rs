@@ -6,6 +6,7 @@
 use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
+use par_control::config::EXECUTOR_PROCESS_NAME;
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
@@ -22,12 +23,6 @@ struct Cli {
     executor_socket: PathBuf,
     #[arg(long)]
     ipc_cert_file: PathBuf,
-    #[arg(
-        long = "bootstrap-command",
-        num_args = 1..,
-        allow_hyphen_values = true
-    )]
-    bootstrap_command: Vec<String>,
 }
 
 #[tokio::main]
@@ -56,15 +51,24 @@ async fn run() -> Result<()> {
     }
     log::set_max_level(log::LevelFilter::Info);
 
-    let bootstrapped = bootstrap::run_bootstrap(&cli.bootstrap_command)?;
+    par_control::tls::initialize_crypto_provider()?;
+    let lifecycle = Arc::new(ProcmgrLifecycle::new(
+        &dd_procmgr_client::ipc_path(),
+        EXECUTOR_PROCESS_NAME.to_string(),
+    ));
+    let dispatcher = ExecutorDispatcher::new(&cli.executor_socket, Some(&cli.ipc_cert_file));
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
+    let bootstrapped = tokio::select! {
+        _ = &mut shutdown => return Ok(()),
+        result = bootstrap::run_bootstrap(lifecycle.as_ref(), &dispatcher) => result?,
+    };
     log::set_max_level(bootstrapped.log_level());
 
-    if !bootstrapped.split_mode {
+    if !bootstrapped.split_mode() {
         log::info!("private_action_runner split mode is disabled; exiting");
         return Ok(());
     }
-
-    par_control::tls::initialize_crypto_provider()?;
 
     let config = bootstrapped.into_config(cli.executor_socket, cli.ipc_cert_file)?;
 
@@ -86,14 +90,7 @@ async fn run() -> Result<()> {
             extra_headers: config.opms_extra_headers.clone(),
         },
     )?);
-    let lifecycle = Arc::new(ProcmgrLifecycle::new(
-        &config.procmgr_socket,
-        config.executor_process_name.clone(),
-    ));
-    let dispatcher = Arc::new(ExecutorDispatcher::new(
-        &config.executor_socket,
-        Some(&config.ipc_cert_file),
-    ));
+    let dispatcher = Arc::new(dispatcher);
 
     let params = Params::from_config(&config);
     let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);
@@ -108,7 +105,7 @@ async fn run() -> Result<()> {
         config.ipc_cert_file.display(),
     );
 
-    orchestrator.run(shutdown_signal()).await;
+    orchestrator.run(shutdown).await;
     log::info!("par-control stopped");
     log::logger().flush();
     Ok(())
@@ -152,31 +149,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn launch_paths_precede_bootstrap_command() {
+    fn launch_paths_are_the_only_local_configuration() {
         let cli = Cli::try_parse_from([
             "par-control",
             "--executor-socket",
             "/launch.sock",
             "--ipc-cert-file",
             "/auth/ipc_cert.pem",
-            "--bootstrap-command",
-            "privateactionrunner",
-            "bootstrap-par-control",
-            "--cfgpath",
-            "/etc/datadog-agent/datadog.yaml",
         ])
         .unwrap();
         assert_eq!(cli.executor_socket, PathBuf::from("/launch.sock"));
         assert_eq!(cli.ipc_cert_file, PathBuf::from("/auth/ipc_cert.pem"));
-        assert_eq!(
-            cli.bootstrap_command,
-            [
-                "privateactionrunner",
-                "bootstrap-par-control",
-                "--cfgpath",
-                "/etc/datadog-agent/datadog.yaml"
-            ]
-        );
     }
 
     #[test]

@@ -124,8 +124,8 @@ func (s *parK8sSuite) TestMonolithToSplitMigration() {
 	s.Require().NoError(s.Env().FakeIntake.Client().FlushPAR())
 	s.waitForPARReady()
 
-	// The control and executor must agree on the PAR-only socket, not the
-	// deliberately different Core Agent socket. The identity stays in PAR's config.
+	// Signed work must keep using PAR's identity, not the deliberately conflicting
+	// Core Agent URN. Internal connection paths come from launch wiring.
 	s.verifySplitExecutorStartup()
 }
 

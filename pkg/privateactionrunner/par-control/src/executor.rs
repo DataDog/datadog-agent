@@ -8,6 +8,7 @@
 //! action (`RunAction`), collapsing the server-streamed result into a terminal
 //! [`Outcome`] that an upstream control-plane client can publish.
 
+use crate::config::BootstrapConfig;
 use crate::proto::executor as pb;
 use crate::proto::executor::executor_client::ExecutorClient;
 use crate::transport;
@@ -74,6 +75,17 @@ impl ExecutorDispatcher {
                 .max_decoding_message_size(MAX_MESSAGE_SIZE),
         }
     }
+
+    pub async fn control_plane_config(&self) -> Result<BootstrapConfig> {
+        let response = self
+            .client
+            .clone()
+            .get_control_plane_config(pb::GetControlPlaneConfigRequest {})
+            .await
+            .context("executor GetControlPlaneConfig failed")?
+            .into_inner();
+        BootstrapConfig::new(response)
+    }
 }
 
 impl Dispatcher for ExecutorDispatcher {
@@ -134,6 +146,10 @@ mod tests {
     use super::*;
     use crate::proto::executor::executor_server::{Executor, ExecutorServer};
     use std::pin::Pin;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     use tokio_stream::Stream;
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::{Request, Response, Status};
@@ -141,6 +157,7 @@ mod tests {
     #[derive(Clone)]
     struct FakeExecutor {
         output: Vec<u8>,
+        config_calls: Arc<AtomicUsize>,
     }
 
     #[tonic::async_trait]
@@ -160,6 +177,19 @@ mod tests {
             Ok(Response::new(Box::pin(tokio_stream::once(Ok(response)))))
         }
 
+        async fn get_control_plane_config(
+            &self,
+            _request: Request<pb::GetControlPlaneConfigRequest>,
+        ) -> std::result::Result<Response<pb::GetControlPlaneConfigResponse>, Status> {
+            if self.config_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(Status::unavailable("configuration is starting"));
+            }
+            Ok(Response::new(pb::GetControlPlaneConfigResponse {
+                protocol_version: 1,
+                ..Default::default()
+            }))
+        }
+
         async fn health(
             &self,
             _request: Request<pb::HealthRequest>,
@@ -173,9 +203,12 @@ mod tests {
         let socket = dir.path().join("executor.sock");
         let listener = tokio::net::UnixListener::bind(&socket).expect("bind executor socket");
         tokio::spawn(async move {
-            let service = ExecutorServer::new(FakeExecutor { output })
-                .max_decoding_message_size(MAX_MESSAGE_SIZE * 2)
-                .max_encoding_message_size(MAX_MESSAGE_SIZE * 2);
+            let service = ExecutorServer::new(FakeExecutor {
+                output,
+                config_calls: Arc::new(AtomicUsize::new(0)),
+            })
+            .max_decoding_message_size(MAX_MESSAGE_SIZE * 2)
+            .max_encoding_message_size(MAX_MESSAGE_SIZE * 2);
             let _ = tonic::transport::Server::builder()
                 .add_service(service)
                 .serve_with_incoming(UnixListenerStream::new(listener))
@@ -189,6 +222,7 @@ mod tests {
         loop {
             let encoded = pb::RunActionRequest {
                 task: payload.clone(),
+                ..Default::default()
             }
             .encoded_len();
             match encoded.cmp(&target) {
@@ -221,6 +255,42 @@ mod tests {
             .downcast_ref::<Status>()
             .unwrap_or_else(|| panic!("expected tonic status, got {error:#}"));
         assert_eq!(status.code(), expected, "unexpected status: {status}");
+    }
+
+    #[tokio::test]
+    async fn bootstrap_starts_executor_without_waiting_for_action_readiness() {
+        use crate::procmgr::ProcmgrLifecycle;
+        use crate::test_support::{FakeProcmgr, serve_procmgr};
+        let fake = FakeProcmgr::in_state(dd_procmgr_client::proto::ProcessState::Created);
+        let (pm_socket, _pm_dir) = serve_procmgr(Arc::clone(&fake)).await;
+        let lifecycle = ProcmgrLifecycle::new(&pm_socket, "executor".into());
+        let (dispatcher, _dir) = test_dispatcher(Vec::new()).await;
+        assert!(!dispatcher.health().await.unwrap().ready);
+        let config = crate::bootstrap::run_bootstrap(&lifecycle, &dispatcher)
+            .await
+            .unwrap();
+        assert!(!config.split_mode());
+        assert_eq!(fake.started(), vec!["executor".to_string()]);
+        assert_eq!(
+            fake.describe_count(),
+            1,
+            "retry config without restarting the executor"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_reports_executor_exit_without_restarting_it() {
+        use crate::procmgr::ProcmgrLifecycle;
+        use crate::test_support::{FakeProcmgr, serve_procmgr};
+        let fake = FakeProcmgr::in_state(dd_procmgr_client::proto::ProcessState::Exited);
+        let (pm_socket, _pm_dir) = serve_procmgr(Arc::clone(&fake)).await;
+        let lifecycle = ProcmgrLifecycle::new(&pm_socket, "executor".into());
+        let (dispatcher, _dir) = test_dispatcher(Vec::new()).await;
+        let error = crate::bootstrap::run_bootstrap(&lifecycle, &dispatcher)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("executor exited"));
+        assert_eq!(fake.started(), vec!["executor".to_string()]);
     }
 
     #[tokio::test]
