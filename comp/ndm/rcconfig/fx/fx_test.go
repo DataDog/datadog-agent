@@ -14,6 +14,7 @@ import (
 
 	providertypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
@@ -31,6 +32,13 @@ func (a *fakeAdder) AddConfigProvider(p providertypes.ConfigProvider, poll bool,
 	a.interval = append(a.interval, interval)
 }
 
+// fakeDiscovery is an ndmdiscovery.Component that accepts every range.
+type fakeDiscovery struct{}
+
+func (fakeDiscovery) Schedule(_ []ndmdiscovery.Range) map[string]error { return nil }
+
+func (fakeDiscovery) RangeCount() int { return 0 }
+
 const enabledYAML = `
 remote_configuration:
   enabled: true
@@ -42,7 +50,7 @@ network_devices:
 func TestNewListenerIsInertByDefault(t *testing.T) {
 	adder := &fakeAdder{}
 
-	listener, err := newListener(configmock.New(t), logmock.New(t), adder)
+	listener, err := newListener(configmock.New(t), logmock.New(t), adder, fakeDiscovery{})
 
 	require.NoError(t, err)
 	assert.Nil(t, listener.ListenerProvider, "a disabled component subscribes to nothing")
@@ -59,7 +67,7 @@ network_devices:
     enabled: true
 `)
 
-	listener, err := newListener(cfg, logmock.New(t), adder)
+	listener, err := newListener(cfg, logmock.New(t), adder, fakeDiscovery{})
 
 	require.NoError(t, err)
 	assert.Nil(t, listener.ListenerProvider)
@@ -76,7 +84,7 @@ network_devices:
     enabled: false
 `)
 
-	listener, err := newListener(cfg, logmock.New(t), adder)
+	listener, err := newListener(cfg, logmock.New(t), adder, fakeDiscovery{})
 
 	require.NoError(t, err)
 	assert.Nil(t, listener.ListenerProvider)
@@ -86,7 +94,7 @@ network_devices:
 func TestNewListenerSubscribesToOneProductAndRegistersAStreamingProvider(t *testing.T) {
 	adder := &fakeAdder{}
 
-	listener, err := newListener(configmock.NewFromYAML(t, enabledYAML), logmock.New(t), adder)
+	listener, err := newListener(configmock.NewFromYAML(t, enabledYAML), logmock.New(t), adder, fakeDiscovery{})
 
 	require.NoError(t, err)
 	require.Len(t, listener.ListenerProvider, 1, "exactly one product")
@@ -101,14 +109,12 @@ func TestNewListenerSubscribesToOneProductAndRegistersAStreamingProvider(t *test
 	assert.True(t, streaming, "autodiscovery reads the stream instead of polling")
 }
 
-func TestNewListenerRegistersTheSNMPHandler(t *testing.T) {
+func TestNewListenerRegistersTheFeatureHandlers(t *testing.T) {
 	adder := &fakeAdder{}
 
-	_, err := newListener(configmock.NewFromYAML(t, enabledYAML), logmock.New(t), adder)
+	_, err := newListener(configmock.NewFromYAML(t, enabledYAML), logmock.New(t), adder, fakeDiscovery{})
 	require.NoError(t, err)
 
-	// The provider is only useful if it dispatches a key, and snmp is the one
-	// key this work delivers.
 	keys := adder.added[0].(interface{ RegisteredKeys() []string }).RegisteredKeys()
-	assert.Equal(t, []string{"snmp"}, keys)
+	assert.Equal(t, []string{"discovery", "snmp"}, keys)
 }

@@ -44,9 +44,10 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
+	ndmconnectivitycheckfx "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/fx"
+	ndmdiscoveryfx "github.com/DataDog/datadog-agent/comp/ndmdiscovery/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
-	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
 	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -551,7 +552,8 @@ func getSharedFxOption() fx.Option {
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
-		networkdevicesfx.Module(),
+		ndmconnectivitycheckfx.Module(),
+		ndmdiscoveryfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)

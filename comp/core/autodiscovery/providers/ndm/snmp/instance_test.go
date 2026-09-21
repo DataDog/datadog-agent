@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestRenderInitConfigOmitsAnAbsentLoader(t *testing.T) {
 }
 
 func TestRenderInstanceForV2C(t *testing.T) {
-	got, err := renderInstance("10.0.0.1", credential{
+	got, err := renderInstance("10.0.0.1", credentials.Credential{
 		ID:              "v2c-public",
 		SNMPVersion:     "2c",
 		CommunityString: "public",
@@ -62,7 +63,7 @@ func TestRenderInstanceForV2C(t *testing.T) {
 }
 
 func TestRenderInstanceForV1(t *testing.T) {
-	got, err := renderInstance("10.0.0.9", credential{
+	got, err := renderInstance("10.0.0.9", credentials.Credential{
 		ID:              "v1",
 		SNMPVersion:     "1",
 		CommunityString: "public",
@@ -72,7 +73,7 @@ func TestRenderInstanceForV1(t *testing.T) {
 }
 
 func TestRenderInstanceForV3(t *testing.T) {
-	got, err := renderInstance("10.0.0.2", credential{
+	got, err := renderInstance("10.0.0.2", credentials.Credential{
 		ID:           "v3-full",
 		SNMPVersion:  "3",
 		User:         "test-user",
@@ -99,7 +100,7 @@ context_name: test-context
 
 func TestRenderInstanceKeepsTheVersionAString(t *testing.T) {
 	// The snmp check reads snmp_version as a string, so it must stay quoted.
-	got, err := renderInstance("10.0.0.3", credential{ID: "v3", SNMPVersion: "3", User: "u"})
+	got, err := renderInstance("10.0.0.3", credentials.Credential{ID: "v3", SNMPVersion: "3", User: "u"})
 	require.NoError(t, err)
 	assert.Contains(t, string(got), `snmp_version: "3"`)
 }

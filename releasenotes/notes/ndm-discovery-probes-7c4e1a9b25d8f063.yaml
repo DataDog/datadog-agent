@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    A network device discovery range declares the protocols to scan it with
+    under a ``probes`` object keyed by protocol, and each protocol carries its
+    own options, including the SNMP ``credential_ids``. Discovered devices are
+    reported with a ``probe_results`` list, one entry per protocol. Network
+    device discovery is disabled by default and the ranges to scan are
+    delivered over Remote Configuration, so no Agent configuration change is
+    needed.
