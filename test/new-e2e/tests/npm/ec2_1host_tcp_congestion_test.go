@@ -266,13 +266,23 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Reordering() {
 // TestTCPCongestion_ECN validates ECN negotiation and CE-marked segment delivery.
 // Both containers have tcp_ecn=1 set at startup via docker-compose sysctls.
 // The netem ecn flag marks ECN-capable packets with CE instead of dropping them.
+// The iperf3 session is established BEFORE applying netem: if the data
+// connection's SYN is lost to the 10% random loss, the kernel retransmits the
+// SYN without the ECE/CWR ECN-negotiation bits (RFC 3168 fallback,
+// net.ipv4.tcp_ecn_fallback), the connection then negotiates without ECN,
+// its data packets are never marked ECN-capable at the IP layer, and netem's
+// ecn option drops them instead of CE-marking them — LastTcpDeliveredCe stays
+// 0 and the test flakes.
+// With a loss-free handshake both connections negotiate ECN deterministically.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 	host := v.Env().RemoteHost
+	v.startIperf3Client("")
+	// Wait for both iperf3 connections (control + data) to be established.
+	waitForTCPEstablishedConnections(v.T(), host, "tcp-congestion-client", 5201, 2, 30*time.Second)
 	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 10% ecn")
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("TcpEcnNegotiated", func(conn *agentmodel.Connection) bool {
 		return conn.TcpEcnNegotiated

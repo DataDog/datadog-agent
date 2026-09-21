@@ -20,6 +20,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// waitForTCPEstablishedConnections waits until at least count TCP connections
+// to dstPort are in the ESTABLISHED state inside the given container. It counts
+// entries in /proc/net/tcp directly, so it does not depend on networking
+// tools (ss, netstat) being installed in the container image.
+func waitForTCPEstablishedConnections(t *testing.T, host *components.RemoteHost, container string, dstPort uint16, count int, timeout time.Duration) {
+	t.Helper()
+	// /proc/net/tcp lists the remote address as %08X:%04X followed by the
+	// connection state code (01 = ESTABLISHED).
+	pattern := fmt.Sprintf(":%04X 01 ", dstPort)
+	cmd := fmt.Sprintf(
+		`timeout %s bash -c 'until [ "$(docker exec %s grep -c %q /proc/net/tcp 2>/dev/null || true)" -ge %d ]; do sleep 0.25; done'`,
+		timeout.String(), container, pattern, count,
+	)
+	if _, err := host.Execute(cmd); err != nil {
+		t.Fatalf("timed out waiting for %d established connection(s) to port %d in container %s", count, dstPort, container)
+	}
+}
+
 // test1HostFakeIntakeNPMDumpInfo dump information about the test if it failed
 func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeIntake) {
 	if !t.Failed() {
