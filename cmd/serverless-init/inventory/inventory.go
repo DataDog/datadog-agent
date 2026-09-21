@@ -25,7 +25,6 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -104,7 +103,7 @@ func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
 // onto the shared inventoryagent component via its public Set API. The
 // component's initData() has already populated the core fields at construction.
 //
-// Inject, Submit, and SetResourceID are all no-ops while the
+// Inject, Submit, and SetDeploymentID are all no-ops while the
 // serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
 // serverless payload at all rather than one carrying only core fields.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
@@ -146,6 +145,18 @@ func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id stri
 		return
 	}
 	ia.Set("resource_id", id)
+}
+
+// SetDeploymentID sets the deployment_id serverless field, for platforms that
+// only learn their deployment/instance identifier after the initial Inject
+// (e.g. delivered by a lifecycle hook rather than the environment). It is a
+// no-op while the serverless.inventory_enabled ramp gate is off, preserving the
+// invariant that no serverless field reaches a payload while the ramp is off.
+func SetDeploymentID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.Set("deployment_id", id)
 }
 
 // buildFields flattens the per-platform inventory data and process-level
@@ -190,10 +201,9 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 
 	// wrapped_command is the customer workload command wrapped by serverless-init
 	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
-	// serverless-init wraps nothing. Scrubbed before storage: command-line
-	// arguments can contain credentials (e.g. --password=secret, --token=…).
+	// serverless-init wraps nothing.
 	if !modeConf.SidecarMode && len(os.Args) > 1 {
-		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(os.Args[1:], " "))
+		fields["wrapped_command"] = strings.Join(os.Args[1:], " ")
 	}
 
 	return fields

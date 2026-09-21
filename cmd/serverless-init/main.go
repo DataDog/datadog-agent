@@ -192,12 +192,6 @@ func preloadEarly() {
 	// Force series v2 API for the serializer.
 	setOverride("use_v2_api.series", true)
 
-	// Send metric payloads uncompressed, as the bespoke serverless demultiplexer
-	// did before this bundle replaced it. Left unset, the serializer would use
-	// the default compressor kind, which serverless-init's build tags may not
-	// compile in. Adopting a compressor here is tracked in SVLS-9451.
-	setOverride("serializer_compressor_kind", "none")
-
 	// Disable UDS listener for the APM receiver — traces are sent via HTTP to
 	// localhost in serverless. Avoids noisy error logs.
 	setOverride("apm_config.receiver_socket", "")
@@ -218,10 +212,6 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
-
-	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
-	setOverride("data_plane.enabled", false)
-	setOverride("data_plane.dogstatsd.enabled", false)
 
 	// Submit the inventory metadata payload immediately at startup instead of
 	// after the default first-run delay. That delay orders inventory after host
@@ -281,6 +271,20 @@ func main() {
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
+
+	// These overrides reference config keys that are only registered after
+	// LoadDatadog() has run. Moving them here (after registration, before
+	// fxutil.OneShot) keeps SourceAgentRuntime precedence over env/yaml values.
+
+	// Send metric payloads uncompressed, as the bespoke serverless demultiplexer
+	// did before this bundle replaced it. Left unset, the serializer would use
+	// the default compressor kind, which serverless-init's build tags may not
+	// compile in. Adopting a compressor here is tracked in SVLS-9451.
+	setOverride("serializer_compressor_kind", "none")
+
+	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
+	setOverride("data_plane.enabled", false)
+	setOverride("data_plane.dogstatsd.enabled", false)
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())

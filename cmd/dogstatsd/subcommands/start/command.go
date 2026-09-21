@@ -14,13 +14,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -50,7 +50,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	aasinventory "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/aas"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
@@ -166,6 +166,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesfx.Module(),
 		hostfx.Module(),
 		inventoryagentfx.Module(),
+		aasinventory.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
@@ -194,7 +195,6 @@ func start(
 	_ runner.Component,
 	_ resources.Component,
 	_ host.Component,
-	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ healthprobe.Component,
 ) error {
