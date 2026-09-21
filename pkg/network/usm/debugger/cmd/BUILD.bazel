@@ -22,6 +22,9 @@ go_binary(
     name = "usm_debugger",
     embed = [":cmd_lib"],
     gotags = [
+        # tag usm_debugger blocks golang wildcard expansion. that fails because
+        # the embedded .o file does not exist. We add it here so bazel will build it.
+        "usm_debugger",
         "linux_bpf",
         "bpf",
     ],
