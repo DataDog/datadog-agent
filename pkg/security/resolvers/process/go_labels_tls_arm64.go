@@ -8,7 +8,6 @@
 package process
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -17,8 +16,6 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 	"go.opentelemetry.io/ebpf-profiler/nativeunwind/elfunwindinfo"
 	"golang.org/x/arch/arm64/arm64asm"
-
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // runtime.load_g starts by loading runtime.iscgo before deciding how to
@@ -122,131 +119,6 @@ func extractRuntimeIsCgo(f *pfelf.File, b []byte, pc int64) (bool, int, error) {
 //	0x00000000000c22a4 <+20>:	movk	x27, #0x10
 //	0x00000000000c22a8 <+24>:	ldr	x28, [x0, x27]
 //	0x00000000000c22ac <+28>:	ret
-func hasTPRelativeRelocation(f *pfelf.File, addr int64) (bool, error) {
-	found := false
-	err := visitRelocations(f, func(reloc ElfReloc, _ string, _ RelocType) bool {
-		if reloc.Off == uint64(addr) {
-			found = true
-			return false
-		}
-		return true
-	}, RelTPOFF64)
-	return found, err
-}
-
-func goRuntimeTLSGOffsetFromTLSProgramHeader(f *pfelf.File) (int32, error) {
-	for i := range f.Progs {
-		prog := &f.Progs[i]
-		if prog.Type != safeelf.PT_TLS {
-			continue
-		}
-		if prog.Memsz > 1<<31-1 {
-			return 0, fmt.Errorf("PT_TLS memsz %d overflows int32", prog.Memsz)
-		}
-		return int32(prog.Memsz), nil
-	}
-	return 0, errors.New("PT_TLS program header not found")
-}
-
-func extractRuntimeTLSGOffsetFromSlot(f *pfelf.File, b []byte, pc int64) (int32, bool, error) {
-	// Some external linkers leave the runtime.tlsg access as an ADRP+LDR
-	// sequence instead of relaxing it into MOVZ/MOVK immediates:
-	//
-	//	mrs	x0, tpidr_el0
-	//	adrp	x27, runtime.tlsg@PAGE
-	//	ldr	x27, [x27, runtime.tlsg@PAGEOFF]
-	//	ldr	x28, [x0, x27]
-	//
-	// Decode the address of runtime.tlsg, read the offset stored there, and
-	// verify that it is then used as the index in the final g load.
-	if len(b) < 3*4 {
-		return 0, false, nil
-	}
-
-	adrp, err := arm64asm.Decode(b[0:4])
-	if err != nil {
-		return 0, false, err
-	}
-	if adrp.Op != arm64asm.ADRP {
-		return 0, false, nil
-	}
-
-	baseReg, ok := adrp.Args[0].(arm64asm.Reg)
-	if !ok {
-		return 0, false, nil
-	}
-	pcrel, ok := arm.DecodeImmediate(adrp.Args[1])
-	if !ok {
-		return 0, false, nil
-	}
-
-	loadOffset, err := arm64asm.Decode(b[4:8])
-	if err != nil {
-		return 0, false, err
-	}
-	if loadOffset.Op != arm64asm.LDR {
-		return 0, false, nil
-	}
-	loadOffsetDst, ok := loadOffset.Args[0].(arm64asm.Reg)
-	if !ok || loadOffsetDst != baseReg {
-		return 0, false, nil
-	}
-	loadOffsetMem, ok := loadOffset.Args[1].(arm64asm.MemImmediate)
-	if !ok || arm64asm.Reg(loadOffsetMem.Base) != baseReg {
-		return 0, false, nil
-	}
-	pageOff, ok := arm.DecodeImmediate(loadOffsetMem)
-	if !ok {
-		return 0, false, nil
-	}
-
-	loadG, err := arm64asm.Decode(b[8:12])
-	if err != nil {
-		return 0, false, err
-	}
-	if loadG.Op != arm64asm.LDR {
-		return 0, false, nil
-	}
-	loadGDst, ok := loadG.Args[0].(arm64asm.Reg)
-	if !ok || loadGDst != arm64asm.X28 {
-		return 0, false, nil
-	}
-	loadGMem, ok := loadG.Args[1].(arm64asm.MemExtend)
-	if !ok || arm64asm.Reg(loadGMem.Base) != arm64asm.X0 || loadGMem.Index != baseReg {
-		return 0, false, nil
-	}
-
-	addr := ((pc + pcrel) & ^int64(0xfff)) + pageOff
-	data, err := f.VirtualMemory(addr, 8, 8)
-	if err != nil {
-		return 0, true, fmt.Errorf("failed to read runtime.tlsg: %w", err)
-	}
-	offset := binary.LittleEndian.Uint64(data)
-	if offset == 0 {
-		// In PIE binaries, older/different external linkers may leave a
-		// R_AARCH64_TLS_TPREL64 dynamic relocation for this slot. The on-disk
-		// value is zero and the dynamic linker fills in the real TP-relative
-		// offset at load time. Go's runtime.tlsg slot is the final word in the
-		// executable's TLS block, matching the immediate offset emitted when the
-		// linker relaxes this access.
-		hasRelocation, err := hasTPRelativeRelocation(f, addr)
-		if err != nil {
-			return 0, true, fmt.Errorf("failed to inspect runtime.tlsg relocation: %w", err)
-		}
-		if hasRelocation {
-			offset, err := goRuntimeTLSGOffsetFromTLSProgramHeader(f)
-			if err != nil {
-				return 0, true, fmt.Errorf("failed to derive runtime.tlsg offset: %w", err)
-			}
-			return offset, true, nil
-		}
-	}
-	if offset > 1<<31-1 {
-		return 0, true, fmt.Errorf("runtime.tlsg offset %d overflows int32", offset)
-	}
-	return int32(offset), true, nil
-}
-
 func extractTLSGOffset(f *pfelf.File) (int32, error) {
 	pclntab, err := elfunwindinfo.NewGopclntab(f)
 	if err != nil {
@@ -281,8 +153,8 @@ func extractTLSGOffset(f *pfelf.File) (int32, error) {
 		return 0, nil
 	}
 
-	for off := consumed; len(b[off:]) >= 4; off += 4 {
-		i, err := arm64asm.Decode(b[off : off+4])
+	for b := b[consumed:]; len(b) > 0; b = b[4:] {
+		i, err := arm64asm.Decode(b)
 		if err != nil {
 			return 0, err
 		}
@@ -291,10 +163,6 @@ func extractTLSGOffset(f *pfelf.File) (int32, error) {
 			imm, ok := i.Args[1].(arm64asm.Imm64)
 			if ok {
 				return int32(imm.Imm), nil
-			}
-		case arm64asm.ADRP:
-			if offset, ok, err := extractRuntimeTLSGOffsetFromSlot(f, b[off:], pc+int64(off)); ok || err != nil {
-				return offset, err
 			}
 		case arm64asm.MOVK:
 			// when compiled with -buildmode=pie, mov instruction is split into two instructions: movz and movk
