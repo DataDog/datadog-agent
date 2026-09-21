@@ -8,6 +8,7 @@ package privateactionrunner
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -159,7 +160,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	stats, err := client.RCStats()
 	s.Require().NoError(err)
 	s.Require().NoError(client.RCAddConfig(
-		fmt.Sprint(testRunnerOrgID),
+		strconv.FormatInt(testRunnerOrgID, 10),
 		runnerKeysRCProduct,
 		s.privilegedSigningKey.id,
 		s.privilegedSigningKey.id,
@@ -302,7 +303,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) assertPrivilegedHelperUIDs() {
 			return
 		}
 	}
-	s.FailNow("helper process status has no Uid line", status)
+	s.FailNow("helper process status has no Uid line: %s", status)
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhenEnabled() {
