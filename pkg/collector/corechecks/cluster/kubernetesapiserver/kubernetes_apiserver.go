@@ -576,7 +576,6 @@ func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 		}
 
 		err = k.parseComponentStatus(sender, componentsStatus)
-
 		if err != nil {
 			k.Warnf("Could not parse control plane status from ComponentStatus: %s", err.Error())
 			return err
@@ -596,7 +595,6 @@ func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 
 func (k *KubeASCheck) controlPlaneHealthCheck(sender sender.Sender) error {
 	apiServerReady, etcdReady, err := k.ac.IsAPIServerReady()
-
 	if err != nil {
 		return err
 	}
@@ -644,7 +642,10 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 // environment (e.g. restrictive network policies), so any failure here is
 // best-effort: it is logged and does not fail the check.
 func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
-	family, err := apiservercommon.FetchAPIServerMetricFamily(context.TODO(), k.ac.Cl.Discovery(), storageObjectsMetricName)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	family, err := apiservercommon.FetchAPIServerMetricFamily(ctx, k.ac.Cl.Discovery(), storageObjectsMetricName)
 	if err != nil {
 		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
 		return
