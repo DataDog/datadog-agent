@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// generate-scenario-imports regenerates test/e2e-framework/run/scenarios_import_gen.go by
+// generate-scenario-imports regenerates test/new-e2e/run/scenarios_import_gen.go by
 // scanning for test/new-e2e/tests/*/scenario.go files and emitting a blank import for each
 // matching package so its init() fires in the run binary.
 //
-// Run via: go generate ./test/e2e-framework/run/
+// Run via: go generate ./test/new-e2e/run/
 package main
 
 import (
