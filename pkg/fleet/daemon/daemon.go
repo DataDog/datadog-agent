@@ -331,7 +331,7 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
-	d.refreshState(d.ctx)
+	_ = d.refreshState(d.ctx)
 
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -359,7 +359,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				}
 			case <-refreshStateTicker.C:
 				d.m.Lock()
-				d.refreshState(d.ctx)
+				_ = d.refreshState(d.ctx)
 				d.m.Unlock()
 			case request := <-d.requests:
 				err := d.handleRemoteAPIRequest(request)
@@ -401,8 +401,9 @@ func (d *daemonImpl) Install(ctx context.Context, url string, args []string) err
 func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args []string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Installing package from %s", url)
 	err = d.installer(env).Install(ctx, url, args)
@@ -422,8 +423,9 @@ func (d *daemonImpl) Remove(ctx context.Context, pkg string) error {
 func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "remove")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Removing package %s", pkg)
 	err = d.installer(d.env).Remove(ctx, pkg)
@@ -444,8 +446,9 @@ func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
 	err = installExperimentFunc(ctx, d.env, url)
@@ -466,8 +469,9 @@ func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
 	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
@@ -488,8 +492,9 @@ func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) error {
 func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Stopping experiment for package %s", pkg)
 	err = d.installer(d.env).RemoveExperiment(ctx, pkg)
@@ -510,8 +515,9 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, oper
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
 
@@ -541,8 +547,9 @@ func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) er
 func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_config_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
 	err = d.installer(d.env).PromoteConfigExperiment(ctx, pkg)
@@ -563,8 +570,9 @@ func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error
 func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_config_experiment")
 	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	_ = d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
 
 	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
 	err = d.installer(d.env).RemoveConfigExperiment(ctx, pkg)
@@ -603,15 +611,24 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	defer d.requestsWG.Done()
 	parentSpan, ctx := newRequestContext(request)
 	defer parentSpan.Finish(err)
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
+	ctx = withStateRefreshTracking(ctx)
+	stateErr := d.refreshState(ctx)
+	defer func() { _ = d.refreshState(ctx) }()
+	if stateErr != nil && request.Method != methodInstallPackage {
+		err = fmt.Errorf("couldn't refresh installer state: %w", stateErr)
+		setRequestDone(ctx, err)
+		return err
+	}
 
 	err = d.verifyState(ctx, request)
 	if err != nil {
 		if errors.Is(err, errStateDoesntMatch) {
 			return nil // Error already reported to RC
 		}
-		return fmt.Errorf("couldn't verify state: %w", err)
+		markStateRefreshFailed(ctx, err)
+		err = fmt.Errorf("couldn't verify state: %w", err)
+		setRequestDone(ctx, err)
+		return err
 	}
 
 	defer func() { setRequestDone(ctx, err) }()
@@ -723,15 +740,13 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 		return nil
 	}
 
-	s, err := d.installer(d.env).State(ctx, request.Package)
+	states, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
+		markStateRefreshFailed(ctx, err)
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
-
-	c, err := d.installer(d.env).ConfigState(ctx, request.Package)
-	if err != nil {
-		return fmt.Errorf("could not get installer config state: %w", err)
-	}
+	s := states.States[request.Package]
+	c := states.ConfigStates[request.Package]
 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
@@ -743,7 +758,6 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 			request.ID, request.ExpectedState, s, c, d.clientID,
 		)
 		setRequestInvalid(ctx)
-		d.refreshState(ctx)
 		return errStateDoesntMatch
 	}
 
@@ -787,20 +801,53 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (d *daemonImpl) refreshState(ctx context.Context) {
+type stateRefreshStatusKey struct{}
+
+// stateRefreshStatus is shared by nested operations so a failed state read is
+// not retried by each deferred refresh while the daemon mutex is held.
+type stateRefreshStatus struct {
+	err error
+}
+
+func withStateRefreshTracking(ctx context.Context) context.Context {
+	if _, ok := ctx.Value(stateRefreshStatusKey{}).(*stateRefreshStatus); ok {
+		return ctx
+	}
+	return context.WithValue(ctx, stateRefreshStatusKey{}, &stateRefreshStatus{})
+}
+
+func markStateRefreshFailed(ctx context.Context, err error) {
+	status, ok := ctx.Value(stateRefreshStatusKey{}).(*stateRefreshStatus)
+	if ok && status.err == nil {
+		status.err = err
+	}
+}
+
+func (d *daemonImpl) persistTaskState(ctx context.Context) {
 	request, ok := ctx.Value(requestStateKey).(*requestState)
-	if ok {
-		err := d.taskDB.SetTaskState(*request)
-		if err != nil {
-			log.Errorf("could not set task state: %v", err)
-		}
+	if !ok {
+		return
+	}
+	if err := d.taskDB.SetTaskState(*request); err != nil {
+		log.Errorf("could not set task state: %v", err)
+	}
+}
+
+// refreshState persists the task state before reading package state. Once the
+// state read fails, callers sharing the context get the same error without
+// launching another subprocess; the next independent refresh can retry.
+func (d *daemonImpl) refreshState(ctx context.Context) error {
+	d.persistTaskState(ctx)
+	if status, ok := ctx.Value(stateRefreshStatusKey{}).(*stateRefreshStatus); ok && status.err != nil {
+		return status.err
 	}
 
 	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer config and package states: %v", err)
-		return
+		markStateRefreshFailed(ctx, err)
+		return err
 	}
 	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
 	if err != nil {
@@ -860,4 +907,5 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
+	return nil
 }

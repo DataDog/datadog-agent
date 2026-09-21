@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -42,6 +43,10 @@ func (b *testBoostrapper) InstallExperiment(ctx context.Context, env *env.Env, u
 
 type testPackageManager struct {
 	mock.Mock
+	configAndPackageStates      *repository.PackageStates
+	configAndPackageStatesErr   error
+	configAndPackageStatesFunc  func(context.Context) (*repository.PackageStates, error)
+	configAndPackageStatesCalls int
 }
 
 func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
@@ -65,8 +70,19 @@ func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (repos
 }
 
 func (m *testPackageManager) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+	m.configAndPackageStatesCalls++
+	if m.configAndPackageStatesFunc != nil {
+		return m.configAndPackageStatesFunc(ctx)
+	}
+	if m.configAndPackageStates != nil || m.configAndPackageStatesErr != nil {
+		return m.configAndPackageStates, m.configAndPackageStatesErr
+	}
 	args := m.Called(ctx)
-	return args.Get(0).(*repository.PackageStates), args.Error(1)
+	var states *repository.PackageStates
+	if args.Get(0) != nil {
+		states = args.Get(0).(*repository.PackageStates)
+	}
+	return states, args.Error(1)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
@@ -410,8 +426,14 @@ func TestRemoteRequest(t *testing.T) {
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 		Params:        versionParamsJSON,
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.configAndPackageStates = &repository.PackageStates{
+		States: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+		ConfigStates: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+	}
 	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -422,8 +444,14 @@ func TestRemoteRequest(t *testing.T) {
 		Package:       testExperimentPackage.Name,
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.configAndPackageStates = &repository.PackageStates{
+		States: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		},
+		ConfigStates: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+	}
 	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -434,8 +462,14 @@ func TestRemoteRequest(t *testing.T) {
 		Package:       testExperimentPackage.Name,
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.configAndPackageStates = &repository.PackageStates{
+		States: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		},
+		ConfigStates: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+	}
 	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -475,8 +509,14 @@ func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version, ClientID: disableClientIDCheck},
 		Params:        versionParamsJSON,
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.configAndPackageStates = &repository.PackageStates{
+		States: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+		ConfigStates: map[string]repository.State{
+			testStablePackage.Name: {Stable: testStablePackage.Version},
+		},
+	}
 	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -484,6 +524,76 @@ func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 	// Verify that InstallExperiment was called even though client ID is the special bypass value
 	i.bm.AssertExpectations(t)
 	i.pm.AssertExpectations(t)
+}
+
+func TestRemoteRequestStateRefreshFailureFinalizesTask(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+
+	stateErr := errors.New("state unavailable")
+	i.pm.configAndPackageStatesErr = stateErr
+	stateReadsBeforeRequest := i.pm.configAndPackageStatesCalls
+	request := remoteAPIRequest{
+		ID:      "state-refresh-failure",
+		Method:  methodStartExperiment,
+		Package: "test-package",
+	}
+	i.requestsWG.Add(1)
+
+	err := i.handleRemoteAPIRequest(request)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, stateErr)
+	assert.Equal(t, stateReadsBeforeRequest+1, i.pm.configAndPackageStatesCalls)
+
+	tasks, err := i.taskDB.GetTasksState()
+	require.NoError(t, err)
+	require.Contains(t, tasks, request.Package)
+	assert.Equal(t, pbgo.TaskState_ERROR, tasks[request.Package].State)
+}
+
+func TestRemoteRequestVerifyStateFailureFinalizesTask(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+
+	stateErr := errors.New("state unavailable during verification")
+	stateReads := 0
+	i.pm.configAndPackageStatesFunc = func(context.Context) (*repository.PackageStates, error) {
+		stateReads++
+		if stateReads == 1 {
+			return &repository.PackageStates{
+				States: map[string]repository.State{
+					"test-package": {Stable: "0.0.1"},
+				},
+				ConfigStates: map[string]repository.State{
+					"test-package": {Stable: "0.0.1"},
+				},
+			}, nil
+		}
+		return nil, stateErr
+	}
+	request := remoteAPIRequest{
+		ID:      "verify-state-failure",
+		Method:  methodStartExperiment,
+		Package: "test-package",
+		ExpectedState: expectedState{
+			Stable:       "0.0.1",
+			StableConfig: "0.0.1",
+			ClientID:     i.rcc.GetClientID(),
+		},
+	}
+	i.requestsWG.Add(1)
+
+	err := i.handleRemoteAPIRequest(request)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, stateErr)
+	assert.Equal(t, 2, stateReads)
+
+	tasks, err := i.taskDB.GetTasksState()
+	require.NoError(t, err)
+	require.Contains(t, tasks, request.Package)
+	assert.Equal(t, pbgo.TaskState_ERROR, tasks[request.Package].State)
 }
 
 func TestRefreshStateRunningVersions(t *testing.T) {
