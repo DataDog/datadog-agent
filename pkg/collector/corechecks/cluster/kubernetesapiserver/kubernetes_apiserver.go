@@ -35,9 +35,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -46,6 +48,7 @@ const (
 	CheckName = "kubernetes_apiserver"
 
 	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
+	storageObjectsMetricName           = "apiserver_storage_objects"
 	eventTokenKey                      = "event"
 	componentStatusMaxVersionString    = "v1.35.0"
 	maxEventCardinality                = 300
@@ -350,6 +353,8 @@ func (k *KubeASCheck) Run() error {
 		k.sendAPIResourceMetrics(sender, clusterResources)
 	}
 
+	k.sendStorageObjectsMetrics(sender)
+
 	return nil
 }
 
@@ -625,6 +630,39 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 			"api_resource_version:" + resource.APIVersion,
 		}
 		sender.Gauge("kube_apiserver.api_resource", 1, "", tags)
+	}
+}
+
+// sendStorageObjectsMetrics scrapes the API server's own /metrics endpoint for
+// apiserver_storage_objects, which reports the number of objects of each resource
+// type (including CRDs) currently held in the underlying storage. Unlike the rest
+// of this check, this reflects cluster-wide storage state rather than the state of
+// whichever API server node happened to answer the request, so it is safe to treat
+// as a single, cluster-level data point emitted once per leader run.
+//
+// The API server's /metrics endpoint is not guaranteed to be reachable in every
+// environment (e.g. restrictive network policies), so any failure here is
+// best-effort: it is logged and does not fail the check.
+func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
+	family, err := apiservercommon.FetchAPIServerMetricFamily(context.TODO(), k.ac.Cl.Discovery(), storageObjectsMetricName)
+	if err != nil {
+		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
+		return
+	}
+	if family == nil {
+		log.Debugf("Metric %s not found in the API server's /metrics endpoint", storageObjectsMetricName)
+		return
+	}
+
+	submitStorageObjectsMetrics(sender, family)
+}
+
+// submitStorageObjectsMetrics emits one kube_apiserver.storage_objects gauge per sample
+// in the given apiserver_storage_objects metric family.
+func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
+	for _, sample := range family.Samples {
+		tags := []string{"resource:" + sample.Metric["resource"]}
+		sender.Gauge("kube_apiserver.storage_objects", sample.Value, "", tags)
 	}
 }
 

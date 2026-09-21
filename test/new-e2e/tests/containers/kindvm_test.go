@@ -117,6 +117,18 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kube_apiserver.storage_objects",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^resource:.*`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+
 	// Test `kube_controller_manager` check is properly working
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 func TestParseComponentStatus(t *testing.T) {
@@ -146,4 +147,27 @@ func TestConvertFilter(t *testing.T) {
 			assert.Equal(t, tc.output, output)
 		})
 	}
+}
+
+func TestSubmitStorageObjectsMetrics(t *testing.T) {
+	tagger := taggerfxmock.SetupFakeTagger(t)
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
+
+	family := &prometheus.MetricFamily{
+		Name: "apiserver_storage_objects",
+		Type: "GAUGE",
+		Samples: []prometheus.Sample{
+			{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
+			{Metric: prometheus.Metric{"resource": "customresourcedefinitions.example.com"}, Value: 3},
+		},
+	}
+
+	mocked.On("Gauge", "kube_apiserver.storage_objects", 42.0, "", []string{"resource:pods"})
+	mocked.On("Gauge", "kube_apiserver.storage_objects", 3.0, "", []string{"resource:customresourcedefinitions.example.com"})
+
+	submitStorageObjectsMetrics(mocked, family)
+
+	mocked.AssertNumberOfCalls(t, "Gauge", 2)
+	mocked.AssertExpectations(t)
 }
