@@ -17,6 +17,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	gnmistatusdef "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -81,7 +82,7 @@ import (
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component], gnmiStatus gnmistatusdef.Component,
 ) {
 	telemetryForMode := telemetryProviderForLoadMode(telemetry)
 
@@ -150,7 +151,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(kata.CheckName, kata.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(gnmi.CheckName, gnmi.Factory())
+	corecheckLoader.RegisterCheck(gnmi.CheckName, gnmi.Factory(gnmiStatus))
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
