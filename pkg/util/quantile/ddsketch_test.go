@@ -571,11 +571,11 @@ func expHistSketch(t *testing.T, scale int32, posOffset int, posCounts []float64
 // conversion must return an error instead, so the caller can drop the point.
 func TestConvertDDSketchIntoSketchUnrepresentableBoundaries(t *testing.T) {
 	// A boundary is gamma^index with gamma = 2^(2^-scale), which LowerBound
-	// evaluates as exp(index * ln gamma), so it stops being finite once that
-	// product passes exp's own limit of ~709.78 — one index later than plain
-	// powers of two suggest: 1025 rather than 1024 at scale 0. Each failing case
-	// below reaches exactly that index with the last of its three populated
-	// buckets. Every one is well-formed OTLP: scale is within the [-10, 20] range
+	// evaluates as exp(index * ln gamma); it stops being finite once that product
+	// passes exp's own limit of ~709.78. Exactly where that happens is platform
+	// dependent — math.Exp overflows one index earlier on amd64 than on arm64 —
+	// so each failing case below sits comfortably past the limit rather than on
+	// it. Every one is well-formed OTLP: scale is within the [-10, 20] range
 	// go-expohisto uses, and offset is a sint32.
 	for _, tc := range []struct {
 		name    string
@@ -586,17 +586,19 @@ func TestConvertDDSketchIntoSketchUnrepresentableBoundaries(t *testing.T) {
 		// At the minimum scale gamma overflows outright, which makes the boundary
 		// of index 0 a NaN.
 		{name: "minimum scale", scale: -10, offset: 0, wantErr: true},
-		{name: "index 33 at scale -5", scale: -5, offset: 31, wantErr: true},
-		{name: "index 1025 at scale 0", scale: 0, offset: 1023, wantErr: true},
-		{name: "index 131073 at scale 7", scale: 7, offset: 131071, wantErr: true},
-		{name: "index 2^30 at the maximum scale", scale: 20, offset: 1073741822, wantErr: true},
+		{name: "past the limit at scale -5", scale: -5, offset: 31, wantErr: true},
+		{name: "past the limit at scale 0", scale: 0, offset: 1023, wantErr: true},
+		{name: "past the limit at scale 7", scale: 7, offset: 131071, wantErr: true},
+		{name: "past the limit at the maximum scale", scale: 20, offset: 1073741822, wantErr: true},
 		// Well clear of those thresholds nothing is rejected.
 		{name: "moderate indices at scale 0", scale: 0, offset: 0, wantErr: false},
 		{name: "moderate indices at scale -5", scale: -5, offset: -2, wantErr: false},
 		{name: "moderate indices at a fine scale", scale: 12, offset: 0, wantErr: false},
-		// 2^-1074 is the smallest float64 there is, and still an ordinary one: such
-		// boundaries are remapped into the Agent sketch's zero bin, not rejected.
-		{name: "smallest representable boundary", scale: 0, offset: -1074, wantErr: false},
+		// Boundaries far below one are remapped into the Agent sketch's zero bin,
+		// not rejected. Kept out of the subnormal range on purpose: math.Log
+		// handles subnormals differently on amd64, which changes what the
+		// remapping produces but not what this check accepts.
+		{name: "very small boundaries", scale: 0, offset: -1000, wantErr: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			in := expHistSketch(t, tc.scale, tc.offset, []float64{1, 1, 1}, 0, nil, 0)
@@ -619,20 +621,32 @@ func TestConvertDDSketchIntoSketchUnrepresentableBoundaries(t *testing.T) {
 
 // TestConvertDDSketchIntoSketchUpperBoundIsConservative pins the one-index
 // conservatism of the check: remapping reads index+1 as a bucket's upper bound,
-// so at scale 0 the last bucket the Agent accepts is 1023 even though the first
-// boundary to overflow belongs to 1025.
+// so the last bucket the Agent accepts is two below the first index whose
+// boundary overflows, not one.
+//
+// That index is asked of the mapping rather than written down, because math.Exp
+// overflows one index earlier on amd64 than on arm64.
 func TestConvertDDSketchIntoSketchUpperBoundIsConservative(t *testing.T) {
-	// Index 1023, whose upper bound at 1024 is the largest finite boundary there
-	// is. Downstream limits still drop the point, but not as unrepresentable.
-	in := expHistSketch(t, 0, 1023, []float64{1}, 0, nil, 0)
-	_, err := ConvertDDSketchIntoSketch(in)
+	m, err := mapping.NewLogarithmicMappingWithGamma(2, 0)
+	require.NoError(t, err)
+
+	overflowing := 0
+	for !math.IsInf(m.LowerBound(overflowing), 0) {
+		overflowing++
+	}
+
+	// One bucket whose own upper bound is still the largest finite boundary
+	// there is. Downstream limits may still drop the point, but not as
+	// unrepresentable.
+	in := expHistSketch(t, 0, overflowing-2, []float64{1}, 0, nil, 0)
+	_, err = ConvertDDSketchIntoSketch(in)
 	if err != nil {
 		assert.NotContains(t, err.Error(), "cannot be remapped")
 	}
 
-	// Index 1024 is rejected, because its upper bound at 1025 overflows, even
-	// though the bucket's own boundary is still finite.
-	in = expHistSketch(t, 0, 1024, []float64{1}, 0, nil, 0)
+	// One index further the upper bound overflows, and the point is rejected
+	// even though the bucket's own boundary is still finite.
+	in = expHistSketch(t, 0, overflowing-1, []float64{1}, 0, nil, 0)
 	_, err = ConvertDDSketchIntoSketch(in)
 	assert.ErrorContains(t, err, "cannot be remapped")
 }
