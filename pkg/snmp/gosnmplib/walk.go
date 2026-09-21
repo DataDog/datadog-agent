@@ -15,13 +15,13 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// RootOIDs lists scan roots in the order they are tried when initial requests fail.
+// RootOIDs lists scan roots in the order they are tried when no OIDs are collected.
 // Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
 var RootOIDs = []string{".0.0", ".1.0"}
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
-// Failed initial requests try RootOIDs in order.
+// Requests that fail or end the walk before collecting any OIDs try RootOIDs in order.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
@@ -34,6 +34,7 @@ func ConditionalWalk(
 	rootIndex := 0
 	oid := rootOIDs[rootIndex]
 	requests := 0
+	hasOIDs := false
 
 RequestLoop:
 	for {
@@ -55,7 +56,9 @@ RequestLoop:
 		}
 
 		response, err := session.GetNext([]string{oid})
-		if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError) {
+		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError ||
+			len(response.Variables) == 0 || response.Variables[0].Type == gosnmp.EndOfMibView ||
+			response.Variables[0].Type == gosnmp.NoSuchObject || response.Variables[0].Type == gosnmp.NoSuchInstance) {
 			rootIndex++
 			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
 			oid = rootOIDs[rootIndex]
@@ -101,6 +104,7 @@ RequestLoop:
 			if err != nil {
 				return err
 			}
+			hasOIDs = true
 			if oid == "" {
 				oid = pdu.Name
 			}

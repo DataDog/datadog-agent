@@ -305,6 +305,7 @@ type bulkGetter interface {
 // OID is retried, so a device that times out at a high value can still be
 // walked. If the initial request still fails at the minimum size, try the next
 // root in gosnmplib.RootOIDs. On success the value grows back toward bulkMaxRep.
+// The next root is also tried if the walk ends before collecting any OIDs.
 //
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
@@ -347,23 +348,28 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 		// Use GetBulk with REAL OIDs only (never fabricated).
 		maxRep := uint32(maxRepOptimizer.BatchSize())
 		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
-		if err != nil || response.Error != gosnmp.NoError {
+		requestFailed := err != nil || response.Error != gosnmp.NoError
+		if requestFailed {
 			// Both a transport error and a non-NoError SNMP status mean this
 			// request failed; back the batch size off and retry the same OID.
 			if maxRepOptimizer.OnFailure() {
 				continue
 			}
-			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
-				rootIndex++
-				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
-				oid = rootOIDs[rootIndex]
-				prevInts, err = gosnmplib.OIDToInts(oid)
-				if err != nil {
-					return err
-				}
-				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
-				continue
+		}
+		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed ||
+			len(response.Variables) == 0 || response.Variables[0].Type == gosnmp.EndOfMibView ||
+			response.Variables[0].Type == gosnmp.NoSuchObject || response.Variables[0].Type == gosnmp.NoSuchInstance) {
+			rootIndex++
+			log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
+			oid = rootOIDs[rootIndex]
+			prevInts, err = gosnmplib.OIDToInts(oid)
+			if err != nil {
+				return err
 			}
+			maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
+			continue
+		}
+		if requestFailed {
 			if err != nil {
 				return gosnmplib.NewConnectionError(
 					fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err),
