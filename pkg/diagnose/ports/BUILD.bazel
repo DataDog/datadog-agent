@@ -14,7 +14,12 @@ go_library(
         "//comp/core/diagnose/def",
         "//pkg/config/setup",
         "//pkg/util/port",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
