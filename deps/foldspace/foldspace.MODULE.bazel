@@ -1,0 +1,16 @@
+"""Fetch DataDog/foldspace at the Go FFI stack tip (PR 78)."""
+
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+# DataDog/foldspace PR 78 (ryan.hall/exclusive-reliable-class), which includes
+# the Go FFI crate at bindings/go/native.
+FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
+
+FOLDSPACE_GIT_COMMIT = "30d68b0b982fa70466f74a1c82ce70e9b570da31"
+
+git_repository(
+    name = "foldspace",
+    build_file = "//deps/foldspace:overlay.BUILD.bazel",
+    commit = FOLDSPACE_GIT_COMMIT,
+    remote = FOLDSPACE_GIT_REMOTE,
+)
