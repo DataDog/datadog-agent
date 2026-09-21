@@ -325,7 +325,7 @@ require (
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/kr/pretty v0.3.1
 	github.com/kraken-hpc/go-fork v0.1.1
-	github.com/landlock-lsm/go-landlock v0.10.0
+	github.com/landlock-lsm/go-landlock v0.10.1
 	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
