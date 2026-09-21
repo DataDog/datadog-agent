@@ -154,12 +154,14 @@ fn agent_service_env_var(name: &str) -> Option<String> {
 }
 
 /// Gate inputs [`ENV_BINDINGS`] does not cover: the generated name for
-/// `discovery.enabled`, the fleet policy directory, and the ECS Fargate probe behind the
-/// `discovery.enabled` platform default.
+/// `discovery.enabled`, the fleet policy directory, the ECS Fargate probe behind the
+/// `discovery.enabled` platform default, and `DD_CONF_DIR`, which shipped templates
+/// expand inside the gated path itself.
 #[cfg(any(test, feature = "test-helpers"))]
 const UNBOUND_GATE_ENV_VARS: &[&str] = &[
     "DD_DISCOVERY_ENABLED",
     "DD_FLEET_POLICIES_DIR",
+    "DD_CONF_DIR",
     "ECS_FARGATE",
     "AWS_EXECUTION_ENV",
 ];
@@ -239,6 +241,7 @@ mod tests {
         for var in [
             "DD_DISCOVERY_ENABLED",
             "DD_FLEET_POLICIES_DIR",
+            "DD_CONF_DIR",
             "ECS_FARGATE",
             "AWS_EXECUTION_ENV",
         ] {

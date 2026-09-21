@@ -536,7 +536,6 @@ fn reset_test_env() {
         for name in gate_env_var_names() {
             std::env::remove_var(name);
         }
-        std::env::remove_var("DD_CONF_DIR");
     }
     set_test_agent_service_env(None);
 }
