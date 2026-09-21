@@ -1123,7 +1123,6 @@ func persistProcessManagerEnv(enabled bool) error {
 		return fmt.Errorf("failed to read %s service Environment value: %w", datadogInstallerServiceName, err)
 	}
 
-	entry := fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled)
 	updated := make([]string, 0, len(existing)+1)
 	for _, e := range existing {
 		if strings.HasPrefix(e, env.EnvProcessManagerEnabled+"=") {
@@ -1131,7 +1130,16 @@ func persistProcessManagerEnv(enabled bool) error {
 		}
 		updated = append(updated, e)
 	}
-	updated = append(updated, entry)
+	if !enabled {
+		updated = append(updated, fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled))
+	}
 
-	return key.SetStringsValue("Environment", updated)
+	if err := key.SetStringsValue("Environment", updated); err != nil {
+		return err
+	}
+
+	if enabled {
+		return os.Unsetenv(env.EnvProcessManagerEnabled)
+	}
+	return os.Setenv(env.EnvProcessManagerEnabled, "false")
 }
