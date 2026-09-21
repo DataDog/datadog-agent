@@ -442,7 +442,7 @@ type UprobeAttacher struct {
 
 const (
 	defaultSyncAttachRate  rate.Limit = 1000
-	defaultSyncAttachBurst            = 1
+	defaultSyncAttachBurst int        = 1
 )
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
