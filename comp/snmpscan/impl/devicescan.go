@@ -304,7 +304,9 @@ type bulkGetter interface {
 //
 // Adaptive max-repetitions: on GetBulk error the value is halved and the same
 // OID is retried, so a device that times out at a high value can still be
-// walked. On success the value grows back toward bulkMaxRep.
+// walked. If the initial .0.0 request still fails at the minimum size, retry
+// from .1 for devices that do not support .0.0. On success the value grows
+// back toward bulkMaxRep.
 //
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
@@ -350,6 +352,13 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 			// Both a transport error and a non-NoError SNMP status mean this
 			// request failed; back the batch size off and retry the same OID.
 			if maxRepOpt.OnFailure() {
+				continue
+			}
+			if oid == ".0.0" {
+				log.Infof("SNMP scan for device %s failed at .0.0, retrying from %s", deviceID, gosnmplib.FallbackRootOID)
+				oid = gosnmplib.FallbackRootOID
+				prevInts = []int{1, 0}
+				maxRepOpt = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 				continue
 			}
 			if err != nil {

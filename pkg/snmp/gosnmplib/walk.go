@@ -20,14 +20,32 @@ const (
 	// sometimes want things like LLDP data that are under lower prefixes
 	// (LLDP goes under .1.0.*). So we just start as low as possible.
 	baseOID = ".0.0"
+
+	// FallbackRootOID is the wire representation of Net-SNMP's .1 root.
+	// GoSNMP requires at least two sub-identifiers and cannot encode bare .1.
+	FallbackRootOID = ".1.0"
 )
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
+// If the initial request at .0.0 fails, retry from .1 for devices that do not
+// support .0.0.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
 	session *gosnmp.GoSNMP,
+	rootOID string,
+	callInterval time.Duration,
+	maxCallCount int,
+	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
+) error {
+	return conditionalWalk(ctx, session.GetNext, session.Logger, rootOID, callInterval, maxCallCount, walkFn)
+}
+
+func conditionalWalk(
+	ctx context.Context,
+	getNext func([]string) (*gosnmp.SnmpPacket, error),
+	logger gosnmp.Logger,
 	rootOID string,
 	callInterval time.Duration,
 	maxCallCount int,
@@ -48,7 +66,7 @@ RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			logger.Printf("ConditionalWalk cancelled after %d requests", requests)
 			return ctx.Err()
 		default:
 		}
@@ -59,11 +77,16 @@ RequestLoop:
 
 		requests++
 		if maxCallCount > 0 && requests >= maxCallCount {
-			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
+			logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
 
-		response, err := session.GetNext([]string{oid})
+		response, err := getNext([]string{oid})
+		if requests == 1 && oid == baseOID && (err != nil || response.Error != gosnmp.NoError) {
+			logger.Printf("ConditionalWalk failed at .0.0, retrying from %s", FallbackRootOID)
+			oid = FallbackRootOID
+			continue
+		}
 		if err != nil {
 			return NewConnectionError(err)
 		}
@@ -71,7 +94,7 @@ RequestLoop:
 			break RequestLoop
 		}
 		if response.Error != gosnmp.NoError {
-			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+			logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
 
@@ -79,7 +102,7 @@ RequestLoop:
 
 		for i, pdu := range response.Variables {
 			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
-				session.Logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
+				logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
 				break RequestLoop
 			}
 			// skip PDUs that are less than our next OID when we're handling
@@ -118,11 +141,11 @@ RequestLoop:
 			return err
 		}
 		if !CmpOIDs(next, last).IsAfter() {
-			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
+			logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
-	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
+	logger.Printf("ConditionalWalk completed in %d requests", requests)
 	return nil
 }
 
