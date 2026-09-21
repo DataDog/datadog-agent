@@ -46,7 +46,8 @@ func IsEnabled() bool {
 // processes), use a per-process UUID, and force the payload enabled so AAS
 // inventory works regardless of the enable_metadata_collection config flag.
 func NewCapabilities() *inventoryagent.Capabilities {
-	caps := inventoryagent.NewServerlessCapabilities(uuid.New().String())
+	id := uuid.New().String()
+	caps := inventoryagent.NewServerlessCapabilities(func() string { return id })
 	caps.ForceEnabled = true
 	return caps
 }
