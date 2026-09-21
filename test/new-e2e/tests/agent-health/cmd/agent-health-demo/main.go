@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -76,7 +77,11 @@ func createCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Provision an agent-health vm demo environment",
 		Long: "Provision an agent-health vm demo environment.\n\n" +
-			"The API key is resolved from --api-key, E2E_API_KEY, or ~/.test_infra_config.yaml.",
+			"The API key is resolved from --api-key, E2E_API_KEY, or ~/.test_infra_config.yaml.\n" +
+			"--site and --fakeintake are mutually exclusive.",
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return validateIntakeFlags(cmd, opts)
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runCreate(opts)
 		},
@@ -103,6 +108,28 @@ func createCmd() *cobra.Command {
 		"Datadog API key (overrides E2E_API_KEY and the config file)")
 
 	return cmd
+}
+
+// validateIntakeFlags rejects --site combined with --fakeintake. Both options
+// write the agent's primary endpoint, and agentparams deliberately resolves
+// that collision by last-write-wins, so whichever loses is silently dropped:
+// the agent would ship to fakeintake while the operator believes it targets
+// --site, or vice-versa. Provisioners keep the permissive last-write-wins
+// behaviour; the CLI refuses the ambiguous request up front, before any
+// infrastructure is provisioned.
+//
+// --site carries a default, so an explicit request is detected with Changed()
+// rather than by comparing values: leaving --site alone and passing
+// --fakeintake is a normal E2E invocation, not a conflict.
+func validateIntakeFlags(cmd *cobra.Command, opts *createOptions) error {
+	useFakeintake, err := strconv.ParseBool(opts.fakeintake)
+	if err != nil {
+		return fmt.Errorf("invalid --fakeintake %q: expected true or false", opts.fakeintake)
+	}
+	if useFakeintake && cmd.Flags().Changed("site") {
+		return fmt.Errorf("--site %s and --fakeintake are mutually exclusive: fakeintake replaces the agent's intake, so --site would be silently ignored; pass only one", opts.site)
+	}
+	return nil
 }
 
 func scenarioNames() []string {
