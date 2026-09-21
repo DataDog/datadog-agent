@@ -127,6 +127,10 @@ properties:
         type: string
         default: ""
         comment: Overrides only the main foldspace host. Empty uses the main HTTP endpoint host.
+      dual_ship:
+        node_type: setting
+        type: boolean
+        default: false
       max_inflight_payloads:
         node_type: setting
         type: integer
