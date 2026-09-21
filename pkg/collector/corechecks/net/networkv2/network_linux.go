@@ -381,8 +381,7 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 
 // getEthtoolMetrics resolves ethtool stat names against the per-driver allowlists. The two
 // gates are independent so that either can be enabled without pulling in the other's
-// counters: collectBaseMetrics follows the instance's collect_ethtool_metrics, and
-// collectRoceMetrics follows the agent-level gpu.enabled.
+// counters.
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectBaseMetrics bool, collectRoceMetrics bool) map[string]map[string]uint64 {
 	result := map[string]map[string]uint64{}
 	if _, ok := ethtoolMetricNames[driverName]; !ok {
