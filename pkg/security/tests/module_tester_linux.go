@@ -1498,7 +1498,7 @@ func (tm *testModule) describeADKernelState(containerID string) string {
 	// 4500s deadline nothing can clear inside a test, so a cgroup missing from both never
 	// reserved. This counter is what says so directly, and its errno separates a full
 	// 5-slot traced_cgroups (E2BIG) from an already-reserved cgroup (EEXIST).
-	b.WriteString(fmt.Sprintf("  traced_cgroups_reserve_failed: %s\n", tm.dumpReserveFailures(p)))
+	b.WriteString(fmt.Sprintf("  ad_cgroup_reserve_failed: %s\n", tm.dumpReserveFailures(p)))
 
 	// a lost cgroup_tracing event is indistinguishable from an offer the kernel never
 	// made, and onEventLost's SyncTracedCgroups frees the traced_cgroups slot while
@@ -1550,10 +1550,10 @@ func (tm *testModule) dumpInodeKeyedMap(p *sprobe.EBPFProbe, name string, valueL
 	return fmt.Sprintf("%d entr(ies) [%s]", len(entries), strings.Join(entries, " "))
 }
 
-// dumpReserveFailures renders traced_cgroups_reserve_failed, whose value packs the
+// dumpReserveFailures renders ad_cgroup_reserve_failed, whose value packs the
 // rejection count in the high half and the latest errno in the low half.
 func (tm *testModule) dumpReserveFailures(p *sprobe.EBPFProbe) string {
-	m, _, err := p.Manager.Get().GetMap("traced_cgroups_reserve_failed")
+	m, _, err := p.Manager.Get().GetMap("ad_cgroup_reserve_failed")
 	if err != nil || m == nil {
 		return fmt.Sprintf("unavailable (%v)", err)
 	}

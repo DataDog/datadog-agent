@@ -13,6 +13,7 @@ var bpfMapNames = []string{
 	"activity_dump_c",
 	"activity_dump_r",
 	"activity_dumps_",
+	"ad_cgroup_reser",
 	"auid_approvers",
 	"auid_discarders",
 	"auid_range_appr",
