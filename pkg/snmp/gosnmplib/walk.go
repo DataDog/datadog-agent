@@ -57,9 +57,16 @@ RequestLoop:
 		}
 
 		response, err := session.GetNext([]string{oid})
-		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError ||
-			len(response.Variables) == 0 || response.Variables[0].Type == gosnmp.EndOfMibView ||
-			response.Variables[0].Type == gosnmp.NoSuchObject || response.Variables[0].Type == gosnmp.NoSuchInstance) {
+		requestFailed := err != nil || response.Error != gosnmp.NoError
+		emptyResponse := err == nil && len(response.Variables) == 0
+		endOfMIB := false
+		if err == nil && !emptyResponse {
+			firstPDUType := response.Variables[0].Type
+			endOfMIB = firstPDUType == gosnmp.EndOfMibView ||
+				firstPDUType == gosnmp.NoSuchObject ||
+				firstPDUType == gosnmp.NoSuchInstance
+		}
+		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
 			oid = rootOIDs[rootIndex]
@@ -68,7 +75,7 @@ RequestLoop:
 		if err != nil {
 			return NewConnectionError(err)
 		}
-		if len(response.Variables) == 0 {
+		if emptyResponse {
 			break RequestLoop
 		}
 		if response.Error != gosnmp.NoError {

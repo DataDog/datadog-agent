@@ -358,9 +358,15 @@ RequestLoop:
 				continue
 			}
 		}
-		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed ||
-			len(response.Variables) == 0 || response.Variables[0].Type == gosnmp.EndOfMibView ||
-			response.Variables[0].Type == gosnmp.NoSuchObject || response.Variables[0].Type == gosnmp.NoSuchInstance) {
+		emptyResponse := err == nil && len(response.Variables) == 0
+		endOfMIB := false
+		if err == nil && !emptyResponse {
+			firstPDUType := response.Variables[0].Type
+			endOfMIB = firstPDUType == gosnmp.EndOfMibView ||
+				firstPDUType == gosnmp.NoSuchObject ||
+				firstPDUType == gosnmp.NoSuchInstance
+		}
+		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
 			oid = rootOIDs[rootIndex]
@@ -381,7 +387,7 @@ RequestLoop:
 		}
 		maxRepOptimizer.OnSuccess()
 
-		if len(response.Variables) == 0 {
+		if emptyResponse {
 			// No more data.
 			break RequestLoop
 		}
