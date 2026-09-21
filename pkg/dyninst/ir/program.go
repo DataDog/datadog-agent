@@ -58,6 +58,20 @@ type Program struct {
 	// Redaction is the policy for scrubbing sensitive captured values. It is
 	// nil when no policy is configured, in which case nothing is redacted.
 	Redaction *redaction.Config `json:"-"`
+	// CoordinatedSampling tunes the per-trace coordinated sampling rate; nil
+	// uses the default. See pkg/dyninst/docs/coordinated-sampling-plan.md.
+	CoordinatedSampling *CoordinatedSampling `json:"-"`
+}
+
+// DefaultSessionSnapshotsPerSecond is the session-wide ceiling used when no
+// CoordinatedSampling config is provided.
+const DefaultSessionSnapshotsPerSecond = 100
+
+// CoordinatedSampling tunes coordinated sampling. Coordination is always
+// active; this only sets the session-wide rate.
+type CoordinatedSampling struct {
+	// SnapshotsPerSecond is the session-wide ceiling for the per-trace decision.
+	SnapshotsPerSecond float64
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
