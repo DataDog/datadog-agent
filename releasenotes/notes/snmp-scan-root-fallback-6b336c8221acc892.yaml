@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    Fix SNMP device scans for devices such as F5 BIG-IP that reject requests
-    starting at ``.0.0`` by retrying from the ``.1`` subtree when the initial
-    request fails. This applies to both GETBULK and GETNEXT scans.
+    Fix SNMP device scans for certain devices that reject requests
+    starting at ``.0.0`` by retrying from the ``.1.0`` subtree when the initial
+    request fails.
