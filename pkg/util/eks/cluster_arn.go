@@ -3,14 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package eks provides utilities for EKS cluster identity.
+//go:build ec2
+
+// Package eks provides utilities for resolving EKS cluster identity.
 package eks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -18,7 +26,10 @@ import (
 )
 
 const (
-	clusterARNCacheKey = "eks_cluster_arn"
+	clusterIdentityCacheKey = "eks_cluster_identity"
+
+	// apiTimeout is the timeout for EKS API calls
+	apiTimeout = 10 * time.Second
 
 	// MaxClusterNameLength is the maximum length of an EKS cluster name (AWS limit)
 	MaxClusterNameLength = 100
@@ -26,132 +37,184 @@ const (
 
 var (
 	// validClusterNamePattern matches valid EKS cluster names per AWS documentation:
-	// alphanumeric, hyphens, underscores, 1-100 chars
+	// alphanumeric, hyphens, underscores, 1-100 chars, must start with alphanumeric
 	validClusterNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$`)
+
+	// validAccountIDPattern matches 12-digit AWS account IDs
+	validAccountIDPattern = regexp.MustCompile(`^[0-9]{12}$`)
 
 	// validRegionPattern matches AWS region format
 	validRegionPattern = regexp.MustCompile(`^[a-z]{2}(-gov)?-[a-z]+-\d$`)
 
-	// validAccountIDPattern matches 12-digit AWS account IDs
-	validAccountIDPattern = regexp.MustCompile(`^[0-9]{12}$`)
+	// allowedPartitions restricts ARN parsing to known AWS partitions
+	allowedPartitions = map[string]bool{
+		"aws":        true,
+		"aws-cn":     true,
+		"aws-us-gov": true,
+	}
+
+	// ErrNoPermission indicates the agent lacks eks:DescribeCluster permission
+	ErrNoPermission = errors.New("eks:DescribeCluster permission denied")
+
+	// ErrClusterNotFound indicates the cluster does not exist
+	ErrClusterNotFound = errors.New("EKS cluster not found")
+
+	// ErrInvalidClusterName indicates an invalid cluster name format
+	ErrInvalidClusterName = errors.New("invalid EKS cluster name format")
+
+	// ErrNameMismatch indicates the returned ARN doesn't match the requested cluster name
+	ErrNameMismatch = errors.New("cluster name mismatch between request and response")
 )
 
-// ClusterIdentity holds EKS cluster AWS identity information.
-// These values are derived from IMDS and represent the node's AWS identity,
-// which is assumed to match the cluster's AWS identity when nodes and cluster
-// reside in the same account.
+// ClusterIdentity holds authoritative EKS cluster AWS identity from DescribeCluster.
+// All fields are derived from the EKS control plane response, not node IMDS.
 type ClusterIdentity struct {
 	// ClusterName is the EKS cluster name
 	ClusterName string
-	// ClusterARN is the full EKS cluster ARN (arn:aws:eks:region:account:cluster/name)
+	// ClusterARN is the full EKS cluster ARN from DescribeCluster
 	ClusterARN string
-	// AccountID is the AWS account ID (12 digits)
+	// AccountID is the cluster owner's AWS account ID (12 digits)
 	AccountID string
-	// Region is the AWS region (e.g., us-west-2)
+	// Region is the AWS region where the cluster is hosted
 	Region string
 }
 
-// BuildClusterARN constructs an EKS cluster ARN from its components.
-// Returns empty string if any required component is empty or invalid.
-//
-// Note: This function assumes the cluster resides in the same account as the
-// calling node's IMDS identity. Cross-account node pools are not supported.
-func BuildClusterARN(clusterName, accountID, region string) string {
-	if clusterName == "" || accountID == "" || region == "" {
-		return ""
-	}
-	if !IsValidClusterName(clusterName) {
-		log.Debugf("Invalid EKS cluster name format: %s", clusterName)
-		return ""
-	}
-	if !validAccountIDPattern.MatchString(accountID) {
-		log.Debugf("Invalid AWS account ID format: %s", accountID)
-		return ""
-	}
-	if !validRegionPattern.MatchString(region) {
-		log.Debugf("Invalid AWS region format: %s", region)
-		return ""
-	}
-	return fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
+// eksClient abstracts the EKS API for testing
+type eksClient interface {
+	DescribeCluster(ctx context.Context, params *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 }
 
-// IsValidClusterName checks if a cluster name matches EKS naming rules.
-func IsValidClusterName(name string) bool {
-	if name == "" || len(name) > MaxClusterNameLength {
-		return false
+// clientFactory creates EKS clients; replaceable for testing
+var clientFactory = func(ctx context.Context, region string) (eksClient, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
-	return validClusterNamePattern.MatchString(name)
+	return eks.NewFromConfig(cfg), nil
 }
 
-// GetClusterIdentity retrieves EKS cluster identity from IMDS and cluster name.
-// Results are cached indefinitely since cluster identity does not change.
+// GetClusterIdentity retrieves authoritative EKS cluster identity by calling
+// eks:DescribeCluster. This requires the node IAM role to have eks:DescribeCluster
+// permission, which is included in AmazonEKSWorkerNodePolicy by default.
 //
-// clusterName must be provided (typically from kubernetes.io/cluster/<name> tag
-// or DD_CLUSTER_NAME config). This function retrieves account and region from
-// the node's IMDS identity document.
+// The function:
+//   - Validates cluster name format before making API calls
+//   - Calls DescribeCluster to get the authoritative cluster ARN
+//   - Parses the ARN to extract account ID and region
+//   - Validates the response cluster name matches the request
+//   - Caches successful results indefinitely (cluster identity does not change)
 //
-// Limitation: This assumes the EKS cluster and worker nodes are in the same
-// AWS account. Cross-account node pools will produce an incorrect cluster ARN.
+// Fails closed: returns an error (not partial data) on any failure including
+// missing permissions, API errors, or validation failures.
+//
+// Parameters:
+//   - ctx: context for cancellation
+//   - clusterName: EKS cluster name (from DD_CLUSTER_NAME or discovered)
+//
+// Returns ErrNoPermission if the agent lacks eks:DescribeCluster IAM permission.
 func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdentity, error) {
 	if clusterName == "" {
-		return nil, fmt.Errorf("cluster name is required")
+		return nil, ErrInvalidClusterName
 	}
 
-	cacheKey := cache.BuildAgentKey(clusterARNCacheKey)
+	clusterName = strings.TrimSpace(clusterName)
+	if !IsValidClusterName(clusterName) {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidClusterName, clusterName)
+	}
+
+	// Check cache first
+	cacheKey := cache.BuildAgentKey(clusterIdentityCacheKey)
 	if cached, found := cache.Cache.Get(cacheKey); found {
-		return cached.(*ClusterIdentity), nil
+		identity := cached.(*ClusterIdentity)
+		// Validate cached identity matches requested cluster
+		if identity.ClusterName == clusterName {
+			return identity, nil
+		}
+		// Cache mismatch - cluster name changed, re-fetch
+		log.Debugf("Cached EKS identity for %s doesn't match requested %s, re-fetching",
+			identity.ClusterName, clusterName)
 	}
 
-	accountID, err := ec2.GetAccountID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get AWS account ID from IMDS: %w", err)
-	}
-
+	// Get region from IMDS (only used to know which EKS regional endpoint to call)
 	region, err := ec2.GetRegion(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AWS region from IMDS: %w", err)
 	}
 
-	// Normalize inputs
-	clusterName = strings.TrimSpace(clusterName)
-	accountID = strings.TrimSpace(accountID)
-	region = strings.TrimSpace(region)
-
-	clusterARN := BuildClusterARN(clusterName, accountID, region)
-	if clusterARN == "" {
-		return nil, fmt.Errorf("failed to build valid cluster ARN from name=%s account=%s region=%s",
-			clusterName, accountID, region)
+	// Create EKS client
+	client, err := clientFactory(ctx, region)
+	if err != nil {
+		return nil, err
 	}
 
-	identity := &ClusterIdentity{
-		ClusterName: clusterName,
-		ClusterARN:  clusterARN,
-		AccountID:   accountID,
-		Region:      region,
+	// Call DescribeCluster with timeout
+	apiCtx, cancel := context.WithTimeout(ctx, apiTimeout)
+	defer cancel()
+
+	output, err := client.DescribeCluster(apiCtx, &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	})
+	if err != nil {
+		// Check for specific error types
+		errStr := err.Error()
+		if strings.Contains(errStr, "AccessDenied") || strings.Contains(errStr, "not authorized") {
+			log.Warnf("EKS DescribeCluster permission denied for cluster %s - ensure node IAM role has eks:DescribeCluster", clusterName)
+			return nil, fmt.Errorf("%w: %v", ErrNoPermission, err)
+		}
+		if strings.Contains(errStr, "ResourceNotFoundException") || strings.Contains(errStr, "cluster not found") {
+			return nil, fmt.Errorf("%w: %s", ErrClusterNotFound, clusterName)
+		}
+		return nil, fmt.Errorf("EKS DescribeCluster failed: %w", err)
 	}
 
+	if output.Cluster == nil || output.Cluster.Arn == nil {
+		return nil, fmt.Errorf("EKS DescribeCluster returned nil cluster or ARN")
+	}
+
+	// Parse the authoritative ARN
+	identity := ParseClusterARN(aws.ToString(output.Cluster.Arn))
+	if identity == nil {
+		return nil, fmt.Errorf("failed to parse cluster ARN from DescribeCluster: %s",
+			aws.ToString(output.Cluster.Arn))
+	}
+
+	// Validate the response matches our request (defense in depth)
+	if identity.ClusterName != clusterName {
+		return nil, fmt.Errorf("%w: requested %s, got %s",
+			ErrNameMismatch, clusterName, identity.ClusterName)
+	}
+
+	// Cache successful result
 	cache.Cache.Set(cacheKey, identity, cache.NoExpiration)
-	log.Infof("EKS cluster identity resolved: %s", clusterARN)
+	log.Infof("EKS cluster identity resolved via DescribeCluster: %s (account=%s, region=%s)",
+		identity.ClusterARN, identity.AccountID, identity.Region)
 
 	return identity, nil
 }
 
 // ParseClusterARN extracts components from an EKS cluster ARN.
-// Returns nil if the ARN is malformed or not an EKS cluster ARN.
+// Returns nil if the ARN is malformed, not an EKS cluster ARN, or uses
+// an unknown partition.
+//
+// Expected format: arn:<partition>:eks:<region>:<account>:cluster/<name>
+// Supported partitions: aws, aws-cn, aws-us-gov
 func ParseClusterARN(arn string) *ClusterIdentity {
 	if arn == "" {
 		return nil
 	}
 
 	// Expected format: arn:aws:eks:region:account:cluster/name
-	// or arn:aws-cn:eks:... for China, arn:aws-us-gov:eks:... for GovCloud
 	parts := strings.Split(arn, ":")
 	if len(parts) != 6 {
 		return nil
 	}
 
+	if parts[0] != "arn" {
+		return nil
+	}
+
 	partition := parts[1]
-	if partition != "aws" && partition != "aws-cn" && partition != "aws-us-gov" {
+	if !allowedPartitions[partition] {
 		return nil
 	}
 
@@ -173,10 +236,29 @@ func ParseClusterARN(arn string) *ClusterIdentity {
 		return nil
 	}
 
+	// Validate extracted components
+	if !validAccountIDPattern.MatchString(accountID) {
+		return nil
+	}
+	if !validRegionPattern.MatchString(region) {
+		return nil
+	}
+
 	return &ClusterIdentity{
 		ClusterName: clusterName,
 		ClusterARN:  arn,
 		AccountID:   accountID,
 		Region:      region,
 	}
+}
+
+// IsValidClusterName checks if a cluster name matches EKS naming rules:
+// - 1-100 characters
+// - Alphanumeric, hyphens, underscores only
+// - Must start with alphanumeric character
+func IsValidClusterName(name string) bool {
+	if name == "" || len(name) > MaxClusterNameLength {
+		return false
+	}
+	return validClusterNamePattern.MatchString(name)
 }
