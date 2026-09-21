@@ -5,7 +5,7 @@ tests_aix-ppc64:
   # avoid blocking nightly pipelines on errors
   allow_failure: true
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_scheduled_main]
     - changes:
         paths:
