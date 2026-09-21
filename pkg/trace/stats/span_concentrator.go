@@ -210,6 +210,9 @@ type SpanConcentrator struct {
 	httpEndpointCollapses *atomic.Int64
 	peerTagsCollapses     *atomic.Int64
 	originCollapses       *atomic.Int64
+	// futureClamps counts spans whose bucket was clamped from a future bucket
+	// to the current time bucket (e.g. spans from a client with a badly skewed clock).
+	futureClamps *atomic.Int64
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -253,6 +256,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 		httpEndpointCollapses: atomic.NewInt64(0),
 		peerTagsCollapses:     atomic.NewInt64(0),
 		originCollapses:       atomic.NewInt64(0),
+		futureClamps:          atomic.NewInt64(0),
 		bsize:                 cfg.BucketInterval,
 		oldestTs:              alignTs(now.UnixNano(), cfg.BucketInterval),
 		bufferLen:             defaultBufferLen,
@@ -367,6 +371,15 @@ func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
 		counts.OriginCollapses = sc.originCollapses.Swap(0)
 	}
 	return counts
+}
+
+// DrainFutureClamps atomically reads and zeroes the count of spans whose
+// bucket was clamped to the current time bucket (see addSpan).
+func (sc *SpanConcentrator) DrainFutureClamps() int64 {
+	if sc.futureClamps == nil {
+		return 0
+	}
+	return sc.futureClamps.Swap(0)
 }
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
@@ -571,8 +584,9 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 		// far in the future (e.g. from a client with a badly skewed clock) would
 		// otherwise create buckets that are not flushed until the agent's wall clock
 		// reaches them, retaining memory for that entire period.
-		log.Debugf("Unexpected span start time: span start %s, end %s are in the future, clamping bucket to %s",
-			time.Unix(0, s.start), time.Unix(0, end), time.Unix(0, alignTs(now, sc.bsize)))
+		if sc.futureClamps != nil {
+			sc.futureClamps.Add(1)
+		}
 		btime = max(alignTs(now, sc.bsize), sc.oldestTs)
 	}
 

@@ -312,6 +312,10 @@ func TestConcentratorFutureClamp(t *testing.T) {
 	assert.Len(b.Export(), 1, "current bucket should contain the clamped span")
 	assert.Len(c.spanConcentrator.buckets, 1, "no future bucket should have been created")
 
+	// The clamp is counted for telemetry and drained on flush.
+	assert.Equal(int64(1), c.spanConcentrator.DrainFutureClamps(), "one span should have been counted as clamped")
+	assert.Equal(int64(0), c.spanConcentrator.DrainFutureClamps(), "drain should reset the clamp counter")
+
 	// The clamped stats are flushed normally once the buffer delay has passed.
 	flushTime := now.UnixNano() + int64(c.spanConcentrator.bufferLen)*testBucketInterval
 	stats := c.flushNow(flushTime, false)

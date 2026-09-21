@@ -297,6 +297,11 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := c.spanConcentrator.Flush(now, force)
+	if c.statsd != nil {
+		if clamps := c.spanConcentrator.DrainFutureClamps(); clamps > 0 {
+			_ = c.statsd.Count("datadog.trace_agent.stats.future_bucket_clamps", clamps, nil, 1)
+		}
+	}
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
