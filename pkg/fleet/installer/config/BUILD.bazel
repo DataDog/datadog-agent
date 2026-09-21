@@ -142,11 +142,11 @@ dd_agent_go_test(
     embed = [":config"],
     deps = [
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
