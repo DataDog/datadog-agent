@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -187,7 +186,7 @@ func draDeviceCapacity(device map[string]interface{}) map[string]interface{} {
 }
 
 // draDeviceCounterSets returns the counter sets a device draws from, sorted and
-// joined into one key, or "" when it draws from none.
+// deduplicated, or nil when it draws from none.
 //
 // Drawing from a counter set is the API's own marker that a device is one of
 // several mutually exclusive ways to partition the same hardware rather than a
@@ -197,7 +196,7 @@ func draDeviceCapacity(device map[string]interface{}) map[string]interface{} {
 // group by this key, not merely test it.
 //
 // Mirrors draDeviceCapacity's handling of the v1beta1 "basic" wrapper.
-func draDeviceCounterSets(device map[string]interface{}) string {
+func draDeviceCounterSets(device map[string]interface{}) []string {
 	src := device
 	if basic, found, _ := unstructured.NestedFieldNoCopy(device, "basic"); found {
 		if m, ok := basic.(map[string]interface{}); ok {
@@ -206,11 +205,11 @@ func draDeviceCounterSets(device map[string]interface{}) string {
 	}
 	consumes, found, err := unstructured.NestedFieldNoCopy(src, "consumesCounters")
 	if !found || err != nil {
-		return ""
+		return nil
 	}
 	list, ok := consumes.([]interface{})
 	if !ok {
-		return ""
+		return nil
 	}
 	names := make([]string, 0, len(list))
 	for _, entry := range list {
@@ -223,13 +222,10 @@ func draDeviceCounterSets(device map[string]interface{}) string {
 		}
 	}
 	if len(names) == 0 {
-		return ""
+		return nil
 	}
-	// No driver publishes a device spanning several sets today; joining keeps
-	// such a device grouped with others of the identical footprint, which are
-	// the ones it genuinely competes with.
 	slices.Sort(names)
-	return strings.Join(names, "\x00")
+	return slices.Compact(names)
 }
 
 // emptyFamily is the "this object contributes no sample" return value.

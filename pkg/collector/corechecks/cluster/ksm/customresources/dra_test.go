@@ -600,3 +600,29 @@ func TestResourceSliceCapacitySumsAcrossCounterSets(t *testing.T) {
 	require.Len(t, capacity.Metrics, 1)
 	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
 }
+
+// The API permits a device drawing from several counter sets, which a
+// multi-GPU NVLink device would use. Such a device is an alternative to the
+// per-card options, not an addition to them: grouping {A}, {B} and {A,B}
+// separately and adding the three maxima would report 380Gi of hardware that
+// can only ever present 190Gi.
+func TestResourceSliceCapacityJoinsOverlappingCounterSets(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	spanning := map[string]interface{}{
+		"name":     "gpu-0-1-nvlink",
+		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "190Gi"}},
+		"consumesCounters": []interface{}{
+			map[string]interface{}{"counterSet": "gpu-0-counter-set", "counters": map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}}},
+			map[string]interface{}{"counterSet": "gpu-1-counter-set", "counters": map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}}},
+		},
+	}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "95Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1", "95Gi", "memory-slice-0"),
+		spanning,
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
+}
