@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender/foldspace"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -194,4 +195,22 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))
 
+}
+
+func validateFoldspace(coreConfig model.Reader) error {
+	if err := config.ValidateFoldspace(coreConfig); err != nil {
+		return err
+	}
+	if config.FoldspaceEnabled(coreConfig) && !foldspace.BuiltWithFoldspace {
+		return fmt.Errorf("logs_config.foldspace.enabled is set but this agent was not built with the foldspace tag")
+	}
+	return nil
+}
+
+func validateFoldspaceEndpoints(coreConfig model.Reader, endpoints *config.Endpoints) error {
+	if !config.FoldspaceEnabled(coreConfig) {
+		return nil
+	}
+	_, err := foldspace.BuildDestinationConfig(coreConfig, endpoints)
+	return err
 }
