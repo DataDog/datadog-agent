@@ -192,11 +192,23 @@ func (a *logAgent) start(context.Context) error {
 
 	a.log.Info("Starting logs-agent...")
 
+	if err := validateFoldspace(a.config); err != nil {
+		message := fmt.Sprintf("Invalid foldspace configuration: %v", err)
+		status.AddGlobalError(invalidEndpoints, message)
+		return errors.New(message)
+	}
+
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
+		status.AddGlobalError(invalidEndpoints, message)
+		return errors.New(message)
+	}
+
+	if err := validateFoldspaceEndpoints(a.config, endpoints); err != nil {
+		message := fmt.Sprintf("Invalid foldspace configuration: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
 	}
