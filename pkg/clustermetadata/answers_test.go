@@ -43,9 +43,9 @@ func TestReducePeerAnswers(t *testing.T) {
 		"authoritative synced Absent wins over NotMine")
 
 	assert.Equal(t,
-		LookupAnswer{Kind: AnswerNotReady},
+		LookupAnswer{Kind: AnswerAbsent},
 		ReducePeerAnswers([]LookupAnswer{{Kind: AnswerNotMine}, {Kind: AnswerNotMine}}),
-		"all NotMine reduces to NotReady: nobody claims authority")
+		"all NotMine reduces to Absent: every synced replica checked its cache")
 
 	assert.Equal(t,
 		LookupAnswer{Kind: AnswerNotReady},
