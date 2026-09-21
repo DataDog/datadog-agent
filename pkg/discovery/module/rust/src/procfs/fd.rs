@@ -420,6 +420,7 @@ mod tests {
     }
 
     #[cfg(target_os = "linux")]
+    #[allow(clippy::expect_used)]
     mod log_collection {
         use std::fs::{self, OpenOptions};
         use std::net::TcpListener;
