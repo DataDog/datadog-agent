@@ -559,6 +559,12 @@ const (
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
 	tagProcessTags    = "_dd.tags.process"
+
+	// tagSDKOtlpExport specifies the name of the tag which records whether the
+	// Datadog SDK that produced the payload exports its telemetry via OTLP
+	// ("true") or via the native Datadog protocols ("false"). An absent tag means
+	// the tracer predates the tag; an empty value is never written.
+	tagSDKOtlpExport = "_dd.sdk.otlp_export"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -998,6 +1004,15 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagProcessTags] = ptags
 	}
+	// Normalize the SDK export mode into TracerPayload.Tags. Note this is
+	// deliberately not propagated to Payload (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExport(tp); otlpExport != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagSDKOtlpExport] = otlpExport
+	}
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1115,6 +1130,12 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	if ptags != "" {
 		tp.SetStringAttribute(tagProcessTags, ptags)
 	}
+	// Normalize the SDK export mode into the payload attributes. Note this is
+	// deliberately not propagated to PayloadV1 (the stats path); see
+	// getSDKOtlpExport.
+	if otlpExport := getSDKOtlpExportV1(tp); otlpExport != "" {
+		tp.SetStringAttribute(tagSDKOtlpExport, otlpExport)
+	}
 	payload := &PayloadV1{
 		Source:                 ts,
 		TracerPayload:          tp,
@@ -1189,6 +1210,52 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 		}
 	}
 	return h.Get(header.ProcessTags)
+}
+
+// getSDKOtlpExport extracts the "_dd.sdk.otlp_export" value from a v0.7 tracer
+// payload, normalizing whichever carrier the tracer used into a single value.
+// Order of priority mirrors getProcessTags:
+//  1. tags in the v0.7 payload
+//  2. tags in the first span of the first non-empty chunk (v0.4/v0.5, which have
+//     no payload-level field on the wire)
+//
+// If neither carrier holds the value, the empty string is returned.
+//
+// The original span meta entry is deliberately not stripped, so a v0.4/v0.5
+// payload legitimately carries the value in both places; the values always agree.
+//
+// The OTLP receive path (pkg/trace/api/otlp.go) deliberately does NOT use this
+// hoist. That receiver builds a pb.TracerPayload covering many resources at
+// once, so reading one span's meta and stamping it onto the whole payload would
+// mis-tag payloads mixing export modes. OTLP-origin spans carry the value in
+// span meta only, by design.
+func getSDKOtlpExport(p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if v, ok := p.Tags[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if v, ok := span.Meta[tagSDKOtlpExport]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// getSDKOtlpExportV1 is the idx/v1 equivalent of getSDKOtlpExport. See that
+// function for the priority order and for why the OTLP receive path does not
+// use it.
+func getSDKOtlpExportV1(p *idx.InternalTracerPayload) string {
+	if v, ok := p.GetAttributeAsString(tagSDKOtlpExport); ok {
+		return v
+	}
+	if span, ok := getFirstSpanV1(p); ok {
+		if v, ok := span.GetAttributeAsString(tagSDKOtlpExport); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
