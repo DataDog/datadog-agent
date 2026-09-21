@@ -56,7 +56,6 @@ go_library(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_davecgh_go_spew//spew",
             "@com_github_stretchr_testify//require",
-            "@org_golang_x_net//http2",
             "@org_golang_x_net//http2/hpack",
         ],
         "@rules_go//go/platform:linux": [
@@ -79,7 +78,6 @@ go_library(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_davecgh_go_spew//spew",
             "@com_github_stretchr_testify//require",
-            "@org_golang_x_net//http2",
             "@org_golang_x_net//http2/hpack",
         ],
         "//conditions:default": [],
