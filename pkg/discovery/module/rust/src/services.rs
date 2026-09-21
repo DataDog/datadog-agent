@@ -143,17 +143,15 @@ fn get_service(
     open_files_info: &OpenFilesInfo,
     maps_info: &MapsInfo,
 ) -> Option<Service> {
-    let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
+    let log_files = open_files_info
+        .logs
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
 
-    let has_log_candidates = !open_files_info.logs.is_empty();
-
-    if tcp_ports.is_none()
-        && udp_ports.is_none()
-        && open_files_info.tracer_memfds.is_empty()
-        && !has_log_candidates
-    {
+    if !has_service_signals(&tcp_ports, &udp_ports, open_files_info) {
         return None;
     }
 
@@ -202,15 +200,15 @@ fn get_service(
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
-    let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
+    let log_files = open_files_info
+        .logs
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
 
-    if tcp_ports.is_none()
-        && udp_ports.is_none()
-        && open_files_info.tracer_memfds.is_empty()
-        && open_files_info.logs.is_empty()
-    {
+    if !has_service_signals(&tcp_ports, &udp_ports, &open_files_info) {
         return None;
     }
 
@@ -221,6 +219,17 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
         log_files,
         ..Default::default()
     })
+}
+
+fn has_service_signals(
+    tcp_ports: &Option<Vec<u16>>,
+    udp_ports: &Option<Vec<u16>>,
+    open_files_info: &OpenFilesInfo,
+) -> bool {
+    tcp_ports.is_some()
+        || udp_ports.is_some()
+        || !open_files_info.tracer_memfds.is_empty()
+        || !open_files_info.logs.is_empty()
 }
 
 #[cfg(test)]
@@ -253,19 +262,15 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let has_log_candidate = open_files_info.logs.iter().any(|fd_path| {
-                fd_path
-                    .path
-                    .to_str()
-                    .is_some_and(|p| p.contains("test-service-only-logs.log"))
+            let has_log_candidate = open_files_info.logs.iter().any(|path| {
+                path.to_string_lossy()
+                    .contains("test-service-only-logs.log")
             });
 
             assert!(
                 has_log_candidate,
                 "Expected to find self-generated log candidate"
             );
-
-            let _validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
             assert!(
                 !open_files_info.logs.is_empty(),
@@ -296,28 +301,15 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let candidates: Vec<_> = open_files_info
+            let contains_invalid = open_files_info
                 .logs
                 .iter()
-                .filter(|fd_path| {
-                    fd_path
-                        .path
-                        .to_str()
-                        .is_some_and(|p| p.contains("test-invalid-logs.log"))
-                })
-                .collect();
+                .any(|path| path.to_string_lossy().contains("test-invalid-logs.log"));
 
-            if !candidates.is_empty() {
-                let validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
-                let contains_invalid = validated_logs
-                    .iter()
-                    .any(|p| p.contains("test-invalid-logs.log"));
-
-                assert!(
-                    !contains_invalid,
-                    "Read-only log files should be filtered out by flag validation"
-                );
-            }
+            assert!(
+                !contains_invalid,
+                "Read-only log files should be filtered out by flag validation"
+            );
         }
 
         #[test]
@@ -347,31 +339,13 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let candidates: Vec<_> = open_files_info
+            let count = open_files_info
                 .logs
                 .iter()
-                .filter(|fd_path| {
-                    fd_path
-                        .path
-                        .to_str()
-                        .is_some_and(|p| p.contains("test-dedup.log"))
-                })
-                .collect();
+                .filter(|path| path.to_string_lossy().contains("test-dedup.log"))
+                .count();
 
-            if !candidates.is_empty() {
-                let validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
-
-                let count = validated_logs
-                    .iter()
-                    .filter(|p| p.contains("test-dedup.log"))
-                    .count();
-
-                assert!(
-                    count <= 1,
-                    "Same log file should be deduplicated to single entry, found {} entries",
-                    count
-                );
-            }
+            assert_eq!(count, 1, "Same log file should be collected once");
         }
     }
 
@@ -411,6 +385,24 @@ mod tests {
                 "log file path should be in JSON"
             );
         }
+    }
+
+    #[test]
+    fn service_eligibility_uses_validated_logs() {
+        let no_logs = OpenFilesInfo {
+            sockets: vec![],
+            logs: vec![],
+            tracer_memfds: vec![],
+            memfd_path: None,
+            has_gpu_device: false,
+        };
+        assert!(!has_service_signals(&None, &None, &no_logs));
+
+        let valid_log = OpenFilesInfo {
+            logs: vec!["/tmp/application.log".into()],
+            ..no_logs
+        };
+        assert!(has_service_signals(&None, &None, &valid_log));
     }
 
     #[test]

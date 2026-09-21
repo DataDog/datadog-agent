@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Bound service-discovery log-file collection to 100 unique append-mode
+    paths per process, preventing excessive memory use from repeated log
+    descriptors.
