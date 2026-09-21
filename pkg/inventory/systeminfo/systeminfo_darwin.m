@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
+#import <SystemConfiguration/SystemConfiguration.h>
 #import "systeminfo_darwin.h"
 #import <stdlib.h>
 #import <string.h>
@@ -71,6 +72,16 @@ DeviceInfo getDeviceInfo(void) {
             } else {
                 info.productName = strdup("");
             }
+        }
+
+        // Computer Name is the user-assigned name from System Settings > Sharing,
+        // sourced via SystemConfiguration rather than IOKit.
+        CFStringRef computerNameRef = SCDynamicStoreCopyComputerName(NULL, NULL);
+        if (computerNameRef) {
+            info.computerName = strdup([(__bridge NSString *)computerNameRef UTF8String]);
+            CFRelease(computerNameRef);
+        } else {
+            info.computerName = strdup("");
         }
 
         return info;

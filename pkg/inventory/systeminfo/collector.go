@@ -6,7 +6,7 @@
 // Package systeminfo provides cross-platform system information collection.
 // This package defines the interfaces and types for collecting host system
 // information from various sources on the host system, including manufacturer, model,
-// serial number, enclosure type, enclosure type name, and host type.
+// serial number, enclosure type, enclosure type name, host type, and computer name.
 package systeminfo
 
 // SystemInfo represents the system information of the host system
@@ -17,6 +17,8 @@ type SystemInfo struct {
 	ModelName    string
 	ChassisType  string
 	Identifier   string
+	// ComputerName is the user-assigned device name (currently macOS-only).
+	ComputerName string
 }
 
 // Collect gathers system information from the system
