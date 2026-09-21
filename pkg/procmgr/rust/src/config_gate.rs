@@ -496,12 +496,61 @@ fn read_config_file(path: &str) -> Value {
     }
 }
 
+/// Serializes and sanitizes every test that evaluates a gate.
+///
+/// Gate resolution reads the live process environment, and Cargo runs the lib tests as
+/// threads in one process, so a test asserting that a gate stays closed has to exclude
+/// the tests that set `DD_*` values even though it sets none itself. Bound variables are
+/// cleared both on acquire and on drop, so tests neither inherit nor leak them.
+///
+/// Bind the guard to a named local, not `_`, or it drops immediately and isolates
+/// nothing. Not reentrant: let one guard drop before taking another.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn test_env_guard() -> TestEnvGuard {
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    let guard = TestEnvGuard {
+        _lock: ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner()),
+    };
+    reset_test_env();
+    guard
+}
+
+#[cfg(test)]
+pub(crate) struct TestEnvGuard {
+    _lock: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl Drop for TestEnvGuard {
+    fn drop(&mut self) {
+        reset_test_env();
+    }
+}
+
+#[cfg(test)]
+fn reset_test_env() {
+    // SAFETY: reached only through TestEnvGuard, which holds ENV_LOCK.
+    unsafe {
+        for name in env_bindings::all_bound_env_var_names() {
+            std::env::remove_var(name);
+        }
+        for name in [
+            "DD_FLEET_POLICIES_DIR",
+            "DD_CONF_DIR",
+            "ECS_FARGATE",
+            "AWS_EXECUTION_ENV",
+        ] {
+            std::env::remove_var(name);
+        }
+    }
+    set_test_agent_service_env(None);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard};
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// Agent YAML with every process-agent gate key off, including the two that default on.
     const ALL_PROCESS_GATES_OFF: &str = "\
@@ -534,24 +583,21 @@ process_config:
         )
     }
 
-    /// Test fixture: holds the env lock, gives each test a scratch config directory, and
-    /// evaluates gates against a chosen [`HostOs`].
+    /// Test fixture: holds [`test_env_guard`], gives each test a scratch config directory,
+    /// and evaluates gates against a chosen [`HostOs`].
     ///
-    /// Bound env vars are cleared on both construction and drop, so tests never inherit
-    /// or leak `DD_*` values. The lock is not reentrant: a test must let one fixture drop
-    /// before building the next, so build fixtures inside a loop body or use one per test.
+    /// The guard is not reentrant: a test must let one fixture drop before building the
+    /// next, so build fixtures inside a loop body or use one per test.
     struct Gate {
-        _lock: MutexGuard<'static, ()>,
+        _env: TestEnvGuard,
         dir: tempfile::TempDir,
         os: HostOs,
     }
 
     impl Gate {
         fn new() -> Self {
-            let lock = ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner());
-            reset_env();
             Self {
-                _lock: lock,
+                _env: test_env_guard(),
                 dir: tempfile::tempdir().unwrap(),
                 os: HostOs::CURRENT,
             }
@@ -600,7 +646,7 @@ process_config:
         }
 
         fn env(&self, name: &str, value: &str) {
-            // SAFETY: the fixture holds ENV_LOCK for its lifetime.
+            // SAFETY: the fixture holds the env guard for its lifetime.
             unsafe { std::env::set_var(name, value) };
         }
 
@@ -648,30 +694,6 @@ process_config:
                 },
             ])
         }
-    }
-
-    impl Drop for Gate {
-        fn drop(&mut self) {
-            reset_env();
-        }
-    }
-
-    fn reset_env() {
-        // SAFETY: callers hold ENV_LOCK.
-        unsafe {
-            for name in env_bindings::all_bound_env_var_names() {
-                std::env::remove_var(name);
-            }
-            for name in [
-                "DD_FLEET_POLICIES_DIR",
-                "DD_CONF_DIR",
-                "ECS_FARGATE",
-                "AWS_EXECUTION_ENV",
-            ] {
-                std::env::remove_var(name);
-            }
-        }
-        set_test_agent_service_env(None);
     }
 
     fn process_conditions(agent: &str) -> ConditionConfigFile {

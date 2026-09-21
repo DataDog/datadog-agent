@@ -166,7 +166,7 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 }
 
 // sparkFallbackConfigArg uses Spark's documented configuration-directory
-// override. When it is absent, readConfigFile considers known image defaults.
+// override. When it is absent, selectConfigFile considers known image defaults.
 func sparkFallbackConfigArg(envVars []configfilesdiscoveryimpl.ConfigEnvVar) string {
 	for _, envVar := range envVars {
 		if envVar.Name == "SPARK_CONF_DIR" && envVar.Value != "" {
@@ -196,8 +196,12 @@ func readSparkConfigFile(
 	}
 
 	if fallbackConfigArg := sparkFallbackConfigArg(envVars); fallbackConfigArg != "" {
-		configPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeWorkingDir)
+		resolvedPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeWorkingDir)
 		if !resolved {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+		}
+		configPath, verifyErr := configfilesdiscoveryimpl.VerifyConfigFilePath(resolvedPath)
+		if verifyErr != nil {
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
 		file, err = reader.ReadFile(ctx, configPath)
@@ -210,7 +214,11 @@ func readSparkConfigFile(
 		return file, true, nil
 	}
 
-	return readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)
+	selection, err := selectConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)
+	if err != nil || selection == nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, err
+	}
+	return selection.file, true, nil
 }
 
 func readSparkExplicitPropertiesFile(
@@ -253,7 +261,11 @@ func readSparkExplicitPropertiesFile(
 		return configfilesdiscoveryimpl.ConfigFile{}, false, explicitFound, runtimeWorkingDir, nil
 	}
 
-	file, err := reader.ReadFile(ctx, configPath)
+	verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configPath)
+	if err != nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, err
+	}
+	file, err := reader.ReadFile(ctx, verifiedPath)
 	if err != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, err
 	}
