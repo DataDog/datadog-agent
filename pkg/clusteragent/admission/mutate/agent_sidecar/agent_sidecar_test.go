@@ -704,6 +704,7 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 	tests := []struct {
 		name                string
 		clusterAgentEnabled bool
+		profilesJSON        string
 		secret              *corev1.Secret
 		apiError            error
 		expectInjection     bool
@@ -718,6 +719,46 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 				Data:       map[string][]byte{"api-key": []byte("api-key"), "token": []byte("token")},
 			},
 			expectInjection: true,
+		},
+		{
+			name:                "injects without checking credentials overridden by a profile",
+			clusterAgentEnabled: true,
+			profilesJSON: `[{
+                "env": [
+					{"name": "DD_API_KEY", "valueFrom": {"secretKeyRef": {"name": "custom-api-key", "key": "key"}}},
+					{"name": "DD_CLUSTER_AGENT_AUTH_TOKEN", "valueFrom": {"secretKeyRef": {"name": "custom-token", "key": "auth-token"}}}
+                ]
+            }]`,
+			expectInjection: true,
+		},
+		{
+			name:                "checks only credentials not overridden by a profile",
+			clusterAgentEnabled: true,
+			profilesJSON: `[{
+                "env": [
+					{"name": "DD_API_KEY", "value": "api-key"}
+                ]
+            }]`,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{"token": []byte("token")},
+			},
+			expectInjection: true,
+		},
+		{
+			name:                "skips when a credential not overridden by a profile is missing",
+			clusterAgentEnabled: true,
+			profilesJSON: `[{
+                "env": [
+					{"name": "DD_API_KEY", "value": "api-key"}
+                ]
+            }]`,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{},
+			},
+			expectedReason: agentSidecarSkipReasonTokenNotFound,
+			expectedError:  errAgentSidecarTokenNotFound,
 		},
 		{
 			name:                "skips when Secret is missing",
@@ -767,7 +808,11 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
 			mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", test.clusterAgentEnabled)
-			mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", "[]")
+			profilesJSON := test.profilesJSON
+			if profilesJSON == "" {
+				profilesJSON = "[]"
+			}
+			mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", profilesJSON)
 
 			objects := []runtime.Object{}
 			if test.secret != nil {

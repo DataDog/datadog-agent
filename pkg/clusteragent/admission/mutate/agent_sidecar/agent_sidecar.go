@@ -365,6 +365,12 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 }
 
 func (w *Webhook) validateAgentSidecarSecret(namespace string, apiClient kubernetes.Interface) error {
+	apiKeyOverridden := w.isAgentSidecarCredentialOverridden("DD_API_KEY")
+	tokenOverridden := w.isAgentSidecarCredentialOverridden("DD_CLUSTER_AGENT_AUTH_TOKEN")
+	if apiKeyOverridden && (!w.isClusterAgentEnabled || tokenOverridden) {
+		return nil
+	}
+
 	if apiClient == nil {
 		return errors.New("Kubernetes API client is unavailable")
 	}
@@ -377,16 +383,28 @@ func (w *Webhook) validateAgentSidecarSecret(namespace string, apiClient kuberne
 		return fmt.Errorf("failed to get Agent sidecar Secret: %w", err)
 	}
 
-	if _, found := secret.Data["api-key"]; !found {
-		return errAgentSidecarAPIKeyNotFound
+	if !apiKeyOverridden {
+		if _, found := secret.Data["api-key"]; !found {
+			return errAgentSidecarAPIKeyNotFound
+		}
 	}
-	if w.isClusterAgentEnabled {
+	if w.isClusterAgentEnabled && !tokenOverridden {
 		if _, found := secret.Data["token"]; !found {
 			return errAgentSidecarTokenNotFound
 		}
 	}
 
 	return nil
+}
+
+func (w *Webhook) isAgentSidecarCredentialOverridden(envName string) bool {
+	if len(w.profileOverrides) == 0 {
+		return false
+	}
+
+	return slices.ContainsFunc(w.profileOverrides[0].EnvVars, func(envVar corev1.EnvVar) bool {
+		return envVar.Name == envName
+	})
 }
 
 func agentSidecarSecretSkipReason(err error) string {
