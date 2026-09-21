@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -214,6 +215,10 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (t
 }
 
 func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetEKSClusterIdentity(_ context.Context) (*eks.ClusterIdentity, error) {
 	panic("implement me")
 }
 
