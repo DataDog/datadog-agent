@@ -54,8 +54,8 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 	}
 
 	return &healthplatform.Issue{
-		IssueName:   IssueName,
-		IssueType:   IssueType,
+		IssueName:   PermissionIssueName,
+		IssueType:   PermissionIssueType,
 		Title:       fmt.Sprintf("Docker socket permission denied at '%s'", socketPaths),
 		Description: fmt.Sprintf("The dd-agent user does not have permission to connect to the Docker socket at %s. The socket exists but the agent gets a permission-denied error when connecting, so it cannot query the Docker daemon for container metadata, logs, or checks.", socketPaths),
 		Category:    "permissions",

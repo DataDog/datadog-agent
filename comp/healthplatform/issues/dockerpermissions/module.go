@@ -26,16 +26,16 @@ func init() {
 
 // Docker Socket Permission issue identity.
 const (
-	// IssueName is the identifier for the Docker socket permission issue,
+	// PermissionIssueName is the identifier for the Docker socket permission issue,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "Docker Socket Permission"
+	PermissionIssueName = "Docker Socket Permission"
 
-	// IssueType is the snake_case type key for the Docker socket permission
-	// issue: IssueName lowercased with spaces replaced by underscores.
-	IssueType = "docker_socket_permission"
+	// PermissionIssueType is the snake_case type key for the Docker socket permission
+	// issue: PermissionIssueName lowercased with spaces replaced by underscores.
+	PermissionIssueType = "docker_socket_permission"
 
-	// IssueID is the unique instance id prefix used when reporting this issue.
-	IssueID = "docker-socket-permissions"
+	// PermissionIssueID is the unique instance id prefix used when reporting this issue.
+	PermissionIssueID = "docker-socket-permissions"
 )
 
 // Docker Socket Unavailable issue identity.
@@ -85,11 +85,11 @@ func NewModule(deps issues.ModuleDeps) issues.Module {
 }
 
 func (m *dockerPermissionsModule) IssueName() string {
-	return IssueName
+	return PermissionIssueName
 }
 
 func (m *dockerPermissionsModule) IssueType() string {
-	return IssueType
+	return PermissionIssueType
 }
 
 func (m *dockerPermissionsModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {

@@ -51,8 +51,8 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	if len(permissionSockets) > 0 {
 		socketPaths := strings.Join(permissionSockets, ",")
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(IssueID, socketPaths),
-			IssueName: IssueName,
+			IssueID:   c.instanceIssueID(PermissionIssueID, socketPaths),
+			IssueName: PermissionIssueName,
 			Source:    "docker",
 			Context: map[string]string{
 				"socketPaths": socketPaths,

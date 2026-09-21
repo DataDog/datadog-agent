@@ -32,8 +32,8 @@ func TestBuildIssue_Defaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, issue)
 
-	assert.Equal(t, IssueName, issue.GetIssueName())
-	assert.Equal(t, IssueType, issue.GetIssueType())
+	assert.Equal(t, PermissionIssueName, issue.GetIssueName())
+	assert.Equal(t, PermissionIssueType, issue.GetIssueType())
 	assert.Contains(t, issue.GetTitle(), "/var/run/docker.sock")
 	assert.Contains(t, issue.GetDescription(), "permission")
 	assert.Equal(t, "permissions", issue.GetCategory())
@@ -114,8 +114,8 @@ func TestBuildIssue_Extra(t *testing.T) {
 
 func TestNewModule(t *testing.T) {
 	m := NewModule(issues.ModuleDeps{})
-	assert.Equal(t, IssueName, m.IssueName())
-	assert.Equal(t, IssueType, m.IssueType())
+	assert.Equal(t, PermissionIssueName, m.IssueName())
+	assert.Equal(t, PermissionIssueType, m.IssueType())
 
 	issue, err := m.BuildIssue(map[string]string{})
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	c2 := newChecker(hn2)
 
 	const sockets = "/var/run/docker.sock"
-	assert.NotEqual(t, c1.instanceIssueID(IssueID, sockets), c2.instanceIssueID(IssueID, sockets))
+	assert.NotEqual(t, c1.instanceIssueID(PermissionIssueID, sockets), c2.instanceIssueID(PermissionIssueID, sockets))
 }
 
 func TestInstanceIssueID_PrefixedByIssueID(t *testing.T) {
@@ -145,9 +145,9 @@ func TestInstanceIssueID_PrefixedByIssueID(t *testing.T) {
 	c := newChecker(hn)
 
 	const sockets = "/var/run/docker.sock"
-	assert.True(t, strings.HasPrefix(c.instanceIssueID(IssueID, sockets), IssueID+":"))
+	assert.True(t, strings.HasPrefix(c.instanceIssueID(PermissionIssueID, sockets), PermissionIssueID+":"))
 	assert.True(t, strings.HasPrefix(c.instanceIssueID(SocketUnavailableIssueID, sockets), SocketUnavailableIssueID+":"))
-	assert.NotEqual(t, c.instanceIssueID(IssueID, sockets), c.instanceIssueID(SocketUnavailableIssueID, sockets))
+	assert.NotEqual(t, c.instanceIssueID(PermissionIssueID, sockets), c.instanceIssueID(SocketUnavailableIssueID, sockets))
 }
 
 // The id must be deterministic (stable across ticks) for the same host and socket set.
@@ -156,7 +156,7 @@ func TestInstanceIssueID_Stable(t *testing.T) {
 	c := newChecker(hn)
 
 	const sockets = "/var/run/docker.sock"
-	assert.Equal(t, c.instanceIssueID(IssueID, sockets), c.instanceIssueID(IssueID, sockets))
+	assert.Equal(t, c.instanceIssueID(PermissionIssueID, sockets), c.instanceIssueID(PermissionIssueID, sockets))
 }
 
 // The affected socket set must scope the id so a host with a different set of failing sockets files a distinct issue.
@@ -164,10 +164,10 @@ func TestInstanceIssueID_DiffersBySocketSet(t *testing.T) {
 	hn, _ := hostnamemock.NewMock("host-a")
 	c := newChecker(hn)
 
-	base := c.instanceIssueID(IssueID, "/var/run/docker.sock")
+	base := c.instanceIssueID(PermissionIssueID, "/var/run/docker.sock")
 
-	assert.NotEqual(t, base, c.instanceIssueID(IssueID, "//./pipe/docker_engine"), "a different socket must change the id")
-	assert.NotEqual(t, base, c.instanceIssueID(IssueID, "/host/var/run/docker.sock,/var/run/docker.sock"), "adding a socket must change the id")
+	assert.NotEqual(t, base, c.instanceIssueID(PermissionIssueID, "//./pipe/docker_engine"), "a different socket must change the id")
+	assert.NotEqual(t, base, c.instanceIssueID(PermissionIssueID, "/host/var/run/docker.sock,/var/run/docker.sock"), "adding a socket must change the id")
 }
 
 func TestBuildIssue_SocketUnavailable_Defaults(t *testing.T) {
