@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventory wires the Azure App Service (.NET extension) dogstatsd.exe
+// Package aas wires the Azure App Service (.NET extension) dogstatsd.exe
 // process to the shared inventoryagent component so it can emit a serverless
 // inventory payload. All AAS-specific metadata derivation lives here; the
 // shared component stays generic.
-package inventory
+package aas
 
 import (
 	"context"
