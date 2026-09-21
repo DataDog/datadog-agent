@@ -276,7 +276,6 @@ func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, emit func(*gosnmp.Snmp
 	return gosnmplib.ConditionalWalk(
 		ctx,
 		snmp,
-		"",
 		callInterval,
 		maxCallCount,
 		func(dataUnit gosnmp.SnmpPDU) (string, error) {

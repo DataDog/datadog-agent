@@ -21,30 +21,18 @@ var RootOIDs = []string{".0.0", ".1.0"}
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
-// When starting at the default root, failed initial requests try RootOIDs in order.
+// Failed initial requests try RootOIDs in order.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
 	session *gosnmp.GoSNMP,
-	rootOID string,
 	callInterval time.Duration,
 	maxCallCount int,
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
 ) error {
 	rootOIDs := RootOIDs
-	if rootOID == "" || rootOID == "." {
-		rootOID = rootOIDs[0]
-	}
-
-	if !strings.HasPrefix(rootOID, ".") {
-		rootOID = "." + rootOID
-	}
-	if rootOID != rootOIDs[0] {
-		rootOIDs = []string{rootOID}
-	}
-
 	rootIndex := 0
-	oid := rootOID
+	oid := rootOIDs[rootIndex]
 	requests := 0
 
 RequestLoop:
