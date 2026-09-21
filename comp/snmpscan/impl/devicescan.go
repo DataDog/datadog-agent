@@ -359,13 +359,7 @@ RequestLoop:
 			}
 		}
 		emptyResponse := err == nil && len(response.Variables) == 0
-		endOfMIB := false
-		if err == nil && !emptyResponse {
-			firstPDUType := response.Variables[0].Type
-			endOfMIB = firstPDUType == gosnmp.EndOfMibView ||
-				firstPDUType == gosnmp.NoSuchObject ||
-				firstPDUType == gosnmp.NoSuchInstance
-		}
+		endOfMIB := err == nil && !emptyResponse && gosnmplib.IsEndOfMIB(response.Variables[0].Type)
 		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
@@ -396,9 +390,7 @@ RequestLoop:
 
 		for _, pdu := range response.Variables {
 			// End conditions.
-			if pdu.Type == gosnmp.EndOfMibView ||
-				pdu.Type == gosnmp.NoSuchObject ||
-				pdu.Type == gosnmp.NoSuchInstance {
+			if gosnmplib.IsEndOfMIB(pdu.Type) {
 				log.Debugf("SNMP scan for device %s reached end of MIB view at OID %s after %d requests, %d OIDs collected", deviceID, lastOID, requests, emitted)
 				break RequestLoop
 			}

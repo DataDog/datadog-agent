@@ -19,6 +19,13 @@ import (
 // Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
 var RootOIDs = []string{".0.0", ".1.0"}
 
+// IsEndOfMIB reports whether a PDU type terminates an SNMP walk.
+func IsEndOfMIB(pduType gosnmp.Asn1BER) bool {
+	return pduType == gosnmp.EndOfMibView ||
+		pduType == gosnmp.NoSuchObject ||
+		pduType == gosnmp.NoSuchInstance
+}
+
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
 // Requests that fail or end the walk before collecting any OIDs try RootOIDs in order.
@@ -59,13 +66,7 @@ RequestLoop:
 		response, err := session.GetNext([]string{oid})
 		requestFailed := err != nil || response.Error != gosnmp.NoError
 		emptyResponse := err == nil && len(response.Variables) == 0
-		endOfMIB := false
-		if err == nil && !emptyResponse {
-			firstPDUType := response.Variables[0].Type
-			endOfMIB = firstPDUType == gosnmp.EndOfMibView ||
-				firstPDUType == gosnmp.NoSuchObject ||
-				firstPDUType == gosnmp.NoSuchInstance
-		}
+		endOfMIB := err == nil && !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
 		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
@@ -86,7 +87,7 @@ RequestLoop:
 		lastOid := oid
 
 		for i, pdu := range response.Variables {
-			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
+			if IsEndOfMIB(pdu.Type) {
 				session.Logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
 				break RequestLoop
 			}
