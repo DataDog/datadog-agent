@@ -87,11 +87,78 @@ bazel:test:linux-arm64:
 # repro here means a deterministic fork bug.
 bazel:test:linux-amd64-no-cache:
   extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
+  variables:
+    # Targets used by the post-build diagnostics (aquery graph check,
+    # transition chain). Any bazel target label(s) work.
+    NO_CACHE_DIAG_TARGETS: "//test/e2e-framework/testing/utils/e2e/client:client_test //pkg/dyninst/irgen:irgen_test_bpf"
   script:
     - !reference [.bazel:test:reporting:ci_links]
+    - set +e
     # --config=no-remote-cache clears the remote cache; --disk_cache= overrides
     # the wrapper's injected disk cache (user flags come after the wrapper's).
-    - bazel test --config=no-remote-cache --disk_cache= --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    # --sandbox_debug retains the sandbox of every failing action; the
+    # execution log records every executed action's argv, inputs and outputs.
+    - bazel test --config=no-remote-cache --disk_cache= --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --sandbox_debug --execution_log_json_file=$CI_PROJECT_DIR/execution-log.json --build_event_json_file=$BEP_FILE //...
+    - TEST_EXIT=$?
+    # --- Diagnostics: run regardless of the test outcome, all into diag/ ---
+    - |
+      mkdir -p diag
+      OB="$(bazel info output_base 2>/dev/null)"
+      {
+        echo "########## D1: every packages.txt across all output trees ##########"
+        find "$OB/execroot/_main/bazel-out" -path '*go_work_sdk/packages.txt' 2>/dev/null | sort | while read -r p; do
+          if [ -e "$p" ]; then
+            echo "EXISTS    $(stat -c%s "$p" 2>/dev/null || stat -f%z "$p") bytes  $p"
+          else
+            echo "DANGLING  $p"
+          fi
+        done
+        echo
+        echo "########## D2: go_work_sdk repo dirs per output tree ##########"
+        find "$OB/execroot/_main/bazel-out" -type d -path '*bin/external/rules_go++go_sdk+go_work_sdk' 2>/dev/null | sort | while read -r d; do
+          echo "-- $d"
+          ls -la "$d" | sed -n '2,15p'
+        done
+        echo
+        echo "########## D3: retained failing sandboxes (--sandbox_debug) ##########"
+        for s in $(ls -dt "$OB"/sandbox/processwrapper-sandbox/*/ 2>/dev/null | head -8); do
+          echo "-- $s"
+          find "$s" -maxdepth 12 -path '*go_work_sdk*' 2>/dev/null | head -20
+        done
+        echo
+        echo "########## D4: aquery generator/consumer check per failing target ##########"
+        for t in $NO_CACHE_DIAG_TARGETS; do
+          safe="$(echo "$t" | tr '/:' '__')"
+          bazel aquery "deps($t)" --output=text > "diag/aq-$safe.txt" 2>/dev/null
+          python3 bazel/tools/packages_txt_diagnostics.py graph-check "diag/aq-$safe.txt" "$t"
+        done
+        echo
+        echo "########## D5: transition chain to :package_list ##########"
+        for t in $NO_CACHE_DIAG_TARGETS; do
+          bazel cquery --transitions=lite "somepath($t, @@rules_go++go_sdk+go_work_sdk//:package_list)" 2>&1 | head -60
+        done
+        echo
+        echo "########## D6: execution log — packages.txt producers/consumers ##########"
+        python3 bazel/tools/packages_txt_diagnostics.py execlog "$CI_PROJECT_DIR/execution-log.json"
+        echo
+        echo "########## D7: configuration inventory ##########"
+        bazel config 2>&1 | head -40
+        bazel config --output=text 2>&1 | grep -B3 -A3 orchestrion | head -60
+      } 2>&1 | tee diag/diagnosis.txt
+    - exit $TEST_EXIT
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $RESULT_JSON
+      - test_output_unified.json
+      - junit-*.tgz
+      - bazel-bep.json
+      - diag/
+      - execution-log.json
+    reports:
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
