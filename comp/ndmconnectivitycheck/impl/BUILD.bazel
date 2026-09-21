@@ -9,7 +9,7 @@ go_library(
         "newcomponent.go",
         "scan.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/networkdevices/impl",
+    importpath = "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
@@ -17,7 +17,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
-        "//comp/networkdevices/def",
+        "//comp/ndmconnectivitycheck/def",
         "//pkg/networkdevice/probe",
         "//pkg/networkdevice/probe/pingprobe",
         "//pkg/networkdevice/probe/snmpprobe",
