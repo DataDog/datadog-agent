@@ -56,7 +56,7 @@ use crate::env::expand_env_vars;
 use env_bindings::{env_bool_for_key, env_configured_for_key, env_string_for_key};
 
 #[cfg(any(test, feature = "test-helpers"))]
-pub use env_bindings::set_test_agent_service_env;
+pub use env_bindings::{gate_env_var_names, set_test_agent_service_env};
 
 /// A YAML file and dotted config keys; any key set to true satisfies the gate.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -533,17 +533,10 @@ impl Drop for TestEnvGuard {
 fn reset_test_env() {
     // SAFETY: reached only through TestEnvGuard, which holds ENV_LOCK.
     unsafe {
-        for name in env_bindings::all_bound_env_var_names() {
+        for name in gate_env_var_names() {
             std::env::remove_var(name);
         }
-        for name in [
-            "DD_FLEET_POLICIES_DIR",
-            "DD_CONF_DIR",
-            "ECS_FARGATE",
-            "AWS_EXECUTION_ENV",
-        ] {
-            std::env::remove_var(name);
-        }
+        std::env::remove_var("DD_CONF_DIR");
     }
     set_test_agent_service_env(None);
 }
