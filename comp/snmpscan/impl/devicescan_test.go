@@ -164,10 +164,16 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "request timeout")
-	// 4 → 2 → 1 at each root: 6 calls.
-	assert.GreaterOrEqual(t, len(fake.calls), 2)
+	require.ErrorIs(t, err, timeoutErr)
+	assert.IsType(t, &gosnmplib.ConnectionError{}, err)
+	assert.Equal(t, []bulkCall{
+		{oid: ".0.0", maxRep: 4},
+		{oid: ".0.0", maxRep: 2},
+		{oid: ".0.0", maxRep: 1},
+		{oid: ".1.0", maxRep: 4},
+		{oid: ".1.0", maxRep: 2},
+		{oid: ".1.0", maxRep: 1},
+	}, fake.calls)
 }
 
 func TestColumnFilteringLogic(t *testing.T) {
