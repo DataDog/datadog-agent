@@ -75,7 +75,7 @@ func (v *ec2TCPCongestionSuite) SetupSuite() {
 	// Docker and docker-compose are pre-baked into the AWS e2e AMI; ec2.WithDocker()
 	// in the provisioner wires up the docker.Manager.
 	// Write compose file and start containers.
-	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionComposeYaml))
+	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionCompose()))
 	host.MustExecute("cd /tmp/tcp-congestion && docker-compose up -d")
 
 	// Wait for iperf3 server ready
