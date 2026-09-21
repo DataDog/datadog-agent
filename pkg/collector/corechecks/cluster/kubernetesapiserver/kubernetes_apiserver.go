@@ -644,7 +644,7 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 // environment (e.g. restrictive network policies), so any failure here is
 // best-effort: it is logged and does not fail the check.
 func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), apiServerClientTimeout())
 	defer cancel()
 
 	family, err := apiservercommon.FetchAPIServerMetricFamily(
@@ -667,6 +667,10 @@ func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
 	}
 
 	submitStorageObjectsMetrics(sender, family)
+}
+
+func apiServerClientTimeout() time.Duration {
+	return time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second
 }
 
 // submitStorageObjectsMetrics emits one kube_apiserver.storage_objects gauge per sample

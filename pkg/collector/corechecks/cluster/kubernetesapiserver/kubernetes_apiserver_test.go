@@ -9,6 +9,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -17,6 +18,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
@@ -193,4 +195,11 @@ func TestSubmitStorageObjectsMetrics(t *testing.T) {
 			mocked.AssertExpectations(t)
 		})
 	}
+}
+
+func TestAPIServerClientTimeout(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("kubernetes_apiserver_client_timeout", 27)
+
+	assert.Equal(t, 27*time.Second, apiServerClientTimeout())
 }
