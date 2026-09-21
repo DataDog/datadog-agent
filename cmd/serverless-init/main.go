@@ -563,10 +563,9 @@ func setup(
 	// the same snapshot otherwise shares.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
 		instanceUUID.SetInstance(microVMID)
-		if serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags) {
-			serverlessInitInventory.SetResourceID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
-			serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
-		}
+		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.SetResourceID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
+		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
 	})
 
 	// Note: we do not modify tags for the LogsAgent.

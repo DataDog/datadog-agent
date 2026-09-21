@@ -14,6 +14,7 @@ package inventory
 
 import (
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
