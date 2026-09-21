@@ -64,7 +64,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
                     return;
                 }
 
-                // A linear lookup is sufficient because the vector is capped at 100 entries.
+                // A linear lookup is ok, because of MAX_LOG_FILES
                 if result.logs.iter().any(|path| path == &link) {
                     return;
                 }
