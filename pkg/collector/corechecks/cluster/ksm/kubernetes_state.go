@@ -460,9 +460,23 @@ func (k *KSMCheck) buildStores() error {
 
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
-		// Pods come from the kubelet, nothing API-server related to set up.
+		// Pods come from the kubelet, nothing API-server related to set up
+		// for the pod factory itself. DRA resources, however, still need
+		// discovery and an API client: the mode changes where pod data comes
+		// from, not what metrics the check can produce.
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
+
+		if k.instance.CollectDRAResources {
+			apiServerClient, err = apiserver.GetAPIClient()
+			if err != nil {
+				return err
+			}
+			resources, err = discoverResources(apiServerClient.Cl.Discovery())
+			if err != nil {
+				return err
+			}
+		}
 	case clusterAggregatesOnlyPodCollection:
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()

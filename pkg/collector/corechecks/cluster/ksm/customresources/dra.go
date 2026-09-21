@@ -68,11 +68,6 @@ func DRAAPIVersion(resources []*metav1.APIResourceList) string {
 	return ""
 }
 
-// DeviceTaintRuleSupported reports whether the cluster serves
-// DeviceTaintRule objects (stable in Kubernetes 1.37, KEP-5055). On older
-// clusters the resource type does not exist and the factory is not
-// registered: starting an informer against a missing resource would be
-// pure error noise on every reconcile.
 // DeviceTaintRuleAPIVersion returns the version at which the cluster serves
 // DeviceTaintRule objects, or "" when the resource is absent. This is
 // negotiated independently from claims/slices: a cluster can serve claims at
@@ -126,8 +121,8 @@ func draListWatch(customResourceClient interface{}, ns string, fieldSelector str
 		err := fmt.Errorf("DRA: unexpected custom resource client type %T", customResourceClient)
 		log.Errorf("%s", err)
 		return &cache.ListWatch{
-			ListFunc:  func(metav1.ListOptions) (runtime.Object, error) { return nil, err },
-			WatchFunc: func(metav1.ListOptions) (watch.Interface, error) { return nil, err },
+			ListFunc:  func(metav1.ListOptions) (runtime.Object, error) { return nil, err },  //nolint:staticcheck // SA1019: portable across client-go versions; error fallback path only
+			WatchFunc: func(metav1.ListOptions) (watch.Interface, error) { return nil, err }, //nolint:staticcheck // SA1019: portable across client-go versions; error fallback path only
 		}
 	}
 

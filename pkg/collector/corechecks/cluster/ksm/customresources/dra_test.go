@@ -621,6 +621,56 @@ func spanningDevice(name, memory string, counterSets ...string) map[string]inter
 // A spanning device is an alternative to the per-card options, not an addition
 // to them: adding {A}, {B} and {A,B} as independent groups would report 380Gi
 // of hardware that can only ever present 190Gi.
+// Order independence: the same set of devices in different order must
+// produce the same capacity. The `measured` map is the immutable baseline
+// spanning devices are apportioned against; perSet only accumulates.
+func TestResourceSliceCapacityIsOrderIndependent(t *testing.T) {
+	mk := func(order ...map[string]interface{}) []interface{} {
+		out := make([]interface{}, len(order))
+		for i, d := range order {
+			out[i] = d
+		}
+		return out
+	}
+
+	// A single-set device that measures set A, then two spanning devices
+	// over {A,B} and {B,C}. Processing AB before BC vs after must agree.
+	single := map[string]interface{}{
+		"name":     "gpu-0",
+		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "100Gi"}},
+		"consumesCounters": []interface{}{
+			map[string]interface{}{"counterSet": "set-A", "counters": map[string]interface{}{"s": map[string]interface{}{"value": "1"}}},
+		},
+	}
+	spanAB := map[string]interface{}{
+		"name":     "gpu-0-1-nvlink",
+		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "200Gi"}},
+		"consumesCounters": []interface{}{
+			map[string]interface{}{"counterSet": "set-A", "counters": map[string]interface{}{"s": map[string]interface{}{"value": "1"}}},
+			map[string]interface{}{"counterSet": "set-B", "counters": map[string]interface{}{"s": map[string]interface{}{"value": "1"}}},
+		},
+	}
+	spanBC := map[string]interface{}{
+		"name":     "gpu-1-2-nvlink",
+		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "100Gi"}},
+		"consumesCounters": []interface{}{
+			map[string]interface{}{"counterSet": "set-B", "counters": map[string]interface{}{"s": map[string]interface{}{"value": "1"}}},
+			map[string]interface{}{"counterSet": "set-C", "counters": map[string]interface{}{"s": map[string]interface{}{"value": "1"}}},
+		},
+	}
+
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	forward := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").
+		Generate(newSliceObject(t, mk(single, spanAB, spanBC)))
+	reverse := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").
+		Generate(newSliceObject(t, mk(single, spanBC, spanAB)))
+
+	require.Len(t, forward.Metrics, 1)
+	require.Len(t, reverse.Metrics, 1)
+	assert.InDelta(t, forward.Metrics[0].Value, reverse.Metrics[0].Value, 1.0,
+		"capacity must be independent of device iteration order")
+}
+
 func TestResourceSliceCapacityJoinsOverlappingCounterSets(t *testing.T) {
 	f := &resourceSliceFactory{apiVersion: "v1"}
 	obj := newSliceObject(t, []interface{}{
@@ -682,4 +732,46 @@ func TestResourceSliceCapacitySplitsSpanEvenlyWithoutABaseline(t *testing.T) {
 	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
 	require.Len(t, capacity.Metrics, 1)
 	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// A set nothing measures on its own is unknown, not zero. Weighting it at zero
+// would push each span entirely onto its measured neighbour and report 380Gi;
+// giving it the span's remainder infers B at 95Gi and totals 285Gi.
+func TestResourceSliceCapacityInfersUnmeasuredCounterSets(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "95Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-2-counter-set", "gpu-2", "95Gi", "memory-slice-0"),
+		spanningDevice("gpu-0-1-nvlink", "190Gi", "gpu-0-counter-set", "gpu-1-counter-set"),
+		spanningDevice("gpu-1-2-nvlink", "190Gi", "gpu-1-counter-set", "gpu-2-counter-set"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(285*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// Spans are weighted off the single-set measurements only, so one span's
+// estimate never becomes the next one's baseline and the order the devices
+// arrive in cannot change the total.
+func TestResourceSliceCapacityIsIndependentOfSpanOrder(t *testing.T) {
+	ab := spanningDevice("ab", "190Gi", "gpu-0-counter-set", "gpu-1-counter-set")
+	bc := spanningDevice("bc", "190Gi", "gpu-1-counter-set", "gpu-2-counter-set")
+	cd := spanningDevice("cd", "190Gi", "gpu-2-counter-set", "gpu-3-counter-set")
+
+	total := func(t *testing.T, devices []interface{}) float64 {
+		t.Helper()
+		f := &resourceSliceFactory{apiVersion: "v1"}
+		capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").
+			Generate(newSliceObject(t, devices))
+		require.Len(t, capacity.Metrics, 1)
+		return capacity.Metrics[0].Value
+	}
+
+	assert.Equal(t,
+		total(t, []interface{}{ab, bc, cd}),
+		total(t, []interface{}{ab, cd, bc}))
+	assert.Equal(t,
+		total(t, []interface{}{ab, bc, cd}),
+		total(t, []interface{}{cd, bc, ab}))
 }

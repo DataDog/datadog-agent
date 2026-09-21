@@ -227,13 +227,25 @@ func parseQuantity(value string) (float64, error) {
 // filter. Verified against sharedCounters on twelve live pools: the two agree
 // exactly for every capacity key.
 //
-// A spanning device's capacity is apportioned in proportion to what its sets
-// are independently known to be worth, taken from the devices that draw on one
+// A spanning device's capacity is apportioned using what its sets are
+// independently known to be worth, measured by the devices that draw on one
 // set alone. Splitting it evenly instead would hand a set more than it can
 // hold: with an 80Gi A, a 40Gi B and a 120Gi AB, half of 120 gives B 60Gi and
-// the total comes to 140Gi for hardware that tops out at 120Gi. Sets with no
-// single-set device to measure them fall back to an even split, there being
-// nothing better to go on.
+// the total comes to 140Gi for hardware that tops out at 120Gi.
+//
+// A set the slice never measures on its own is not worth zero, it is unknown,
+// and weighting it at zero would push the whole span onto its neighbours --
+// 95Gi A and C with a 190Gi AB and BC and no standalone B would report 380Gi
+// instead of 285Gi. Measured sets therefore keep their measured value and
+// whatever the span has left over is divided among the unmeasured ones, which
+// infers the missing B at 95Gi. Only when every set is measured is the span
+// divided in proportion, so that a span larger than its parts still counts
+// for its full size.
+//
+// The measurements are kept apart from these inferences on purpose: reading
+// them back would make one span's estimate the next span's baseline, and the
+// total would depend on the order the devices happen to appear in. Three
+// 190Gi spans AB, BC, CD came to 475Gi or 380Gi depending on that order.
 //
 // It stays an approximation. The API does not state how much of a spanning
 // device's capacity each set contributes: consumesCounters names the counters
@@ -250,11 +262,14 @@ func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
 	parsed := make([]parsedDevice, 0, len(devices))
 	// counter set -> capacity name -> largest capacity attributable to it.
 	perSet := map[string]map[string]float64{}
-	attribute := func(set, name string, q float64) {
-		attributed := perSet[set]
+	// Only what single-set devices measured. Read while apportioning spans and
+	// never written by them, so no span can become another span's baseline.
+	measured := map[string]map[string]float64{}
+	attribute := func(into map[string]map[string]float64, set, name string, q float64) {
+		attributed := into[set]
 		if attributed == nil {
 			attributed = map[string]float64{}
-			perSet[set] = attributed
+			into[set] = attributed
 		}
 		if cur, seen := attributed[name]; !seen || q > cur {
 			attributed[name] = q
@@ -298,7 +313,8 @@ func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
 			// Measures its set on its own; the baseline the spanning devices
 			// below are apportioned against.
 			for name, q := range capacity {
-				attribute(sets[0], name, q)
+				attribute(measured, sets[0], name, q)
+				attribute(perSet, sets[0], name, q)
 			}
 		default:
 			parsed = append(parsed, parsedDevice{sets: sets, capacity: capacity})
@@ -307,16 +323,39 @@ func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
 
 	for _, d := range parsed {
 		for name, q := range d.capacity {
-			baseline := 0.0
+			known := 0.0
+			unmeasured := 0
 			for _, set := range d.sets {
-				baseline += perSet[set][name]
-			}
-			for _, set := range d.sets {
-				share := 1 / float64(len(d.sets))
-				if baseline > 0 {
-					share = perSet[set][name] / baseline
+				if v, ok := measured[set][name]; ok {
+					known += v
+				} else {
+					unmeasured++
 				}
-				attribute(set, name, q*share)
+			}
+			switch {
+			case unmeasured > 0:
+				// Measured sets stand on their own measurement; the remainder
+				// is what the unmeasured ones have to account for.
+				remainder := q - known
+				if remainder < 0 {
+					remainder = 0
+				}
+				for _, set := range d.sets {
+					if v, ok := measured[set][name]; ok {
+						attribute(perSet, set, name, v)
+						continue
+					}
+					attribute(perSet, set, name, remainder/float64(unmeasured))
+				}
+			case known > 0:
+				for _, set := range d.sets {
+					attribute(perSet, set, name, q*measured[set][name]/known)
+				}
+			default:
+				// Every set measured, all at zero: nothing to weight by.
+				for _, set := range d.sets {
+					attribute(perSet, set, name, q/float64(len(d.sets)))
+				}
 			}
 		}
 	}
