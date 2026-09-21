@@ -167,19 +167,16 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 	if workload.Type() == "container" {
 		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
 		workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
-		if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
-			workload.Selector.Tag = "latest"
-		}
 	} else if workload.Type() == "cgroup" {
 		// For cgroup workloads, set service information as the selector
 		serviceName := utils.GetTagValue("service", newTags)
 		if len(serviceName) != 0 {
 			workload.Selector.Image = serviceName
 			workload.Selector.Tag = utils.GetTagValue("version", newTags)
-			if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
-				workload.Selector.Tag = "latest"
-			}
 		}
+	}
+	if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 && workload.Type() != "unknown" {
+		seclog.Warnf("No version tag found for workload %v", workloadID)
 	}
 
 	return nil
