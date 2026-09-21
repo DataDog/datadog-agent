@@ -185,6 +185,26 @@ func draDeviceCapacity(device map[string]interface{}) map[string]interface{} {
 	return nestedMapNoCopy(device, "capacity")
 }
 
+// draDeviceConsumesCounters reports whether a device draws from a pool-wide
+// counter set, which is the API's own marker that it is one of several
+// mutually exclusive ways to partition the same hardware rather than a
+// separate piece of it. Devices without it are independent and additive.
+// Mirrors draDeviceCapacity's handling of the v1beta1 "basic" wrapper.
+func draDeviceConsumesCounters(device map[string]interface{}) bool {
+	src := device
+	if basic, found, _ := unstructured.NestedFieldNoCopy(device, "basic"); found {
+		if m, ok := basic.(map[string]interface{}); ok {
+			src = m
+		}
+	}
+	consumes, found, err := unstructured.NestedFieldNoCopy(src, "consumesCounters")
+	if !found || err != nil {
+		return false
+	}
+	list, ok := consumes.([]interface{})
+	return ok && len(list) > 0
+}
+
 // emptyFamily is the "this object contributes no sample" return value.
 func emptyFamily() *metric.Family {
 	return &metric.Family{Metrics: []*metric.Metric{}}

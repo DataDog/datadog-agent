@@ -114,7 +114,7 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 		),
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_resourceslice_capacity",
-			"Advertised capacity per capacity name, summed across the devices in a DRA ResourceSlice.",
+			"Advertised capacity per capacity name across the devices in a DRA ResourceSlice.",
 			metric.Gauge,
 			basemetrics.ALPHA,
 			"",
@@ -128,12 +128,36 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 				if !found {
 					return emptyFamily()
 				}
-				totals := map[string]float64{}
+				// Devices are additive only when they are independent. A
+				// partitionable device declares consumesCounters: it draws from
+				// a pool-wide budget, and the entries that do so are alternative
+				// ways to cut the same hardware, not extra hardware. Summing
+				// them multiplies the real capacity by however many options
+				// compete for each unit -- on an RTX PRO 6000 advertising 31
+				// placements over 12 memory slices that is a 12x overcount
+				// (1136Gi reported against 95Gi of memory).
+				//
+				// So: independent devices add, partitionable ones contribute
+				// their largest option. The largest is the whole device, since
+				// "do not partition" is itself an advertised option consuming
+				// the entire counter set -- verified against spec.sharedCounters,
+				// which max() reproduces exactly for every capacity key.
+				//
+				// Taking it from the devices rather than from sharedCounters is
+				// deliberate: the counter set also carries allocation tokens
+				// (memory-slice-0..11, value 1 each) that exist only to express
+				// which placements conflict. They are not capacity, nothing
+				// distinguishes them from a real counter in the API, and no
+				// device advertises them -- so reading the device side leaves
+				// them out by construction instead of by a name filter.
+				sums := map[string]float64{}
+				maxes := map[string]float64{}
 				for _, d := range devices {
 					devMap, ok := d.(map[string]interface{})
 					if !ok {
 						continue
 					}
+					exclusive := draDeviceConsumesCounters(devMap)
 					for name, entry := range draDeviceCapacity(devMap) {
 						// In the unstructured API object each resource.Quantity is a
 						// plain string (e.g. "80Gi"), not an object with a "value" key.
@@ -149,8 +173,22 @@ func (f *resourceSliceFactory) MetricFamilyGenerators() []generator.FamilyGenera
 						if err != nil {
 							continue
 						}
-						totals[name] += q
+						if exclusive {
+							if cur, seen := maxes[name]; !seen || q > cur {
+								maxes[name] = q
+							}
+							continue
+						}
+						sums[name] += q
 					}
+				}
+				// A slice holding both kinds is not a shape any driver emits
+				// today, but the two combine without a special case: the
+				// independent devices are all present at once, alongside
+				// whichever single partition option is chosen.
+				totals := sums
+				for name, q := range maxes {
+					totals[name] += q
 				}
 				if len(totals) == 0 {
 					return emptyFamily()

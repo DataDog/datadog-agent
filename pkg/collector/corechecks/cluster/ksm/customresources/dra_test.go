@@ -500,3 +500,82 @@ func newClaimObject(namespace, name string) *unstructured.Unstructured {
 		"metadata":   map[string]interface{}{"namespace": namespace, "name": name},
 	}}
 }
+
+// consumesCounters marks a device as one of several mutually exclusive ways to
+// cut the same hardware. Shaped after a real RTX PRO 6000 slice, where the
+// driver advertises the whole card alongside every MIG placement and each
+// placement claims a subset of the 12 memory slices.
+func partitionableDevice(name, memory string, slices ...string) map[string]interface{} {
+	counters := map[string]interface{}{}
+	for _, s := range slices {
+		counters[s] = map[string]interface{}{"value": "1"}
+	}
+	return map[string]interface{}{
+		"name":     name,
+		"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": memory}},
+		"consumesCounters": []interface{}{
+			map[string]interface{}{"counterSet": "gpu-0-counter-set", "counters": counters},
+		},
+	}
+}
+
+func TestResourceSliceCapacityDoesNotSumPartitionOptions(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		// "do not partition" -- consumes the whole counter set.
+		partitionableDevice("gpu-0", "95Gi",
+			"memory-slice-0", "memory-slice-1", "memory-slice-2", "memory-slice-3"),
+		// Two placements that could coexist with each other but not with gpu-0.
+		partitionableDevice("gpu-0-mig-1g24gb-14-0", "24Gi", "memory-slice-0", "memory-slice-1"),
+		partitionableDevice("gpu-0-mig-1g24gb-14-2", "24Gi", "memory-slice-2", "memory-slice-3"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	// Summing would report 143Gi against a 95Gi card.
+	assert.Equal(t, float64(95*1024*1024*1024), capacity.Metrics[0].Value)
+	assert.Equal(t, "memory", labelsOf(capacity.Metrics[0])["capacity"])
+}
+
+func TestResourceSliceCapacityAddsIndependentDevicesToTheLargestPartition(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDevice("gpu-0", "95Gi", "memory-slice-0", "memory-slice-1"),
+		partitionableDevice("gpu-0-mig-1g24gb-14-0", "24Gi", "memory-slice-0"),
+		// No consumesCounters: separate hardware, present at the same time as
+		// whichever partition is chosen.
+		map[string]interface{}{
+			"name":     "nic-0",
+			"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": "5Gi"}},
+		},
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(100*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// v1beta1 nests the device fields under "basic"; consumesCounters has to be
+// found there too, or every device reads as independent and the sum comes back.
+func TestResourceSliceCapacityReadsConsumesCountersUnderBasic(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1beta1"}
+	dev := func(name, memory string) map[string]interface{} {
+		return map[string]interface{}{
+			"name": name,
+			"basic": map[string]interface{}{
+				"capacity": map[string]interface{}{"memory": map[string]interface{}{"value": memory}},
+				"consumesCounters": []interface{}{
+					map[string]interface{}{
+						"counterSet": "gpu-0-counter-set",
+						"counters":   map[string]interface{}{"memory-slice-0": map[string]interface{}{"value": "1"}},
+					},
+				},
+			},
+		}
+	}
+	obj := newSliceObject(t, []interface{}{dev("gpu-0", "95Gi"), dev("gpu-0-mig", "24Gi")})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(95*1024*1024*1024), capacity.Metrics[0].Value)
+}
