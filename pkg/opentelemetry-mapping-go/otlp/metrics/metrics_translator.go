@@ -542,11 +542,14 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			ilm := ilms.At(j)
 			metricsArray := ilm.Metrics()
 
+			// slices.Concat, not append: attributeTags is shared by every scope and has
+			// spare capacity, so appending would make the scopes share one array. Consumers
+			// may retain Dimensions.Tags(), so each scope needs its own.
 			var additionalTags []string
 			if t.cfg.InstrumentationScopeMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope()))
 			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope()))
 			} else {
 				additionalTags = attributeTags
 			}
