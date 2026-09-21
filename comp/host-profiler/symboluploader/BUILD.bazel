@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-load(":symbol_uploader_test.bzl", "objcopy_go_fixture")
+load(":symbol_uploader_test.bzl", "cc_toolchain_objcopy", "objcopy_go_fixture")
 
 # gazelle:go_test file
 
@@ -169,6 +169,11 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+cc_toolchain_objcopy(
+    name = "objcopy",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 # Note: these tests are still not hermetic because they rely on system objcopy for the code
 # under test itself.
 dd_agent_go_test(
@@ -182,19 +187,21 @@ dd_agent_go_test(
             ":helloworld_dynsym_corrupt_gopclntab",
             ":helloworld_no_symbols",
             ":helloworld_symtab",
+            ":objcopy",
         ],
         "//conditions:default": [],
-    }),
+    }) + [
+        "@go_work_sdk//:ROOT",
+        "@go_work_sdk//:bin/go",
+        "@go_work_sdk//:files",
+    ],
     embed = [":symboluploader"],
-    env = select({
-        "@platforms//os:linux": {
-            "SYMBOL_UPLOADER_FIXTURE_DEBUG_INFOS": "$(rlocationpath :helloworld_debug_infos)",
-            "SYMBOL_UPLOADER_FIXTURE_DEBUG_INFOS_CORRUPT_GOPCLNTAB": "$(rlocationpath :helloworld_debug_infos_corrupt_gopclntab)",
-            "SYMBOL_UPLOADER_FIXTURE_DYNSYM": "$(rlocationpath :helloworld_dynsym)",
-            "SYMBOL_UPLOADER_FIXTURE_DYNSYM_CORRUPT_GOPCLNTAB": "$(rlocationpath :helloworld_dynsym_corrupt_gopclntab)",
-            "SYMBOL_UPLOADER_FIXTURE_NO_SYMBOLS": "$(rlocationpath :helloworld_no_symbols)",
-            "SYMBOL_UPLOADER_FIXTURE_SYMTAB": "$(rlocationpath :helloworld_symtab)",
-        },
+    env = {
+        "BAZEL_GO_BINARY": "$(rlocationpath @go_work_sdk//:bin/go)",
+        "BAZEL_GO_ROOT": "$(rlocationpath @go_work_sdk//:ROOT)",
+        "BAZEL_HELLOWORLD": "$(rlocationpath //comp/host-profiler/symboluploader:testdata/helloworld.go)",
+    } | select({
+        "@platforms//os:linux": {"BAZEL_OBJCOPY": "$(rlocationpath :objcopy)"},
         "//conditions:default": {},
     }),
     deps = select({

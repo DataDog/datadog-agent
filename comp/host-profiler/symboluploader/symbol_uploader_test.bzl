@@ -47,6 +47,45 @@ def _objcopy_go_fixture_impl(ctx):
 
     return [DefaultInfo(files = depset([ctx.outputs.out]))]
 
+def _cc_toolchain_objcopy_impl(ctx):
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = [],
+        unsupported_features = [],
+    )
+    objcopy_path = cc_common.get_tool_for_action(
+        feature_configuration = feature_configuration,
+        action_name = OBJ_COPY_ACTION_NAME,
+    )
+
+    objcopy = None
+    for f in cc_toolchain.all_files.to_list():
+        if f.path == objcopy_path:
+            objcopy = f
+            break
+    if objcopy == None:
+        fail("objcopy ({}) is not a file provided by the cc toolchain, it cannot be exposed to a test as a runfile".format(objcopy_path))
+
+    # The whole toolchain is carried in the runfiles: objcopy may be a wrapper
+    # script, or link against libraries shipped by the toolchain.
+    return [DefaultInfo(
+        files = depset([objcopy]),
+        runfiles = ctx.runfiles(transitive_files = cc_toolchain.all_files),
+    )]
+
+cc_toolchain_objcopy = rule(
+    implementation = _cc_toolchain_objcopy_impl,
+    doc = """Exposes the cc toolchain's objcopy to a test as a runfile.
+
+Depend on this target from a test's `data` and pass its location through `env`
+with `$(rlocationpath ...)`, so the test runs the same objcopy as the build
+instead of whichever one happens to be on PATH.""",
+    fragments = ["cpp"],
+    toolchains = use_cc_toolchain(),
+)
+
 objcopy_go_fixture = rule(
     implementation = _objcopy_go_fixture_impl,
     attrs = {

@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -312,6 +313,13 @@ const (
 	fixtureDebugInfosCorruptGoPCLnTab fixtureKind = "DEBUG_INFOS_CORRUPT_GOPCLNTAB"
 )
 
+const (
+	envBazelGoBinary   = "BAZEL_GO_BINARY"
+	envBazelGoRoot     = "BAZEL_GO_ROOT"
+	envBazelHelloworld = "BAZEL_HELLOWORLD"
+	envBazelObjcopy    = "BAZEL_OBJCOPY"
+)
+
 type buildOptions struct {
 	dynsym           bool
 	symtab           bool
@@ -357,16 +365,73 @@ func bazelGoFixture(t *testing.T, kind fixtureKind) string {
 	return fixture
 }
 
+func resolveRunfile(t *testing.T, loc string) string {
+	t.Helper()
+	path, err := runfiles.Rlocation(loc)
+	require.NoErrorf(t, err, "resolving runfile %q", loc)
+	return path
+}
+
+func goBuildConfig(t *testing.T, tmpDir string) (goBinary string, testDataPath string, extraEnv []string) {
+	t.Helper()
+
+	goBinary = "go"
+	testDataPath = "./testdata/helloworld.go"
+
+	if loc := os.Getenv(envBazelGoBinary); loc != "" {
+		goBinary = resolveRunfile(t, loc)
+
+		rootLoc := os.Getenv(envBazelGoRoot)
+		require.NotEmpty(t, rootLoc, "%s must be set when %s is set", envBazelGoRoot, envBazelGoBinary)
+		goRoot := filepath.Dir(resolveRunfile(t, rootLoc))
+
+		// Keep the Go command's caches inside the test temp directory to minimize side-effects.
+		// This is still non-hermetic: GOTOOLCHAIN may download historical Go
+		// toolchains at test runtime. The caches are shared between subtests so
+		// each toolchain only needs to be downloaded once per test run.
+		goCacheDir := filepath.Join(tmpDir, "go-cache")
+		goPathDir := filepath.Join(tmpDir, "gopath")
+		require.NoError(t, os.MkdirAll(goCacheDir, 0o755))
+		require.NoError(t, os.MkdirAll(goPathDir, 0o755))
+
+		extraEnv = append(extraEnv,
+			"GOROOT="+goRoot,
+			"GOCACHE="+goCacheDir,
+			"GOPATH="+goPathDir,
+			"GOMODCACHE="+filepath.Join(goPathDir, "pkg", "mod"),
+		)
+	}
+
+	if loc := os.Getenv(envBazelHelloworld); loc != "" {
+		testDataPath = resolveRunfile(t, loc)
+	}
+
+	return goBinary, testDataPath, extraEnv
+}
+
+// objcopyBinary returns the objcopy to use to post-process the test fixtures.
+// Under Bazel this is the cc toolchain's objcopy, passed through the
+// environment by the test rule; otherwise it falls back to PATH lookup.
+func objcopyBinary(t *testing.T) string {
+	t.Helper()
+
+	if loc := os.Getenv(envBazelObjcopy); loc != "" {
+		return resolveRunfile(t, loc)
+	}
+	return "objcopy"
+}
+
 func goFixture(t *testing.T, tmpDir, buildID string, kind fixtureKind) string {
 	t.Helper()
 
-	if isBazelTest() {
-		return bazelGoFixture(t, kind)
-	}
-	return buildGo(t, tmpDir, buildID, kind.buildOptions(t))
+	// if isBazelTest() {
+	// 	return bazelGoFixture(t, kind)
+	// }
+	goBinary, testDataPath, goEnv := goBuildConfig(t, tmpDir)
+	return buildGo(t, tmpDir, buildID, kind.buildOptions(t), goBinary, testDataPath, goEnv)
 }
 
-func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions) string {
+func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions, goBinary, testDataPath string, goEnv []string) string {
 	f, err := os.CreateTemp(tmpDir, "helloworld")
 	require.NoError(t, err)
 	defer f.Close()
@@ -378,8 +443,9 @@ func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions) string {
 		ldflags += "-linkmode=external "
 	}
 
-	args = append(args, ldflags, "./testdata/helloworld.go")
-	cmd := exec.CommandContext(t.Context(), "go", args...) // #nosec G204
+	args = append(args, ldflags, testDataPath)
+	cmd := exec.CommandContext(t.Context(), goBinary, args...) // #nosec G204
+	cmd.Env = append(cmd.Environ(), goEnv...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "failed to build test binary with `%v`: %s\n%s", cmd.Args, err, out)
 
@@ -400,7 +466,10 @@ func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions) string {
 		args = append(args, "-R", ".gopclntab")
 	}
 	args = append(args, exe)
-	cmd = exec.CommandContext(t.Context(), "objcopy", args...)
+	objcopy := objcopyBinary(t)
+	versionOut, versionErr := exec.CommandContext(t.Context(), objcopy, "--version").CombinedOutput() // #nosec G204
+	slog.Info("resolved objcopy", "path", objcopy, "version", string(versionOut), "versionErr", versionErr)
+	cmd = exec.CommandContext(t.Context(), objcopy, args...) // #nosec G204
 	out, err = cmd.CombinedOutput()
 	require.NoError(t, err, "failed to strip test binary with `%v`: %s\n%s", cmd.Args, err, out)
 
