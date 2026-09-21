@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "PROCESS_AGENT_TAGS")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "PROCESS_AGENT_HEROKU_TAGS", "PROCESS_AGENT_TAGS")
 
 go_library(
     name = "process-agent_lib",
@@ -24,5 +24,13 @@ dd_agent_go_binary(
     }),
     embed = [":process-agent_lib"],
     gotags = PROCESS_AGENT_TAGS,
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_binary(
+    name = "process-agent-heroku",
+    embed = [":process-agent_lib"],
+    # keep
+    exact_gotags = sorted(COMMON_TAGS | PROCESS_AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )
