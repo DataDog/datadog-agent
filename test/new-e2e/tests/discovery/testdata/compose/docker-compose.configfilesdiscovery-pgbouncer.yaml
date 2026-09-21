@@ -1,6 +1,6 @@
 services:
   pgbouncer-env-configfilesdiscovery:
-    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340
+    image: ${DD_REGISTRY:-docker.io}/edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340
     container_name: pgbouncer-env-configfilesdiscovery
     environment:
       AUTH_TYPE: md5
