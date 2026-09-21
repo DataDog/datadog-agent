@@ -227,16 +227,39 @@ func parseQuantity(value string) (float64, error) {
 // filter. Verified against sharedCounters on twelve live pools: the two agree
 // exactly for every capacity key.
 //
-// The split across a spanning device's sets is even because the API does not
-// say how much of that device's capacity each set contributes: consumesCounters
-// names the counters it draws, but those names are the driver's own and do not
-// have to match the capacity names (an NVIDIA slice spells them copy-engines
-// and copyEngines on the two sides). An uneven spanning device is therefore
-// approximated, not measured.
+// A spanning device's capacity is apportioned in proportion to what its sets
+// are independently known to be worth, taken from the devices that draw on one
+// set alone. Splitting it evenly instead would hand a set more than it can
+// hold: with an 80Gi A, a 40Gi B and a 120Gi AB, half of 120 gives B 60Gi and
+// the total comes to 140Gi for hardware that tops out at 120Gi. Sets with no
+// single-set device to measure them fall back to an even split, there being
+// nothing better to go on.
+//
+// It stays an approximation. The API does not state how much of a spanning
+// device's capacity each set contributes: consumesCounters names the counters
+// it draws, but those names are the driver's own and need not match the
+// capacity names -- an NVIDIA slice spells them copy-engines and copyEngines
+// on the two sides -- so they cannot be joined to apportion it exactly.
 func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
+	type parsedDevice struct {
+		sets     []string
+		capacity map[string]float64
+	}
+
 	totals := map[string]float64{}
+	parsed := make([]parsedDevice, 0, len(devices))
 	// counter set -> capacity name -> largest capacity attributable to it.
 	perSet := map[string]map[string]float64{}
+	attribute := func(set, name string, q float64) {
+		attributed := perSet[set]
+		if attributed == nil {
+			attributed = map[string]float64{}
+			perSet[set] = attributed
+		}
+		if cur, seen := attributed[name]; !seen || q > cur {
+			attributed[name] = q
+		}
+	}
 
 	for _, d := range devices {
 		devMap, ok := d.(map[string]interface{})
@@ -266,23 +289,34 @@ func draSliceCapacityTotals(devices []interface{}) map[string]float64 {
 		}
 
 		sets := draDeviceCounterSets(devMap)
-		if len(sets) == 0 {
+		switch len(sets) {
+		case 0:
 			for name, q := range capacity {
 				totals[name] += q
 			}
-			continue
-		}
-		share := float64(len(sets))
-		for _, set := range sets {
-			attributed := perSet[set]
-			if attributed == nil {
-				attributed = map[string]float64{}
-				perSet[set] = attributed
-			}
+		case 1:
+			// Measures its set on its own; the baseline the spanning devices
+			// below are apportioned against.
 			for name, q := range capacity {
-				if cur, seen := attributed[name]; !seen || q/share > cur {
-					attributed[name] = q / share
+				attribute(sets[0], name, q)
+			}
+		default:
+			parsed = append(parsed, parsedDevice{sets: sets, capacity: capacity})
+		}
+	}
+
+	for _, d := range parsed {
+		for name, q := range d.capacity {
+			baseline := 0.0
+			for _, set := range d.sets {
+				baseline += perSet[set][name]
+			}
+			for _, set := range d.sets {
+				share := 1 / float64(len(d.sets))
+				if baseline > 0 {
+					share = perSet[set][name] / baseline
 				}
+				attribute(set, name, q*share)
 			}
 		}
 	}

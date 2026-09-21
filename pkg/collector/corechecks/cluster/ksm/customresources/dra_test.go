@@ -653,3 +653,33 @@ func TestResourceSliceCapacityKeepsCompatibleSpanningOptions(t *testing.T) {
 	require.Len(t, capacity.Metrics, 1)
 	assert.Equal(t, float64(285*1024*1024*1024), capacity.Metrics[0].Value)
 }
+
+// Cards of different sizes bound the split. A 120Gi AB alongside an 80Gi A and
+// a 40Gi B is apportioned 80/40, not 60/60 -- an even split would credit B
+// with 60Gi it cannot hold and total 140Gi for hardware that tops out at
+// 120Gi, which is what both A+B and AB provide.
+func TestResourceSliceCapacityApportionsSpanByKnownSetSizes(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		partitionableDeviceInSet("gpu-0-counter-set", "gpu-0", "80Gi", "memory-slice-0"),
+		partitionableDeviceInSet("gpu-1-counter-set", "gpu-1", "40Gi", "memory-slice-0"),
+		spanningDevice("gpu-0-1-nvlink", "120Gi", "gpu-0-counter-set", "gpu-1-counter-set"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(120*1024*1024*1024), capacity.Metrics[0].Value)
+}
+
+// With nothing measuring the sets on their own, an even split is all there is
+// to go on -- and it is right here, the spanning device being the only option.
+func TestResourceSliceCapacitySplitsSpanEvenlyWithoutABaseline(t *testing.T) {
+	f := &resourceSliceFactory{apiVersion: "v1"}
+	obj := newSliceObject(t, []interface{}{
+		spanningDevice("gpu-0-1-nvlink", "190Gi", "gpu-0-counter-set", "gpu-1-counter-set"),
+	})
+
+	capacity := generatorByName(t, f.MetricFamilyGenerators(), "kube_resourceslice_capacity").Generate(obj)
+	require.Len(t, capacity.Metrics, 1)
+	assert.Equal(t, float64(190*1024*1024*1024), capacity.Metrics[0].Value)
+}
