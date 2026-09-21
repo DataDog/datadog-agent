@@ -60,9 +60,12 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             if let Some(socket) = is_socket(link.as_path()) {
                 result.sockets.push(socket);
             } else if is_logfile(link.as_path()) {
-                if result.logs.iter().any(|path| path == &link)
-                    || result.logs.len() >= MAX_LOG_FILES
-                {
+                if result.logs.len() >= MAX_LOG_FILES {
+                    return;
+                }
+
+                // A linear lookup is sufficient because the vector is capped at 100 entries.
+                if result.logs.iter().any(|path| path == &link) {
                     return;
                 }
 
