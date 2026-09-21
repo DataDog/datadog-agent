@@ -360,7 +360,7 @@ linters:
         - name: duplicated-imports
     forbidigo:
       forbid:
-        - pattern: ^NewLazyDLL$
+        - pattern: ^.*\.NewLazyDLL$
           pkg: ^(syscall|golang\.org/x/sys/windows)$
           msg: Use windows.NewLazySystemDLL for Windows system libraries.
         - pattern: ^.*\.GetLastError$
