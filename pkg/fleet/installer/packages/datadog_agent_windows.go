@@ -205,19 +205,12 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 
 // procmgrConfig is a processes.d definition managed at install time.
 type procmgrConfig struct {
-	label  string
-	write  func(installRoot string) error
-	remove func(installRoot string) error
-	// binaryRoot resolves the root write/remove check for their binary and use for path
-	// placeholders. Defaults to the resolved MSI Program Files install root (ADP, PAR: their
-	// binary ships with the base agent install). DDOT is an extension whose binary instead lives
-	// under the agent package repository, so it needs its own resolver.
+	label      string
+	write      func(installRoot string) error
+	remove     func(installRoot string) error
 	binaryRoot func() (string, error)
 }
 
-// resolveAgentStablePackagePath resolves the "stable" symlink under the agent package repository
-// to the real versioned directory, mirroring postInstallDDOTExtension so a re-enable after a
-// process-manager switch finds the DDOT binary at the same path the extension installer used.
 func resolveAgentStablePackagePath() (string, error) {
 	stablePath := filepath.Join(paths.PackagesPath, agentPackage, "stable")
 	resolved, err := filepath.EvalSymlinks(stablePath)
@@ -236,8 +229,6 @@ var procmgrConfigs = []procmgrConfig{
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
-	// Always resolve paths.DatadogProgramFilesDir: write/remove use it directly for where
-	// processes.d itself lives, regardless of which root their binary is checked against.
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
@@ -1135,10 +1126,6 @@ func SetProcessManager(_ context.Context, enabled bool) error {
 	return nil
 }
 
-// persistProcessManagerEnv saves the resolved DD_PROCESS_MANAGER_ENABLED choice into the
-// Datadog Installer service's registry Environment value, so it survives a daemon restart.
-// The daemon itself updates its in-memory env immediately after this call returns, so this
-// only needs to be visible the next time the service starts.
 func persistProcessManagerEnv(enabled bool) error {
 	key, err := registry.OpenKey(
 		registry.LOCAL_MACHINE,

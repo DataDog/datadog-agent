@@ -7,9 +7,6 @@
 
 package installer
 
-// Package procmgrswitchtests implements E2E tests for switching between dd-procmgrd and the
-// legacy Windows SCM services, mirroring test/new-e2e/tests/installer/unix/package_procmgr_switch_test.go.
-
 import (
 	"fmt"
 	"os"
@@ -26,18 +23,10 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
-// packageProcmgrSwitchSuite exercises DD_PROCESS_MANAGER_ENABLED toggling via the running
-// installer daemon on Windows, the counterpart to the Linux packageProcmgrSwitchSuite.
 type packageProcmgrSwitchSuite struct {
 	BaseSuite
 }
 
-// TestProcmgrSwitch installs the agent directly under the manager selected by the matrix-driven
-// DD_PROCESS_MANAGER_ENABLED, with the DDOT extension enabled, then exercises the opposite
-// transition first and switches back, checking at each step that both the agent's own services
-// and the DDOT extension are managed correctly by whichever manager is active:
-//   - started under procmgr (true): disable (SCM takes over), then re-enable (procmgr is back).
-//   - started under SCM (false): enable (procmgr takes over), then disable (SCM is back).
 func TestProcmgrSwitch(t *testing.T) {
 	e2e.Run(t, &packageProcmgrSwitchSuite{},
 		e2e.WithProvisioner(
@@ -86,17 +75,12 @@ func (s *packageProcmgrSwitchSuite) TestSwitchesBetweenProcmgrAndSCM() {
 	}
 }
 
-// runProcessManagerCommand goes through the daemon's internal `daemon process-manager` entry
-// point, the same one Linux uses, since the switch is only exposed there and must execute inside
-// the running daemon.
 func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
 	s.Require().NoError(s.WaitForInstallerService("Running"))
 	_, err := s.Installer().ProcessManager(subcommand)
 	s.Require().NoErrorf(err, "failed to run process-manager %s", subcommand)
 }
 
-// assertManagerState asserts that the base agent's own SCM services and the DDOT extension are
-// active under whichever manager procmgrEnabled selects.
 func (s *packageProcmgrSwitchSuite) assertManagerState(procmgrEnabled bool) {
 	if procmgrEnabled {
 		s.Require().NoError(s.WaitForServicesWithBackoff("Running",

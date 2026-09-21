@@ -64,8 +64,6 @@ const (
 	agentSymlink     = "/usr/bin/datadog-agent"
 	installerSymlink = "/usr/bin/datadog-installer"
 
-	installerUnitStable = "datadog-agent-installer.service"
-
 	privilegedRshellBinaryRelPath  = "embedded/bin/rshell"
 	privilegedRshellPolicyDir      = "/etc/datadog-agent-rshell"
 	privilegedRshellMinLandlockABI = 3
@@ -903,29 +901,6 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
-// StopStableForProcessManagerSwitch stops the stable units a process manager switch must take
-// down itself, leaving the main unit and the installer unit running.
-//
-// The switch runs inside datadog-agent-installer.service's cgroup, so systemd cannot complete a
-// stop job for that unit until the switch process exits: every systemctl call the switch issues
-// afterwards blocks behind that pending job until the process is killed. Both units are swapped
-// over by the final RestartStable instead, which BindsTo propagates to the remaining children.
-func (s *datadogAgentService) StopStableForProcessManagerSwitch(ctx HookContext) error {
-	var units []string
-	switch service.GetServiceManagerType(ctx.PackagePath) {
-	case service.SystemdType:
-		units = s.SystemdUnitsStable
-	case service.ProcmgrType:
-		units = s.ProcmgrUnitsStable
-	default:
-		return errors.New("unsupported service manager")
-	}
-	units = slices.DeleteFunc(reverseStringSlice(units), func(unit string) bool {
-		return unit == s.SystemdMainUnitStable || unit == installerUnitStable
-	})
-	return systemd.StopUnits(ctx, units...)
-}
-
 // WriteProcesses writes the processes for the given package path
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
 	switch service.GetServiceManagerType(packagePath) {
@@ -1224,9 +1199,9 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 		return errors.New("switching the process manager is only supported under systemd")
 	}
 
-	// Each step registers what has to run once the switch stops tearing the old manager down:
-	// on success the whole stack is unwound to bring the agent back up under the new manager, on
-	// failure the part registered so far restores the old one.
+	// Each step registers what has to run once the switch tears the old manager down: on success
+	// the whole stack is unwound to bring the agent back up under the new manager, on failure the
+	// part registered so far restores the old one.
 	pendingActions := []func() error{}
 	unwind := func() error {
 		var errs error
@@ -1241,10 +1216,6 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	}
 
 	pendingActions = append(pendingActions, func() error { return agentService.RestartStable(hookCtx) })
-	if err := agentService.StopStableForProcessManagerSwitch(hookCtx); err != nil {
-		log.Errorf("failed to stop stable units: %v", err)
-		return errors.Join(err, unwind())
-	}
 	pendingActions = append(pendingActions, func() error { return agentService.EnableStable(hookCtx) })
 	if err := agentService.DisableStable(hookCtx); err != nil {
 		log.Warnf("failed to disable stable units: %v", err)
