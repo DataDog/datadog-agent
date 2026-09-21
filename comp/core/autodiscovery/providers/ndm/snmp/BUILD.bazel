@@ -16,7 +16,6 @@ go_library(
         "//comp/core/log/def",
         "//pkg/collector/corechecks/snmp",
         "//pkg/config/model",
-        "//pkg/config/structure",
         "//pkg/snmp/gosnmplib",
         "@in_yaml_go_yaml_v2//:yaml",
     ],

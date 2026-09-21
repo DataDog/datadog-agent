@@ -17,8 +17,8 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 	raw := []byte(`{
 		"init_config": {"loader": "core", "ping": {"enabled": true}},
 		"instances": [
-			{"ip_address": "10.0.0.1", "cred_id": "cred-abc"},
-			{"ip_address": "10.0.0.2", "cred_id": "cred-def"}
+			{"ip_address": "10.0.0.1", "cred_name": "cred-abc"},
+			{"ip_address": "10.0.0.2", "cred_name": "cred-def"}
 		]
 	}`)
 
@@ -28,8 +28,8 @@ func TestKeyConfigParsesTheBackendPayloadVerbatim(t *testing.T) {
 	assert.Equal(t, "core", got.InitConfig.Loader)
 	assert.True(t, got.InitConfig.Ping.Enabled)
 	assert.Equal(t, []documentInstance{
-		{IPAddress: "10.0.0.1", CredID: "cred-abc"},
-		{IPAddress: "10.0.0.2", CredID: "cred-def"},
+		{IPAddress: "10.0.0.1", CredName: "cred-abc"},
+		{IPAddress: "10.0.0.2", CredName: "cred-def"},
 	}, got.Instances)
 }
 
@@ -47,7 +47,7 @@ func TestRenderInitConfigOmitsAnAbsentLoader(t *testing.T) {
 
 func TestRenderInstanceForV2C(t *testing.T) {
 	got, err := renderInstance("10.0.0.1", credential{
-		ID:              "v2c-public",
+		Name:            "v2c-public",
 		SNMPVersion:     "2c",
 		CommunityString: "public",
 	})
@@ -63,7 +63,7 @@ func TestRenderInstanceForV2C(t *testing.T) {
 
 func TestRenderInstanceForV1(t *testing.T) {
 	got, err := renderInstance("10.0.0.9", credential{
-		ID:              "v1",
+		Name:            "v1",
 		SNMPVersion:     "1",
 		CommunityString: "public",
 	})
@@ -73,7 +73,7 @@ func TestRenderInstanceForV1(t *testing.T) {
 
 func TestRenderInstanceForV3(t *testing.T) {
 	got, err := renderInstance("10.0.0.2", credential{
-		ID:           "v3-full",
+		Name:         "v3-full",
 		SNMPVersion:  "3",
 		User:         "test-user",
 		AuthProtocol: "SHA",
@@ -99,7 +99,7 @@ context_name: test-context
 
 func TestRenderInstanceKeepsTheVersionAString(t *testing.T) {
 	// The snmp check reads snmp_version as a string, so it must stay quoted.
-	got, err := renderInstance("10.0.0.3", credential{ID: "v3", SNMPVersion: "3", User: "u"})
+	got, err := renderInstance("10.0.0.3", credential{Name: "v3", SNMPVersion: "3", User: "u"})
 	require.NoError(t, err)
 	assert.Contains(t, string(got), `snmp_version: "3"`)
 }

@@ -7,6 +7,8 @@ package ndm
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +18,7 @@ import (
 	ndmsnmp "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/snmp"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -24,20 +27,32 @@ const backendDocument = `{
 	"snmp": {
 		"init_config": {"loader": "core", "ping": {"enabled": true}},
 		"instances": [
-			{"ip_address": "10.0.0.1", "cred_id": "cred-abc"},
-			{"ip_address": "10.0.0.2", "cred_id": "cred-abc"}
+			{"ip_address": "10.0.0.1", "cred_name": "cred-abc"},
+			{"ip_address": "10.0.0.2", "cred_name": "cred-abc"}
 		]
 	}
 }`
 
+// newTestConfig returns a configuration whose conf.d/snmp.d/credentials holds
+// the single credential the documents below reference.
+func newTestConfig(t *testing.T) model.BuildableConfig {
+	t.Helper()
+	cfg := configmock.New(t)
+	confd := t.TempDir()
+	dir := filepath.Join(confd, "snmp.d", "credentials")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "creds.yaml"), []byte(`
+credentials:
+  - name: cred-abc
+    snmp_version: "2c"
+    community_string: public
+`), 0o600))
+	cfg.SetInTest("confd_path", confd)
+	return cfg
+}
+
 func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: cred-abc
-      snmp_version: "2c"
-      community_string: public
-`)
+	cfg := newTestConfig(t)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -72,13 +87,7 @@ network_devices:
 }
 
 func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: cred-abc
-      snmp_version: "2c"
-      community_string: public
-`)
+	cfg := newTestConfig(t)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -88,8 +97,8 @@ network_devices:
 	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred_id":"cred-abc"},
-		{"ip_address":"10.0.0.2","cred_id":"cred-not-delivered-yet"}
+		{"ip_address":"10.0.0.1","cred_name":"cred-abc"},
+		{"ip_address":"10.0.0.2","cred_name":"cred-not-delivered-yet"}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)
@@ -108,13 +117,7 @@ network_devices:
 }
 
 func TestRemovingTheDocumentUnschedulesEveryDevice(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: cred-abc
-      snmp_version: "2c"
-      community_string: public
-`)
+	cfg := newTestConfig(t)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -135,13 +138,7 @@ network_devices:
 }
 
 func TestARepeatedIdenticalDocumentEmitsNothing(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: cred-abc
-      snmp_version: "2c"
-      community_string: public
-`)
+	cfg := newTestConfig(t)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -160,13 +157,7 @@ network_devices:
 }
 
 func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *testing.T) {
-	cfg := configmock.NewFromYAML(t, `
-network_devices:
-  snmp_credentials:
-    - id: cred-abc
-      snmp_version: "2c"
-      community_string: public
-`)
+	cfg := newTestConfig(t)
 	logComp := logmock.New(t)
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
@@ -176,8 +167,8 @@ network_devices:
 	const path = "datadog/2/MANAGED_DEPLOYMENTS_DEBUG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred_id":"cred-unknown-1"},
-		{"ip_address":"10.0.0.2","cred_id":"cred-unknown-2"}
+		{"ip_address":"10.0.0.1","cred_name":"cred-unknown-1"},
+		{"ip_address":"10.0.0.2","cred_name":"cred-unknown-2"}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)
