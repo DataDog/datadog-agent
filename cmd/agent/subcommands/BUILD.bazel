@@ -20,6 +20,7 @@ go_library(
         "//cmd/agent/subcommands/dogstatsdstats",
         "//cmd/agent/subcommands/experimental",
         "//cmd/agent/subcommands/flare",
+        "//cmd/agent/subcommands/gnmi",
         "//cmd/agent/subcommands/health",
         "//cmd/agent/subcommands/hostname",
         "//cmd/agent/subcommands/import",

@@ -1,0 +1,47 @@
+{{- if .devices }}
+  Devices
+  =======
+{{- range $device := .devices }}
+  {{$device.Address}}:{{$device.Port}} (profile: {{$device.Profile}})
+    Started: {{$device.Started}}
+    Stream state: {{$device.StreamState}}
+    Transport: {{$device.Transport}}
+    Reconnect count: {{$device.ReconnectCount}}
+    Received samples: {{$device.ReceivedSamples}}
+    Cached paths: {{$device.CachedPaths}}
+    Collect topology: {{$device.CollectTopology}}
+  {{- if or (eq $device.StreamState "reconnecting") (eq $device.StreamState "not_ready") }}
+    Connection details:
+      Ever connected: {{$device.EverConnected}}
+    {{- if $device.LastConnectedAt }}
+      Last connected: {{ formatUnixTime $device.LastConnectedAt }} ({{ formatUnixTimeSince $device.LastConnectedAt }})
+    {{- end }}
+    {{- if $device.LastError }}
+      Last error: {{$device.LastError}}
+    {{- if $device.LastErrorAt }}
+      Error time: {{ formatUnixTime $device.LastErrorAt }} ({{ formatUnixTimeSince $device.LastErrorAt }})
+    {{- end }}
+    {{- else if eq $device.StreamState "reconnecting" }}
+      Last error: waiting for next reconnect attempt
+    {{- end }}
+    {{- if $device.NextReconnectDue }}
+      Next reconnect: retrying now (scheduled {{ formatUnixTime $device.NextReconnectAt }})
+    {{- else if $device.NextReconnectAt }}
+      Next reconnect: {{ formatUnixTime $device.NextReconnectAt }} ({{ formatUnixTimeSince $device.NextReconnectAt }})
+    {{- end }}
+    {{- if $device.StatusUpdatedAt }}
+      Status updated: {{ formatUnixTime $device.StatusUpdatedAt }} ({{ formatUnixTimeSince $device.StatusUpdatedAt }})
+    {{- end }}
+  {{- else if $device.LastError }}
+    Last error: {{$device.LastError}}
+  {{- end }}
+  {{- if $device.SubscriptionPaths }}
+    Subscription paths:
+    {{- range $path := $device.SubscriptionPaths }}
+      - {{$path}}
+    {{- end }}
+  {{- end }}
+{{ end -}}
+{{- else }}
+  No gNMI devices configured.
+{{- end -}}

@@ -59,6 +59,7 @@ type gui struct {
 	intentMu     sync.Mutex
 
 	sysprobeConfig sysprobeconfig.Component
+	status         status.Component
 
 	// To compute uptime
 	startTimestamp int64
@@ -120,6 +121,7 @@ func NewComponent(deps Requires) Provides {
 		logger:         deps.Log,
 		intentTokens:   make(map[string]time.Time),
 		sysprobeConfig: deps.SysprobeConfig,
+		status:         deps.Status,
 	}
 
 	publicRouter := http.NewServeMux()
@@ -236,15 +238,36 @@ func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 
 	e = t.Execute(w, struct {
 		RestartEnabled bool
+		GNMIEnabled    bool
 		DocURL         template.URL
 	}{
 		RestartEnabled: restartEnabled(g.sysprobeConfig),
+		GNMIEnabled:    g.gnmiDevicesConfigured(),
 		DocURL:         docURL,
 	})
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+// gnmiDevicesConfigured reports whether the gNMI status section lists at least
+// one device, so the gNMI status page is only offered when gNMI is in use.
+func (g *gui) gnmiDevicesConfigured() bool {
+	if g.status == nil {
+		return false
+	}
+	out, err := g.status.GetStatusBySections([]string{"gnmi"}, "json", false)
+	if err != nil {
+		return false
+	}
+	var section struct {
+		Devices []json.RawMessage `json:"devices"`
+	}
+	if err := json.Unmarshal(out, &section); err != nil {
+		return false
+	}
+	return len(section.Devices) > 0
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {

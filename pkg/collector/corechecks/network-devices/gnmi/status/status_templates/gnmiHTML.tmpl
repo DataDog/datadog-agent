@@ -1,0 +1,56 @@
+{{- if .devices }}
+<div class="stat">
+  <span class="stat_title">gNMI Devices</span>
+  <span class="stat_data">
+{{- range $device := .devices }}
+    <strong>{{$device.Address}}:{{$device.Port}}</strong> (profile: {{$device.Profile}})</br>
+    Started: {{$device.Started}}</br>
+    Stream state: {{$device.StreamState}}</br>
+    Transport: {{$device.Transport}}</br>
+    Reconnect count: {{$device.ReconnectCount}}</br>
+    Received samples: {{$device.ReceivedSamples}}</br>
+    Cached paths: {{$device.CachedPaths}}</br>
+    Collect topology: {{$device.CollectTopology}}</br>
+    {{- if or (eq $device.StreamState "reconnecting") (eq $device.StreamState "not_ready") }}
+    <span class="stat_subtitle">Connection details</span>
+    <span class="stat_subdata">
+      Ever connected: {{$device.EverConnected}}</br>
+      {{- if $device.LastConnectedAt }}
+      Last connected: {{ formatUnixTime $device.LastConnectedAt }} ({{ formatUnixTimeSince $device.LastConnectedAt }})</br>
+      {{- end }}
+      {{- if $device.LastError }}
+      Last error: {{$device.LastError}}</br>
+      {{- if $device.LastErrorAt }}
+      Error time: {{ formatUnixTime $device.LastErrorAt }} ({{ formatUnixTimeSince $device.LastErrorAt }})</br>
+      {{- end }}
+      {{- else if eq $device.StreamState "reconnecting" }}
+      Last error: waiting for next reconnect attempt</br>
+      {{- end }}
+      {{- if $device.NextReconnectDue }}
+      Next reconnect: retrying now (scheduled {{ formatUnixTime $device.NextReconnectAt }})</br>
+      {{- else if $device.NextReconnectAt }}
+      Next reconnect: {{ formatUnixTime $device.NextReconnectAt }} ({{ formatUnixTimeSince $device.NextReconnectAt }})</br>
+      {{- end }}
+      {{- if $device.StatusUpdatedAt }}
+      Status updated: {{ formatUnixTime $device.StatusUpdatedAt }} ({{ formatUnixTimeSince $device.StatusUpdatedAt }})</br>
+      {{- end }}
+    </span>
+    {{- else if $device.LastError }}
+    Last error: {{$device.LastError}}</br>
+    {{- end }}
+    {{- if $device.SubscriptionPaths }}
+    Subscription paths:</br>
+    {{- range $path := $device.SubscriptionPaths }}
+      - {{$path}}</br>
+    {{- end }}
+    {{- end }}
+    </br>
+{{ end -}}
+  </span>
+</div>
+{{- else }}
+<div class="stat">
+  <span class="stat_title">gNMI Devices</span>
+  <span class="stat_data">No gNMI devices configured.</span>
+</div>
+{{- end -}}

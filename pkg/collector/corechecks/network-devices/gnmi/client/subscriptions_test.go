@@ -14,6 +14,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 )
 
+func TestStreamStateString(t *testing.T) {
+	assert.Equal(t, "not_ready", StreamStateNotReady.String())
+	assert.Equal(t, "connected", StreamStateConnected.String())
+	assert.Equal(t, "reconnecting", StreamStateReconnecting.String())
+	assert.Equal(t, "unknown", StreamState(99).String())
+}
+
+func TestSubscriptionSpecString(t *testing.T) {
+	assert.Equal(t, "/system/state/hostname", SubscriptionSpec{Path: "/system/state/hostname"}.String())
+	assert.Equal(t, "/interfaces/interface/state/admin-status{interface=name}", SubscriptionSpec{
+		Path: "/interfaces/interface/state/admin-status",
+		Keys: map[string]string{"interface": "name"},
+	}.String())
+}
+
+func TestSubscriptionPaths(t *testing.T) {
+	specs := SubscriptionPaths(Config{
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path:   "/system/state/uptime",
+					Metric: "snmp.sysUpTime",
+					Type:   config.MetricTypeGauge,
+				},
+			},
+		},
+	})
+	require.NotEmpty(t, specs)
+	assert.Equal(t, "/system/state/uptime", specs[0].Path)
+}
+
 func TestBuildSubscriptionSpecsDedupesPaths(t *testing.T) {
 	cfg := Config{
 		Profile: config.ProfileDefinition{
