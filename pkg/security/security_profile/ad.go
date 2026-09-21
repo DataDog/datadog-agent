@@ -615,6 +615,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	}
 
 	if event.ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		seclog.Warnf("evicting offered cgroup %s (inode %d): no container ID and systemd cgroup tracing is off", event.CGroupContext.CGroupID, event.CGroupContext.CGroupPathKey.Inode)
 		m.evictTracedCgroup(&event.CGroupContext)
 		return
 	}
@@ -624,6 +625,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	err := m.tracedCgroupsDiscardedMap.Lookup(event.CGroupContext.CGroupPathKey.Inode, &discarded)
 	if err == nil {
 		// Cgroup is in the discarded map, should not trace it
+		seclog.Warnf("evicting offered cgroup %s (inode %d) for container %s: already in the discarded map", event.CGroupContext.CGroupID, event.CGroupContext.CGroupPathKey.Inode, event.ContainerContext.ContainerID)
 		m.evictTracedCgroup(&event.CGroupContext)
 		return
 	}
@@ -633,11 +635,12 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 
 	// Check if this cgroup should be ignored (e.g., manually stopped dump)
 	if m.ignoreFromSnapshot[event.CGroupContext.CGroupPathKey.Inode] {
+		seclog.Warnf("ignoring offered cgroup %s (inode %d) for container %s: marked ignore-from-snapshot", event.CGroupContext.CGroupID, event.CGroupContext.CGroupPathKey.Inode, event.ContainerContext.ContainerID)
 		return
 	}
 
 	if err := m.startDumpWithConfig(event.ContainerContext.ContainerID, event.CGroupContext, event.ConfigCookie, event.Config); err != nil {
-		seclog.Debugf("%v", err)
+		seclog.Warnf("couldn't start a dump for offered cgroup %s (inode %d), container %s: %v", event.CGroupContext.CGroupID, event.CGroupContext.CGroupPathKey.Inode, event.ContainerContext.ContainerID, err)
 	}
 }
 
