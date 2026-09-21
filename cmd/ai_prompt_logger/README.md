@@ -11,7 +11,7 @@ The same binary can also run as a standalone desktop monitor with `--desktop-mon
 From the **repository root** (workspace member):
 
 ```bash
-cargo build -p ai-usage-agent-native-host --release
+bazel run //:cargo -- build -p ai-usage-agent-native-host --release
 ```
 
 Binary: `target/release/ai-usage-agent-native-host` (`.exe` on Windows).

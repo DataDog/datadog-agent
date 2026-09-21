@@ -76,17 +76,13 @@ jobs:
           ref: ${{ github.head_ref }}
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: stable
       - name: Repin Bazel Rust lockfile
         run: |
           bazel mod tidy
           bazel mod deps
       - name: Generate Rust licenses
         run: |
-          cargo install dd-rust-license-tool@1.0.6 --locked
+          bazel run //:cargo -- install dd-rust-license-tool@1.0.6 --locked
           cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
       - uses: ./.github/actions/deps-tidy-push
         with:

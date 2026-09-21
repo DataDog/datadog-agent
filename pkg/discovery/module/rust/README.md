@@ -7,7 +7,7 @@ A Rust implementation of resource discovery.
 ### Build the Binary
 
 ```bash
-cargo build --release --bin system-probe-lite
+bazel run //:cargo -- build --release --bin system-probe-lite
 ```
 
 The binary will be located at `target/release/system-probe-lite`.
@@ -18,7 +18,7 @@ The `dd-discovery` static library (`libdd_discovery.a`) contains the service
 discovery logic and exposes a C FFI for use from other languages (e.g., Go via cgo):
 
 ```bash
-cargo build --release --lib
+bazel run //:cargo -- build --release --lib
 ```
 
 The static library will be located at `target/release/libdd_discovery.a`.
@@ -36,7 +36,7 @@ from the Rust FFI types using [cbindgen](https://github.com/mozilla/cbindgen).
 ### Build Both
 
 ```bash
-cargo build --release
+bazel run //:cargo -- build --release
 ```
 
 This builds both the binary and the static library.
@@ -51,7 +51,7 @@ must regenerate the header:
 
 ```bash
 # Install cbindgen (first time only)
-cargo install cbindgen
+bazel run //:cargo -- install cbindgen
 
 # Regenerate the header
 cbindgen --config cbindgen.toml --output include/dd_discovery.h
@@ -64,10 +64,10 @@ committed to the repository so that C/Go consumers always have a matching header
 
 ```bash
 # Run all tests
-cargo test
+bazel run //:cargo -- test
 
 # Run only FFI tests
-cargo test ffi::
+bazel run //:cargo -- test ffi::
 
 # Run FFI tests with Miri (detects undefined behavior in unsafe code)
 cargo +nightly miri test ffi::
@@ -147,9 +147,9 @@ When running `cargo update` to update dependency versions:
 
 1. Update dependencies:
    ```bash
-   cargo update              # Update all dependencies
+   bazel run //:cargo -- update              # Update all dependencies
    # or
-   cargo update tokio        # Update specific dependency
+   bazel run //:cargo -- update tokio        # Update specific dependency
    ```
 
 2. Regenerate the Bazel lockfile:
@@ -177,7 +177,7 @@ When adding new Rust source files to the library:
 #### Common Maintenance Tasks
 
 - **Update Rust toolchain**: Modify `MODULE.bazel` to specify a different Rust version
-- **Check for outdated deps**: Run `cargo update` and then re-sync Bazel with `CARGO_BAZEL_REPIN=1 bazel sync --only=crates`
+- **Check for outdated deps**: Run `bazel run //:cargo -- update` and then re-sync Bazel with `CARGO_BAZEL_REPIN=1 bazel sync --only=crates`
 
 ### Bazel vs Cargo
 

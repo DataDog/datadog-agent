@@ -5,6 +5,7 @@
 # gazelle:go_canonical_test_tag_set containerd cel
 # gazelle:go_canonical_test_tag_set docker kubelet cel
 
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
@@ -12,6 +13,7 @@ load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_multirun//:defs.bzl", "command")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
@@ -114,6 +116,31 @@ gazelle_binary(
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
     ],
+)
+
+copy_file(
+    name = "cargo_bin",
+    src = "@rules_rust//rust/toolchain:current_cargo_files",
+    out = "cargo.exe",
+    allow_symlink = True,
+    is_executable = True,
+)
+
+copy_file(
+    name = "rustc_bin",
+    src = "@rules_rust//rust/toolchain:current_rustc_files",
+    out = "rustc.exe",
+    allow_symlink = True,
+    is_executable = True,
+)
+
+# bazel run //:cargo -- ...
+command(
+    name = "cargo",
+    command = ":cargo_bin",
+    data = [":rustc_bin"],
+    environment = {"RUSTC": "$(location :rustc_bin)"},
+    run_from_workspace_root = True,
 )
 
 # bazel run //:go -- ...
