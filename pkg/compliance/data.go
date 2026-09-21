@@ -74,6 +74,7 @@ type CheckContainerMeta struct {
 // evaluation.
 type CheckEvent struct {
 	AgentVersion string                 `json:"agent_version,omitempty"`
+	HostCCRID    string                 `json:"host_ccrid,omitempty"`
 	RuleID       string                 `json:"agent_rule_id,omitempty"`
 	RuleVersion  int                    `json:"agent_rule_version,omitempty"`
 	FrameworkID  string                 `json:"agent_framework_id,omitempty"`
@@ -93,6 +94,7 @@ type CheckEvent struct {
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
 	AgentVersion string              `json:"agent_version,omitempty"`
+	HostCCRID    string              `json:"host_ccrid,omitempty"`
 	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
 	ResourceType types.ResourceType  `json:"resource_type,omitempty"`
 	ResourceID   string              `json:"resource_id,omitempty"`
