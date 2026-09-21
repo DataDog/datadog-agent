@@ -63,7 +63,7 @@
 .agent_variables: &agent_variables
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
-  IMAGE_VERSION: tmpl-v26
+  IMAGE_VERSION: tmpl-v27
 
 .cluster_agent_variables: &cluster_agent_variables
   IMAGE_NAME: datadog-cluster-agent
