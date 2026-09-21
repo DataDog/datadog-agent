@@ -8,13 +8,18 @@
 package dockerpermissions
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
@@ -27,9 +32,8 @@ const (
 	socketTimeout = 500 * time.Millisecond
 )
 
-// Check reports an issue for every Docker socket/named pipe that exists but
-// is unreachable because of a permission error.
-func Check() ([]runnerdef.IssueReport, error) {
+// check reports an issue for every Docker socket/named pipe that exists but is unreachable because of a permission error.
+func check(hostname hostnameinterface.Component) ([]runnerdef.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		return nil, nil
@@ -44,9 +48,11 @@ func Check() ([]runnerdef.IssueReport, error) {
 	}
 
 	if len(unreachableSockets) > 0 {
+		// Sort so the socketPaths string and the id digest are order-independent.
+		sort.Strings(unreachableSockets)
 		return []runnerdef.IssueReport{
 			{
-				IssueID:   IssueID,
+				IssueID:   socketSetIssueID(hostname.GetSafe(context.Background()), unreachableSockets),
 				IssueName: IssueName,
 				Source:    "docker",
 				Context: map[string]string{
@@ -60,6 +66,18 @@ func Check() ([]runnerdef.IssueReport, error) {
 
 	// No issue detected
 	return nil, nil
+}
+
+// socketSetIssueID scopes IssueID by hostname and the unreachable socket set so each host's socket problems file a distinct issue; caller passes a sorted slice.
+func socketSetIssueID(hostname string, sortedSockets []string) string {
+	h := fnv.New64a()
+	h.Write([]byte(hostname)) // never returns an error for hash.Hash
+	h.Write([]byte{0})        // delimiter between hostname and sockets
+	for _, socketPath := range sortedSockets {
+		h.Write([]byte(socketPath))
+		h.Write([]byte{0}) // delimiter so {"a","bc"} and {"ab","c"} differ
+	}
+	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
 // getDockerSocketPaths returns the default Docker socket paths to check
