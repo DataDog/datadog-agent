@@ -7,6 +7,7 @@ package quantile
 
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"testing"
 
@@ -538,4 +539,163 @@ func BenchmarkDDSketchConversion(b *testing.B) {
 			}
 		})
 	}
+}
+
+// expHistSketch builds the DDSketch that the OTLP pipeline produces for an
+// exponential histogram data point: a logarithmic mapping of gamma
+// 2^(2^-scale) over stores keyed by the raw OTLP bucket indices.
+func expHistSketch(t *testing.T, scale int32, posOffset int, posCounts []float64, negOffset int, negCounts []float64, zeroCount float64) *ddsketch.DDSketch {
+	t.Helper()
+
+	m, err := mapping.NewLogarithmicMappingWithGamma(math.Pow(2, math.Pow(2, float64(-scale))), 0)
+	require.NoError(t, err)
+
+	fill := func(offset int, counts []float64) store.Store {
+		s := store.NewDenseStore()
+		for i, c := range counts {
+			s.AddWithCount(offset+i, c)
+		}
+		return s
+	}
+
+	s := ddsketch.NewDDSketch(m, fill(posOffset, posCounts), fill(negOffset, negCounts))
+	require.NoError(t, s.AddWithCount(0, zeroCount))
+	return s
+}
+
+// TestConvertDDSketchIntoSketchUnrepresentableBoundaries reproduces
+// https://github.com/DataDog/datadog-agent/issues/55140. Remapping a sketch onto
+// the Agent mapping reads each populated bucket's boundaries through the input
+// mapping; when one of them is +Inf or NaN the dense store receives
+// math.MinInt64 as a slice offset (on amd64) and the whole process dies. The
+// conversion must return an error instead, so the caller can drop the point.
+func TestConvertDDSketchIntoSketchUnrepresentableBoundaries(t *testing.T) {
+	// A boundary is gamma^index with gamma = 2^(2^-scale), which LowerBound
+	// evaluates as exp(index * ln gamma), so it stops being finite once that
+	// product passes exp's own limit of ~709.78 — one index later than plain
+	// powers of two suggest: 1025 rather than 1024 at scale 0. Each failing case
+	// below reaches exactly that index with the last of its three populated
+	// buckets. Every one is well-formed OTLP: scale is within the [-10, 20] range
+	// go-expohisto uses, and offset is a sint32.
+	for _, tc := range []struct {
+		name    string
+		scale   int32
+		offset  int
+		wantErr bool
+	}{
+		// At the minimum scale gamma overflows outright, which makes the boundary
+		// of index 0 a NaN.
+		{name: "minimum scale", scale: -10, offset: 0, wantErr: true},
+		{name: "index 33 at scale -5", scale: -5, offset: 31, wantErr: true},
+		{name: "index 1025 at scale 0", scale: 0, offset: 1023, wantErr: true},
+		{name: "index 131073 at scale 7", scale: 7, offset: 131071, wantErr: true},
+		{name: "index 2^30 at the maximum scale", scale: 20, offset: 1073741822, wantErr: true},
+		// Well clear of those thresholds nothing is rejected.
+		{name: "moderate indices at scale 0", scale: 0, offset: 0, wantErr: false},
+		{name: "moderate indices at scale -5", scale: -5, offset: -2, wantErr: false},
+		{name: "moderate indices at a fine scale", scale: 12, offset: 0, wantErr: false},
+		// 2^-1074 is the smallest float64 there is, and still an ordinary one: such
+		// boundaries are remapped into the Agent sketch's zero bin, not rejected.
+		{name: "smallest representable boundary", scale: 0, offset: -1074, wantErr: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := expHistSketch(t, tc.scale, tc.offset, []float64{1, 1, 1}, 0, nil, 0)
+
+			var (
+				out *Sketch
+				err error
+			)
+			require.NotPanics(t, func() { out, err = ConvertDDSketchIntoSketch(in) })
+
+			if tc.wantErr {
+				assert.ErrorContains(t, err, "cannot be remapped")
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, out)
+		})
+	}
+}
+
+// TestConvertDDSketchIntoSketchUpperBoundIsConservative pins the one-index
+// conservatism of the check: remapping reads index+1 as a bucket's upper bound,
+// so at scale 0 the last bucket the Agent accepts is 1023 even though the first
+// boundary to overflow belongs to 1025.
+func TestConvertDDSketchIntoSketchUpperBoundIsConservative(t *testing.T) {
+	// Index 1023, whose upper bound at 1024 is the largest finite boundary there
+	// is. Downstream limits still drop the point, but not as unrepresentable.
+	in := expHistSketch(t, 0, 1023, []float64{1}, 0, nil, 0)
+	_, err := ConvertDDSketchIntoSketch(in)
+	if err != nil {
+		assert.NotContains(t, err.Error(), "cannot be remapped")
+	}
+
+	// Index 1024 is rejected, because its upper bound at 1025 overflows, even
+	// though the bucket's own boundary is still finite.
+	in = expHistSketch(t, 0, 1024, []float64{1}, 0, nil, 0)
+	_, err = ConvertDDSketchIntoSketch(in)
+	assert.ErrorContains(t, err, "cannot be remapped")
+}
+
+// TestConvertDDSketchIntoSketchNegativeStoreBoundaries covers the negative half:
+// it is remapped by the same code, so it must be validated too.
+func TestConvertDDSketchIntoSketchNegativeStoreBoundaries(t *testing.T) {
+	in := expHistSketch(t, -5, 0, nil, 31, []float64{1, 1, 1}, 0)
+
+	var err error
+	require.NotPanics(t, func() { _, err = ConvertDDSketchIntoSketch(in) })
+	assert.ErrorContains(t, err, "cannot be remapped")
+}
+
+// TestConvertDDSketchIntoSketchMixedHalves asserts that one unrepresentable half
+// is enough to reject the data point, even when the other converts cleanly.
+func TestConvertDDSketchIntoSketchMixedHalves(t *testing.T) {
+	in := expHistSketch(t, 0, 0, []float64{1, 1}, 1023, []float64{1, 1, 1}, 0)
+
+	var err error
+	require.NotPanics(t, func() { _, err = ConvertDDSketchIntoSketch(in) })
+	assert.ErrorContains(t, err, "cannot be remapped")
+}
+
+// TestConvertDDSketchIntoSketchSingleObservation pins the one-observation
+// shortcut in createDDSketchWithSketchMapping: it is reached before any
+// remapping happens, so the check has to run ahead of it.
+func TestConvertDDSketchIntoSketchSingleObservation(t *testing.T) {
+	in := expHistSketch(t, -10, 0, []float64{1}, 0, nil, 0)
+	require.Equal(t, 1.0, in.GetCount())
+
+	var err error
+	require.NotPanics(t, func() { _, err = ConvertDDSketchIntoSketch(in) })
+	assert.ErrorContains(t, err, "cannot be remapped")
+}
+
+// TestConvertDDSketchIntoSketchZeroCountOnly asserts that a data point carrying
+// only a zero count is still converted, whatever its scale: no bucket boundary
+// is ever evaluated, so there is nothing to reject and dropping the point would
+// lose the observations.
+func TestConvertDDSketchIntoSketchZeroCountOnly(t *testing.T) {
+	for _, scale := range []int32{-10, -5, 0, 20} {
+		in := expHistSketch(t, scale, 0, nil, 0, nil, 7)
+
+		out, err := ConvertDDSketchIntoSketch(in)
+		require.NoError(t, err, "scale %d", scale)
+		require.NotNil(t, out)
+		assert.Equal(t, int64(7), out.Basic.Cnt, "scale %d", scale)
+	}
+}
+
+// TestConvertDDSketchIntoSketchZeroCountBucketsIgnored asserts that empty
+// buckets sitting past the representable range do not fail an otherwise
+// convertible point: the dense store never keeps them, so they are never
+// remapped.
+func TestConvertDDSketchIntoSketchZeroCountBucketsIgnored(t *testing.T) {
+	// Two observations in the lowest buckets, then enough empty ones to reach
+	// index 1024, whose boundary of 2^1024 is already +Inf.
+	counts := append([]float64{1, 1}, make([]float64, 1024)...)
+	in := expHistSketch(t, 0, 0, counts, 0, nil, 0)
+
+	out, err := ConvertDDSketchIntoSketch(in)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.Equal(t, int64(2), out.Basic.Cnt)
 }
