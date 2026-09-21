@@ -95,3 +95,7 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	}
 	return config, nil
 }
+
+func validateFoldspace(model.Reader) error { return nil }
+
+func validateFoldspaceEndpoints(model.Reader, *config.Endpoints) error { return nil }
