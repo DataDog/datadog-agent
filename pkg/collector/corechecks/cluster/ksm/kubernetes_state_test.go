@@ -2494,3 +2494,55 @@ func TestExtendedPodsCollectorKeyMatchesFactory(t *testing.T) {
 		"extendedCollectors[\"pods\"] must equal the extended pod factory's registered GVR key; "+
 			"if these drift, cluster_aggregates_only builds no pod store and .total disappears")
 }
+
+func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
+	// DeviceTaintRule graduates later than claims/slices, so its version is
+	// negotiated separately. The collector key has to match the key the
+	// factory registered its store under, or the vendored KSM builder rejects
+	// it with "resource ... does not exist" and the whole check instance
+	// fails to initialize -- taking every KSM metric with it, not just DRA.
+	tests := []struct {
+		name         string
+		apiVersion   string
+		taintVersion string
+		expected     []string
+	}{
+		{
+			name:         "same version",
+			apiVersion:   "v1",
+			taintVersion: "v1",
+			expected: []string{
+				"resource.k8s.io/v1, Resource=resourceclaims",
+				"resource.k8s.io/v1, Resource=resourceslices",
+				"resource.k8s.io/v1, Resource=devicetaintrules",
+			},
+		},
+		{
+			// Kubernetes 1.36: claims/slices are v1, DeviceTaintRule is not
+			// stable until 1.37 and is still served at v1beta2.
+			name:         "mixed version",
+			apiVersion:   "v1",
+			taintVersion: "v1beta2",
+			expected: []string{
+				"resource.k8s.io/v1, Resource=resourceclaims",
+				"resource.k8s.io/v1, Resource=resourceslices",
+				"resource.k8s.io/v1beta2, Resource=devicetaintrules",
+			},
+		},
+		{
+			name:         "taint rules not served",
+			apiVersion:   "v1beta1",
+			taintVersion: "",
+			expected: []string{
+				"resource.k8s.io/v1beta1, Resource=resourceclaims",
+				"resource.k8s.io/v1beta1, Resource=resourceslices",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, draCollectors(tt.apiVersion, tt.taintVersion))
+		})
+	}
+}

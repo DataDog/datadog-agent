@@ -65,7 +65,7 @@ func (f *deviceTaintRuleFactory) ExpectedType() interface{} {
 }
 
 // ListWatch: DeviceTaintRule is cluster-scoped.
-func (f *deviceTaintRuleFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *deviceTaintRuleFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	return draListWatch(customResourceClient, "", fieldSelector, false)
 }
 

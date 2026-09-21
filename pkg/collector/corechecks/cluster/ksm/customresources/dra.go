@@ -131,11 +131,11 @@ func draListWatch(customResourceClient interface{}, ns string, fieldSelector str
 	// TODO: accept a context from the factory so that check reconfiguration
 	// cancels in-flight requests; context.Background() keeps them alive.
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) { //nolint:staticcheck // SA1019: ListFunc is the portable field across client-go versions
 			opts.FieldSelector = fieldSelector
 			return client.List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) { //nolint:staticcheck // SA1019: WatchFunc is the portable field across client-go versions
 			opts.FieldSelector = fieldSelector
 			return client.Watch(ctx, opts)
 		},

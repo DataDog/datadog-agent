@@ -8,10 +8,10 @@ go_library(
         "controllerrevisions.go",
         "cr.go",
         "crd.go",
-        "devicetaintrule.go",
         "cronjob.go",
         "daemonset.go",
         "deployment.go",
+        "devicetaintrule.go",
         "doc.go",
         "dra.go",
         "hpa.go",
@@ -73,11 +73,10 @@ go_library(
 dd_agent_go_test(
     name = "customresources_test",
     srcs = [
-
-"controllerrevisions_test.go",
-        "devicetaintrule_test.go",
+        "controllerrevisions_test.go",
         "daemonset_test.go",
         "deployment_test.go",
+        "devicetaintrule_test.go",
         "dra_test.go",
         "pod_test.go",
         "replicaset_test.go",
