@@ -228,10 +228,17 @@ go_labels_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+# Note on the PIE fixtures:
+# In rules_go, setting linkmode="pie" forces `external` linking mode, which brings the C linker into play.
+# That can cause the generated code to be different enough that the current code wouldn't be able to find the
+# g offset.
+# Using linkmode="normal" and adding `-buildmode=pie` via explicit linker flags instead uses the internal
+# go linker instead.
 go_labels_fixture(
     name = "go_labels_cgo_pie_plain",
     srcs = ["testdata/main.go"],
-    linkmode = "pie",
+    gc_linkopts = ["-buildmode=pie"],
+    linkmode = "normal",
     pure = "off",
     race = "off",
     target_compatible_with = ["@platforms//os:linux"],
@@ -241,10 +248,11 @@ go_labels_fixture(
     name = "go_labels_cgo_pie_stripped",
     srcs = ["testdata/main.go"],
     gc_linkopts = [
+        "-buildmode=pie",
         "-s",
         "-w",
     ],
-    linkmode = "pie",
+    linkmode = "normal",
     pure = "off",
     race = "off",
     target_compatible_with = ["@platforms//os:linux"],
@@ -295,6 +303,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@rules_go//go/runfiles",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
