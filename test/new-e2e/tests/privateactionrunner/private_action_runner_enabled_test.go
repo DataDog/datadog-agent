@@ -277,12 +277,8 @@ func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID 
 func (s *linuxPrivateActionRunnerEnabledSuite) waitForSystemdUnitState(unit, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		output, err := s.Env().RemoteHost.Execute("sudo systemctl is-active " + unit)
-		if state == "active" {
-			require.NoError(c, err)
-		} else {
-			require.Error(c, err)
-		}
+		output, err := s.Env().RemoteHost.Execute("sudo systemctl is-active " + unit + " || true")
+		require.NoError(c, err)
 		require.Equal(c, state, strings.TrimSpace(output))
 	}, timeout, time.Second, "%s should become %s", unit, state)
 }
