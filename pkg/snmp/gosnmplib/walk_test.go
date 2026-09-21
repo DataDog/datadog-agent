@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFallbackRootOIDEncoding(t *testing.T) {
+func TestRootOIDsEncoding(t *testing.T) {
+	assert.Equal(t, []string{".0.0", ".1.0"}, RootOIDs)
 	for _, tc := range []struct {
 		version gosnmp.SnmpVersion
 		pduType gosnmp.PDUType
@@ -23,17 +24,19 @@ func TestFallbackRootOIDEncoding(t *testing.T) {
 		{version: gosnmp.Version1, pduType: gosnmp.GetNextRequest},
 		{version: gosnmp.Version2c, pduType: gosnmp.GetBulkRequest},
 	} {
-		t.Run(tc.pduType.String(), func(t *testing.T) {
-			snmp := &gosnmp.GoSNMP{Version: tc.version, Community: "public"}
-			packet, err := snmp.SnmpEncodePacket(tc.pduType, []gosnmp.SnmpPDU{
-				{Name: FallbackRootOID, Type: gosnmp.Null},
-			}, 0, 1)
-			require.NoError(t, err)
-			decoded, err := snmp.SnmpDecodePacket(packet)
-			require.NoError(t, err)
-			require.Len(t, decoded.Variables, 1)
-			assert.Equal(t, ".1.0", decoded.Variables[0].Name)
-		})
+		for _, rootOID := range RootOIDs {
+			t.Run(tc.pduType.String()+"/"+rootOID, func(t *testing.T) {
+				snmp := &gosnmp.GoSNMP{Version: tc.version, Community: "public"}
+				packet, err := snmp.SnmpEncodePacket(tc.pduType, []gosnmp.SnmpPDU{
+					{Name: rootOID, Type: gosnmp.Null},
+				}, 0, 1)
+				require.NoError(t, err)
+				decoded, err := snmp.SnmpDecodePacket(packet)
+				require.NoError(t, err)
+				require.Len(t, decoded.Variables, 1)
+				assert.Equal(t, rootOID, decoded.Variables[0].Name)
+			})
+		}
 	}
 }
 
@@ -127,6 +130,54 @@ func TestConditionalWalkStartingOID(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectedCalls, calls)
 			assert.Equal(t, tc.expectedPDUs, collected)
+		})
+	}
+}
+
+func TestConditionalWalkTriesRootsInOrder(t *testing.T) {
+	originalRoots := RootOIDs
+	RootOIDs = []string{".0.0", ".1.0", ".1.3.6.1.2.1"}
+	t.Cleanup(func() { RootOIDs = originalRoots })
+
+	for _, tc := range []struct {
+		name    string
+		success bool
+	}{
+		{name: "all roots fail"},
+		{name: "third root succeeds", success: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			timeoutErr := errors.New("request timeout")
+			var calls []string
+			getNext := func(oids []string) (*gosnmp.SnmpPacket, error) {
+				calls = append(calls, oids[0])
+				require.LessOrEqual(t, len(calls), 4)
+				if len(calls) < 3 || !tc.success {
+					return nil, timeoutErr
+				}
+				if len(calls) == 3 {
+					return &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{
+						{Name: ".1.3.6.1.2.1.1.1.0", Type: gosnmp.OctetString, Value: "device"},
+					}}, nil
+				}
+				return &gosnmp.SnmpPacket{}, nil
+			}
+			var collected []string
+			walkFn := func(pdu gosnmp.SnmpPDU) (string, error) {
+				collected = append(collected, pdu.Name)
+				return "", nil
+			}
+
+			err := conditionalWalk(context.Background(), getNext, gosnmp.Logger{}, "", 0, 0, walkFn)
+			if tc.success {
+				require.NoError(t, err)
+				assert.Equal(t, []string{".0.0", ".1.0", ".1.3.6.1.2.1", ".1.3.6.1.2.1.1.1.0"}, calls)
+				assert.Equal(t, []string{".1.3.6.1.2.1.1.1.0"}, collected)
+			} else {
+				require.ErrorIs(t, err, timeoutErr)
+				assert.Equal(t, []string{".0.0", ".1.0", ".1.3.6.1.2.1"}, calls)
+				assert.Empty(t, collected)
+			}
 		})
 	}
 }

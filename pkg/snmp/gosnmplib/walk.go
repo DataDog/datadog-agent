@@ -15,20 +15,14 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-const (
-	// BaseOID starts walks below gosnmp's default .1.3.6.1.2.1 to include
-	// lower prefixes such as LLDP (.1.0.*).
-	BaseOID = ".0.0"
-
-	// FallbackRootOID is the wire representation of Net-SNMP's .1 root.
-	// GoSNMP requires at least two sub-identifiers and cannot encode bare .1.
-	FallbackRootOID = ".1.0"
-)
+// RootOIDs lists scan roots in the order they are tried when initial requests fail.
+// Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
+// GoSNMP cannot encode bare .1, so use Net-SNMP's wire representation, .1.0.
+var RootOIDs = []string{".0.0", ".1.0"}
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
-// If the initial request at .0.0 fails, retry from .1 for devices that do not
-// support .0.0.
+// When starting at the default root, failed initial requests try RootOIDs in order.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
@@ -50,14 +44,19 @@ func conditionalWalk(
 	maxCallCount int,
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
 ) error {
+	rootOIDs := RootOIDs
 	if rootOID == "" || rootOID == "." {
-		rootOID = BaseOID
+		rootOID = rootOIDs[0]
 	}
 
 	if !strings.HasPrefix(rootOID, ".") {
 		rootOID = "." + rootOID
 	}
+	if rootOID != rootOIDs[0] {
+		rootOIDs = []string{rootOID}
+	}
 
+	rootIndex := 0
 	oid := rootOID
 	requests := 0
 
@@ -81,9 +80,10 @@ RequestLoop:
 		}
 
 		response, err := getNext([]string{oid})
-		if requests == 1 && oid == BaseOID && (err != nil || response.Error != gosnmp.NoError) {
-			logger.Printf("ConditionalWalk failed at %s, retrying from %s", BaseOID, FallbackRootOID)
-			oid = FallbackRootOID
+		if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError) {
+			rootIndex++
+			logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
+			oid = rootOIDs[rootIndex]
 			continue
 		}
 		if err != nil {

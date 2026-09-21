@@ -304,9 +304,8 @@ type bulkGetter interface {
 //
 // Adaptive max-repetitions: on GetBulk error the value is halved and the same
 // OID is retried, so a device that times out at a high value can still be
-// walked. If the initial .0.0 request still fails at the minimum size, retry
-// from .1 for devices that do not support .0.0. On success the value grows
-// back toward bulkMaxRep.
+// walked. If the initial request still fails at the minimum size, try the next
+// root in gosnmplib.RootOIDs. On success the value grows back toward bulkMaxRep.
 //
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
@@ -314,8 +313,9 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	emitted := 0
 	seenColumns := make(map[string]bool)
 
-	// Start from the beginning of the MIB tree.
-	oid := gosnmplib.BaseOID
+	rootOIDs := gosnmplib.RootOIDs
+	rootIndex := 0
+	oid := rootOIDs[rootIndex]
 	// prevInts is the parsed form of the last OID we accepted. SNMP walks are
 	// strictly increasing, so comparing each returned OID against it detects
 	// loops and non-advancing devices in O(1) memory - no need to remember
@@ -354,10 +354,14 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 			if maxRepOpt.OnFailure() {
 				continue
 			}
-			if oid == gosnmplib.BaseOID {
-				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, gosnmplib.BaseOID, gosnmplib.FallbackRootOID)
-				oid = gosnmplib.FallbackRootOID
-				prevInts = []int{1, 0}
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				prevInts, err = gosnmplib.OIDToInts(oid)
+				if err != nil {
+					return err
+				}
 				maxRepOpt = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 				continue
 			}
