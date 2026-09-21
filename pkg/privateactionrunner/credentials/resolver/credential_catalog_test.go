@@ -45,3 +45,22 @@ func TestResolveConnectionTokensV2FromRunnerCatalog(t *testing.T) {
 	assert.Equal(t, "token", credentials.Tokens[0].Name)
 	assert.Equal(t, "secret-value", credentials.Tokens[0].Value)
 }
+
+func TestResolveConnectionTokensV2FromPlainText(t *testing.T) {
+	resolver := NewPrivateCredentialResolver(nil)
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_PlainText_{
+				PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: "plain-value"},
+			},
+		}},
+	}
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "token", credentials.Tokens[0].Name)
+	assert.Equal(t, "plain-value", credentials.Tokens[0].Value)
+}

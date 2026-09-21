@@ -82,6 +82,8 @@ exports_files(["go.mod"])
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
 # gazelle:resolve proto datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//proto/healthplatform:healthplatform_proto
 # gazelle:resolve proto go datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//healthplatform
+# gazelle:resolve proto validate/validate.proto @com_github_envoyproxy_protoc_gen_validate//validate:validate_proto
+# gazelle:resolve proto go validate/validate.proto @com_github_envoyproxy_protoc_gen_validate//validate:validate_go_proto
 # GAZELLE_BUILD_TAGS is the source-of-truth tag list from
 # tasks/build_tags.bzl, shared with the dda inv build-tag code.
 gazelle(
