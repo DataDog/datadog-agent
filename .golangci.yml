@@ -413,6 +413,9 @@ linters:
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
+    # disable typecheck in folder where it breaks because embedded file is generated at build time
+    - path: "pkg/network/usm/debugger/cmd"
+      linters: [typecheck]
     # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
     - path: pkg/collector/corechecks/
       text: "name will be used as .* by other packages, and that stutters"
