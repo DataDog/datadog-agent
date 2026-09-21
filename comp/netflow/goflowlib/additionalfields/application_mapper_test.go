@@ -27,8 +27,10 @@ func Test_ApplicationMapper_addToCache(t *testing.T) {
 				FlowSetHeader: netflow.FlowSetHeader{Id: 257, Length: 20},
 				Records: []netflow.OptionsDataRecord{
 					{
-						OptionsValues: []netflow.DataField{
+						ScopesValues: []netflow.DataField{
 							{Type: ipfixFieldApplicationID, Value: []byte{0, 0, 0, 100}},
+						},
+						OptionsValues: []netflow.DataField{
 							{Type: ipfixFieldApplicationName, Value: []byte("HTTP\x00\x00")},
 						},
 					},
