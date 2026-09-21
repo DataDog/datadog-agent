@@ -176,9 +176,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 
 		// capabilities accumulate, so an attempted set holding CAP_SETUID alone can only have been
 		// reported before acct ran: receiving it is what proves the period was already armed when
-		// CAP_SYS_PACCT was recorded, which the sleep alone does not
+		// CAP_SYS_PACCT was recorded. The sleep only has to outlast one tick of the reporting
+		// ticker, so that acct cannot race that first report.
 		test.WaitSignalFromRule(t, func() error {
-			syscallTesterCmd = dockerInstance.Command(syscallTester, []string{"setreuid", ";", "sleep", "3", ";", "acct"}, []string{})
+			syscallTesterCmd = dockerInstance.Command(syscallTester, []string{"setreuid", ";", "sleep", "2", ";", "acct"}, []string{})
 			return syscallTesterCmd.Start()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
