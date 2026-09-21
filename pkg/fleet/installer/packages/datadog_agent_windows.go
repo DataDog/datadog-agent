@@ -205,27 +205,16 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 
 // procmgrConfig is a processes.d definition managed at install time.
 type procmgrConfig struct {
-	label      string
-	write      func(installRoot string) error
-	remove     func(installRoot string) error
-	binaryRoot func() (string, error)
-}
-
-func resolveAgentStablePackagePath() (string, error) {
-	stablePath := filepath.Join(paths.PackagesPath, agentPackage, "stable")
-	resolved, err := filepath.EvalSymlinks(stablePath)
-	if err != nil {
-		return "", fmt.Errorf("cannot resolve stable agent package path: %w", err)
-	}
-	return resolved, nil
+	label  string
+	write  func(installRoot string) error
+	remove func(installRoot string) error
 }
 
 var procmgrConfigs = []procmgrConfig{
-	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig, nil},
-	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig, nil},
-	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig, nil},
-	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig, nil},
-	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig, resolveAgentStablePackagePath},
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
@@ -234,18 +223,10 @@ func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
 		return err
 	}
 
-	root := installRoot
-	if cfg.binaryRoot != nil {
-		root, err = cfg.binaryRoot()
-		if err != nil {
-			return fmt.Errorf("failed to resolve %s binary root: %w", cfg.label, err)
-		}
-	}
-
 	if processManagerEnabled {
-		return cfg.write(root)
+		return cfg.write(installRoot)
 	}
-	if err := cfg.remove(root); err != nil {
+	if err := cfg.remove(installRoot); err != nil {
 		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
@@ -1104,24 +1085,24 @@ func SetProcessManager(_ context.Context, enabled bool) error {
 	if enabled {
 		for _, service := range services {
 			if err := stopServiceIfExists(service); err != nil {
-				log.Warnf("could not stop service: %v", err)
+				return fmt.Errorf("could not stop service %s: %w", service, err)
 			}
 		}
 		if err := startServiceIfExists(ddProcmgrServiceName); err != nil {
-			log.Warnf("could not start %s: %v", ddProcmgrServiceName, err)
+			return fmt.Errorf("could not start %s: %w", ddProcmgrServiceName, err)
 		}
 	} else {
 		if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
-			log.Warnf("could not stop %s: %v", ddProcmgrServiceName, err)
+			return fmt.Errorf("could not stop %s: %w", ddProcmgrServiceName, err)
 		}
 		for _, service := range services {
 			if err := startServiceIfExists(service); err != nil {
-				log.Warnf("could not start service: %v", err)
+				return fmt.Errorf("could not start service %s: %w", service, err)
 			}
 		}
 	}
 	if err := persistProcessManagerEnv(enabled); err != nil {
-		log.Warnf("could not persist process manager selection: %v", err)
+		return fmt.Errorf("could not persist process manager selection: %w", err)
 	}
 	return nil
 }

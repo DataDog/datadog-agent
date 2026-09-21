@@ -421,9 +421,7 @@ func (e *Env) ToEnv() []string {
 	if e.OTelCollectorEnabled {
 		env = append(env, envOTelCollectorEnabled+"=true")
 	}
-	if !e.ProcessManagerEnabled {
-		env = append(env, EnvProcessManagerEnabled+"=false")
-	}
+	env = append(env, fmt.Sprintf("%s=%t", EnvProcessManagerEnabled, e.ProcessManagerEnabled))
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
 	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
