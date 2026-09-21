@@ -129,6 +129,11 @@ type otelTargetProcess struct {
 	procCtxAddr uint64
 }
 
+func (p *otelTargetProcess) resetMapsObjects() {
+	clear(p.mapsObjects)
+	p.mapsObjects = p.mapsObjects[:0]
+}
+
 // reset rebinds the target to pid, dropping everything memoized for the
 // previous one. The backing array of mapsObjects survives, so it still holds
 // the previous target's paths past the new length until they are overwritten.
@@ -138,7 +143,7 @@ func (p *otelTargetProcess) reset(pid uint32) {
 	p.exePath = ""
 	p.exeErr = nil
 	p.exeDone = false
-	p.mapsObjects = p.mapsObjects[:0]
+	p.resetMapsObjects()
 	p.mapsErr = nil
 	p.mapsDone = false
 	p.procCtxAddr = 0
@@ -285,7 +290,7 @@ func (p *otelTargetProcess) loadTLSCandidateObjects() error {
 		}
 	}
 	if err := errf(); err != nil {
-		p.mapsObjects = p.mapsObjects[:0]
+		p.resetMapsObjects()
 		return err
 	}
 	return nil
