@@ -1,0 +1,19 @@
+exports_files(["overlay.BUILD.bazel"])
+
+alias(
+    name = "go_ffi_header",
+    actual = "@foldspace//:go_ffi_header",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "go_ffi_srcs",
+    actual = "@foldspace//:go_ffi_srcs",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "cargo_workspace",
+    actual = "@foldspace//:cargo_workspace",
+    visibility = ["//visibility:public"],
+)
