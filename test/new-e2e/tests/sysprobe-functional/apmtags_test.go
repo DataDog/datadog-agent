@@ -179,7 +179,7 @@ func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetf
 func copyFileToAppRoot(host *components.RemoteHost, app windows.IISApplicationDefinition, filename, targetfilename string) error {
 
 	apppath := path.Join(app.PhysicalPath, targetfilename)
-	host.CopyFile(filename, apppath)
+	host.CopyFile(assetPath(filename), apppath)
 	return nil
 }
 
