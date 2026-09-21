@@ -76,6 +76,7 @@ dd_agent_go_test(
         "//pkg/proto/pbgo/process",
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
+        "//pkg/util/eks",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",

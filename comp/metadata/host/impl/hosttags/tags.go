@@ -73,6 +73,10 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 			providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 		}
 		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
+		// Authoritative EKS identity (cluster ARN, account, Region) resolved once by the
+		// Cluster Agent. Returns an error on non-EKS clusters, which the retry loop treats
+		// as "no tags" after the retry budget.
+		providers["kubernetes_cluster_agent_eks_identity"] = &providerDef{3, clusterinfo.GetClusterAgentEKSIdentityTags}
 	}
 
 	if env.IsFeaturePresent(env.Docker) {

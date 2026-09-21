@@ -2004,7 +2004,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				return k + ":" + v
 			})
 			// Assert origin detection is working properly
-			err = assertTags(tags, []*regexp.Regexp{
+			expectedTraceTags := []*regexp.Regexp{
 				regexp.MustCompile(`^container_id:`),
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
@@ -2023,7 +2023,11 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^pod_phase:running$`),
 				regexp.MustCompile(`^short_image:apps-tracegen$`),
-			}, []*regexp.Regexp{}, false)
+			}
+			// Environment identity tags (for example EKS cluster ARN, account, and Region)
+			// must reach APM spans through container tags, so they are required here.
+			expectedTraceTags = append(expectedTraceTags, suite.envContainerTagRegexes()...)
+			err = assertTags(tags, expectedTraceTags, []*regexp.Regexp{}, false)
 			if err == nil {
 				break
 			}

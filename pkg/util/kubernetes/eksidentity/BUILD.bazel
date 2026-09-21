@@ -2,26 +2,22 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "clusterinfo",
-    srcs = [
-        "eks_identity.go",
-        "tags.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo",
+    name = "eksidentity",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/tags",
-        "//pkg/util/clusteragent",
+        "//pkg/util/ec2/tags",
         "//pkg/util/eks",
+        "//pkg/util/kubernetes/cloudprovider",
         "//pkg/util/kubernetes/clustername",
-        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 
 dd_agent_go_test(
-    name = "clusterinfo_test",
-    srcs = ["eks_identity_test.go"],
-    embed = [":clusterinfo"],
+    name = "eksidentity_test",
+    srcs = ["resolver_test.go"],
+    embed = [":eksidentity"],
     deps = [
         "//pkg/util/eks",
         "@com_github_stretchr_testify//assert",

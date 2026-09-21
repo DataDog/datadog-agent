@@ -32,6 +32,17 @@ type baseSuite[Env any] struct {
 
 	Fakeintake  *fakeintake.Client
 	clusterName string
+
+	// envContainerTags are regexes for tags that the environment attaches to every
+	// container-sourced payload (for example authoritative EKS cluster identity).
+	// They are accepted as optional on metrics, logs, and check runs and asserted
+	// explicitly by environment-specific suites where they must be present.
+	envContainerTags []string
+}
+
+// envContainerTagRegexes compiles envContainerTags.
+func (suite *baseSuite[Env]) envContainerTagRegexes() []*regexp.Regexp {
+	return lo.Map(suite.envContainerTags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 }
 
 func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
@@ -96,6 +107,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 		if args.Optional.Tags != nil {
 			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
+		optionalTags = append(optionalTags, suite.envContainerTagRegexes()...)
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)
@@ -307,6 +319,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 					regexp.MustCompile("auto_multiline_detected:.*"),
 					regexp.MustCompile("truncated:.*"),
 				}
+				optionalTags = append(optionalTags, suite.envContainerTagRegexes()...)
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
@@ -357,6 +370,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 		if args.Optional.Tags != nil {
 			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
+		optionalTags = append(optionalTags, suite.envContainerTagRegexes()...)
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)

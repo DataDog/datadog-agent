@@ -835,6 +835,38 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "eks cluster identity static tags",
+			staticTags: map[string][]string{
+				"eks_cluster_arn": {"arn:aws:eks:us-west-2:123456789012:cluster/orders"},
+				"aws_account":     {"123456789012"},
+				"region":          {"us-west-2"},
+			},
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
+						"aws_account:123456789012",
+						"region:us-west-2",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "datadog autoscaling tag",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
