@@ -43,6 +43,7 @@ func NewPipeline(
 	compression logscompression.Component,
 	instanceID string,
 	foldspaceDriver *foldspace.Driver,
+	dualShip bool,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -50,7 +51,9 @@ func NewPipeline(
 	useContainerTimestamp := cfg.GetBool("logs_config.use_container_timestamp")
 
 	var encoder processor.Encoder
-	if foldspaceDriver != nil {
+	if dualShip && foldspaceDriver != nil {
+		encoder = foldspace.NewTeeEncoder(processor.NewJSONEncoder(useContainerTimestamp), foldspaceDriver.Input())
+	} else if foldspaceDriver != nil && !dualShip {
 		encoder = processor.PassthroughEncoder
 	} else if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
@@ -63,7 +66,7 @@ func NewPipeline(
 	}
 
 	var strategy sender.Strategy
-	if foldspaceDriver != nil {
+	if foldspaceDriver != nil && !dualShip {
 		strategy = foldspace.NewFanInStrategy(strategyInput, foldspaceDriver)
 		flushChan = nil
 	} else {
