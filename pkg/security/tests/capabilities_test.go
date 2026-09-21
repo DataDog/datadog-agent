@@ -67,6 +67,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 			Expression: `capabilities.used == CAP_CHOWN && process.file.name == "syscall_tester"`,
 		},
 		{
+			ID:         "test_capabilities_flush_within_period_first_report",
+			Expression: `capabilities.attempted == CAP_SETUID && process.file.name == "syscall_tester"`,
+		},
+		{
 			ID:         "test_capabilities_flush_within_period",
 			Expression: `capabilities.attempted & CAP_SETUID > 0 && capabilities.attempted & CAP_SYS_PACCT > 0 && process.file.name == "syscall_tester"`,
 		},
@@ -160,11 +164,29 @@ func TestCapabilitiesEvent(t *testing.T) {
 	// the monitoring period rate-limits the periodic ticker only: once the ticker has reported an
 	// entry, a flush still has to report whatever was recorded since, even within the same period
 	t.Run("flush-within-period", func(t *testing.T) {
+		var syscallTesterCmd *exec.Cmd
+		defer func() {
+			if syscallTesterCmd != nil {
+				// acct is expected to fail
+				if err := syscallTesterCmd.Wait(); err != nil {
+					t.Logf("syscall_tester command terminated: %v", err)
+				}
+			}
+		}()
+
+		// capabilities accumulate, so an attempted set holding CAP_SETUID alone can only have been
+		// reported before acct ran: receiving it is what proves the period was already armed when
+		// CAP_SYS_PACCT was recorded, which the sleep alone does not
 		test.WaitSignalFromRule(t, func() error {
-			// the sleep lets the ticker report CAP_SETUID and arm the period, so the CAP_SYS_PACCT
-			// recorded afterwards can only ever reach userspace through the exit flush
-			_ = dockerInstance.Command(syscallTester, []string{"setreuid", ";", "sleep", "3", ";", "acct"}, []string{}).Run()
-			// ignore the error here because acct is expected to fail
+			syscallTesterCmd = dockerInstance.Command(syscallTester, []string{"setreuid", ";", "sleep", "3", ";", "acct"}, []string{})
+			return syscallTesterCmd.Start()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_flush_within_period_first_report", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_SETUID), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
+		}, "test_capabilities_flush_within_period_first_report")
+
+		test.WaitSignalFromRule(t, func() error {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
