@@ -97,8 +97,13 @@ func (r *pgbouncerCollectorTestReader) Runtime() configfilesdiscoveryimpl.Runtim
 
 func (r *pgbouncerCollectorTestReader) Close() {}
 
-func (r *pgbouncerCollectorTestReader) ReadFile(context.Context, string) (configfilesdiscoveryimpl.ConfigFile, error) {
+func (r *pgbouncerCollectorTestReader) ReadFile(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+}
+
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *pgbouncerCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *pgbouncerCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
