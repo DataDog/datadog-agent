@@ -18,8 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
-// clusterNameFailureTTL bounds how often a missing cluster name is re-discovered.
-const clusterNameFailureTTL = 5 * time.Minute
+// clusterNameRetryTTL bounds how often cluster name discovery is retried when the
+// EC2 kubernetes.io/cluster/<name> tag was not available. Both a missing name and a
+// configured-name fallback are cached with this TTL so a transient EC2 tag failure at
+// startup cannot pin the wrong name for the lifetime of the Cluster Agent. Variable so
+// tests can exercise expiry without sleeping.
+var clusterNameRetryTTL = 5 * time.Minute
 
 // ErrNotEKS indicates the Cluster Agent is not running on an EKS cluster.
 var ErrNotEKS = errors.New("cluster is not EKS")
@@ -60,16 +64,18 @@ func discoverClusterName(ctx context.Context) string {
 		}
 	}
 
+	// The EC2 tag carries the real EKS cluster name (which may contain upper-case
+	// characters the Datadog cluster name cannot). Only that source is cached permanently.
 	clusterName, err := ec2ClusterName(ctx)
-	if err != nil || clusterName == "" {
-		clusterName = configuredCluster(ctx, "")
+	if err == nil && clusterName != "" {
+		cache.Cache.Set(cacheKey, clusterName, cache.NoExpiration)
+		return clusterName
 	}
-	if clusterName == "" {
-		// Bounded negative cache: the name may appear later (for example once EC2 tags load).
-		cache.Cache.Set(cacheKey, "", clusterNameFailureTTL)
-		return ""
-	}
-	cache.Cache.Set(cacheKey, clusterName, cache.NoExpiration)
+
+	// Fallback to the configured Datadog cluster name. It may differ from the real EKS
+	// name, so it is only cached briefly and EC2 tag discovery is retried afterwards.
+	clusterName = configuredCluster(ctx, "")
+	cache.Cache.Set(cacheKey, clusterName, clusterNameRetryTTL)
 	return clusterName
 }
 
