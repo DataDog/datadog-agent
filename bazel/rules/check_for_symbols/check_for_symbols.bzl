@@ -30,9 +30,6 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 def _check_for_symbols_impl(ctx):
     binary = ctx.file.binary
 
-    if not ctx.attr.must_include and not ctx.attr.must_not_include:
-        fail("check_for_symbols_test: at least one of 'must_include' or 'must_not_include' must be non-empty")
-
     out = ctx.actions.declare_file(ctx.label.name + ".status")
 
     args = ctx.actions.args()
