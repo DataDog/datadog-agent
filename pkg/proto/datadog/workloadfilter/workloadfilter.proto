@@ -42,11 +42,20 @@ message FilterPod {
   string namespace = 3;
   map<string, string> annotations = 4;
   FilterRootOwner rootowner = 5;
+  repeated FilterMatchedOwner matched_owners = 6;
 }
 
 message FilterRootOwner {
   string kind = 1;
   string name = 2;
+}
+
+message FilterMatchedOwner {
+  string group = 1;
+  string version = 2;
+  string kind = 3;
+  string namespace = 4;
+  string name = 5;
 }
 
 message FilterProcess {
