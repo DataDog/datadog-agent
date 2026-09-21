@@ -1,7 +1,6 @@
 """Tests for check_for_symbols.bzl - the check_for_symbols_test rule."""
 
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
-load("@rules_testing//lib:truth.bzl", "matching")
 load("@rules_testing//lib:util.bzl", "util")
 load(":check_for_symbols.bzl", "check_for_symbols")
 
@@ -42,4 +41,6 @@ def check_for_symbols_test_suite(name):
         tests = [
             _test_wires_checker_action,
         ],
+        # TODO: Add macos and windows implementations.
+        target_compatible_with = ["@platforms//os:linux"],
     )
