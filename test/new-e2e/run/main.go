@@ -4,8 +4,15 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package main is the Pulumi entry point for demo lab scenarios.
-// It exposes all scenarios registered via registry.RegisterScenario (called
-// from init() in test/new-e2e/tests/*/scenario.go files), as well as the
+//
+// The scenario resolution and dispatch logic lives in registry.Run, shared with
+// test/e2e-framework/run. This runner exists separately only because it must
+// blank-import scenarios from this module: test/new-e2e depends on
+// test/e2e-framework, so the framework's own runner cannot import back into
+// test/new-e2e/tests/*.
+//
+// It therefore exposes all scenarios registered via registry.RegisterScenario
+// (called from init() in test/new-e2e/tests/*/scenario.go files), as well as the
 // built-in scenarios from test/e2e-framework/registry.
 //
 // Regenerate scenarios_import_gen.go after adding a new scenario.go:
@@ -14,40 +21,9 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/registry"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
-)
-
-const (
-	scenarioEnvVarName = "PULUMI_SCENARIO"
-	scenarioParamName  = "scenario"
-
-	dummyScenario = "dummy"
 )
 
 func main() {
-	pulumi.Run(func(ctx *pulumi.Context) error {
-		scenarioName := os.Getenv(scenarioEnvVarName)
-		rootConfig := config.New(ctx, "")
-		if s := rootConfig.Get(scenarioParamName); s != "" {
-			scenarioName = s
-		}
-
-		// Fake stack name used to pre-download pulumi plugins due to a bug with `pulumi plugin install` and azure-native-sdk
-		if scenarioName == dummyScenario {
-			return nil
-		}
-
-		rf := registry.Scenarios().Get(scenarioName)
-		if rf == nil {
-			return fmt.Errorf("impossible to run unknown scenario: %s, known scenarios: %s", scenarioName, strings.Join(registry.Scenarios().List(), " ,"))
-		}
-
-		return rf(ctx)
-	})
+	registry.Run()
 }
