@@ -89,20 +89,26 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 	host := v.Env().RemoteHost
 	// Kill client traffic generators, server helper processes, and tc rules from previous tests.
-	host.MustExecute("docker exec tcp-congestion-client killall -9 iperf3 nc dd 2>/dev/null; " +
-		"docker exec tcp-congestion-server killall -9 python3 2>/dev/null; " +
+	// pkill, not killall: the ubuntu:22.04 containers ship procps (pgrep/pkill) but not
+	// psmisc (killall), so killall silently fails here.
+	host.MustExecute("docker exec tcp-congestion-client pkill -9 -x iperf3 2>/dev/null; " +
+		"docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; " +
+		"docker exec tcp-congestion-client pkill -9 -x dd 2>/dev/null; " +
+		"docker exec tcp-congestion-server pkill -9 -x python3 2>/dev/null; " +
 		"docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null; " +
 		"docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null; " +
 		"true")
 	// Restart the iperf3 server from scratch before every test. Tests usually
 	// succeed while their `iperf3 -t 60` client is still mid-session, so this
-	// BeforeTest's killall aborts the server's current session; a still-finishing
+	// kill aborts the server's current session; a still-finishing
 	// or wedged single-session server can then reject the next test's client
 	// (observed as a failed cookie exchange and a data connection that never
-	// transfers). Kill the daemon, wait for it to release port 5201, start a
-	// fresh listener, and wait until it accepts connections again.
-	host.MustExecute("docker exec tcp-congestion-server killall -9 iperf3 2>/dev/null; true")
-	host.MustExecute("timeout 15 bash -c 'while docker exec tcp-congestion-server pgrep iperf3 >/dev/null 2>&1; do sleep 0.5; done'")
+	// transfers). Kill the daemon, wait for port 5201 to be released (waiting on
+	// the port rather than pgrep because a killed daemonized process can linger
+	// as a zombie that pgrep still reports), start a fresh listener, and wait
+	// until it accepts connections again.
+	host.MustExecute("docker exec tcp-congestion-server pkill -9 -x iperf3 2>/dev/null; true")
+	host.MustExecute("timeout 15 bash -c 'while docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
 	host.MustExecute("docker exec -d tcp-congestion-server iperf3 -s -p 5201")
 	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
 	if !v.BaseSuite.IsDevMode() {
@@ -225,7 +231,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	// Start slow-reader on server port 9999
 	host.MustExecute(fmt.Sprintf(`docker exec -d tcp-congestion-server python3 -c "%s"`, slowReaderScript))
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-server killall -9 python3 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-server pkill -9 -x python3 2>/dev/null || true")
 	})
 
 	// Wait for the slow-reader to be listening
@@ -234,7 +240,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	// Client floods data to the slow reader — send blocks once receive buffer fills
 	host.MustExecute("docker exec -d tcp-congestion-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 172.28.0.10 9999'")
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-client killall -9 nc dd 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; docker exec tcp-congestion-client pkill -9 -x dd 2>/dev/null || true")
 	})
 
 	v.pollForTCPCongestionSignal("LastTcpProbe0Count > 0", func(conn *agentmodel.Connection) bool {
