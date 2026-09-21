@@ -21,6 +21,7 @@ import (
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -221,6 +222,26 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	podUpdated := false
 
 	if !agentSidecarExists {
+		if err := w.validateAgentSidecarSecret(namespace, apiClient); err != nil {
+			if reason := agentSidecarSecretSkipReason(err); reason != "" {
+				log.Warnf("Skipping Agent sidecar injection for pod %s/%s: %v", namespace, pod.GetName(), err)
+				if pod.Annotations == nil {
+					pod.Annotations = map[string]string{}
+				}
+				pod.Annotations[agentSidecarInjectionStatusAnnotation] = agentSidecarInjectionStatusSkipped
+				pod.Annotations[agentSidecarInjectionErrorAnnotation] = err.Error()
+				metrics.AgentSidecarInjectionSkipped.Inc(reason)
+
+				// The pod was annotated, but the sidecar itself was not injected.
+				return false, nil
+			}
+
+			// Secret validation is best effort so that this Agent change can be rolled out
+			// before deployment tools grant the Cluster Agent permission to read the Secret.
+			// Preserve the existing injection behavior when the check cannot be performed.
+			log.Debugf("Unable to validate Agent sidecar Secret for pod %s/%s, proceeding with injection: %v", namespace, pod.GetName(), err)
+		}
+
 		// 1. Create the agent sidecar container
 		agentSidecarContainer := w.getDefaultSidecarTemplate()
 
@@ -341,6 +362,44 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	}
 
 	return podUpdated, nil
+}
+
+func (w *Webhook) validateAgentSidecarSecret(namespace string, apiClient kubernetes.Interface) error {
+	if apiClient == nil {
+		return errors.New("Kubernetes API client is unavailable")
+	}
+
+	secret, err := apiClient.CoreV1().Secrets(namespace).Get(context.TODO(), agentSidecarSecretName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return errAgentSidecarSecretNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Agent sidecar Secret: %w", err)
+	}
+
+	if _, found := secret.Data["api-key"]; !found {
+		return errAgentSidecarAPIKeyNotFound
+	}
+	if w.isClusterAgentEnabled {
+		if _, found := secret.Data["token"]; !found {
+			return errAgentSidecarTokenNotFound
+		}
+	}
+
+	return nil
+}
+
+func agentSidecarSecretSkipReason(err error) string {
+	switch {
+	case errors.Is(err, errAgentSidecarSecretNotFound):
+		return agentSidecarSkipReasonSecretNotFound
+	case errors.Is(err, errAgentSidecarAPIKeyNotFound):
+		return agentSidecarSkipReasonAPIKeyNotFound
+	case errors.Is(err, errAgentSidecarTokenNotFound):
+		return agentSidecarSkipReasonTokenNotFound
+	default:
+		return ""
+	}
 }
 
 func (w *Webhook) getSecurityInitTemplate() *corev1.Container {

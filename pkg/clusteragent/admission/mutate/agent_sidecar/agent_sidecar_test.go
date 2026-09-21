@@ -9,14 +9,19 @@ package agentsidecar
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/fake"
+	ktesting "k8s.io/client-go/testing"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -26,6 +31,7 @@ import (
 )
 
 const commonRegistry = "gcr.io/datadoghq"
+const testNamespace = "test-namespace"
 
 func TestInjectAgentSidecar(t *testing.T) {
 	mockConfig := configmock.New(t)
@@ -660,7 +666,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 			webhook := NewWebhook(mockConfig)
 
-			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil, nil, test.DryRun)
+			apiClient := fake.NewSimpleClientset(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data: map[string][]byte{
+					"api-key": []byte("api-key"),
+					"token":   []byte("token"),
+				},
+			})
+			injected, err := webhook.injectAgentSidecar(test.Pod, testNamespace, nil, apiClient, test.DryRun)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -685,6 +698,109 @@ func TestInjectAgentSidecar(t *testing.T) {
 		})
 	}
 
+}
+
+func TestAgentSidecarSecretPrecheck(t *testing.T) {
+	tests := []struct {
+		name                string
+		clusterAgentEnabled bool
+		secret              *corev1.Secret
+		apiError            error
+		expectInjection     bool
+		expectedReason      string
+		expectedError       error
+	}{
+		{
+			name:                "injects when required keys are present",
+			clusterAgentEnabled: true,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{"api-key": []byte("api-key"), "token": []byte("token")},
+			},
+			expectInjection: true,
+		},
+		{
+			name:                "skips when Secret is missing",
+			clusterAgentEnabled: true,
+			expectedReason:      agentSidecarSkipReasonSecretNotFound,
+			expectedError:       errAgentSidecarSecretNotFound,
+		},
+		{
+			name:                "skips when API key is missing",
+			clusterAgentEnabled: true,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{"token": []byte("token")},
+			},
+			expectedReason: agentSidecarSkipReasonAPIKeyNotFound,
+			expectedError:  errAgentSidecarAPIKeyNotFound,
+		},
+		{
+			name:                "skips when Cluster Agent token is missing",
+			clusterAgentEnabled: true,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{"api-key": []byte("api-key")},
+			},
+			expectedReason: agentSidecarSkipReasonTokenNotFound,
+			expectedError:  errAgentSidecarTokenNotFound,
+		},
+		{
+			name:                "does not require token when Cluster Agent communication is disabled",
+			clusterAgentEnabled: false,
+			secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: agentSidecarSecretName, Namespace: testNamespace},
+				Data:       map[string][]byte{"api-key": []byte("api-key")},
+			},
+			expectInjection: true,
+		},
+		{
+			name:                "preserves injection when Secret cannot be checked",
+			clusterAgentEnabled: true,
+			apiError:            apierrors.NewForbidden(corev1.Resource("secrets"), agentSidecarSecretName, errors.New("forbidden")),
+			expectInjection:     true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.container_registry", commonRegistry)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.cluster_agent.enabled", test.clusterAgentEnabled)
+			mockConfig.SetInTest("admission_controller.agent_sidecar.profiles", "[]")
+
+			objects := []runtime.Object{}
+			if test.secret != nil {
+				objects = append(objects, test.secret)
+			}
+			apiClient := fake.NewSimpleClientset(objects...)
+			if test.apiError != nil {
+				apiClient.PrependReactor("get", "secrets", func(ktesting.Action) (bool, runtime.Object, error) {
+					return true, nil, test.apiError
+				})
+			}
+
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "pod-name", Namespace: testNamespace},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}},
+			}
+			injected, err := NewWebhook(mockConfig).injectAgentSidecar(pod, testNamespace, nil, apiClient, nil)
+
+			assert.NoError(t, err)
+			assert.Equal(t, test.expectInjection, injected)
+			if test.expectInjection {
+				assert.Len(t, pod.Spec.Containers, 2)
+				assert.NotContains(t, pod.Annotations, agentSidecarInjectionStatusAnnotation)
+				assert.NotContains(t, pod.Annotations, agentSidecarInjectionErrorAnnotation)
+				return
+			}
+
+			assert.Len(t, pod.Spec.Containers, 1)
+			assert.Equal(t, agentSidecarInjectionStatusSkipped, pod.Annotations[agentSidecarInjectionStatusAnnotation])
+			assert.Equal(t, test.expectedError.Error(), pod.Annotations[agentSidecarInjectionErrorAnnotation])
+			assert.Equal(t, test.expectedReason, agentSidecarSecretSkipReason(test.expectedError))
+		})
+	}
 }
 
 func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
