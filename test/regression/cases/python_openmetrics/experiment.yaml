@@ -37,7 +37,7 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_openmetrics
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:python_openmetrics
 
 checks:
   - name: cpu_usage
@@ -58,6 +58,7 @@ checks:
   - name: checks_execution_time
     description: "Check execution time quality gate. This puts a bound on the average time to execute check instances."
     bounds:
+      # TODO: filter to {check_name:openmetrics} once SMP label selectors land.
       series: avg(target/checks.execution_time)
       # Calibrated from baseline run: observed 77.96.
       upper_bound: 100
