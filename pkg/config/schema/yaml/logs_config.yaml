@@ -113,6 +113,39 @@ properties:
       to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
       is ignored.
     example: 'true'
+  foldspace:
+    node_type: section
+    type: object
+    comment: Undocumented foldspace logs transport. Incompatible with TCP and SOCKS5.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      dd_url:
+        node_type: setting
+        type: string
+        default: ""
+        comment: Overrides only the main foldspace host. Empty uses the main HTTP endpoint host.
+      max_inflight_payloads:
+        node_type: setting
+        type: integer
+        default: 16
+      pipeline_depth:
+        node_type: setting
+        type: integer
+        default: 8
+      state_request_bytes:
+        node_type: setting
+        type: integer
+        default: 5242880
+      shutdown_timeout:
+        node_type: setting
+        type: string
+        default: 15s
+        format: duration
+        tags:
+        - golang_type:duration
   use_compression:
     node_type: setting
     type: boolean
