@@ -11,6 +11,7 @@ package tests
 import (
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -23,6 +24,8 @@ import (
 
 var _ = declare(TestCapabilitiesEvent, testOpts{
 	capabilitiesMonitoringEnabled: true,
+	// long enough that the flush-within-period case below can never be reported by the ticker
+	capabilitiesMonitoringPeriod: 30 * time.Second,
 })
 
 func TestCapabilitiesEvent(t *testing.T) {
@@ -62,6 +65,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 		{
 			ID:         "test_capabilities_used_periodic_flush",
 			Expression: `capabilities.used == CAP_CHOWN && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_capabilities_flush_within_period",
+			Expression: `capabilities.attempted & CAP_SETUID > 0 && capabilities.attempted & CAP_SYS_PACCT > 0 && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -148,5 +155,22 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_CHOWN), "capabilities attempted should contain CAP_CHOWN")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_CHOWN), "capabilities used should contain CAP_CHOWN")
 		}, "test_capabilities_used_periodic_flush")
+	})
+
+	// the monitoring period rate-limits the periodic ticker only: once the ticker has reported an
+	// entry, a flush still has to report whatever was recorded since, even within the same period
+	t.Run("flush-within-period", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			// the sleep lets the ticker report CAP_SETUID and arm the period, so the CAP_SYS_PACCT
+			// recorded afterwards can only ever reach userspace through the exit flush
+			_ = dockerInstance.Command(syscallTester, []string{"setreuid", ";", "sleep", "3", ";", "acct"}, []string{}).Run()
+			// ignore the error here because acct is expected to fail
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_flush_within_period", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_SETUID|1<<unix.CAP_SYS_PACCT), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
+			assert.Equal(t, uint64(1<<unix.CAP_SETUID), event.CapabilitiesUsage.Used, "wrong capabilities used")
+		}, "test_capabilities_flush_within_period")
 	})
 }
