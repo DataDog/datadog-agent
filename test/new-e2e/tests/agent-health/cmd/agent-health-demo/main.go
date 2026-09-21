@@ -54,6 +54,9 @@ func rootCmd() *cobra.Command {
 		Long: "Provision agent-health demo environments by driving the e2e framework directly.\n" +
 			"Run under aws-vault so AWS credentials are available.",
 		SilenceUsage: true,
+		// main() prints the error and owns the exit code; without this cobra
+		// prints it too and every failure appears twice.
+		SilenceErrors: true,
 	}
 	root.AddCommand(createCmd(), runCmd(), listCmd(), deleteCmd())
 	return root
