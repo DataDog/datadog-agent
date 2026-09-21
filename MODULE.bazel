@@ -142,9 +142,9 @@ archive_override(
         # the synthetic testmain. Upstream fix candidate: DataDog/rules_test_optimization.
         "//bazel/patches:rules_go-orchestrion-testmain-cgo-link-inputs.patch",
     ],
-    sha256 = "bbeab4c931ad59ffc767cf3d5e3f7ea1fa2203fa7d6234a6d116795e7f385b82",
-    strip_prefix = "rules_test_optimization-000a454600cc2f41f71c0668b1824b8cfa664ebc/third_party/rgo/v0_63_0/base",
-    urls = ["https://github.com/DataDog/rules_test_optimization/archive/000a454600cc2f41f71c0668b1824b8cfa664ebc.tar.gz"],
+    sha256 = "8f6034b6a8379f52c0d2a37c2386f8f1a9ecd1f20d13ad18521bf9243ba5d2e5",
+    strip_prefix = "rules_test_optimization-000a454600cc2f41f71c0668b1824b8cfa664ebc/third_party/rgo/v0_63_0_1b78046/base",
+    urls = ["https://github.com/DataDog/rules_test_optimization/archive/refs/heads/kfairise/rgo-latest.tar.gz"],
 )
 
 # BEGIN Datadog Go Orchestrion bootstrap
