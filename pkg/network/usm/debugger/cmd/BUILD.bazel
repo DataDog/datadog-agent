@@ -1,5 +1,9 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
+# gazelle can not maintain this file because of the interaction with
+# creating embedded .o files dynamically and go lint. See comments below.
+# gazelle:ignore
+
 # ebpf_bytecode.go embeds usm-debug.o and shared-libraries-debug.o by bare
 # filename (//go:embed), so the prebuilt eBPF program outputs from
 # //pkg/network/ebpf/c/prebuilt (a different package) must be copied into
@@ -22,8 +26,9 @@ go_binary(
     name = "usm_debugger",
     embed = [":cmd_lib"],
     gotags = [
-        # tag usm_debugger blocks golang wildcard expansion. that fails because
-        # the embedded .o file does not exist. We add it here so bazel will build it.
+        # tag usm_debugger is used to prevent golang wildcard expansion during
+        # lint. Go lint fails because the embedded .o file does not exist in the
+        # go build.
         "usm_debugger",
         "linux_bpf",
         "bpf",
@@ -52,23 +57,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//pkg/config/setup",
-            "//pkg/network/config",
-            "//pkg/network/usm",
-            "//pkg/system-probe/config",
-            "//pkg/util/log",
-            "//pkg/util/log/setup",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/config/setup",
-            "//pkg/network/config",
-            "//pkg/network/usm",
-            "//pkg/system-probe/config",
-            "//pkg/util/log",
-            "//pkg/util/log/setup",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/network/config",
+        "//pkg/network/usm",
+        "//pkg/system-probe/config",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+    ],
 )
