@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender/foldspace"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -64,6 +66,7 @@ type provider struct {
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
 	sender                    sender.PipelineComponent
+	foldspaceDriver           *foldspace.Driver
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
@@ -99,6 +102,30 @@ func NewProvider(
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
+	var fsDriver *foldspace.Driver
+
+	if config.FoldspaceEnabled(cfg) && !serverless {
+		if dest, err := foldspace.BuildDestinationConfig(cfg, endpoints); err != nil {
+			log.Errorf("foldspace configuration rejected: %v", err)
+		} else {
+			core, err := newFoldspaceCore(dest)
+			if err != nil {
+				log.Errorf("foldspace core: %v", err)
+			} else {
+				fsDriver = foldspace.NewDriver(foldspace.DriverOptions{
+					Core:              core,
+					Transport:         foldspace.NewGRPCTransport(dest),
+					Sink:              sink,
+					PipelineMonitor:   metrics.NewTelemetryPipelineMonitor(),
+					InputSize:         cfg.GetInt("logs_config.message_channel_size"),
+					PipelineDepth:     dest.PipelineDepth,
+					ConnectTimeout:    dest.ConnectTimeout,
+					ShutdownTimeout:   dest.ShutdownTimeout,
+					StateRequestBytes: dest.StateRequestBytes,
+				})
+			}
+		}
+	}
 
 	if endpoints.UseHTTP {
 		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode, secretsComp)
@@ -106,7 +133,11 @@ func NewProvider(
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
-	return newProvider(
+	if fsDriver != nil {
+		senderImpl = fsDriver
+	}
+
+	p := newProvider(
 		numberOfPipelines,
 		diagnosticMessageReceiver,
 		processingRules,
@@ -116,7 +147,9 @@ func NewProvider(
 		compression,
 		serverlessMeta,
 		senderImpl,
-	)
+	).(*provider)
+	p.foldspaceDriver = fsDriver
+	return p
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -267,6 +300,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
+			p.foldspaceDriver,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
@@ -425,4 +459,8 @@ func (p *provider) Flush(ctx context.Context) {
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
 		p.serverlessMeta.WaitGroup().Wait()
 	}
+}
+
+var newFoldspaceCore = func(dest *foldspace.DestinationConfig) (foldspace.Core, error) {
+	return foldspace.NewNativeCore(dest.Core)
 }
