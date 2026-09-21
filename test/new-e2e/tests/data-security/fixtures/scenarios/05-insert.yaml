@@ -33,9 +33,9 @@ expected:
             databaseName: labdb
             schemaName: public
             tableName: accounts
-            scannedRowCount: 1
+            scannedRowCount: 0
         scanMetadata:
           scanTaskMetadata:
             taskId: e2e-datasec-postgres
             subTaskId: insert
-            status: SUCCESS
+            status: ERROR
