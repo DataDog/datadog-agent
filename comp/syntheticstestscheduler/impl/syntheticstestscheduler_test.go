@@ -16,11 +16,14 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -85,6 +88,113 @@ type tracerouteRunner struct {
 
 func (t *tracerouteRunner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	return t.fn(ctx, cfg)
+}
+
+func Test_SyntheticsTestScheduler_TriggeredPollPreservesEnrichment(t *testing.T) {
+	const enrichment = `{"execution":{"origin":"network-ephemeral","metadata":{"attempt":1}},"future":{"large":9007199254740993}}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "test-api-key", r.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "test-hostname", r.URL.Query().Get("agent_hostname"))
+		assert.Equal(t, "7.99.0-test", r.URL.Query().Get("agent_version"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"tests":[{
+			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"triggered-test",
+			"result_id":"backend-result-id","run_type":"triggered","enrichment":%s,
+			"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN"}}
+		}]}`, enrichment)
+	}))
+	defer server.Close()
+
+	logger := newTestLogger(t)
+	fixedTime := time.UnixMilli(1756901488589)
+	poller := &testPoller{
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "test-api-key",
+		agentVersion:    "7.99.0-test",
+		hostNameService: &mockHostname{},
+		log:             logger,
+		timeNowFn:       func() time.Time { return fixedTime },
+		TestsChan:       make(chan SyntheticsTestCtx, 1),
+		done:            make(chan struct{}),
+		healthy:         true,
+	}
+
+	tests, err := poller.fetchTests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, tests, 1)
+	require.Equal(t, common.RunTypeTriggered, tests[0].RunType)
+	require.Equal(t, "backend-result-id", tests[0].ResultID)
+	require.Equal(t, json.RawMessage(enrichment), tests[0].Enrichment)
+
+	schedulerPoller := newStubPoller(t, logger)
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", testDir)
+
+	ctrl := gomock.NewController(t)
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+	messages := make(chan []byte, 1)
+	mockEpForwarder.EXPECT().
+		SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeSynthetics).
+		DoAndReturn(func(msg *message.Message, _ string) error {
+			messages <- append([]byte(nil), msg.GetContent()...)
+			return nil
+		}).
+		Times(1)
+
+	scheduler := newSyntheticsTestScheduler(
+		&schedulerConfigs{workers: 1, flushInterval: 100 * time.Millisecond, syntheticsSchedulerEnabled: true},
+		mockEpForwarder,
+		logger,
+		&mockHostname{},
+		func() time.Time { return fixedTime },
+		&teststatsd.Client{},
+		&tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{
+				TestRunID:   "network-path-run-id",
+				Protocol:    cfg.Protocol,
+				Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			}, nil
+		}},
+		schedulerPoller,
+	)
+	scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+		t.Error("result ID should come from the triggered polling request")
+		return "generated-result-id", nil
+	}
+
+	require.NoError(t, scheduler.start(context.Background()))
+	t.Cleanup(scheduler.stop)
+	schedulerPoller.TestsChan <- SyntheticsTestCtx{nextRun: fixedTime, cfg: tests[0]}
+
+	var payloadBytes []byte
+	select {
+	case payloadBytes = <-messages:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for Synthetics result")
+	}
+
+	var got struct {
+		Enrichment json.RawMessage `json:"enrichment"`
+		Result     struct {
+			ID        string `json:"id"`
+			InitialID string `json:"initialId"`
+			RunType   string `json:"runType"`
+			Netpath   struct {
+				TestResultID string `json:"test_result_id"`
+				TestRunType  string `json:"test_run_type"`
+			} `json:"netpath"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(payloadBytes, &got))
+	assert.Equal(t, json.RawMessage(enrichment), got.Enrichment)
+	assert.Equal(t, "backend-result-id", got.Result.ID)
+	assert.Equal(t, "backend-result-id", got.Result.InitialID)
+	assert.Equal(t, common.RunTypeTriggered, got.Result.RunType)
+	assert.Equal(t, "backend-result-id", got.Result.Netpath.TestResultID)
+	assert.Equal(t, common.RunTypeTriggered, got.Result.Netpath.TestRunType)
 }
 
 func Test_SyntheticsTestScheduler_Processing(t *testing.T) {

@@ -9,7 +9,7 @@ description: >-
   - "why did this job fail"
   - "is there an incident affecting CI"
   - "should I retry this"
-  This should also be invoked whenever the user asks you to investigate _or fix_ a failing CI, to ensure we don't spend hours trying to fix something broken upstream.
+  This should also be invoked whenever the user asks you to investigate _or fix_ a failing CI, to ensure we don't spend hours trying to fix something broken upstream. Diagnosis only — pair with handle-pr-ci-failure to act on a pr-code verdict.
 model: sonnet
 ---
 
@@ -21,6 +21,8 @@ Answer one question: **is this failure caused by this PR's own changes ?** with 
 Every verdict below must cite the evidence that produced it — a bare "looks flaky, retry" or "looks broken, fix it" is not an acceptable output.
 
 This skill only diagnoses. Never take action (writing a fix, retrying a job) on your own: only present your investigation results to the user.
+
+**Owning team:** `@DataDog/agent-devx`
 
 ## Step 0 — Preflight
 
@@ -131,13 +133,54 @@ State your verdict among the below options, as well as a recommended course of a
 | `flake` | any | Suggest a retry, citing the measured cross-branch failure rate from Step 2 as the reason — not just a feeling. |
 | `inconclusive` | any | Present the evidence and the two most likely readings. Don't guess past what you found. |
 
-End with a line stating the incident outcome on its own, exactly like one of
-these, so a caller like `/follow-pr` can act on it without re-deriving your
-reasoning:
+End with one block per failed job, exactly in this shape, so a caller like `/follow-pr` or `/handle-pr-ci-failure` can act without re-deriving your reasoning or guessing which job a verdict belongs to:
 
 ```
-Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848
-Incident: IR-59848 (stable, probably safe to retry) — https://app.datadoghq.com/incidents/59848
-Incident: IR-59848 (resolved) — https://app.datadoghq.com/incidents/59848
-Incident: none
+CI triage result
+Job: <exact GitLab job name>
+Pipeline SHA: <full SHA of the pipeline you inspected>
+Blame: pr-code | upstream | infra | flake | inconclusive
+Failure signature: <stable failing command/test/error, e.g. "TestFoo/bar: assert.Equal want=1 got=2">
+Evidence: <one-line summary of the hard evidence from Steps 1-4>
+Proposed fix: <smallest concrete fix, or none>
+Incident: <one of the forms below, or none>
+End CI triage result
 ```
+
+Concrete `Incident` forms:
+- `IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848`
+- `IR-59848 (stable, probably safe to retry) — https://app.datadoghq.com/incidents/59848`
+- `IR-59848 (resolved) — https://app.datadoghq.com/incidents/59848`
+- `none`
+
+`Proposed fix` is `none` for every `Blame` except `pr-code` — only a PR-caused failure gets a concrete fix proposed. For example:
+
+```
+CI triage result
+Job: lint_go_linux-x64
+Pipeline SHA: 8f2c1e9a4b1d7e3f0a9c6b5d4e3f2a1b0c9d8e7f
+Blame: pr-code
+Failure signature: pkg/foo/bar.go: ineffectual assignment to err (ineffassign)
+Evidence: introduced in this PR's commit a1b2c3d; the same job passes on main at the same base commit
+Proposed fix: remove the unused `err :=` reassignment on line 42
+Incident: none
+End CI triage result
+```
+
+A second example, for a failure that turned out inconclusive rather than PR-caused:
+
+```
+CI triage result
+Job: new-e2e-container-images
+Pipeline SHA: 3c7b1a0f9e8d6c5b4a3f2e1d0c9b8a7f6e5d4c3b
+Blame: inconclusive
+Failure signature: TestContainerImages/pull_public_image: context deadline exceeded
+Evidence: fails intermittently on main too (3/40 runs over the last 2 days); no matching incident found; the job's own diff and log show no clear infra or PR-code signal
+Proposed fix: none
+Incident: none
+End CI triage result
+```
+
+`Failure signature` must stay stable across replacement pipelines for the same underlying defect: strip timestamps, job/pipeline IDs, temp paths, and line numbers, keeping the failing command/test name and the error itself. A caller diffs signatures across pipelines to tell "same bug, still broken" from "new bug" — don't let cosmetic noise make two identical failures look different.
+
+Never collapse multiple failed jobs into one block, and never let a `none` incident stand in for a `pr-code` verdict — a caller must branch on `Blame` alone, not on the absence of an incident.
