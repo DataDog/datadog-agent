@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // clusterNameRetryTTL bounds how often cluster name discovery is retried when the
@@ -71,6 +72,7 @@ func discoverClusterName(ctx context.Context) string {
 		cache.Cache.Set(cacheKey, clusterName, cache.NoExpiration)
 		return clusterName
 	}
+	log.Debugf("EKS cluster name is not available from EC2 tags (retry in %s), falling back to the configured cluster name: %v", clusterNameRetryTTL, err)
 
 	// Fallback to the configured Datadog cluster name. It may differ from the real EKS
 	// name, so it is only cached briefly and EC2 tag discovery is retried afterwards.

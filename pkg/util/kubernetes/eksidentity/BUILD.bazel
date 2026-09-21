@@ -12,6 +12,7 @@ go_library(
         "//pkg/util/eks",
         "//pkg/util/kubernetes/cloudprovider",
         "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
     ],
 )
 
