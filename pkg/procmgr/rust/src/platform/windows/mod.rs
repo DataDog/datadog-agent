@@ -30,6 +30,8 @@ pub(crate) use spawn::{SpawnCredential, resolve_initial_spawn_identity};
 
 pub use child_env::agent_service_env_var;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
+#[cfg(test)]
+pub(crate) use console::caller_console_state;
 pub(crate) use console::console_lock;
 pub use console::{
     last_signal, send_force_kill, send_graceful_stop, stderr_inheritable, stdout_inheritable,

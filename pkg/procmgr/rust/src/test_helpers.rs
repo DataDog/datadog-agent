@@ -306,89 +306,6 @@ pub fn graceful_stop_cmd() -> (String, Vec<String>) {
     (cmd.to_string(), args)
 }
 
-#[cfg(windows)]
-fn normalize_runfile_key(path: &str) -> String {
-    path.replace('\\', "/")
-}
-
-#[cfg(windows)]
-fn runfile_lookup_keys(path: &str) -> Vec<String> {
-    let normalized = normalize_runfile_key(path);
-    let mut keys = vec![normalized.clone()];
-    if std::path::Path::new(&normalized).extension().is_none() {
-        keys.push(format!("{normalized}.exe"));
-    }
-    if let Some(base) = std::path::Path::new(&normalized).file_name() {
-        let base = base.to_string_lossy();
-        keys.push(base.to_string());
-        if std::path::Path::new(base.as_ref()).extension().is_none() {
-            keys.push(format!("{base}.exe"));
-        }
-    }
-    keys.sort_unstable();
-    keys.dedup();
-    keys
-}
-
-#[cfg(windows)]
-fn runfile_keys_match(candidate: &str, manifest_entry: &str) -> bool {
-    if candidate == manifest_entry {
-        return true;
-    }
-    candidate.ends_with(&format!("/{manifest_entry}"))
-        || manifest_entry.ends_with(&format!("/{candidate}"))
-}
-
-#[cfg(windows)]
-fn lookup_runfile_in_manifest(manifest_key: &str) -> Option<std::path::PathBuf> {
-    let lookup_keys = runfile_lookup_keys(manifest_key);
-    let manifest_path = std::env::var("RUNFILES_MANIFEST_FILE").ok()?;
-    let content = std::fs::read_to_string(&manifest_path).ok()?;
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let (runfile, real_path) = line.split_once(' ')?;
-        let runfile = normalize_runfile_key(runfile);
-        if lookup_keys
-            .iter()
-            .any(|key| runfile_keys_match(key, &runfile))
-        {
-            return Some(std::path::PathBuf::from(real_path));
-        }
-    }
-    None
-}
-
-#[cfg(windows)]
-fn resolve_bazel_runfile(path: &str) -> std::path::PathBuf {
-    if let Some(resolved) = lookup_runfile_in_manifest(path) {
-        return resolved;
-    }
-
-    let normalized = normalize_runfile_key(path);
-    let relative = std::path::Path::new(&normalized);
-    if relative.is_absolute() && relative.is_file() {
-        return relative.to_path_buf();
-    }
-
-    for var in ["RUNFILES_DIR", "TEST_SRCDIR"] {
-        if let Ok(root) = std::env::var(var) {
-            for candidate in [
-                std::path::Path::new(&root).join(relative),
-                std::path::Path::new(&root).join(relative.with_extension("exe")),
-            ] {
-                if candidate.is_file() {
-                    return candidate;
-                }
-            }
-        }
-    }
-
-    std::path::PathBuf::from(path)
-}
-
 /// Windows Bazel runfiles expose file runfiles as directory junctions that
 /// `CreateProcessW` cannot execute. Copy the resolved binary into `TEST_TMPDIR`
 /// before spawning, matching the pattern in `comp/trace/config/impl/config_test.go`.
@@ -429,19 +346,29 @@ pub(crate) fn graceful_sleeper_exe() -> String {
     static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHED
         .get_or_init(|| {
-            let manifest_key = match std::env::var("GRACEFUL_SLEEPER_BIN") {
-                Ok(path) if !path.is_empty() => path,
-                _ => "graceful-sleeper.exe".to_string(),
+            // BUILD.bazel passes $(rlocationpath :graceful-sleeper) here. A cargo
+            // run has no runfiles tree, so it points at a built executable instead.
+            let sleeper_bin = std::env::var("GRACEFUL_SLEEPER_BIN")
+                .expect("GRACEFUL_SLEEPER_BIN is set by the Bazel test target");
+            let sleeper_path = std::path::Path::new(&sleeper_bin);
+            let resolved = if sleeper_path.is_absolute() && sleeper_path.is_file() {
+                sleeper_path.to_path_buf()
+            } else {
+                let runfiles = runfiles::Runfiles::create()
+                    .expect("graceful-sleeper is a runfile, so this test needs `bazel test`");
+                // What `rlocation!` expands to. The macro reads REPOSITORY_NAME through
+                // `env!`, which only Bazel sets, and that would stop the crate compiling
+                // under cargo. An absent name means the main repo, which is what "" is.
+                runfiles
+                    .rlocation_from(&sleeper_bin, option_env!("REPOSITORY_NAME").unwrap_or(""))
+                    .filter(|path| path.is_file())
+                    .unwrap_or_else(|| {
+                        panic!("no graceful-sleeper runfile for {sleeper_bin:?}");
+                    })
             };
-            let resolved = resolve_bazel_runfile(&manifest_key);
-            if !resolved.is_file() {
-                panic!(
-                    "could not resolve graceful-sleeper runfile from {manifest_key:?} (got {})",
-                    resolved.display()
-                );
-            }
-            let spawnable = materialize_windows_test_executable(&resolved);
-            spawnable.to_string_lossy().into_owned()
+            materialize_windows_test_executable(&resolved)
+                .to_string_lossy()
+                .into_owned()
         })
         .clone()
 }

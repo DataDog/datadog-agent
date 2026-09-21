@@ -68,7 +68,7 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, "", kafkaDefaultConfigPathGroups...)
+	selection, err := selectConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, "", kafkaDefaultConfigPathGroups...)
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
@@ -78,7 +78,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		log.Debugf("config files discovery skipped kafka env var collection: %v", err)
 		envVars = nil
 	}
-	if !ok {
+	if selection == nil {
 		// Without a broker properties file, env vars are the only
 		// Kafka config source. Return the error so the scheduler retries.
 		if err != nil {
@@ -95,6 +95,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		}, nil
 	}
 
+	file := selection.file
 	file.PayloadFormat = kafkaConfigPayloadFormat
 
 	return configfilesdiscoveryimpl.CollectedConfig{

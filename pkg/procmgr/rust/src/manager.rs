@@ -12,6 +12,7 @@ use crate::ordering;
 use crate::platform;
 use crate::process::{ExitEvent, ManagedProcess, ProcessOrigin};
 use crate::shutdown;
+use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
@@ -169,6 +170,12 @@ impl ProcessManager {
         };
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
+            return;
+        }
+        // `handle_restart` decided at exit time; the gate can close during the
+        // backoff delay, so re-check it here.
+        if !proc.may_respawn() {
+            info!("[{name}] restart skipped: start conditions not met");
             return;
         }
         if let Err(e) = proc.spawn(exit_tx.clone()) {
@@ -336,17 +343,56 @@ impl ProcessManager {
         {
             let mut procs = self.processes.write().await;
             for name in &modified_running {
-                if let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) {
-                    proc.wait_for_stop().await;
-                    info!("[{name}] restarting with updated config");
-                    if let Err(e) = proc.spawn(exit_tx.clone()) {
-                        warn!("[{name}] failed to restart: {e:#}");
-                    }
+                let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+                    continue;
+                };
+                proc.wait_for_stop().await;
+                if !proc.may_respawn() {
+                    info!("[{name}] not restarting after reload: start conditions not met");
+                    continue;
+                }
+                info!("[{name}] restarting with updated config");
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("[{name}] failed to restart: {e:#}");
                 }
             }
         }
 
+        // Recomputed before the gate re-evaluation below, which walks it to
+        // start candidates in dependency order and to inherit its exclusion of
+        // processes caught in a dependency cycle.
         self.update_startup_order().await;
+
+        // A process whose conditions were unmet at boot never started, so no
+        // earlier reload step covers it. Two guards keep this narrow: `Created`
+        // is the only state meaning "never started", so `Stopped`, `Exited`, and
+        // `Failed` processes are not resurrected, and a process declaring no
+        // condition was never blocked in the first place.
+        {
+            let candidates: std::collections::HashSet<&str> = unchanged
+                .iter()
+                .chain(modified.iter())
+                .map(String::as_str)
+                .collect();
+            let order = self.startup_order.read().await;
+            let mut procs = self.processes.write().await;
+            for &idx in order.iter() {
+                let proc = &mut procs[idx];
+                if !candidates.contains(proc.name())
+                    || proc.state() != ProcessState::Created
+                    || !proc.has_start_conditions()
+                    || !proc.should_start()
+                {
+                    continue;
+                }
+                let name = proc.name().to_owned();
+                info!("[{name}] start conditions now met after reload, starting");
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("[{name}] failed to start after gate re-eval: {e:#}");
+                }
+            }
+        }
+
         Ok(ReloadResult {
             added,
             removed,
@@ -993,5 +1039,254 @@ mod tests {
             .await
             .expect("unambiguous prefix should resolve");
         assert_eq!(start.uuid, "aabbccdd-1111-0000-0000-000000000000");
+    }
+
+    #[cfg(not(windows))]
+    mod config_gate {
+        use super::*;
+        use crate::config::RestartPolicy;
+        use crate::config_gate::{ConditionConfigFile, TestEnvGuard, test_env_guard};
+        use std::io::Write;
+
+        /// Every test in this module evaluates gates, which read the live process
+        /// environment, so each one needs the shared guard that excludes the
+        /// `config_gate` tests mutating `DD_*` values.
+        fn gate_env() -> (TestEnvGuard, tempfile::TempDir) {
+            (test_env_guard(), tempfile::tempdir().unwrap())
+        }
+
+        fn gate_on_process_collection(agent_yaml: &str) -> Vec<ConditionConfigFile> {
+            vec![ConditionConfigFile {
+                path: agent_yaml.to_string(),
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }]
+        }
+
+        fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    condition_config_any: gate_on_process_collection(agent_yaml),
+                    ..Default::default()
+                },
+            }
+        }
+
+        fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    restart: RestartPolicy::OnFailure,
+                    restart_sec: Some(2.0),
+                    condition_config_any: gate_on_process_collection(agent_yaml),
+                    ..Default::default()
+                },
+            }
+        }
+
+        /// `container_collection` and `process_discovery` both default to true
+        /// and both enable process collection, so they have to be pinned false
+        /// or the gate is open regardless of the key under test.
+        fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+            let path = dir.join("datadog.yaml");
+            let body = format!(
+                "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+            );
+            let mut file = std::fs::File::create(&path).unwrap();
+            file.write_all(body.as_bytes()).unwrap();
+            path.to_string_lossy().into_owned()
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_runs_when_config_gate_open() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "process should auto-start when condition_config_any is met"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_skips_when_config_gate_closed() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            let procs = mgr.processes().await;
+            assert!(
+                !procs[0].is_running(),
+                "process should not auto-start when condition_config_any is not met"
+            );
+            assert_eq!(
+                procs[0].state(),
+                ProcessState::Created,
+                "a gated process that never started stays Created"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_on_failure_restart_skips_when_config_gate_closes() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            let pid = {
+                let procs = mgr.processes().await;
+                assert!(procs[0].is_running());
+                procs[0].pid().unwrap()
+            };
+
+            // The gate closes between the exit and the queued restart firing.
+            write_agent_yaml(dir.path(), false);
+            {
+                let mut procs = mgr.processes.write().await;
+                let (cmd, args) = test_helpers::false_cmd();
+                let status = std::process::Command::new(cmd).args(args).status()?;
+                procs[0].set_last_status(status);
+            }
+            test_helpers::cleanup_process(pid);
+
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "on-failure restart should skip when the config gate is closed"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_starts_created_process_when_gate_opens() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+                "gated-svc",
+                &yaml,
+            )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(!mgr.processes().await[0].is_running());
+
+            // Only the gated yaml changes; the process config is untouched.
+            write_agent_yaml(dir.path(), true);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                result.unchanged.contains(&"gated-svc".to_string()),
+                "process config did not change, so reload should report it unchanged (modified: {:?})",
+                result.modified
+            );
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload should start a Created process whose gate has opened"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_start_cycle_skipped_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mut a = gated_sleep_def("svc-a", &yaml);
+            let mut b = gated_sleep_def("svc-b", &yaml);
+            a.config.after = vec!["svc-b".to_string()];
+            b.config.after = vec!["svc-a".to_string()];
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![a, b]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            let procs = mgr.processes().await;
+            assert!(
+                procs.iter().all(|p| !p.is_running()),
+                "reload must not start processes the dependency resolver excluded for a cycle"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_restart_stopped_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+                "gated-svc",
+                &yaml,
+            )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(mgr.processes().await[0].is_running());
+            mgr.handle_stop("gated-svc").await?;
+
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(result.unchanged.contains(&"gated-svc".to_string()));
+            let procs = mgr.processes().await;
+            assert!(
+                !procs[0].is_running(),
+                "reload must not resurrect a process an operator stopped (state={})",
+                procs[0].state()
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_manual_start_bypasses_closed_gate() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(!mgr.processes().await[0].is_running());
+
+            // An explicit operator command is not a boot-time policy decision.
+            mgr.handle_start("gated-svc", &exit_tx).await?;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "an explicit start should run even with a closed gate"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
     }
 }

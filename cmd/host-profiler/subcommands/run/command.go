@@ -128,18 +128,27 @@ func run(collector collector.Component) error {
 }
 
 // initStandaloneConfig performs one-time config setup for standalone mode (no core agent).
-// K8S_NODE_IP is set by upstream Helm charts for the node IP; we use it as
+// K8S_NODE_IP/OTEL_K8S_NODE_IP are set by upstream Helm charts for the node IP; we use these as
 // kubernetes_kubelet_host so the kubelet client can resolve the node hostname.
 func initStandaloneConfig() {
 	const kubeletHostAgentConfig = "kubernetes_kubelet_host"
 	pkgconfigenv.DetectFeatures(setup.Datadog())
-	k8sNodeIP := os.Getenv("K8S_NODE_IP")
-	// If not set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
-	if k8sNodeIP != "" {
-		setup.Datadog().Set(kubeletHostAgentConfig, k8sNodeIP, pkgconfigmodel.SourceAgentRuntime)
+	nodeIP := firstNonEmptyEnv("K8S_NODE_IP", "OTEL_K8S_NODE_IP")
+	// If none is set, let's keep DD_KUBERNETES_KUBELET_HOST as fallback
+	if nodeIP != "" {
+		setup.Datadog().Set(kubeletHostAgentConfig, nodeIP, pkgconfigmodel.SourceAgentRuntime)
 	} else if _, exists := os.LookupEnv("DD_KUBERNETES_KUBELET_HOST"); exists {
 		slog.Warn("DD_KUBERNETES_KUBELET_HOST used as fallback to K8S_NODE_IP but is not officially supported")
 	}
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := os.Getenv(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func getRemoteTaggerOptions() []fx.Option {

@@ -169,6 +169,18 @@ func TestClient(t *testing.T) {
 		assert.Nil(t, payloads)
 	})
 
+	t.Run("getFakePayloads should time out a hung request", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL, WithGetBackoffRetries(1), WithGetTimeout(10*time.Millisecond))
+		payloads, err := client.getFakePayloads("/foo/bar")
+		require.Error(t, err)
+		assert.Nil(t, payloads)
+	})
+
 	t.Run("getMetrics", func(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(apiV2SeriesResponse)

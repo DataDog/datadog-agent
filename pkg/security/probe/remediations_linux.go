@@ -45,8 +45,10 @@ type Remediation struct {
 	actionType         uint8
 	scope              string
 	triggered          bool
-	containerContext   RemediationContainerContext
-	processContext     RemediationProcessContext
+	pidsIsolated       []uint32                    // used when a rule matches on several pids with scope process
+	cgroupIsolated     []model.PathKey             // used when a rule matches on several cgroups with scope cgroup
+	containerContext   RemediationContainerContext // only used for manual respond, so the container is unique here
+	processContext     RemediationProcessContext   // only used for manual respond, so the pid is unique here
 	policy             string
 	isolationReApplied bool
 	isolationNew       bool
@@ -246,6 +248,8 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 		state.triggered = false
 		state.isolationReApplied = false
 		state.isolationNew = false
+		state.pidsIsolated = make([]uint32, 0)
+		state.cgroupIsolated = make([]model.PathKey, 0)
 	}
 
 	for _, rule := range rs.GetRules() {
@@ -356,6 +360,11 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 		return
 	}
 	remediation.triggered = true
+	if remediation.scope == "cgroup" {
+		remediation.cgroupIsolated = append(remediation.cgroupIsolated, ev.ProcessContext.Process.CGroup.CGroupPathKey)
+	} else {
+		remediation.pidsIsolated = append(remediation.pidsIsolated, ev.ProcessContext.Process.Pid)
+	}
 
 	// if the isolation is from the same rule and was already performed, don't send an event
 	if remediation.isolationReApplied && remediation.isolationPerformed {

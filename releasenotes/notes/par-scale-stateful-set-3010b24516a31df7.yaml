@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds new ``scaleStatefulSet`` actions to scale statefulsets horizontally and vertically.
