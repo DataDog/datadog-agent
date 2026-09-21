@@ -3,12 +3,12 @@
 Description=Datadog Process Manager Daemon
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
-Conflicts=datadog-agent-exp.service datadog-agent-procmgr-exp.service
+Conflicts=datadog-agent-exp.service datadog-agent-procmgr-exp.service datadog-agent-ddot.service datadog-agent-ddot-exp.service
 {{- else}}
 Description=Datadog Process Manager Daemon Experiment
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
-Conflicts=datadog-agent.service datadog-agent-procmgr.service
+Conflicts=datadog-agent.service datadog-agent-procmgr.service datadog-agent-ddot.service datadog-agent-ddot-exp.service
 {{- end}}
 ConditionPathExists={{.InstallDir}}/embedded/bin/dd-procmgrd
 
