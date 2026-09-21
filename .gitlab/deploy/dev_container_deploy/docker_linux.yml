@@ -206,6 +206,22 @@ dev_branch-full:
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
     IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full,agent-dev:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-full
 
+dev_branch-recorder-full:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_light_pipeline]
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: true
+    - when: never
+  needs:
+    - docker_build_agent7_recorder_full
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-recorder-full-amd64
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-recorder-full,agent-dev:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-recorder-full
+
 dev_branch-ot-standalone:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
