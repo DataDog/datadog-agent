@@ -499,6 +499,94 @@ func TestAzureFunctionsSource(t *testing.T) {
 	}
 }
 
+func TestGCPServerlessSource(t *testing.T) {
+	for _, platform := range []struct {
+		name string
+		kind source.Kind
+	}{
+		{"gcp_cloud_run", source.GCPCloudRunKind},
+		{"gcp_cloud_functions", source.GCPCloudFunctionsKind},
+	} {
+		t.Run(platform.name, func(t *testing.T) {
+			newAttrs := func() pcommon.Map {
+				return testutils.NewAttributeMap(map[string]string{
+					"cloud.platform":   platform.name,
+					"cloud.provider":   "gcp",
+					"cloud.account.id": "project-1",
+					"cloud.region":     "us-central1",
+					"faas.name":        "my-service",
+					"faas.instance":    "instance-1",
+					"faas.version":     "revision-1",
+					// Functions v2 also have Cloud Run service/revision identity.
+					"service.name":      "unrelated-instrumentation-name",
+					"host.name":         "must-not-be-a-host",
+					"host.id":           "must-not-be-a-host",
+					"host":              "literal-host",
+					"datadog.host.name": "custom-host",
+				})
+			}
+			for _, revision := range []bool{true, false} {
+				attrs := newAttrs()
+				wantDims := map[string]string{
+					"project_id": "project-1", "location": "us-central1",
+					"service_name": "my-service", "instance": "instance-1",
+				}
+				if revision {
+					wantDims["revision_name"] = "revision-1"
+				} else {
+					attrs.Remove("faas.version")
+				}
+				src, ok := SourceFromAttrs(attrs, nil)
+				assert.True(t, ok)
+				assert.Equal(t, platform.kind, src.Kind)
+				assert.Equal(t, "instance-1", src.SourceIdentifier.Primary)
+				assert.Equal(t, "instance-1", src.Identifier) //nolint:staticcheck // Verify legacy consumer compatibility.
+				assert.Equal(t, wantDims, src.SourceIdentifier.Dimensions)
+				for key, value := range wantDims {
+					assert.Contains(t, TagsFromAttributes(attrs), key+":"+value)
+				}
+				assert.Empty(t, GetHost(attrs, "fallback-host"))
+			}
+
+			for _, key := range []string{"cloud.account.id", "cloud.region", "faas.name", "faas.instance"} {
+				for _, invalid := range []string{"missing", "empty", "non-string"} {
+					t.Run(key+"/"+invalid, func(t *testing.T) {
+						attrs := newAttrs()
+						switch invalid {
+						case "missing":
+							attrs.Remove(key)
+						case "empty":
+							attrs.PutStr(key, "")
+						case "non-string":
+							attrs.PutInt(key, 123)
+						}
+						src, ok := SourceFromAttrs(attrs, nil)
+						assert.False(t, ok)
+						assert.Equal(t, source.Source{}, src)
+						assert.Empty(t, GetHost(attrs, "fallback-host"))
+						assert.NotContains(t, TagsFromAttributes(attrs), "service_name:my-service")
+					})
+				}
+			}
+			for _, jobKey := range []string{"gcp.cloud_run.job.execution", "gcp.cloud_run.job.task_index"} {
+				for _, value := range []any{"", "job-execution", int64(0)} {
+					attrs := newAttrs()
+					switch value := value.(type) {
+					case string:
+						attrs.PutStr(jobKey, value)
+					case int64:
+						attrs.PutInt(jobKey, value)
+					}
+					src, ok := SourceFromAttrs(attrs, nil)
+					assert.False(t, ok, "job key %s must exclude the resource", jobKey)
+					assert.Equal(t, source.Source{}, src)
+					assert.Empty(t, GetHost(attrs, "fallback-host"))
+				}
+			}
+		})
+	}
+}
+
 func TestAzureFunctionsSourceRequiresBillingIdentity(t *testing.T) {
 	requiredAttributes := []string{
 		string(conventions.ServiceNameKey),
