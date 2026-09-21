@@ -8,6 +8,7 @@ package privateactions
 
 import (
 	actionsclient "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -556,8 +557,7 @@ type ConnectionInfo struct {
 	Tokens          []*ConnectionToken     `protobuf:"bytes,2,rep,name=tokens,proto3" json:"tokens,omitempty"`
 	CredentialsType CredentialsType        `protobuf:"varint,3,opt,name=credentials_type,json=credentialsType,proto3,enum=datadog.privateactionrunner.privateactions.CredentialsType" json:"credentials_type,omitempty"`
 	RunnerId        string                 `protobuf:"bytes,4,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
-	// Connection tokens whose values are either inline or selected from the
-	// credential catalog configured on this runner.
+	// Connection tokens whose values are inline or resolved by the runner.
 	TokensV2      []*ConnectionTokenV2 `protobuf:"bytes,5,rep,name=tokens_v2,json=tokensV2,proto3" json:"tokens_v2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -711,7 +711,7 @@ type ConnectionTokenV2_PlainText_ struct {
 }
 
 type ConnectionTokenV2_RunnerCredential_ struct {
-	RunnerCredential *ConnectionTokenV2_RunnerCredential `protobuf:"bytes,3,opt,name=runner_credential,json=runnerCredential,proto3,oneof"`
+	RunnerCredential *ConnectionTokenV2_RunnerCredential `protobuf:"bytes,5,opt,name=runner_credential,json=runnerCredential,proto3,oneof"`
 }
 
 func (*ConnectionTokenV2_PlainText_) isConnectionTokenV2_Source() {}
@@ -1055,7 +1055,7 @@ var File_datadog_privateactionrunner_private_actions_proto protoreflect.FileDesc
 
 const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\n" +
-	"1datadog/privateactionrunner/private_actions.proto\x12*datadog.privateactionrunner.privateactions\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a/datadog/privateactionrunner/actionsclient.proto\"\xb4\x02\n" +
+	"1datadog/privateactionrunner/private_actions.proto\x12*datadog.privateactionrunner.privateactions\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a/datadog/privateactionrunner/actionsclient.proto\x1a\x17validate/validate.proto\"\xb4\x02\n" +
 	"\x1dRemoteConfigSignatureEnvelope\x12\x12\n" +
 	"\x04data\x18\x04 \x01(\fR\x04data\x12Q\n" +
 	"\thash_type\x18\x05 \x01(\x0e24.datadog.privateactionrunner.privateactions.HashTypeR\bhashType\x12C\n" +
@@ -1096,17 +1096,17 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x06tokens\x18\x02 \x03(\v2;.datadog.privateactionrunner.privateactions.ConnectionTokenR\x06tokens\x12f\n" +
 	"\x10credentials_type\x18\x03 \x01(\x0e2;.datadog.privateactionrunner.privateactions.CredentialsTypeR\x0fcredentialsType\x12\x1b\n" +
 	"\trunner_id\x18\x04 \x01(\tR\brunnerId\x12Z\n" +
-	"\ttokens_v2\x18\x05 \x03(\v2=.datadog.privateactionrunner.privateactions.ConnectionTokenV2R\btokensV2\"\xf4\x02\n" +
-	"\x11ConnectionTokenV2\x12#\n" +
-	"\rname_segments\x18\x01 \x03(\tR\fnameSegments\x12h\n" +
+	"\ttokens_v2\x18\x05 \x03(\v2=.datadog.privateactionrunner.privateactions.ConnectionTokenV2R\btokensV2\"\x8e\x03\n" +
+	"\x11ConnectionTokenV2\x121\n" +
+	"\rname_segments\x18\x01 \x03(\tB\f\xfaB\t\x92\x01\x06\"\x04r\x02\x10\x01R\fnameSegments\x12h\n" +
 	"\n" +
 	"plain_text\x18\x02 \x01(\v2G.datadog.privateactionrunner.privateactions.ConnectionTokenV2.PlainTextH\x00R\tplainText\x12}\n" +
-	"\x11runner_credential\x18\x03 \x01(\v2N.datadog.privateactionrunner.privateactions.ConnectionTokenV2.RunnerCredentialH\x00R\x10runnerCredential\x1a!\n" +
+	"\x11runner_credential\x18\x05 \x01(\v2N.datadog.privateactionrunner.privateactions.ConnectionTokenV2.RunnerCredentialH\x00R\x10runnerCredential\x1a!\n" +
 	"\tPlainText\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x1a$\n" +
 	"\x10RunnerCredential\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03keyB\b\n" +
-	"\x06source\"\xe2\x03\n" +
+	"\x06sourceJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05\"\xe2\x03\n" +
 	"\x0fConnectionToken\x12#\n" +
 	"\rname_segments\x18\x01 \x03(\tR\fnameSegments\x12f\n" +
 	"\n" +
