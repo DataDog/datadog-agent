@@ -85,6 +85,7 @@ check_pkg_size:
       when: on_success
       allow_failure: true
     - !reference [.on_dev_branches]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs:
     - agent_deb-x64-a7
