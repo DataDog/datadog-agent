@@ -10,6 +10,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -102,16 +103,10 @@ func TestAddProperties(t *testing.T) {
 }
 
 func TestMarkRetriedTestCases(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "*.xml")
-	if err != nil {
+	path := filepath.Join(t.TempDir(), "report.xml")
+	if err := os.WriteFile(path, []byte(retriedXMLDoc), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	path := f.Name()
-	_, err = f.WriteString(retriedXMLDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
 
 	if err := markRetriedTestCases(path); err != nil {
 		t.Fatal(err)
