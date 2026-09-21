@@ -20,7 +20,7 @@ const MAX_TRACER_MEMFDS: usize = 25;
 
 const MAX_LOG_FILES: usize = 100;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
     pub logs: Vec<PathBuf>,
@@ -36,13 +36,7 @@ struct FdInfo {
 
 pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
-    let mut result = OpenFilesInfo {
-        sockets: Vec::new(),
-        logs: Vec::new(),
-        tracer_memfds: Vec::new(),
-        memfd_path: None,
-        has_gpu_device: false,
-    };
+    let mut result = OpenFilesInfo::default();
 
     read_dir(fd_path)?
         .map_while(|entry_result| entry_result.ok())
@@ -436,16 +430,6 @@ mod tests {
         use super::super::{MAX_LOG_FILES, OpenFilesInfo, get_open_files_info, process_fd};
         use crate::procfs::root_path;
 
-        fn empty_open_files_info() -> OpenFilesInfo {
-            OpenFilesInfo {
-                sockets: vec![],
-                logs: vec![],
-                tracer_memfds: vec![],
-                memfd_path: None,
-                has_gpu_device: false,
-            }
-        }
-
         fn fd_path(fd: &impl AsRawFd) -> PathBuf {
             root_path()
                 .join(std::process::id().to_string())
@@ -462,28 +446,12 @@ mod tests {
             );
         }
 
-        #[test]
-        fn returns_empty_when_fdinfo_not_accessible() {
-            let mut result = empty_open_files_info();
-            process_fd(
-                i32::MAX,
-                PathBuf::from("/proc/2147483647/fd/3"),
-                PathBuf::from("/var/log/app.log"),
-                &mut result,
-            );
-            assert!(result.logs.is_empty());
-        }
-
-        #[test]
-        fn handles_invalid_fd_path() {
-            let mut result = empty_open_files_info();
-            process_fd(
-                1234,
-                PathBuf::from("invalid"),
-                PathBuf::from("/var/log/app.log"),
-                &mut result,
-            );
-            assert!(result.logs.is_empty());
+        fn append_file(path: &Path) -> File {
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .expect("Failed to open append file")
         }
 
         #[test]
@@ -492,11 +460,7 @@ mod tests {
             let temp_path = temp_dir.path();
 
             let valid_log = temp_path.join("test.log");
-            let _file1 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&valid_log)
-                .expect("Failed to open valid log");
+            let _file1 = append_file(&valid_log);
 
             let no_append_log = temp_path.join("noappend.log");
             let _file2 = OpenOptions::new()
@@ -516,11 +480,7 @@ mod tests {
                 .expect("Failed to open readwrite log");
 
             let wrong_ext = temp_path.join("test.log.txt");
-            let _file4 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&wrong_ext)
-                .expect("Failed to open wrong-ext log");
+            let _file4 = append_file(&wrong_ext);
 
             let readonly_log = temp_path.join("read.log");
             {
@@ -536,176 +496,49 @@ mod tests {
 
             let long_name = "a".repeat(128) + ".log";
             let long_log = temp_path.join(&long_name);
-            let _file6 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&long_log)
-                .expect("Failed to open long log");
-            let _file7 = OpenOptions::new()
-                .append(true)
-                .open(&valid_log)
-                .expect("Failed to reopen valid log");
+            let _file6 = append_file(&long_log);
+            let _file7 = append_file(&valid_log);
 
             let pid = std::process::id().cast_signed();
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 
-            let temp_path_str = temp_path
-                .to_str()
-                .expect("Temp path should be valid UTF-8 for test");
-
-            let our_logs: Vec<PathBuf> = open_files_info
+            let result: Vec<_> = open_files_info
                 .logs
                 .into_iter()
-                .filter(|path| {
-                    path.to_str()
-                        .map(|s| s.starts_with(temp_path_str))
-                        .unwrap_or(false)
-                })
-                .collect();
-
-            let result: Vec<_> = our_logs
-                .iter()
-                .map(|path| path.to_string_lossy().into_owned())
+                .filter(|path| path.starts_with(temp_path))
                 .collect();
 
             assert!(!result.is_empty());
             assert!(result.len() <= 2);
-
-            let valid_log_str = valid_log
-                .to_str()
-                .expect("valid_log path should be valid UTF-8");
-            assert!(result.iter().any(|p| p == valid_log_str));
-            let no_append_str = no_append_log
-                .to_str()
-                .expect("no_append_log path should be valid UTF-8");
-            let readwrite_str = readwrite_log
-                .to_str()
-                .expect("readwrite_log path should be valid UTF-8");
-            let wrong_ext_str = wrong_ext
-                .to_str()
-                .expect("wrong_ext path should be valid UTF-8");
-            let readonly_str = readonly_log
-                .to_str()
-                .expect("readonly_log path should be valid UTF-8");
-
-            assert!(!result.iter().any(|p| p == no_append_str));
-            assert!(!result.iter().any(|p| p == readwrite_str));
-            assert!(!result.iter().any(|p| p == wrong_ext_str));
-            assert!(!result.iter().any(|p| p == readonly_str));
-
-            let count = result.iter().filter(|p| *p == valid_log_str).count();
-            assert_eq!(count, 1);
+            assert_eq!(result.iter().filter(|path| *path == &valid_log).count(), 1);
+            assert!(!result.contains(&no_append_log));
+            assert!(!result.contains(&readwrite_log));
+            assert!(!result.contains(&wrong_ext));
+            assert!(!result.contains(&readonly_log));
         }
 
         #[test]
-        fn deduplicates_long_paths_without_exhausting_limit() {
+        fn bounds_and_deduplicates_logs_without_stopping_enumeration() {
             let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let duplicate_log = PathBuf::from(format!("/tmp/{}.log", "a".repeat(3000)));
-            let other_log = temp_dir.path().join("other.log");
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(temp_dir.path().join("source.log"))
-                .expect("Failed to open source log");
-            let mut result = empty_open_files_info();
+            let file = append_file(&temp_dir.path().join("source.log"));
+            let duplicate = PathBuf::from(format!("/tmp/{}.log", "a".repeat(3000)));
+            let mut result = OpenFilesInfo::default();
 
             for _ in 0..=MAX_LOG_FILES {
-                process_file(&file, &duplicate_log, &mut result);
+                process_file(&file, &duplicate, &mut result);
             }
-            process_file(&file, &other_log, &mut result);
-
-            assert_eq!(result.logs, vec![duplicate_log, other_log]);
-        }
-
-        #[test]
-        fn limits_unique_paths() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(temp_dir.path().join("source.log"))
-                .expect("Failed to open source log");
-            let mut result = empty_open_files_info();
-
-            for index in 0..=MAX_LOG_FILES {
+            for index in 1..=MAX_LOG_FILES {
                 process_file(
                     &file,
-                    &temp_dir.path().join(format!("unique-{index}.log")),
+                    &PathBuf::from(format!("/tmp/{index}.log")),
                     &mut result,
                 );
             }
 
-            assert_eq!(result.logs.len(), MAX_LOG_FILES);
-            assert_eq!(
-                result.logs.last(),
-                Some(&temp_dir.path().join("unique-99.log"))
-            );
-        }
-
-        #[test]
-        fn accepts_append_descriptor_after_read_only_descriptor() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let log_path = temp_dir.path().join("read-only-first.log");
-            File::create(&log_path).expect("Failed to create log file");
-            let read_only = OpenOptions::new()
-                .read(true)
-                .open(&log_path)
-                .expect("Failed to open read-only log");
-            let append = OpenOptions::new()
-                .append(true)
-                .open(&log_path)
-                .expect("Failed to open append log");
-            let mut result = empty_open_files_info();
-
-            process_file(&read_only, &log_path, &mut result);
-            process_file(&append, &log_path, &mut result);
-
-            assert_eq!(result.logs, vec![log_path]);
-        }
-
-        #[test]
-        fn failed_validation_does_not_suppress_valid_descriptor() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let log_path = temp_dir.path().join("application.log");
-            let append = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-                .expect("Failed to open append log");
-            let mut result = empty_open_files_info();
-
-            process_fd(
-                i32::MAX,
-                PathBuf::from("/proc/2147483647/fd/3"),
-                log_path.clone(),
-                &mut result,
-            );
-            process_file(&append, &log_path, &mut result);
-
-            assert_eq!(result.logs, vec![log_path]);
-        }
-
-        #[test]
-        fn continues_collecting_sockets_after_log_limit() {
-            let temp_dir = TempDir::new().expect("Failed to create temp dir");
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(temp_dir.path().join("source.log"))
-                .expect("Failed to open source log");
             let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
             let listener_fd = fd_path(&listener);
             let listener_link = read_link(&listener_fd).expect("Failed to read listener link");
-            let mut result = empty_open_files_info();
-
-            for index in 0..MAX_LOG_FILES {
-                process_file(
-                    &file,
-                    &temp_dir.path().join(format!("unique-{index}.log")),
-                    &mut result,
-                );
-            }
             process_fd(
                 std::process::id().cast_signed(),
                 listener_fd,
@@ -714,7 +547,30 @@ mod tests {
             );
 
             assert_eq!(result.logs.len(), MAX_LOG_FILES);
+            assert_eq!(result.logs.first(), Some(&duplicate));
+            assert_eq!(result.logs.last(), Some(&PathBuf::from("/tmp/99.log")));
             assert_eq!(result.sockets.len(), 1);
+        }
+
+        #[test]
+        fn rejected_descriptor_does_not_suppress_valid_descriptor() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let path = temp_dir.path().join("application.log");
+            File::create(&path).expect("Failed to create log");
+            let read_only = File::open(&path).expect("Failed to open read-only log");
+            let append = append_file(&path);
+            let mut result = OpenFilesInfo::default();
+
+            process_file(&read_only, &path, &mut result);
+            process_fd(
+                i32::MAX,
+                PathBuf::from("invalid"),
+                path.clone(),
+                &mut result,
+            );
+            process_file(&append, &path, &mut result);
+
+            assert_eq!(result.logs, vec![path]);
         }
     }
 

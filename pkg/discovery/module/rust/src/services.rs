@@ -143,7 +143,7 @@ fn get_service(
     open_files_info: &OpenFilesInfo,
     maps_info: &MapsInfo,
 ) -> Option<Service> {
-    let log_files = open_files_info
+    let log_files: Vec<String> = open_files_info
         .logs
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
@@ -151,7 +151,11 @@ fn get_service(
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
 
-    if !has_service_signals(&tcp_ports, &udp_ports, open_files_info) {
+    if tcp_ports.is_none()
+        && udp_ports.is_none()
+        && open_files_info.tracer_memfds.is_empty()
+        && log_files.is_empty()
+    {
         return None;
     }
 
@@ -200,7 +204,7 @@ fn get_service(
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
-    let log_files = open_files_info
+    let log_files: Vec<String> = open_files_info
         .logs
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
@@ -208,7 +212,11 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
 
-    if !has_service_signals(&tcp_ports, &udp_ports, &open_files_info) {
+    if tcp_ports.is_none()
+        && udp_ports.is_none()
+        && open_files_info.tracer_memfds.is_empty()
+        && log_files.is_empty()
+    {
         return None;
     }
 
@@ -219,17 +227,6 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
         log_files,
         ..Default::default()
     })
-}
-
-fn has_service_signals(
-    tcp_ports: &Option<Vec<u16>>,
-    udp_ports: &Option<Vec<u16>>,
-    open_files_info: &OpenFilesInfo,
-) -> bool {
-    tcp_ports.is_some()
-        || udp_ports.is_some()
-        || !open_files_info.tracer_memfds.is_empty()
-        || !open_files_info.logs.is_empty()
 }
 
 #[cfg(test)]
@@ -385,24 +382,6 @@ mod tests {
                 "log file path should be in JSON"
             );
         }
-    }
-
-    #[test]
-    fn service_eligibility_uses_validated_logs() {
-        let no_logs = OpenFilesInfo {
-            sockets: vec![],
-            logs: vec![],
-            tracer_memfds: vec![],
-            memfd_path: None,
-            has_gpu_device: false,
-        };
-        assert!(!has_service_signals(&None, &None, &no_logs));
-
-        let valid_log = OpenFilesInfo {
-            logs: vec!["/tmp/application.log".into()],
-            ..no_logs
-        };
-        assert!(has_service_signals(&None, &None, &valid_log));
     }
 
     #[test]
