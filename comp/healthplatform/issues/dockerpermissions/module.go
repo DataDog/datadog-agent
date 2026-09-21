@@ -24,6 +24,7 @@ func init() {
 	issues.RegisterModuleFactory(NewSocketUnavailableModule)
 }
 
+// Docker Socket Permission issue identity.
 const (
 	// IssueName is the identifier for the Docker socket permission issue,
 	// used as the template registry key and the proto IssueName field.
@@ -33,16 +34,19 @@ const (
 	// issue: IssueName lowercased with spaces replaced by underscores.
 	IssueType = "docker_socket_permission"
 
-	// IssueID is the unique instance id used when reporting this issue
+	// IssueID is the unique instance id prefix used when reporting this issue.
 	IssueID = "docker-socket-permissions"
+)
 
+// Docker Socket Unavailable issue identity.
+const (
 	// SocketUnavailableIssueName is the identifier for a non-permission Docker socket reachability issue.
 	SocketUnavailableIssueName = "Docker Socket Unavailable"
 
 	// SocketUnavailableIssueType is the snake_case type key for SocketUnavailableIssueName.
 	SocketUnavailableIssueType = "docker_socket_unavailable"
 
-	// SocketUnavailableIssueID is the unique instance id used when reporting this issue.
+	// SocketUnavailableIssueID is the unique instance id prefix used when reporting this issue.
 	SocketUnavailableIssueID = "docker-socket-unavailable"
 )
 
@@ -55,16 +59,15 @@ func newChecker(hostname hostnameinterface.Component) *checker {
 	return &checker{hostname: hostname}
 }
 
-// instanceIssueID scopes baseID to this host and the affected socket set, since the backend dedups on id alone; caller passes a sorted slice.
-func (c *checker) instanceIssueID(baseID string, sortedSockets []string) string {
+// instanceIssueID scopes issueID to this host and the affected socket set, since the backend
+// dedups on id alone; caller passes sockets pre-sorted and comma-joined, matching the string
+// already put in Context["socketPaths"].
+func (c *checker) instanceIssueID(issueID, sortedSocketPaths string) string {
 	h := fnv.New64a()
 	h.Write([]byte(c.hostname.GetSafe(context.Background()))) // never returns an error for hash.Hash
 	h.Write([]byte{0})                                        // delimiter between hostname and sockets
-	for _, socketPath := range sortedSockets {
-		h.Write([]byte(socketPath))
-		h.Write([]byte{0}) // delimiter so {"a","bc"} and {"ab","c"} differ
-	}
-	return fmt.Sprintf("%s:%016x", baseID, h.Sum64())
+	h.Write([]byte(sortedSocketPaths))
+	return fmt.Sprintf("%s:%016x", issueID, h.Sum64())
 }
 
 // dockerPermissionsModule implements issues.Module

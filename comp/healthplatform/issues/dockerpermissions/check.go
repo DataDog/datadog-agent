@@ -49,24 +49,26 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 
 	var reports []runnerdef.IssueReport
 	if len(permissionSockets) > 0 {
+		socketPaths := strings.Join(permissionSockets, ",")
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(IssueID, permissionSockets),
+			IssueID:   c.instanceIssueID(IssueID, socketPaths),
 			IssueName: IssueName,
 			Source:    "docker",
 			Context: map[string]string{
-				"socketPaths": strings.Join(permissionSockets, ","),
+				"socketPaths": socketPaths,
 				"os":          runtime.GOOS,
 			},
 			Tags: []string{"docker-socket", "permissions"},
 		})
 	}
 	if len(unavailableSockets) > 0 {
+		socketPaths := strings.Join(unavailableSockets, ",")
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(SocketUnavailableIssueID, unavailableSockets),
+			IssueID:   c.instanceIssueID(SocketUnavailableIssueID, socketPaths),
 			IssueName: SocketUnavailableIssueName,
 			Source:    "docker",
 			Context: map[string]string{
-				"socketPaths": strings.Join(unavailableSockets, ","),
+				"socketPaths": socketPaths,
 				"os":          runtime.GOOS,
 			},
 			Tags: []string{"docker-socket", "unavailable"},

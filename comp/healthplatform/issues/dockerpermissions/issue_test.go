@@ -136,15 +136,15 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	c1 := newChecker(hn1)
 	c2 := newChecker(hn2)
 
-	sockets := []string{"/var/run/docker.sock"}
+	const sockets = "/var/run/docker.sock"
 	assert.NotEqual(t, c1.instanceIssueID(IssueID, sockets), c2.instanceIssueID(IssueID, sockets))
 }
 
-func TestInstanceIssueID_PrefixedByBaseID(t *testing.T) {
+func TestInstanceIssueID_PrefixedByIssueID(t *testing.T) {
 	hn, _ := hostnamemock.NewMock("host-a")
 	c := newChecker(hn)
 
-	sockets := []string{"/var/run/docker.sock"}
+	const sockets = "/var/run/docker.sock"
 	assert.True(t, strings.HasPrefix(c.instanceIssueID(IssueID, sockets), IssueID+":"))
 	assert.True(t, strings.HasPrefix(c.instanceIssueID(SocketUnavailableIssueID, sockets), SocketUnavailableIssueID+":"))
 	assert.NotEqual(t, c.instanceIssueID(IssueID, sockets), c.instanceIssueID(SocketUnavailableIssueID, sockets))
@@ -155,7 +155,7 @@ func TestInstanceIssueID_Stable(t *testing.T) {
 	hn, _ := hostnamemock.NewMock("host-a")
 	c := newChecker(hn)
 
-	sockets := []string{"/var/run/docker.sock"}
+	const sockets = "/var/run/docker.sock"
 	assert.Equal(t, c.instanceIssueID(IssueID, sockets), c.instanceIssueID(IssueID, sockets))
 }
 
@@ -164,21 +164,10 @@ func TestInstanceIssueID_DiffersBySocketSet(t *testing.T) {
 	hn, _ := hostnamemock.NewMock("host-a")
 	c := newChecker(hn)
 
-	base := c.instanceIssueID(IssueID, []string{"/var/run/docker.sock"})
+	base := c.instanceIssueID(IssueID, "/var/run/docker.sock")
 
-	assert.NotEqual(t, base, c.instanceIssueID(IssueID, []string{"//./pipe/docker_engine"}), "a different socket must change the id")
-	assert.NotEqual(t, base, c.instanceIssueID(IssueID, []string{"/host/var/run/docker.sock", "/var/run/docker.sock"}), "adding a socket must change the id")
-}
-
-// The delimiter keeps concatenation-ambiguous sets distinct: {"a","bc"} != {"ab","c"}.
-func TestInstanceIssueID_DelimiterDisambiguates(t *testing.T) {
-	hn, _ := hostnamemock.NewMock("host-a")
-	c := newChecker(hn)
-
-	assert.NotEqual(t,
-		c.instanceIssueID(IssueID, []string{"a", "bc"}),
-		c.instanceIssueID(IssueID, []string{"ab", "c"}),
-	)
+	assert.NotEqual(t, base, c.instanceIssueID(IssueID, "//./pipe/docker_engine"), "a different socket must change the id")
+	assert.NotEqual(t, base, c.instanceIssueID(IssueID, "/host/var/run/docker.sock,/var/run/docker.sock"), "adding a socket must change the id")
 }
 
 func TestBuildIssue_SocketUnavailable_Defaults(t *testing.T) {
