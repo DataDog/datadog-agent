@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package dockersocket
+package docker
 
 import (
 	"errors"

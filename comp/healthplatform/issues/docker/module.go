@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package dockersocket provides issue modules for Docker socket reachability problems
+// Package docker provides issue modules for Docker socket reachability problems
 // (permission-denied and other dial failures). It includes both detection (built-in health
 // check) and remediation (issue templates with fix scripts).
-package dockersocket
+package docker
 
 import (
 	"context"

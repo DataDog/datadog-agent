@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package dockersocket
+package docker
 
 import (
 	"net"

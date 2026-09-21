@@ -5,7 +5,7 @@
 
 //go:build !linux && !windows
 
-package dockersocket
+package docker
 
 import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
