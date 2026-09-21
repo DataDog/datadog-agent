@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,11 +43,14 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	}
 
 	permissionSockets, unavailableSockets := classifySockets(socketPaths)
+	// Sort so the socketPaths string and the id digest are order-independent.
+	sort.Strings(permissionSockets)
+	sort.Strings(unavailableSockets)
 
 	var reports []runnerdef.IssueReport
 	if len(permissionSockets) > 0 {
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(IssueID),
+			IssueID:   c.instanceIssueID(IssueID, permissionSockets),
 			IssueName: IssueName,
 			Source:    "docker",
 			Context: map[string]string{
@@ -58,7 +62,7 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	}
 	if len(unavailableSockets) > 0 {
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(SocketUnavailableIssueID),
+			IssueID:   c.instanceIssueID(SocketUnavailableIssueID, unavailableSockets),
 			IssueName: SocketUnavailableIssueName,
 			Source:    "docker",
 			Context: map[string]string{

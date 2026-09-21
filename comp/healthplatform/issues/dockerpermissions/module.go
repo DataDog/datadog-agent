@@ -55,10 +55,15 @@ func newChecker(hostname hostnameinterface.Component) *checker {
 	return &checker{hostname: hostname}
 }
 
-// instanceIssueID scopes baseID to this host, since the backend dedups on id alone.
-func (c *checker) instanceIssueID(baseID string) string {
+// instanceIssueID scopes baseID to this host and the affected socket set, since the backend dedups on id alone; caller passes a sorted slice.
+func (c *checker) instanceIssueID(baseID string, sortedSockets []string) string {
 	h := fnv.New64a()
 	h.Write([]byte(c.hostname.GetSafe(context.Background()))) // never returns an error for hash.Hash
+	h.Write([]byte{0})                                        // delimiter between hostname and sockets
+	for _, socketPath := range sortedSockets {
+		h.Write([]byte(socketPath))
+		h.Write([]byte{0}) // delimiter so {"a","bc"} and {"ab","c"} differ
+	}
 	return fmt.Sprintf("%s:%016x", baseID, h.Sum64())
 }
 

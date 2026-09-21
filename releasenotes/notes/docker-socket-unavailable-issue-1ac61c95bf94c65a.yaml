@@ -15,5 +15,6 @@ enhancements:
     silently ignored. The existing permission-denied detection is unchanged.
   - |
     Health Platform: ``docker_socket_permission`` and ``docker_socket_unavailable``
-    issue ids are now scoped per host, so that a fleet of hosts hitting the
-    same failure is no longer collapsed into a single reported issue.
+    issue ids are now scoped per host and by the specific set of affected sockets,
+    so that a fleet of hosts hitting the same failure is no longer collapsed into
+    a single reported issue.
