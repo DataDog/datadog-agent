@@ -71,6 +71,12 @@ const (
 )
 
 const (
+	nginxContainerName   = "nginx-env-configfilesdiscovery"
+	nginxIntegrationName = "nginx"
+	nginxConfigDir       = "/tmp/configfilesdiscovery-nginx"
+)
+
+const (
 	postgresConfigDir       = "/tmp/configfilesdiscovery-postgres"
 	postgresContainerName   = "postgres-configfilesdiscovery"
 	postgresConfigPath      = "/var/lib/postgresql/data/configfilesdiscovery/postgresql.conf"
@@ -100,6 +106,9 @@ var redisComposeTemplate string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml
 var kafkaCompose string
+
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-nginx.yaml
+var nginxCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
@@ -217,12 +226,14 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_STARTUP_JITTER", pulumi.StringPtr("0s")),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-nginx", pulumi.String(nginxCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-pgbouncer", pulumi.String(pgbouncerCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-spark", pulumi.String(sparkCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
 			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR":    pulumi.String(kafkaConfigDir),
+			"CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR":    pulumi.String(nginxConfigDir),
 			"CONFIG_FILES_DISCOVERY_POSTGRES_CONFIG_DIR": pulumi.String(postgresConfigDir),
 		}),
 	}
@@ -231,6 +242,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		awsdocker.WithRunOptions(
 			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryRedisConfig),
 			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryKafkaConfig),
+			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryNginxConfig),
 			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryPostgresConfig),
 			scendocker.WithAgentOptions(agentOpts...),
 		),
@@ -283,6 +295,10 @@ func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host
 			{name: kafkaStartScriptName, content: kafkaStartScript},
 		},
 	)
+}
+
+func createConfigFilesDiscoveryNginxConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return createConfigFilesDiscoveryFixtureFiles(host, nginxConfigDir, nil)
 }
 
 func createConfigFilesDiscoveryPostgresConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
@@ -452,6 +468,46 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfi
 			assert.NotContains(c, envVars, "REDIS_REQUIREPASS")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for redis env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: nginxIntegrationName,
+		configDir:       nginxConfigDir,
+		containerNames:  []string{nginxContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), nginxIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		nginxPayloads := findEnvPayloads(payloads, nginxIntegrationName)
+		if !assert.NotEmpty(c, nginxPayloads, "no nginx env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range nginxPayloads {
+			assertAgentDiscoveryPayload(c, payload, nginxIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "1", envVars["NGINX_ENTRYPOINT_QUIET_LOGS"])
+			assert.Equal(c, "1", envVars["NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE"])
+			assert.Equal(c, "8080", envVars["NGINX_HTTP_PORT_NUMBER"])
+			assert.Equal(c, "auto", envVars["NGINX_WORKER_PROCESSES"])
+			assert.Equal(c, "yes", envVars["NGINX_ENABLE_STREAM"])
+			assert.NotContains(c, envVars, "NGINX_ENVSUBST_FILTER")
+			assert.NotContains(c, envVars, "NGINX_HTTP_PORT_NUMBER_FILE")
+			assert.NotContains(c, envVars, "NGINX_PASSWORD")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for nginx env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscovered() {
