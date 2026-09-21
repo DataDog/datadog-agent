@@ -24,7 +24,14 @@ typedef struct probe_params {
   char top_pc_offset;
   char no_return_reason;
   char throttle_mode; // actually a throttle_mode_t
-  char __padding[2];
+  // Location of an in-scope context.Context interface for coordinated sampling.
+  // ctx_loc_kind: 0 none, 1 registers (itab=ctx_reg_tab, data=ctx_reg_data),
+  // 2 stack (16-byte interface at CFA + ctx_stack_offset).
+  uint8_t ctx_loc_kind;
+  uint8_t ctx_reg_tab;
+  uint8_t ctx_reg_data;
+  char __padding[3];
+  int32_t ctx_stack_offset;
 } probe_params_t;
 
 typedef struct throttler_params {
