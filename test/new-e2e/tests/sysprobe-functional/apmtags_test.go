@@ -8,7 +8,6 @@ package sysprobefunctional
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -107,11 +106,12 @@ var sites = []windows.IISSiteDefinition{
 func (v *apmvmSuite) SetupSuite() {
 	t := v.T()
 
-	// Get the absolute path to the test assets directory
-	currDir, err := os.Getwd()
-	require.NoError(t, err)
+	// Resolve the test assets directory relative to this source file, not the process
+	// working directory: prebuilt Bazel test binaries run from the repo root.
+	_, srcfile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
 
-	v.testspath = filepath.Join(currDir, "artifacts")
+	v.testspath = filepath.Join(filepath.Dir(srcfile), "artifacts")
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
@@ -121,7 +121,7 @@ func (v *apmvmSuite) SetupSuite() {
 	// get the remote host
 	vm := v.Env().RemoteHost
 
-	err = windows.InstallIIS(vm)
+	err := windows.InstallIIS(vm)
 	require.NoError(t, err)
 	// HEADSUP the paths are windows, but this will execute in linux. So fix the paths
 	t.Log("IIS Installed, continuing")
@@ -130,9 +130,9 @@ func (v *apmvmSuite) SetupSuite() {
 	// figure out where we're being executed from.  These paths should be in
 	// native path separators (i.e. not windows paths if executing in ci/on linux)
 
-	_, srcfile, _, ok := runtime.Caller(0)
+	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
+	exPath := filepath.Dir(thisFile)
 
 	for idx := range sites {
 		sites[idx].AssetsDir = path.Join(exPath, "assets")
