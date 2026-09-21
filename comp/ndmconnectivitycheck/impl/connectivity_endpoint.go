@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package networkdevicesimpl
+package ndmconnectivitycheckimpl
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc {
+func (c *connectivityCheck) ConnectivityCheckEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req connectivity.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -33,7 +33,7 @@ func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc
 
 		res, err := c.scan(r.Context(), req)
 		if err != nil {
-			c.logger.Errorf("networkdevices: connectivity check failed: %v", err)
+			c.logger.Errorf("ndmconnectivitycheck: connectivity check failed: %v", err)
 			status := http.StatusInternalServerError
 			if errors.Is(err, connectivity.ErrInvalidRequest) {
 				status = http.StatusBadRequest
@@ -50,7 +50,7 @@ func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc
 
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(body); err != nil {
-			c.logger.Errorf("networkdevices: failed to write response: %v", err)
+			c.logger.Errorf("ndmconnectivitycheck: failed to write response: %v", err)
 		}
 	}
 }
