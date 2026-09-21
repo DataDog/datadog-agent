@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"regexp"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
 // minIntervalSec is the shortest cycle interval a range can ask for.
@@ -28,7 +30,7 @@ type rangeConfig struct {
 	IntervalSec        int
 	IgnoredIPAddresses []string
 	Tags               []string
-	Probes             []probeConfig
+	Probes             probeParams
 }
 
 // rangeDefaults are the agent-side defaults applied to a range.
@@ -40,7 +42,7 @@ type rangeDefaults struct {
 
 // parseRange validates and defaults one range. The returned error is surfaced
 // to the backend, so it must say what is wrong with the range.
-func parseRange(r ndmdiscovery.Range, def rangeDefaults, set *probeSet) (rangeConfig, error) {
+func parseRange(r ndmdiscovery.Range, def rangeDefaults, ping pingprobe.Capability, logger log.Component) (rangeConfig, error) {
 	if r.ID == "" {
 		return rangeConfig{}, errors.New("the range id is required")
 	}
@@ -64,7 +66,7 @@ func parseRange(r ndmdiscovery.Range, def rangeDefaults, set *probeSet) (rangeCo
 		IntervalSec:        r.IntervalSec,
 		IgnoredIPAddresses: r.IgnoredIPAddresses,
 		Tags:               r.Tags,
-		Probes:             set.parse(r.ID, r.Probes),
+		Probes:             parseProbes(r.ID, r.Probes, ping, logger),
 	}
 	if cfg.Namespace == "" {
 		cfg.Namespace = def.Namespace

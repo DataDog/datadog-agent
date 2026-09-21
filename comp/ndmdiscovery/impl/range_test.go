@@ -14,17 +14,10 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
 var testDefaults = rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536}
-
-func testProbeSet(t *testing.T) *probeSet {
-	t.Helper()
-	return newProbeSet(logmock.New(t),
-		&stubProbe{name: "ping", check: "ping"},
-		&stubProbe{name: "snmp", check: "snmp"},
-	)
-}
 
 func testProbes() map[string]json.RawMessage {
 	return map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}
@@ -46,7 +39,7 @@ func TestParseRangeFull(t *testing.T) {
 			"ping": json.RawMessage(`{"count":2}`),
 			"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`),
 		},
-	}, testDefaults, testProbeSet(t))
+	}, testDefaults, available(), logmock.New(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, "ad-1", cfg.AutodiscoveryID)
@@ -55,11 +48,14 @@ func TestParseRangeFull(t *testing.T) {
 	assert.Equal(t, 900, cfg.IntervalSec)
 	assert.Equal(t, []string{"10.0.0.1"}, cfg.IgnoredIPAddresses)
 	assert.Equal(t, []string{"site:paris"}, cfg.Tags)
-	assert.Equal(t, []string{"ping", "snmp"}, kinds(cfg.Probes), "probes come back in registry order")
+	require.NotNil(t, cfg.Probes.Ping)
+	assert.Equal(t, 2, cfg.Probes.Ping.Count)
+	require.NotNil(t, cfg.Probes.SNMP)
+	assert.Equal(t, []string{"cred-a"}, cfg.Probes.SNMP.CredentialIDs)
 }
 
 func TestParseRangeDefaults(t *testing.T) {
-	cfg, err := parseRange(testRange("ad-1", "10.0.0.0/24"), testDefaults, testProbeSet(t))
+	cfg, err := parseRange(testRange("ad-1", "10.0.0.0/24"), testDefaults, available(), logmock.New(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, "default", cfg.Namespace)
@@ -67,11 +63,14 @@ func TestParseRangeDefaults(t *testing.T) {
 }
 
 func TestParseRangeKeepsARangeWhoseProbesAreAllUnusable(t *testing.T) {
-	set := newProbeSet(logmock.New(t), &stubProbe{name: "snmp", unavailable: true})
+	r := ndmdiscovery.Range{ID: "ad-1", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{
+		"ping": json.RawMessage(`{}`),
+	}}
 
-	cfg, err := parseRange(testRange("ad-1", "10.0.0.0/24"), testDefaults, set)
+	cfg, err := parseRange(r, testDefaults, pingprobe.Capability{Reason: "not permitted"}, logmock.New(t))
 	require.NoError(t, err, "a probe-level problem does not reject the range")
-	assert.Empty(t, cfg.Probes)
+	assert.Nil(t, cfg.Probes.Ping)
+	assert.Nil(t, cfg.Probes.SNMP)
 }
 
 func TestParseRangeValidation(t *testing.T) {
@@ -90,7 +89,7 @@ func TestParseRangeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseRange(tt.r, testDefaults, testProbeSet(t))
+			_, err := parseRange(tt.r, testDefaults, available(), logmock.New(t))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errPart)
 		})
@@ -101,7 +100,7 @@ func TestParseRangeClampsInterval(t *testing.T) {
 	r := testRange("ad-1", "10.0.0.0/24")
 	r.IntervalSec = 5
 
-	cfg, err := parseRange(r, testDefaults, testProbeSet(t))
+	cfg, err := parseRange(r, testDefaults, available(), logmock.New(t))
 	require.NoError(t, err)
 	assert.Equal(t, minIntervalSec, cfg.IntervalSec)
 }
@@ -122,7 +121,7 @@ func TestParseRangeValidatesTheRangeID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := parseRange(testRange(tt.id, "10.0.0.0/24"), testDefaults, testProbeSet(t))
+			cfg, err := parseRange(testRange(tt.id, "10.0.0.0/24"), testDefaults, available(), logmock.New(t))
 			if tt.ok {
 				require.NoError(t, err)
 				assert.Equal(t, tt.id, cfg.AutodiscoveryID)

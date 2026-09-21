@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,9 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/snmpprobe"
 )
 
 // recordingReporter captures everything the sweeper publishes.
@@ -59,21 +62,86 @@ func (r *recordingReporter) ReportRun(_ string, run metadata.AutodiscoveryRunMet
 	return nil
 }
 
-func newTestSweeper(t *testing.T, checker connectivityChecker, reporter discoveryReporter, cursors cursorStore, workers int64) *sweeper {
+// scanCall is one batch the sweeper handed to the probe package.
+type scanCall struct {
+	Workers int
+	Targets []string
+	Options probe.Options
+}
+
+// recordingScanner is a scanFunc that records its calls.
+type recordingScanner struct {
+	mu      sync.Mutex
+	calls   []scanCall
+	respond func(call scanCall) ([]probe.Result, error)
+}
+
+func (r *recordingScanner) scan(_ context.Context, workers int, targets []string, opts probe.Options) ([]probe.Result, error) {
+	call := scanCall{Workers: workers, Targets: targets, Options: opts}
+	r.mu.Lock()
+	r.calls = append(r.calls, call)
+	r.mu.Unlock()
+	return r.respond(call)
+}
+
+func (r *recordingScanner) recorded() []scanCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]scanCall(nil), r.calls...)
+}
+
+// answerAll marks the first target of each batch as an SNMP success and the
+// rest as failures.
+func answerAll() *recordingScanner {
+	return &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
+		results := make([]probe.Result, 0, len(call.Targets))
+		for i, ip := range call.Targets {
+			r := probe.Result{Target: ip}
+			if i == 0 {
+				r.SNMP = &snmpprobe.Reading{Success: true, CredID: "cred-a", SysName: "router-" + ip}
+			} else {
+				r.SNMP = &snmpprobe.Reading{FailureReason: "timeout"}
+			}
+			results = append(results, r)
+		}
+		return results, nil
+	}}
+}
+
+// silentAll reports every target as probed but unreachable.
+func silentAll() *recordingScanner {
+	return &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
+		results := make([]probe.Result, 0, len(call.Targets))
+		for _, ip := range call.Targets {
+			results = append(results, probe.Result{Target: ip})
+		}
+		return results, nil
+	}}
+}
+
+func newTestSweeper(t *testing.T, scanner *recordingScanner, reporter discoveryReporter, cursors cursorStore, workers int64) *sweeper {
 	t.Helper()
-	s := newSweeper(checker, reporter, cursors, semaphore.NewWeighted(workers), workers, logmock.New(t))
+	s := newSweeper(scanner.scan, reporter, cursors, semaphore.NewWeighted(workers), workers, logmock.New(t))
 	s.now = func() int64 { return 1700000000000 }
 	s.newRunID = func() string { return "run-fixed" }
 	return s
 }
 
-func testSweepRequest(t *testing.T, cidr string, ignored []string) sweepRequest {
-	t.Helper()
-	return testSweepRequestWithProbes(t, cidr, ignored,
-		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP, raw: `{"port":161}`})
+func testSNMPOptions() *snmpprobe.Options {
+	return &snmpprobe.Options{
+		Port:        161,
+		Timeout:     2 * time.Second,
+		Retries:     1,
+		Credentials: []snmpprobe.Credential{{ID: "cred-a", Version: "2c", Community: "public"}},
+	}
 }
 
-func testSweepRequestWithProbes(t *testing.T, cidr string, ignored []string, probes ...probeRun) sweepRequest {
+func testSweepRequest(t *testing.T, cidr string, ignored []string) sweepRequest {
+	t.Helper()
+	return testSweepRequestWithOptions(t, cidr, ignored, probe.Options{SNMP: testSNMPOptions()})
+}
+
+func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, opts probe.Options) sweepRequest {
 	t.Helper()
 	cfg := rangeConfig{
 		AutodiscoveryID:    "ad-1",
@@ -84,50 +152,20 @@ func testSweepRequestWithProbes(t *testing.T, cidr string, ignored []string, pro
 	plan, err := newChunkPlan(cidr, ignored, 65536)
 	require.NoError(t, err)
 
-	fingerprints := make([]string, 0, len(probes))
-	for _, p := range probes {
-		fingerprints = append(fingerprints, p.fingerprint())
-	}
 	return sweepRequest{
 		Config:  cfg,
-		Probes:  probes,
+		Options: opts,
 		Plan:    plan,
-		Digest:  rangeDigest(cfg, fingerprints),
+		Digest:  rangeDigest(cfg, opts.Fingerprints()),
 		Workers: 2,
 	}
 }
 
-// answerAll returns a checker that marks the first target of each chunk as an
-// SNMP success and the rest as failures.
-func answerAll() *fakeChecker {
-	return &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
-		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
-		for i, ip := range req.Targets {
-			d := connectivity.DeviceResult{IPAddress: ip}
-			if i == 0 {
-				d.SNMPResult = &connectivity.SNMPResult{
-					CheckResult:   connectivity.CheckResult{Success: true},
-					FailureReason: connectivity.FailureNone,
-					CredID:        "cred-a",
-					SysName:       "router-" + ip,
-				}
-			} else {
-				d.SNMPResult = &connectivity.SNMPResult{
-					CheckResult:   connectivity.CheckResult{Success: false},
-					FailureReason: connectivity.FailureTimeout,
-				}
-			}
-			devices = append(devices, d)
-		}
-		return connectivity.Result{Devices: devices}, nil
-	}}
-}
-
 func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
-	checker := answerAll()
+	scanner := answerAll()
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
 
@@ -150,15 +188,15 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 }
 
 func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
-	checker := answerAll()
+	scanner := answerAll()
 	reporter := &recordingReporter{}
-	s := newTestSweeper(t, checker, reporter, newMemCursorStore(), 10)
+	s := newTestSweeper(t, scanner, reporter, newMemCursorStore(), 10)
 
 	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
 
 	assert.Equal(t, 4, reporter.batches, "one report per chunk, so memory stays bounded")
 	assert.Len(t, reporter.devices, 4, "one answering address per chunk")
-	assert.Len(t, checker.recorded(), 4)
+	assert.Len(t, scanner.recorded(), 4)
 }
 
 func TestSweepCountsIgnoredAddressesTowardsProgress(t *testing.T) {
@@ -178,9 +216,9 @@ func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
 		ignored = append(ignored, "10.0.0."+strconv.Itoa(i))
 	}
 
-	checker := answerAll()
+	scanner := answerAll()
 	reporter := &recordingReporter{}
-	s := newTestSweeper(t, checker, reporter, newMemCursorStore(), 10)
+	s := newTestSweeper(t, scanner, reporter, newMemCursorStore(), 10)
 
 	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", ignored)))
 
@@ -188,14 +226,14 @@ func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
 	assert.Equal(t, int64(256), final.AddressesScanned)
 	assert.Equal(t, 0, reporter.batches, "a chunk with no targets is not probed and reports nothing")
-	assert.Empty(t, checker.recorded(), "the connectivity engine is never called for a fully ignored chunk")
+	assert.Empty(t, scanner.recorded(), "the probe package is never called for a fully ignored chunk")
 }
 
 func TestSweepResumesFromCursor(t *testing.T) {
-	checker := answerAll()
+	scanner := answerAll()
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	req := testSweepRequest(t, "10.0.0.0/22", nil)
 	require.NoError(t, cursors.Save("ad-1", cursorState{
@@ -208,7 +246,7 @@ func TestSweepResumesFromCursor(t *testing.T) {
 
 	require.NoError(t, s.sweep(context.Background(), req))
 
-	assert.Len(t, checker.recorded(), 2, "the first two chunks were already done")
+	assert.Len(t, scanner.recorded(), 2, "the first two chunks were already done")
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, "run-earlier", final.RunID, "the cycle keeps its original run ID")
 	assert.Equal(t, int64(1699000000000), final.StartedAtMs)
@@ -216,10 +254,10 @@ func TestSweepResumesFromCursor(t *testing.T) {
 }
 
 func TestSweepDiscardsCursorOnDigestChange(t *testing.T) {
-	checker := answerAll()
+	scanner := answerAll()
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	req := testSweepRequest(t, "10.0.0.0/22", nil)
 	require.NoError(t, cursors.Save("ad-1", cursorState{
@@ -231,33 +269,33 @@ func TestSweepDiscardsCursorOnDigestChange(t *testing.T) {
 
 	require.NoError(t, s.sweep(context.Background(), req))
 
-	assert.Len(t, checker.recorded(), 4, "the range changed, so the partial results are void")
+	assert.Len(t, scanner.recorded(), 4, "the range changed, so the partial results are void")
 	assert.Equal(t, "run-fixed", reporter.runs[0].RunID)
 }
 
 func TestSweepFailedChunkKeepsCursor(t *testing.T) {
 	calls := 0
-	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
 		calls++
 		if calls == 3 {
-			return connectivity.Result{}, errors.New("engine exploded")
+			return nil, errors.New("the scan exploded")
 		}
-		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
-		for _, ip := range req.Targets {
-			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
+		results := make([]probe.Result, 0, len(call.Targets))
+		for _, ip := range call.Targets {
+			results = append(results, probe.Result{Target: ip})
 		}
-		return connectivity.Result{Devices: devices}, nil
+		return results, nil
 	}}
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	err := s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil))
 	require.Error(t, err)
 
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunFailed, final.Status)
-	assert.Contains(t, final.Error, "engine exploded")
+	assert.Contains(t, final.Error, "the scan exploded")
 	assert.Equal(t, int64(512), final.AddressesScanned)
 
 	saved, ok := cursors.Load("ad-1")
@@ -268,17 +306,13 @@ func TestSweepFailedChunkKeepsCursor(t *testing.T) {
 
 func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+	scanner := &recordingScanner{respond: func(_ scanCall) ([]probe.Result, error) {
 		cancel()
-		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
-		for _, ip := range req.Targets {
-			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
-		}
-		return connectivity.Result{Devices: devices}, nil
+		return nil, context.Canceled
 	}}
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	err := s.sweep(ctx, testSweepRequest(t, "10.0.0.0/22", nil))
 	require.ErrorIs(t, err, context.Canceled)
@@ -296,21 +330,22 @@ func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := 0
-	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
 		calls++
 		if calls == 3 {
 			// Two chunks are already done, so the cursor holds real progress.
 			cancel()
+			return nil, context.Canceled
 		}
-		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
-		for _, ip := range req.Targets {
-			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
+		results := make([]probe.Result, 0, len(call.Targets))
+		for _, ip := range call.Targets {
+			results = append(results, probe.Result{Target: ip})
 		}
-		return connectivity.Result{Devices: devices}, nil
+		return results, nil
 	}}
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	req := testSweepRequest(t, "10.0.0.0/22", nil)
 	require.ErrorIs(t, s.sweep(ctx, req), context.Canceled)
@@ -322,12 +357,12 @@ func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 	assert.False(t, saved.Failed)
 
 	// The next agent start picks the cycle back up where it stopped.
-	resumeChecker := answerAll()
-	s2 := newTestSweeper(t, resumeChecker, reporter, cursors, 10)
+	resumeScanner := answerAll()
+	s2 := newTestSweeper(t, resumeScanner, reporter, cursors, 10)
 	s2.newRunID = func() string { return "run-should-not-be-used" }
 	require.NoError(t, s2.sweep(context.Background(), req))
 
-	assert.Len(t, resumeChecker.recorded(), 2, "only the remaining chunks are swept")
+	assert.Len(t, resumeScanner.recorded(), 2, "only the remaining chunks are swept")
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
 	assert.Equal(t, "run-fixed", final.RunID, "the resumed cycle keeps its original run ID")
@@ -341,20 +376,20 @@ func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 
 func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 	calls := 0
-	checker := &fakeChecker{respond: func(req connectivity.Request) (connectivity.Result, error) {
+	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
 		calls++
 		if calls == 3 {
-			return connectivity.Result{}, errors.New("engine exploded")
+			return nil, errors.New("the scan exploded")
 		}
-		devices := make([]connectivity.DeviceResult, 0, len(req.Targets))
-		for _, ip := range req.Targets {
-			devices = append(devices, connectivity.DeviceResult{IPAddress: ip})
+		results := make([]probe.Result, 0, len(call.Targets))
+		for _, ip := range call.Targets {
+			results = append(results, probe.Result{Target: ip})
 		}
-		return connectivity.Result{Devices: devices}, nil
+		return results, nil
 	}}
 	reporter := &recordingReporter{}
 	cursors := newMemCursorStore()
-	s := newTestSweeper(t, checker, reporter, cursors, 10)
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
 	req := testSweepRequest(t, "10.0.0.0/22", nil)
 	require.Error(t, s.sweep(context.Background(), req))
@@ -386,29 +421,29 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 }
 
 func TestSweepClampsWorkersToTheBudget(t *testing.T) {
-	checker := answerAll()
+	scanner := answerAll()
 	// The global budget is 4, so a range asking for 32 must not deadlock on
 	// semaphore.Acquire, which never returns for n greater than the size.
-	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 4)
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
 
 	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	req.Workers = 32
 	require.NoError(t, s.sweep(context.Background(), req))
 
-	sent := checker.recorded()
+	sent := scanner.recorded()
 	require.Len(t, sent, 1)
 	assert.Equal(t, 4, sent[0].Workers)
 }
 
 func TestSweepClampsNonPositiveWorkersToOne(t *testing.T) {
-	checker := answerAll()
-	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 4)
+	scanner := answerAll()
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
 
 	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	req.Workers = 0
 	require.NoError(t, s.sweep(context.Background(), req))
 
-	sent := checker.recorded()
+	sent := scanner.recorded()
 	require.Len(t, sent, 1)
 	assert.Equal(t, 1, sent[0].Workers, "a zero share would bound nothing")
 }
@@ -442,131 +477,119 @@ func countRunStatus(runs []metadata.AutodiscoveryRunMetadata, status metadata.Au
 	return n
 }
 
-func TestSweepBuildsOneRequestFromEveryProbe(t *testing.T) {
-	checker := answerAll()
-	s := newTestSweeper(t, checker, &recordingReporter{}, newMemCursorStore(), 10)
+func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
+	scanner := answerAll()
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 10)
 
-	req := testSweepRequestWithProbes(t, "10.0.0.0/24", nil,
-		&stubProbeRun{name: "ping", check: connectivity.CheckPing},
-		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP},
-	)
+	req := testSweepRequestWithOptions(t, "10.0.0.0/24", nil, probe.Options{
+		Ping: &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second},
+		SNMP: testSNMPOptions(),
+	})
 	req.Workers = 4
 	require.NoError(t, s.sweep(context.Background(), req))
 
-	sent := checker.recorded()
+	sent := scanner.recorded()
 	require.Len(t, sent, 1)
-	assert.Equal(t, []string{connectivity.CheckPing, connectivity.CheckSNMP}, sent[0].Checks,
-		"the checks follow the registry order of the probes")
+	require.NotNil(t, sent[0].Options.Ping)
+	require.NotNil(t, sent[0].Options.SNMP)
 	assert.Equal(t, 4, sent[0].Workers)
 	assert.Len(t, sent[0].Targets, 256)
 }
 
-func testProbeRuns() []probeRun {
-	return []probeRun{
-		&stubProbeRun{name: "ping", check: connectivity.CheckPing},
-		&stubProbeRun{name: "snmp", check: connectivity.CheckSNMP},
-	}
+func TestSweepReportsNothingWhenNoAddressAnswers(t *testing.T) {
+	reporter := &recordingReporter{}
+	s := newTestSweeper(t, silentAll(), reporter, newMemCursorStore(), 10)
+
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
+
+	assert.Empty(t, reporter.devices)
+	assert.Equal(t, 0, reporter.batches)
 }
 
-func TestToDiscoveredDevices(t *testing.T) {
-	res := connectivity.Result{Devices: []connectivity.DeviceResult{
-		{
-			IPAddress:  "10.0.0.1",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
-			SNMPResult: &connectivity.SNMPResult{
-				CheckResult: connectivity.CheckResult{Success: true},
-				CredID:      "cred-a",
-				SysName:     "router-1",
-			},
-		},
-		{
-			IPAddress:  "10.0.0.2",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: false}},
-			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},
-		},
-		{IPAddress: "10.0.0.3"},
-		{},
-	}}
+func ms(v int64) *int64 { return &v }
 
-	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
+func TestToDiscoveredDevices(t *testing.T) {
+	results := []probe.Result{
+		{
+			Target: "10.0.0.1",
+			Ping:   &pingprobe.Reading{Success: true, RTT: 3 * time.Millisecond},
+			SNMP:   &snmpprobe.Reading{Success: true, RTT: 7 * time.Millisecond, CredID: "cred-a", SysName: "router-1"},
+		},
+		{
+			Target: "10.0.0.2",
+			Ping:   &pingprobe.Reading{FailureReason: "timeout"},
+			SNMP:   &snmpprobe.Reading{FailureReason: "timeout"},
+		},
+		{Target: "10.0.0.3"},
+		{},
+	}
+
+	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 1, "only addresses that answered a probe are reported")
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1", Name: "router-1",
 		ProbeResults: []metadata.ProbeResult{
-			{Kind: "ping", Status: statusReachable},
-			{Kind: "snmp", Status: statusReachable, CredID: "cred-a"},
+			{Kind: kindPing, Status: statusReachable, RttMs: ms(3)},
+			{Kind: kindSNMP, Status: statusReachable, CredID: "cred-a", RttMs: ms(7)},
 		},
 	}, got[0])
 }
 
 func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneProbe(t *testing.T) {
-	res := connectivity.Result{Devices: []connectivity.DeviceResult{
+	results := []probe.Result{
 		{
 			// A device is there, but the range's credentials do not open it.
-			IPAddress:  "10.0.0.1",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
-			SNMPResult: &connectivity.SNMPResult{CheckResult: connectivity.CheckResult{Success: false}},
+			Target: "10.0.0.1",
+			Ping:   &pingprobe.Reading{Success: true},
+			SNMP:   &snmpprobe.Reading{FailureReason: "authentication_error"},
 		},
 		{
-			IPAddress:  "10.0.0.2",
-			PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: false}},
-			SNMPResult: &connectivity.SNMPResult{
-				CheckResult: connectivity.CheckResult{Success: true},
-				CredID:      "cred-a",
-				SysName:     "switch-1",
-			},
+			Target: "10.0.0.2",
+			Ping:   &pingprobe.Reading{FailureReason: "timeout"},
+			SNMP:   &snmpprobe.Reading{Success: true, CredID: "cred-a", SysName: "switch-1"},
 		},
-	}}
+	}
 
-	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
+	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 2)
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
 		ProbeResults: []metadata.ProbeResult{
-			{Kind: "ping", Status: statusReachable},
-			{Kind: "snmp", Status: statusUnreachable},
+			{Kind: kindPing, Status: statusReachable, RttMs: ms(0)},
+			{Kind: kindSNMP, Status: statusUnreachable, FailureReason: "authentication_error"},
 		},
 	}, got[0])
 
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.2", Name: "switch-1",
 		ProbeResults: []metadata.ProbeResult{
-			{Kind: "ping", Status: statusUnreachable},
-			{Kind: "snmp", Status: statusReachable, CredID: "cred-a"},
+			{Kind: kindPing, Status: statusUnreachable, FailureReason: "timeout"},
+			{Kind: kindSNMP, Status: statusReachable, CredID: "cred-a", RttMs: ms(0)},
 		},
 	}, got[1])
 }
 
-func TestToDiscoveredDevicesTakesTheFirstNameInRegistryOrder(t *testing.T) {
-	res := connectivity.Result{Devices: []connectivity.DeviceResult{{
-		IPAddress: "10.0.0.1",
-		SNMPResult: &connectivity.SNMPResult{
-			CheckResult: connectivity.CheckResult{Success: true},
-			SysName:     "from-snmp",
-		},
-	}}}
-	// Both probes read the same SNMP answer, so both offer a name.
-	probes := []probeRun{
-		&stubProbeRun{name: "first", check: connectivity.CheckSNMP},
-		&stubProbeRun{name: "second", check: connectivity.CheckSNMP},
-	}
+func TestToDiscoveredDevicesSkipsAProbeThatDidNotRun(t *testing.T) {
+	results := []probe.Result{{Target: "10.0.0.1", Ping: &pingprobe.Reading{Success: true}}}
 
-	got := toDiscoveredDevices("ad-1", "run-1", probes, res)
+	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 1)
-	assert.Equal(t, "from-snmp", got[0].Name)
-	assert.Equal(t, []string{"first", "second"}, []string{got[0].ProbeResults[0].Kind, got[0].ProbeResults[1].Kind})
+	assert.Equal(t, []metadata.ProbeResult{{Kind: kindPing, Status: statusReachable, RttMs: ms(0)}}, got[0].ProbeResults,
+		"a probe that did not run contributes no result entry")
 }
 
-func TestToDiscoveredDevicesSkipsAProbeThatReadNothing(t *testing.T) {
-	res := connectivity.Result{Devices: []connectivity.DeviceResult{{
-		IPAddress:  "10.0.0.1",
-		PingResult: &connectivity.PingResult{CheckResult: connectivity.CheckResult{Success: true}},
-	}}}
+func TestToDiscoveredDevicesReportsTheKindsInProbeOrder(t *testing.T) {
+	results := []probe.Result{{
+		Target: "10.0.0.1",
+		Ping:   &pingprobe.Reading{Success: true},
+		SNMP:   &snmpprobe.Reading{Success: true, SysName: "from-snmp"},
+	}}
 
-	got := toDiscoveredDevices("ad-1", "run-1", testProbeRuns(), res)
+	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 1)
-	assert.Equal(t, []metadata.ProbeResult{{Kind: "ping", Status: statusReachable}}, got[0].ProbeResults,
-		"an unanswered probe contributes no result entry")
+	assert.Equal(t, "from-snmp", got[0].Name)
+	assert.Equal(t, []string{kindPing, kindSNMP},
+		[]string{got[0].ProbeResults[0].Kind, got[0].ProbeResults[1].Kind})
 }
