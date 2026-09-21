@@ -1,0 +1,28 @@
+"""BUILD overlay for the @foldspace git repository."""
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+    "bindings/go/native/include/foldspace_go.h",
+    "bindings/go/native/src/lib.rs",
+])
+
+filegroup(
+    name = "go_ffi_header",
+    srcs = ["bindings/go/native/include/foldspace_go.h"],
+)
+
+filegroup(
+    name = "go_ffi_srcs",
+    srcs = ["bindings/go/native/src/lib.rs"],
+)
+
+filegroup(
+    name = "cargo_workspace",
+    srcs = [
+        "Cargo.lock",
+        "Cargo.toml",
+    ],
+)
