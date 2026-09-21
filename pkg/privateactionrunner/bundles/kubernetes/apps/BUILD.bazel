@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "apps",
@@ -38,6 +39,8 @@ go_library(
         "rollback_deployment.go",
         "scale_deployment.go",
         "scale_deployment_vertically.go",
+        "scale_stateful_set_horizontally.go",
+        "scale_stateful_set_vertically.go",
         "update_controller_revision.gen.go",
         "update_daemon_set.gen.go",
         "update_deployment.gen.go",
@@ -56,5 +59,28 @@ go_library(
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "apps_test",
+    srcs = [
+        "apps_test.go",
+        "scale_stateful_set_horizontally_test.go",
+        "scale_stateful_set_vertically_test.go",
+    ],
+    embed = [":apps"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/test",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )

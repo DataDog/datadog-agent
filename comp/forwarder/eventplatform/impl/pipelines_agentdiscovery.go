@@ -17,7 +17,7 @@ func getAgentDiscoveryPipelines() []passthroughPipelineDesc {
 			category:                      "Agent Discovery",
 			contentType:                   logshttp.ProtobufContentType,
 			endpointsConfigPrefix:         "config_files_discovery.forwarder.",
-			hostnameEndpointPrefix:        "agentdiscovery-intake.",
+			hostnameEndpointPrefix:        "instrumentation-telemetry-intake.",
 			intakeTrackType:               "agentdiscovery",
 			defaultBatchMaxConcurrentSend: 0,
 			defaultBatchMaxContentSize:    5000000,

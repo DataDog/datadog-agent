@@ -301,12 +301,18 @@ func (r *postgresCollectorTestReader) Runtime() configfilesdiscoveryimpl.Runtime
 
 func (r *postgresCollectorTestReader) Close() {}
 
-func (r *postgresCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
+func (r *postgresCollectorTestReader) ReadFile(_ context.Context, filePath configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
+	path := filePath.String()
 	r.readFileCalls = append(r.readFileCalls, path)
 	if file, found := r.files[path]; found {
 		return file, nil
 	}
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not found")
+}
+
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *postgresCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *postgresCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
