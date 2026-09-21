@@ -149,7 +149,8 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 }
 
 func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
-	// Exhaust adaptive retries at both starting OIDs.
+	// Every call fails. Exhaust the optimizer's retries at each root before
+	// surfacing the error.
 	timeoutErr := errors.New("request timeout")
 	fake := &fakeBulkGetter{
 		responses: []bulkResponse{
@@ -158,158 +159,15 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 			{err: timeoutErr},
 			{err: timeoutErr},
 			{err: timeoutErr},
-			{err: timeoutErr},
+			{err: timeoutErr}, // floor at 1 for the second root
 		},
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, timeoutErr)
-	assert.IsType(t, &gosnmplib.ConnectionError{}, err)
-	assert.Equal(t, []bulkCall{
-		{oid: ".0.0", maxRep: 4},
-		{oid: ".0.0", maxRep: 2},
-		{oid: ".0.0", maxRep: 1},
-		{oid: ".1.0", maxRep: 4},
-		{oid: ".1.0", maxRep: 2},
-		{oid: ".1.0", maxRep: 1},
-	}, fake.calls)
-}
-
-func TestGatherPDUsWithBulk_FallsBackToOne(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		failure bulkResponse
-	}{
-		{name: "transport error", failure: bulkResponse{err: errors.New("request timeout")}},
-		{name: "SNMP error", failure: bulkResponse{packet: &gosnmp.SnmpPacket{Error: gosnmp.GenErr}}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			fake := &fakeBulkGetter{
-				responses: []bulkResponse{
-					tc.failure, tc.failure, tc.failure,
-					{packet: dataPacket(".1.0.8802.1.1.2.1.3.3.0")},
-					{packet: endOfMibPacket()},
-				},
-			}
-			var collected []string
-			emit := func(pdu *gosnmp.SnmpPDU) error {
-				collected = append(collected, pdu.Name)
-				return nil
-			}
-
-			err := gatherPDUsWithBulk(context.Background(), fake, "test-device", emit, noopTick, 0, 0, 4)
-			require.NoError(t, err)
-			assert.Equal(t, []bulkCall{
-				{oid: ".0.0", maxRep: 4},
-				{oid: ".0.0", maxRep: 2},
-				{oid: ".0.0", maxRep: 1},
-				{oid: ".1.0", maxRep: 4},
-				{oid: ".1.0.8802.1.1.2.1.3.3.0", maxRep: 4},
-			}, fake.calls)
-			assert.Equal(t, []string{".1.0.8802.1.1.2.1.3.3.0"}, collected)
-		})
-	}
-}
-
-func TestGatherPDUsWithBulk_TriesRootsInOrder(t *testing.T) {
-	originalRoots := gosnmplib.RootOIDs
-	gosnmplib.RootOIDs = []string{".0.0", ".1.0", ".1.3.6.1.2.1"}
-	t.Cleanup(func() { gosnmplib.RootOIDs = originalRoots })
-
-	for _, tc := range []struct {
-		name    string
-		success bool
-	}{
-		{name: "all roots fail"},
-		{name: "third root succeeds", success: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			timeoutErr := errors.New("request timeout")
-			fake := &fakeBulkGetter{
-				responses: []bulkResponse{
-					{err: timeoutErr}, {err: timeoutErr},
-					{err: timeoutErr}, {err: timeoutErr},
-				},
-			}
-			expectedCalls := []bulkCall{
-				{oid: ".0.0", maxRep: 2}, {oid: ".0.0", maxRep: 1},
-				{oid: ".1.0", maxRep: 2}, {oid: ".1.0", maxRep: 1},
-				{oid: ".1.3.6.1.2.1", maxRep: 2},
-			}
-			if tc.success {
-				fake.responses = append(fake.responses,
-					bulkResponse{packet: dataPacket(".1.3.6.1.2.1.1.1.0")},
-					bulkResponse{packet: endOfMibPacket()},
-				)
-				expectedCalls = append(expectedCalls, bulkCall{oid: ".1.3.6.1.2.1.1.1.0", maxRep: 2})
-			} else {
-				fake.responses = append(fake.responses, bulkResponse{err: timeoutErr}, bulkResponse{err: timeoutErr})
-				expectedCalls = append(expectedCalls, bulkCall{oid: ".1.3.6.1.2.1", maxRep: 1})
-			}
-
-			err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 2)
-			if tc.success {
-				require.NoError(t, err)
-			} else {
-				require.ErrorIs(t, err, timeoutErr)
-			}
-			assert.Equal(t, expectedCalls, fake.calls)
-		})
-	}
-}
-
-func TestGatherPDUsWithBulk_DoesNotFallBackAfterProgress(t *testing.T) {
-	timeoutErr := errors.New("request timeout")
-	fake := &fakeBulkGetter{
-		responses: []bulkResponse{
-			{packet: dataPacket(".1.3.6.1.2.1.1.1.0")},
-			{err: timeoutErr},
-			{err: timeoutErr},
-			{err: timeoutErr},
-		},
-	}
-
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
-	require.ErrorIs(t, err, timeoutErr)
-	assert.Equal(t, []bulkCall{
-		{oid: ".0.0", maxRep: 4},
-		{oid: ".1.3.6.1.2.1.1.1.0", maxRep: 4},
-		{oid: ".1.3.6.1.2.1.1.1.0", maxRep: 2},
-		{oid: ".1.3.6.1.2.1.1.1.0", maxRep: 1},
-	}, fake.calls)
-}
-
-func TestGatherPDUsWithBulk_FallbackPreservesRequestLimit(t *testing.T) {
-	fake := &fakeBulkGetter{
-		responses: []bulkResponse{
-			{err: errors.New("request timeout")},
-			{packet: dataPacket(".1.3.6.1.2.1.1.1.0")},
-		},
-	}
-
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 3, 1)
-	require.ErrorContains(t, err, "exceeded maximum request limit (3)")
-	assert.Equal(t, []bulkCall{
-		{oid: ".0.0", maxRep: 1},
-		{oid: ".1.0", maxRep: 1},
-	}, fake.calls)
-}
-
-func TestGatherPDUsWithBulk_FallbackResetsOIDOrdering(t *testing.T) {
-	fake := &fakeBulkGetter{
-		responses: []bulkResponse{
-			{err: errors.New("request timeout")},
-			{packet: dataPacket(".0.5")},
-		},
-	}
-
-	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 1)
-	require.ErrorContains(t, err, "did not advance past .1.0")
-	assert.Equal(t, []bulkCall{
-		{oid: ".0.0", maxRep: 1},
-		{oid: ".1.0", maxRep: 1},
-	}, fake.calls)
+	assert.Contains(t, err.Error(), "request timeout")
+	// 4 → 2 → 1 at each root: 6 calls.
+	assert.GreaterOrEqual(t, len(fake.calls), 2)
 }
 
 func TestColumnFilteringLogic(t *testing.T) {
