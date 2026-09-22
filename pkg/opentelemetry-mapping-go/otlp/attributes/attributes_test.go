@@ -972,3 +972,27 @@ func TestParseAzureResourceID(t *testing.T) {
 		})
 	}
 }
+
+func TestAWSIdentitySpanMappings(t *testing.T) {
+	// Every entry maps a semantic convention key onto a tag name the Datadog
+	// tracers or the Agent tagger already use for the same information.
+	expected := map[string]string{
+		string(semconv127.CloudRegionKey):         "region",
+		string(semconv127.AWSLambdaInvokedARNKey): "function_arn",
+		string(semconv127.AWSECSTaskARNKey):       "task_arn",
+		string(semconv127.AWSECSClusterARNKey):    "cluster_arn",
+		string(semconv127.AWSEKSClusterARNKey):    "eks_cluster_arn",
+		string(semconv127.AWSS3BucketKey):         "bucketname",
+	}
+	assert.Equal(t, expected, AWSIdentitySpanMappings)
+
+	// cloud.account.id and aws.dynamodb.table_names need context (provider, array
+	// length) that a flat table cannot express; they are handled by the trace transform.
+	assert.NotContains(t, AWSIdentitySpanMappings, string(semconv127.CloudAccountIDKey))
+	assert.NotContains(t, AWSIdentitySpanMappings, string(semconv127.AWSDynamoDBTableNamesKey))
+
+	// No key collides with the HTTP table, which would make the rename order-dependent.
+	for k := range AWSIdentitySpanMappings {
+		assert.NotContains(t, HTTPMappings, k)
+	}
+}
