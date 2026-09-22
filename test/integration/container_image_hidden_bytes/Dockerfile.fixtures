@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+FROM busybox:1.37.0@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0 AS tools
+
+FROM scratch AS base
+COPY --from=tools /bin/busybox /bin/busybox
+COPY --from=tools /lib /lib
+SHELL ["/bin/busybox", "sh", "-c"]
+RUN /bin/busybox --install -s /bin
+CMD ["/bin/busybox", "sleep", "86400"]
+
+FROM base AS seeded
+RUN mkdir /fixture && \
+    dd if=/dev/zero of=/fixture/app bs=4096 count=1 && \
+    dd if=/dev/zero of=/fixture/cache bs=8192 count=1
+
+FROM seeded AS deleted
+RUN rm /fixture/cache
+
+FROM seeded AS replaced
+RUN dd if=/dev/zero of=/fixture/app bs=12288 count=1
+
+FROM seeded AS combined
+RUN dd if=/dev/zero of=/fixture/app bs=12288 count=1 && rm /fixture/cache
+
+FROM replaced AS replaced-deleted
+RUN rm /fixture/app
+
+FROM base AS same-step
+RUN mkdir /fixture && \
+    dd if=/dev/zero of=/fixture/temporary bs=8192 count=1 && \
+    rm /fixture/temporary

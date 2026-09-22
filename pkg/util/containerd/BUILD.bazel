@@ -6,6 +6,8 @@ go_library(
     srcs = [
         "containerd_util.go",
         "diagnosis.go",
+        "hidden_bytes_linux.go",
+        "image_layers.go",
         "namespaces.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containerd",
@@ -21,20 +23,34 @@ go_library(
         "@com_github_containerd_containerd_api//types",
         "@com_github_containerd_containerd_v2//client",
         "@com_github_containerd_containerd_v2//core/containers",
+        "@com_github_containerd_containerd_v2//core/images",
         "@com_github_containerd_containerd_v2//core/leases",
         "@com_github_containerd_containerd_v2//core/mount",
+        "@com_github_containerd_containerd_v2//core/snapshots",
         "@com_github_containerd_containerd_v2//defaults",
         "@com_github_containerd_containerd_v2//pkg/namespaces",
         "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_containerd_errdefs//:errdefs",
+        "@com_github_opencontainers_go_digest//:go-digest",
         "@com_github_opencontainers_image_spec//identity",
-    ],
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "containerd_test",
     srcs = [
         "containerd_util_test.go",
+        "hidden_bytes_linux_test.go",
+        "image_layers_test.go",
         "namespaces_test.go",
     ],
     embed = [":containerd"],
@@ -50,14 +66,27 @@ dd_agent_go_test(
         "@com_github_containerd_containerd_api//types",
         "@com_github_containerd_containerd_v2//client",
         "@com_github_containerd_containerd_v2//core/containers",
+        "@com_github_containerd_containerd_v2//core/mount",
+        "@com_github_containerd_containerd_v2//core/snapshots",
         "@com_github_containerd_containerd_v2//pkg/cio",
         "@com_github_containerd_containerd_v2//pkg/namespaces",
         "@com_github_containerd_containerd_v2//pkg/oci",
+        "@com_github_containerd_errdefs//:errdefs",
         "@com_github_containerd_typeurl_v2//:typeurl",
         "@com_github_gogo_protobuf//types",
+        "@com_github_opencontainers_go_digest//:go-digest",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//types/known/anypb",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )

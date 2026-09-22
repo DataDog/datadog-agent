@@ -21,6 +21,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
+func TestContainerImageHiddenBytesRoundTrip(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value *uint64
+	}{
+		{name: "unavailable"},
+		{name: "zero", value: pointer.Ptr(uint64(0))},
+		{name: "nonzero", value: pointer.Ptr(uint64(42))},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image"},
+					Layers:   []workloadmeta.ContainerImageLayer{{DiffID: "layer", HiddenBytes: test.value}},
+				},
+			}
+			encoded, err := ProtobufEventFromWorkloadmetaEvent(input)
+			require.NoError(t, err)
+			wire, err := proto.Marshal(encoded)
+			require.NoError(t, err)
+			decoded := new(pb.WorkloadmetaEvent)
+			require.NoError(t, proto.Unmarshal(wire, decoded))
+			output, err := WorkloadmetaEventFromProtoEvent(decoded)
+			require.NoError(t, err)
+			assert.Equal(t, input, output)
+		})
+	}
+}
+
 // This function tests both the function that converts a workloadmeta.Event into
 // protobuf and the one that converts the protobuf into workloadmeta.Event. This
 // is to avoid duplicating all the events and protobufs in 2 functions.

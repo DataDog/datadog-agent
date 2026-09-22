@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fixtures
+  namespace: hidden-bytes-validation
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: seeded
+      image: localhost/hidden-bytes/seeded:qa
+      imagePullPolicy: Never
+    - name: deleted
+      image: localhost/hidden-bytes/deleted:qa
+      imagePullPolicy: Never
+    - name: replaced
+      image: localhost/hidden-bytes/replaced:qa
+      imagePullPolicy: Never
+    - name: combined
+      image: localhost/hidden-bytes/combined:qa
+      imagePullPolicy: Never
+    - name: replaced-deleted
+      image: localhost/hidden-bytes/replaced-deleted:qa
+      imagePullPolicy: Never
+    - name: same-step
+      image: localhost/hidden-bytes/same-step:qa
+      imagePullPolicy: Never

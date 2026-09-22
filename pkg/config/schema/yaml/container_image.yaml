@@ -51,6 +51,19 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  hidden_bytes:
+    node_type: section
+    type: object
+    description: Collection of logical file bytes hidden by later image layers.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: >-
+          Collect hidden bytes per image layer on Linux with containerd's overlayfs
+          snapshotter. Requires read-only access to the unpacked layer directories
+          and permission to read overlayfs extended attributes.
   input_chan_size:
     node_type: setting
     type: integer

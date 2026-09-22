@@ -64,6 +64,7 @@ message ContainerImageLayer {
   string diffID = 2;
   int64 sizeBytes = 3;
   repeated string urls = 4;
+  optional uint64 hiddenBytes = 5;
 }
 
 message ContainerImageMetadata {

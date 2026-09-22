@@ -1,0 +1,6 @@
+# Reuse the same cached glibc-compatible ARM64 base; bypass its Agent entrypoint.
+FROM public.ecr.aws/datadog/agent@sha256:cd0ba1ba6c8c1afccb274eb80f4d4db50d2b664f965ef25c5141b1cf5777fd9a
+USER root
+COPY test/fakeintake/build/fakeintake /opt/hidden-bytes/fakeintake
+ENTRYPOINT ["/opt/hidden-bytes/fakeintake"]
+CMD ["-port=8080", "-dddev-forward=false", "-remoteconfig=false", "-retention-period=1h"]

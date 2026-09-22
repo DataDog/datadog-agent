@@ -758,6 +758,7 @@ type ContainerImageLayer struct {
 	DiffID        string                 `protobuf:"bytes,2,opt,name=diffID,proto3" json:"diffID,omitempty"`
 	SizeBytes     int64                  `protobuf:"varint,3,opt,name=sizeBytes,proto3" json:"sizeBytes,omitempty"`
 	Urls          []string               `protobuf:"bytes,4,rep,name=urls,proto3" json:"urls,omitempty"`
+	HiddenBytes   *uint64                `protobuf:"varint,5,opt,name=hiddenBytes,proto3,oneof" json:"hiddenBytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -818,6 +819,13 @@ func (x *ContainerImageLayer) GetUrls() []string {
 		return x.Urls
 	}
 	return nil
+}
+
+func (x *ContainerImageLayer) GetHiddenBytes() uint64 {
+	if x != nil && x.HiddenBytes != nil {
+		return *x.HiddenBytes
+	}
+	return 0
 }
 
 type ContainerImageMetadata struct {
@@ -2573,12 +2581,14 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\tshortName\x18\x04 \x01(\tR\tshortName\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x1f\n" +
 	"\vrepo_digest\x18\x06 \x01(\tR\n" +
-	"repoDigest\"}\n" +
+	"repoDigest\"\xb4\x01\n" +
 	"\x13ContainerImageLayer\x12\x1c\n" +
 	"\tmediaType\x18\x01 \x01(\tR\tmediaType\x12\x16\n" +
 	"\x06diffID\x18\x02 \x01(\tR\x06diffID\x12\x1c\n" +
 	"\tsizeBytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x12\n" +
-	"\x04urls\x18\x04 \x03(\tR\x04urls\"\x85\x04\n" +
+	"\x04urls\x18\x04 \x03(\tR\x04urls\x12%\n" +
+	"\vhiddenBytes\x18\x05 \x01(\x04H\x00R\vhiddenBytes\x88\x01\x01B\x0e\n" +
+	"\f_hiddenBytes\"\x85\x04\n" +
 	"\x16ContainerImageMetadata\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2947,6 +2957,7 @@ func file_datadog_workloadmeta_workloadmeta_proto_init() {
 	if File_datadog_workloadmeta_workloadmeta_proto != nil {
 		return
 	}
+	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[5].OneofWrappers = []any{}
 	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

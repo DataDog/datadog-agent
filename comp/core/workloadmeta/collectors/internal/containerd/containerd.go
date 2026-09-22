@@ -102,12 +102,12 @@ type collector struct {
 
 	knownImages *knownImages
 
-	// Images are updated from 2 goroutines: the one that handles containerd
-	// events, and the one that extracts SBOMS.
-	// This mutex is used to handle images one at a time to avoid
-	// inconsistencies like trying to set an SBOM for an image that is being
-	// deleted.
+	// Serialize runtime events, SBOM updates and hidden-byte results through
+	// publication. latestImages is authoritative because workloadmeta applies
+	// notifications asynchronously; published entities must not be mutated.
 	handleImagesMut sync.Mutex
+	latestImages    map[string]*workloadmeta.ContainerImageMetadata
+	hiddenBytes     *hiddenBytesCollector
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
@@ -148,6 +148,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	if err != nil {
 		return err
 	}
+	c.initHiddenBytesCollection()
 
 	if err = c.startSBOMCollection(ctx); err != nil {
 		return err
@@ -166,6 +167,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		cancelEvents()
 		return err
 	}
+	c.startHiddenBytesCollection(ctx)
 
 	go func() {
 		defer func() {
@@ -174,6 +176,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			}
 		}()
 		defer cancelEvents()
+		defer c.stopHiddenBytesCollection()
 
 		c.stream(ctx)
 	}()
@@ -290,6 +293,8 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 	if err != nil {
 		return err
 	}
+	c.handleImagesMut.Lock()
+	defer c.handleImagesMut.Unlock()
 
 	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
@@ -305,13 +310,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		}
 	}
 	for _, wlmImage := range mergedImages {
-		c.store.Notify([]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
-				Entity: wlmImage,
-			},
-		})
+		c.publishImageLocked(wlmImage)
 	}
 	log.Debugf("%d initial image events sent for namespace %s. total number of images reference is %d", len(mergedImages), namespace, len(existingImages))
 	return nil

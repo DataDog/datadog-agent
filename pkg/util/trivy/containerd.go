@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/images/archive"
 	"github.com/containerd/containerd/v2/core/mount"
-	"github.com/containerd/containerd/v2/core/snapshots"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	refdocker "github.com/distribution/reference"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -32,7 +30,6 @@ import (
 	dimage "github.com/moby/moby/api/types/image"
 	dclient "github.com/moby/moby/client"
 	"github.com/opencontainers/go-digest"
-	"github.com/opencontainers/image-spec/identity"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/samber/lo"
 
@@ -46,7 +43,7 @@ import (
 // image's top chainID does not match the chain we computed from
 // rootfs.diff_ids. We refuse to scan rather than silently pair the wrong
 // path with each DiffID.
-var errLayerChainMismatch = errors.New("snapshotter chain does not match image config")
+var errLayerChainMismatch = cutil.ErrLayerChainMismatch
 
 // ContainerdCollector defines the conttainerd collector name
 const ContainerdCollector = "containerd"
@@ -364,108 +361,30 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
-	var layers []string
-	for _, mnt := range mounts {
-		var fromOverlay bool
-		for _, opt := range mnt.Options {
-			for _, prefix := range []string{"upperdir=", "lowerdir="} {
-				trimmedOpt := strings.TrimPrefix(opt, prefix)
-				if trimmedOpt != opt {
-					layers = append(layers, strings.Split(trimmedOpt, ":")...)
-					fromOverlay = true
-				}
-			}
-		}
-		// A single-layer image is exposed by containerd as a single bind mount
-		// (no lowerdir/upperdir overlay options); its only layer is the source.
-		if !fromOverlay && mnt.Type == "bind" && mnt.Source != "" {
-			layers = append(layers, mnt.Source)
-		}
-	}
-	return layers
+	return cutil.ExtractImageLayerPaths(mounts)
 }
 
-// computeChainIDs returns the chainID at each level of diffIDs, in
-// image-config (bottom-up) order. It copies first because
-// identity.ChainIDs mutates its argument in place.
 func computeChainIDs(diffIDs []digest.Digest) []digest.Digest {
-	if len(diffIDs) == 0 {
-		return nil
-	}
-	out := slices.Clone(diffIDs)
-	identity.ChainIDs(out)
-	return out
+	return cutil.ComputeChainIDs(diffIDs)
 }
 
-// snapshotterStat is the slice of snapshots.Snapshotter we use, kept
-// small so tests can stub it without the whole snapshotter surface.
-type snapshotterStat interface {
-	Stat(ctx context.Context, key string) (snapshots.Info, error)
-}
+type snapshotterStat = cutil.SnapshotterStat
 
-// verifyChainAgainstSnapshotter confirms the snapshotter's stored parent
-// chain matches chainIDs, catching a snapshotter / image-config
-// disagreement before we pair LayerPaths off it.
 func verifyChainAgainstSnapshotter(ctx context.Context, s snapshotterStat, chainIDs []digest.Digest) error {
-	for i := len(chainIDs) - 1; i >= 0; i-- {
-		info, err := s.Stat(ctx, chainIDs[i].String())
-		if err != nil {
-			return fmt.Errorf("snapshotter stat for %s: %w", chainIDs[i], err)
-		}
-		var wantParent string
-		if i > 0 {
-			wantParent = chainIDs[i-1].String()
-		}
-		if info.Parent != wantParent {
-			return fmt.Errorf("%w: chainID %s has Parent=%q, expected %q",
-				errLayerChainMismatch, chainIDs[i], info.Parent, wantParent)
-		}
-	}
-	return nil
+	return cutil.VerifyImageLayerChain(ctx, s, chainIDs)
 }
 
-// buildContainerdLayerPaths returns one LayerPath per layer in
-// image-config (bottom-up) order. It takes resolved OCI inputs rather
-// than a containerd.Image so it stays testable. The manifest can
-// legally have a different length than diff_ids; when it does, Digest
-// is left empty rather than risk pairing a wrong one.
-func buildContainerdLayerPaths(
-	ctx context.Context,
-	s snapshotterStat,
-	imgName string,
-	diffIDs []digest.Digest,
-	manifest ocispec.Manifest,
-	mounts []mount.Mount,
-) ([]ftypes.LayerPath, error) {
-	if len(diffIDs) == 0 {
-		return nil, fmt.Errorf("image %s has no diff_ids", imgName)
+func buildContainerdLayerPaths(ctx context.Context, s snapshotterStat, _ string, diffIDs []digest.Digest, manifest ocispec.Manifest, mounts []mount.Mount) ([]ftypes.LayerPath, error) {
+	layers, err := cutil.BuildImageLayers(ctx, s, diffIDs, manifest, mounts)
+	if errors.Is(err, cutil.ErrLayerCountMismatch) {
+		return nil, errors.Join(errLayerCountMismatch, err)
 	}
-	if err := verifyChainAgainstSnapshotter(ctx, s, computeChainIDs(diffIDs)); err != nil {
+	if err != nil {
 		return nil, err
 	}
-
-	topDown := extractLayersFromOverlayFSMounts(mounts)
-	if len(topDown) != len(diffIDs) {
-		return nil, fmt.Errorf("%w: %d paths vs %d diff_ids", errLayerCountMismatch, len(topDown), len(diffIDs))
-	}
-
-	digestsAligned := len(manifest.Layers) == len(diffIDs)
-	if !digestsAligned {
-		log.Warnf("image %s: manifest has %d layers, diff_ids has %d; emitting SBOM without LayerDigest",
-			imgName, len(manifest.Layers), len(diffIDs))
-	}
-
-	out := make([]ftypes.LayerPath, len(diffIDs))
-	for i := range diffIDs {
-		lp := ftypes.LayerPath{
-			DiffID: diffIDs[i].String(),
-			// overlay lowerdir is top-down; flip to image-config bottom-up.
-			Path: topDown[len(topDown)-1-i],
-		}
-		if digestsAligned {
-			lp.Digest = manifest.Layers[i].Digest.String()
-		}
-		out[i] = lp
+	out := make([]ftypes.LayerPath, len(layers))
+	for i, layer := range layers {
+		out[i] = ftypes.LayerPath{DiffID: layer.DiffID, Digest: layer.Digest, Path: layer.Path}
 	}
 	return out, nil
 }
