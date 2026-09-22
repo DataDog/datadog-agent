@@ -113,6 +113,45 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	s.Assert().Contains(string(systemProbeContent), "## System Probe Configuration ##", "system-probe.yaml should contain template section banners from system-probe.yaml.example")
 }
 
+// TestInstallAgentPackageInstallOnly verifies that DD_INSTALL_ONLY leaves the
+// Agent service stopped without disabling it.
+func (s *testInstallExeSuite) TestInstallAgentPackageInstallOnly() {
+	// Arrange
+	packageConfig, err := NewPackageConfig(
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+	s.Require().NoError(err)
+
+	// Act
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
+		"DD_INSTALL_ONLY": "1",
+	}))
+
+	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService("datadogagent").
+		WithStatus("Stopped")
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, s.CurrentAgentVersion().PackageVersion())
+		}).
+		WithExperimentVersionEqual("")
+
+	// DD_INSTALL_ONLY suppresses startup for this setup invocation, rather
+	// than disabling the installed service.
+	s.Require().NoError(wincommon.StartService(s.Env().RemoteHost, "datadogagent"))
+	s.Require().NoError(s.WaitForAgentService("Running"))
+}
+
 // TestSetupHandoffToStableVersion verifies the current installer hands off
 // to a different version when one is requested: it downloads the matching
 // datadog-installer.exe from the OCI registry and re-execs setup from it.
