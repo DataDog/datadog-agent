@@ -36,7 +36,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	// endpoints excludes the main endpoint when apm_config.send_to_main_endpoint
+	// endpoints excludes the main endpoint when apm_config.traces_send_to_main_endpoint
 	// is false; config validation guarantees a destination remains.
 	endpoints := cfg.WriterEndpoints()
 	if !cfg.HasWriterDestination() {

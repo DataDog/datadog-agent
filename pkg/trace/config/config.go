@@ -31,11 +31,11 @@ const ServiceName = "datadog-trace-agent"
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
-// ErrNoWriterEndpoint is returned when apm_config.send_to_main_endpoint is false
+// ErrNoWriterEndpoint is returned when apm_config.traces_send_to_main_endpoint is false
 // but no other (non-failover) endpoint is configured, which would leave the
 // trace and stats writers with nowhere to send data. The configuration is
 // rejected instead of silently dropping traces and stats.
-var ErrNoWriterEndpoint = errors.New("apm_config.send_to_main_endpoint is false but no apm_config.additional_endpoints entry is configured: refusing to run with no destination for traces and stats")
+var ErrNoWriterEndpoint = errors.New("apm_config.traces_send_to_main_endpoint is false but no apm_config.additional_endpoints entry is configured: refusing to run with no destination for traces and stats")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
@@ -400,7 +400,7 @@ type AgentConfig struct {
 	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
 	// only to the endpoints configured through apm_config.additional_endpoints
 	// (plus the Multi-Region Failover endpoint when failover is active). It is
-	// set when apm_config.send_to_main_endpoint is false. Endpoints itself is
+	// set when apm_config.traces_send_to_main_endpoint is false. Endpoints itself is
 	// left untouched so that APIKey() and the proxies that rely on the main
 	// endpoint's key (EVP, debugger, symdb, profiling main, ...) keep working.
 	// It is the traces/stats sibling of ProfilingProxy.MainEndpointMode.

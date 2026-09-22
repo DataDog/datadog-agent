@@ -256,7 +256,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// Traces/stats sibling of apm_config.profiling_send_to_main_endpoint: when
 	// false, the trace and stats writers skip the main endpoint and only send to
 	// additional_endpoints. Endpoints[0] is kept so APIKey() is unchanged.
-	if !core.GetBool("apm_config.send_to_main_endpoint") {
+	// SkipMainEndpoint is the inverse of the config key so the Go zero value
+	// keeps sending to the main endpoint.
+	if !core.GetBool("apm_config.traces_send_to_main_endpoint") {
 		c.SkipMainEndpoint = true
 	}
 

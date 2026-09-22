@@ -631,21 +631,24 @@ func TestNewSendersSkipMainEndpoint(t *testing.T) {
 		}
 		return out
 	}
-	build := func(cfg *config.AgentConfig) []*sender {
-		return newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	build := func(t *testing.T, cfg *config.AgentConfig) []*sender {
+		t.Helper()
+		senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		t.Cleanup(func() { stopSenders(senders) })
+		return senders
 	}
 
 	t.Run("default-sends-to-every-endpoint", func(t *testing.T) {
-		assert.Equal(t, []string{"https://main.example.com", "https://additional.example.com"}, hosts(build(newCfg(false, main, additional))))
+		assert.Equal(t, []string{"https://main.example.com", "https://additional.example.com"}, hosts(build(t, newCfg(false, main, additional))))
 	})
 	t.Run("skip-main-keeps-additional", func(t *testing.T) {
-		assert.Equal(t, []string{"https://additional.example.com"}, hosts(build(newCfg(true, main, additional))))
+		assert.Equal(t, []string{"https://additional.example.com"}, hosts(build(t, newCfg(true, main, additional))))
 	})
 	t.Run("skip-main-keeps-mrf-and-additional", func(t *testing.T) {
-		assert.Equal(t, []string{"https://mrf.example.com", "https://additional.example.com"}, hosts(build(newCfg(true, main, mrf, additional))))
+		assert.Equal(t, []string{"https://mrf.example.com", "https://additional.example.com"}, hosts(build(t, newCfg(true, main, mrf, additional))))
 	})
 	t.Run("skip-main-without-destination-panics", func(t *testing.T) {
-		assert.Panics(t, func() { build(newCfg(true, main)) })
-		assert.Panics(t, func() { build(newCfg(true, main, mrf)) })
+		assert.Panics(t, func() { build(t, newCfg(true, main)) })
+		assert.Panics(t, func() { build(t, newCfg(true, main, mrf)) })
 	})
 }

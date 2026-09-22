@@ -865,7 +865,7 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
-	// apm_config.send_to_main_endpoint defaults to true: the writers use every endpoint.
+	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
 	assert.False(t, cfg.SkipMainEndpoint)
 	assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
 
@@ -2085,7 +2085,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
 	})
 
-	env = "DD_APM_SEND_TO_MAIN_ENDPOINT"
+	env = "DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
@@ -2094,7 +2094,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, coreConfig.GetBool("apm_config.send_to_main_endpoint"))
+		assert.False(t, coreConfig.GetBool("apm_config.traces_send_to_main_endpoint"))
 		assert.True(t, cfg.SkipMainEndpoint)
 		// The main endpoint stays in Endpoints so APIKey() is unchanged for the proxies,
 		// but the trace/stats writers no longer see it.
@@ -2964,7 +2964,7 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 	}
 }
 
-func TestSendToMainEndpoint(t *testing.T) {
+func TestTracesSendToMainEndpoint(t *testing.T) {
 	t.Run("default-true", func(t *testing.T) {
 		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{}).Object()
 		require.NotNil(t, cfg)
@@ -2974,8 +2974,8 @@ func TestSendToMainEndpoint(t *testing.T) {
 
 	t.Run("false-with-additional-endpoints", func(t *testing.T) {
 		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
-			"apm_config.send_to_main_endpoint": false,
-			"apm_config.additional_endpoints":  map[string][]string{"https://additional.example.com": {"additional-key"}},
+			"apm_config.traces_send_to_main_endpoint": false,
+			"apm_config.additional_endpoints":         map[string][]string{"https://additional.example.com": {"additional-key"}},
 		}).Object()
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.SkipMainEndpoint)
