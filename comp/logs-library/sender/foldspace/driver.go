@@ -333,7 +333,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 					ctxRecv, cancelRecv := context.WithCancel(context.Background())
 					recvCancel = cancelRecv
 					recvDone = make(chan struct{})
-					go d.recvLoop(currentID, stream, ctxRecv, acks, recvDone)
+					go d.recvLoop(ctxRecv, currentID, stream, acks, recvDone)
 				case SendBatch:
 					if current == nil || currentID != effect.Stream {
 						if effect.Batch != nil {
@@ -411,7 +411,7 @@ func (d *Driver) nudge(sender SenderID) {
 	}
 }
 
-func (d *Driver) recvLoop(stream StreamID, s Stream, ctx context.Context, acks chan streamAck, done chan struct{}) {
+func (d *Driver) recvLoop(ctx context.Context, stream StreamID, s Stream, acks chan streamAck, done chan struct{}) {
 	defer close(done)
 	for {
 		batchID, status, err := s.Recv(ctx)
