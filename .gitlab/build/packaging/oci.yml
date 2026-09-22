@@ -149,8 +149,7 @@
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
     - ls -l ${OUTPUT_DIR}/
     - |
-      # Older installers select the first OS/architecture match, ignoring the variant.
-      # merge preserves argument order, so keep base manifests ahead of FIPS manifests.
+      # Keep base manifests first so older installers don't select FIPS by mistake.
       BASE_ARCHIVES=()
       FIPS_ARCHIVES=()
       for ARCHIVE in "${OUTPUT_DIR}"/*.tar; do
