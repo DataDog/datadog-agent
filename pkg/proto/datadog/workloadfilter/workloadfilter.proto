@@ -42,6 +42,7 @@ message FilterPod {
   string namespace = 3;
   map<string, string> annotations = 4;
   FilterRootOwner rootowner = 5;
+  map<string, string> labels = 6;
 }
 
 message FilterRootOwner {
@@ -67,12 +68,14 @@ message FilterKubeService {
   string name = 1;
   string namespace = 2;
   map<string, string> annotations = 3;
+  map<string, string> labels = 4;
 }
 
 message FilterKubeEndpoint {
   string name = 1;
   string namespace = 2;
   map<string, string> annotations = 3;
+  map<string, string> labels = 4;
 }
 
 message FilterImage {
