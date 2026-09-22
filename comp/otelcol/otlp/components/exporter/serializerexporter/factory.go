@@ -70,10 +70,12 @@ type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildIn
 // Serializer exporter should never receive APM stats in Agent OTLP ingestion.
 func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
+	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest, false)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
+// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true); it
+// gates emission of the otel.ddot_collector.metrics.running* billing metrics.
 func NewFactoryForOTelAgent(
 	s serializer.MetricSerializer,
 	hostGetter SourceProviderFunc,
@@ -81,9 +83,10 @@ func NewFactoryForOTelAgent(
 	gatewayusage otel.GatewayUsage,
 	store TelemetryStore,
 	reporter *inframetadata.Reporter,
+	standalone bool,
 ) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot)
+	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot, standalone)
 }
 
 func newFactoryForAgentWithType(
@@ -95,6 +98,7 @@ func newFactoryForAgentWithType(
 	store TelemetryStore,
 	reporter *inframetadata.Reporter,
 	ipath ingestionPath,
+	standalone bool,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
@@ -115,13 +119,15 @@ func newFactoryForAgentWithType(
 		s:            s,
 		hostProvider: hostGetter,
 		statsIn:      statsIn,
-		createConsumer: func(extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializerConsumer {
+		createConsumer: func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer {
 			return &serializerConsumer{
 				extraTags:       extraTags,
 				apmReceiverAddr: apmReceiverAddr,
 				ipath:           ipath,
 				hosts:           make(map[string]struct{}),
-				fargateTagSets:  make(map[tagSetKey][]string),
+				tagSets:         make(map[tagSetKey][]string),
+				buildInfo:       buildInfo,
+				standalone:      standalone,
 			}
 		},
 		options:      options,

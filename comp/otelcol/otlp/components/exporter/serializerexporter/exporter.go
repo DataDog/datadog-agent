@@ -298,6 +298,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addRunningMetric()
 	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
 		errFlush := fmt.Errorf("failed to flush metrics: %w", err)
