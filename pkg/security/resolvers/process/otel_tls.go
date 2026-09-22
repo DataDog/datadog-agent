@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"regexp"
 	"strconv"
@@ -218,25 +219,32 @@ func (p *otelTargetProcess) fsPath(path string) string {
 	return kernel.HostProc(p.pidStr, "root", path)
 }
 
-func (p *otelTargetProcess) maps() ([]procfs.MapsEntry, error) {
-	mapsPath := kernel.HostProc(p.pidStr, "maps")
-	file, err := os.Open(mapsPath)
-	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", mapsPath, err)
-	}
-	defer file.Close()
+func (p *otelTargetProcess) maps() (iter.Seq[procfs.MapsEntry], func() error) {
+	var iterErr error
+	seq := func(yield func(v procfs.MapsEntry) bool) {
+		mapsPath := kernel.HostProc(p.pidStr, "maps")
+		file, err := os.Open(mapsPath)
+		if err != nil {
+			iterErr = fmt.Errorf("open %s: %w", mapsPath, err)
+			return
+		}
+		defer file.Close()
 
-	var entries []procfs.MapsEntry
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
-			entries = append(entries, entry)
+		scanner := bufio.NewScanner(file)
+		scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
+		for scanner.Scan() {
+			if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
+				if !yield(entry) {
+					return
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			iterErr = fmt.Errorf("scan %s: %w", mapsPath, err)
+			return
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan %s: %w", mapsPath, err)
-	}
-	return entries, nil
+	return seq, func() error { return iterErr }
 }
 
 func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
@@ -249,15 +257,11 @@ func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsE
 }
 
 func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
-	entries, err := p.maps()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	grouped := make(map[string][]procfs.MapsEntry)
 	var order []string
 	seen := make(map[string]struct{})
-	for _, entry := range entries {
+	entries, errf := p.maps()
+	for entry := range entries {
 		// Since we're already parsing the maps here, set the procCtxAddr
 		if p.procCtxAddr == 0 && otelprocessctx.IsMappingName(entry.Pathname) {
 			p.procCtxAddr = entry.StartAddr
@@ -272,6 +276,9 @@ func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procf
 			seen[path] = struct{}{}
 			order = append(order, path)
 		}
+	}
+	if err := errf(); err != nil {
+		return nil, nil, err
 	}
 	return grouped, order, nil
 }
