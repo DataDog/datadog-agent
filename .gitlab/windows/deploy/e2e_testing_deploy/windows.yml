@@ -4,7 +4,7 @@
 deploy_windows_testing-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
@@ -35,7 +35,7 @@ deploy_windows_testing-a7:
 deploy_windows_testing-a7-fips:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY

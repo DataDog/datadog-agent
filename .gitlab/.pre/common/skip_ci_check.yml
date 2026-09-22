@@ -6,7 +6,7 @@ skip-ci-check:
   stage: setup
   tags: ["arch:amd64", "specific:true"]
   rules:
-    - !reference [.on_mergequeue]
+    - !reference [.on_light_pipeline]
   script:
     - commit_message="$(git log --format=%B -n 1 $CI_COMMIT_SHA)"
     # https://docs.github.com/en/actions/managing-workflow-runs/skipping-workflow-runs
