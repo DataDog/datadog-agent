@@ -2572,8 +2572,8 @@ github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056 h1:S7D0BKyRGQvojP
 github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056/go.mod h1:HRh7JESdpg5Hh6f8QMoFPht5/r/fPs/Hl3qghMoDztI=
 github.com/DataDog/jsonapi v0.13.0 h1:ebIqG50aEGjjl/Hg8TVUsm6Fiw9T6IT1WZRC8aL8OQE=
 github.com/DataDog/jsonapi v0.13.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
-github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1 h1:jOm7IWckE0Ds+Dh27yvPEF0tUGd8uor34yfXVAaPDyQ=
-github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2 h1:Urvsu5FqCPy3CYs7/LxOXUDpS0U8moht4zJ2PaSI8G0=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
