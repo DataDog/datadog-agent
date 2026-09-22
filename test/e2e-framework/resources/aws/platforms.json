@@ -24,9 +24,12 @@
         }
     },
     "centos": {
+        "arm64": {
+            "79": "ami-0cb7a00afccf30559"
+        },
         "x86_64": {
             "610": "ami-0506f01ccb6dddeda",
-            "79": "ami-036de472bb001ae9c"
+            "79": "ami-0a5755e5aa21778a5"
         }
     },
     "debian": {
