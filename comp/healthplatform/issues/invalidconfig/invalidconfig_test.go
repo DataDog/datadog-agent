@@ -95,7 +95,7 @@ func TestBuildIssue_Remediation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-				contextKeyViolationsVersion: "1", contextKeyViolations: tc.violations,
+				contextKeyViolations: tc.violations,
 			})
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
@@ -119,7 +119,7 @@ func TestBuildIssue_MultipleCorrections(t *testing.T) {
 		raw, err := json.Marshal(violations)
 		require.NoError(t, err)
 		issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-			contextKeyViolationsVersion: "1", contextKeyViolations: string(raw),
+			contextKeyViolations: string(raw),
 		})
 		require.NoError(t, err)
 		text := issue.Remediation.Steps[1].Text
@@ -171,7 +171,6 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "`/agent_ipc/port` received a string instead of a whole number. Replace it with a whole number. The default value for this setting is `0`.", issue.Remediation.Steps[1].Text)
 	fields := issue.GetExtra().GetFields()
-	assert.Equal(t, float64(1), fields[contextKeyViolationsVersion].GetNumberValue())
 	issueViolations := fields[contextKeyViolations].GetListValue().GetValues()
 	require.Len(t, issueViolations, 1)
 	assert.Equal(t, map[string]any{

@@ -94,7 +94,6 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	if len(payloads) == len(violations) {
 		if encoded, err := json.Marshal(payloads); err == nil {
-			ctx[contextKeyViolationsVersion] = "1"
 			ctx[contextKeyViolations] = string(encoded)
 		}
 	}

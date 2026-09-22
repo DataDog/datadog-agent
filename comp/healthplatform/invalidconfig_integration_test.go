@@ -133,7 +133,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	assert.Contains(t, vals[0].GetStringValue(), "want integer")
 
 	fields := receivedIssue.GetExtra().GetFields()
-	assert.Equal(t, float64(1), fields["violations_version"].GetNumberValue())
+	assert.NotContains(t, fields, "violations_version")
 	violations := fields["violations"].GetListValue().GetValues()
 	byPath := make(map[string]map[string]any)
 	for _, value := range violations {

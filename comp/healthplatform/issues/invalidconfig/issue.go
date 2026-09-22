@@ -14,17 +14,17 @@ import (
 	"unicode"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/dustin/go-humanize/english"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	contextKeyConfigPath        = "config_path"
-	contextKeyErrors            = "errors"
-	contextKeyErrorCount        = "error_count"
-	contextKeyImpact            = "impact"
-	contextKeyViolationsVersion = "violations_version"
-	contextKeyViolations        = "violations"
-	defaultCorrection           = "Fix each violation listed in the description."
+	contextKeyConfigPath = "config_path"
+	contextKeyErrors     = "errors"
+	contextKeyErrorCount = "error_count"
+	contextKeyImpact     = "impact"
+	contextKeyViolations = "violations"
+	defaultCorrection    = "Fix each violation listed in the description."
 )
 
 // contextErrorKey returns the Context key for the i-th error line.
@@ -79,22 +79,19 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	}
 
 	// Add optional violation details before converting the map to protobuf.
-	extraFields := map[string]any{
+	fields := map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
 		contextKeyErrors:     errMap,
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 	}
 	correction := defaultCorrection
-	if ctx[contextKeyViolationsVersion] == "1" {
-		var violations []any
-		if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
-			extraFields[contextKeyViolationsVersion] = 1
-			extraFields[contextKeyViolations] = violations
-			correction = formatCorrections(ctx[contextKeyViolations])
-		}
+	var violations []any
+	if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
+		fields[contextKeyViolations] = violations
+		correction = formatCorrections(ctx[contextKeyViolations])
 	}
-	extra, _ := structpb.NewStruct(extraFields)
+	extra, _ := structpb.NewStruct(fields)
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
@@ -152,10 +149,7 @@ func formatCorrections(raw string) string {
 	if remaining == 0 {
 		return result
 	}
-	wording := "violations are"
-	if remaining == 1 {
-		wording = "violation is"
-	}
+	wording := english.PluralWord(remaining, "violation is", "violations are")
 	return result + fmt.Sprintf("\n\n%d more %s listed in the description.", remaining, wording)
 }
 
@@ -173,10 +167,7 @@ func formatCorrection(violation violationPayload) string {
 			return ""
 		}
 	}
-	want := strings.Join(expected, " or ")
-	if len(expected) > 2 {
-		want = strings.Join(expected[:len(expected)-1], ", ") + ", or " + expected[len(expected)-1]
-	}
+	want := english.OxfordWordSeries(expected, "or")
 	if violation.Path == "" {
 		violation.Path = "/"
 	}
