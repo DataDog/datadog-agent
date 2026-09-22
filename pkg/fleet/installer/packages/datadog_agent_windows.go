@@ -147,6 +147,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	}
 
 	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
+	if err := persistProcessManagerEnv(processManagerEnabled); err != nil {
+		return fmt.Errorf("failed to persist process manager selection: %w", err)
+	}
 	for _, cfg := range procmgrConfigs {
 		if cfg.label == "DDOT" {
 			continue
