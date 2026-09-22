@@ -41,7 +41,7 @@ func TestPackageAgentFapolicyd(t *testing.T) {
 
 	opts := []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOSArch(e2eos.RedHat9E2E, e2eos.AMD64Arch), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithOSArch(e2eos.RedHat9Fapolicyd, e2eos.AMD64Arch), ec2.WithInternetAccess()),
 			ec2.WithoutAgent(),
 		),
 	}
