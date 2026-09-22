@@ -32,14 +32,14 @@ func (k CacheKey) String() string {
 }
 
 func formatKeys(keys map[string]string) string {
-	return formatKeysWith(keys, func(value string) string { return value })
+	return formatKeysWith(keys, false)
 }
 
 func formatQuotedKeys(keys map[string]string) string {
-	return formatKeysWith(keys, strconv.Quote)
+	return formatKeysWith(keys, true)
 }
 
-func formatKeysWith(keys map[string]string, format func(string) string) string {
+func formatKeysWith(keys map[string]string, quoted bool) string {
 	if len(keys) == 0 {
 		return ""
 	}
@@ -52,7 +52,12 @@ func formatKeysWith(keys map[string]string, format func(string) string) string {
 
 	parts := make([]string, 0, len(names))
 	for _, name := range names {
-		parts = append(parts, format(name)+"="+format(keys[name]))
+		value := keys[name]
+		if quoted {
+			name = strconv.Quote(name)
+			value = strconv.Quote(value)
+		}
+		parts = append(parts, name+"="+value)
 	}
 	return strings.Join(parts, ",")
 }
