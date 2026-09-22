@@ -19,8 +19,8 @@ from tasks.libs.anomalydetection.ablation import (
     TransientError,
     metric,
     read_json,
+    restore_checkpoint,
 )
-from tasks.libs.anomalydetection.ablation_ci import restore_checkpoint
 
 
 def spec(**overrides):
@@ -242,7 +242,7 @@ class TestAblationArtifacts(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             chdir(directory),
             patch.dict("os.environ", {"OBSERVER_ABLATION_RESUME_JOB_ID": "123"}, clear=True),
-            patch("tasks.libs.anomalydetection.ablation_ci.restore_checkpoint", side_effect=restore) as checkpoint,
+            patch("tasks.libs.anomalydetection.ablation.restore_checkpoint", side_effect=restore) as checkpoint,
             patch("tasks.anomalydetection._publish_ddeval_testbench") as publish,
             patch("tasks.anomalydetection.eval_pipeline") as evaluate,
         ):
@@ -269,7 +269,7 @@ class TestAblationArtifacts(unittest.TestCase):
                 "os.environ",
                 {"CI_API_V4_URL": "https://gitlab.example/api/v4", "CI_PROJECT_ID": "1", "CI_JOB_TOKEN": "fixture"},
             ),
-            patch("tasks.libs.anomalydetection.ablation_ci.requests.get", get),
+            patch("tasks.libs.anomalydetection.ablation.requests.get", get),
         ):
             output = Path(directory) / "observer-ablation-ddeval"
             restore_checkpoint("123", output)

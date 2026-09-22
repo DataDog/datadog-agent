@@ -1607,7 +1607,7 @@ def _publish_ddeval_testbench(ctx):
 @task
 def ablation_ci(ctx):
     """Build/publish once, then run or resume the manual CI ablation."""
-    from tasks.libs.anomalydetection.ablation_ci import restore_checkpoint
+    from tasks.libs.anomalydetection.ablation import restore_checkpoint
 
     output = Path("observer-ablation-ddeval")
     manifest = output / "testbench.json"
