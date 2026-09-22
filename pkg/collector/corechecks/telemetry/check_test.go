@@ -54,13 +54,13 @@ func TestCheck(t *testing.T) {
 func TestRunSendsOnlyDefaultMetrics(t *testing.T) {
 	tel := telemetrymock.New(t)
 
-	pointSent := tel.NewGauge("point", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
+	pointSent := tel.NewGauge("points", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
 	pointSent.Set(7, "https://api.datadoghq.com")
 
-	pointDropped := tel.NewGauge("point", "dropped", []string{"domain"}, "Number of points dropped before reaching the intake")
+	pointDropped := tel.NewGauge("points", "dropped", []string{"domain"}, "Number of points dropped before reaching the intake")
 	pointDropped.Set(2, "https://api.datadoghq.com")
 
-	haAgentRuns := tel.NewCounter("ha_agent", "integration_runs", []string{"integration", "config_id"}, "Tracks number of HA integrations runs.")
+	haAgentRuns := tel.NewCounter("checks", "ha_agent_integration_runs", []string{"integration", "config_id"}, "Tracks number of HA integrations runs.")
 	haAgentRuns.Add(3, "snmp", "abc")
 
 	// Not in defaultMetrics: must stay on the /telemetry endpoint only.
@@ -69,7 +69,7 @@ func TestRunSendsOnlyDefaultMetrics(t *testing.T) {
 
 	sm := mocksender.CreateDefaultDemultiplexer(t)
 
-	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName), telemetry: tel}
+	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName), telemetry: tel, metrics: defaultMetrics}
 	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider"))
 
 	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
@@ -84,4 +84,39 @@ func TestRunSendsOnlyDefaultMetrics(t *testing.T) {
 
 	s.AssertExpectations(t)
 	s.AssertNotCalled(t, "Gauge", "datadog.agent.checks.execution_time", 123.0, "", []string{"check_name:cpu"})
+}
+
+// TestRunRemapsAllowlistedMetrics covers the allowlist's ability to send a metric under a name other than the
+// one it is registered with in the codebase.
+func TestRunRemapsAllowlistedMetrics(t *testing.T) {
+	tel := telemetrymock.New(t)
+
+	remapped := tel.NewGauge("bad_namespace", "calls", []string{}, "Number of calls to feature A")
+	remapped.Set(7)
+
+	asIs := tel.NewCounter("feature_b", "calls", []string{}, "Number of calls to feature B")
+	asIs.Add(3)
+
+	sm := mocksender.CreateDefaultDemultiplexer(t)
+
+	c := &checkImpl{
+		CheckBase: corechecks.NewCheckBase(CheckName),
+		telemetry: tel,
+		metrics: []allowlistedMetric{
+			{name: "bad_namespace__request_count", sendAs: "feature_a__request_count"},
+			{name: "feature_b__call_count"},
+		},
+	}
+	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider"))
+
+	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+	s.On("SetNoIndex", true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.feature_a.calls", 7.0, "", []string{}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.feature_b.calls", 3.0, "", []string{}, true).Return().Times(1)
+	s.On("Commit").Return().Times(1)
+
+	require.NoError(t, c.Run())
+
+	s.AssertExpectations(t)
+	s.AssertNotCalled(t, "Gauge", "datadog.agent.bad_namespace.calls", 7.0, "", []string{})
 }

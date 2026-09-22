@@ -6,15 +6,15 @@
 package retry
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 // Report the metric as a gauge because metrics may be dropped if connection with datadog is
 // interrupted for a long time. When the connection recovers, the gauge will give the total number
 // of points dropped during this time.
-var tlmPointsDropped = telemetryimpl.GetCompatComponent().NewGauge("point", "dropped", []string{"domain"}, "Number of points dropped before reaching the intake")
-var tlmPointsSent = telemetryimpl.GetCompatComponent().NewGauge("point", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
+var tlmPointsDropped = telemetryimpl.GetCompatComponent().NewGauge("points", "dropped", []string{"domain"}, "Number of points dropped before reaching the intake")
+var tlmPointsSent = telemetryimpl.GetCompatComponent().NewGauge("points", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
 
 // PointCountTelemetry sends the number of points successfully sent and the number of points dropped.
 type PointCountTelemetry struct {

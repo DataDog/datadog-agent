@@ -129,13 +129,13 @@ class TestDetectMarkdownPatterns(unittest.TestCase):
 
     def test_double_underscores_in_inline_literal_not_flagged(self):
         """Double underscores inside RST inline literals are verbatim, not bold."""
-        text = "Metrics ``point__sent``, ``point__dropped`` and ``__init__`` are exposed"
+        text = "Metrics ``points__sent``, ``points__dropped`` and ``__init__`` are exposed"
         errors = detect_markdown_patterns(text)
         self.assertEqual(len(errors), 0)
 
     def test_markdown_bold_outside_inline_literal_still_flagged(self):
         """Masking inline literals must not hide Markdown in the rest of the line."""
-        text = "The ``point__sent`` metric is __really__ gone"
+        text = "The ``points__sent`` metric is __really__ gone"
         errors = detect_markdown_patterns(text)
         self.assertEqual(len(errors), 1)
         self.assertIn('Markdown bold syntax', errors[0].message)

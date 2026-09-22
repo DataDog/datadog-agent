@@ -2759,7 +2759,7 @@ func TestAggregatesCoreAndRemoteAgentSeriesOfSameMetric(t *testing.T) {
         - name: points
           metric:
             metrics:
-              - name: point.sent
+              - name: points.sent
                 aggregate_tags:
                   - domain
     `
@@ -2771,19 +2771,19 @@ func TestAggregatesCoreAndRemoteAgentSeriesOfSameMetric(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	corePointSent := tel.NewGauge("point", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
+	corePointSent := tel.NewGauge("points", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
 	corePointSent.Set(5, "https://api.datadoghq.com")
 
 	// Remote agent telemetry reaches the registry through an unchecked collector, which is how it can
 	// carry a wider label set than the Core Agent's own series of the same metric family.
 	tel.RegisterCollector(&constMetricCollector{
-		desc: prometheus.NewDesc("point__sent", "Number of points successfully sent to the intake",
+		desc: prometheus.NewDesc("points__sent", "Number of points successfully sent to the intake",
 			[]string{"domain", "emitter"}, nil),
 		value:       400,
 		labelValues: []string{"https://api.datadoghq.com", "agent-data-plane"},
 	})
 
-	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	metrics, ok := getPayloadFilteredMetricList(a, "points.sent")
 	require.True(t, ok)
 	require.Len(t, metrics, 2)
 
@@ -2938,8 +2938,8 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		{name: "dogstatsd_client.bytes_dropped_writer", preserveTags: []string{"client", "client_transport"}},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
-		{name: "point.sent", preserveTags: []string{"domain"}},
-		{name: "point.dropped", preserveTags: []string{"domain"}},
+		{name: "points.sent", preserveTags: []string{"domain"}},
+		{name: "points.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},

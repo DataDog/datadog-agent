@@ -74,7 +74,7 @@ MARKDOWN_PATTERNS = [
 
 # RST inline literals (``text``) are verbatim: no markup is recognized inside them, so
 # Markdown-looking sequences there are false positives (metric names such as
-# ``point__sent``, Python dunders such as ``__init__``). Non-greedy so that several
+# ``points__sent``, Python dunders such as ``__init__``). Non-greedy so that several
 # literals on the same line are masked individually rather than as one big span.
 INLINE_LITERAL_RE = re.compile(r'``.+?``')
 

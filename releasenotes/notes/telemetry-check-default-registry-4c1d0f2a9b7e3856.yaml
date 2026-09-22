@@ -29,8 +29,15 @@ enhancements:
     for the number of checks scheduled in each job queue.
   - |
     The Agent's ``/telemetry`` endpoint now exposes all of the Agent's internal telemetry.
-    A small number of metrics -- including ``point__sent``, ``point__dropped``, and
+    A small number of metrics -- including ``points__sent``, ``points__dropped``, and
     ``ha_agent__integration_runs`` -- were previously held in a separate registry that the
     endpoint did not serve, so they were only visible as ``datadog.agent.*`` metrics. They
     are now available on ``/telemetry`` (and in the ``telemetry.log`` flare file) as well,
     in addition to still being submitted as ``datadog.agent.*`` metrics.
+  - |
+    The forwarder's point counts are registered in the Agent's internal telemetry as
+    ``points__sent`` and ``points__dropped``, so those are the names they appear under
+    when scraping the ``/telemetry`` endpoint and in the ``telemetry.log`` flare file.
+    The ``telemetry`` core check continues to submit them to Datadog under their original
+    names, ``datadog.agent.point.sent`` and ``datadog.agent.point.dropped``, so existing
+    dashboards and monitors are unaffected.

@@ -63,8 +63,8 @@ var (
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
 	tlmHaAgentIntegrationRuns = telemetryimpl.GetCompatComponent().NewCounter(
-		"ha_agent",
-		"integration_runs",
+		"checks",
+		"ha_agent_integration_runs",
 		[]string{"integration", "config_id"},
 		"Tracks number of HA integrations runs.",
 	)
