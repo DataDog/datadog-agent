@@ -7,6 +7,7 @@ go_library(
         "leasemanager.go",
         "localstore.go",
         "ring.go",
+        "ringcontroller.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata",
     visibility = ["//visibility:public"],
@@ -16,6 +17,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/clustermetadata",
         "//pkg/errors",
+        "//pkg/util/log",
         "@io_k8s_api//coordination/v1:coordination",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
@@ -28,6 +30,7 @@ dd_agent_go_test(
         "leasemanager_test.go",
         "localstore_test.go",
         "ring_test.go",
+        "ringcontroller_test.go",
     ],
     embed = [":clustermetadata"],
     deps = [

@@ -28,20 +28,17 @@ const (
 // LocalStore answers clustermetadata queries on behalf of this replica. It
 // implements cm.Store.
 type LocalStore struct {
-	wmeta    workloadmeta.Component
-	tagger   tagger.Component
-	selfName string
-	// TODO: replace with a ring layer
-	peers []cm.Store
+	wmeta  workloadmeta.Component
+	tagger tagger.Component
+	ring   *RingController
+	peers  []cm.Store
 }
 
 var _ cm.Store = (*LocalStore)(nil)
 
-// NewLocalStore returns a Store for this replica. selfName is its identity
-// in Ring responses; peers are the other replicas in the ring, queried on
-// local pod misses. TODO: replace with a ring layer
-func NewLocalStore(wmeta workloadmeta.Component, tagger tagger.Component, selfName string, peers ...cm.Store) *LocalStore {
-	return &LocalStore{wmeta: wmeta, tagger: tagger, selfName: selfName, peers: peers}
+// NewLocalStore returns a Store for this replica.
+func NewLocalStore(wmeta workloadmeta.Component, tagger tagger.Component, ring *RingController, peers ...cm.Store) *LocalStore {
+	return &LocalStore{wmeta: wmeta, tagger: tagger, ring: ring, peers: peers}
 }
 
 // Lookup implements cm.Store.Lookup().
@@ -121,14 +118,22 @@ func (s *LocalStore) Subscribe(ctx context.Context, node string, scope cm.Scope)
 	return nil, nil, fmt.Errorf("node stream is not implemented yet")
 }
 
-// Ring implements cm.Store. Until the ring layer exists, this replica is the
-// only member and owns every known node.
+// Ring implements cm.Store.Ring().
 func (s *LocalStore) Ring(ctx context.Context) (cm.RingInfo, error) {
-	nodes := make([]string, 0)
-	for _, node := range s.wmeta.ListKubernetesNodes() {
-		nodes = append(nodes, node.EntityID.ID)
+	state := s.ring.State()
+	members := make([]cm.RingMember, 0, len(state.Members))
+	for _, member := range state.Members {
+		ready := true
+		if member == s.ring.selfID {
+			ready = state.Ready()
+		}
+		members = append(members, cm.RingMember{
+			Name:  member,
+			Nodes: state.Owned[member],
+			Ready: ready,
+		})
 	}
-	return cm.RingInfo{Members: []cm.RingMember{{Name: s.selfName, Nodes: nodes, Ready: true}}}, nil
+	return cm.RingInfo{Members: members}, nil
 }
 
 func (s *LocalStore) localLookup(ctx context.Context, req cm.LookupRequest) (cm.LookupAnswer, error) {
@@ -139,8 +144,12 @@ func (s *LocalStore) localLookup(ctx context.Context, req cm.LookupRequest) (cm.
 	}
 	if !found {
 		if req.Key.Kind == KindPod {
-			// if it's a pod, another replica might have it
-			return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
+			// if it's a pod, another replica might have it, but only claim
+			// NotMine once our own watches are synced
+			if s.ring.State().Ready() {
+				return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
+			}
+			return cm.LookupAnswer{Kind: cm.AnswerNotReady}, nil
 		}
 		// if it's not a pod it should be replicated across all DCAs, so that means it's absent
 		return cm.LookupAnswer{Kind: cm.AnswerAbsent}, nil
@@ -164,12 +173,14 @@ func (s *LocalStore) localLookupOrigin(ctx context.Context, req cm.OriginLookupR
 		return cm.LookupAnswer{}, fmt.Errorf("origin key must set PodUID or ContainerID")
 	}
 	if pod == nil {
-		// if it's a pod, another replica might have it
 		if err != nil && !pkgerrors.IsNotFound(err) {
 			return cm.LookupAnswer{}, err
 		}
-		// if it's not a pod it should be replicated across all DCAs, so that means it's absent
-		return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
+		// origin keys are always pods: NotMine only once our watches are synced
+		if s.ring.State().Ready() {
+			return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
+		}
+		return cm.LookupAnswer{Kind: cm.AnswerNotReady}, nil
 	}
 
 	return s.tagAnswer(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, pod.EntityID.ID), req.Scope.Cardinality)
