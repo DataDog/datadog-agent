@@ -26,7 +26,6 @@ go_library(
         "//comp/healthplatform/store/noop-impl",
         "//pkg/config/env",
         "//pkg/config/helper",
-        "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/util/flavor",
         "//pkg/util/http",
