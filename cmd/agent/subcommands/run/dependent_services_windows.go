@@ -143,10 +143,12 @@ func (s *Servicedef) Stop() error {
 // IsEnabled checks whether a dependent service should be started. When install policy
 // would suppress a legacy SCM service in favor of procmgr, suppression applies only if
 // dd-procmgr-service started successfully; otherwise the legacy service is used.
-func (s *Servicedef) IsEnabled(procmgrStartedSuccessfully bool, coreConf model.Reader) bool {
-	if s.procmgrDefinitionFile != "" &&
-		coreConf.GetBool("process_manager.enabled") &&
-		procmgrProcessDefinitionExists(s.procmgrDefinitionFile) {
+//
+// This is the only place processes.d is read during a startup pass. procmgrGated says the
+// caller already waited for the dd-procmgr-service outcome, so procmgrStartedSuccessfully
+// is a real answer rather than an assumed one.
+func (s *Servicedef) IsEnabled(procmgrGated bool, procmgrStartedSuccessfully bool) bool {
+	if procmgrGated && procmgrProcessDefinitionExists(s.procmgrDefinitionFile) {
 		if procmgrStartedSuccessfully {
 			log.Infof("Service %s suppressed (install policy)", s.name)
 			return false
@@ -169,10 +171,12 @@ func (s *Servicedef) isEnabledByConfig() bool {
 // dd-procmgr-service to reach a final startup outcome. Only procmgr-managed legacy
 // services need procmgrStarted for suppression decisions; apm, sysprobe, and other
 // dependents start independently of procmgr health.
+//
+// It deliberately does not look at processes.d. An installer run can create or remove a
+// definition while the agent is starting, so reading it here and again when the decision
+// is made would let one startup pass act on two different answers.
 func (s *Servicedef) needsProcmgrStartupGate(coreConf model.Reader) bool {
-	return s.procmgrDefinitionFile != "" &&
-		coreConf.GetBool("process_manager.enabled") &&
-		procmgrProcessDefinitionExists(s.procmgrDefinitionFile)
+	return s.procmgrDefinitionFile != "" && coreConf.GetBool("process_manager.enabled")
 }
 
 // ShouldStop reports whether the dependent service should be stopped on agent shutdown.
@@ -209,13 +213,13 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 		}
 	}
 
-	startServices := func(services []Servicedef, procmgrStarted bool) {
+	startServices := func(services []Servicedef, procmgrGated bool, procmgrStarted bool) {
 		for _, svc := range services {
 			if ctx.Err() != nil {
 				log.Infof("Agent is shutting down, not starting remaining dependent services")
 				return
 			}
-			if !svc.IsEnabled(procmgrStarted, coreConf) {
+			if !svc.IsEnabled(procmgrGated, procmgrStarted) {
 				log.Infof("Service %s is disabled, not starting", svc.name)
 				continue
 			}
@@ -228,8 +232,8 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 		}
 	}
 
-	startServices(independent, false)
-	startServices(gated, <-procmgrWait)
+	startServices(independent, false, false)
+	startServices(gated, true, <-procmgrWait)
 }
 
 func findService(svcs []Servicedef, name string) (Servicedef, bool) {

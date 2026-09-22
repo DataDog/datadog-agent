@@ -33,21 +33,15 @@ func TestServicedefIsEnabled(t *testing.T) {
 		},
 	}
 
-	t.Run("enabled by config", func(t *testing.T) {
-		assert.True(t, svc.IsEnabled(false, cfg))
-		assert.True(t, svc.IsEnabled(true, cfg))
+	t.Run("enabled by config when not gated", func(t *testing.T) {
+		assert.True(t, svc.IsEnabled(false, false))
+		assert.True(t, svc.IsEnabled(false, true))
 	})
 
-	t.Run("not suppressed without definition file", func(t *testing.T) {
-		cfg.Set("process_manager.enabled", true, model.SourceDefault)
-		assert.True(t, svc.IsEnabled(true, cfg))
-	})
-
-	t.Run("not suppressed when process manager disabled", func(t *testing.T) {
+	t.Run("not suppressed when gated but no definition file", func(t *testing.T) {
 		svc.procmgrDefinitionFile = processProcmgrDefinitionFile
-		cfg.Set("process_manager.enabled", false, model.SourceDefault)
-		withProcmgrInstallRoot(t, writeProcmgrDefinitionFile(t, processProcmgrDefinitionFile), func() {
-			assert.True(t, svc.IsEnabled(true, cfg))
+		withProcmgrInstallRoot(t, t.TempDir(), func() {
+			assert.True(t, svc.IsEnabled(true, true))
 		})
 	})
 }
@@ -68,21 +62,36 @@ func TestServicedefIsEnabled_procmgrSuppression(t *testing.T) {
 	t.Run("not suppressed when processes.d file missing", func(t *testing.T) {
 		installRoot := t.TempDir()
 		withProcmgrInstallRoot(t, installRoot, func() {
-			assert.True(t, svc.IsEnabled(true, cfg))
+			assert.True(t, svc.IsEnabled(true, true))
 		})
 	})
 
 	t.Run("suppressed when processes.d file exists and procmgr started", func(t *testing.T) {
 		installRoot := writeProcmgrDefinitionFile(t, processProcmgrDefinitionFile)
 		withProcmgrInstallRoot(t, installRoot, func() {
-			assert.False(t, svc.IsEnabled(true, cfg))
+			assert.False(t, svc.IsEnabled(true, true))
 		})
 	})
 
 	t.Run("falls back to legacy SCM when procmgr unavailable", func(t *testing.T) {
 		installRoot := writeProcmgrDefinitionFile(t, processProcmgrDefinitionFile)
 		withProcmgrInstallRoot(t, installRoot, func() {
-			assert.True(t, svc.IsEnabled(false, cfg))
+			assert.True(t, svc.IsEnabled(true, false))
+		})
+	})
+
+	// An installer run can write the definition after the startup pass classified this
+	// service. The classification is config-only, so the service is still gated and the
+	// decision uses the real dd-procmgr-service outcome instead of an assumed "not
+	// started", which would have started a legacy service procmgr is about to supervise.
+	t.Run("definition appearing late is decided against the real procmgr outcome", func(t *testing.T) {
+		cfg.Set("process_manager.enabled", true, model.SourceDefault)
+		require.True(t, svc.needsProcmgrStartupGate(cfg),
+			"gating must not depend on the definition file existing yet")
+
+		installRoot := writeProcmgrDefinitionFile(t, processProcmgrDefinitionFile)
+		withProcmgrInstallRoot(t, installRoot, func() {
+			assert.False(t, svc.IsEnabled(true, true))
 		})
 	})
 }
@@ -122,7 +131,7 @@ func TestServicedefIsEnabled_procmgrManagedServices(t *testing.T) {
 					procmgrDefinitionFile: tc.defFile,
 					configKeys:            keys,
 				}
-				assert.True(t, svc.IsEnabled(false, cfg))
+				assert.True(t, svc.IsEnabled(true, false))
 			})
 		})
 	}
@@ -254,15 +263,13 @@ func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
 		})
 	})
 
-	t.Run("false when processes.d file missing", func(t *testing.T) {
+	// Gating is config-only on purpose, so that processes.d is read exactly once per
+	// startup pass, at the decision point, rather than here and again in IsEnabled.
+	t.Run("true regardless of whether the processes.d file exists yet", func(t *testing.T) {
 		cfg.Set("process_manager.enabled", true, model.SourceDefault)
 		withProcmgrInstallRoot(t, t.TempDir(), func() {
-			assert.False(t, svc.needsProcmgrStartupGate(cfg))
+			assert.True(t, svc.needsProcmgrStartupGate(cfg))
 		})
-	})
-
-	t.Run("true when procmgr manages this service", func(t *testing.T) {
-		cfg.Set("process_manager.enabled", true, model.SourceDefault)
 		withProcmgrInstallRoot(t, writeProcmgrDefinitionFile(t, processProcmgrDefinitionFile), func() {
 			assert.True(t, svc.needsProcmgrStartupGate(cfg))
 		})
