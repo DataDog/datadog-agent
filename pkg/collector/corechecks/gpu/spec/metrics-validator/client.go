@@ -499,36 +499,40 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 }
 
 func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
-	options := datadogV2.NewListTagsByMetricNameOptionalParameters().
-		WithFilterIncludeTagValues(true).
-		WithPageLimit(1000).
-		WithWindowSeconds(windowSeconds).
-		WithFilterAllowPartial(true)
-	if metricScopeFilter != "" {
-		options.WithFilterTags(metricScopeFilter)
-	}
-
-	response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
-	if httpResp != nil && httpResp.Body != nil {
-		_ = httpResp.Body.Close()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("fetch tags for %s: %w", metricName, includeAPIErrorBody(err))
-	}
-	if response.Data == nil || response.Data.Attributes == nil {
-		return nil, nil
-	}
-
 	var allTags []string
-	tagPrefixes := slices.Collect(maps.Keys(wantedTagPrefixes))
-	returnedTags := append(response.Data.Attributes.GetTags(), response.Data.Attributes.GetIngestedTags()...)
-	for _, tag := range returnedTags {
-		if slices.ContainsFunc(tagPrefixes, func(tagPrefix string) bool {
-			return strings.HasPrefix(tag, tagPrefix)
-		}) {
-			allTags = append(allTags, tag)
+
+	for tagPrefix := range wantedTagPrefixes {
+		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
+			WithFilterMatch(tagPrefix).
+			WithFilterIncludeTagValues(true).
+			WithPageLimit(1000).
+			WithWindowSeconds(windowSeconds).
+			WithFilterAllowPartial(true)
+		if metricScopeFilter != "" {
+			options.WithFilterTags(metricScopeFilter)
+		}
+
+		response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
+		if httpResp != nil && httpResp.Body != nil {
+			_ = httpResp.Body.Close()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, includeAPIErrorBody(err))
+		}
+		if response.Data == nil || response.Data.Attributes == nil {
+			continue
+		}
+
+		for _, tag := range response.Data.Attributes.GetTags() {
+			// The tag endpoint returns all tags that contain the FilterMatch
+			// value, but we're only interested in tags that start with the
+			// prefix.
+			if strings.HasPrefix(tag, tagPrefix) {
+				allTags = append(allTags, tag)
+			}
 		}
 	}
+
 	return allTags, nil
 }
 
