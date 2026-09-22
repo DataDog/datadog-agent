@@ -134,7 +134,6 @@ func (s *testInstallExeSuite) TestInstallAgentPackageInstallOnly() {
 		fmt.Printf("%s\n", output)
 	}
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService("datadogagent").
 		WithStatus("Stopped")
@@ -150,6 +149,7 @@ func (s *testInstallExeSuite) TestInstallAgentPackageInstallOnly() {
 	// than disabling the installed service.
 	s.Require().NoError(wincommon.StartService(s.Env().RemoteHost, "datadogagent"))
 	s.Require().NoError(s.WaitForAgentService("Running"))
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 }
 
 // TestSetupHandoffToStableVersion verifies the current installer hands off
