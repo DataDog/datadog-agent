@@ -11,7 +11,6 @@ gstatus/__main__.py and installed into site-packages.
 """
 
 import runpy
-import sys
 
 runpy.run_path(
     "/opt/datadog-agent/embedded/lib/python3.13/site-packages/gstatus/__main__.py",
