@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -185,6 +186,302 @@ func TestBackoffExponentialGrowth(t *testing.T) {
 	interval := b.NextBackOff()
 	maxExpected := time.Duration(float64(refreshInterval) * (1 + backoffRandomizationFactor))
 	assert.LessOrEqual(t, interval, maxExpected, "After reset, interval should be back to initial range")
+}
+
+func TestStartupBackoff(t *testing.T) {
+	b := newStartupBackoff()
+
+	assert.Equal(t, startupRetryInitialInterval, b.InitialInterval)
+	assert.Equal(t, startupRetryMaxInterval, b.MaxInterval)
+	assert.Equal(t, 2.0, b.Multiplier)
+	assert.Equal(t, backoffRandomizationFactor, b.RandomizationFactor)
+}
+
+func TestAddInstanceRetriesStartupUntilSuccess(t *testing.T) {
+	mockClock := clock.NewMock()
+	mockConfig := mock.New(t)
+	calls := make(chan int, 3)
+	attempts := 0
+	comp := &delegatedAuthComponent{
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             mockClock,
+	}
+	comp.addInstanceAttempt = func(_ context.Context, params delegatedauth.InstanceParams) error {
+		assert.True(t, params.AllowAsyncStartup)
+		attempts++
+		calls <- attempts
+		if attempts < 3 {
+			return errors.New("provider unavailable")
+		}
+		return nil
+	}
+
+	params := delegatedauth.InstanceParams{
+		Config:            mockConfig,
+		OrgUUID:           "test-org",
+		APIKeyConfigKey:   "api_key",
+		AllowAsyncStartup: true,
+	}
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Equal(t, 1, <-calls)
+	select {
+	case call := <-calls:
+		t.Fatalf("startup recovery retried immediately (call %d)", call)
+	default:
+	}
+
+	comp.mu.RLock()
+	recovery := comp.startupRecoveries["api_key"]
+	comp.mu.RUnlock()
+	require.NotNil(t, recovery)
+
+	require.Eventually(t, func() bool {
+		comp.mu.RLock()
+		defer comp.mu.RUnlock()
+		return recovery.nextRetry.After(mockClock.Now())
+	}, time.Second, time.Millisecond, "startup recovery did not schedule its next retry")
+	comp.mu.RLock()
+	retryDelay := recovery.nextRetry.Sub(mockClock.Now())
+	comp.mu.RUnlock()
+	mockClock.Add(retryDelay + time.Millisecond)
+	assert.Equal(t, 2, <-calls)
+	require.Eventually(t, func() bool {
+		comp.mu.RLock()
+		defer comp.mu.RUnlock()
+		return recovery.nextRetry.After(mockClock.Now())
+	}, time.Second, time.Millisecond, "startup recovery did not schedule its second retry")
+	comp.mu.RLock()
+	retryDelay = recovery.nextRetry.Sub(mockClock.Now())
+	comp.mu.RUnlock()
+	mockClock.Add(retryDelay + time.Millisecond)
+	assert.Equal(t, 3, <-calls)
+	select {
+	case <-recovery.done:
+	case <-time.After(time.Second):
+		t.Fatal("startup recovery did not stop after success")
+	}
+
+	comp.mu.RLock()
+	_, recovering := comp.startupRecoveries["api_key"]
+	comp.mu.RUnlock()
+	assert.False(t, recovering)
+}
+
+func TestStartupRecoveryStopsWhenProviderDetectionIsTerminal(t *testing.T) {
+	original := detectAWSCredentialSource
+	detectAWSCredentialSource = func(context.Context) (string, error) {
+		return "", errors.New("no AWS credential source found")
+	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
+
+	mockClock := clock.NewMock()
+	mockConfig := mock.New(t)
+	comp := &delegatedAuthComponent{
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             mockClock,
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	require.NoError(t, comp.AddInstance(ctx, delegatedauth.InstanceParams{
+		Config:            mockConfig,
+		OrgUUID:           "test-org",
+		APIKeyConfigKey:   "api_key",
+		AllowAsyncStartup: true,
+	}))
+
+	comp.mu.RLock()
+	recovery := comp.startupRecoveries["api_key"]
+	comp.mu.RUnlock()
+	require.NotNil(t, recovery)
+	require.Eventually(t, func() bool {
+		comp.mu.RLock()
+		defer comp.mu.RUnlock()
+		return recovery.nextRetry.After(mockClock.Now())
+	}, time.Second, time.Millisecond)
+	comp.mu.RLock()
+	retryDelay := recovery.nextRetry.Sub(mockClock.Now())
+	comp.mu.RUnlock()
+	mockClock.Add(retryDelay + time.Millisecond)
+
+	select {
+	case <-recovery.done:
+	case <-time.After(time.Second):
+		t.Fatal("startup recovery did not stop after terminal provider detection")
+	}
+	comp.mu.RLock()
+	_, recovering := comp.startupRecoveries["api_key"]
+	disabledReason := comp.disabledReason
+	comp.mu.RUnlock()
+	assert.False(t, recovering)
+	assert.Empty(t, comp.instances)
+	assert.Contains(t, disabledReason, "no supported cloud provider detected")
+}
+
+func TestAddInstanceReplacementStopsStartupRecovery(t *testing.T) {
+	mockClock := clock.NewMock()
+	mockConfig := mock.New(t)
+	calls := make(chan int, 3)
+	attempts := 0
+	comp := &delegatedAuthComponent{
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             mockClock,
+	}
+	comp.addInstanceAttempt = func(_ context.Context, _ delegatedauth.InstanceParams) error {
+		attempts++
+		calls <- attempts
+		if attempts == 1 {
+			return errors.New("provider unavailable")
+		}
+		return nil
+	}
+
+	params := delegatedauth.InstanceParams{
+		Config:            mockConfig,
+		OrgUUID:           "test-org",
+		APIKeyConfigKey:   "api_key",
+		AllowAsyncStartup: true,
+	}
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Equal(t, 1, <-calls)
+
+	comp.mu.RLock()
+	recovery := comp.startupRecoveries["api_key"]
+	comp.mu.RUnlock()
+	require.NotNil(t, recovery)
+
+	params.AllowAsyncStartup = false
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Equal(t, 2, <-calls)
+	select {
+	case <-recovery.done:
+	case <-time.After(time.Second):
+		t.Fatal("replaced startup recovery did not stop")
+	}
+
+	mockClock.Add(startupRetryMaxInterval)
+	assert.Equal(t, 2, attempts, "the replaced recovery worker must not retry again")
+}
+
+func TestAddInstanceReplacementCancelsInFlightRecovery(t *testing.T) {
+	mockClock := clock.NewMock()
+	mockConfig := mock.New(t)
+	recoveryStarted := make(chan struct{})
+	replacementDone := make(chan error, 1)
+	attempts := 0
+	comp := &delegatedAuthComponent{
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             mockClock,
+	}
+	comp.addInstanceAttempt = func(ctx context.Context, _ delegatedauth.InstanceParams) error {
+		attempts++
+		switch attempts {
+		case 1:
+			return errors.New("provider unavailable")
+		case 2:
+			close(recoveryStarted)
+			<-ctx.Done()
+			return ctx.Err()
+		default:
+			return nil
+		}
+	}
+
+	params := delegatedauth.InstanceParams{
+		Config:            mockConfig,
+		OrgUUID:           "test-org",
+		APIKeyConfigKey:   "api_key",
+		AllowAsyncStartup: true,
+	}
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+
+	comp.mu.RLock()
+	recovery := comp.startupRecoveries["api_key"]
+	comp.mu.RUnlock()
+	require.NotNil(t, recovery)
+	require.Eventually(t, func() bool {
+		comp.mu.RLock()
+		defer comp.mu.RUnlock()
+		return recovery.nextRetry.After(mockClock.Now())
+	}, time.Second, time.Millisecond)
+	comp.mu.RLock()
+	retryDelay := recovery.nextRetry.Sub(mockClock.Now())
+	comp.mu.RUnlock()
+	mockClock.Add(retryDelay + time.Millisecond)
+	<-recoveryStarted
+
+	params.AllowAsyncStartup = false
+	replacementCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go func() {
+		replacementDone <- comp.AddInstance(replacementCtx, params)
+	}()
+
+	select {
+	case err := <-replacementDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("replacement did not cancel the in-flight startup recovery")
+	}
+	assert.Equal(t, 3, attempts)
+}
+
+func TestReplaceInstancePreservesFallbackAfterStoppingOldInstance(t *testing.T) {
+	const directive = "DELA(second-org, aws, fallback=static-key)"
+	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{
+			"additional": {
+				originalDirective: directive,
+				lastWrittenValue:  "static-key",
+				refreshCancel:     refreshCancel,
+				done:              done,
+			},
+		},
+	}
+	existing := comp.instances["additional"]
+	go func() {
+		<-refreshCtx.Done()
+		comp.additionalEndpointsMu.Lock()
+		existing.lastWrittenValue = "key-written-during-shutdown"
+		comp.additionalEndpointsMu.Unlock()
+		close(done)
+	}()
+	replacement := &authInstance{
+		originalDirective: directive,
+		lastWrittenValue:  directive,
+	}
+
+	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
+
+	assert.Equal(t, "key-written-during-shutdown", replacement.lastWrittenValue)
+}
+
+func TestReplaceInstanceDoesNotCarryValueAcrossDirectives(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{
+			"additional": {
+				originalDirective: "DELA(old-org, aws)",
+				lastWrittenValue:  "old-key",
+				done:              done,
+			},
+		},
+	}
+
+	const newDirective = "DELA(new-org, aws)"
+	replacement := &authInstance{
+		originalDirective: newDirective,
+		lastWrittenValue:  newDirective,
+	}
+	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
+
+	assert.Equal(t, newDirective, replacement.lastWrittenValue)
 }
 
 // Status Provider Tests
@@ -528,14 +825,16 @@ func TestAddInstanceRespectsContextCancellation(t *testing.T) {
 
 	// AddInstance should return context.Canceled error after validating params
 	err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
-		Config:          mockConfig,
-		OrgUUID:         "test-org",
-		APIKeyConfigKey: "api_key",
+		Config:            mockConfig,
+		OrgUUID:           "test-org",
+		APIKeyConfigKey:   "api_key",
+		AllowAsyncStartup: true,
 	})
 
 	// The context cancellation check happens after parameter validation,
 	// so we should get context.Canceled
 	assert.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, comp.startupRecoveries)
 }
 
 func TestWaitForOldGoroutineRespectsContextCancellation(t *testing.T) {
@@ -1378,6 +1677,7 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 		AdditionalEndpointsConfigKey: "additional_endpoints",
 		AdditionalEndpointDirective:  "DELA(second-org-uuid, aws, fallback=static-fallback-key)",
 		FallbackAPIKey:               "static-fallback-key",
+		AllowAsyncStartup:            true,
 	})
 	require.NoError(t, err)
 
@@ -1450,13 +1750,12 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
 		"an initial fetch failure with a fallback configured should still leave the domain usable")
 
-	// A real instance/retry loop IS created in this case (unlike the no-provider case) - stop its
-	// background refresh goroutine so it doesn't outlive the test.
+	// A startup recovery worker is created in this case (unlike the no-provider case).
 	comp.mu.RLock()
 	instance := comp.instances[apiKeyConfigKey]
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
-	instance.refreshCancel()
+	require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey))
 }
 
 func TestAddInstanceStopsAfterInitialFailureWhenAsyncStartupIsDisabled(t *testing.T) {
@@ -1592,6 +1891,34 @@ func TestStatusPopulateInfo_LastErrorIsReported(t *testing.T) {
 
 	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
 	assert.Equal(t, "3 consecutive failures, last error: IRSA web identity: STS returned 403 Forbidden", instance["Error"])
+}
+
+func TestStatusPopulateInfo_StartupRecoveryIsReported(t *testing.T) {
+	nextRetry := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+		startupRecoveries: map[string]*startupRecovery{
+			"api_key": {
+				consecutiveFailures: 2,
+				lastError:           errors.New("provider unavailable"),
+				nextRetry:           nextRetry,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	assert.Equal(t, true, stats["enabled"])
+	instance := stats["instances"].(map[string]map[string]interface{})["api_key"]
+	assert.Equal(t, "Recovering", instance["Status"])
+	assert.Equal(t, nextRetry.Format(time.RFC3339), instance["NextRetry"])
+	assert.Equal(t, "2 consecutive startup failures, last error: provider unavailable", instance["Error"])
+
+	var buffer bytes.Buffer
+	require.NoError(t, comp.Text(false, &buffer))
+	assert.Contains(t, buffer.String(), "Next Retry: "+nextRetry.Format(time.RFC3339))
+	assert.NotContains(t, buffer.String(), "<no value>")
 }
 
 func TestStatusPopulateInfo_NoCredentialSourceBeforeFirstAttempt(t *testing.T) {

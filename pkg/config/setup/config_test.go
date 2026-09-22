@@ -28,59 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func TestAddDelegatedAuthInstanceRecoversAfterDeadlineWhenAsyncStartupIsAllowed(t *testing.T) {
-	config := newTestConf(t)
-	config.Set("api_key", "static-key", pkgconfigmodel.SourceFile)
-	backgroundCall := make(chan struct{}, 1)
-	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
-		backgroundCall <- struct{}{}
-		return nil
-	}}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-	defer cancel()
-	params := delegatedauth.InstanceParams{Config: config, APIKeyConfigKey: "api_key", AllowAsyncStartup: true}
-
-	require.NoError(t, addDelegatedAuthInstance(ctx, comp, params))
-	select {
-	case <-backgroundCall:
-		assert.Equal(t, "delegated-key", config.GetString("api_key"))
-	case <-time.After(time.Second):
-		t.Fatal("background recovery did not update the API key")
-	}
-}
-
-func TestAddDelegatedAuthInstanceKeepsStaticKeyAfterDeadlineWhenAsyncStartupIsDisabled(t *testing.T) {
-	config := newTestConf(t)
-	config.Set("logs_config.api_key", "static-key", pkgconfigmodel.SourceFile)
-	calls := 0
-	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
-		calls++
-		if calls > 1 {
-			params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
-		}
-		return ctx.Err()
-	}}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-	defer cancel()
-
-	err := addDelegatedAuthInstance(ctx, comp, delegatedauth.InstanceParams{
-		Config:          config,
-		APIKeyConfigKey: "logs_config.api_key",
-	})
-
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.Equal(t, 1, calls)
-	assert.Equal(t, "static-key", config.GetString("logs_config.api_key"))
-}
-
 func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
 	config := newTestConf(t)
-	config.Set("delegated_auth.org_uuid", "primary-org", pkgconfigmodel.SourceFile)
-	config.Set("logs_config.delegated_auth.org_uuid", "logs-org", pkgconfigmodel.SourceFile)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
 
 	paramsByKey := map[string]delegatedauth.InstanceParams{}
 	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {

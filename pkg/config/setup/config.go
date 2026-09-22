@@ -503,7 +503,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
-		err := addDelegatedAuthInstance(startupCtx, delegatedAuthComp, delegatedauth.InstanceParams{
+		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
 			Config:            config,
 			ProviderConfig:    providerConfig,
 			OrgUUID:           orgUUID,
@@ -517,25 +517,6 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	}
 
 	return ctx.Err()
-}
-
-// addDelegatedAuthInstance lets startup continue when synchronous initialization times out.
-func addDelegatedAuthInstance(ctx context.Context, delegatedAuthComp delegatedauth.Component, params delegatedauth.InstanceParams) error {
-	err := delegatedAuthComp.AddInstance(ctx, params)
-	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-	if !params.AllowAsyncStartup {
-		return err
-	}
-
-	log.Warnf("Delegated auth startup timed out for '%s'; continuing in the background", params.APIKeyConfigKey)
-	go func() {
-		if retryErr := delegatedAuthComp.AddInstance(context.Background(), params); retryErr != nil {
-			log.Errorf("Failed to configure delegated auth for '%s' in the background: %v", params.APIKeyConfigKey, retryErr)
-		}
-	}()
-	return nil
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
@@ -40,17 +41,33 @@ const (
 	// backoffRandomizationFactor is the percentage of jitter to add to refresh intervals
 	// This prevents all agents from hitting the intake-key API at the same time
 	backoffRandomizationFactor = 0.10
+	// Startup recovery retries quickly until the first key is available, then hands off to the
+	// configured refresh cadence.
+	startupRetryInitialInterval = 5 * time.Second
+	startupRetryMaxInterval     = 5 * time.Minute
+	startupRetryAttemptTimeout  = time.Minute
 
 	// maxAdditionalEndpointsWriteAttempts bounds the read-write-verify retry loop against
 	// concurrent secrets-resolver writes to the same additional_endpoints config value.
 	maxAdditionalEndpointsWriteAttempts = 3
 )
 
+type startupRecovery struct {
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	done                chan struct{}
+	consecutiveFailures int
+	lastError           error
+	nextRetry           time.Time
+}
+
 // detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
 // which succeeds on an AWS CI runner, so a test asserting the "no credential source" path cannot
 // force a failure through configuration alone. The URLs it probes live in
 // pkg/util/aws/creds/internal, which this package cannot import.
 var detectAWSCredentialSource = creds.DetectAWSCredentialSource
+
+var errDelegatedAuthDisabled = errors.New("delegated auth disabled: no supported cloud provider")
 
 // authInstance holds the state for a single delegated auth configuration (one API key target).
 type authInstance struct {
@@ -107,22 +124,29 @@ type authInstance struct {
 // Thread-safety: This struct uses sync.RWMutex (mu) to protect concurrent access to all
 // mutable fields.
 type delegatedAuthComponent struct {
+	// startupMu serializes the stop, synchronous attempt, and recovery registration transition.
+	startupMu sync.Mutex
+
 	// addInstanceMu serializes construction and replacement without blocking status reads.
 	addInstanceMu sync.Mutex
 
 	// Mutable fields (protected by mu)
-	mu               sync.RWMutex
-	config           pkgconfigmodel.ReaderWriter
-	instances        map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
-	initialized      bool                     // Whether Initialize() has been called
-	providerConfig   common.ProviderConfig    // Resolved provider configuration
-	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
+	mu                sync.RWMutex
+	config            pkgconfigmodel.ReaderWriter
+	instances         map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
+	startupRecoveries map[string]*startupRecovery
+	initialized       bool                  // Whether Initialize() has been called
+	providerConfig    common.ProviderConfig // Resolved provider configuration
+	resolvedProvider  string                // Resolved provider name (e.g., "aws") - for status display
 	// disabledReason explains why no provider was resolved, for status display.
 	disabledReason string
 
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
 	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
+
+	clock              clock.Clock
+	addInstanceAttempt func(context.Context, delegatedauth.InstanceParams) error
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -134,7 +158,9 @@ type Provides struct {
 // NewComponent creates a new delegated auth Component
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
-		instances: make(map[string]*authInstance),
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             clock.New(),
 	}
 
 	return Provides{
@@ -153,6 +179,23 @@ func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
 	b.RandomizationFactor = backoffRandomizationFactor
 	b.Reset()
 	return b
+}
+
+func newStartupBackoff() *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = startupRetryInitialInterval
+	b.MaxInterval = startupRetryMaxInterval
+	b.Multiplier = 2.0
+	b.RandomizationFactor = backoffRandomizationFactor
+	b.Reset()
+	return b
+}
+
+func (d *delegatedAuthComponent) componentClock() clock.Clock {
+	if d.clock != nil {
+		return d.clock
+	}
+	return clock.New()
 }
 
 // initializeIfNeeded performs lazy initialization on first AddInstance call.
@@ -268,6 +311,33 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		return errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
 	}
 
+	d.startupMu.Lock()
+	defer d.startupMu.Unlock()
+
+	if err := d.stopStartupRecovery(ctx, params.APIKeyConfigKey); err != nil {
+		return err
+	}
+
+	err := d.tryAddInstance(ctx, params)
+	if errors.Is(err, errDelegatedAuthDisabled) {
+		return nil
+	}
+	if err == nil || !params.AllowAsyncStartup || errors.Is(err, context.Canceled) {
+		return err
+	}
+
+	d.startStartupRecovery(params, err)
+	return nil
+}
+
+func (d *delegatedAuthComponent) tryAddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
+	if d.addInstanceAttempt != nil {
+		return d.addInstanceAttempt(ctx, params)
+	}
+	return d.addInstanceOnce(ctx, params)
+}
+
+func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params delegatedauth.InstanceParams) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -297,7 +367,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
-		return nil
+		return errDelegatedAuthDisabled
 	}
 
 	apiKeyConfigKey := params.APIKeyConfigKey
@@ -322,7 +392,6 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	authConfig := &common.AuthConfig{
 		OrgUUID: params.OrgUUID,
 	}
-
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
 
@@ -367,21 +436,113 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		instance.lastError = err
 		d.mu.Unlock()
 
-		if !params.AllowAsyncStartup {
-			refreshCancel()
-			close(instance.done)
-			return err
-		}
-	} else {
-		// Update the config with the initial API key
-		d.updateConfigWithAPIKey(instance, *apiKey)
-		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
+		refreshCancel()
+		close(instance.done)
+		return err
 	}
 
-	// Start periodic refresh after success, or retry an allowed startup failure.
+	// Update the config with the initial API key
+	d.updateConfigWithAPIKey(instance, *apiKey)
+	log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
+
+	// The first key is available; steady-state refresh now uses the configured cadence.
 	d.startBackgroundRefresh(instance)
 
 	return nil
+}
+
+func (d *delegatedAuthComponent) startStartupRecovery(params delegatedauth.InstanceParams, initialErr error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	recovery := &startupRecovery{
+		ctx:                 ctx,
+		cancel:              cancel,
+		done:                make(chan struct{}),
+		consecutiveFailures: 1,
+		lastError:           initialErr,
+	}
+
+	d.mu.Lock()
+	if d.startupRecoveries == nil {
+		d.startupRecoveries = make(map[string]*startupRecovery)
+	}
+	d.startupRecoveries[params.APIKeyConfigKey] = recovery
+	d.mu.Unlock()
+
+	go d.runStartupRecovery(params, recovery)
+}
+
+func (d *delegatedAuthComponent) runStartupRecovery(params delegatedauth.InstanceParams, recovery *startupRecovery) {
+	defer func() {
+		d.mu.Lock()
+		if d.startupRecoveries[params.APIKeyConfigKey] == recovery {
+			delete(d.startupRecoveries, params.APIKeyConfigKey)
+		}
+		d.mu.Unlock()
+		close(recovery.done)
+	}()
+
+	clk := d.componentClock()
+	retryBackoff := newStartupBackoff()
+	for {
+		nextInterval := retryBackoff.NextBackOff()
+		retryTimer := clk.Timer(nextInterval)
+		d.mu.Lock()
+		recovery.nextRetry = clk.Now().Add(nextInterval)
+		attempt := recovery.consecutiveFailures
+		lastErr := recovery.lastError
+		d.mu.Unlock()
+
+		log.Errorf("Delegated auth startup for '%s' failed (attempt %d): %v. Next retry in %v",
+			params.APIKeyConfigKey, attempt, lastErr, nextInterval)
+
+		select {
+		case <-recovery.ctx.Done():
+			retryTimer.Stop()
+			return
+		case <-retryTimer.C:
+		}
+
+		d.mu.Lock()
+		recovery.nextRetry = time.Time{}
+		d.mu.Unlock()
+
+		attemptCtx, cancel := clk.WithTimeout(recovery.ctx, startupRetryAttemptTimeout)
+		err := d.tryAddInstance(attemptCtx, params)
+		cancel()
+		if errors.Is(err, errDelegatedAuthDisabled) {
+			log.Warnf("Delegated auth startup recovery stopped for '%s': no supported cloud provider is available", params.APIKeyConfigKey)
+			return
+		}
+		if err == nil {
+			log.Infof("Delegated auth startup recovery succeeded for '%s'", params.APIKeyConfigKey)
+			return
+		}
+		if recovery.ctx.Err() != nil {
+			return
+		}
+
+		d.mu.Lock()
+		recovery.consecutiveFailures++
+		recovery.lastError = err
+		d.mu.Unlock()
+	}
+}
+
+func (d *delegatedAuthComponent) stopStartupRecovery(ctx context.Context, key string) error {
+	d.mu.RLock()
+	recovery := d.startupRecoveries[key]
+	d.mu.RUnlock()
+	if recovery == nil {
+		return nil
+	}
+
+	recovery.cancel()
+	select {
+	case <-recovery.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // replaceInstance stops the old refresh loop before publishing its replacement.
@@ -412,6 +573,11 @@ func (d *delegatedAuthComponent) replaceInstance(ctx context.Context, key string
 			replacement.refreshCancel()
 		}
 		return err
+	}
+	if replacement != nil && existing != nil && replacement.originalDirective != "" && replacement.originalDirective == existing.originalDirective {
+		d.additionalEndpointsMu.Lock()
+		replacement.lastWrittenValue = existing.lastWrittenValue
+		d.additionalEndpointsMu.Unlock()
 	}
 
 	d.mu.Lock()
@@ -563,7 +729,7 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 
 	// Exchange the proof for an API key. targetSite must be set for dual-shipping instances
 	// targeting a different site than the agent's primary.
-	key, err := api.GetAPIKey(d.config, authProof, instance.targetSite)
+	key, err := api.GetAPIKey(ctx, d.config, authProof, instance.targetSite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}
@@ -841,10 +1007,10 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	// Check if delegated auth is enabled (has any configured instances)
-	stats["enabled"] = len(d.instances) > 0
+	// Check if delegated auth is enabled or recovering from startup failure.
+	stats["enabled"] = len(d.instances) > 0 || len(d.startupRecoveries) > 0
 
-	if len(d.instances) == 0 {
+	if len(d.instances) == 0 && len(d.startupRecoveries) == 0 {
 		// Distinguish "configured but could not start" from "never configured".
 		if d.disabledReason != "" {
 			stats["disabledReason"] = d.disabledReason
@@ -905,6 +1071,21 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 			}
 		}
 
+		instances[key] = instanceInfo
+	}
+	for key, recovery := range d.startupRecoveries {
+		instanceInfo := instances[key]
+		if instanceInfo == nil {
+			instanceInfo = make(map[string]interface{})
+		}
+		instanceInfo["Status"] = "Recovering"
+		if !recovery.nextRetry.IsZero() {
+			instanceInfo["NextRetry"] = recovery.nextRetry.Format(time.RFC3339)
+		}
+		if recovery.lastError != nil {
+			instanceInfo["Error"] = fmt.Sprintf("%d consecutive startup failures, last error: %v",
+				recovery.consecutiveFailures, recovery.lastError)
+		}
 		instances[key] = instanceInfo
 	}
 	stats["instances"] = instances

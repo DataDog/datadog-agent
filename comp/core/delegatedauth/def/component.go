@@ -29,8 +29,8 @@ type InstanceParams struct {
 	// RefreshInterval in minutes. Defaults to 60 if not specified.
 	RefreshInterval int
 
-	// AllowAsyncStartup allows a timed-out provider detection or failed initial
-	// key fetch to be retried after the caller returns.
+	// AllowAsyncStartup retries timed-out provider initialization and failed initial key fetches
+	// in the background until the first key is available.
 	AllowAsyncStartup bool
 
 	// APIKeyConfigKey is where to write the API key (e.g. "api_key",
