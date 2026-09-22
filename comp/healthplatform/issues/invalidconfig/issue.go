@@ -161,23 +161,21 @@ func formatCorrection(violation violationPayload) string {
 	if actual == "" || len(violation.ExpectedTypes) == 0 {
 		return ""
 	}
-	expected := make([]string, 0, len(violation.ExpectedTypes))
-	for _, kind := range violation.ExpectedTypes {
-		label := typeLabels[kind]
-		if label == "" {
+	expected := make([]string, len(violation.ExpectedTypes))
+	for i, kind := range violation.ExpectedTypes {
+		expected[i] = typeLabels[kind]
+		if expected[i] == "" {
 			return ""
 		}
-		expected = append(expected, label)
 	}
 	want := strings.Join(expected, " or ")
 	if len(expected) > 2 {
 		want = strings.Join(expected[:len(expected)-1], ", ") + ", or " + expected[len(expected)-1]
 	}
-	path := violation.Path
-	if path == "" {
-		path = "/"
+	if violation.Path == "" {
+		violation.Path = "/"
 	}
-	correction := fmt.Sprintf("%s received %s instead of %s. Replace it with %s.", inlineCode(path), actual, want, want)
+	correction := fmt.Sprintf("%s received %s instead of %s. Replace it with %s.", inlineCode(violation.Path), actual, want, want)
 	switch violation.DefaultStatus {
 	case "known":
 		value, err := json.Marshal(violation.DefaultValue)

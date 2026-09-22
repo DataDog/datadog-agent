@@ -49,10 +49,6 @@ func newChecker(cfg config.Component, hostname hostnameinterface.Component, self
 }
 
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
-	return c.validate()
-}
-
-func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	// Validate effective customer settings, including locally resolved secrets.
 	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {
@@ -70,47 +66,40 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(violations) == 0 {
 		return nil, nil
 	}
-	return []runnerdef.IssueReport{
-		{
-			IssueID:   c.instanceIssueID(),
-			IssueName: IssueName,
-			Source:    "agent",
-			Context: func() map[string]string {
-				ctx := map[string]string{
-					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(violations)),
-				}
-				payloads := make([]violationPayload, 0, len(violations))
-				for i, violation := range violations {
-					path := scrubViolationPath(violation.Path)
-					// Never forward raw schema messages: non-type errors can quote values.
-					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
-					if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
-						continue
-					}
-					ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
-					defaultStatus, defaultValue := resolveDefault(c.cfg, violation.Path)
-					payloads = append(payloads, violationPayload{
-						Path:          path,
-						ActualType:    violation.ActualType,
-						ExpectedTypes: violation.ExpectedTypes,
-						DefaultStatus: defaultStatus,
-						DefaultValue:  defaultValue,
-					})
-				}
-				if len(payloads) != len(violations) {
-					return ctx
-				}
-				encoded, err := json.Marshal(payloads)
-				if err != nil {
-					return ctx
-				}
-				ctx[contextKeyViolationsVersion] = "1"
-				ctx[contextKeyViolations] = string(encoded)
-				return ctx
-			}(),
-		},
-	}, nil
+	ctx := map[string]string{
+		contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+		contextKeyErrorCount: strconv.Itoa(len(violations)),
+	}
+	payloads := make([]violationPayload, 0, len(violations))
+	for i, violation := range violations {
+		path := scrubViolationPath(violation.Path)
+		// Never forward raw schema messages: non-type errors can quote values.
+		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
+		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
+			continue
+		}
+		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
+		defaultStatus, defaultValue := resolveDefault(c.cfg, violation.Path)
+		payloads = append(payloads, violationPayload{
+			Path:          path,
+			ActualType:    violation.ActualType,
+			ExpectedTypes: violation.ExpectedTypes,
+			DefaultStatus: defaultStatus,
+			DefaultValue:  defaultValue,
+		})
+	}
+	if len(payloads) == len(violations) {
+		if encoded, err := json.Marshal(payloads); err == nil {
+			ctx[contextKeyViolationsVersion] = "1"
+			ctx[contextKeyViolations] = string(encoded)
+		}
+	}
+	return []runnerdef.IssueReport{{
+		IssueID:   c.instanceIssueID(),
+		IssueName: IssueName,
+		Source:    "agent",
+		Context:   ctx,
+	}}, nil
 }
 
 func scrubViolationPath(path string) string {

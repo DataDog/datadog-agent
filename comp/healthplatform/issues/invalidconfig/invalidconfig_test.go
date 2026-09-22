@@ -166,18 +166,6 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
 	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
-	assert.Equal(t, "1", reports[0].Context[contextKeyViolationsVersion])
-
-	var violations []violationPayload
-	require.NoError(t, json.Unmarshal([]byte(reports[0].Context[contextKeyViolations]), &violations))
-	require.Len(t, violations, 1)
-	assert.Equal(t, violationPayload{
-		Path:          "/agent_ipc/port",
-		ActualType:    "string",
-		ExpectedTypes: []string{"integer"},
-		DefaultStatus: "known",
-		DefaultValue:  float64(0),
-	}, violations[0])
 
 	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 	require.NoError(t, err)
@@ -186,8 +174,13 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	assert.Equal(t, float64(1), fields[contextKeyViolationsVersion].GetNumberValue())
 	issueViolations := fields[contextKeyViolations].GetListValue().GetValues()
 	require.Len(t, issueViolations, 1)
-	violation := issueViolations[0].GetStructValue().GetFields()
-	assert.Equal(t, float64(0), violation["default_value"].GetNumberValue())
+	assert.Equal(t, map[string]any{
+		"path":           "/agent_ipc/port",
+		"actual_type":    "string",
+		"expected_types": []any{"integer"},
+		"default_status": "known",
+		"default_value":  float64(0),
+	}, issueViolations[0].GetStructValue().AsMap())
 }
 
 func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
@@ -252,22 +245,15 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 }
 
 func TestResolveDefault(t *testing.T) {
-	tests := []struct {
-		name   string
-		cfg    config.Component
-		path   string
-		status string
-		value  any
-	}{
-		{"known", config.NewMock(t), "/agent_ipc/port", "known", 0},
-		{"none", defaultlessConfig{Component: config.NewMock(t)}, "/agent_ipc/port", "none", nil},
-		{"unknown", config.NewMock(t), "/agent_ipc", "unknown", nil},
-	}
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			status, value := resolveDefault(testCase.cfg, testCase.path)
-			assert.Equal(t, testCase.status, status)
-			assert.Equal(t, testCase.value, value)
+	cfg := config.NewMockFromYAML(t, "agent_ipc: invalid")
+	for _, tc := range []struct{ path, status string }{
+		{"/agent_ipc", "none"},
+		{"/unknown_setting", "unknown"},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			status, value := resolveDefault(cfg, tc.path)
+			assert.Equal(t, tc.status, status)
+			assert.Nil(t, value)
 		})
 	}
 }
@@ -309,18 +295,6 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 type fakeConfigFileUsed struct {
 	config.Component
 	path string
-}
-
-type defaultlessConfig struct {
-	config.Component
-}
-
-func (defaultlessConfig) IsSetting(string) bool {
-	return true
-}
-
-func (defaultlessConfig) GetAllSources(string) []model.ValueWithSource {
-	return []model.ValueWithSource{{Source: model.SourceDefault}}
 }
 
 func (f fakeConfigFileUsed) ConfigFileUsed() string {
