@@ -85,8 +85,6 @@ dd_collect_dependencies(
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:installed_libs",
-            "@openscap//:openscap_pkg",
-            "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_fips": [
             "//cmd/agent",
@@ -99,8 +97,6 @@ dd_collect_dependencies(
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:installed_libs",
-            "@openscap//:openscap_pkg",
-            "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_heroku": [
             "//cmd/agent",
