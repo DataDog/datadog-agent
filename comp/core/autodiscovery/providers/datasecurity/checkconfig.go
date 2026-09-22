@@ -26,15 +26,28 @@ type checkSubTask struct {
 
 // connection holds the database connection parameters resolved locally from the
 // matching integration. Mirrors the check's `Connection` struct.
+//
+// SSL mirrors each integration's own `ssl` key: a string SSL mode for postgres
+// (e.g. "verify-full") or a mysqlSSL object for mysql. It is left nil (and thus
+// omitted) when the integration configures no TLS, matching the integrations.
 type connection struct {
 	Host        string `json:"host"`
+	Sock        string `json:"sock,omitempty"`
 	Port        int    `json:"port"`
 	DBName      string `json:"dbname"`
 	Username    string `json:"username"`
 	Password    string `json:"password"`
-	SSLMode     string `json:"ssl,omitempty"`
+	SSL         any    `json:"ssl,omitempty"`
 	SSLRootCert string `json:"ssl_root_cert,omitempty"`
 	SSLCert     string `json:"ssl_cert,omitempty"`
 	SSLKey      string `json:"ssl_key,omitempty"`
 	SSLPassword string `json:"ssl_password,omitempty"`
+}
+
+// mysqlSSL mirrors the MySQL integration's `ssl` section.
+type mysqlSSL struct {
+	CA            string `json:"ca,omitempty"`
+	Cert          string `json:"cert,omitempty"`
+	Key           string `json:"key,omitempty"`
+	CheckHostname *bool  `json:"check_hostname,omitempty"`
 }

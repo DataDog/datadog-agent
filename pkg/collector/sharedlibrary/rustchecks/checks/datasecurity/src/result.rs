@@ -1,12 +1,12 @@
 use crate::backend::ScannedColumn;
 use crate::config::{CheckConfig, SubTask};
 use crate::proto::{
-    self, PostgresScannedColumn, ScanMetadata, ScanResult, ScanTaskMetadata, SdsResultPayload,
-    Status, TableMatch,
+    self, MysqlScannedColumn, PostgresScannedColumn, ScanMetadata, ScanResult, ScanTaskMetadata,
+    SdsResultPayload, Status, TableMatch,
 };
 
 /// The result of scanning one sub task: the matches plus the statistics
-/// reported in the result's `PostgresTable` location.
+/// reported in the result's database table location.
 #[derive(Debug, Default)]
 pub(crate) struct ScanOutcome {
     /// One entry per `(column, rule)` that matched.
@@ -26,19 +26,46 @@ pub(crate) fn build_sds_result(
     outcome: ScanOutcome,
 ) -> SdsResultPayload {
     let entity = &sub_task.entity;
+    let ScanOutcome {
+        matches,
+        scanned_columns,
+        scanned_row_count,
+    } = outcome;
+    let database_host_name = if entity.database_host_name.is_empty() {
+        sub_task.connection.host.clone()
+    } else {
+        entity.database_host_name.clone()
+    };
 
     let location = proto::ScanLocation {
-        scan_location: Some(proto::scan_location::ScanLocation::PostgresTable(
-            proto::PostgresTable {
+        scan_location: Some(match entity.platform.as_str() {
+            "mysql" => proto::scan_location::ScanLocation::MysqlTable(proto::MysqlTable {
                 database_cluster_name: entity.database_cluster_name.clone(),
                 database_instance_name: entity.database_instance_name.clone(),
-                database_host_name: sub_task.connection.host.clone(),
+                database_host_name: database_host_name.clone(),
                 database_name: entity.database.clone(),
                 schema_name: entity.schema.clone(),
                 table_name: entity.table.clone(),
-                scanned_row_count: outcome.scanned_row_count,
-                scanned_columns: outcome
-                    .scanned_columns
+                scanned_row_count,
+                scanned_columns: scanned_columns
+                    .iter()
+                    .map(|column| MysqlScannedColumn {
+                        name: column.name.clone(),
+                        data_type: column.data_type.clone(),
+                    })
+                    .collect(),
+                // TODO(DSEC-227): populate table_row_count if possible.
+                ..Default::default()
+            }),
+            _ => proto::scan_location::ScanLocation::PostgresTable(proto::PostgresTable {
+                database_cluster_name: entity.database_cluster_name.clone(),
+                database_instance_name: entity.database_instance_name.clone(),
+                database_host_name,
+                database_name: entity.database.clone(),
+                schema_name: entity.schema.clone(),
+                table_name: entity.table.clone(),
+                scanned_row_count,
+                scanned_columns: scanned_columns
                     .into_iter()
                     .map(|column| PostgresScannedColumn {
                         name: column.name,
@@ -47,14 +74,14 @@ pub(crate) fn build_sds_result(
                     .collect(),
                 // TODO(DSEC-227): populate table_row_count if possible.
                 ..Default::default()
-            },
-        )),
+            }),
+        }),
         ..Default::default()
     };
 
     // TODO(DSEC-180): populate duration, started_at and ended_at.
     let scan_result = ScanResult {
-        table_matches: outcome.matches,
+        table_matches: matches,
         location: Some(location),
         scan_metadata: Some(ScanMetadata {
             scan_task_metadata: Some(ScanTaskMetadata {
@@ -71,7 +98,11 @@ pub(crate) fn build_sds_result(
     SdsResultPayload {
         timestamp: now_unix_millis(),
         resource: Some(proto::Resource {
-            r#type: "postgres_table".to_string(),
+            r#type: match entity.platform.as_str() {
+                "mysql" => "mysql_table",
+                _ => "postgres_table",
+            }
+            .to_string(),
             name: resource_name(sub_task),
         }),
         rule_ids: config
@@ -109,4 +140,57 @@ fn resource_name(sub_task: &SubTask) -> String {
         "{}.{}.{}.{}",
         entity.database_instance_name, entity.database, entity.schema, entity.table
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{ScanOutcome, build_sds_result};
+    use crate::config::{CheckConfig, Connection, Entity, SubTask};
+    use crate::proto::{Status, scan_location};
+
+    #[test]
+    fn builds_mysql_table_location() {
+        let config = CheckConfig {
+            task_id: "task".to_string(),
+            scanning_rules: vec![],
+            scan_data: vec![],
+        };
+        let sub_task = SubTask {
+            sub_task_id: "subtask".to_string(),
+            connection: Connection {
+                host: "mysql.example.com".to_string(),
+                ..Default::default()
+            },
+            entity: Entity {
+                platform: "mysql".to_string(),
+                database_cluster_name: "cluster".to_string(),
+                database_instance_name: "instance".to_string(),
+                database_host_name: "mysql.example.com".to_string(),
+                database: "app".to_string(),
+                schema: "app".to_string(),
+                table: "users".to_string(),
+            },
+            query: "SELECT name FROM users".to_string(),
+            timeout: Duration::from_secs(30),
+        };
+
+        let payload = build_sds_result(
+            &config,
+            &sub_task,
+            Status::Success,
+            "",
+            ScanOutcome::default(),
+        );
+
+        assert_eq!(payload.resource.unwrap().r#type, "mysql_table");
+        assert!(matches!(
+            payload.scan_results[0]
+                .location
+                .as_ref()
+                .and_then(|location| location.scan_location.as_ref()),
+            Some(scan_location::ScanLocation::MysqlTable(_))
+        ));
+    }
 }

@@ -6,7 +6,10 @@ load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 _LINUX = ["@platforms//os:linux"]
 
 # Backend engines to compile in.
-_FEATURES = ["engine-postgres"]
+_FEATURES = [
+    "engine-mysql",
+    "engine-postgres",
+]
 
 # proto deps pull in C++; link libstdc++ explicitly.
 cc_library(
@@ -41,11 +44,13 @@ rust_shared_library(
         "@crates//:anyhow",
         "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
+        "@crates//:mysql",
         "@crates//:openssl",
         "@crates//:postgres",
         "@crates//:postgres-openssl",
         "@crates//:prost",
         "@crates//:serde",
+        "@crates//:tempfile",
     ],
 )
 

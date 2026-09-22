@@ -43,6 +43,7 @@ protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
 lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
+mysql = { version = "28.0.2", default-features = false, features = ["minimal-rust", "native-tls"] }
 nom = "8.0"
 normalize-path = "0.2"
 p256 = { version = "0.14", default-features = false }

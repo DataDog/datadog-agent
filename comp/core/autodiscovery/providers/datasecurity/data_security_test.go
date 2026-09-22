@@ -7,6 +7,7 @@ package datasecurity
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -70,6 +71,18 @@ ssl: verify-full
 ssl_root_cert: /etc/ssl/root.crt
 `
 
+const mysqlInstanceConfig = `
+host: mysql-host
+port: 3307
+username: datadog
+password: secret
+ssl:
+  ca: /etc/mysql/ca.pem
+  cert: /etc/mysql/client-cert.pem
+  key: /etc/mysql/client-key.pem
+  check_hostname: false
+`
+
 // scanTaskConfig is a valid Data Security scan task RC payload (JSON, which is
 // also valid YAML). The scanning rule carries a license so we can assert it is
 // forwarded downstream.
@@ -121,6 +134,29 @@ const scanTaskUnknownHostConfig = `{
   ]
 }`
 
+const mysqlScanTaskConfig = `{
+  "task_id": "task-1",
+  "scanning_rules": [
+    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"}
+  ],
+  "scan_data": [
+    {
+      "sub_task_id": "sub-1",
+      "query": "SELECT * FROM users",
+      "timeout_seconds": 30,
+      "entity": {
+        "platform": "mysql",
+        "database_cluster_name": "cluster",
+        "database_instance_name": "instance",
+        "database_host_name": "mysql-host",
+        "database": "app",
+        "schema": "app",
+        "table": "users"
+      }
+    }
+  ]
+}`
+
 // wantCheckInstance is the check instance the provider is expected to emit for
 // scanTaskConfig once the local postgres connection has been resolved. The
 // scanning rule (with its license) is forwarded verbatim.
@@ -153,6 +189,38 @@ scan_data:
       ssl_root_cert: /etc/ssl/root.crt
 `
 
+const wantMySQLCheckInstance = `
+min_collection_interval: 0
+task_id: task-1
+scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: '\d+'
+scan_data:
+  - sub_task_id: sub-1
+    query: SELECT * FROM users
+    timeout_seconds: 30
+    entity:
+      platform: mysql
+      database_cluster_name: cluster
+      database_instance_name: instance
+      database_host_name: mysql-host
+      database: app
+      schema: app
+      table: users
+    connection:
+      host: mysql-host
+      port: 3307
+      dbname: app
+      username: datadog
+      password: secret
+      ssl:
+        ca: /etc/mysql/ca.pem
+        cert: /etc/mysql/client-cert.pem
+        key: /etc/mysql/client-key.pem
+        check_hostname: false
+`
+
 // rawScanTask builds the RC payload for a scan task delivered at the given path/id.
 func rawScanTask(id, scanTask string) state.RawConfig {
 	return state.RawConfig{Config: []byte(scanTask), Metadata: state.Metadata{ID: id}}
@@ -162,6 +230,13 @@ func postgresIntegration() integration.Config {
 	return integration.Config{
 		Name:      postgresIntegrationName,
 		Instances: []integration.Data{integration.Data(postgresInstanceConfig)},
+	}
+}
+
+func mysqlIntegration() integration.Config {
+	return integration.Config{
+		Name:      mysqlIntegrationName,
+		Instances: []integration.Data{integration.Data(mysqlInstanceConfig)},
 	}
 }
 
@@ -179,6 +254,64 @@ func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
 	rc, _ := newTestController(t, nil)
 
 	assert.Nil(t, rc.callback, "controller should not subscribe without a postgres integration")
+}
+
+func TestControllerBuildsMySQLInstanceWithTLS(t *testing.T) {
+	rc, provider := newTestController(t, []integration.Config{mysqlIntegration()})
+	require.NotNil(t, rc.callback, "controller should subscribe when a mysql integration is present")
+
+	c := provider.(*controller)
+	var payload scanTaskPayload
+	require.NoError(t, json.Unmarshal([]byte(mysqlScanTaskConfig), &payload))
+	got, err := c.buildCheckInstance(payload)
+	require.NoError(t, err)
+	assert.Equal(t, asYAML(t, wantMySQLCheckInstance), asYAML(t, string(got)))
+}
+
+// TestControllerMySQLEmptySSLDisablesTLS asserts an empty `ssl` block resolves to
+// no TLS, mirroring the MySQL integration (`ssl = dict(ssl) if ssl else None`).
+func TestControllerMySQLEmptySSLDisablesTLS(t *testing.T) {
+	configs := []integration.Config{{
+		Name: mysqlIntegrationName,
+		Instances: []integration.Data{integration.Data(`
+host: mysql-host
+port: 3307
+username: datadog
+password: secret
+ssl: {}
+`)},
+	}}
+	_, provider := newTestController(t, configs)
+	c := provider.(*controller)
+	var payload scanTaskPayload
+	require.NoError(t, json.Unmarshal([]byte(mysqlScanTaskConfig), &payload))
+
+	got, err := c.buildCheckInstance(payload)
+	require.NoError(t, err)
+	// The resolved connection must not carry an `ssl` key when the integration
+	// left the block empty.
+	assert.NotContains(t, asYAML(t, string(got)), "ssl:")
+}
+
+func TestControllerRejectsAmbiguousMySQLHost(t *testing.T) {
+	configs := []integration.Config{
+		mysqlIntegration(),
+		{
+			Name: mysqlIntegrationName,
+			Instances: []integration.Data{integration.Data(`
+host: mysql-host
+port: 3308
+username: another-user
+`)},
+		},
+	}
+	_, provider := newTestController(t, configs)
+	c := provider.(*controller)
+	var payload scanTaskPayload
+	require.NoError(t, json.Unmarshal([]byte(mysqlScanTaskConfig), &payload))
+
+	_, err := c.buildCheckInstance(payload)
+	require.ErrorContains(t, err, `multiple mysql integrations match host="mysql-host"`)
 }
 
 func TestControllerUpdate(t *testing.T) {

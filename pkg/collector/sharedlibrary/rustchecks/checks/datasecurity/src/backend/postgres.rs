@@ -50,13 +50,13 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
 
     let mut config = Config::new();
     config
-        .port(conn.port)
+        .port(conn.port.unwrap_or(5432))
         .dbname(&conn.dbname)
         .user(&conn.username)
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
-        .ssl_mode(pg_ssl_mode(conn.ssl))
+        .ssl_mode(pg_ssl_mode(conn.ssl.postgres_mode()))
         .options(&format!(
             "-c statement_timeout={} -c default_transaction_read_only=on",
             timeout.as_millis()

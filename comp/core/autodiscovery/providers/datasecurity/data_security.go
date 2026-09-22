@@ -30,18 +30,21 @@ const (
 	// dataSecurityCheckName is the Rust shared-library check scheduled on a scan task.
 	dataSecurityCheckName = "datasecurity"
 
+	mysqlIntegrationName    = "mysql"
+	mysqlPlatform           = "mysql"
+	defaultMySQLPort        = 3306
 	postgresIntegrationName = "postgres"
 	postgresPlatform        = "postgres"
 	// defaultPostgresPort is used when the matched instance omits the port.
 	defaultPostgresPort = 5432
-	// rcSubscriptionRetryInterval is how often we re-check for a postgres integration.
+	// rcSubscriptionRetryInterval is how often we re-check for a supported integration.
 	rcSubscriptionRetryInterval = 10 * time.Second
 )
 
-// isConnectedToPostgres reports whether any postgres integration is configured.
-func isConnectedToPostgres(ac autodiscovery.Component) bool {
+// isConnectedToSupportedDatabase reports whether any supported database integration is configured.
+func isConnectedToSupportedDatabase(ac autodiscovery.Component) bool {
 	for _, config := range ac.GetAllConfigs() {
-		if config.Name == postgresIntegrationName {
+		if config.Name == mysqlIntegrationName || config.Name == postgresIntegrationName {
 			return true
 		}
 	}
@@ -73,7 +76,7 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) type
 	// Send an empty initial sync so Autodiscovery's config poller unblocks startup; real configs
 	// are streamed later as scan tasks arrive over RC.
 	c.configChanges <- integration.ConfigChanges{}
-	// Subscribe immediately when a postgres integration is already configured; otherwise
+	// Subscribe immediately when a supported database integration is already configured; otherwise
 	// poll until one appears.
 	if !c.subscribeIfReady() {
 		go c.manageSubscriptionToRC()
@@ -81,17 +84,17 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) type
 	return c
 }
 
-// subscribeIfReady subscribes to the Data Security RC product once a postgres integration is
+// subscribeIfReady subscribes to the Data Security RC product once a supported integration is
 // configured. It reports whether the subscription happened.
 func (c *controller) subscribeIfReady() bool {
-	if !isConnectedToPostgres(c.ac) {
+	if !isConnectedToSupportedDatabase(c.ac) {
 		return false
 	}
 	c.rcclient.Subscribe(data.ProductDataSecurityDBScanTasks, c.update)
 	return true
 }
 
-// manageSubscriptionToRC polls until a postgres integration is configured, then subscribes to RC.
+// manageSubscriptionToRC polls until a supported database integration is configured, then subscribes to RC.
 // TODO(dsec-198): change here to connect to RC in an event-driven fashion rather than polling
 func (c *controller) manageSubscriptionToRC() {
 	ticker := time.NewTicker(rcSubscriptionRetryInterval)
@@ -194,12 +197,7 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 
 	for i := range payload.ScanData {
 		st := payload.ScanData[i]
-		if st.Entity.Platform != postgresPlatform {
-			// TODO(dsec-214): send sds-results to report sub task failure
-			return nil, fmt.Errorf("failed to build sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
-		}
-
-		conn, err := c.resolvePostgresConnection(st.Entity)
+		conn, err := c.resolveConnection(st.Entity)
 		if err != nil {
 			// TODO(dsec-214): send sds-results to report sub task failure
 			return nil, fmt.Errorf("failed to build sub task %q: %w", st.SubTaskID, err)
@@ -215,6 +213,17 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 	return json.Marshal(inst)
 }
 
+func (c *controller) resolveConnection(e entity) (connection, error) {
+	switch e.Platform {
+	case mysqlPlatform:
+		return c.resolveMySQLConnection(e)
+	case postgresPlatform:
+		return c.resolvePostgresConnection(e)
+	default:
+		return connection{}, fmt.Errorf("unsupported platform %q", e.Platform)
+	}
+}
+
 // resolvePostgresConnection builds the scan connection from the local postgres instance
 // matching the entity's host.
 func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
@@ -228,7 +237,7 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 				log.Warnf("skipping postgres instance: failed to unmarshal: %v", err)
 				continue
 			}
-			if matchesHost(instance, e.DatabaseHostName) {
+			if matchesHost(instance, e.DatabaseHostName, defaultPostgresPort) {
 				return buildPostgresConnection(instance, e), nil
 			}
 		}
@@ -237,42 +246,124 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 	return connection{}, fmt.Errorf("postgres integration with host=%q not found", e.DatabaseHostName)
 }
 
-// matchesHost reports whether a postgres instance targets the given host: an exact match
+// resolveMySQLConnection builds the scan connection from the local MySQL instance
+// matching the entity's host.
+func (c *controller) resolveMySQLConnection(e entity) (connection, error) {
+	var matches []connection
+	for _, cfg := range c.ac.GetAllConfigs() {
+		if cfg.Name != mysqlIntegrationName {
+			continue
+		}
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+				log.Warnf("skipping mysql instance: failed to unmarshal: %v", err)
+				continue
+			}
+			if matchesHost(instance, e.DatabaseHostName, defaultMySQLPort) {
+				matches = append(matches, buildMySQLConnection(instance, e))
+			}
+		}
+	}
+	switch len(matches) {
+	case 0:
+		log.Warnf("no mysql integration found with host=%q", e.DatabaseHostName)
+		return connection{}, fmt.Errorf("mysql integration with host=%q not found", e.DatabaseHostName)
+	case 1:
+		return matches[0], nil
+	default:
+		return connection{}, fmt.Errorf("multiple mysql integrations match host=%q", e.DatabaseHostName)
+	}
+}
+
+// matchesHost reports whether a database instance targets the given host: an exact match
 // or the "host:port" form some backends send.
-func matchesHost(instance map[string]any, targetHost string) bool {
-	host := instanceString(instance, "host")
+func matchesHost(instance map[string]any, targetHost string, defaultPort int) bool {
+	host := instanceStringFallback(instance, "host", "server")
 	if host == targetHost {
 		return true
 	}
-	if port, ok := instancePort(instance); ok {
-		return fmt.Sprintf("%s:%d", host, port) == targetHost
+	if socket := instanceString(instance, "sock"); socket != "" && socket == targetHost {
+		return true
 	}
-	return false
+	port, ok := instancePort(instance)
+	if !ok || port == 0 {
+		port = defaultPort
+	}
+	return fmt.Sprintf("%s:%d", host, port) == targetHost
+}
+
+// buildMySQLConnection copies credentials and TLS options from the matched instance.
+func buildMySQLConnection(instance map[string]any, e entity) connection {
+	port, ok := instancePort(instance)
+	if !ok || port == 0 {
+		port = defaultMySQLPort
+	}
+	conn := connection{
+		Host:     instanceStringFallback(instance, "host", "server"),
+		Sock:     instanceString(instance, "sock"),
+		Port:     port,
+		DBName:   e.Database,
+		Username: instanceStringFallback(instance, "username", "user"),
+		Password: instanceStringFallback(instance, "password", "pass"),
+	}
+	// Mirror the MySQL integration: `ssl` is a nested object and an empty block
+	// means no TLS (PyMySQL uses `dict(ssl) if ssl else None`), so we only emit
+	// it when at least one field is set.
+	if rawSSL, ok := instance["ssl"].(map[string]any); ok && len(rawSSL) > 0 {
+		conn.SSL = mysqlSSL{
+			CA:            instanceString(rawSSL, "ca"),
+			Cert:          instanceString(rawSSL, "cert"),
+			Key:           instanceString(rawSSL, "key"),
+			CheckHostname: instanceBool(rawSSL, "check_hostname"),
+		}
+	}
+	return conn
 }
 
 // buildPostgresConnection copies credentials from the matched instance and targets the entity's database.
 func buildPostgresConnection(instance map[string]any, e entity) connection {
 	port, ok := instancePort(instance)
-	if !ok {
+	if !ok || port == 0 {
 		port = defaultPostgresPort
 	}
-	return connection{
+	conn := connection{
 		Host:        instanceString(instance, "host"),
 		Port:        port,
 		DBName:      e.Database,
 		Username:    instanceString(instance, "username"),
 		Password:    instanceString(instance, "password"),
-		SSLMode:     instanceString(instance, "ssl"),
 		SSLRootCert: instanceString(instance, "ssl_root_cert"),
 		SSLCert:     instanceString(instance, "ssl_cert"),
 		SSLKey:      instanceString(instance, "ssl_key"),
 		SSLPassword: instanceString(instance, "ssl_password"),
 	}
+	// Mirror the postgres integration: `ssl` is a string SSL mode. Leave it unset
+	// (omitted) when absent so the check falls back to its own default.
+	if mode := instanceString(instance, "ssl"); mode != "" {
+		conn.SSL = mode
+	}
+	return conn
 }
 
 func instanceString(instance map[string]any, key string) string {
 	value, _ := instance[key].(string)
 	return value
+}
+
+func instanceStringFallback(instance map[string]any, key, fallback string) string {
+	if value := instanceString(instance, key); value != "" {
+		return value
+	}
+	return instanceString(instance, fallback)
+}
+
+func instanceBool(instance map[string]any, key string) *bool {
+	value, ok := instance[key].(bool)
+	if !ok {
+		return nil
+	}
+	return &value
 }
 
 // instancePort returns the instance port, handling the numeric types YAML/JSON can produce
