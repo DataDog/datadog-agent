@@ -1,0 +1,21 @@
+---
+upgrade:
+  - |
+    Five deprecated CIS Kubernetes 1.5.1 rules evaluated by the Cluster Agent
+    are no longer shipped, and stop producing findings:
+    ``cis-kubernetes-1.5.1-5.1.5`` (default service account in use) and
+    ``cis-kubernetes-1.5.1-5.2.2`` through ``-5.2.5``, which read
+    PodSecurityPolicy objects. Kubernetes removed PodSecurityPolicy in 1.25, so
+    those four have reported ``skipped`` on any cluster at 1.25 or later.
+    ``cis-kubernetes-1.5.1-5.3.2`` and ``cis-kubernetes-1.5.1-5.7.4`` are
+    unchanged.
+  - |
+    The Cluster Agent no longer needs ``list`` or ``watch`` on
+    ``rolebindings`` and ``clusterrolebindings``, or ``list`` on
+    ``serviceaccounts``. Those permissions were added for
+    ``cis-kubernetes-1.5.1-5.1.5``.
+enhancements:
+  - |
+    Removed the RoleBinding and ClusterRoleBinding reflector caches from the
+    Cluster Agent. They existed only to keep ``cis-kubernetes-1.5.1-5.1.5``
+    from listing every binding in the cluster, and that rule is gone.

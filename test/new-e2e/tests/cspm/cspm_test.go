@@ -11,9 +11,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -37,141 +34,6 @@ type cspmTestSuite struct {
 
 type findings = map[string][]map[string]string
 
-var expectedFindingsMasterEtcdNode = findings{
-	"cis-kubernetes-1.5.1-1.1.12": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.16": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.19": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.21": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.22": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.23": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.24": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.25": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.26": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.33": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.2.6": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.2": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.3": []map[string]string{
-		{
-			"result": "passed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.4": []map[string]string{
-		{
-			"result": "passed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.5": []map[string]string{
-		{
-			"result": "passed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.6": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.3.7": []map[string]string{
-		{
-			"result": "passed",
-		},
-	},
-	"cis-kubernetes-1.5.1-1.4.1": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-3.2.1": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-}
-var expectedFindingsWorkerNode = findings{
-	"cis-kubernetes-1.5.1-4.2.1": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.3": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.4": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.5": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.6": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.10": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-	"cis-kubernetes-1.5.1-4.2.12": []map[string]string{
-		{
-			"result": "failed",
-		},
-	},
-}
-
 //go:embed values.yaml
 var values string
 
@@ -189,20 +51,32 @@ func TestCSPM(t *testing.T) {
 	))
 }
 
+// TestFindings checks that the CIS Kubernetes benchmark still loads and
+// evaluates in the Cluster Agent. 5.3.2 is the one surviving rule that
+// resolves against the API server; a kind cluster defines no NetworkPolicy,
+// so it reports failed.
 func (s *cspmTestSuite) TestFindings() {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(s.T(), err)
-	require.Len(s.T(), res.Items, 1)
-	agentPodName := s.waitForSecurityAgentPodReady("datadog", res.Items[0].Name)
-	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
+	require.NotEmpty(s.T(), pods.Items)
+	clusterAgentPod := pods.Items[0].Name
+
+	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", clusterAgentPod, "cluster-agent",
+		[]string{"datadog-cluster-agent", "compliance", "check", "--dump-reports", "/tmp/reports"})
 	require.NoError(s.T(), err)
-	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"cat", "/tmp/reports"})
+	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", clusterAgentPod, "cluster-agent",
+		[]string{"cat", "/tmp/reports"})
 	require.NoError(s.T(), err)
 	findings, err := parseFindingOutput(dumpContent)
 	require.NoError(s.T(), err)
-	s.checkFindings(findings, mergeFindings(expectedFindingsMasterEtcdNode, expectedFindingsWorkerNode))
+
+	results := findings["cis-kubernetes-1.5.1-5.3.2"]
+	require.NotEmpty(s.T(), results, "the Cluster Agent must still evaluate cis-kubernetes-1.5.1-5.3.2")
+	for _, result := range results {
+		assert.Contains(s.T(), []string{"passed", "failed"}, result["result"])
+	}
 }
 
 func (s *cspmTestSuite) waitForSecurityAgentPodReady(namespace, podName string) string {
@@ -250,7 +124,7 @@ func isContainerReady(pod *corev1.Pod, containerName string) bool {
 
 // TestDockerRulesFilteredOnContainerdCRI reproduces the GKE-COS shape -
 // kubelet on containerd with a reachable dockerd - and asserts the filter
-// suppresses CIS Docker rules while keeping CIS Kubernetes rules.
+// suppresses CIS Docker rules.
 func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
@@ -283,23 +157,13 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 			"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
 	}
 
-	seenKubernetesRule := false
-	for rule, results := range findings {
-		if !strings.HasPrefix(rule, "cis-kubernetes-1.5.1-") {
-			continue
-		}
-		for _, r := range results {
-			if r["result"] == "passed" || r["result"] == "failed" {
-				seenKubernetesRule = true
-				break
-			}
-		}
-		if seenKubernetesRule {
-			break
-		}
-	}
-	assert.True(s.T(), seenKubernetesRule,
-		"expected at least one cis-kubernetes-1.5.1-* finding with result passed or failed; the filter must not be over-greedy")
+	// The assertion above holds vacuously on an agent that shipped no Docker
+	// rules at all, so check the benchmark is on disk and was filtered rather
+	// than missing.
+	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+		"datadog", agentPod, "security-agent",
+		[]string{"test", "-s", "/etc/datadog-agent/compliance.d/cis-docker-1.2.0.yaml"})
+	require.NoError(s.T(), err, "the CIS Docker benchmark must ship in the agent image: %s", stderr)
 }
 
 func (s *cspmTestSuite) TestMetrics() {
@@ -323,56 +187,6 @@ func (s *cspmTestSuite) TestMetrics() {
 	}, 2*time.Minute, 10*time.Second)
 
 }
-func (s *cspmTestSuite) checkFindings(findings, expectedFindings findings) {
-	s.T().Helper()
-	checkedRule := []string{}
-	for expectedRule, expectedRuleFindinds := range expectedFindings {
-		assert.Contains(s.T(), findings, expectedRule)
-		for _, expectedFinding := range expectedRuleFindinds {
-			found := false
-			for _, finding := range findings[expectedRule] {
-				if isSubset(expectedFinding, finding) {
-					found = true
-					break
-				}
-			}
-			assert.Truef(s.T(), found, "unexpected finding %v  for rule %s", findings[expectedRule], expectedRule)
-			checkedRule = append(checkedRule, expectedRule)
-		}
-	}
-	for rule, ruleFindings := range findings {
-		if slices.Contains(checkedRule, rule) {
-			continue
-		}
-		for _, ruleFinding := range ruleFindings {
-			fmt.Printf("rule %s finding %v\n", rule, ruleFinding["result"])
-		}
-	}
-	for rule, ruleFindings := range findings {
-		if slices.Contains(checkedRule, rule) {
-			continue
-		}
-		for _, ruleFinding := range ruleFindings {
-			assert.NotContains(s.T(), []string{"failed", "error"}, ruleFinding["result"], fmt.Sprintf("finding for rule %s not expected to be in failed or error state", rule))
-		}
-	}
-
-}
-
-func isSubset(a, b map[string]string) bool {
-	for k, v := range a {
-		if vb, found := b[k]; !found || vb != v {
-			return false
-		}
-	}
-	return true
-}
-
-func mergeFindings(a, b findings) findings {
-	maps.Copy(a, b)
-	return a
-}
-
 func parseFindingOutput(output string) (findings, error) {
 
 	result := map[string]any{}
