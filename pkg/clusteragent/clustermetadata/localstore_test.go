@@ -19,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	kubernetes "k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -30,6 +31,7 @@ type fakeWmeta struct {
 	pods        map[string]*workloadmeta.KubernetesPod // by UID
 	deployments map[string]*workloadmeta.KubernetesDeployment
 	nodes       map[string]*workloadmeta.KubernetesNode
+	subCh       chan workloadmeta.EventBundle
 }
 
 func (f *fakeWmeta) GetKubernetesPodByName(podName, podNamespace string) (*workloadmeta.KubernetesPod, error) {
@@ -83,6 +85,24 @@ func (f *fakeWmeta) ListKubernetesNodes() []*workloadmeta.KubernetesNode {
 		nodes = append(nodes, node)
 	}
 	return nodes
+}
+
+func (f *fakeWmeta) Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+	f.subCh = make(chan workloadmeta.EventBundle, 1)
+	return f.subCh
+}
+
+func (f *fakeWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) {
+	if ch == f.subCh {
+		close(f.subCh)
+		f.subCh = nil
+	}
+}
+
+func (f *fakeWmeta) notifyBundle(events ...workloadmeta.Event) {
+	if f.subCh != nil {
+		f.subCh <- workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})}
+	}
 }
 
 // fakeTagger implements only Tag.
@@ -164,7 +184,7 @@ func newTestStore(t *testing.T) *LocalStore {
 	}}
 
 	client := k8sfake.NewSimpleClientset()
-	manager := NewLeaseManager(client, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
+	manager := NewLeaseManager(func() (kubernetes.Interface, error) { return client, nil }, func() (string, error) { return "10.0.0.1", nil }, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
 	ring := NewRingController(manager, MemberID("datadog", "dca-0"), time.Second,
 		func(ctx context.Context) ([]string, error) {
 			return []string{"node-a"}, nil
@@ -174,7 +194,7 @@ func newTestStore(t *testing.T) *LocalStore {
 		ring.SetNodeSynced(node, true)
 	}
 
-	return NewLocalStore(wmeta, tagger, ring)
+	return NewLocalStore(wmeta, tagger, ring, nil)
 }
 
 // TestLookup tests named lookups across kinds and found/absent results.
@@ -293,7 +313,7 @@ func TestLookupFanout(t *testing.T) {
 
 	local := newTestStore(t)
 	peer := &fakePeer{}
-	store := NewLocalStore(local.wmeta, local.tagger, local.ring, peer)
+	store := NewLocalStore(local.wmeta, local.tagger, local.ring, func() []cm.Store { return []cm.Store{peer} })
 
 	found, err := store.Lookup(ctx, podReq)
 	require.NoError(t, err)
@@ -343,7 +363,7 @@ func TestLookupOriginFanout(t *testing.T) {
 
 	local := newTestStore(t)
 	peer := &fakePeer{}
-	store := NewLocalStore(local.wmeta, local.tagger, local.ring, peer)
+	store := NewLocalStore(local.wmeta, local.tagger, local.ring, func() []cm.Store { return []cm.Store{peer} })
 
 	found, err := store.LookupOrigin(ctx, localReq)
 	require.NoError(t, err)
@@ -381,6 +401,7 @@ func TestRingAndSubscribe(t *testing.T) {
 	assert.Equal(t, []string{"node-a"}, ring.Members[0].Nodes)
 	assert.True(t, ring.Members[0].Ready, "all owned nodes are synced in the test fixture")
 
-	_, _, err = store.Subscribe(ctx, "node-a", cm.Scope{Consumer: "test"})
-	assert.Error(t, err, "subscribe arrives with the node stream increment")
+	_, cancel, err := store.Subscribe(ctx, "node-a", cm.Scope{Consumer: "test"})
+	require.NoError(t, err, "owned and synced nodes are accepted")
+	cancel()
 }

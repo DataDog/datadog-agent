@@ -17,13 +17,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kubernetes "k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
 
 func newManager(t *testing.T) (*LeaseManager, *k8sfake.Clientset) {
 	client := k8sfake.NewSimpleClientset()
-	manager := NewLeaseManager(client, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
+	manager := NewLeaseManager(func() (kubernetes.Interface, error) { return client, nil }, func() (string, error) { return "10.0.0.1", nil }, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
 	return manager, client
 }
 
@@ -71,7 +72,7 @@ func TestLeaseRenewConflictSurfaced(t *testing.T) {
 	ctx := context.Background()
 
 	client := k8sfake.NewSimpleClientset()
-	manager := NewLeaseManager(client, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
+	manager := NewLeaseManager(func() (kubernetes.Interface, error) { return client, nil }, func() (string, error) { return "10.0.0.1", nil }, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
 	require.NoError(t, manager.Ensure(ctx))
 
 	updates := 0
@@ -138,7 +139,7 @@ func TestMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 
-	alive := AliveMembers(members, now)
+	alive := MemberNames(AliveMembers(members, now))
 	assert.Equal(t, []string{MemberID("datadog", "dca-1")}, alive, "expired dca-2 is excluded by liveness, not by listing")
 }
 

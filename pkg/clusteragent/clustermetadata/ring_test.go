@@ -27,7 +27,7 @@ func TestAliveMembers(t *testing.T) {
 	}
 
 	// dca-2 is at the boundary: expired the moment now reaches renewed+duration.
-	assert.Equal(t, []string{"dca-0"}, AliveMembers(members, now))
+	assert.Equal(t, []string{"dca-0"}, MemberNames(AliveMembers(members, now)))
 	assert.Empty(t, AliveMembers(nil, now), "no members (boundary)")
 }
 

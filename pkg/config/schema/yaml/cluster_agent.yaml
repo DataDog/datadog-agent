@@ -36,6 +36,23 @@ properties:
     default: datadog-cluster-agent
     visibility: public
     description: Name of the Kubernetes service for the Cluster Agent.
+  metadata_ring:
+    node_type: section
+    type: object
+    visibility: undocumented
+    description: |-
+      Configuration for the workload metadata ring: multiple cluster-agent
+      replicas sharing the pod metadata cache, sharded by node.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: undocumented
+        description: |-
+          Enables the metadata ring. When enabled, each cluster-agent replica
+          watches only the pods of the nodes it owns in the ring instead of
+          every pod in the cluster.
   max_leader_connections:
     node_type: setting
     type: integer

@@ -34,7 +34,7 @@ func NewRingScope(controller *RingController) *RingScope {
 		controller:  controller,
 		subscribers: make(map[int]func()),
 	}
-	controller.OnOwnedNodesChanged(func(prev, next []string) {
+	controller.SubscribeOwnedNodes(func(prev, next []string) {
 		scope.notify()
 	})
 	return scope

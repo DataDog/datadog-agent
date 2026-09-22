@@ -31,14 +31,24 @@ type LocalStore struct {
 	wmeta  workloadmeta.Component
 	tagger tagger.Component
 	ring   *RingController
-	peers  []cm.Store
+	// peerSource returns the current peer handles
+	peerSource func() []cm.Store
 }
 
 var _ cm.Store = (*LocalStore)(nil)
 
 // NewLocalStore returns a Store for this replica.
-func NewLocalStore(wmeta workloadmeta.Component, tagger tagger.Component, ring *RingController, peers ...cm.Store) *LocalStore {
-	return &LocalStore{wmeta: wmeta, tagger: tagger, ring: ring, peers: peers}
+func NewLocalStore(wmeta workloadmeta.Component, tagger tagger.Component, ring *RingController, peerSource func() []cm.Store) *LocalStore {
+	return &LocalStore{wmeta: wmeta, tagger: tagger, ring: ring, peerSource: peerSource}
+}
+
+// currentPeers returns the peer handles, or nil when no source is wired
+// (single-replica deployments).
+func (s *LocalStore) currentPeers() []cm.Store {
+	if s.peerSource == nil {
+		return nil
+	}
+	return s.peerSource()
 }
 
 // Lookup implements cm.Store.Lookup().
@@ -49,12 +59,11 @@ func (s *LocalStore) Lookup(ctx context.Context, req cm.LookupRequest) (cm.Looku
 	}
 
 	answers := []cm.LookupAnswer{local}
-	for _, peer := range s.peers {
+	for _, peer := range s.currentPeers() {
 		answer, err := peer.Lookup(ctx, req)
 		if err != nil {
 			// A peer failure makes absence impossible to conclude, so it
-			// fails the query. Peer health handling arrives with the ring
-			// layer.
+			// fails the query.
 			return cm.LookupAnswer{}, err
 		}
 		answers = append(answers, answer)
@@ -70,7 +79,7 @@ func (s *LocalStore) LookupOrigin(ctx context.Context, req cm.OriginLookupReques
 	}
 
 	answers := []cm.LookupAnswer{local}
-	for _, peer := range s.peers {
+	for _, peer := range s.currentPeers() {
 		answer, err := peer.LookupOrigin(ctx, req)
 		if err != nil {
 			return cm.LookupAnswer{}, err
@@ -113,23 +122,18 @@ func (s *LocalStore) Snapshot(ctx context.Context, kind string, namespace string
 	return cm.ShardSnapshot{Nodes: nodes, Events: events}, nil
 }
 
-// Subscribe implements cm.Store. TODO: implement
-func (s *LocalStore) Subscribe(ctx context.Context, node string, scope cm.Scope) (<-chan cm.NodeEvent, func(), error) {
-	return nil, nil, fmt.Errorf("node stream is not implemented yet")
-}
-
 // Ring implements cm.Store.Ring().
 func (s *LocalStore) Ring(ctx context.Context) (cm.RingInfo, error) {
 	state := s.ring.State()
-	members := make([]cm.RingMember, 0, len(state.Members))
-	for _, member := range state.Members {
+	members := make([]cm.RingMember, 0, len(state.MemberInfos))
+	for _, info := range state.MemberInfos {
 		ready := true
-		if member == s.ring.selfID {
+		if info.Name == s.ring.selfID {
 			ready = state.Ready()
 		}
 		members = append(members, cm.RingMember{
-			Name:  member,
-			Nodes: state.Owned[member],
+			Name:  info.Name,
+			Nodes: state.Owned[info.Name],
 			Ready: ready,
 		})
 	}
