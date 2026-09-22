@@ -7,6 +7,7 @@
 mod helpers;
 
 mod cli_contracts;
+mod config_gates;
 mod config_status;
 mod create;
 mod daemon;
