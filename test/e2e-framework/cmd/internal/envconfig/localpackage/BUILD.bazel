@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "localpackage",
@@ -9,4 +10,10 @@ go_library(
         "//test/e2e-framework/cmd/internal/configschema",
         "//test/e2e-framework/cmd/internal/envconfig/binary",
     ],
+)
+
+dd_agent_go_test(
+    name = "localpackage_test",
+    srcs = ["config_test.go"],
+    embed = [":localpackage"],
 )

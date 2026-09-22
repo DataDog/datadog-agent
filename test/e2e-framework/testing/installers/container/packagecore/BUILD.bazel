@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "packagecore",
+    srcs = [
+        "checks.go",
+        "packagecore.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/container/packagecore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/installers/agentbuild",
+        "//test/e2e-framework/testing/installers/agentconfig",
+        "//test/e2e-framework/testing/receivers",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "packagecore_test",
+    srcs = ["packagecore_test.go"],
+    embed = [":packagecore"],
+    deps = [
+        "//test/e2e-framework/testing/installers/agentbuild",
+        "//test/e2e-framework/testing/installers/host/localpackage",
+        "//test/e2e-framework/testing/receivers",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
