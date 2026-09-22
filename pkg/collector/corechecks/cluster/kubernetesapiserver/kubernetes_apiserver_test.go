@@ -168,17 +168,6 @@ func TestSubmitStorageObjectsMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "replacement metric",
-			family: &prometheus.MetricFamily{
-				Name: replacementStorageObjectsMetricName,
-				Type: "GAUGE",
-				Samples: []prometheus.Sample{
-					{Metric: prometheus.Metric{"group": "", "resource": "pods"}, Value: 42},
-					{Metric: prometheus.Metric{"group": "example.com", "resource": "widgets"}, Value: 3},
-				},
-			},
-		},
-		{
 			name: "legacy metric",
 			family: &prometheus.MetricFamily{
 				Name: legacyStorageObjectsMetricName,
