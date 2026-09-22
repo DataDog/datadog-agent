@@ -2709,3 +2709,88 @@ func TestInferInterval(t *testing.T) {
 		})
 	}
 }
+
+// expoHistDataPoint builds a delta exponential histogram data point with the
+// given scale and one populated half.
+func expoHistDataPoint(scale int32, negative bool, offset int32, counts []uint64, zeroCount uint64) pmetric.ExponentialHistogramDataPoint {
+	dp := pmetric.NewExponentialHistogramDataPoint()
+	dp.SetScale(scale)
+	dp.SetZeroCount(zeroCount)
+
+	buckets := dp.Positive()
+	if negative {
+		buckets = dp.Negative()
+	}
+	buckets.SetOffset(offset)
+
+	total := zeroCount
+	for _, c := range counts {
+		buckets.BucketCounts().Append(c)
+		total += c
+	}
+	dp.SetCount(total)
+	return dp
+}
+
+// expoHistMetrics wraps a data point into a delta exponential histogram metric.
+func expoHistMetrics(dp pmetric.ExponentialHistogramDataPoint) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	m.SetName("expohist.bounds")
+	eh := m.SetEmptyExponentialHistogram()
+	eh.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp.CopyTo(eh.DataPoints().AppendEmpty())
+	return md
+}
+
+// TestMapExponentialHistogramOutOfRangeBounds is the end-to-end guard for
+// https://github.com/DataDog/datadog-agent/issues/55140: a data point whose
+// bucket boundaries are not representable used to take the collector down from
+// inside an exporter-queue goroutine. It must now be dropped, and the mapper
+// must keep going.
+func TestMapExponentialHistogramOutOfRangeBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		scale        int32
+		offset       int32
+		expectSketch bool
+	}{
+		{name: "minimum scale", scale: -10, offset: 0},
+		{name: "offset pushes the boundary out of range", scale: -5, offset: 31},
+		{name: "same at an in-spec scale", scale: 0, offset: 1023},
+		{name: "representable", scale: 0, offset: 0, expectSketch: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
+			consumer := &mockFullConsumer{}
+			md := expoHistMetrics(expoHistDataPoint(tc.scale, false, tc.offset, []uint64{1, 1, 1}, 0))
+
+			require.NotPanics(t, func() {
+				_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
+				require.NoError(t, err)
+			})
+
+			if tc.expectSketch {
+				assert.Len(t, consumer.sketches, 1)
+			} else {
+				assert.Empty(t, consumer.sketches)
+			}
+		})
+	}
+}
+
+// TestMapExponentialHistogramZeroCountOnlyAtMinimumScale asserts that a data
+// point with no populated bucket is still emitted at a scale whose gamma
+// overflows: no boundary is evaluated, so there is nothing unrepresentable
+// about it.
+func TestMapExponentialHistogramZeroCountOnlyAtMinimumScale(t *testing.T) {
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	md := expoHistMetrics(expoHistDataPoint(-10, false, 0, nil, 5))
+
+	_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
+	require.NoError(t, err)
+
+	require.Len(t, consumer.sketches, 1)
+	assert.Equal(t, int64(5), consumer.sketches[0].basic.Cnt)
+}

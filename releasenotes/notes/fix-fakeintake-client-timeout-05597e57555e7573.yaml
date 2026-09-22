@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Add a configurable timeout to the fakeintake test client to prevent
+    hung requests during end-to-end tests.

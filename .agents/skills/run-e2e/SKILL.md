@@ -34,10 +34,14 @@ Anchor a supplied test name (`--run '^TestFlareSuite$'`), or `TestFlare` also se
 ## Step 2 — Decide where it runs
 
 ```bash
+test -n "$WORKSPACE_NAME" && echo IN_WORKSPACE
 test -f /.started && echo IN_DEVENV || echo ON_HOST
 ```
 
-The dev env entrypoint creates `/.started`. `ON_HOST` → step 3A, `IN_DEVENV` → step 3B, `--host` → 3C.
+The dev env entrypoint creates `/.started`. `IN_WORKSPACE` → 3C — a workspace already provides
+the environment the dev env would build, so run directly on it without one. `ON_HOST` → step 3A,
+`IN_DEVENV` → step 3B, `--host` → 3C. `devenv_e2e.py up` also refuses to run when
+`WORKSPACE_NAME` is set (exit 7), so this cannot slip through to 3A.
 
 ## Step 3A — On the host (the usual case)
 
@@ -65,6 +69,7 @@ machine the remedy belongs on.
 | 4 | The container cannot authenticate to AWS | Run the printed `aws-vault login` **inside the env**, then retry |
 | 5 | Already inside a dev env | Step 2 misread the marker; go to 3B |
 | 6 | Env is in `error`, so its stacks cannot be checked | Do not remove it for them; relay the message, which says when recreating is safe |
+| 7 | `WORKSPACE_NAME` is set: this is a workspace, not a host that needs a dev env | Step 3C — run directly on the workspace |
 | other | No dedicated remedy | Relay the message; `references/troubleshooting.md` |
 
 Azure and GCP targets are not handled — only AWS credentials reach the container. Use `--host`.

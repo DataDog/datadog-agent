@@ -9,8 +9,12 @@ package trivy
 
 import (
 	"testing"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	imgspecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,4 +93,36 @@ func TestBuildCRIOLayerPaths(t *testing.T) {
 		_, err := buildCRIOLayerPaths(imgMeta, lowerDirs[:1], manifestDigests)
 		require.ErrorIs(t, err, errLayerCountMismatch)
 	})
+}
+
+func TestFakeCRIOContainerConfigFile(t *testing.T) {
+	layerCreated := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+	// One history entry for two diff_ids: what the collector produces from a
+	// config with fewer history entries than layers.
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		Architecture: "amd64",
+		OS:           "linux",
+		Layers: []workloadmeta.ContainerImageLayer{
+			{
+				DiffID:  "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+				History: &imgspecs.History{CreatedBy: "step one", Created: &layerCreated},
+			},
+			{
+				DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+			},
+		},
+	}
+	ctr := &fakeCRIOContainer{fakeContainer: newFakeContainer([]ftypes.LayerPath{
+		{DiffID: "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		{DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+	}, imgMeta)}
+
+	configFile, err := ctr.ConfigFile()
+	require.NoError(t, err)
+
+	require.Len(t, configFile.History, 2)
+	assert.Equal(t, "step one", configFile.History[0].CreatedBy)
+	assert.Equal(t, layerCreated, configFile.History[0].Created.Time)
+	assert.Equal(t, v1.History{}, configFile.History[1])
 }

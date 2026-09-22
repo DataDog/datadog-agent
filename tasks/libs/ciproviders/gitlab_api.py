@@ -63,20 +63,13 @@ def get_gitlab_oauth_token(ctx) -> str:
 
 
 def get_gitlab_token(ctx, repo='DataDog/datadog-agent', verbose=False) -> str:
-    if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
-        if running_in_ci():
-            # Get the token from fetch_secrets
-            token_cmd = ctx.run(
-                f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-            )
-            if not token_cmd.ok:
-                raise RuntimeError(
-                    f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
-                )
-
-            return token_cmd.stdout.strip()
-        elif 'GITLAB_TOKEN' in os.environ:
-            return os.environ['GITLAB_TOKEN']
+    # CI must not depend on feature-flag credentials to avoid using an expired legacy token.
+    if (
+        not running_in_ci()
+        and not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens")
+        and 'GITLAB_TOKEN' in os.environ
+    ):
+        return os.environ['GITLAB_TOKEN']
 
     owner, _, name = repo.rpartition('/')
     if not owner:

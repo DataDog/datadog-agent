@@ -150,6 +150,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/pulumi/pulumi-azure-native-sdk{,/**}"],
+        "groupName": "pulumi-azure-native-sdk"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["istio.io/**"],
         "groupName": "istio"
       },

@@ -11,9 +11,11 @@ package procfs
 import (
 	"bufio"
 	"bytes"
+	"iter"
 	"os"
-	"regexp"
 	"strconv"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -30,61 +32,81 @@ type MapsEntry struct {
 	Pathname    string // e.g., "/usr/lib/libc.so.6" or "[heap]"
 }
 
-var (
-	// From `man procfs`: The format of the file is:
-	//
-	//    address           perms offset  dev   inode       pathname
-	//    00400000-00452000 r-xp 00000000 08:02 173521      /usr/bin/dbus-daemon
-	//    00651000-00652000 r--p 00051000 08:02 173521      /usr/bin/dbus-daemon
-	//    00652000-00655000 rw-p 00052000 08:02 173521      /usr/bin/dbus-daemon
-	mapsLineRegex = regexp.MustCompile(`^` +
-		`(?P<address>\S+)` + // address
-		`\s+(?P<perms>\S+)` + // perms
-		`\s+(?P<offset>\S+)` + // offset
-		`\s+(?:\S+)` + // dev
-		`\s+(?:\S+)` + // inode
-		`(?:\s+(?P<pathname>.+))?` +
-		`$`)
-	addressIdx  = mapsLineRegex.SubexpIndex("address")
-	permsIdx    = mapsLineRegex.SubexpIndex("perms")
-	offsetIdx   = mapsLineRegex.SubexpIndex("offset")
-	pathnameIdx = mapsLineRegex.SubexpIndex("pathname")
-)
-
 // ParseMapsLine parses a single line from /proc/[pid]/maps
+//
+// From `man procfs`: The format of the file is:
+//
+//	address           perms offset  dev   inode       pathname
+//	00400000-00452000 r-xp 00000000 08:02 173521      /usr/bin/dbus-daemon
+//	00651000-00652000 r--p 00051000 08:02 173521      /usr/bin/dbus-daemon
+//	00652000-00655000 rw-p 00052000 08:02 173521      /usr/bin/dbus-daemon
 func ParseMapsLine(line []byte) (MapsEntry, bool) {
-	m := mapsLineRegex.FindSubmatchIndex(line)
-	if len(m) == 0 {
-		return MapsEntry{}, false
+	entry := MapsEntry{}
+	i := 0
+	for field := range fieldsSeqN(line, 6) {
+		switch i {
+		case 0:
+			// Best-effort: a malformed range leaves the addresses zero instead of
+			// rejecting the entry, so callers that only need perms/pathname still work.
+			address := field
+			if dash := bytes.IndexByte(address, '-'); dash > 0 {
+				entry.StartAddr, _ = strconv.ParseUint(string(address[:dash]), 16, 64)
+				entry.EndAddr, _ = strconv.ParseUint(string(address[dash+1:]), 16, 64)
+			}
+		case 1:
+			entry.Permissions = string(field)
+		case 2:
+			entry.Offset, _ = strconv.ParseUint(string(field), 16, 64)
+		case 5:
+			entry.Pathname = string(field)
+		}
+		i++
 	}
 
-	entry := MapsEntry{}
+	return entry, i > 0
+}
 
-	// Best-effort: a malformed range leaves the addresses zero instead of
-	// rejecting the entry, so callers that only need perms/pathname still work.
-	if m[addressIdx*2] != -1 {
-		address := line[m[addressIdx*2]:m[addressIdx*2+1]]
-		if dash := bytes.IndexByte(address, '-'); dash > 0 {
-			entry.StartAddr, _ = strconv.ParseUint(string(address[:dash]), 16, 64)
-			entry.EndAddr, _ = strconv.ParseUint(string(address[dash+1:]), 16, 64)
+var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}
+
+// fieldsSeqN returns an iterator over subslices of s split around runs of
+// whitespace characters, as defined by [unicode.IsSpace].
+// It returns at most n subslices; the last subslice will be the unsplit remainder.
+func fieldsSeqN(s []byte, n int) iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		if n <= 0 {
+			return
+		}
+		n = min(n, len(s))
+		start := -1
+		f := 0
+		for i := 0; i < len(s); {
+			size := 1
+			r := rune(s[i])
+			isSpace := asciiSpace[s[i]] != 0
+			if r >= utf8.RuneSelf {
+				r, size = utf8.DecodeRune(s[i:])
+				isSpace = unicode.IsSpace(r)
+			}
+			if isSpace {
+				if start >= 0 {
+					if !yield(s[start:i:i]) {
+						return
+					}
+					f++
+					start = -1
+				}
+			} else if start < 0 {
+				start = i
+				if f == n-1 {
+					break
+				}
+			}
+			i += size
+		}
+		if start >= 0 {
+			yield(s[start:len(s):len(s)])
 		}
 	}
-
-	if m[offsetIdx*2] != -1 {
-		entry.Offset, _ = strconv.ParseUint(string(line[m[offsetIdx*2]:m[offsetIdx*2+1]]), 16, 64)
-	}
-
-	// Extract permissions
-	if m[permsIdx*2] != -1 {
-		entry.Permissions = string(line[m[permsIdx*2]:m[permsIdx*2+1]])
-	}
-
-	// Extract pathname
-	if m[pathnameIdx*2] != -1 {
-		entry.Pathname = string(line[m[pathnameIdx*2]:m[pathnameIdx*2+1]])
-	}
-
-	return entry, true
 }
 
 // MapsFilterFunc is a function that determines whether a maps entry should be included
@@ -112,6 +134,7 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 	files := make([]string, 0, maxFiles)
 	seenPaths := make(map[string]struct{})
 	scanner := bufio.NewScanner(mapsFile)
+	scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 
 	for scanner.Scan() && len(files) < maxFiles {
 		entry, ok := ParseMapsLine(scanner.Bytes())
@@ -137,6 +160,11 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 }
 
 // Common filter functions
+
+// FilterReadableOnly returns true for entries with read permission
+func FilterReadableOnly(entry MapsEntry) bool {
+	return len(entry.Permissions) > 0 && entry.Permissions[0] == 'r'
+}
 
 // FilterExecutableOnly returns true for entries with execute permission
 func FilterExecutableOnly(entry MapsEntry) bool {

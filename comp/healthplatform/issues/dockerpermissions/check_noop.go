@@ -8,10 +8,11 @@
 package dockerpermissions
 
 import (
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// Check is a noop on unsupported platforms
-func Check() ([]runnerdef.IssueReport, error) {
+// check is a noop on unsupported platforms.
+func check(hostnameinterface.Component) ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }

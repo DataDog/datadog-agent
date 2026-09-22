@@ -78,6 +78,10 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
+			if event.ProcessContext.Pid != testSuitePid {
+				return false
+			}
+
 			assert.NotEqual(t, uint32(0), event.Mount.MountID, "Mount id should not be zero")
 			assert.Equal(t, model.MountOriginFsmount, event.Mount.Origin, "Incorrect mount source")
 			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")

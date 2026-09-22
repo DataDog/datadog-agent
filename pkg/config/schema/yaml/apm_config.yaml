@@ -718,6 +718,16 @@ properties:
       all entries must be surrounded by double quotes and separated by commas.
     example: '["(GET|POST) /healthcheck"]'
     env_parser: csv_comma_separated
+  log_level:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_APM_LOG_LEVEL
+    visibility: public
+    description: |-
+      Overrides the global `log_level` for the trace Agent only.
+      Leave empty to use the global `log_level`.
   log_file:
     node_type: setting
     type: string

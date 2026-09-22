@@ -239,19 +239,60 @@ impl ManagedProcess {
     }
 
     #[must_use]
+    fn condition_path_exists_met(&self) -> bool {
+        let Some(raw) = &self.config.condition_path_exists else {
+            return true;
+        };
+        let path = expand_env_vars(raw);
+        if std::path::Path::new(&path).exists() {
+            return true;
+        }
+        info!("[{}] condition_path_exists not met: {path}", self.name);
+        false
+    }
+
+    #[must_use]
+    fn config_gate_met(&self) -> bool {
+        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            return true;
+        }
+        info!(
+            "[{}] condition_config_any not met: {}",
+            self.name,
+            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+        );
+        false
+    }
+
+    #[must_use]
+    fn start_conditions_met(&self) -> bool {
+        self.condition_path_exists_met() && self.config_gate_met()
+    }
+
+    /// Conditions only, deliberately ignoring `auto_start`: a process that was
+    /// started once should keep its restart policy even though `auto_start`
+    /// only governs boot.
+    #[must_use]
+    pub(crate) fn may_respawn(&self) -> bool {
+        self.start_conditions_met()
+    }
+
+    /// Whether any start condition is declared. Reload re-evaluates conditions
+    /// only for such processes: one with no conditions that is still `Created`
+    /// was never attempted rather than blocked, and starting it on an unrelated
+    /// reload would override whatever left it alone.
+    #[must_use]
+    pub(crate) fn has_start_conditions(&self) -> bool {
+        self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
+    }
+
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref raw) = self.config.condition_path_exists {
-            let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
-                info!("[{}] condition_path_exists not met: {path}", self.name);
-                return false;
-            }
-        }
-        true
+        self.start_conditions_met()
     }
 
     pub(crate) fn spawn(&mut self, exit_tx: mpsc::Sender<ExitEvent>) -> Result<()> {
@@ -454,6 +495,13 @@ impl ManagedProcess {
                     self.name
                 );
             }
+            return None;
+        }
+
+        // Checked before the burst limit so a closed gate neither consumes
+        // burst budget nor advances the backoff.
+        if !self.may_respawn() {
+            info!("[{}] start conditions not met, not restarting", self.name);
             return None;
         }
 
@@ -1087,6 +1135,29 @@ runtime_success_sec: 5
         assert!(
             proc.handle_restart().is_none(),
             "stopped process should not restart even with Always policy"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unmet_condition_skips_restart() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        proc.set_last_status(status);
+
+        assert!(
+            proc.handle_restart().is_none(),
+            "restart should be skipped while a start condition is unmet"
+        );
+        assert_eq!(
+            proc.restart_count(),
+            0,
+            "a skipped restart must not consume burst budget"
         );
     }
 

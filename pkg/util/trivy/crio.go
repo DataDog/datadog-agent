@@ -114,15 +114,22 @@ func (c *fakeCRIOContainer) ConfigFile() (*v1.ConfigFile, error) {
 		configFile.RootFS.DiffIDs[i], _ = v1.NewHash(d)
 	}
 
+	// A layer holds its History position even when the config listed fewer
+	// entries than diff_ids, so Trivy attributes created_by to the right layer.
 	for _, layer := range c.imgMeta.Layers {
-		configFile.History = append(configFile.History, v1.History{
-			Author:     layer.History.Author,
-			Created:    v1.Time{Time: *layer.History.Created},
-			CreatedBy:  layer.History.CreatedBy,
-			Comment:    layer.History.Comment,
-			EmptyLayer: layer.History.EmptyLayer,
-		})
-
+		var history v1.History
+		if layer.History != nil {
+			history = v1.History{
+				Author:     layer.History.Author,
+				CreatedBy:  layer.History.CreatedBy,
+				Comment:    layer.History.Comment,
+				EmptyLayer: layer.History.EmptyLayer,
+			}
+			if layer.History.Created != nil {
+				history.Created = v1.Time{Time: *layer.History.Created}
+			}
+		}
+		configFile.History = append(configFile.History, history)
 	}
 	return configFile, nil
 }

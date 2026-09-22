@@ -30,7 +30,6 @@ var defaultUsers = map[os.Flavor]string{
 	os.RedHat:         "ec2-user",
 	os.Suse:           "ec2-user",
 	os.CentOS:         "centos",
-	os.RockyLinux:     "cloud-user",
 	os.AlmaLinux:      "ec2-user",
 	os.MacosOS:        "ec2-user",
 }
@@ -46,7 +45,6 @@ var amiResolvers = map[os.Flavor]amiResolverFunc{
 	os.RedHat:         resolveRedHatAMI,
 	os.Suse:           resolveSuseAMI,
 	os.CentOS:         resolveCentOSAMI,
-	os.RockyLinux:     resolveRockyLinuxAMI,
 	os.AlmaLinux:      resolveAlmaLinuxAMI,
 	os.MacosOS:        resolveMacosAMI,
 }
@@ -76,7 +74,11 @@ func resolveOS(e aws.Environment, vmArgs *vmArgs) (*amiInformation, error) {
 
 		// If no AMI set and latest AMI is requested, resolve the AMI
 		if vmArgs.osInfo.Version == "" && vmArgs.useLatestAMI {
-			vmArgs.ami, err = amiResolvers[vmArgs.osInfo.Flavor](e, vmArgs.osInfo)
+			resolver, ok := amiResolvers[vmArgs.osInfo.Flavor]
+			if !ok {
+				return nil, fmt.Errorf("no AMI resolver found for flavor %s", vmArgs.osInfo.Flavor)
+			}
+			vmArgs.ami, err = resolver(e, vmArgs.osInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -96,18 +98,19 @@ func resolveOS(e aws.Environment, vmArgs *vmArgs) (*amiInformation, error) {
 	}
 	fmt.Printf("Using AMI %s\n for stack %s\n", vmArgs.ami, e.Ctx().Stack())
 
+	defaultUser, ok := defaultUsers[vmArgs.osInfo.Flavor]
+	if !ok {
+		return nil, fmt.Errorf("no default user found for flavor %s", vmArgs.osInfo.Flavor)
+	}
+
 	amiInfo := &amiInformation{
 		id:          vmArgs.ami,
-		defaultUser: defaultUsers[vmArgs.osInfo.Flavor],
+		defaultUser: defaultUser,
 	}
 
 	switch vmArgs.osInfo.Family() { // nolint:exhaustive
 	case os.LinuxFamily:
-		if vmArgs.osInfo.Version == os.AmazonLinux2018.Version && vmArgs.osInfo.Flavor == os.AmazonLinux2018.Flavor {
-			amiInfo.readyFunc = command.WaitForSuccessfulConnection
-		} else {
-			amiInfo.readyFunc = command.WaitForCloudInit
-		}
+		amiInfo.readyFunc = command.WaitForCloudInit
 	case os.WindowsFamily, os.MacOSFamily:
 		amiInfo.readyFunc = command.WaitForSuccessfulConnection
 	default:
@@ -139,11 +142,6 @@ func resolveAmazonLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, er
 		paramName = fmt.Sprintf("amzn2-ami-hvm-%s-gp2", osInfo.Architecture)
 	case os.AmazonLinuxECS2023.Version:
 		paramName = fmt.Sprintf("al2023-ami-kernel-default-%s", osInfo.Architecture)
-	case os.AmazonLinux2018.Version:
-		if osInfo.Architecture != os.AMD64Arch {
-			return "", fmt.Errorf("arch %s is not supported for Amazon Linux 2018", osInfo.Architecture)
-		}
-		return ec2.SearchAMI(e, "669783387624", "amzn-ami-2018.03.*-amazon-ecs-optimized", string(osInfo.Architecture))
 	default:
 		return "", fmt.Errorf("unsupported Amazon Linux version %s", osInfo.Version)
 	}
@@ -248,26 +246,6 @@ func resolveCentOSAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) 
 	}
 
 	return ec2.SearchAMI(e, "679593333241", fmt.Sprintf("CentOS-%s-*-*.x86_64*", osInfo.Version), string(osInfo.Architecture))
-}
-
-func resolveRockyLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
-	warnOSNotUsingLatestAMI(e, osInfo)
-
-	if osInfo.Version != "" {
-		return "", fmt.Errorf("cannot set version for Rocky Linux")
-	}
-
-	var amiID string
-	switch osInfo.Architecture {
-	case os.AMD64Arch:
-		amiID = "ami-071db23a8a6271e2c"
-	case os.ARM64Arch:
-		amiID = "ami-0a22577ee769ab5b0"
-	default:
-		return "", fmt.Errorf("architecture %s is not supported for Rocky Linux", osInfo.Architecture)
-	}
-
-	return amiID, nil
 }
 
 func resolveAlmaLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {

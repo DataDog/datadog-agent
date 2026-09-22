@@ -153,13 +153,42 @@ fn agent_service_env_var(name: &str) -> Option<String> {
     crate::platform::agent_service_env_var(name)
 }
 
-#[cfg(test)]
-pub(super) fn all_bound_env_var_names() -> impl Iterator<Item = &'static str> {
+/// Gate inputs [`ENV_BINDINGS`] does not cover: the generated name for
+/// `discovery.enabled`, the fleet policy directory, the ECS Fargate probe behind the
+/// `discovery.enabled` platform default, and `DD_CONF_DIR`, which shipped templates
+/// expand inside the gated path itself.
+#[cfg(any(test, feature = "test-helpers"))]
+const UNBOUND_GATE_ENV_VARS: &[&str] = &[
+    "DD_DISCOVERY_ENABLED",
+    "DD_FLEET_POLICIES_DIR",
+    "DD_CONF_DIR",
+    "ECS_FARGATE",
+    "AWS_EXECUTION_ENV",
+];
+
+/// Every environment variable that can influence gate resolution, for harnesses that
+/// need a hermetic daemon.
+///
+/// Derived from [`ENV_BINDINGS`] rather than hardcoded, so adding a binding covers it
+/// here too. A harness that misses one gets a gate flipped by the runner's environment,
+/// which surfaces as a test failing on one machine only.
+///
+/// The system-probe module knobs behind the derived `system_probe_config.enabled` are
+/// not included: they resolve through generated names off a key list that lives in
+/// `super::system_probe`, and only a gate on that one key reaches them.
+#[cfg(any(test, feature = "test-helpers"))]
+pub fn gate_env_var_names() -> Vec<String> {
     ENV_BINDINGS
         .iter()
-        .flat_map(|binding| binding.env_vars.iter().copied())
-        // Keys without a dedicated binding, so tests can clear the generated name too.
-        .chain(["DD_DISCOVERY_ENABLED"])
+        .flat_map(|binding| {
+            binding
+                .env_vars
+                .iter()
+                .map(|name| (*name).to_owned())
+                .chain(std::iter::once(auto_env_var_for_key(binding.key)))
+        })
+        .chain(UNBOUND_GATE_ENV_VARS.iter().map(|name| (*name).to_owned()))
+        .collect()
 }
 
 #[cfg(any(test, feature = "test-helpers"))]
@@ -183,4 +212,43 @@ fn test_agent_service_env() -> Option<std::collections::HashMap<String, String>>
         .lock()
         .unwrap_or_else(|err| err.into_inner())
         .clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The property the e2e env scrub depends on: a binding added to the table is
+    /// scrubbed without anyone remembering to update the harness.
+    #[test]
+    fn gate_env_var_names_covers_every_binding() {
+        let names = gate_env_var_names();
+
+        for binding in ENV_BINDINGS {
+            for var in binding.env_vars {
+                assert!(
+                    names.iter().any(|name| name == var),
+                    "{var} missing from gate_env_var_names"
+                );
+            }
+            let generated = auto_env_var_for_key(binding.key);
+            assert!(
+                names.contains(&generated),
+                "{generated} missing from gate_env_var_names"
+            );
+        }
+
+        for var in [
+            "DD_DISCOVERY_ENABLED",
+            "DD_FLEET_POLICIES_DIR",
+            "DD_CONF_DIR",
+            "ECS_FARGATE",
+            "AWS_EXECUTION_ENV",
+        ] {
+            assert!(
+                names.iter().any(|name| name == var),
+                "{var} missing from gate_env_var_names"
+            );
+        }
+    }
 }

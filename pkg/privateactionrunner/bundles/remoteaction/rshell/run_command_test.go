@@ -69,23 +69,6 @@ func systemServiceActions(actions ...string) *structpb.ListValue {
 	return &structpb.ListValue{Values: values}
 }
 
-func makeLegacyTask(command string, allowedCommands []string) *types.Task {
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{
-			"command":         command,
-			"allowedCommands": allowedCommands,
-		},
-	}
-	return task
-}
-
-func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
-	task := makeLegacyTask(command, allowedCommands)
-	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
-	return task
-}
-
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
 		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
@@ -719,56 +702,40 @@ func TestPrivilegedHelperTaskWireCompatibility(t *testing.T) {
 	}
 }
 
-func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
+func TestRunCommandMissingRemoteActionPolicyFailsClosed(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{"command": "echo hello"},
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
 	}
 
 	out, err := handler.Run(context.Background(), task, nil)
 
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	require.EqualError(t, err, "signed remote action policy is required")
+	assert.Nil(t, out)
 }
 
-func TestRunCommandLegacyInputAllowlistsRemainSupported(t *testing.T) {
+func TestRunCommandEmptyRemoteActionPolicyIgnoresLegacyInputAllowlists(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTask("echo hello", []string{"rshell:echo"}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandLegacyInputAllowedPathsRemainSupported(t *testing.T) {
-	dir := filepath.ToSlash(t.TempDir())
-	payload := dir + "/payload.txt"
-	require.NoError(t, os.WriteFile(filepath.FromSlash(payload), []byte("hello\n"), 0o600))
-	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTaskWithPaths("cat "+payload,
-			[]string{"rshell:cat"},
-			map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandSystemInputsOverrideLegacyInputAllowlists(t *testing.T) {
-	handler := newDefaultRunCommandHandler()
-	task := makeLegacyTask("echo hello", []string{"rshell:echo"})
-	task.Data.Attributes.SystemInputs = &privateactionspb.SystemInputs{
-		Input: &privateactionspb.SystemInputs_RemoteAction{
-			RemoteAction: &privateactionspb.RemoteAction{},
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{},
+			},
 		},
 	}
 

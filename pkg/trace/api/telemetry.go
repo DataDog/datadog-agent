@@ -106,12 +106,25 @@ type injectionMetadata struct {
 // whenever the sender (a newer tracer or SSI sidecar) includes fields this
 // package does not model.
 func patchJSONField(raw []byte, field string, value json.RawMessage) ([]byte, error) {
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	obj, err := decodeJSONObject(raw)
+	if err != nil {
 		return nil, err
 	}
 	obj[field] = value
 	return json.Marshal(obj)
+}
+
+// decodeJSONObject decodes a JSON object one level deep, keeping every field
+// value as raw JSON so it can be replaced field by field and re-encoded
+// without disturbing — or even inspecting — the fields left alone. Callers
+// hold on to the returned map and re-encode it once, rather than decoding the
+// same bytes again for every field they need to patch.
+func decodeJSONObject(raw []byte) (map[string]json.RawMessage, error) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 const originTag = "origin"
@@ -237,6 +250,12 @@ func (f *TelemetryForwarder) start() {
 type forwardedRequest struct {
 	req  *http.Request
 	body []byte
+	// reserved is the number of inflight bytes startRequest accounted for on
+	// this request's behalf. It is tracked separately from len(body) because
+	// scrubbing happens after the reservation and can change the body's
+	// length; releasing len(body) instead would make inflightCount drift
+	// permanently, one request at a time.
+	reserved int64
 }
 
 // Stop waits for up to 1s to end all telemetry forwarded requests.
@@ -269,8 +288,14 @@ func (f *TelemetryForwarder) startRequest(size int64) (accepted bool) {
 }
 
 func (f *TelemetryForwarder) endRequest(req forwardedRequest) {
-	f.inflightCount.Add(-int64(len(req.body)))
+	f.releaseInflight(req.reserved)
 	req.body = nil
+}
+
+// releaseInflight gives back bytes reserved by startRequest for a request
+// that will not (or no longer) be forwarded.
+func (f *TelemetryForwarder) releaseInflight(size int64) {
+	f.inflightCount.Add(-size)
 }
 
 // telemetryForwarderHandler returns a new HTTP handler which will proxy requests to the configured intakes.
@@ -295,26 +320,32 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			return
 		}
 
-		body = forwarder.stripCommandLineSecrets(r, body)
-
-		if accepted := forwarder.startRequest(int64(len(body))); !accepted {
+		// Account for the body before scrubbing it, so a burst of payloads
+		// waiting to be scrubbed cannot push us past the memory limit.
+		reserved := int64(len(body))
+		if accepted := forwarder.startRequest(reserved); !accepted {
 			writeEmptyJSON(w, http.StatusTooManyRequests)
 			return
 		}
 
+		body = forwarder.stripCommandLineSecrets(r, body)
+
 		newReq, err := http.NewRequestWithContext(forwarder.cancelCtx, r.Method, r.URL.String(), bytes.NewBuffer(body))
 		if err != nil {
+			forwarder.releaseInflight(reserved)
 			writeEmptyJSON(w, http.StatusInternalServerError)
 			return
 		}
 		newReq.Header = r.Header.Clone()
 		select {
 		case forwarder.forwardedReqChan <- forwardedRequest{
-			req:  newReq,
-			body: body,
+			req:      newReq,
+			body:     body,
+			reserved: reserved,
 		}:
 			writeEmptyJSON(w, http.StatusOK)
 		default:
+			forwarder.releaseInflight(reserved)
 			writeEmptyJSON(w, http.StatusTooManyRequests)
 		}
 	})
@@ -351,21 +382,17 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 		return body
 	}
 
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(msg.Payload, &fields); err != nil {
+	// Decode the payload once and patch fields in this map, so a payload
+	// needing several redactions is still only decoded and re-encoded once.
+	payload, err := decodeJSONObject(msg.Payload)
+	if err != nil {
 		f.logger.Error("telemetry proxy: failed to decode injection-metadata payload: %v", err)
-		out, patchErr := patchJSONField(body, "payload", unparsableInjectionMetadataPayload)
-		if patchErr != nil {
-			f.logger.Error("telemetry proxy: failed to re-encode injection-metadata envelope: %v", patchErr)
-			return redactedInjectionMetadataBody
-		}
-		return out
+		return f.patchPayload(body, unparsableInjectionMetadataPayload)
 	}
 
-	rawPayload := msg.Payload
 	changed := false
 
-	if raw, ok := fields["command_line"]; ok {
+	if raw, ok := payload["command_line"]; ok {
 		var cmdLine string
 		value := json.RawMessage(nil)
 		if err := json.Unmarshal(raw, &cmdLine); err != nil {
@@ -377,19 +404,19 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 			}
 		}
 		if value != nil {
-			rawPayload, _ = patchJSONField(rawPayload, "command_line", value)
+			payload["command_line"] = value
 			changed = true
 		}
 	}
 
-	if raw, ok := fields["metadata"]; ok && len(raw) > 0 {
+	if raw, ok := payload["metadata"]; ok && len(raw) > 0 {
 		value, metadataChanged, err := scrubJSONValue(raw, f.cmdLineScrubber)
 		if err != nil {
 			f.logger.Error("telemetry proxy: failed to scrub injection-metadata metadata field: %v", err)
 			value, metadataChanged = unparsableInjectionMetadataPayload, true
 		}
 		if metadataChanged {
-			rawPayload, _ = patchJSONField(rawPayload, "metadata", value)
+			payload["metadata"] = value
 			changed = true
 		}
 	}
@@ -398,7 +425,20 @@ func (f *TelemetryForwarder) stripCommandLineSecrets(req *http.Request, body []b
 		return body
 	}
 
-	out, err := patchJSONField(body, "payload", rawPayload)
+	rawPayload, err := json.Marshal(payload)
+	if err != nil {
+		// Unreachable: every value in the map is either raw JSON that just
+		// decoded or a value this function marshalled itself. Fail closed.
+		f.logger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
+		return redactedInjectionMetadataBody
+	}
+	return f.patchPayload(body, rawPayload)
+}
+
+// patchPayload returns body with its payload field replaced by payload,
+// falling back to a fully redacted body if the envelope cannot be re-encoded.
+func (f *TelemetryForwarder) patchPayload(body []byte, payload json.RawMessage) []byte {
+	out, err := patchJSONField(body, "payload", payload)
 	if err != nil {
 		f.logger.Error("telemetry proxy: failed to re-encode injection-metadata envelope: %v", err)
 		return redactedInjectionMetadataBody
