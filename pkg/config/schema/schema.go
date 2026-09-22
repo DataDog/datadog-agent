@@ -91,7 +91,7 @@ func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 		}
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
 			violation.ActualType = typeError.Got
-			violation.ExpectedTypes = append([]string(nil), typeError.Want...)
+			violation.ExpectedTypes = typeError.Want
 		}
 		*out = append(*out, violation)
 		return
