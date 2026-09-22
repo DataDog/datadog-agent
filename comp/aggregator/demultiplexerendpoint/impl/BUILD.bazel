@@ -3,11 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = [
-        "endpoint.go",
-        "replace_file_unix.go",
-        "replace_file_windows.go",
-    ],
+    srcs = ["endpoint.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -19,12 +15,7 @@ go_library(
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
         "@org_golang_x_sync//singleflight",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "@org_golang_x_sys//windows",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 dd_agent_go_test(
@@ -32,16 +23,10 @@ dd_agent_go_test(
     srcs = [
         "dump_endpoint_test.go",
         "endpoint_test.go",
-        "replace_file_windows_test.go",
     ],
     embed = [":impl"],
     deps = [
         "@com_github_datadog_zstd//:zstd",
         "@com_github_stretchr_testify//require",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "//pkg/util/filesystem",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
