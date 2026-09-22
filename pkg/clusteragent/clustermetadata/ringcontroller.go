@@ -160,6 +160,11 @@ func (c *RingController) Run(ctx context.Context) {
 	}
 }
 
+// SelfID returns this replica's member identity.
+func (c *RingController) SelfID() string {
+	return c.selfID
+}
+
 // State returns a copy of the current ring view.
 func (c *RingController) State() RingState {
 	c.mu.RLock()

@@ -39,6 +39,16 @@ func AliveMembers(members []MemberInfo, now time.Time) []MemberInfo {
 	return alive
 }
 
+// contains reports whether node is in nodes.
+func contains(nodes []string, node string) bool {
+	for _, n := range nodes {
+		if n == node {
+			return true
+		}
+	}
+	return false
+}
+
 // MemberNames returns the IDs of the given members.
 func MemberNames(members []MemberInfo) []string {
 	names := make([]string, 0, len(members))
