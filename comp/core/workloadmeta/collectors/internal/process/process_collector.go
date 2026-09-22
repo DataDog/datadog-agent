@@ -262,16 +262,17 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.store = store
 
 	useCachedServiceCollection := c.isProcessDataCollectionEnabled()
+	serviceDiscoveryEnabled := c.isServiceDiscoveryEnabled()
 	var processesReady chan struct{}
-	if c.isServiceDiscoveryEnabled() && useCachedServiceCollection {
+	if serviceDiscoveryEnabled && useCachedServiceCollection {
 		processesReady = make(chan struct{})
 	}
 
-	if c.isProcessDataCollectionEnabled() {
+	if useCachedServiceCollection {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()), processesReady)
 	}
 
-	if c.isServiceDiscoveryEnabled() {
+	if serviceDiscoveryEnabled {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
 
 		if useCachedServiceCollection {
