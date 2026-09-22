@@ -9,7 +9,7 @@
     "gopls": {
       "initialization_options": {
         "buildFlags": [
-          "-tags=anomalydetectiontestbench,cel,clusterchecks,containerd,cri,crio,docker,ec2,fargateprocess,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,netcgo,nvml,oracle,otlp,podman,python,retrynotrace,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zlib",
+          "-tags=anomalydetectiontestbench,cel,clusterchecks,containerd,cri,crio,docker,ec2,fargateprocess,gnmi,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,netcgo,nvml,oracle,otlp,podman,python,retrynotrace,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zlib",
           "-buildvcs=false"
         ],
         "codelenses": {

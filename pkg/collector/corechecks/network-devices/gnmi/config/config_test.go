@@ -39,6 +39,7 @@ profile: cisco
 				Profile:               "cisco",
 				MinCollectionInterval: DefaultMinCollectionInterval,
 				CollectTopology:       false,
+				UseTLS:                true,
 			},
 		},
 		{
@@ -53,6 +54,7 @@ min_collection_interval: 30
 tags:
   - env:prod
 collect_topology: true
+use_tls: false
 `,
 			want: InstanceConfig{
 				Address:               "203.0.113.11",
@@ -122,6 +124,18 @@ profile: cisco
 min_collection_interval: 0
 `,
 			errContains: "invalid `min_collection_interval`",
+		},
+		{
+			name: "insecure skip verify without TLS",
+			raw: `
+address: 203.0.113.10
+username: admin
+password: secret
+profile: cisco
+use_tls: false
+insecure_skip_verify: true
+`,
+			errContains: "`insecure_skip_verify` requires `use_tls: true`",
 		},
 	}
 

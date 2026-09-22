@@ -38,6 +38,7 @@ ALL_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
+    "gnmi",
     "goexperiment.systemcrypto",  # used for FIPS mode
     "jmx",
     "kubeapiserver",
@@ -103,6 +104,7 @@ AGENT_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
+    "gnmi",
     "jmx",
     "kubeapiserver",
     "kubelet",
