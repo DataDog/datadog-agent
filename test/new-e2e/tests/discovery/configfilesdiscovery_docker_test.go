@@ -74,6 +74,7 @@ const (
 	nginxContainerName   = "nginx-env-configfilesdiscovery"
 	nginxIntegrationName = "nginx"
 	nginxConfigDir       = "/tmp/configfilesdiscovery-nginx"
+	nginxStatusConfName  = "nginx-status.conf"
 )
 
 const (
@@ -118,6 +119,19 @@ var pgbouncerCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
 var sparkCompose string
+
+const nginxStatusConf = `server {
+  listen 80;
+
+  # Expose stub_status so the nginx auto-conf's configuration-discovery probe
+  # can validate a candidate check instance before the check is scheduled.
+  # Without a responding status endpoint the discovery probe always fails and
+  # the nginx check is never scheduled.
+  location = /nginx_status {
+    stub_status;
+  }
+}
+`
 
 const redisExplicitConfig = `port 6379
 appendonly no
@@ -298,7 +312,11 @@ func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host
 }
 
 func createConfigFilesDiscoveryNginxConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
-	return createConfigFilesDiscoveryFixtureFiles(host, nginxConfigDir, nil)
+	return createConfigFilesDiscoveryFixtureFiles(
+		host,
+		nginxConfigDir,
+		[]configFilesDiscoveryFixtureFile{{name: nginxStatusConfName, content: nginxStatusConf}},
+	)
 }
 
 func createConfigFilesDiscoveryPostgresConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
@@ -472,9 +490,12 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfi
 
 func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf() {
 	t := s.T()
+	// Unlike the other fixtures, the nginx container runs a real nginx serving
+	// stub_status: the nginx auto-conf is discovery-gated, so the check is only
+	// scheduled after the configuration-discovery probe reaches
+	// /nginx_status and collects a metric.
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: nginxIntegrationName,
-		configDir:       nginxConfigDir,
 		containerNames:  []string{nginxContainerName},
 	})
 
