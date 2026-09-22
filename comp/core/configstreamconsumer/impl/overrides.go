@@ -30,11 +30,11 @@ type override struct {
 
 // Per each agent binary, define which configstream-sender keys map to which configstream-receiver key.
 var overridesByClient = map[string][]override{
-	"security-agent": {{namespacedKey: "security_agent.log_level", baseKey: "log_level"}},
-	"process-agent":  {{namespacedKey: "process_config.log_level", baseKey: "log_level"}},
-	"trace-agent":    {{namespacedKey: "apm_config.log_level", baseKey: "log_level"}},
+	"security-agent": {{namespacedKey: "security_agent.log_level", baseKey: "log_level", target: streamedTarget}},
+	"process-agent":  {{namespacedKey: "process_config.log_level", baseKey: "log_level", target: streamedTarget}},
+	"trace-agent":    {{namespacedKey: "apm_config.log_level", baseKey: "log_level", target: streamedTarget}},
 	// system_probe, not system_probe_config: the latter is the system-probe schema's own section, and the two objects hold different values for it.
-	"system-probe":   {{namespacedKey: "system_probe.log_level", baseKey: "log_level", target: systemProbeTarget}},
+	"system-probe": {{namespacedKey: "system_probe.log_level", baseKey: "log_level", target: systemProbeTarget}},
 }
 
 // applyOverrides folds this client's namespaced settings onto their base keys, retractably.
