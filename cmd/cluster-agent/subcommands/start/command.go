@@ -144,6 +144,7 @@ import (
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
@@ -190,6 +191,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Provide(metadataRingScope),
 				fx.Supply(autoscalinggate.New()),
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
@@ -301,6 +303,7 @@ func start(log log.Component,
 	dcametadataComp dcametadata.Component,
 	hostnameGetter hostnameinterface.Component,
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
+	metadataPeerServer *clustermetadata.PeerServer,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
@@ -383,7 +386,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, metadataPeerServer); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
