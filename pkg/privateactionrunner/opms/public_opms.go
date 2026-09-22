@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -62,15 +61,14 @@ type PublicClient interface {
 }
 
 type publicClient struct {
-	ddApiHost    string
+	ddBaseURL    string
 	httpClient   *http.Client
 	extraHeaders map[string]string
 }
 
 func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
-	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
-		ddApiHost: apiHost,
+		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: httputils.CreateHTTPTransport(cfg),
@@ -123,11 +121,7 @@ func (p *publicClient) enroll(
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
-	createRunnerUrl := url.URL{
-		Host:   p.ddApiHost,
-		Scheme: "https",
-		Path:   path,
-	}
+	createRunnerURL := p.ddBaseURL + path
 
 	request := par.CreateRunnerRequest{
 		RunnerName:    runnerName,
@@ -143,7 +137,7 @@ func (p *publicClient) enroll(
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerUrl.String(), requestBodyJSON, apiKey, appKey)
+	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerURL, requestBodyJSON, apiKey, appKey)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Restore continuous ``kubernetes_state.endpoint.address_available`` and
+    ``kubernetes_state.endpoint.address_not_ready`` reporting (including
+    ``0`` for the opposite ready state). After the kube-state-metrics v2.18
+    bump, each metric was only emitted for addresses in that state, so
+    healthy endpoints no longer reported ``address_not_ready=0`` and fully
+    unready endpoints no longer reported ``address_available=0``.

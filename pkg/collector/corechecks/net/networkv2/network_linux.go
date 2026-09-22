@@ -22,7 +22,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -94,6 +94,8 @@ type networkInstanceConfig struct {
 	CollectEthtoolStats       bool
 	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
 	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
+	CollectRoceMetrics        bool     // from agent-level gpu.enabled, not instance config
+	UseConntrackProcfile      bool     `yaml:"use_conntrack_procfile"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
@@ -190,7 +192,7 @@ func (c *NetworkCheck) Run() error {
 		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics, c.config.instance.CollectRoceMetrics)
 				if err != nil {
 					return err
 				}
@@ -206,7 +208,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	setProcPath := c.net.GetProcPath()
-	collectConntrackMetrics(sender, c.config.instance.ConntrackPath, c.config.instance.UseSudoConntrack, setProcPath, c.config.instance.BlacklistConntrackMetrics, c.config.instance.WhitelistConntrackMetrics)
+	collectConntrackMetrics(sender, c.config.instance.UseConntrackProcfile, c.config.instance.ConntrackPath, c.config.instance.UseSudoConntrack, setProcPath, c.config.instance.BlacklistConntrackMetrics, c.config.instance.WhitelistConntrackMetrics)
 
 	sender.Commit()
 	return nil
@@ -285,7 +287,7 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool, collectRoceMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
@@ -345,8 +347,8 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
 	}
 
-	if collectEthtoolMetrics {
-		processedMap := getEthtoolMetrics(driverName, statsMap)
+	if collectEthtoolMetrics || collectRoceMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap, collectEthtoolMetrics, collectRoceMetrics)
 		for extraTag, keyValuePairing := range processedMap {
 			tags := []string{
 				"device:" + interfaceIO.Name,
@@ -377,7 +379,10 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 	return metrics
 }
 
-func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
+// getEthtoolMetrics resolves ethtool stat names against the per-driver allowlists. The two
+// gates are independent so that either can be enabled without pulling in the other's
+// counters.
+func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectBaseMetrics bool, collectRoceMetrics bool) map[string]map[string]uint64 {
 	result := map[string]map[string]uint64{}
 	if _, ok := ethtoolMetricNames[driverName]; !ok {
 		return result
@@ -482,10 +487,34 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				}
 			}
 		}
+		if continueCase && collectRoceMetrics {
+			// Extract the 802.1p priority and the metric name from ethtool stat name:
+			//   rx_prio3_packets -> (prio:3, rx_packets)
+			//   tx_prio0_pause_duration -> (prio:0, tx_pause_duration)
+			// The literal "global" infix the kernel uses for link-level pause does not
+			// contain "_prio", so those stats correctly fall through to the global case.
+			if i := strings.Index(statName, "_prio"); i >= 0 {
+				rest := statName[i+len("_prio"):]
+				// the priority digits run up to the next separator
+				if j := strings.IndexByte(rest, '_'); j > 0 {
+					num, err := strconv.Atoi(rest[:j])
+					// PFC defines exactly 8 priorities. An out-of-range index means a
+					// malformed stat name; without this guard rx_prio42_packets would
+					// strip to the allowlisted rx_packets and emit tag prio:42.
+					if err == nil && num >= 0 && num <= 7 {
+						queueTag = fmt.Sprintf("prio:%d", num)
+						newKey = statName[:i] + rest[j:]
+						metricPrefix = ".prio."
+						continueCase = false
+					}
+				}
+			}
+		}
 		if continueCase {
 			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
-				if slices.Contains(ethtoolGlobalMetrics, statName) {
+				if (collectBaseMetrics && slices.Contains(ethtoolGlobalMetrics, statName)) ||
+					(collectRoceMetrics && slices.Contains(ethtoolRoceGlobalMetricNames[driverName], statName)) {
 					queueTag = "global"
 					newKey = statName
 					metricPrefix = "."
@@ -497,7 +526,8 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				// we already guard against parsing unsupported NICs
 				queueMetrics := ethtoolMetricNames[driverName]
 				// skip queues metrics we don't support for the NIC
-				if !slices.Contains(queueMetrics, newKey) {
+				if !(collectBaseMetrics && slices.Contains(queueMetrics, newKey)) &&
+					!(collectRoceMetrics && slices.Contains(ethtoolRoceMetricNames[driverName], newKey)) {
 					continue
 				}
 			}
@@ -841,54 +871,6 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 	return value, nil
 }
 
-func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
-	if conntrackPath == "" {
-		return
-	}
-
-	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
-	cmd := []string{conntrackPath, "-S"}
-	if useSudoConntrack {
-		cmd = append([]string{"sudo"}, cmd...)
-	}
-
-	output, err := runCommandFunction(cmd, []string{})
-	if err != nil {
-		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
-		return
-	}
-
-	// conntrack -S sample:
-	// cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 insert_failed=1 \
-	//       drop=1 early_drop=0 error=0 search_restart=39936711
-	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
-	//       drop=1 early_drop=0 error=0 search_restart=36983181
-	lines := strings.SplitSeq(output, "\n")
-	for line := range lines {
-		if line == "" {
-			continue
-		}
-		cols := strings.Fields(line)
-		cpuNum := strings.Split(cols[0], "=")[1]
-		cpuTag := []string{"cpu:" + cpuNum}
-		cols = cols[1:]
-
-		for _, cell := range cols {
-			parts := strings.Split(cell, "=")
-			if len(parts) != 2 {
-				continue
-			}
-			metric, valueStr := parts[0], parts[1]
-			valueFloat, err := strconv.ParseFloat(valueStr, 64)
-			if err != nil {
-				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
-				continue
-			}
-			sender.MonotonicCount("system.net.conntrack."+metric, valueFloat, "", cpuTag)
-		}
-	}
-}
-
 func runCommand(cmd []string, env []string) (string, error) {
 	execCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out bytes.Buffer
@@ -903,8 +885,196 @@ func runCommand(cmd []string, env []string) (string, error) {
 	return out.String(), nil
 }
 
-func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+type conntrackStat struct {
+	cpuID         string
+	Found         float64
+	Invalid       float64
+	Ignore        float64
+	Insert        float64
+	InsertFailed  float64
+	Drop          float64
+	EarlyDrop     float64
+	Error         float64
+	SearchRestart float64
+	ClashResolve  float64
+	ChainTooLong  float64
+}
+
+func addConntrackStatsMetrics(conntrackPath string, useSudoConntrack bool) []*conntrackStat {
+	if conntrackPath == "" {
+		return nil
+	}
+
+	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
+	cmd := []string{conntrackPath, "-S"}
+	if useSudoConntrack {
+		cmd = append([]string{"sudo"}, cmd...)
+	}
+
+	output, err := runCommandFunction(cmd, []string{})
+	if err != nil {
+		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
+		return nil
+	}
+
+	// conntrack -S sample:
+	// cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 insert_failed=1 \
+	//       drop=1 early_drop=0 error=0 search_restart=39936711
+	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
+	//       drop=1 early_drop=0 error=0 search_restart=36983181
+	lines := strings.Split(output, "\n")
+	stats := make([]*conntrackStat, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		cols := strings.Fields(line)
+		cpuNum := strings.Split(cols[0], "=")[1]
+		cols = cols[1:]
+
+		stat := &conntrackStat{cpuID: cpuNum}
+
+		for _, cell := range cols {
+			parts := strings.Split(cell, "=")
+			if len(parts) != 2 {
+				continue
+			}
+			metric, valueStr := parts[0], parts[1]
+			valueFloat, err := strconv.ParseFloat(valueStr, 64)
+			if err != nil {
+				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
+				continue
+			}
+
+			switch metric {
+			case "found":
+				stat.Found = valueFloat
+			case "invalid":
+				stat.Invalid = valueFloat
+			case "ignore":
+				stat.Ignore = valueFloat
+			case "insert":
+				stat.Insert = valueFloat
+			case "insert_failed":
+				stat.InsertFailed = valueFloat
+			case "drop":
+				stat.Drop = valueFloat
+			case "early_drop":
+				stat.EarlyDrop = valueFloat
+			case "error":
+				stat.Error = valueFloat
+			case "search_restart":
+				stat.SearchRestart = valueFloat
+			case "clash_resolve":
+				stat.ClashResolve = valueFloat
+			case "chaintoolong":
+				stat.ChainTooLong = valueFloat
+			default:
+				continue
+			}
+		}
+		stats = append(stats, stat)
+	}
+	return stats
+}
+
+func addConntrackStatsFromProcFile(procfsPath string) ([]*conntrackStat, error) {
+	statFilePath := filepath.Join(procfsPath, "net", "stat", "nf_conntrack")
+
+	f, err := filesystem.Open(statFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	lineNum := 0
+	headers := []string{}
+	stats := []*conntrackStat{}
+
+	// entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+	// 00000002  000000cd 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if lineNum == 0 {
+			headers = strings.Fields(line)
+		} else {
+			// each line is a cpu stat, top line is headers
+			stat := &conntrackStat{cpuID: strconv.Itoa(lineNum - 1)}
+			for i, hexVal := range strings.Fields(line) {
+				val, err := strconv.ParseInt(hexVal, 16, 64)
+				if err != nil {
+					return nil, err
+				}
+
+				switch headers[i] {
+				case "found":
+					stat.Found = float64(val)
+				case "invalid":
+					stat.Invalid = float64(val)
+				case "ignore":
+					stat.Ignore = float64(val)
+				case "insert":
+					stat.Insert = float64(val)
+				case "insert_failed":
+					stat.InsertFailed = float64(val)
+				case "drop":
+					stat.Drop = float64(val)
+				case "early_drop":
+					stat.EarlyDrop = float64(val)
+				// procfile header string is different depending on version
+				case "error", "icmp_error":
+					stat.Error = float64(val)
+				case "search_restart":
+					stat.SearchRestart = float64(val)
+				case "clash_resolve", "clashres":
+					stat.ClashResolve = float64(val)
+				case "chainlength", "chaintoolong":
+					stat.ChainTooLong = float64(val)
+				default:
+					continue
+				}
+
+			}
+			stats = append(stats, stat)
+		}
+
+		lineNum++
+	}
+
+	return stats, nil
+}
+
+func collectConntrackMetrics(sender sender.Sender, useConntrackProcfile bool, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
+	var stats []*conntrackStat
+	var err error
+
+	if useConntrackProcfile {
+		stats, err = addConntrackStatsFromProcFile(procfsPath)
+		if err != nil {
+			log.Debugf("Unable to acquire conntrack stats from procfile: %v", err)
+		}
+	} else if conntrackPath != "" {
+		stats = addConntrackStatsMetrics(conntrackPath, useSudo)
+	}
+
+	for _, stat := range stats {
+		cpuTag := []string{"cpu:" + stat.cpuID}
+		sender.MonotonicCount("system.net.conntrack.found", stat.Found, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.invalid", stat.Invalid, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.ignore", stat.Ignore, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert", stat.Insert, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.insert_failed", stat.InsertFailed, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.drop", stat.Drop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.early_drop", stat.EarlyDrop, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.error", stat.Error, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.search_restart", stat.SearchRestart, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.clash_resolve", stat.ClashResolve, "", cpuTag)
+		sender.MonotonicCount("system.net.conntrack.chaintoolong", stat.ChainTooLong, "", cpuTag)
+
+	}
 
 	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
 	var availableFiles []string
@@ -980,7 +1150,8 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		}
 	}
 
-	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics ||
+		c.config.instance.CollectRoceMetrics {
 		c.config.instance.CollectEthtoolStats = true
 	}
 
@@ -999,7 +1170,9 @@ func newCheck(cfg config.Component) check.Check {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				CollectRoceMetrics:        cfg.GetBool("gpu.enabled"),
 				CombineConnectionStates:   true,
+				UseConntrackProcfile:      false,
 				ConntrackPath:             "",
 				WhitelistConntrackMetrics: []string{"max", "count"},
 				UseSudoConntrack:          true,

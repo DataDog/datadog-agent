@@ -24,7 +24,9 @@ test/fakeintake/
 
 | Route | Aggregator | Client method |
 |-------|-----------|---------------|
+| `/api/v1/series` | MetricAggregator (V1 parser) | `FilterMetrics()` |
 | `/api/v2/series` | MetricAggregator | `FilterMetrics()` |
+| `/api/intake/metrics/v3/series` | MetricAggregator (V3 parser) | `FilterMetrics()` |
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
@@ -36,6 +38,7 @@ test/fakeintake/
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
 | `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
+| `/api/v2/sdsresult` | SDSResultAggregator | `GetSDSResults()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |

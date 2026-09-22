@@ -22,14 +22,14 @@ ARG CI
 #   - legacy one-line sources.list (< 24.04): the format can't list multiple URIs
 #     per entry, so use mirror+file with a peer mirrorlist (fallback on an
 #     unreachable mirror).
-# us-east-1 is kept first (our infra's region) with archive.ubuntu.com / ports.ubuntu.com
-# and mirror.leaseweb.net as ordered fallbacks, and a short Acquire timeout + Retries 1
+# Canonical's global archive.ubuntu.com / ports.ubuntu.com endpoints are used first,
+# with mirror.leaseweb.net as an ordered fallback. A short Acquire timeout + Retries 1
 # turns a slow mirror into a fast error that triggers failover. Related:
 # test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
 RUN if [ "$CI" = "true" ]; then \
   printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
-  printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
-  printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+  printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+  printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
   if [ -f /etc/apt/sources.list ]; then \
     sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
            -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
@@ -37,9 +37,9 @@ RUN if [ "$CI" = "true" ]; then \
   fi && \
   if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
     sed -i -E \
-      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-      -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+      -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
       /etc/apt/sources.list.d/ubuntu.sources; \
   fi; \
   fi

@@ -40,6 +40,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/remoteconfig/state",
+        "//pkg/ssi",
         "//pkg/util/kubernetes",
         "//pkg/util/log",
         "//pkg/util/pointer",

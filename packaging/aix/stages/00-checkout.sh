@@ -43,8 +43,8 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# $AGENT_SRC (resolved by env.sh from the script directory's .git ancestor), transferred from the build machine
-# by the caller. (The local clone contains AIX-specific changes not yet merged
+# $AGENT_SRC (resolved by env.sh as the nearest .git ancestor of the current
+# directory), transferred from the build machine by the caller. (The local clone contains AIX-specific changes not yet merged
 # to main.)
 #
 # Expected transfer method:

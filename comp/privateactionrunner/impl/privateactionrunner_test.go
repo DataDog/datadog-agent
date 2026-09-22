@@ -32,6 +32,52 @@ func TestExecutorIdleTimeout(t *testing.T) {
 	}
 }
 
+func TestSplitDeploymentEnabled(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		containerized bool
+		envValue      string
+		want          bool
+	}{
+		{name: "host config", configEnabled: true, want: true},
+		{name: "container env", containerized: true, envValue: "true", want: true},
+		{name: "container config only", configEnabled: true, containerized: true},
+		{name: "disabled"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentEnabled(tt.configEnabled, tt.containerized, tt.envValue))
+		})
+	}
+}
+
+func TestSplitDeploymentSupported(t *testing.T) {
+	tests := []struct {
+		name                  string
+		goos                  string
+		containerized         bool
+		fipsEnabled           bool
+		processManagerEnabled bool
+		want                  bool
+	}{
+		{name: "linux host", goos: "linux", want: true},
+		{name: "linux container", goos: "linux", containerized: true, want: true},
+		{name: "windows host", goos: "windows", processManagerEnabled: true, want: true},
+		{name: "windows without process manager", goos: "windows"},
+		{name: "windows container", goos: "windows", containerized: true, processManagerEnabled: true},
+		{name: "linux FIPS host", goos: "linux", fipsEnabled: true},
+		{name: "unsupported host platform", goos: "darwin"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.containerized, tt.fipsEnabled, tt.processManagerEnabled))
+		})
+	}
+}
+
 func TestStopCleansUpMetricsClient(t *testing.T) {
 	tests := []struct {
 		name           string

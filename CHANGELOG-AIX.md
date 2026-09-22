@@ -7,8 +7,19 @@
      AIX should add an entry to the current (unreleased) section below. -->
 
 ## Unreleased
-
 <!-- Add entries here for changes not yet in a release. -->
+
+- Fix `hostname_fqdn` on AIX: AIX `hostname` has no `-f` flag, so the agent always failed to detect the FQDN and fell back to the short hostname. The agent now resolves the host's fully qualified domain name itself (canonical name from `/etc/hosts` or DNS, matching `hostname -f` semantics on other platforms).
+- Redirect each SRC subsystem's stderr to `/var/log/datadog/{agent,trace-agent,agent-data-plane}-stderr.log`, so output that bypasses the agents' internal logging (startup errors before the log file is opened, AIX loader errors, panics, Go fatal errors) is kept on disk instead of only going to `/dev/console`.
+- The services now start automatically on reboot. Install adds an `/etc/inittab` entry via `mkitab` (`datadog-agent:2:once:startsrc -g datadog-agent`) that starts the SRC group when init enters multi-user run level; the entry is removed on uninstall (`rmitab`). Previously the services were only started during install/upgrade and had to be started manually after every reboot.
+- The agent, trace-agent, and agent-data-plane SRC subsystems are now registered in a shared `datadog-agent` SRC group, so all services can be started/stopped together with `startsrc -g datadog-agent` / `stopsrc -g datadog-agent` (and listed with `lssrc -g datadog-agent`) instead of one subsystem at a time. Individual subsystems can still be addressed with `-s` as before, but this might change in the future, group should be used.
+
+
+--
+
+## 7.84.0-devel.git.927.0ff5ac6-1 (2026-09-10)
+
+- Update github.com/power-devops/perfstat to fix various memory leaks, in particular in the disk check.
 
 ---
 

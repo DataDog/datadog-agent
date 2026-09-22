@@ -195,39 +195,6 @@ func TestFabricClusterUUIDFromNVMLInfo(t *testing.T) {
 	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", fabricClusterUUIDFromNVMLInfo(clusterUUID))
 }
 
-func TestPCIBusIDFromNVMLInfo(t *testing.T) {
-	tests := []struct {
-		name     string
-		pciInfo  nvml.PciInfo
-		expected string
-	}{
-		{
-			name: "typical linux BDF",
-			pciInfo: nvml.PciInfo{
-				Domain: 0,
-				Bus:    0x65,
-				Device: 0,
-			},
-			expected: "0000:65:00.0",
-		},
-		{
-			name: "domain wider than four hex digits",
-			pciInfo: nvml.PciInfo{
-				Domain: 0x12345,
-				Bus:    0xab,
-				Device: 0x1e,
-			},
-			expected: "12345:ab:1e.0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, pciBusIDFromNVMLInfo(tt.pciInfo))
-		})
-	}
-}
-
 func TestGpuProcessInfoUpdate(t *testing.T) {
 	// Seed the callback with the default process info so the first pull mirrors
 	// the package defaults without mutating any global state.

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"golang.org/x/sys/unix"
@@ -28,12 +29,17 @@ const (
 
 // KmsgRecord is a single record read from /dev/kmsg.
 type KmsgRecord struct {
-	Facility  uint8
-	Priority  uint8
-	Sequence  uint64
+	Facility uint8
+	Priority uint8
+	Sequence uint64
+	// Timestamp is the raw local_clock()/sched_clock() value exported by /dev/kmsg, in microseconds.
+	// It cannot be reliably converted to CLOCK_REALTIME because it is not NTP-adjusted and has no
+	// stable userspace mapping. See https://lists.openwall.net/linux-kernel/2026/05/26/1999.
 	Timestamp uint64
-	Flags     string
-	Message   string
+	// ObservedAt is the wall-clock time at which this record was read from /dev/kmsg.
+	ObservedAt time.Time
+	Flags      string
+	Message    string
 }
 
 // KmsgFilter determines whether a parsed kmsg record is delivered to the reader's output channel.
@@ -219,6 +225,7 @@ func (r *KmsgReader) run() {
 
 	for {
 		n, err := r.source.Read(buffer)
+		observedAt := time.Now()
 		if err != nil {
 			if r.stopping() {
 				return
@@ -244,6 +251,7 @@ func (r *KmsgReader) run() {
 			r.telemetry.errors.Inc()
 			continue
 		}
+		record.ObservedAt = observedAt
 
 		r.subscribersMutex.RLock()
 		for _, subscriber := range r.subscribers {

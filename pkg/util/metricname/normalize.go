@@ -164,3 +164,54 @@ func NormalizeAppend(dst []byte, name string) ([]byte, bool) {
 
 	return dst, true
 }
+
+// NormalizePrefixAppend appends the metric name prefix as the intake would store
+// the start of the names it matches to dst, and returns the extended slice.
+//
+// A prefix is not a complete metric name: it is the beginning of the names it
+// matches, so it keeps the boundary bytes that a name only keeps when an
+// alphanumeric follows them. NormalizeAppend strips a trailing underscore,
+// because no stored name ends with one, but doing that to a prefix widens it:
+// `service_` would become `service` and start matching `service.requests` too,
+// instead of only the `service_...` family the entry names. So the last byte is
+// normalized as if an alphanumeric followed it, which is exactly the case in
+// every name the prefix has to match.
+//
+// The byte following a prefix is what decides its boundary, and a prefix does not
+// get to know it: the raw prefix `service_` is the `service_...` family in
+// `service_requests`, but the `service.` family in `service_.requests` (which the
+// intake stores as `service.requests`). The ambiguity is resolved towards the
+// family the entry spells out, i.e. the one an alphanumeric continues; covering
+// both would mean widening the prefix to `service`, which drops every
+// `service`-something metric.
+//
+// The bool is false when no stored name can start with the prefix, which is when
+// NormalizeAppend rejects it: a stored name never starts with a byte the intake
+// strips, so `123.` matches nothing rather than everything. The empty prefix is
+// the exception: it matches every name, and normalizes to itself.
+//
+// As with NormalizeAppend the output is never longer than the input, so a dst
+// with MaxLength spare capacity is enough for append never to reallocate: the
+// boundary underscore is only ever appended in place of an input byte that
+// contributed nothing to the output.
+func NormalizePrefixAppend(dst []byte, prefix string) ([]byte, bool) {
+	// Nothing to normalize: the empty prefix matches every name.
+	if prefix == "" {
+		return dst, true
+	}
+
+	dst, ok := NormalizeAppend(dst, prefix)
+	if !ok {
+		return dst, false
+	}
+
+	// Restore the boundary NormalizeAppend dropped, if any. A byte that is
+	// neither alphanumeric nor a period is emitted as an underscore when an
+	// alphanumeric follows it, unless a period precedes it: a period is kept as
+	// is, and absorbs the underscore that would come before it.
+	if last := prefix[len(prefix)-1]; !isAlphaNum(last) && last != '.' && dst[len(dst)-1] != '.' {
+		dst = append(dst, '_')
+	}
+
+	return dst, true
+}

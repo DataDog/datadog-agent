@@ -352,6 +352,9 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			s.basicSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
 			continue
 		}
+		if origin == payload.PathOriginNetworkTraffic {
+			pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
+		}
 
 		if err := s.scheduleOne(&pathtest); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -488,6 +491,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
+	if path.DynamicTestProfile == payload.DynamicTestProfileBasic {
+		path.DynamicTestClass = payload.DynamicTestClassCore
+	}
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
