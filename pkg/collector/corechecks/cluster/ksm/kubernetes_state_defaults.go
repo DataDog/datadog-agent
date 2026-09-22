@@ -170,10 +170,6 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
 		},
-		"kube_horizontalpodautoscaler_info": {
-			LabelsToMatch: getLabelToMatchForKind("horizontalpodautoscaler"),
-			LabelsToGet:   []string{"ownerref_kind", "ownerref_name"},
-		},
 		"kube_horizontalpodautoscaler_ownerref": {
 			LabelsToMatch: getLabelToMatchForKind("horizontalpodautoscaler"),
 			LabelsToGet:   []string{"ownerref_kind", "ownerref_name"},

@@ -92,15 +92,33 @@ func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 					labelKeys = append([]string{"scaletargetref_api_version"}, labelKeys...)
 					labelValues = append([]string{a.Spec.ScaleTargetRef.APIVersion}, labelValues...)
 				}
-				if ownerKind, ownerName, ok := objectOwnerRef(a); ok {
-					labelKeys = append(labelKeys, "ownerref_kind", "ownerref_name")
-					labelValues = append(labelValues, ownerKind, ownerName)
-				}
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
 							LabelKeys:   labelKeys,
 							LabelValues: labelValues,
+							Value:       1,
+						},
+					},
+				}
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_horizontalpodautoscaler_ownerref",
+			"Owner reference information about this autoscaler.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
+				ownerKind, ownerName, ok := objectOwnerRef(a)
+				if !ok {
+					return &metric.Family{}
+				}
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   []string{"ownerref_kind", "ownerref_name"},
+							LabelValues: []string{ownerKind, ownerName},
 							Value:       1,
 						},
 					},
