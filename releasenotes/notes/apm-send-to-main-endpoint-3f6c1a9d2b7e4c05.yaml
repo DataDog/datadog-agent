@@ -9,9 +9,11 @@
 enhancements:
   - |
     APM: Add ``apm_config.traces_send_to_main_endpoint`` (``DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT``,
-    default ``true``). When set to ``false``, the trace-agent trace and stats writers
-    stop sending to the main endpoint (``api_key`` + ``apm_config.apm_dd_url``) and
-    forward traces and APM stats only to ``apm_config.additional_endpoints``. The
-    main endpoint's API key is still used by the other trace-agent proxies, and the
-    configuration is rejected when no additional endpoint would remain. This is the
-    traces/stats counterpart of ``apm_config.profiling_send_to_main_endpoint``.
+    default ``true``). This setting is unstable: customers should not set it, and it
+    is expected to be removed in a future Agent version. When set to ``false``, the
+    trace-agent trace and stats writers stop sending to the main endpoint
+    (``api_key`` + ``apm_config.apm_dd_url``) and forward traces and APM stats only to
+    ``apm_config.additional_endpoints``. The main endpoint's API key is still used by
+    the other trace-agent proxies, and the configuration is rejected when no additional
+    endpoint would remain. This is the traces/stats counterpart of
+    ``apm_config.profiling_send_to_main_endpoint``.
