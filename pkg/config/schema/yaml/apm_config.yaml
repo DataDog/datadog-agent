@@ -1401,6 +1401,26 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  traces_send_to_main_endpoint:
+    node_type: setting
+    type: boolean
+    default: true
+    env_vars:
+    - DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT
+    visibility: public
+    description: |-
+      For internal use. We expect to remove this setting in a future version.
+
+      When false, the trace-agent trace and stats writers skip the main endpoint
+      (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.
+      The main endpoint's API key is still used by the other trace-agent proxies.
+      The configuration is rejected if no additional endpoint would remain. This is
+      the traces/stats counterpart of apm_config.profiling_send_to_main_endpoint.
+    comment: "For internal use. We expect to remove this setting in a future version.\n\
+      When false, the trace-agent trace and stats writers skip the main endpoint\n\
+      (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.\n\
+      The main endpoint's API key is still used by the other trace-agent proxies.\n\
+      The configuration is rejected if no additional endpoint would remain."
   watchdog_check_delay:
     node_type: setting
     type: integer
