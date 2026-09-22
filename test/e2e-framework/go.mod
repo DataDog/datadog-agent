@@ -30,12 +30,12 @@ require (
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.27.0
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.28.0
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
@@ -229,7 +229,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/onsi/ginkgo/v2 v2.32.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.32.2 // indirect
 	github.com/onsi/gomega v1.43.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
