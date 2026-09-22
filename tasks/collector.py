@@ -40,6 +40,7 @@ OTEL_CONTRIB_VERSION = "0.159.0"
 LOCKSTEP_MODULE_PREFIXES = (
     "go.opentelemetry.io/collector/",
     "github.com/open-telemetry/opentelemetry-collector-contrib/",
+    "go.opentelemetry.io/collector-contrib/",  # future home of contrib modules
 )
 
 MANDATORY_COMPONENTS = {
