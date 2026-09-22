@@ -52,7 +52,7 @@
   extends:
     - .docker_build_agent_windows_common
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs:
     ["setup_agent_version", "windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
@@ -69,7 +69,7 @@
   extends:
     - .docker_build_agent_windows_common
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs:
     ["windows_msi_and_bosh_zip_x64-a7-fips", "build_windows_container_entrypoint"]

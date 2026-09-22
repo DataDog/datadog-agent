@@ -94,7 +94,10 @@ func (d *directSenderConsumer) collectProcesses() error {
 	if !d.fetchProcesses {
 		return nil
 	}
+	return d.loadCurrentProcesses()
+}
 
+func (d *directSenderConsumer) loadCurrentProcesses() error {
 	rootProc := kernel.ProcFSRoot()
 	pids, err := kernel.AllPidsProcs(rootProc)
 	if err != nil {

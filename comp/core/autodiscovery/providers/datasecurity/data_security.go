@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // TODO(dsec-215): mutualize code principles with datastreams/kafka_actions.go.
@@ -240,7 +240,7 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 // matchesHost reports whether a postgres instance targets the given host: an exact match
 // or the "host:port" form some backends send.
 func matchesHost(instance map[string]any, targetHost string) bool {
-	host, _ := instance["host"].(string)
+	host := instanceString(instance, "host")
 	if host == targetHost {
 		return true
 	}
@@ -252,20 +252,27 @@ func matchesHost(instance map[string]any, targetHost string) bool {
 
 // buildPostgresConnection copies credentials from the matched instance and targets the entity's database.
 func buildPostgresConnection(instance map[string]any, e entity) connection {
-	host, _ := instance["host"].(string)
-	username, _ := instance["username"].(string)
-	password, _ := instance["password"].(string)
 	port, ok := instancePort(instance)
 	if !ok {
 		port = defaultPostgresPort
 	}
 	return connection{
-		Host:     host,
-		Port:     port,
-		DBName:   e.Database,
-		Username: username,
-		Password: password,
+		Host:        instanceString(instance, "host"),
+		Port:        port,
+		DBName:      e.Database,
+		Username:    instanceString(instance, "username"),
+		Password:    instanceString(instance, "password"),
+		SSLMode:     instanceString(instance, "ssl"),
+		SSLRootCert: instanceString(instance, "ssl_root_cert"),
+		SSLCert:     instanceString(instance, "ssl_cert"),
+		SSLKey:      instanceString(instance, "ssl_key"),
+		SSLPassword: instanceString(instance, "ssl_password"),
 	}
+}
+
+func instanceString(instance map[string]any, key string) string {
+	value, _ := instance[key].(string)
+	return value
 }
 
 // instancePort returns the instance port, handling the numeric types YAML/JSON can produce
