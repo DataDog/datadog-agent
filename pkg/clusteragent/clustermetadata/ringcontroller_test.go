@@ -202,6 +202,30 @@ func TestLocalStoreReadinessGate(t *testing.T) {
 	}
 }
 
+// TestRingControllerLeaseDeletionRecovery tests that a lease deleted out from
+// under this replica is re-created on the next pass.
+// Test partitions:
+// - lease state: present (idempotent ensure) | deleted (recreated, member alive again)
+func TestRingControllerLeaseDeletionRecovery(t *testing.T) {
+	ctx := context.Background()
+	controller, client := newRingFixture(t, []string{"node-a", "node-b"})
+
+	require.NoError(t, controller.Reconcile(ctx))
+	state := controller.State()
+	assert.Contains(t, state.Members, MemberID("datadog", "dca-0"))
+
+	// Delete our lease, as a namespace wipe or a human could.
+	require.NoError(t, client.CoordinationV1().Leases("datadog").
+		Delete(ctx, RingLeaseNamePrefix+"dca-0", metav1.DeleteOptions{}))
+
+	require.NoError(t, controller.Reconcile(ctx))
+
+	recovered := controller.State()
+	assert.Contains(t, recovered.Members, MemberID("datadog", "dca-0"),
+		"the member is alive in its own ring view after one pass")
+	assert.Equal(t, state.MyNodes, recovered.MyNodes, "owned set recomputed identically")
+}
+
 func contains(nodes []string, node string) bool {
 	for _, n := range nodes {
 		if n == node {

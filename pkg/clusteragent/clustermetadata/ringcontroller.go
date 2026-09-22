@@ -45,9 +45,8 @@ type RingController struct {
 	selfID     string
 	interval   time.Duration
 
-	ensured bool
-	mu      sync.RWMutex
-	state   RingState
+	mu    sync.RWMutex
+	state RingState
 
 	onOwnedNodesChanged func(prev, next []string)
 }
@@ -71,12 +70,11 @@ func (c *RingController) OnOwnedNodesChanged(fn func(prev, next []string)) {
 
 // Reconsile is responsible for ensuring our lease is present,
 // reading the ring, computing the assignment, publishing our owned set, and renewing our lease.
+// Ensure runs on every pass: it is idempotent and heals a lease deleted
+// out from under this replica.
 func (c *RingController) Reconcile(ctx context.Context) error {
-	if !c.ensured {
-		if err := c.manager.Ensure(ctx); err != nil {
-			return err
-		}
-		c.ensured = true
+	if err := c.manager.Ensure(ctx); err != nil {
+		return err
 	}
 
 	// read the ring leases and filter out expired ones

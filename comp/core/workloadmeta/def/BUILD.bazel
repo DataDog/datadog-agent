@@ -10,6 +10,7 @@ go_library(
         "filter.go",
         "merge.go",
         "params.go",
+        "podscope.go",
         "types.go",
         "utils.go",
     ],
