@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/alecthomas/participle v0.7.1
+	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/charlievieth/strcase v0.0.6
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
@@ -22,13 +22,14 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/net v0.58.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.41.0
+	golang.org/x/net v0.59.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/text v0.42.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
+	github.com/alecthomas/repr v0.5.2 // indirect
 	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
@@ -38,7 +39,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.210
+	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2
@@ -130,7 +130,7 @@ require (
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/twmb/murmur3 v1.1.8 // indirect
+	github.com/twmb/murmur3 v1.2.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.65.0 // indirect
@@ -171,12 +171,12 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/grpc v1.83.2 // indirect

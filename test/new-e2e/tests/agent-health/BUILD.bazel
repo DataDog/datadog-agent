@@ -16,7 +16,7 @@ dd_agent_go_test(
         "fixtures/resilience_agent_config.yaml",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",
-    tags = ["manual"],  # need pulumi installed.
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",

@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

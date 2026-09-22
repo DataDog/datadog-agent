@@ -11,7 +11,7 @@ require (
 require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
