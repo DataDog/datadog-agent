@@ -7,12 +7,12 @@
 
 package foldspace
 
-import "fmt"
+import "errors"
 
 // BuiltWithFoldspace is whether this binary was compiled with the foldspace tag.
 const BuiltWithFoldspace = false
 
 // NewNativeCore returns an error: this binary was not built with the foldspace tag.
 func NewNativeCore(_ Config) (Core, error) {
-	return nil, fmt.Errorf("foldspace native core requires building with the foldspace tag")
+	return nil, errors.New("foldspace native core requires building with the foldspace tag")
 }
