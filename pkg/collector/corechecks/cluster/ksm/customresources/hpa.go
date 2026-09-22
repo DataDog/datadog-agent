@@ -91,6 +91,10 @@ func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 					labelKeys = append([]string{"scaletargetref_api_version"}, labelKeys...)
 					labelValues = append([]string{a.Spec.ScaleTargetRef.APIVersion}, labelValues...)
 				}
+				if ownerKind, ownerName, ok := objectOwnerRef(a); ok {
+					labelKeys = append(labelKeys, "ownerref_kind", "ownerref_name")
+					labelValues = append(labelValues, ownerKind, ownerName)
+				}
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
