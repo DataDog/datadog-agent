@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix a bug in the automatic TCP socket offset guessing used by network
+    monitoring on Linux: on kernels without BTF, the guesser could lock onto
+    a false-positive offset for the round-trip time fields, causing the RTT
+    and RTT variance reported for TCP connections to be read from an
+    unrelated kernel field. The guesser now rejects such false matches and
+    re-scans until it finds the correct fields.
