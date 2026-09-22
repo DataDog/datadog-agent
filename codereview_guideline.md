@@ -37,7 +37,9 @@ The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
 `runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
 bugs — typically the "other" platform is untested. The same applies to
 packaging: Windows MSI and Linux deb/rpm have independent logic that can
-silently diverge.
+silently diverge. Verifying the other platform is cheap — see "Typechecking code
+for another platform" in `AGENTS.md` — so ask for it rather than assuming CI
+will catch it.
 
 ### Concurrency and component lifecycle
 The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
