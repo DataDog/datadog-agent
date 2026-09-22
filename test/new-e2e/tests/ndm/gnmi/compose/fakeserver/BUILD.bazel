@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+exports_files([
+    "Dockerfile",
+    "main.go",
+])
+
+go_library(
+    name = "fakeserver_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/ndm/gnmi/compose/fakeserver",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_openconfig_gnmi//proto/gnmi",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_binary(
+    name = "fakeserver",
+    embed = [":fakeserver_lib"],
+    visibility = ["//visibility:public"],
+)
