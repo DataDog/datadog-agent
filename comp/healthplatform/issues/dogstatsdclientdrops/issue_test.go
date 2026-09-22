@@ -177,7 +177,7 @@ func TestLibrarySpecificUDSRemediation(t *testing.T) {
 		notContains []string
 	}{
 		{library: ClientLibraryGo, contains: []string{"client:go", "WithoutClientSideAggregation", "WithSenderQueueSize", "WithErrorHandler", "code-lang=go"}},
-		{library: ClientLibraryPython, contains: []string{"client:py", "statsd_disable_aggregation=False", "sender_queue_timeout", "socket_connect_timeout", "code-lang=python"}},
+		{library: ClientLibraryPython, contains: []string{"client:py", "statsd_disable_aggregation=False", "sender_queue_timeout", "datadogpy 0.54.0", "disable_background_sender=False", "socket_connect_retry=True", "code-lang=python"}},
 		{library: ClientLibraryJava, contains: []string{"client:java", "errorHandler", "enableAggregation(true)", "connectionTimeout", "code-lang=java"}, notContains: []string{bytesDroppedQueueMetric, bytesDroppedWriterMetric}},
 	} {
 		t.Run(string(test.library), func(t *testing.T) {

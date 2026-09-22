@@ -71,7 +71,7 @@ var issueDefinitions = map[ClientLibrary]issueDefinition{
 		remediationGuidance: []string{
 			"Enable aggregation with disable_aggregation=False. When each process owns its DogStatsD client, enable buffering with disable_buffering=False. With datadog.initialize(), use statsd_disable_aggregation=False and statsd_disable_buffering=False instead.",
 			"For queue drops, increase sender_queue_size or set a positive sender_queue_timeout.",
-			"For writer drops, use buffering and aggregation to reduce UDS writes. Increase socket_timeout only for write timeouts; in datadogpy 0.53.0 or later, use socket_connect_timeout for transient connection failures.",
+			"For writer drops, use buffering and aggregation to reduce UDS writes. Increase socket_timeout only for write timeouts. For transient UDS connection failures, use datadogpy 0.54.0 or later with background sending enabled (disable_background_sender=False) and socket_connect_retry=True.",
 		},
 	},
 	ClientLibraryJava: {
