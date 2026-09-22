@@ -2572,8 +2572,8 @@ github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056 h1:S7D0BKyRGQvojP
 github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056/go.mod h1:HRh7JESdpg5Hh6f8QMoFPht5/r/fPs/Hl3qghMoDztI=
 github.com/DataDog/jsonapi v0.13.0 h1:ebIqG50aEGjjl/Hg8TVUsm6Fiw9T6IT1WZRC8aL8OQE=
 github.com/DataDog/jsonapi v0.13.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
-github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1 h1:jOm7IWckE0Ds+Dh27yvPEF0tUGd8uor34yfXVAaPDyQ=
-github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.1/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2 h1:Urvsu5FqCPy3CYs7/LxOXUDpS0U8moht4zJ2PaSI8G0=
+github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2/go.mod h1:l3y0BPcRFh7fm+wM9gRCqcXUQlsr9JzbFtEySbJYxCQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
@@ -2582,8 +2582,8 @@ github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxD
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260914075539-1573db524051 h1:CkIjyPAL9Sdun6/7AtSZ6yi4DYo86c3Ht8t/EuMsNMc=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260914075539-1573db524051/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
-github.com/DataDog/rshell v0.0.28 h1:z0roo5q7TQUpQHggs+57jc+jS93wusoQNV7GXczOq3w=
-github.com/DataDog/rshell v0.0.28/go.mod h1:nUaT924NZ0EJu7tre4zxamG1yPUYa8hg1dNe0JCboak=
+github.com/DataDog/rshell v0.0.29 h1:LLmgiYgaxdsOprdyBbw2GYMkgTABO1I5v225RqZiC28=
+github.com/DataDog/rshell v0.0.29/go.mod h1:nUaT924NZ0EJu7tre4zxamG1yPUYa8hg1dNe0JCboak=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/trivy v0.0.0-20260825074722-13735d029a7b h1:KKEV+E/gCukrs1KqkJlBIzdjm4WfEb96fFm4NO/bu9E=
