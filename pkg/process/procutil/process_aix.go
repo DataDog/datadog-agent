@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // prTimestruc64 mirrors AIX timestruc64_t: { tv_sec int64; tv_nsec int32; _pad uint32 }
@@ -106,14 +108,16 @@ func nullTermBytes(b []byte) string {
 	return string(b)
 }
 
-// isPrintableASCII reports whether s is non-empty and contains only
-// printable ASCII characters.
-func isPrintableASCII(s string) bool {
+// isPrintableText reports whether s is non-empty, valid UTF-8, and free of
+// control characters. Readable argv may contain valid non-ASCII text (e.g.
+// "café"), while junk bytes from an unreadable address space are typically
+// invalid UTF-8 or control characters.
+func isPrintableText(s string) bool {
 	if s == "" {
 		return false
 	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < 0x20 || s[i] > 0x7e {
+	for _, r := range s {
+		if r == utf8.RuneError || !unicode.IsPrint(r) {
 			return false
 		}
 	}
@@ -152,7 +156,7 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 	// daemons, exec in flight...). AIX ps shows those as a bracketed name; do
 	// the same instead of shipping junk bytes.
 	var cmdline []string
-	if isPrintableASCII(args) {
+	if isPrintableText(args) {
 		cmdline = strings.Fields(args)
 	} else if name != "" {
 		cmdline = []string{"[" + name + "]"}
