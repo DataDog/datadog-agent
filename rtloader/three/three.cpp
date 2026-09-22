@@ -19,7 +19,6 @@
 #include "util.h"
 
 #include <algorithm>
-#include <cctype>
 #include <functional>
 #include <sstream>
 
@@ -540,34 +539,6 @@ done:
 }
 
 namespace {
-    std::string normalizeRemoteQueryIntegration(const char *integration)
-    {
-        if (integration == NULL) {
-            return "";
-        }
-
-        std::string normalized(integration);
-        normalized.erase(normalized.begin(), std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
-                             return !std::isspace(ch);
-                         }));
-        normalized.erase(
-            std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) { return !std::isspace(ch); })
-                .base(),
-            normalized.end());
-        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        return normalized;
-    }
-
-    bool isValidRemoteQueryIntegration(const std::string &integration)
-    {
-        if (integration.empty()) {
-            return false;
-        }
-        return std::all_of(integration.begin(), integration.end(),
-                           [](unsigned char ch) { return std::islower(ch) || std::isdigit(ch) || ch == '_'; });
-    }
-
     struct RemoteQueryStreamEmitContext {
         remote_query_stream_emit_cb emit;
         void *userdata;
@@ -612,39 +583,31 @@ namespace {
         = { "remote_query_stream_emit", remoteQueryStreamEmit, METH_VARARGS, "Emit a remote query stream event." };
 } // namespace
 
-bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integration, const char *request_json,
-                                 remote_query_stream_emit_cb emit, void *userdata)
+bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *request_json, remote_query_stream_emit_cb emit,
+                                 void *userdata)
 {
     if (check == NULL || request_json == NULL || emit == NULL) {
         return false;
     }
 
-    std::string normalized_integration = normalizeRemoteQueryIntegration(integration);
-    if (!isValidRemoteQueryIntegration(normalized_integration)) {
-        setError("invalid remote query integration name");
-        return false;
-    }
-
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    PyObject *remote_query_module = NULL;
     PyObject *execute_func = NULL;
     PyObject *py_request_json = NULL;
     PyObject *capsule = NULL;
     PyObject *emit_func = NULL;
     PyObject *result = NULL;
-    std::string module_name = "datadog_checks." + normalized_integration + ".remote_query";
     RemoteQueryStreamEmitContext ctx{ emit, userdata };
     bool ok = false;
 
-    remote_query_module = PyImport_ImportModule(module_name.c_str());
-    if (remote_query_module == NULL) {
-        setError("error importing remote query helper: " + _fetchPythonError());
+    // Invoke the loaded check's capability, not an integration-specific module.
+    execute_func = PyObject_GetAttrString(py_check, "run_remote_query");
+    if (execute_func == NULL) {
+        PyErr_Clear();
+        setError("check does not expose the remote query interface");
         goto done;
     }
-
-    execute_func = PyObject_GetAttrString(remote_query_module, "execute_agent_rpc_stream_copy");
-    if (execute_func == NULL || !PyCallable_Check(execute_func)) {
-        setError("error loading remote query stream helper: " + _fetchPythonError());
+    if (!PyCallable_Check(execute_func)) {
+        setError("check remote query interface is not callable");
         goto done;
     }
 
@@ -665,9 +628,9 @@ bool Three::runRemoteQueryStream(RtLoaderPyObject *check, const char *integratio
         goto done;
     }
 
-    result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, py_check, emit_func, NULL);
+    result = PyObject_CallFunctionObjArgs(execute_func, py_request_json, emit_func, NULL);
     if (result == NULL) {
-        setError("error invoking remote query stream helper: " + _fetchPythonError());
+        setError("error invoking check remote query interface: " + _fetchPythonError());
         goto done;
     }
     ok = true;
@@ -678,7 +641,6 @@ done:
     Py_XDECREF(capsule);
     Py_XDECREF(py_request_json);
     Py_XDECREF(execute_func);
-    Py_XDECREF(remote_query_module);
     return ok;
 }
 

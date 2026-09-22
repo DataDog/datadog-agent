@@ -8,6 +8,30 @@ package testrtloader
 /*
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
+#include <string.h>
+
+struct remote_query_test_context {
+    const char *request;
+    int calls;
+    int fail_emit;
+};
+
+static int remote_query_test_emit(const char *event_type, const char *metadata_json,
+                                  const uint8_t *payload, size_t payload_len, void *userdata) {
+    struct remote_query_test_context *ctx = (struct remote_query_test_context *)userdata;
+    ctx->calls++;
+    if (strcmp(event_type, "final") != 0 || strcmp(metadata_json, ctx->request) != 0 || payload_len != 0) {
+        return -1;
+    }
+    return ctx->fail_emit ? -1 : 0;
+}
+
+static int test_run_remote_query(rtloader_t *loader, rtloader_pyobject_t *check, const char *request, int fail_emit) {
+    struct remote_query_test_context ctx = {request, 0, fail_emit};
+    int result = run_remote_query_stream(loader, check, request, remote_query_test_emit, &ctx);
+    // Successful invocation must have forwarded exactly one event from the bound method.
+    return result && ctx.calls != 1 ? -1 : result;
+}
 
 static inline void call_free(void* ptr) {
     _free(ptr);
@@ -226,6 +250,48 @@ func runFakeCheck() (string, error) {
 	runtime.UnlockOSThread()
 
 	return out, err
+}
+
+func runFakeRemoteQuery(failEmit bool) error {
+	var module, class, check *C.rtloader_pyobject_t
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
+	C.clear_error(rtloader)
+	defer C.clear_error(rtloader)
+
+	name := helpers.TrackedCString("fake_check")
+	defer C.call_free(name)
+	if C.get_class(rtloader, (*C.char)(name), &module, &class) != 1 {
+		return fetchError()
+	}
+	defer C.rtloader_decref(rtloader, module)
+	defer C.rtloader_decref(rtloader, class)
+
+	empty := helpers.TrackedCString("")
+	defer C.call_free(empty)
+	config := helpers.TrackedCString("{}")
+	defer C.call_free(config)
+	if C.get_check(rtloader, class, (*C.char)(empty), (*C.char)(config), (*C.char)(name), (*C.char)(name), (*C.char)(empty), &check) != 1 {
+		return fetchError()
+	}
+	defer C.rtloader_decref(rtloader, check)
+
+	request := helpers.TrackedCString(`{"operation":"produce_json_pages"}`)
+	defer C.call_free(request)
+	fail := C.int(0)
+	if failEmit {
+		fail = 1
+	}
+	if C.test_run_remote_query(rtloader, check, (*C.char)(request), fail) != 1 {
+		if err := fetchError(); err != nil {
+			return err
+		}
+		return errors.New("remote query interface did not emit the expected event")
+	}
+	return nil
 }
 
 func cancelFakeCheck() error {

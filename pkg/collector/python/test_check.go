@@ -109,12 +109,10 @@ int run_remote_query_stream_return = 1;
 int run_remote_query_stream_calls = 0;
 int run_remote_query_stream_emit_payload = 0;
 rtloader_pyobject_t *run_remote_query_stream_instance = NULL;
-const char *run_remote_query_stream_integration = NULL;
 const char *run_remote_query_stream_request_json = NULL;
 const char *run_remote_query_stream_event_json = NULL;
-int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata) {
+int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata) {
 	run_remote_query_stream_instance = check;
-	run_remote_query_stream_integration = strdup(integration);
 	run_remote_query_stream_request_json = strdup(request_json);
 	run_remote_query_stream_calls++;
 	run_remote_query_stream_event_json = "{\"status\":\"SUCCEEDED\",\"upload_receipt\":{\"uploadId\":\"upload-proof\",\"pageCount\":1,\"totalRows\":2,\"totalBytes\":18}}";
@@ -233,7 +231,6 @@ void reset_check_mock() {
 	run_remote_query_stream_calls = 0;
 	run_remote_query_stream_emit_payload = 0;
 	run_remote_query_stream_instance = NULL;
-	run_remote_query_stream_integration = NULL;
 	run_remote_query_stream_request_json = NULL;
 	run_remote_query_stream_event_json = NULL;
 }
@@ -725,7 +722,6 @@ func testRunRemoteQueryStream(t *testing.T) {
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
 	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
 	assert.Equal(t, check.instance, C.run_remote_query_stream_instance)
-	assert.Equal(t, "postgres", C.GoString(C.run_remote_query_stream_integration))
 	assert.JSONEq(t, `{"operation":"produce_json_pages"}`, C.GoString(C.run_remote_query_stream_request_json))
 }
 
