@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "clustermetadata",
     srcs = [
+        "leasemanager.go",
         "localstore.go",
         "ring.go",
     ],
@@ -15,12 +16,16 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/clustermetadata",
         "//pkg/errors",
+        "@io_k8s_api//coordination/v1:coordination",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
     ],
 )
 
 dd_agent_go_test(
     name = "clustermetadata_test",
     srcs = [
+        "leasemanager_test.go",
         "localstore_test.go",
         "ring_test.go",
     ],
@@ -33,5 +38,12 @@ dd_agent_go_test(
         "//pkg/errors",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//coordination/v1:coordination",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )
