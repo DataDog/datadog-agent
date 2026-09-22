@@ -30,10 +30,26 @@ const PROCESS_NAME: &str = "datadog-agent-process";
 const SCM_SERVICES_GO: &str =
     include_str!("../../../../../cmd/agent/subcommands/run/dependent_services_windows.go");
 
-/// Gate keys all absent: a default install has them true, but nothing in these tests may
-/// depend on that, since `auto_start: false` means the gate is never evaluated.
+/// Gate keys all absent, so each one falls through to the Agent's schema default. Several
+/// of those default to true, which is why a default install leaves the gate open.
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
 const EMPTY_SYSPROBE_YAML: &str = "# no modules enabled\n";
+
+/// Every gated key pinned false, which is what an operator who turned process collection
+/// off looks like. All six have to be written out, since leaving one absent lets its
+/// default reopen the gate on its own.
+const DISABLED_AGENT_YAML: &str = concat!(
+    "api_key: 0000001\n",
+    "process_config:\n",
+    "  enabled: false\n",
+    "  process_collection:\n    enabled: false\n",
+    "  container_collection:\n    enabled: false\n",
+    "  process_discovery:\n    enabled: false\n",
+);
+const DISABLED_SYSPROBE_YAML: &str = concat!(
+    "network_config:\n  enabled: false\n",
+    "system_probe_config:\n  enabled: false\n",
+);
 
 #[test]
 fn fleet_process_template_parses_into_catalog() {
@@ -44,21 +60,27 @@ fn fleet_process_template_parses_into_catalog() {
     };
     let procmgr = env.with_config(PROCESS_NAME, &yaml).start();
 
+    // A default install leaves the gate open, so the shipped entry brings process-agent up
+    // on its own. That is the half that makes suppressing the legacy SCM service safe.
+    procmgr
+        .wait_for_process_running(PROCESS_NAME)
+        .expect("the shipped entry must auto-start process-agent on a default install");
+
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state(PROCESS_NAME, ProcessExpect::Created);
+    list.assert_process_state(PROCESS_NAME, ProcessExpect::Running);
 
     procmgr.assert_describe_matches(
         PROCESS_NAME,
         DescribeExpect {
             name: Some(PROCESS_NAME.into()),
-            state: Some("Created".into()),
+            state: Some("Running".into()),
             description: Some("Datadog Process Agent".into()),
             command: Some(layout.binary()),
             args: Some(vec!["--cfgpath".into(), layout.agent_yaml()]),
             condition_path_exists: Some(layout.binary()),
             restart_policy: Some("on-failure".into()),
-            auto_start: Some(false),
+            auto_start: Some(true),
             ..Default::default()
         },
     );
@@ -99,7 +121,7 @@ fn fleet_process_template_declares_legacy_scm_gate() {
         "drift from the SCM sysprobeConf keys"
     );
 
-    // Supervision knobs the catalog entry carries into A12, when it starts spawning.
+    // Supervision knobs that apply now that the entry spawns process-agent.
     assert_eq!(config.restart.to_string(), "on-failure");
     assert_eq!(config.restart_sec, Some(2.0));
     assert_eq!(config.start_limit_interval_sec, Some(10));
@@ -109,14 +131,13 @@ fn fleet_process_template_declares_legacy_scm_gate() {
     assert_eq!(config.stderr, "inherit");
 }
 
+/// The negative control for the cutover. Now that the Agent suppresses the legacy SCM
+/// service whenever this entry is installed, procmgr is the only thing left that could run
+/// process-agent, so an operator turning process collection off has to stop it here.
 #[test]
-fn fleet_process_template_stays_created_with_auto_start_false() {
+fn fleet_process_template_stays_created_when_collection_disabled() {
     let env = TestEnv::new();
-    let layout = InstallLayout::create(
-        env.env_root(),
-        "process_config:\n  process_collection:\n    enabled: true\n",
-        "network_config:\n  enabled: true\n",
-    );
+    let layout = InstallLayout::create(env.env_root(), DISABLED_AGENT_YAML, DISABLED_SYSPROBE_YAML);
     let Some(yaml) = layout.render_template() else {
         return;
     };
@@ -151,7 +172,16 @@ impl InstallLayout {
         let install_dir = root.join("install");
         let bin_dir = install_dir.join("bin/agent");
         std::fs::create_dir_all(&bin_dir).expect("mkdir bin/agent");
-        std::fs::write(bin_dir.join("process-agent.exe"), b"").expect("touch process-agent.exe");
+        // The shipped entry carries auto_start: true, so an open gate makes the daemon exec
+        // this path for real. It has to be a runnable stand-in, not an empty file.
+        let binary = bin_dir.join("process-agent.exe");
+        std::fs::write(&binary, "#!/bin/sh\nexec sleep 600\n").expect("write process-agent.exe");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod process-agent.exe");
+        }
 
         let etc_dir = root.join("etc");
         std::fs::create_dir_all(&etc_dir).expect("mkdir etc");
