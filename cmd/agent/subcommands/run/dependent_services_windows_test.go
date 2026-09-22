@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -154,37 +155,47 @@ func TestProcessServiceNotYetProcmgrManaged(t *testing.T) {
 
 // stopDependentServices must not run its stop loop while a startup pass is still in
 // flight, or a service that pass is mid-Start on would survive agent shutdown.
+//
+// The assertion is the order the two events are recorded in, not how long either took,
+// so the test neither depends on the scheduler nor passes by default when the joining
+// goroutine is slow to run.
 func TestStopDependentServicesJoinsStartupPass(t *testing.T) {
-	release := make(chan struct{})
-	passDone := make(chan struct{})
+	var mu sync.Mutex
+	var order []string
+	record := func(event string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, event)
+	}
 
+	release := make(chan struct{})
 	dependentServicesStartup.Add(1)
 	go func() {
 		defer dependentServicesStartup.Done()
 		<-release
-		close(passDone)
+		record("startup pass finished")
 	}()
 
+	waiting := make(chan struct{})
 	joined := make(chan struct{})
 	go func() {
+		close(waiting)
 		dependentServicesStartup.Wait()
+		record("shutdown joined")
 		close(joined)
 	}()
 
-	select {
-	case <-joined:
-		require.Fail(t, "shutdown joined before the startup pass finished")
-	case <-time.After(50 * time.Millisecond):
-	}
-
+	// Hold the startup pass until the joining goroutine is running. A Wait that failed
+	// to block would then record first and fail the ordering check, rather than the
+	// test passing because that goroutine never got scheduled in time.
+	<-waiting
 	close(release)
-	<-passDone
+	<-joined
 
-	select {
-	case <-joined:
-	case <-time.After(2 * time.Second):
-		require.Fail(t, "shutdown did not return after the startup pass finished")
-	}
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []string{"startup pass finished", "shutdown joined"}, order,
+		"shutdown must not proceed until the startup pass has finished")
 }
 
 func TestServicedefShouldStop(t *testing.T) {
