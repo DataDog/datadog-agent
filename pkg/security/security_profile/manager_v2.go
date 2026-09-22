@@ -166,7 +166,7 @@ type ManagerV2 struct {
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
-	if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory); err != nil {
+	if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart); err != nil {
 		return nil, fmt.Errorf("couldn't clear local security profiles: %w", err)
 	}
 
@@ -720,11 +720,7 @@ func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time
 		start = p.StartedAt()
 	}
 
-	elapsed := now.Sub(start)
-	if elapsed < 0 {
-		elapsed = 0
-	}
-	return elapsed >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
+	return now.Sub(start) >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
 }
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile

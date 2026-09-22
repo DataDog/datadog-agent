@@ -704,6 +704,13 @@ properties:
         node_type: section
         type: object
         properties:
+          clear_local_profiles_on_start:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |
+              Testing aid: when true, deletes every locally stored security
+              profile on startup. Not user-facing.
           enabled:
             node_type: setting
             type: boolean

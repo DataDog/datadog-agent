@@ -193,7 +193,7 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start))
 	})
 
-	t.Run("time-based clamps a backward clock jump to no elapsed time", func(t *testing.T) {
+	t.Run("time-based keeps withholding when the clock jumps backward", func(t *testing.T) {
 		p := withStart()
 		assert.False(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start.Add(-time.Hour)))
 	})

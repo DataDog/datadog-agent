@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -74,15 +73,11 @@ func fileHasStorageExtension(path string) bool {
 	return err == nil
 }
 
-// ClearLocalProfilesOnStartEnv, when set to a truthy value, makes the agent delete every locally
-// stored security profile on startup. It is a testing aid and has no matching config setting.
-const ClearLocalProfilesOnStartEnv = "DD_RUNTIME_SECURITY_CONFIG_SECURITY_PROFILE_V2_CLEAR_LOCAL_PROFILES_ON_START"
-
 // ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath when
-// ClearLocalProfilesOnStartEnv is truthy, and is a no-op otherwise. Unlike a persisted marker it
-// clears on every start, which is the behavior wanted for tests.
-func ClearLocalProfilesOnStart(directoryPath string) error {
-	if enabled, _ := strconv.ParseBool(os.Getenv(ClearLocalProfilesOnStartEnv)); !enabled {
+// enabled, and is a no-op otherwise. Unlike a persisted marker it clears on every start, which is
+// the behavior wanted for tests.
+func ClearLocalProfilesOnStart(directoryPath string, enabled bool) error {
+	if !enabled {
 		return nil
 	}
 
@@ -102,7 +97,7 @@ func ClearLocalProfilesOnStart(directoryPath string) error {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("couldn't delete local security profile [%s]: %w", path, err)
 		}
-		seclog.Infof("deleted local security profile [%s] (%s set)", path, ClearLocalProfilesOnStartEnv)
+		seclog.Infof("deleted local security profile [%s]", path)
 	}
 
 	return nil

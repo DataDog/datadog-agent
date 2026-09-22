@@ -539,6 +539,11 @@ type RuntimeSecurityConfig struct {
 	// default_value: 0s
 	SecurityProfileV2ProfilingStartupDelay time.Duration
 
+	// description: SecurityProfileV2ClearLocalProfilesOnStart, when true, deletes every locally stored security profile on startup. Testing aid.
+	// visibility: private
+	// default_value: false
+	SecurityProfileV2ClearLocalProfilesOnStart bool
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -1044,6 +1049,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
 		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
+		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
