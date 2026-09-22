@@ -1989,12 +1989,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				resp, err := client.Post("http://"+ctx.targetAddress, "application/json", bytes.NewReader([]byte("test")))
@@ -2045,12 +2044,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
@@ -2393,12 +2391,11 @@ func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
 	t.Cleanup(srvDoneFn)
 
 	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
+		Transport: func() *nethttp.Transport {
+			protocols := new(nethttp.Protocols)
+			protocols.SetUnencryptedHTTP2(true)
+			return &nethttp.Transport{Protocols: protocols}
+		}(),
 	}
 
 	testHTTPLikeSketches(t, tr, client, httpURL, true)

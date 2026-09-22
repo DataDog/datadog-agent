@@ -419,10 +419,13 @@ http_archive(
         "openssl.cnf.tmp": "//deps/openssl_fips:openssl.cnf.tmp",
     },
     # The LTS openssl is different than the FIPS certified version. See https://openssl-library.org/source/
+    # Fetched from the official openssl.org source mirror (not GitHub releases) to comply with the
+    # FIPS 140-2 security policy's specified source, per
+    # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4985.pdf
     sha256 = "a0ce69b8b97ea6a35b96875235aa453b966ba3cba8af2de23657d8b6767d6539",
     strip_prefix = "openssl-3.1.2",
     urls = [
-        "https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz",
+        "https://www.openssl.org/source/openssl-3.1.2.tar.gz",
     ],
 )
 
