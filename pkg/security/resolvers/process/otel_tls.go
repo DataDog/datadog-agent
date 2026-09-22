@@ -452,7 +452,7 @@ func stripDeletedMapsSuffix(path string) string {
 // symbolName as an STT_TLS symbol. The returned ELF file is left open for
 // resolveTLSAccess, which reads the same object's relocations; callers must
 // Close() it.
-func (p *otelTargetProcess) findOTelTLSModule() (*otelTLSModule, *safeelf.Symbol, error) {
+func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule, *safeelf.Symbol, error) {
 	objects, err := p.tlsCandidateObjects()
 	if err != nil {
 		return nil, nil, err
