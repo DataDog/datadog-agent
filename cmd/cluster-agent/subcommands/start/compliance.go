@@ -60,9 +60,6 @@ func startCompliance(ctx context.Context, senderManager sender.SenderManager, wm
 		return err
 	}
 
-	reflectorStore := compliance.NewReflectorStore(apiCl.Cl)
-	reflectorStore.Run(ctx.Done())
-
 	agent := compliance.NewAgent(statsdClient, wmeta, filterStore, hname, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
@@ -76,7 +73,6 @@ func startCompliance(ctx context.Context, senderManager sender.SenderManager, wm
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
 			KubernetesProvider: wrapKubernetesClient(apiCl, isLeader),
-			ReflectorStore:     reflectorStore,
 		},
 	})
 	err = agent.Start()
