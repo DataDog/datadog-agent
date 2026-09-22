@@ -591,6 +591,39 @@
         }
       }
     },
+    "@@rules_go+//go:extensions.bzl%orchestrion": {
+      "general": {
+        "bzlTransitiveDigest": "+u+fQ9JaspvOzpspHZrt0SXbEVyDce84HLHAFRPowaU=",
+        "usagesDigest": "v5dc8LiA+/JQnVwgr9mkYWa58jqlFCW/ToBZWQzn9N4=",
+        "recordedInputs": [
+          "REPO_MAPPING:,go_work_sdk rules_go++go_sdk+go_work_sdk",
+          "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
+          "REPO_MAPPING:bazel_features+,bazel_features_version bazel_features++version_extension+bazel_features_version",
+          "REPO_MAPPING:rules_go+,bazel_tools bazel_tools",
+          "REPO_MAPPING:rules_go+,io_bazel_rules_go rules_go+",
+          "REPO_MAPPING:rules_go+,io_bazel_rules_go_bazel_features bazel_features+"
+        ],
+        "generatedRepoSpecs": {
+          "rules_go_orchestrion_tool": {
+            "repoRuleId": "@@rules_go+//go/private/orchestrion:extensions.bzl%_orchestrion_build",
+            "attributes": {
+              "version": "v1.12.0",
+              "dd_trace_go_version": "",
+              "dd_trace_go_versions": {
+                "github.com/DataDog/dd-trace-go/v2": "v2.10.1",
+                "github.com/DataDog/dd-trace-go/contrib/net/http/v2": "v2.10.1",
+                "github.com/DataDog/dd-trace-go/contrib/log/slog/v2": "v2.10.1"
+              },
+              "dd_trace_go_pin_files": [],
+              "enabled_by_env": true,
+              "go_sdk_root": "'@@rules_go++go_sdk+go_work_sdk//:ROOT'",
+              "go_sdk_version": "1.26.7",
+              "log_timing": false
+            }
+          }
+        }
+      }
+    },
     "@@rules_m4+//m4/internal:default_toolchain_ext.bzl%default_toolchain_ext": {
       "general": {
         "bzlTransitiveDigest": "f9QX0T4bok6chCgsab761GzOe+jiOgtDXkPKcF8kSgc=",
