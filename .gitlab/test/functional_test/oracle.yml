@@ -5,15 +5,35 @@ oracle:
   stage: functional_test
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
-    - when: manual
+    - !reference [.except_light_pipeline]
+    - when: on_success
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      entrypoint: ["/bin/bash", "-c"]
+      command:
+        - |
+          set -e
+          timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
+          whenever oserror exit failure
+          whenever sqlerror exit failure
+          create pfile='/tmp/oracle-ci-init.ora' from spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora';
+          exit
+          SQL
+          printf '\n*.cpu_count=2\n' >> /tmp/oracle-ci-init.ora
+          timeout 15s "$ORACLE_HOME/bin/sqlplus" -L -s / as sysdba <<SQL
+          whenever oserror exit failure
+          whenever sqlerror exit failure
+          create spfile='$ORACLE_BASE/oradata/dbconfig/$ORACLE_SID/spfile$ORACLE_SID.ora' from pfile='/tmp/oracle-ci-init.ora';
+          exit
+          SQL
+          exec "$ORACLE_BASE/$RUN_FILE"
       variables:
         ORACLE_PWD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
+    FF_KUBERNETES_HONOR_ENTRYPOINT: "false"
+    ORACLE_TEST_READY_TIMEOUT: "3m"
     DD_HOSTNAME: "oracle-test"
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
@@ -25,6 +45,7 @@ oracle:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- oracle.test

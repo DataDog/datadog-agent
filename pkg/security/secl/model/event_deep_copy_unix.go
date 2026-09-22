@@ -625,6 +625,7 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 func deepCopyCapabilitiesEvent(fieldToCopy CapabilitiesEvent) CapabilitiesEvent {
 	copied := CapabilitiesEvent{}
 	copied.Attempted = fieldToCopy.Attempted
+	copied.Cookie = fieldToCopy.Cookie
 	copied.Used = fieldToCopy.Used
 	return copied
 }
