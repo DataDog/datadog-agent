@@ -1,0 +1,9 @@
+{
+  "purpose": "Downloaded package provenance for the local health validation; this is not an e2ectl capability receipt",
+  "pipeline": 138372337,
+  "package": "datadog-agent",
+  "version": "1:7.85.0~devel.git.406.456c464.pipeline.138372337-1",
+  "architecture": "arm64",
+  "sha256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+  "local_path": "/home/bits/.cache/e2ectl-validation/pipeline-138372337/arm64/datadog-agent_7.85.0~devel.git.406.456c464.pipeline.138372337-1_arm64.deb"
+}

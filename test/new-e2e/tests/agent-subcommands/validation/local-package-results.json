@@ -1,0 +1,976 @@
+{
+  "schema": 1,
+  "scope": "core-health/configuration; no all-signal package attestation",
+  "status": "PASS",
+  "logsDirectory": "/tmp/e2ectl-package-health.LV4HNI",
+  "pipelineProvenance": "pipeline-138372337.json",
+  "cases": [
+    {
+      "case": "health-package-fakeintake",
+      "status": "PASS",
+      "seconds": 31.5,
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-fakeintake-results.json"
+      ],
+      "environment": "health-package-138372337",
+      "scope": "health only; ingestion not implied"
+    },
+    {
+      "case": "health-package-blackhole",
+      "status": "PASS",
+      "seconds": 31.35,
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-blackhole-results.json"
+      ],
+      "environment": "health-package-138372337",
+      "scope": "health only; ingestion not implied"
+    },
+    {
+      "case": "health-package-fakeintake-again",
+      "status": "PASS",
+      "seconds": 33.16,
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-fakeintake-again-results.json"
+      ],
+      "environment": "health-package-138372337",
+      "scope": "health only; ingestion not implied"
+    },
+    {
+      "case": "health-package-datadog",
+      "status": "PASS",
+      "seconds": 30.99,
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-datadog-results.json"
+      ],
+      "environment": "health-package-native-138372337",
+      "scope": "health only; ingestion not implied"
+    }
+  ],
+  "steps": [
+    {
+      "step": "start-capture",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "start",
+        "--config",
+        "/home/bits/go/src/github.com/DataDog/worktrees/datadog-agent-ws/clever-comet/datadog-agent-ws/test/new-e2e/tests/agent-subcommands/validation/local-package-fakeintake.yml",
+        "--name",
+        "health-package-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 1.07,
+      "log": "start-capture.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "install-capture",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "install",
+        "--env",
+        "health-package-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 120.06,
+      "log": "install-capture.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "health-package-fakeintake",
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-fakeintake-results.json"
+      ],
+      "returncode": 0,
+      "seconds": 31.5,
+      "log": "health-package-fakeintake.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "fakeintake-metrics",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "fakeintake",
+        "metrics",
+        "--env",
+        "health-package-138372337",
+        "--name",
+        "system.cpu.user",
+        "--json"
+      ],
+      "returncode": 0,
+      "seconds": 0.11,
+      "log": "fakeintake-metrics.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "start-blackhole",
+      "command": [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        "health-package-138372337-blackhole",
+        "--network",
+        "health-package-138372337-net",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pull=never",
+        "-v",
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl:/tool:ro",
+        "--entrypoint",
+        "/tool",
+        "registry.datadoghq.com/agent:7.83.0",
+        "receiver",
+        "serve",
+        "--type",
+        "blackhole",
+        "--listen",
+        "0.0.0.0:8080"
+      ],
+      "returncode": 0,
+      "seconds": 0.31,
+      "log": "start-blackhole.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "apply-blackhole",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "receiver",
+        "apply",
+        "--env",
+        "health-package-138372337",
+        "--config",
+        "/home/bits/go/src/github.com/DataDog/worktrees/datadog-agent-ws/clever-comet/datadog-agent-ws/test/new-e2e/tests/agent-subcommands/validation/local-package-blackhole.yml"
+      ],
+      "returncode": 0,
+      "seconds": 36.79,
+      "log": "apply-blackhole.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "health-package-blackhole",
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-blackhole-results.json"
+      ],
+      "returncode": 0,
+      "seconds": 31.35,
+      "log": "health-package-blackhole.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "blackhole-status",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "receiver",
+        "status",
+        "--env",
+        "health-package-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 0.11,
+      "log": "blackhole-status.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "apply-fakeintake",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "receiver",
+        "apply",
+        "--env",
+        "health-package-138372337",
+        "--config",
+        "/home/bits/go/src/github.com/DataDog/worktrees/datadog-agent-ws/clever-comet/datadog-agent-ws/test/new-e2e/tests/agent-subcommands/validation/local-package-fakeintake.yml"
+      ],
+      "returncode": 0,
+      "seconds": 36.85,
+      "log": "apply-fakeintake.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "health-package-fakeintake-again",
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-fakeintake-again-results.json"
+      ],
+      "returncode": 0,
+      "seconds": 33.16,
+      "log": "health-package-fakeintake-again.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "reject-native-transition",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "receiver",
+        "apply",
+        "--env",
+        "health-package-138372337",
+        "--config",
+        "/tmp/e2ectl-package-health.LV4HNI/unsupported-native-transition.yml"
+      ],
+      "returncode": 1,
+      "seconds": 0.12,
+      "log": "reject-native-transition.log",
+      "expectedReturncode": 1
+    },
+    {
+      "step": "cleanup-blackhole",
+      "command": [
+        "docker",
+        "rm",
+        "-f",
+        "health-package-138372337-blackhole"
+      ],
+      "returncode": 0,
+      "seconds": 0.21,
+      "log": "cleanup-blackhole.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "stop-capture",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "stop",
+        "--env",
+        "health-package-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 0.72,
+      "log": "stop-capture.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "start-native",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "start",
+        "--config",
+        "/home/bits/go/src/github.com/DataDog/worktrees/datadog-agent-ws/clever-comet/datadog-agent-ws/test/new-e2e/tests/agent-subcommands/validation/local-package-datadog.yml",
+        "--name",
+        "health-package-native-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 0.16,
+      "log": "start-native.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "install-native",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "install",
+        "--env",
+        "health-package-native-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 40.5,
+      "log": "install-native.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "health-package-datadog",
+      "command": [
+        "dda",
+        "inv",
+        "--",
+        "new-e2e-tests.run",
+        "--targets=./tests/agent-subcommands/",
+        "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+        "--timeout=3m",
+        "--result-json=/tmp/e2ectl-package-health.LV4HNI/health-package-datadog-results.json"
+      ],
+      "returncode": 0,
+      "seconds": 30.99,
+      "log": "health-package-datadog.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "native-status",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "receiver",
+        "status",
+        "--env",
+        "health-package-native-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 0.11,
+      "log": "native-status.log",
+      "expectedReturncode": 0
+    },
+    {
+      "step": "stop-native",
+      "command": [
+        "/tmp/e2ectl-package-health.LV4HNI/e2ectl",
+        "stop",
+        "--env",
+        "health-package-native-138372337"
+      ],
+      "returncode": 0,
+      "seconds": 0.52,
+      "log": "stop-native.log",
+      "expectedReturncode": 0
+    }
+  ],
+  "fakeintakeObservation": {
+    "status": "PASS",
+    "scope": "Observed system.cpu.user delivery from the intended Docker host; not all-signal coverage",
+    "payloads": [
+      {
+        "resources": [
+          {
+            "type": "host",
+            "name": "health-package-138372337-agent"
+          }
+        ],
+        "metric": "system.cpu.user",
+        "points": [
+          {
+            "value": 19.609571788432678,
+            "timestamp": 1789723890
+          }
+        ],
+        "type": 3,
+        "source_type_name": "System",
+        "metadata": {
+          "origin": {
+            "origin_product": 10,
+            "origin_category": 11,
+            "origin_service": 202
+          }
+        }
+      },
+      {
+        "resources": [
+          {
+            "type": "host",
+            "name": "health-package-138372337-agent"
+          }
+        ],
+        "metric": "system.cpu.user",
+        "points": [
+          {
+            "value": 24.66756438313333,
+            "timestamp": 1789723905
+          }
+        ],
+        "type": 3,
+        "source_type_name": "System",
+        "metadata": {
+          "origin": {
+            "origin_product": 10,
+            "origin_category": 11,
+            "origin_service": 202
+          }
+        }
+      }
+    ]
+  },
+  "nativeForwarderObservation": {
+    "status": "PASS",
+    "scope": "Agent HTTP acceptance, not an independent indexed-metric query",
+    "command": [
+      "docker",
+      "exec",
+      "health-package-native-138372337-agent",
+      "/opt/datadog-agent/bin/agent/agent",
+      "status",
+      "-j"
+    ],
+    "seconds": 0.19,
+    "Transactions": {
+      "Cluster": 0,
+      "ClusterRole": 0,
+      "ClusterRoleBinding": 0,
+      "ConfigMap": 0,
+      "ConnectionEvents": {
+        "ConnectSuccess": 1,
+        "DNSSuccess": 1
+      },
+      "CronJob": 0,
+      "CustomResource": 0,
+      "CustomResourceDefinition": 0,
+      "DaemonSet": 0,
+      "Deployment": 0,
+      "Dropped": 0,
+      "DroppedByEndpoint": {},
+      "ECSTask": 0,
+      "EndpointSlice": 0,
+      "Errors": 0,
+      "ErrorsByType": {
+        "ConnectionErrors": 0,
+        "DNSErrors": 0,
+        "SentRequestErrors": 0,
+        "TLSErrors": 0,
+        "WroteRequestErrors": 0
+      },
+      "HTTPErrors": 0,
+      "HTTPErrorsByCode": {},
+      "HighPriorityQueueFull": 0,
+      "HorizontalPodAutoscaler": 0,
+      "Ingress": 0,
+      "InputBytesByEndpoint": {
+        "check_run_v1": 373,
+        "intake": 1834,
+        "series_v3": 10768
+      },
+      "InputCountByEndpoint": {
+        "check_run_v1": 3,
+        "intake": 3,
+        "series_v3": 3
+      },
+      "Job": 0,
+      "KubeletConfiguration": 0,
+      "LimitRange": 0,
+      "Namespace": 0,
+      "NetworkPolicy": 0,
+      "Node": 0,
+      "OrchestratorManifest": 0,
+      "PersistentVolume": 0,
+      "PersistentVolumeClaim": 0,
+      "Pod": 0,
+      "PodDisruptionBudget": 0,
+      "ReplicaSet": 0,
+      "Requeued": 0,
+      "RequeuedByEndpoint": {},
+      "Retried": 0,
+      "RetriedByEndpoint": {},
+      "RetryQueueSize": 0,
+      "Role": 0,
+      "RoleBinding": 0,
+      "Service": 0,
+      "ServiceAccount": 0,
+      "StatefulSet": 0,
+      "StorageClass": 0,
+      "Success": 9,
+      "SuccessByEndpoint": {
+        "check_run_v1": 3,
+        "connections": 0,
+        "container": 0,
+        "events_v2": 0,
+        "host_metadata_v2": 0,
+        "intake": 3,
+        "orchestrator": 0,
+        "process": 0,
+        "rtcontainer": 0,
+        "rtprocess": 0,
+        "series_v1": 0,
+        "series_v2": 0,
+        "series_v3": 3,
+        "services_checks_v2": 0,
+        "sketches_v1": 0,
+        "sketches_v2": 0,
+        "validate_v1": 0
+      },
+      "SuccessBytesByEndpoint": {
+        "check_run_v1": 373,
+        "intake": 1834,
+        "series_v3": 10768
+      },
+      "VerticalPodAutoscaler": 0
+    }
+  },
+  "transitionObservation": {
+    "status": "PASS",
+    "behavior": "Fakeintake to blackhole to fakeintake reused the exact artifact, runtime image, executable digest and owned runtime volume; disabled-to-native RC policy change rejected before mutation; native run used a fresh environment.",
+    "rejectedCandidateConfig": "local-package-native-transition-rejected.yml"
+  },
+  "cleanup": {
+    "ownedResources": [
+      {
+        "type": "container",
+        "name": "health-package-138372337-agent",
+        "absent": true
+      },
+      {
+        "type": "container",
+        "name": "health-package-138372337-fakeintake",
+        "absent": true
+      },
+      {
+        "type": "container",
+        "name": "health-package-138372337-blackhole",
+        "absent": true
+      },
+      {
+        "type": "container",
+        "name": "health-package-native-138372337-agent",
+        "absent": true
+      },
+      {
+        "type": "network",
+        "name": "health-package-138372337-net",
+        "absent": true
+      },
+      {
+        "type": "network",
+        "name": "health-package-native-138372337-net",
+        "absent": true
+      },
+      {
+        "type": "volume",
+        "name": "e2ectl-agent-runtime-0d887df3836bac7b9a17dc304c02f274",
+        "absent": true
+      },
+      {
+        "type": "volume",
+        "name": "e2ectl-agent-runtime-12322f912a5919edd274ad1c53947d76",
+        "absent": true
+      },
+      {
+        "type": "volume",
+        "name": "e2ectl-agent-runtime-715e7b0ccd798d2ecc39e9de80467f58",
+        "absent": true
+      },
+      {
+        "type": "volume",
+        "name": "e2ectl-agent-runtime-df48a838f8c7a6c196873fb3b5ec13f9",
+        "absent": true
+      },
+      {
+        "type": "volume",
+        "name": "e2ectl-agent-runtime-f5ef0e5e2bc890fec75c195a968d07b6",
+        "absent": true
+      }
+    ],
+    "temporaryContainersAbsent": true,
+    "environmentEntriesRemoved": true,
+    "retainedInstallationImageCache": [
+      "sha256:1511a83574ea9e47c2c39d796d6bc2d9b9f02e9ef74318f6279c5fbf032d7df7",
+      "sha256:1796e1916b0ce2467139ee8d15dcc17daa0cbba3707821c626b331d591eb6ca5",
+      "sha256:35178295c833dc5aff3d411ce0c229c002c7c7ad42fe2a19b01de913706397f9",
+      "sha256:6cac6a4dfee27dfbe956ef82a44911361dded58cece80512b707e085862407d0",
+      "sha256:a3af45e76d3a95683981454246e45ff904f1d0a63f8ea4d0871910255e0905bf"
+    ]
+  },
+  "priorAttempts": [
+    {
+      "status": "SETUP FAILURE",
+      "logsDirectory": "/tmp/e2ectl-package-health.C1zu1v",
+      "issues": [
+        "BuildKit did not accept a bare image ID in FROM; corrected to an owned temporary base tag with identity verification.",
+        "Initial blackhole YAML used unsupported fields; corrected to receiver.blackhole.url before the successful matrix."
+      ]
+    },
+    {
+      "status": "FORWARDING FAILURE despite health PASS",
+      "logsDirectory": "/tmp/e2ectl-package-health.R6zbjn",
+      "healthStatus": "PASS",
+      "forwarderSuccess": 0,
+      "forwarderTLSErrors": 10,
+      "runtimeImageID": "sha256:1796e1916b0ce2467139ee8d15dcc17daa0cbba3707821c626b331d591eb6ca5",
+      "remedy": "Installed Ubuntu standard ca-certificates in a credential-free prerequisite layer; kept DEB/postinst network-disabled, added missing-CA/TLS-bypass regressions and reran every case. No TLS bypass or custom trust."
+    }
+  ],
+  "preservation": {
+    "healthTestUnchanged": true,
+    "metricEmissionUserEditSHA256": "fb53b6b56979157c02436c56d4adc0fde299d1d63461e00f1da5dc2f78480145",
+    "packageRetainedSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+    "parentBinaryConfigsAndResultsUntouched": true,
+    "noStagedFiles": true
+  },
+  "limitations": [
+    "Native forwarder counters show HTTP acceptance (including 3 series_v3 requests), not an independent indexed-metric query.",
+    "Full service/systemd/postinst behavior, subagents, integrations, all-signal safety and non-native platforms are not qualified.",
+    "Installation image cache retained without credentials; owned containers, networks, runtime volumes and environment entries removed."
+  ],
+  "artifact": {
+    "schema": 1,
+    "target": {
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "provenance": {
+      "producer": "existing-package"
+    },
+    "producerProfile": null,
+    "package": {
+      "roles": [
+        "agent",
+        "trace-agent",
+        "process-agent",
+        "security-agent",
+        "system-probe",
+        "installer",
+        "trace-loader",
+        "privateactionrunner"
+      ],
+      "file": {
+        "path": "/tmp/e2ectl-package-health.LV4HNI/store/envs/health-package-138372337/artifacts/generation-3289827999/agent.deb",
+        "sha256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "mode": 420
+      },
+      "format": "deb",
+      "name": "datadog-agent",
+      "version": "1:7.85.0~devel.git.406.456c464.pipeline.138372337-1"
+    }
+  },
+  "effectiveSettings": {
+    "fakeintake": {
+      "agent_telemetry.dd_url": "http://health-package-138372337-fakeintake:80",
+      "agent_telemetry.enabled": false,
+      "agent_telemetry.logs_dd_url": "http://health-package-138372337-fakeintake:80",
+      "agent_telemetry.logs_no_ssl": true,
+      "apm_config.apm_dd_url": "http://health-package-138372337-fakeintake:80",
+      "apm_config.debugger_dd_url": "http://health-package-138372337-fakeintake:80/api/v2/logs",
+      "apm_config.debugger_diagnostics_dd_url": "http://health-package-138372337-fakeintake:80/api/v2/debugger",
+      "apm_config.enabled": false,
+      "apm_config.profiling_dd_url": "http://health-package-138372337-fakeintake:80/api/v2/profile",
+      "apm_config.symdb_dd_url": "http://health-package-138372337-fakeintake:80/api/v2/debugger",
+      "apm_config.telemetry.dd_url": "http://health-package-138372337-fakeintake:80",
+      "container_image.dd_url": "http://health-package-138372337-fakeintake:80",
+      "container_image.enabled": false,
+      "container_image.logs_dd_url": "http://health-package-138372337-fakeintake:80",
+      "container_image.logs_no_ssl": true,
+      "container_lifecycle.dd_url": "http://health-package-138372337-fakeintake:80",
+      "container_lifecycle.enabled": false,
+      "container_lifecycle.logs_dd_url": "http://health-package-138372337-fakeintake:80",
+      "container_lifecycle.logs_no_ssl": true,
+      "dd_url": "http://health-package-138372337-fakeintake:80",
+      "evp_proxy_config.enabled": false,
+      "inventories_configuration_enabled": false,
+      "inventories_enabled": false,
+      "logs_config.force_use_http": true,
+      "logs_config.logs_dd_url": "http://health-package-138372337-fakeintake:80",
+      "logs_config.logs_no_ssl": true,
+      "logs_enabled": false,
+      "network_path.connections_monitoring.enabled": false,
+      "ol_proxy_config.enabled": false,
+      "orchestrator_explorer.enabled": false,
+      "orchestrator_explorer.orchestrator_dd_url": "http://health-package-138372337-fakeintake:80",
+      "otelcollector.enabled": false,
+      "process_config.container_collection.enabled": false,
+      "process_config.process_collection.enabled": false,
+      "process_config.process_dd_url": "http://health-package-138372337-fakeintake:80",
+      "process_config.run_in_core_agent.enabled": false,
+      "remote_configuration.enabled": false,
+      "sbom.dd_url": "http://health-package-138372337-fakeintake:80",
+      "sbom.enabled": false,
+      "sbom.logs_dd_url": "http://health-package-138372337-fakeintake:80",
+      "sbom.logs_no_ssl": true,
+      "skip_ssl_validation": false
+    },
+    "blackhole": {
+      "agent_telemetry.dd_url": "http://health-package-138372337-blackhole:8080",
+      "agent_telemetry.enabled": false,
+      "agent_telemetry.logs_dd_url": "http://health-package-138372337-blackhole:8080",
+      "agent_telemetry.logs_no_ssl": true,
+      "apm_config.apm_dd_url": "http://health-package-138372337-blackhole:8080",
+      "apm_config.debugger_dd_url": "http://health-package-138372337-blackhole:8080/api/v2/logs",
+      "apm_config.debugger_diagnostics_dd_url": "http://health-package-138372337-blackhole:8080/api/v2/debugger",
+      "apm_config.enabled": false,
+      "apm_config.profiling_dd_url": "http://health-package-138372337-blackhole:8080/api/v2/profile",
+      "apm_config.symdb_dd_url": "http://health-package-138372337-blackhole:8080/api/v2/debugger",
+      "apm_config.telemetry.dd_url": "http://health-package-138372337-blackhole:8080",
+      "container_image.dd_url": "http://health-package-138372337-blackhole:8080",
+      "container_image.enabled": false,
+      "container_image.logs_dd_url": "http://health-package-138372337-blackhole:8080",
+      "container_image.logs_no_ssl": true,
+      "container_lifecycle.dd_url": "http://health-package-138372337-blackhole:8080",
+      "container_lifecycle.enabled": false,
+      "container_lifecycle.logs_dd_url": "http://health-package-138372337-blackhole:8080",
+      "container_lifecycle.logs_no_ssl": true,
+      "dd_url": "http://health-package-138372337-blackhole:8080",
+      "evp_proxy_config.enabled": false,
+      "inventories_configuration_enabled": false,
+      "inventories_enabled": false,
+      "logs_config.force_use_http": true,
+      "logs_config.logs_dd_url": "http://health-package-138372337-blackhole:8080",
+      "logs_config.logs_no_ssl": true,
+      "logs_enabled": false,
+      "network_path.connections_monitoring.enabled": false,
+      "ol_proxy_config.enabled": false,
+      "orchestrator_explorer.enabled": false,
+      "orchestrator_explorer.orchestrator_dd_url": "http://health-package-138372337-blackhole:8080",
+      "otelcollector.enabled": false,
+      "process_config.container_collection.enabled": false,
+      "process_config.process_collection.enabled": false,
+      "process_config.process_dd_url": "http://health-package-138372337-blackhole:8080",
+      "process_config.run_in_core_agent.enabled": false,
+      "remote_configuration.enabled": false,
+      "sbom.dd_url": "http://health-package-138372337-blackhole:8080",
+      "sbom.enabled": false,
+      "sbom.logs_dd_url": "http://health-package-138372337-blackhole:8080",
+      "sbom.logs_no_ssl": true,
+      "skip_ssl_validation": false
+    },
+    "datadog": {
+      "agent_telemetry.enabled": false,
+      "apm_config.enabled": false,
+      "container_image.enabled": false,
+      "container_lifecycle.enabled": false,
+      "inventories_configuration_enabled": false,
+      "inventories_enabled": false,
+      "logs_enabled": false,
+      "network_path.connections_monitoring.enabled": false,
+      "orchestrator_explorer.enabled": false,
+      "otelcollector.enabled": false,
+      "process_config.container_collection.enabled": false,
+      "process_config.process_collection.enabled": false,
+      "process_config.run_in_core_agent.enabled": false,
+      "remote_configuration.enabled": true,
+      "sbom.enabled": false,
+      "site": "datadoghq.com",
+      "skip_ssl_validation": false
+    }
+  },
+  "snapshots": [
+    {
+      "case": "fakeintake",
+      "runtime": {
+        "scope": "core-health/configuration",
+        "packageSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "executableSHA256": "4cee725227a699f4a8e87083193cc571d3710b64e17c7a2ecfab49f7d09522ab",
+        "baseImageID": "sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+        "imageID": "sha256:a3af45e76d3a95683981454246e45ff904f1d0a63f8ea4d0871910255e0905bf",
+        "osVersion": "24.04"
+      },
+      "runtimeVolume": {
+        "name": "e2ectl-agent-runtime-12322f912a5919edd274ad1c53947d76",
+        "owner": "12322f912a5919edd274ad1c53947d7629dadd83b7a7a9b7f2a32d81154d25eb"
+      },
+      "host": {
+        "cloudProvider": "local",
+        "transport": "docker",
+        "address": "health-package-138372337-agent",
+        "port": 0,
+        "username": "",
+        "osFamily": 1,
+        "osFlavor": 101,
+        "osVersion": "24.04",
+        "architecture": "arm64"
+      },
+      "agentBinPath": "/opt/datadog-agent/bin/agent/agent",
+      "producerProfile": null,
+      "routing": {
+        "scope": "core-health/configuration",
+        "phase": "applied",
+        "readiness": "ready",
+        "delivery": "unverified",
+        "plan": {
+          "type": "fakeintake",
+          "endpoint": "http://health-package-138372337-fakeintake:80",
+          "queryURL": "http://127.0.0.1:35073",
+          "remoteConfig": "disabled"
+        }
+      },
+      "privateSnapshot": "/tmp/e2ectl-package-health.LV4HNI/fakeintake-snapshot.json"
+    },
+    {
+      "case": "blackhole",
+      "runtime": {
+        "scope": "core-health/configuration",
+        "packageSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "executableSHA256": "4cee725227a699f4a8e87083193cc571d3710b64e17c7a2ecfab49f7d09522ab",
+        "baseImageID": "sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+        "imageID": "sha256:a3af45e76d3a95683981454246e45ff904f1d0a63f8ea4d0871910255e0905bf",
+        "osVersion": "24.04"
+      },
+      "runtimeVolume": {
+        "name": "e2ectl-agent-runtime-12322f912a5919edd274ad1c53947d76",
+        "owner": "12322f912a5919edd274ad1c53947d7629dadd83b7a7a9b7f2a32d81154d25eb"
+      },
+      "host": {
+        "cloudProvider": "local",
+        "transport": "docker",
+        "address": "health-package-138372337-agent",
+        "port": 0,
+        "username": "",
+        "osFamily": 1,
+        "osFlavor": 101,
+        "osVersion": "24.04",
+        "architecture": "arm64"
+      },
+      "agentBinPath": "/opt/datadog-agent/bin/agent/agent",
+      "producerProfile": null,
+      "routing": {
+        "scope": "core-health/configuration",
+        "phase": "applied",
+        "readiness": "ready",
+        "delivery": "unverified",
+        "plan": {
+          "type": "blackhole",
+          "endpoint": "http://health-package-138372337-blackhole:8080",
+          "remoteConfig": "disabled"
+        }
+      },
+      "privateSnapshot": "/tmp/e2ectl-package-health.LV4HNI/blackhole-snapshot.json"
+    },
+    {
+      "case": "fakeintake-again",
+      "runtime": {
+        "scope": "core-health/configuration",
+        "packageSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "executableSHA256": "4cee725227a699f4a8e87083193cc571d3710b64e17c7a2ecfab49f7d09522ab",
+        "baseImageID": "sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+        "imageID": "sha256:a3af45e76d3a95683981454246e45ff904f1d0a63f8ea4d0871910255e0905bf",
+        "osVersion": "24.04"
+      },
+      "runtimeVolume": {
+        "name": "e2ectl-agent-runtime-12322f912a5919edd274ad1c53947d76",
+        "owner": "12322f912a5919edd274ad1c53947d7629dadd83b7a7a9b7f2a32d81154d25eb"
+      },
+      "host": {
+        "cloudProvider": "local",
+        "transport": "docker",
+        "address": "health-package-138372337-agent",
+        "port": 0,
+        "username": "",
+        "osFamily": 1,
+        "osFlavor": 101,
+        "osVersion": "24.04",
+        "architecture": "arm64"
+      },
+      "agentBinPath": "/opt/datadog-agent/bin/agent/agent",
+      "producerProfile": null,
+      "routing": {
+        "scope": "core-health/configuration",
+        "phase": "applied",
+        "readiness": "ready",
+        "delivery": "unverified",
+        "plan": {
+          "type": "fakeintake",
+          "endpoint": "http://health-package-138372337-fakeintake:80",
+          "queryURL": "http://127.0.0.1:35073",
+          "remoteConfig": "disabled"
+        }
+      },
+      "privateSnapshot": "/tmp/e2ectl-package-health.LV4HNI/fakeintake-again-snapshot.json"
+    },
+    {
+      "case": "after-rejected-native-transition",
+      "runtime": {
+        "scope": "core-health/configuration",
+        "packageSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "executableSHA256": "4cee725227a699f4a8e87083193cc571d3710b64e17c7a2ecfab49f7d09522ab",
+        "baseImageID": "sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+        "imageID": "sha256:a3af45e76d3a95683981454246e45ff904f1d0a63f8ea4d0871910255e0905bf",
+        "osVersion": "24.04"
+      },
+      "runtimeVolume": {
+        "name": "e2ectl-agent-runtime-12322f912a5919edd274ad1c53947d76",
+        "owner": "12322f912a5919edd274ad1c53947d7629dadd83b7a7a9b7f2a32d81154d25eb"
+      },
+      "host": {
+        "cloudProvider": "local",
+        "transport": "docker",
+        "address": "health-package-138372337-agent",
+        "port": 0,
+        "username": "",
+        "osFamily": 1,
+        "osFlavor": 101,
+        "osVersion": "24.04",
+        "architecture": "arm64"
+      },
+      "agentBinPath": "/opt/datadog-agent/bin/agent/agent",
+      "producerProfile": null,
+      "routing": {
+        "scope": "core-health/configuration",
+        "phase": "applied",
+        "readiness": "ready",
+        "delivery": "unverified",
+        "plan": {
+          "type": "fakeintake",
+          "endpoint": "http://health-package-138372337-fakeintake:80",
+          "queryURL": "http://127.0.0.1:35073",
+          "remoteConfig": "disabled"
+        }
+      },
+      "privateSnapshot": "/tmp/e2ectl-package-health.LV4HNI/after-rejected-native-transition-snapshot.json"
+    },
+    {
+      "case": "datadog",
+      "runtime": {
+        "scope": "core-health/configuration",
+        "packageSHA256": "298125a25edb2a438c6ed0622afdc6ee6dedb51a8a76f1a39b46b48a283290b8",
+        "executableSHA256": "4cee725227a699f4a8e87083193cc571d3710b64e17c7a2ecfab49f7d09522ab",
+        "baseImageID": "sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+        "imageID": "sha256:35178295c833dc5aff3d411ce0c229c002c7c7ad42fe2a19b01de913706397f9",
+        "osVersion": "24.04"
+      },
+      "runtimeVolume": {
+        "name": "e2ectl-agent-runtime-715e7b0ccd798d2ecc39e9de80467f58",
+        "owner": "715e7b0ccd798d2ecc39e9de80467f581d891f3976958f3f50a353920f3122e6"
+      },
+      "host": {
+        "cloudProvider": "local",
+        "transport": "docker",
+        "address": "health-package-native-138372337-agent",
+        "port": 0,
+        "username": "",
+        "osFamily": 1,
+        "osFlavor": 101,
+        "osVersion": "24.04",
+        "architecture": "arm64"
+      },
+      "agentBinPath": "/opt/datadog-agent/bin/agent/agent",
+      "producerProfile": null,
+      "routing": {
+        "scope": "core-health/configuration",
+        "phase": "applied",
+        "readiness": "ready",
+        "delivery": "unverified",
+        "plan": {
+          "type": "datadog",
+          "site": "datadoghq.com",
+          "apiKeyRef": "runner/api_key",
+          "remoteConfig": "native"
+        }
+      },
+      "privateSnapshot": "/tmp/e2ectl-package-health.LV4HNI/datadog-snapshot.json"
+    }
+  ],
+  "cliSHA256": "3860c59888f4c67aecb8f965579bc38985c76d58807b0a2b842d8d6cebbbe6e3"
+}

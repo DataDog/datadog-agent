@@ -1,0 +1,20 @@
+# Real-backend case authorized for the dddev organization.
+# The site is datadoghq.com; the configured runner API key selects the organization.
+# No credential value is stored here. Use a fresh environment: native RC trust
+# transitions from the capture/sink modes are not currently supported in place.
+schema: 1
+environment:
+  base: local
+  fakeintake: true
+  local: {}
+agent:
+  source: true
+  config: |
+    tags:
+      - purpose:e2ectl-health-validation
+      - artifact_source:local-binary
+  receiver:
+    type: datadog
+    datadog:
+      site: datadoghq.com
+      api-key-ref: runner/api_key

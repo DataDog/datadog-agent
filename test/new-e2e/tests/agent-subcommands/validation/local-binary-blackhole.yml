@@ -1,0 +1,15 @@
+# Same artifact/config as local-binary-fakeintake.yml; only receiver changes.
+# No url: the local base starts and routes the environment-managed sink itself.
+schema: 1
+environment:
+  base: local
+  fakeintake: true
+  local: {}
+agent:
+  source: true
+  config: |
+    tags:
+      - purpose:e2ectl-health-validation
+      - artifact_source:local-binary
+  receiver:
+    type: blackhole

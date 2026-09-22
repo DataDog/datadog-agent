@@ -1,10 +1,18 @@
 # e2ectl: EKS scenario implementation plan
 
-> **Category C — pending feature; not implemented in e2ectl.** Existing framework EKS
-> support is reusable, but the CLI schema/driver and standalone mixed-OS installation
-> remain proposals. See the [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
+> **Category C — first-release infrastructure IMPLEMENTED (not cloud-verified); the
+> suite-level capabilities and standalone mixed-OS installation below remain pending.**
+> See the [plan status index](../qa-e2ectl-plans-index.md#5-category-c--pending-feature-designs-not-implemented).
 
-**Status:** proposal only; no EKS implementation or infrastructure changes made.
+**Status:** the `eks` base is registered in the working tree: typed schema
+(`cmd/internal/envconfig/eks`, with the Linux/Windows topology rules on the shared
+schema), Pulumi scenario builder (`cmd/e2ectl-worker/scenarios.go` `buildEKS`), Helm
+driver with kubeconfig export (`cmd/e2ectl/internal/drivers/eks`), derivation
+mappings (version→helm; source and pipeline rejected until remote image delivery and
+pipeline images exist), starter config, example (`cmd/e2ectl/examples/eks.yml`) and
+kubectl-based workloads. No cloud run has verified it yet. The sections below that
+describe the full scenario (mixed-OS standalone installation, workloads, suite
+attach) remain the pending design.
 **Baseline:** current working tree, including the locally implemented typed-config layer.
 **Proposed environment ID:** `eks`.
 

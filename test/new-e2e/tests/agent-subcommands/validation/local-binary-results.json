@@ -1,0 +1,167 @@
+{
+  "scope": "Core Agent health on local Linux arm64; not an independent backend-ingestion query",
+  "test": "TestLinuxHealthSuiteOnLocal/TestDefaultInstallHealthy",
+  "test_command": [
+    "dda",
+    "inv",
+    "--",
+    "new-e2e-tests.run",
+    "--targets=./tests/agent-subcommands/",
+    "--run=^TestLinuxHealthSuiteOnLocal$/^TestDefaultInstallHealthy$",
+    "--timeout=3m"
+  ],
+  "configs": [
+    "local-binary-fakeintake.yml",
+    "local-binary-blackhole.yml",
+    "local-binary-datadog.yml"
+  ],
+  "capture_sink_loop": {
+    "status": "passed",
+    "steps": [
+      {
+        "step": "start-binary",
+        "returncode": 0,
+        "seconds": 0.47,
+        "log": "start-binary.log"
+      },
+      {
+        "step": "install-binary",
+        "returncode": 0,
+        "seconds": 59.16,
+        "log": "install-binary.log"
+      },
+      {
+        "step": "health-binary-fakeintake",
+        "returncode": 0,
+        "seconds": 141.48,
+        "log": "health-binary-fakeintake.log"
+      },
+      {
+        "step": "fakeintake-metrics",
+        "returncode": 0,
+        "seconds": 0.16,
+        "log": "fakeintake-metrics.log"
+      },
+      {
+        "step": "start-blackhole",
+        "returncode": 0,
+        "seconds": 0.31,
+        "log": "start-blackhole.log"
+      },
+      {
+        "step": "apply-blackhole",
+        "returncode": 0,
+        "seconds": 18.25,
+        "log": "apply-blackhole.log"
+      },
+      {
+        "step": "health-binary-blackhole",
+        "returncode": 0,
+        "seconds": 31.34,
+        "log": "health-binary-blackhole.log"
+      },
+      {
+        "step": "blackhole-status",
+        "returncode": 0,
+        "seconds": 0.11,
+        "log": "blackhole-status.log"
+      },
+      {
+        "step": "apply-fakeintake",
+        "returncode": 0,
+        "seconds": 17.6,
+        "log": "apply-fakeintake.log"
+      },
+      {
+        "step": "health-binary-fakeintake-again",
+        "returncode": 0,
+        "seconds": 30.94,
+        "log": "health-binary-fakeintake-again.log"
+      },
+      {
+        "step": "fakeintake-status",
+        "returncode": 0,
+        "seconds": 0.11,
+        "log": "fakeintake-status.log"
+      },
+      {
+        "step": "cleanup-blackhole",
+        "returncode": 0,
+        "seconds": 0.21,
+        "log": "cleanup-blackhole.log"
+      },
+      {
+        "step": "stop-binary",
+        "returncode": 0,
+        "seconds": 0.77,
+        "log": "stop-binary.log"
+      }
+    ]
+  },
+  "native_fresh_environment": {
+    "status": "passed",
+    "steps": [
+      {
+        "step": "start-native-binary",
+        "returncode": 0,
+        "seconds": 0.47,
+        "log": "start-native-binary.log"
+      },
+      {
+        "step": "install-native-binary",
+        "returncode": 0,
+        "seconds": 40.1,
+        "log": "install-native-binary.log"
+      },
+      {
+        "step": "health-binary-datadog",
+        "returncode": 0,
+        "seconds": 31.14,
+        "log": "health-binary-datadog.log"
+      },
+      {
+        "step": "native-routing-status",
+        "returncode": 0,
+        "seconds": 0.11,
+        "log": "native-routing-status.log"
+      },
+      {
+        "step": "stop-native-binary",
+        "returncode": 0,
+        "seconds": 0.72,
+        "log": "stop-native-binary.log"
+      }
+    ],
+    "site": "datadoghq.com",
+    "organization": "dddev (user-specified configured key)",
+    "evidence": "Agent health test; backend ingestion not independently queried"
+  },
+  "health_assertion_evidence": [
+    {
+      "log": "/tmp/e2ectl-health-loop.zUYfog/health-binary-fakeintake.log",
+      "sha256": "0eab6a4244f1733d1757817ffde71472c8ea0bbe02c11a7cc122b4ea99857c94",
+      "assertion": "TestDefaultInstallHealthy",
+      "result": "PASS"
+    },
+    {
+      "log": "/tmp/e2ectl-health-loop.zUYfog/health-binary-blackhole.log",
+      "sha256": "ec66a7c1942da790dcb123c230a088906b27f6ad3e43c7341d3f601fe6baaee1",
+      "assertion": "TestDefaultInstallHealthy",
+      "result": "PASS"
+    },
+    {
+      "log": "/tmp/e2ectl-health-loop.zUYfog/health-binary-fakeintake-again.log",
+      "sha256": "7eafd8ac7c82f1e43a40f2c62b7464ce9474606ea846d0d3074d741b1f31ca11",
+      "assertion": "TestDefaultInstallHealthy",
+      "result": "PASS"
+    },
+    {
+      "log": "/tmp/e2ectl-health-loop.zUYfog/health-binary-datadog.log",
+      "sha256": "6c4f311e9a69fe6a7f16570cbc7dcb7b28fd0721f24db1ddc677b169528d262b",
+      "assertion": "TestDefaultInstallHealthy",
+      "result": "PASS"
+    }
+  ],
+  "cleanup": "Both environments and the operator-owned blackhole were stopped; actual binary-loop cleanup steps are above",
+  "credential_policy": "Dummy credentials for capture/sink and test harness; real CLI native install resolved the user-configured runner/api_key. No secret values retained."
+}

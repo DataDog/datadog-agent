@@ -4,9 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package workloads deploys test applications alongside the Agent. The
-// environment determines the mechanism: kind uses kubectl via the snapshot's
-// kubeconfig, the local container agent uses docker run on the agent's
-// network (the same pattern as the fakeintake).
+// environment determines the mechanism: cluster bases (kind, eks) use kubectl
+// via the environment's kubeconfig, the local container agent uses docker run
+// on the agent's network (the same pattern as the fakeintake).
 package workloads
 
 import (
@@ -37,7 +37,7 @@ func Deploy(cfg *config.File, entry envstore.Entry) error {
 		return nil
 	}
 	switch cfg.Environment.Base {
-	case "kind":
+	case "kind", "eks":
 		return deployKubernetes(cfg, entry)
 	case "local":
 		return deployDocker(entry, decls)
@@ -57,7 +57,7 @@ func Validate(cfg *config.File) []error {
 	var errs []error
 	for i, w := range decls {
 		switch {
-		case w.Manifest != "" && cfg.Environment.Base != "kind":
+		case w.Manifest != "" && cfg.Environment.Base != "kind" && cfg.Environment.Base != "eks":
 			errs = append(errs, fmt.Errorf(
 				"workloads[%d].manifest: Kubernetes manifests are not supported on base %q (supported forms: app, image)",
 				i, cfg.Environment.Base))
@@ -72,7 +72,7 @@ func Validate(cfg *config.File) []error {
 }
 
 // deployKubernetes applies K8s manifests via kubectl (using the kubeconfig
-// from the environment's snapshot). The kind driver stores the kubeconfig
+// from the environment's snapshot). Cluster drivers store the kubeconfig
 // at entry.KubeconfigPath().
 func deployKubernetes(cfg *config.File, entry envstore.Entry) error {
 	kubeconfig := entry.KubeconfigPath()

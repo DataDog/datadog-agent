@@ -16,5 +16,4 @@ environment:
   fakeintake: true
   local: {}
 agent:
-  install: binary
-  binary: {}
+  source: true

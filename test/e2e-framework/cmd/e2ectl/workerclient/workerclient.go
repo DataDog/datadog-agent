@@ -28,8 +28,10 @@ const ProtocolVersion = 1
 
 // Base IDs — the one shared place where the two binaries agree (T4).
 const (
-	BaseKind    = "kind"
-	BaseEC2Host = "ec2-host"
+	BaseKind       = "kind"
+	BaseEC2Host    = "ec2-host"
+	BaseEKS        = "eks"
+	BaseDockerHost = "docker-host"
 )
 
 // Actions.

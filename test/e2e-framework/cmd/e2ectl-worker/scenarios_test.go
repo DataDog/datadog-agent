@@ -41,4 +41,62 @@ func TestOSMappingDoesNotSilentlyFallBack(t *testing.T) {
 	if _, err := osDescriptor("unknown"); err == nil {
 		t.Fatal("unknown OS must not silently become Ubuntu")
 	}
+	if _, err := dockerOSDescriptor("unknown"); err == nil {
+		t.Fatal("unknown Docker host OS must not silently become the default AMI")
+	}
+}
+
+// Construction only: no Pulumi execution, credentials or cloud calls. The
+// shared schemas' semantic rules (EKS topology, Docker AMI availability) run
+// on both sides of the process boundary, so rejecting them here proves the
+// executor rejects them too.
+func TestEKSSharedSchemaValidation(t *testing.T) {
+	for _, params := range []string{
+		"windows: true\nlinux: false",
+		"linux: false",
+		"version: 1.31\n",
+		"linux: true\nextra: x",
+	} {
+		if _, err := buildEKS(params, fixtures.Config{FakeIntake: true}); err == nil {
+			t.Fatalf("executor should reject invalid EKS parameters: %q", params)
+		}
+	}
+	for _, params := range []string{
+		// Normalized payload shape the CLI forwards: every default explicit.
+		"linux: true\nwindows: false\nversion: '1.34'",
+		"linux: true\nwindows: true\nversion: '1.32'",
+	} {
+		for _, fakeintake := range []bool{false, true} {
+			exec, err := buildEKS(params, fixtures.Config{FakeIntake: fakeintake})
+			if err != nil {
+				t.Fatal(params, err)
+			}
+			if exec.Provision == nil || exec.Destroy == nil {
+				t.Fatal("missing scenario lifecycle")
+			}
+		}
+	}
+}
+
+func TestDockerHostSharedSchemaValidation(t *testing.T) {
+	for _, params := range []string{
+		"os: unknown",
+		"os: ubuntu-22.04-e2e\narch: unknown",
+		"os: ubuntu-24.04-e2e\narch: arm64",
+		"os: ubuntu-22.04-e2e\nfakeintake: true",
+		"os: ubuntu-22.04-e2e\nextra: x",
+	} {
+		if _, err := buildDockerHost(params, fixtures.Config{FakeIntake: true}); err == nil {
+			t.Fatalf("executor should reject invalid Docker host parameters: %q", params)
+		}
+	}
+	for _, enabled := range []bool{false, true} {
+		exec, err := buildDockerHost("os: ubuntu-22.04-e2e\narch: amd64", fixtures.Config{FakeIntake: enabled})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if exec.Provision == nil || exec.Destroy == nil {
+			t.Fatal("missing scenario lifecycle")
+		}
+	}
 }

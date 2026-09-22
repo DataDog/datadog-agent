@@ -3,21 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ec2host
+package dockerhost
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
-	ec2config "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/ec2host"
 )
 
 // The lifecycle itself (executor handoff, fakeintake bookkeeping) is proven in
-// the shared pulumiworker package; this file keeps the ec2-host wiring honest.
+// the shared pulumiworker package; this file keeps the docker-host wiring honest.
 func TestDriverRegistrationWiring(t *testing.T) {
 	d := New()
-	if d.ID() != workerclient.BaseEC2Host {
-		t.Fatalf("driver ID %q must be the shared base spelling %q", d.ID(), workerclient.BaseEC2Host)
+	if d.ID() != workerclient.BaseDockerHost {
+		t.Fatalf("driver ID %q must be the shared base spelling %q", d.ID(), workerclient.BaseDockerHost)
 	}
 	if d.Description() == "" {
 		t.Fatal("the registry requires a description")
@@ -28,11 +27,5 @@ func TestDriverRegistrationWiring(t *testing.T) {
 	}
 	if len(ids) != 2 || ids[0] != "script" || ids[1] != "package" {
 		t.Fatalf("unexpected installers: %v", ids)
-	}
-}
-
-func TestFixtureOptionIsNotAnEC2Field(t *testing.T) {
-	if _, _, err := ec2config.Schema.Decode([]byte("os: ubuntu-22.04\nfakeintake: false"), "input"); err == nil {
-		t.Fatal("fixture settings belong to their shared schema, not the EC2 type")
 	}
 }

@@ -1,0 +1,18 @@
+# Full DEB installation in Docker; only core foreground health/configuration is validated.
+# This does NOT attest all-signal routing or systemd/subagent installation.
+schema: 1
+environment:
+  base: local
+  fakeintake: true
+  local: {}
+agent:
+  pipeline: 138372337
+  config: |
+    tags:
+      - purpose:e2ectl-health-validation
+      - artifact_source:pipeline-138372337-deb
+      - validation_run:e2ectl-package-health-138372337
+  receiver:
+    type: fakeintake
+    fakeintake:
+      remote-config: disabled

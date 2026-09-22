@@ -1,0 +1,18 @@
+# Local health-validation loop: build the core Agent from this checkout.
+# Run TestLinuxHealthSuiteOnLocal/TestDefaultInstallHealthy against the snapshot.
+# This is the actual checkout path used; change it when running elsewhere.
+schema: 1
+environment:
+  base: local
+  fakeintake: true
+  local: {}
+agent:
+  source: true
+  config: |
+    tags:
+      - purpose:e2ectl-health-validation
+      - artifact_source:local-binary
+  receiver:
+    type: fakeintake
+    fakeintake:
+      remote-config: disabled
