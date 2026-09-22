@@ -140,8 +140,13 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
+	mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}}
+	if c.ForceNoPreallocHash.USM {
+		mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+	}
+
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}, &modifiers.HashMapNoPreallocModifier{}),
+		Manager:               ddebpf.NewManager(mgr, "usm", mgrModifiers...),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}

@@ -15,8 +15,25 @@ import (
 )
 
 const (
-	spNS = "system_probe_config"
+	spNS   = "system_probe_config"
+	ebpfNS = "ebpf"
 )
+
+// ForceNoPreallocHashConfig holds, per eBPF subsystem, whether hash maps must be
+// forced to not be pre-allocated.
+type ForceNoPreallocHashConfig struct {
+	// USM forces no-prealloc hash maps for Universal Service Monitoring
+	USM bool
+
+	// CNM forces no-prealloc hash maps for Cloud Network Monitoring
+	CNM bool
+
+	// Security forces no-prealloc hash maps for Cloud Workload Security
+	Security bool
+
+	// Misc forces no-prealloc hash maps for the remaining eBPF subsystems
+	Misc bool
+}
 
 // Config stores all common flags used by system-probe
 type Config struct {
@@ -96,6 +113,9 @@ type Config struct {
 
 	// RemoteConfigBTFDownloadHost is the base URL host for downloading BTF from remote config
 	RemoteConfigBTFDownloadHost string
+
+	// ForceNoPreallocHash indicates, per eBPF subsystem, whether hash maps must not be pre-allocated
+	ForceNoPreallocHash ForceNoPreallocHashConfig
 }
 
 // NewConfig creates a config with ebpf-related settings
@@ -130,6 +150,13 @@ func NewConfig() *Config {
 		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),
+
+		ForceNoPreallocHash: ForceNoPreallocHashConfig{
+			USM:      cfg.GetBool(sysconfig.FullKeyPath(ebpfNS, "force_no_prealloc_hash", "usm")),
+			CNM:      cfg.GetBool(sysconfig.FullKeyPath(ebpfNS, "force_no_prealloc_hash", "cnm")),
+			Security: cfg.GetBool(sysconfig.FullKeyPath(ebpfNS, "force_no_prealloc_hash", "security")),
+			Misc:     cfg.GetBool(sysconfig.FullKeyPath(ebpfNS, "force_no_prealloc_hash", "misc")),
+		},
 	}
 
 	if !configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
