@@ -106,6 +106,20 @@ func nullTermBytes(b []byte) string {
 	return string(b)
 }
 
+// isPrintableASCII reports whether s is non-empty and contains only
+// printable ASCII characters.
+func isPrintableASCII(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
 func listPIDs() ([]int32, error) {
 	dir, err := os.Open("/proc")
 	if err != nil {
@@ -133,9 +147,15 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 	name := nullTermBytes(psi.Fname[:])
 	args := nullTermBytes(psi.Psargs[:])
 
+	// pr_psargs is copied from the process's address space and holds arbitrary
+	// binary bytes when the kernel cannot read its argv (kernel processes,
+	// daemons, exec in flight...). AIX ps shows those as a bracketed name; do
+	// the same instead of shipping junk bytes.
 	var cmdline []string
-	if args != "" {
+	if isPrintableASCII(args) {
 		cmdline = strings.Fields(args)
+	} else if name != "" {
+		cmdline = []string{"[" + name + "]"}
 	}
 
 	cpuSecs := float64(psi.Time.Sec) + float64(psi.Time.Nsec)/1e9
@@ -144,6 +164,7 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 		Pid:     pid,
 		Ppid:    int32(psi.Ppid),
 		Name:    name,
+		Comm:    name,
 		Cmdline: cmdline,
 		Uids:    []int32{int32(psi.UID), int32(psi.Euid), int32(psi.UID), int32(psi.Euid)},
 		Gids:    []int32{int32(psi.Gid), int32(psi.Egid), int32(psi.Gid), int32(psi.Egid)},
