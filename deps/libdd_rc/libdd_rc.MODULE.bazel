@@ -1,0 +1,40 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "libdd_rc_crates",
+    cargo_lock = "//deps/libdd_rc:Cargo.lock",
+    cargo_toml = "//deps/libdd_rc:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
+crate.annotation(
+    build_script_env = {
+        "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+    },
+    build_script_tools = ["@@//bazel/toolchains/protoc:protoc"],
+    crate = "rc-x509-proto",
+)
+
+# TODO: update as needed
+crate.annotation(
+    build_script_env_select = {
+        "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
+        "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
+    },
+    crate = "aws-lc-fips-sys",
+)
+use_repo(crate, "libdd_rc_crates")
+
+http_archive(
+    name = "libdd_rc_source",
+    build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
+    sha256 = "92907c72919346e5618b44c8e84e265ba529d50b3bb009cd2e8a20d3aa7416f3",
+    strip_prefix = "libdd-rc-7a02beb9cda0971dc7c62608f06ea48749fb17bf",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/7a02beb9cda0971dc7c62608f06ea48749fb17bf.tar.gz"],
+)

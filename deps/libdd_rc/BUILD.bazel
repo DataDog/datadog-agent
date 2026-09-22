@@ -1,0 +1,9 @@
+exports_files(
+    [
+        "Cargo.lock",
+        "Cargo.toml",
+        "lib.rs",
+        "libdd_rc.BUILD.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)

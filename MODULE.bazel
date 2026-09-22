@@ -489,6 +489,10 @@ register_toolchains("//bazel/toolchains/prost:prost_toolchain")
 
 include("//deps:crates.MODULE.bazel")
 
+# Keep libdd-rc's Rust dependency graph isolated from the Agent's existing crates.
+# buildifier: leave-alone
+include("//deps/libdd_rc:libdd_rc.MODULE.bazel")
+
 #########################
 ## Native dependencies ##
 #########################

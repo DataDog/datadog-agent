@@ -75,6 +75,42 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
+# Deliberately manual and limited to Linux amd64 to validate whether the
+# Agent can build libdd-rc's native dependencies from source. Keep native
+# outputs on failures so the first CI runs provide enough evidence to refine
+bazel:rc-x509-ffi:linux-amd64:
+  extends: .bazel:runner:linux-amd64
+  stage: source_test
+  needs: []
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    RC_X509_ARTIFACTS_DIR: $CI_PROJECT_DIR/rc-x509-artifacts
+  script:
+    - uname -a
+    - bazel version
+    - cc --version
+    - ld --version
+    - command -v cmake && cmake --version
+    - command -v go && go version
+    - command -v perl && perl --version
+    - bazel cquery --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
+    - bazel build -c opt --jobs=$KUBERNETES_CPU_REQUEST --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
+  after_script:
+    - mkdir -p "$RC_X509_ARTIFACTS_DIR"
+    - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
+    - find -L bazel-out -type f \( -name '*rc_x509_ffi*.a' -o -name 'libaws_lc_fips*' \) -print > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt" || true
+    - |-
+      while IFS= read -r native_output; do
+        cp "$native_output" "$RC_X509_ARTIFACTS_DIR/"
+      done < "$RC_X509_ARTIFACTS_DIR/native-outputs.txt"
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - rc-x509-artifacts/
+
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
   script:

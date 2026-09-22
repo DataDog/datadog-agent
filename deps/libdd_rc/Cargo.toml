@@ -1,0 +1,21 @@
+[package]
+name = "libdd-rc-agent-deps"
+version = "0.0.0"
+edition = "2024"
+publish = false
+rust-version = "1.94"
+
+[lib]
+path = "lib.rs"
+
+[workspace]
+
+[dependencies]
+futures = "0.3.32"
+rc-x509-client = "0.2.0"
+rc-x509-proto = "0.2.0"
+tokio = { version = "1.52.3", features = ["macros", "parking_lot", "rt", "sync", "time"] }
+tokio-stream = "0.1.18"
+tokio-util = "0.7.18"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["fmt", "env-filter"] }

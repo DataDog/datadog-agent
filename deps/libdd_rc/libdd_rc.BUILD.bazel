@@ -1,0 +1,36 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_rust//rust:defs.bzl", "rust_static_library")
+
+rust_static_library(
+    name = "rc_x509_ffi",
+    srcs = [
+        "lib/rc-x509-ffi/src/connection.rs",
+        "lib/rc-x509-ffi/src/ctx.rs",
+        "lib/rc-x509-ffi/src/io_handle.rs",
+        "lib/rc-x509-ffi/src/lib.rs",
+        "lib/rc-x509-ffi/src/log_sink.rs",
+    ],
+    compile_data = ["lib/rc-x509-ffi/README.md"],
+    crate_name = "rc_x509_ffi",
+    crate_root = "lib/rc-x509-ffi/src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@libdd_rc_crates//:futures",
+        "@libdd_rc_crates//:rc-x509-client",
+        "@libdd_rc_crates//:rc-x509-proto",
+        "@libdd_rc_crates//:tokio",
+        "@libdd_rc_crates//:tokio-stream",
+        "@libdd_rc_crates//:tokio-util",
+        "@libdd_rc_crates//:tracing",
+        "@libdd_rc_crates//:tracing-subscriber",
+    ],
+)
+
+cc_library(
+    name = "rc_x509_ffi_cc",
+    hdrs = ["include/libdd_rc.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [":rc_x509_ffi"],
+)
