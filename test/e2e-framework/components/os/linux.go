@@ -39,11 +39,7 @@ func newLinuxOS(e config.Env, desc Descriptor, runner command.Runner) OS {
 		panic(fmt.Sprintf("unsupported linux flavor from desc: %+v", desc))
 	}
 
-	if desc.Flavor == AmazonLinux2018.Flavor && desc.Version == AmazonLinux2018.Version {
-		os.serviceManager = newSysvinitServiceManager(e, runner)
-	} else {
-		os.serviceManager = newSystemdServiceManager(e, runner)
-	}
+	os.serviceManager = newSystemdServiceManager(e, runner)
 
 	return os
 }
