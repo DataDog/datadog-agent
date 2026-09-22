@@ -903,6 +903,1265 @@ func TestOtelSpanToDDSpan_HTTPAttributeMappings(t *testing.T) {
 	}
 }
 
+// TestOtelSpanToDDSpan_AWSIdentityAttributeMappings verifies that OpenTelemetry
+// attributes carrying AWS resource identity are aliased to the tag names the
+// Datadog tracers and Agent tagger use, while the OpenTelemetry keys are kept.
+func TestOtelSpanToDDSpan_AWSIdentityAttributeMappings(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	const (
+		lambdaARN  = "arn:aws:lambda:us-east-1:123456789012:function:orders"
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/orders-cluster/0123456789abcdef0123456789abcdef"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/orders-cluster"
+		eksARN     = "arn:aws:eks:us-east-1:123456789012:cluster/OrdersCluster"
+	)
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]any
+		rattrs       map[string]any
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			name: "resource identity attributes are aliased and the otel keys are kept",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):    semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.AWSECSTaskARNKey):    taskARN,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+			expectedMeta: map[string]string{
+				"aws_account":     "123456789012",
+				"region":          "us-east-1",
+				"task_arn":        taskARN,
+				"cluster_arn":     clusterARN,
+				"eks_cluster_arn": eksARN,
+				// OpenTelemetry keys are preserved.
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.AWSECSTaskARNKey):    taskARN,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+		},
+		{
+			name: "lambda invoked arn is aliased to function_arn",
+			sattrs: map[string]any{
+				string(semconv127.AWSLambdaInvokedARNKey): lambdaARN,
+			},
+			expectedMeta: map[string]string{
+				"function_arn": lambdaARN,
+				string(semconv127.AWSLambdaInvokedARNKey): lambdaARN,
+			},
+		},
+		{
+			// aws.s3.bucket is deliberately NOT mapped: it is already a declared
+			// precursor of peer.aws.s3.bucket alongside bucketname, so adding
+			// bucketname would make the span carry both precursors and change its
+			// APM stats aggregation keys without matching natively instrumented
+			// spans, which carry bucketname alone.
+			name: "s3 bucket is not mapped to bucketname",
+			sattrs: map[string]any{
+				string(semconv127.AWSS3BucketKey): "orders-archive",
+			},
+			expectedMeta: map[string]string{
+				string(semconv127.AWSS3BucketKey): "orders-archive",
+			},
+			absentMeta: []string{"bucketname"},
+		},
+		{
+			name: "single dynamodb table name is aliased to tablename",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"orders"},
+			},
+			expectedMeta: map[string]string{
+				"tablename": "orders",
+			},
+		},
+		{
+			name: "dynamodb table name as a plain string is aliased to tablename",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): "orders",
+			},
+			expectedMeta: map[string]string{
+				"tablename": "orders",
+			},
+		},
+		{
+			name: "multiple dynamodb table names have no single target",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"orders", "customers"},
+			},
+			absentMeta: []string{"tablename"},
+		},
+		{
+			name: "cloud.account.id is not aws_account for other providers",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+				string(semconv127.CloudRegionKey):    "us-central1",
+			},
+			expectedMeta: map[string]string{
+				"region":                             "us-central1",
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "cloud.account.id is not aws_account without a provider",
+			rattrs: map[string]any{
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "span attributes take precedence over resource attributes",
+			sattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "eu-west-1",
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			expectedMeta: map[string]string{
+				"region": "eu-west-1",
+			},
+		},
+		{
+			name: "an existing datadog tag is never overwritten",
+			sattrs: map[string]any{
+				"aws_account":                        "999999999999",
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "999999999999",
+			},
+		},
+	}
+
+	putAttrs := func(m pcommon.Map, attrs map[string]any) {
+		for k, v := range attrs {
+			switch val := v.(type) {
+			case string:
+				m.PutStr(k, val)
+			case []string:
+				s := m.PutEmptySlice(k)
+				for _, e := range val {
+					s.AppendEmpty().SetStr(e)
+				}
+			}
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			putAttrs(span.Attributes(), tt.sattrs)
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			putAttrs(res.Attributes(), tt.rattrs)
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key)
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpan_AWSAccountProviderScopePrecedence verifies that the
+// cloud.provider gate on aws_account is evaluated within the same attribute
+// scope that supplies cloud.account.id. Resolving the provider and the account
+// id independently lets a provider from one scope authorize an account id from
+// another, so a non-AWS account id can be mislabeled as aws_account (or a real
+// AWS account id can be dropped). The alias must only fire when the scope that
+// wins the account id also declares cloud.provider=aws.
+func TestOtelSpanToDDSpan_AWSAccountProviderScopePrecedence(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]string
+		rattrs       map[string]string
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			// Bug case. The span marks itself AWS but carries no account id; the
+			// resource is a different cloud (GCP) and carries a GCP project id.
+			// Resolving provider and account independently makes the span provider
+			// (aws, which wins by scope precedence) authorize the resource account
+			// id (the GCP project), labeling a GCP project as aws_account. The gate
+			// must be decided in the scope that supplies the account id: the GCP
+			// resource scope, which is not AWS, so no aws_account is produced.
+			name: "span aws provider must not authorize a gcp account id on the resource",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey): semconv127.CloudProviderAWS.Value.AsString(),
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			// Split-scope recovery. cloud.provider=aws sits on the span and
+			// cloud.account.id on the resource, each in a scope that carries only
+			// one of the two. The account id's own scope declares no provider, so
+			// the other scope's aws provider supplies it; no scope declares a
+			// non-aws provider, so the account is proven AWS and aliased. (Dropping
+			// it here would lose a legitimate AWS account on the conventional
+			// provider-on-resource, id-on-span layout.)
+			name: "aws provider on span and account id on resource are aliased",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey): semconv127.CloudProviderAWS.Value.AsString(),
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "123456789012",
+			},
+		},
+		{
+			// Guard: span declares an AWS provider and account together; the
+			// resource carries a different (GCP) provider and account. The span
+			// scope supplies both the provider and the account, so the span AWS
+			// account is aliased and the GCP resource account is ignored.
+			name: "span aws provider and account win over resource gcp provider and account",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "111111111111",
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "111111111111",
+			},
+		},
+		{
+			// Guard: resource declares an AWS provider and account together; no
+			// cloud attributes on the span. The resource scope supplies both, so
+			// the AWS account is aliased from the resource scope.
+			name: "resource aws provider and account are aliased when span has none",
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "222222222222",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "222222222222",
+			},
+		},
+		{
+			// Guard: span declares an AWS provider and account; the resource
+			// carries no cloud attributes. The span scope supplies both.
+			name: "span aws provider and account are aliased when resource has none",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "333333333333",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "333333333333",
+			},
+		},
+		{
+			// aws_account must agree with the span's own cloud.account.id. The span
+			// supplies cloud.account.id (so that value is what the copy loop writes
+			// to Meta) but no provider; the resource declares aws with a different
+			// account id. Reading the account from the resource would put a value in
+			// aws_account that contradicts the cloud.account.id on the same span.
+			// The owning scope (span) is provider-less and the only provider in play
+			// is the resource's aws, so the span account is the one aliased, keeping
+			// the two tags consistent.
+			name: "aws_account agrees with the span cloud.account.id it is aliased from",
+			sattrs: map[string]string{
+				string(semconv127.CloudAccountIDKey): "999999999999",
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account":      "999999999999",
+				"cloud.account.id": "999999999999",
+			},
+		},
+		{
+			// A non-aws provider on the account id's own scope blocks the alias
+			// outright. The span owns cloud.account.id and declares gcp, so the id
+			// is a GCP identity; the aws provider on the resource cannot license it.
+			name: "non-aws provider on the account scope blocks the alias",
+			sattrs: map[string]string{
+				string(semconv127.CloudAccountIDKey): "123456789012",
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey): semconv127.CloudProviderAWS.Value.AsString(),
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			// An empty cloud.account.id on the span must not shadow a real account
+			// id on the resource. The Meta copy loop skips the empty value, so the
+			// owning scope is the resource; its aws provider licenses the account
+			// and aws_account is aliased from it.
+			name: "empty span account id does not shadow a real resource aws account",
+			sattrs: map[string]string{
+				string(semconv127.CloudAccountIDKey): "",
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "123456789012",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key, "did not expect %s", key)
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpan_ScopeAttributesDoNotOverwriteAWSIdentity verifies the
+// precedence between instrumentation-scope attributes and the AWS identity tags.
+//
+// The V2 conversion copies scope attributes into Meta with an unconditional
+// assignment, so a scope attribute that happens to use a Datadog identity tag
+// name (region, aws_account, an ARN tag, ...) would replace the identity the
+// span or resource actually carries, reporting one resource's telemetry under
+// another resource's identity. The identity mapping therefore runs after the
+// scope copy, and its write guard reads the producer's span and resource
+// attributes rather than Meta, so that a scope value cannot pass for a producer
+// tag and suppress the mapping.
+//
+// Scope attributes keep their normal effect everywhere else: a scope attribute
+// under an identity tag name still lands when the span carries no AWS identity
+// for that tag, and a scope attribute under any other name is untouched.
+func TestOtelSpanToDDSpan_ScopeAttributesDoNotOverwriteAWSIdentity(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	const (
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"
+		eksARN     = "arn:aws:eks:us-east-1:123456789012:cluster/my-eks"
+		lambdaARN  = "arn:aws:lambda:us-east-1:123456789012:function:my-fn"
+	)
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]any
+		rattrs       map[string]any
+		scopeAttrs   map[string]string
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			// Regression case: every identity tag is shadowed by a scope
+			// attribute of the same name. The span and resource identity must win.
+			name: "scope attributes must not overwrite identity from span or resource",
+			sattrs: map[string]any{
+				string(semconv127.AWSS3BucketKey):           "real-bucket",
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"real-table"},
+				string(semconv127.AWSLambdaInvokedARNKey):   lambdaARN,
+				string(semconv127.AWSECSTaskARNKey):         taskARN,
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):    semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+			scopeAttrs: map[string]string{
+				"region":          "scope-region",
+				"aws_account":     "000000000000",
+				"bucketname":      "scope-bucket",
+				"tablename":       "scope-table",
+				"function_arn":    "arn:aws:lambda:us-east-1:000000000000:function:scope-fn",
+				"task_arn":        "arn:aws:ecs:us-east-1:000000000000:task/scope/scope",
+				"cluster_arn":     "arn:aws:ecs:us-east-1:000000000000:cluster/scope",
+				"eks_cluster_arn": "arn:aws:eks:us-east-1:000000000000:cluster/scope",
+			},
+			expectedMeta: map[string]string{
+				"region":          "us-east-1",
+				"aws_account":     "123456789012",
+				"tablename":       "real-table",
+				"function_arn":    lambdaARN,
+				"task_arn":        taskARN,
+				"cluster_arn":     clusterARN,
+				"eks_cluster_arn": eksARN,
+				// aws.s3.bucket is not mapped, so the scope value stands for
+				// bucketname, which is ordinary scope-attribute behavior.
+				"bucketname": "scope-bucket",
+				// The OpenTelemetry keys are still copied verbatim.
+				string(semconv127.CloudRegionKey):      "us-east-1",
+				string(semconv127.CloudAccountIDKey):   "123456789012",
+				string(semconv127.AWSS3BucketKey):      "real-bucket",
+				string(semconv127.AWSECSTaskARNKey):    taskARN,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+		},
+		{
+			// A scope attribute still supplies the tag when there is no AWS
+			// identity to map, so the fix does not swallow scope attributes.
+			name: "scope attributes supply identity tag names when no aws identity exists",
+			scopeAttrs: map[string]string{
+				"region":      "scope-region",
+				"aws_account": "000000000000",
+				"bucketname":  "scope-bucket",
+			},
+			expectedMeta: map[string]string{
+				"region":      "scope-region",
+				"aws_account": "000000000000",
+				"bucketname":  "scope-bucket",
+			},
+		},
+		{
+			// Per-tag resolution: cloud.region is present so region comes from
+			// the resource, while bucketname has no OpenTelemetry source on this
+			// span and keeps the scope value.
+			name: "mapped tags win per tag while unmapped tags keep the scope value",
+			rattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "eu-west-1",
+			},
+			scopeAttrs: map[string]string{
+				"region":     "scope-region",
+				"bucketname": "scope-bucket",
+			},
+			expectedMeta: map[string]string{
+				"region":     "eu-west-1",
+				"bucketname": "scope-bucket",
+			},
+		},
+		{
+			// A producer tag set on the span attributes still wins over the
+			// mapping, which is the pre-existing rule: ordering the mapping after
+			// the scope copy must not turn it into an unconditional overwrite of
+			// the producer's own tag.
+			name: "producer tag on span attributes wins over the mapping",
+			sattrs: map[string]any{
+				"region":                          "producer-region",
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			expectedMeta: map[string]string{
+				"region":                          "producer-region",
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+		},
+		{
+			// Same rule for a producer tag on the resource attributes. The tag
+			// name must not be a container tag name, since those are excluded
+			// from the resource-side check for V1/V2 parity; tablename is not.
+			name: "producer tag on resource attributes wins over the mapping",
+			rattrs: map[string]any{
+				"tablename": "producer-table",
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"real-table"},
+			},
+			expectedMeta: map[string]string{
+				"tablename": "producer-table",
+			},
+		},
+		{
+			// When the producer sets the Datadog tag itself, the mapping does not
+			// fire, so the scope copy's value is what remains. That the scope copy
+			// overwrites a producer attribute of the same name is pre-existing
+			// behavior of the unconditional scope assignment and applies to every
+			// attribute name, not just these: it is unchanged by this mapping
+			// either way. What this case pins is that the mapping stays silent and
+			// never substitutes the cloud.region value for the producer's own tag.
+			name: "mapping stays silent when the producer sets the tag, scope copy unchanged",
+			sattrs: map[string]any{
+				"region":                          "producer-region",
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			scopeAttrs: map[string]string{
+				"region": "scope-region",
+			},
+			expectedMeta: map[string]string{
+				"region":                          "scope-region",
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+		},
+		{
+			// Scope attributes that are not identity tag names are unaffected.
+			name: "unrelated scope attributes are preserved",
+			rattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			scopeAttrs: map[string]string{
+				"region":       "scope-region",
+				"scope.custom": "scope-value",
+			},
+			expectedMeta: map[string]string{
+				"region":       "us-east-1",
+				"scope.custom": "scope-value",
+			},
+		},
+		{
+			// A numeric span attribute under a Datadog tag name is routed to
+			// Metrics, not Meta, so it leaves the tag unset and must not suppress
+			// the mapping. An account id is plausibly sent as an integer.
+			name: "numeric span attribute does not suppress the mapping",
+			sattrs: map[string]any{
+				"aws_account": int64(999999999999),
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "123456789012",
+			},
+		},
+		{
+			// A numeric resource attribute does reach Meta (the resource loop
+			// copies every type as a string), so it counts as producer-set.
+			name: "numeric resource attribute is producer-set and wins",
+			rattrs: map[string]any{
+				"aws_account":                        int64(999999999999),
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "123456789012",
+			},
+			expectedMeta: map[string]string{
+				"aws_account": "999999999999",
+			},
+		},
+		{
+			// An empty producer tag does not shadow the mapping, matching the
+			// Meta copy loops, which fall through on an empty value.
+			name: "empty producer tag does not shadow the mapping",
+			sattrs: map[string]any{
+				"region": "",
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudRegionKey): "us-east-1",
+			},
+			expectedMeta: map[string]string{
+				"region": "us-east-1",
+			},
+		},
+	}
+
+	putAttrs := func(m pcommon.Map, attrs map[string]any) {
+		for k, v := range attrs {
+			switch val := v.(type) {
+			case string:
+				m.PutStr(k, val)
+			case int64:
+				m.PutInt(k, val)
+			case []string:
+				s := m.PutEmptySlice(k)
+				for _, e := range val {
+					s.AppendEmpty().SetStr(e)
+				}
+			}
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			putAttrs(span.Attributes(), tt.sattrs)
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			putAttrs(res.Attributes(), tt.rattrs)
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+			for k, v := range tt.scopeAttrs {
+				lib.Attributes().PutStr(k, v)
+			}
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key, "did not expect %s", key)
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpanMinimal_AWSIdentityStatsParity verifies that the minimal
+// conversion used by the APM stats path resolves the same AWS identity tags the
+// full trace conversion does, for the keys stats can aggregate on.
+//
+// The stats path builds its spans from the minimal conversion, which copies only
+// peer tags and additional metric tags out of the attributes. peer.aws.dynamodb.table
+// has a single precursor, tablename, and no OpenTelemetry producer sets that key,
+// so without the mapping an OTLP DynamoDB span resolves that peer tag on the
+// trace path (whose span carries tablename) and not on the OTLP stats path. A
+// tag that stats does not aggregate on is not added, so the minimal conversion
+// stays minimal.
+func TestOtelSpanToDDSpanMinimal_AWSIdentityStatsParity(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+
+	const (
+		accountID = "123456789012"
+		region    = "us-east-1"
+		taskARN   = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+		bucket    = "real-bucket"
+		table     = "real-table"
+	)
+
+	newSpan := func() ptrace.Span {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+		span.Attributes().PutStr(string(semconv127.AWSS3BucketKey), bucket)
+		s := span.Attributes().PutEmptySlice(string(semconv127.AWSDynamoDBTableNamesKey))
+		s.AppendEmpty().SetStr(table)
+		span.Attributes().PutStr(string(semconv127.AWSLambdaInvokedARNKey), "arn:aws:lambda:us-east-1:123456789012:function:my-fn")
+		return span
+	}
+	newRes := func() pcommon.Resource {
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), accountID)
+		res.Attributes().PutStr(string(semconv127.CloudRegionKey), region)
+		res.Attributes().PutStr(string(semconv127.AWSECSTaskARNKey), taskARN)
+		return res
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	// The peer tag precursors the semantics registry lists for S3 and DynamoDB.
+	// aws.s3.bucket is already a declared precursor, which is why it is not
+	// mapped: peer.aws.s3.bucket resolves from it on both paths without help.
+	peerTagKeys := []string{"bucketname", string(semconv127.AWSS3BucketKey), "tablename"}
+
+	fullSpan := OtelSpanToDDSpan(newSpan(), newRes(), lib, newCfg())
+	minSpan := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(), peerTagKeys, nil)
+
+	// The peer tags agree between the trace span and the stats span.
+	for _, key := range peerTagKeys {
+		assert.Equal(t, fullSpan.Meta[key], minSpan.Meta[key], "trace and stats disagree on %s", key)
+	}
+	// tablename is the only precursor of peer.aws.dynamodb.table, and no
+	// OpenTelemetry producer sets it, so the mapping is what makes that concept
+	// resolve for stats at all.
+	assert.Equal(t, table, minSpan.Meta["tablename"])
+	// aws.s3.bucket resolves directly as its own precursor, on both paths.
+	assert.Equal(t, bucket, minSpan.Meta[string(semconv127.AWSS3BucketKey)])
+	// bucketname is not mapped, so neither path invents it: the two stay equal
+	// and the span's S3 aggregation keys are unchanged by this PR.
+	assert.NotContains(t, minSpan.Meta, "bucketname")
+	assert.NotContains(t, fullSpan.Meta, "bucketname")
+
+	// A tag stats does not aggregate on is not added to the minimal span.
+	assert.NotContains(t, minSpan.Meta, "region")
+	assert.NotContains(t, minSpan.Meta, "aws_account")
+	assert.NotContains(t, minSpan.Meta, "function_arn")
+
+	// Configured as additional metric tags, the identity tags DO participate in
+	// stats aggregation, and then they must agree with the trace span too.
+	primaryTagKeys := []string{"region", "task_arn"}
+	minWithPrimary := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(), peerTagKeys, primaryTagKeys)
+	for _, key := range primaryTagKeys {
+		assert.Equal(t, fullSpan.Meta[key], minWithPrimary.Meta[key], "trace and stats disagree on %s", key)
+	}
+	assert.Equal(t, region, minWithPrimary.Meta["region"])
+	assert.Equal(t, taskARN, minWithPrimary.Meta["task_arn"])
+
+	// Requesting no keys maps nothing, so the default stats configuration is
+	// unchanged by this PR.
+	minNoKeys := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(), nil, nil)
+	for _, key := range []string{"region", "aws_account", "task_arn", "bucketname", "tablename", "function_arn"} {
+		assert.NotContains(t, minNoKeys.Meta, key)
+	}
+}
+
+// TestOtelSpanToDDSpan_AWSIdentityDynamoDBSpanScopeOnly covers the scope
+// rule for aws.dynamodb.table_names: it is read from the span scope only.
+//
+// The attribute describes the tables one call targeted, not the resource the
+// process runs as, so a resource-scoped value does not describe any particular
+// span. Borrowing it would give every sibling span on that resource, including
+// spans that touch no table, a tablename tag and the peer.aws.dynamodb.table
+// aggregation key for a table they never touched. The attribute is also an array
+// projected onto a single tag, so only a value naming exactly one table is used.
+func TestOtelSpanToDDSpan_AWSIdentityDynamoDBSpanScopeOnly(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	const resourceTable = "resource-table"
+
+	tests := []struct {
+		name          string
+		spanValue     any
+		withResource  bool
+		expectedTable string
+	}{
+		{
+			name:          "single element span slice is used",
+			spanValue:     []string{"span-table"},
+			withResource:  true,
+			expectedTable: "span-table",
+		},
+		{
+			name:          "plain single string is used",
+			spanValue:     "orders",
+			withResource:  false,
+			expectedTable: "orders",
+		},
+		{
+			// The resource scope is never consulted, so a span that does not
+			// name a table does not inherit the resource's table.
+			name:          "absent span value does not inherit the resource table",
+			spanValue:     nil,
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			name:          "empty span slice does not inherit the resource table",
+			spanValue:     []string{},
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			name:          "empty span string does not inherit the resource table",
+			spanValue:     "",
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			// Naming two tables is positive evidence that the operation has no
+			// single peer table.
+			name:          "span slice naming two tables yields no table",
+			spanValue:     []string{"a", "b"},
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			name:          "unusable span type yields no table",
+			spanValue:     int64(7),
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			// A plain string that is a rendered list names more than one table.
+			// Some instrumentations send the array this way, so it must not be
+			// taken as a single table name verbatim.
+			name:          "comma separated string names more than one table",
+			spanValue:     "orders,customers",
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			name:          "bracket rendered slice names more than one table",
+			spanValue:     "[orders customers]",
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			name:          "json rendered array names more than one table",
+			spanValue:     `["orders","customers"]`,
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			// A single-element rendered array is still not accepted verbatim:
+			// the brackets are not part of the table name.
+			name:          "bracket rendered single element is not a table name",
+			spanValue:     "[orders]",
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			name:          "slice with an empty element yields no table",
+			spanValue:     []string{""},
+			withResource:  true,
+			expectedTable: "",
+		},
+		{
+			// An instrumentation that renders the whole array into one element
+			// names no single table either, so the list check applies to a
+			// single-element slice as well as to a plain string.
+			name:          "single element slice holding a rendered list yields no table",
+			spanValue:     []string{"orders,customers"},
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			// A space-joined render names no single table either. A DynamoDB
+			// table name cannot contain a space.
+			name:          "space separated string names more than one table",
+			spanValue:     "orders customers",
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			// A one-element numeric array stringifies to something that is not a
+			// table name: a DynamoDB name is at least three characters of
+			// letters, digits, underscore, hyphen and dot.
+			name:          "single element numeric slice is not a table name",
+			spanValue:     []int64{5},
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			name:          "too short a name is rejected",
+			spanValue:     "ab",
+			withResource:  false,
+			expectedTable: "",
+		},
+		{
+			name:          "a name using the full allowed charset is accepted",
+			spanValue:     "orders_table-v2.prod",
+			withResource:  false,
+			expectedTable: "orders_table-v2.prod",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			key := string(semconv127.AWSDynamoDBTableNamesKey)
+			switch v := tt.spanValue.(type) {
+			case string:
+				span.Attributes().PutStr(key, v)
+			case int64:
+				span.Attributes().PutInt(key, v)
+			case []string:
+				s := span.Attributes().PutEmptySlice(key)
+				for _, e := range v {
+					s.AppendEmpty().SetStr(e)
+				}
+			case []int64:
+				s := span.Attributes().PutEmptySlice(key)
+				for _, e := range v {
+					s.AppendEmpty().SetInt(e)
+				}
+			}
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			if tt.withResource {
+				s := res.Attributes().PutEmptySlice(key)
+				s.AppendEmpty().SetStr(resourceTable)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			if tt.expectedTable == "" {
+				assert.NotContains(t, ddspan.Meta, "tablename")
+			} else {
+				assert.Equal(t, tt.expectedTable, ddspan.Meta["tablename"])
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpan_AWSAccountEmptyProvider pins that an empty
+// cloud.provider is treated as absent rather than as a conflicting provider.
+// The attribute loops skip an empty value, so an empty cloud.provider asserts
+// nothing about which cloud the account id belongs to: on its own it cannot
+// prove the account is AWS, and it must not deny an aws provider declared by
+// the other scope.
+func TestOtelSpanToDDSpan_AWSAccountEmptyProvider(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	const accountID = "123456789012"
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]string
+		rattrs       map[string]string
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			name: "empty provider on the account scope proves nothing",
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  "",
+				string(semconv127.CloudAccountIDKey): accountID,
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "empty provider on the account scope does not deny an aws provider on the other scope",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey): semconv127.CloudProviderAWS.Value.AsString(),
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  "",
+				string(semconv127.CloudAccountIDKey): accountID,
+			},
+			expectedMeta: map[string]string{"aws_account": accountID},
+		},
+		{
+			name: "empty provider elsewhere does not deny an aws provider on the account scope",
+			sattrs: map[string]string{
+				string(semconv127.CloudProviderKey): "",
+			},
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): accountID,
+			},
+			expectedMeta: map[string]string{"aws_account": accountID},
+		},
+		{
+			name: "a real non-aws provider still denies the mapping",
+			rattrs: map[string]string{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): accountID,
+			},
+			absentMeta: []string{"aws_account"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+			span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key, "did not expect %s", key)
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpan_AWSIdentityNumericSourceAttributes pins that a numeric
+// OpenTelemetry source attribute on the span does not supply a mapped tag.
+//
+// Both receiver paths route numeric span attributes to Metrics and never to
+// Meta, so a numeric cloud.account.id on the span leaves Meta's
+// cloud.account.id coming from the resource. Reading the numeric span value
+// would make aws_account and cloud.account.id disagree on one span, which is
+// exactly the skew the scope selection exists to prevent: the two tags are
+// documented as carrying the same identity.
+func TestOtelSpanToDDSpan_AWSIdentityNumericSourceAttributes(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	t.Run("numeric span account id does not shadow the resource account id", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+		span.Attributes().PutInt(string(semconv127.CloudAccountIDKey), 999999999999)
+
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), "123456789012")
+
+		lib := pcommon.NewInstrumentationScope()
+		lib.SetName("test-lib")
+
+		ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+		// Meta's cloud.account.id comes from the resource, because the numeric
+		// span value went to Metrics; aws_account must agree with it.
+		assert.Equal(t, "123456789012", ddspan.Meta[string(semconv127.CloudAccountIDKey)])
+		assert.Equal(t, "123456789012", ddspan.Meta["aws_account"])
+		assert.Equal(t, float64(999999999999), ddspan.Metrics[string(semconv127.CloudAccountIDKey)])
+	})
+
+	t.Run("numeric span region does not shadow the resource region", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+		span.Attributes().PutInt(string(semconv127.CloudRegionKey), 42)
+
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudRegionKey), "us-east-1")
+
+		lib := pcommon.NewInstrumentationScope()
+		lib.SetName("test-lib")
+
+		ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+		assert.Equal(t, "us-east-1", ddspan.Meta[string(semconv127.CloudRegionKey)])
+		assert.Equal(t, "us-east-1", ddspan.Meta["region"])
+	})
+
+	t.Run("numeric provider declares nothing and does not authorize an account", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutInt(string(semconv127.CloudProviderKey), 1)
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), "123456789012")
+
+		lib := pcommon.NewInstrumentationScope()
+		lib.SetName("test-lib")
+
+		ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+		assert.NotContains(t, ddspan.Meta, "aws_account")
+	})
+
+	t.Run("differently cased provider is not the convention's aws", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), "AWS")
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), "123456789012")
+
+		lib := pcommon.NewInstrumentationScope()
+		lib.SetName("test-lib")
+
+		ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+		assert.NotContains(t, ddspan.Meta, "aws_account")
+	})
+}
+
+// TestOtelSpanToDDSpan_AWSIdentityDisableFeature pins the rollback switch: with
+// disable_otlp_aws_identity_tags set, no identity tag is added on the trace path
+// or the stats path, so an operator can restore the previous span tags and APM
+// stats aggregation keys without downgrading the Agent.
+func TestOtelSpanToDDSpan_AWSIdentityDisableFeature(t *testing.T) {
+	newCfg := func(disabled bool) *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		if disabled {
+			cfg.Features = map[string]struct{}{"disable_otlp_aws_identity_tags": {}}
+		}
+		return cfg
+	}
+
+	newSpan := func() ptrace.Span {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+		span.Attributes().PutStr(string(semconv127.AWSDynamoDBTableNamesKey), "orders")
+		return span
+	}
+	newRes := func() pcommon.Resource {
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), "123456789012")
+		res.Attributes().PutStr(string(semconv127.CloudRegionKey), "us-east-1")
+		return res
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+	identityTags := []string{"region", "aws_account", "tablename"}
+
+	enabled := OtelSpanToDDSpan(newSpan(), newRes(), lib, newCfg(false))
+	for _, tag := range identityTags {
+		assert.NotEmpty(t, enabled.Meta[tag], "%s should be present by default", tag)
+	}
+
+	disabled := OtelSpanToDDSpan(newSpan(), newRes(), lib, newCfg(true))
+	for _, tag := range identityTags {
+		assert.NotContains(t, disabled.Meta, tag, "%s should be absent when disabled", tag)
+	}
+	// The OpenTelemetry keys are untouched by the switch.
+	assert.Equal(t, "us-east-1", disabled.Meta[string(semconv127.CloudRegionKey)])
+	assert.Equal(t, "123456789012", disabled.Meta[string(semconv127.CloudAccountIDKey)])
+
+	// Same on the stats path.
+	peerTagKeys := []string{"tablename"}
+	primaryTagKeys := []string{"region", "aws_account"}
+	minEnabled := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(false), peerTagKeys, primaryTagKeys)
+	minDisabled := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(true), peerTagKeys, primaryTagKeys)
+	for _, tag := range identityTags {
+		assert.NotEmpty(t, minEnabled.Meta[tag], "%s should be present by default", tag)
+		assert.NotContains(t, minDisabled.Meta, tag, "%s should be absent when disabled", tag)
+	}
+}
+
+// TestOtelSpanToDDSpanMinimal_AWSIdentityRestrictedSelection exercises the
+// restricted selection used by the stats path for every tag the mapping can
+// produce, so that the tag-bit mask cannot silently fail to select one.
+func TestOtelSpanToDDSpanMinimal_AWSIdentityRestrictedSelection(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+
+	const (
+		accountID  = "123456789012"
+		region     = "us-east-1"
+		lambdaARN  = "arn:aws:lambda:us-east-1:123456789012:function:my-fn"
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"
+		eksARN     = "arn:aws:eks:us-east-1:123456789012:cluster/my-eks"
+		table      = "orders"
+	)
+
+	newSpan := func() ptrace.Span {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+		span.Attributes().PutStr(string(semconv127.AWSLambdaInvokedARNKey), lambdaARN)
+		span.Attributes().PutStr(string(semconv127.AWSECSTaskARNKey), taskARN)
+		span.Attributes().PutStr(string(semconv127.AWSDynamoDBTableNamesKey), table)
+		return span
+	}
+	newRes := func() pcommon.Resource {
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("service.name", "test-svc")
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), accountID)
+		res.Attributes().PutStr(string(semconv127.CloudRegionKey), region)
+		res.Attributes().PutStr(string(semconv127.AWSECSClusterARNKey), clusterARN)
+		res.Attributes().PutStr(string(semconv127.AWSEKSClusterARNKey), eksARN)
+		return res
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	want := map[string]string{
+		"region":          region,
+		"aws_account":     accountID,
+		"function_arn":    lambdaARN,
+		"task_arn":        taskARN,
+		"cluster_arn":     clusterARN,
+		"eks_cluster_arn": eksARN,
+		"tablename":       table,
+	}
+
+	for tag, expected := range want {
+		t.Run(tag, func(t *testing.T) {
+			// Requested on its own, each tag is selected and resolves to the
+			// same value the full conversion produces.
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(), []string{tag}, nil)
+			assert.Equal(t, expected, minSpan.Meta[tag])
+
+			fullSpan := OtelSpanToDDSpan(newSpan(), newRes(), lib, newCfg())
+			assert.Equal(t, fullSpan.Meta[tag], minSpan.Meta[tag], "trace and stats disagree on %s", tag)
+
+			// Requesting only this tag selects nothing else.
+			for other := range want {
+				if other != tag {
+					assert.NotContains(t, minSpan.Meta, other)
+				}
+			}
+		})
+	}
+
+	// A requested key that is not a mapping target selects nothing.
+	minSpan := OtelSpanToDDSpanMinimal(newSpan(), newRes(), lib, false, false, newCfg(), []string{"peer.service", "db.name"}, nil)
+	for tag := range want {
+		assert.NotContains(t, minSpan.Meta, tag)
+	}
+}
+
 // TestOtelSpanToDDSpan_DBAttributeMappings tests full span conversion with database attribute mappings
 // (db.query.text, db.statement preservation, db.namespace → db.name).
 func TestOtelSpanToDDSpan_DBAttributeMappings(t *testing.T) {

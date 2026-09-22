@@ -223,6 +223,55 @@ var (
 		string(semconv1_27.URLFullKey):                "http.url",
 		string(semconv1_27.UserAgentOriginalKey):      "http.useragent",
 	}
+
+	// AWSIdentitySpanMappings defines the mapping between OpenTelemetry semantic
+	// conventions that carry AWS resource identity (account, Region, ARNs) and the
+	// span tag names the Datadog tracers and the Agent tagger already emit for the
+	// same information. Unlike HTTPMappings, the OpenTelemetry key is kept on the
+	// span as well: the Datadog name is added alongside it so that OTLP-instrumented
+	// workloads can be queried with the same identity tags as natively instrumented
+	// ones without breaking queries that already use the OpenTelemetry names.
+	//
+	// cloud.account.id and aws.dynamodb.table_names are intentionally absent: the
+	// former is only aws_account when cloud.provider is aws, and the latter is an
+	// array attribute. Both are handled in the trace transform.
+	//
+	// aws.s3.bucket is intentionally absent as well. It is already a declared
+	// precursor of the peer.aws.s3.bucket concept in the trace semantics registry
+	// alongside bucketname, so that concept already resolves for OTLP spans. Adding
+	// bucketname to the span would make an OTLP S3 span carry BOTH precursors,
+	// because the APM stats concentrator emits one peer tag per precursor present:
+	// that changes the aggregation keys of every such span without making them match
+	// natively instrumented spans, which carry bucketname alone. Reconciling the raw
+	// meta key for S3 belongs in the registry, which is owned elsewhere.
+	//
+	// cloud.resource_id is absent too. It is provider-generic rather than an AWS
+	// tag, and this package already parses it as an Azure resource ID elsewhere,
+	// so it has no single native AWS equivalent to map onto. It would carry an
+	// unqualified Lambda ARN, which function_arn does not when the invocation was
+	// qualified, but picking it up would mean reading one Datadog tag from two
+	// unrelated conventions depending on which the producer happened to set.
+	AWSIdentitySpanMappings = map[string]string{
+		// Cloud conventions, same target as ContainerMappings.
+		string(semconv1_27.CloudRegionKey): "region",
+
+		// Lambda: aws.lambda.invoked_arn is the ARN of the function being executed
+		// on the invocation span; Datadog's serverless instrumentation calls it
+		// function_arn. That instrumentation lives outside this repository, so
+		// there is no in-repo constant to reference for this one.
+		string(semconv1_27.AWSLambdaInvokedARNKey): "function_arn",
+
+		// ECS: same targets as the Agent's ECS tagger (tags.TaskARN, tags.EcsClusterARN
+		// in comp/core/tagger/tags).
+		string(semconv1_27.AWSECSTaskARNKey):    "task_arn",
+		string(semconv1_27.AWSECSClusterARNKey): "cluster_arn",
+
+		// EKS: the native counterpart of this tag name is added by
+		// https://github.com/DataDog/datadog-agent/pull/56681, which propagates
+		// EKS cluster identity to the container and APM tags. It is not yet
+		// present in this repository, so nothing here can reference it.
+		string(semconv1_27.AWSEKSClusterARNKey): "eks_cluster_arn",
+	}
 )
 
 // TagsFromAttributes converts a selected list of attributes
@@ -349,6 +398,21 @@ const (
 	containerTagSourceCustom
 	containerTagSourceOTel
 )
+
+// IsContainerTagName reports whether name is a Datadog container tag name, that
+// is, a value of ContainerMappings. On its default configuration the trace
+// receiver calls ConsumeContainerTagsFromResource, which removes a non-empty
+// string-valued resource attribute carrying such a name from the resource. Its
+// value becomes that container tag unless a higher-ranked source supplies the
+// same tag, which an OpenTelemetry-convention attribute or a
+// datadog.container.tag.* attribute both are, in which case the bare value is
+// dropped; the ranking is by source, not by attribute order. Either way a caller
+// that inspects resource attributes after that filtering cannot rely on seeing
+// one.
+func IsContainerTagName(name string) bool {
+	_, ok := containerDDTags[name]
+	return ok
+}
 
 // ConsumeContainerTagsFromResource extracts container tags from the attributes of the given resource.
 //

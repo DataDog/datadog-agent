@@ -16,6 +16,7 @@ package attributes
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -971,4 +972,85 @@ func TestParseAzureResourceID(t *testing.T) {
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestAWSIdentitySpanMappings(t *testing.T) {
+	// Every entry maps a semantic convention key onto a tag name the Datadog
+	// tracers or the Agent tagger already use for the same information.
+	expected := map[string]string{
+		string(semconv127.CloudRegionKey):         "region",
+		string(semconv127.AWSLambdaInvokedARNKey): "function_arn",
+		string(semconv127.AWSECSTaskARNKey):       "task_arn",
+		string(semconv127.AWSECSClusterARNKey):    "cluster_arn",
+		string(semconv127.AWSEKSClusterARNKey):    "eks_cluster_arn",
+	}
+	assert.Equal(t, expected, AWSIdentitySpanMappings)
+
+	// cloud.account.id and aws.dynamodb.table_names need context (provider, array
+	// length) that a flat table cannot express; they are handled by the trace transform.
+	assert.NotContains(t, AWSIdentitySpanMappings, string(semconv127.CloudAccountIDKey))
+	assert.NotContains(t, AWSIdentitySpanMappings, string(semconv127.AWSDynamoDBTableNamesKey))
+
+	// aws.s3.bucket is deliberately absent: it is already a declared precursor of
+	// peer.aws.s3.bucket alongside bucketname, so mapping the Datadog name would
+	// make a span carry both precursors and change its APM stats aggregation keys
+	// without matching natively instrumented spans, which carry bucketname alone.
+	assert.NotContains(t, AWSIdentitySpanMappings, string(semconv127.AWSS3BucketKey))
+	for _, ddKey := range AWSIdentitySpanMappings {
+		assert.NotEqual(t, "bucketname", ddKey)
+	}
+
+	// No key collides with the HTTP table, which would make the rename order-dependent.
+	for k := range AWSIdentitySpanMappings {
+		assert.NotContains(t, HTTPMappings, k)
+	}
+
+	// The Datadog tag names are distinct. The transform iterates this table in
+	// map order, so two keys targeting one tag name would make the resulting
+	// value depend on iteration order.
+	targets := make(map[string]string, len(AWSIdentitySpanMappings))
+	for k, v := range AWSIdentitySpanMappings {
+		if first, dup := targets[v]; dup {
+			t.Errorf("tag name %q is targeted by both %q and %q", v, first, k)
+		}
+		targets[v] = k
+	}
+
+	// No source key is also a target tag name, which would make a mapped tag a
+	// source for another mapping.
+	for _, v := range AWSIdentitySpanMappings {
+		assert.NotContains(t, AWSIdentitySpanMappings, v)
+	}
+
+	// Exactly region and task_arn are also Datadog container tag names. This is
+	// the premise of the resource-side guard in the trace transform: a resource
+	// attribute carrying one of these names is consumed into the chunk's
+	// container tags and removed from the resource by
+	// ConsumeContainerTagsFromResource on the V2 receiver path, so it is not
+	// reliably observable at conversion time and must not be consulted. If a
+	// future entry adds another container tag name, that guard's documented set
+	// changes with it.
+	var containerNamed []string
+	for _, ddKey := range AWSIdentitySpanMappings {
+		if IsContainerTagName(ddKey) {
+			containerNamed = append(containerNamed, ddKey)
+		}
+	}
+	sort.Strings(containerNamed)
+	assert.Equal(t, []string{"region", "task_arn"}, containerNamed)
+
+	// IsContainerTagName tracks ContainerMappings values, not its keys.
+	for otelKey, ddKey := range ContainerMappings {
+		assert.True(t, IsContainerTagName(ddKey), "%s should be a container tag name", ddKey)
+		assert.False(t, IsContainerTagName(otelKey), "%s is a source key, not a tag name", otelKey)
+	}
+	assert.False(t, IsContainerTagName("aws_account"))
+	assert.False(t, IsContainerTagName("bucketname"))
+	assert.False(t, IsContainerTagName("tablename"))
+	assert.False(t, IsContainerTagName(""))
+
+	// The provider gate in the trace transform compares against this convention
+	// value, so pin the literal wire string it resolves to.
+	assert.Equal(t, "aws", semconv127.CloudProviderAWS.Value.AsString())
+	assert.Equal(t, "cloud.provider", string(semconv127.CloudProviderKey))
 }

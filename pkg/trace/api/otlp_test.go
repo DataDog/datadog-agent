@@ -3550,6 +3550,7 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"aws.dynamodb.table_names": "my-table",
+					"tablename":                "my-table",
 					"span.kind":                "server",
 				},
 				Type:    "web",
@@ -3932,6 +3933,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"aws.dynamodb.table_names": "my-table",
+					"tablename":                "my-table",
 					"span.kind":                "server",
 				},
 				Type:    "web",
@@ -4614,4 +4616,375 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOTLPConvertSpanAWSIdentityScopeAttributes pins the legacy V1 path's
+// behavior for instrumentation-scope attributes that use a Datadog AWS identity
+// tag name.
+//
+// On the V2 path the scope attributes are copied into Meta with an
+// unconditional assignment, so the identity mapping has to run after that copy
+// to keep a scope attribute from replacing the identity the span or resource
+// carries. convertSpan needs no such ordering: it reads only the scope's name
+// and version (otel.library.name, otel.library.version) and never copies scope
+// attributes into Meta, so a scope attribute cannot reach an identity tag on
+// this path at all. This test is the executable form of that claim, so a future
+// change that starts copying scope attributes here cannot silently reintroduce
+// the overwrite.
+func TestOTLPConvertSpanAWSIdentityScopeAttributes(t *testing.T) {
+	const (
+		accountID  = "123456789012"
+		region     = "us-east-1"
+		bucket     = "real-bucket"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"
+	)
+
+	cfg := NewTestConfig(t)
+	rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	span := ptrace.NewSpan()
+	span.SetName("test-span")
+	span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+	span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	span.Attributes().PutStr(string(semconv127.AWSS3BucketKey), bucket)
+	// A numeric attribute under a Datadog tag name: routed to Metrics, never
+	// Meta, so it must not suppress the mapping.
+	span.Attributes().PutInt("aws_account", 999999999999)
+
+	res := pcommon.NewResource()
+	res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+	res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), accountID)
+	res.Attributes().PutStr(string(semconv127.CloudRegionKey), region)
+	res.Attributes().PutStr(string(semconv127.AWSECSClusterARNKey), clusterARN)
+
+	// A scope that tries to claim every identity tag name, plus one unrelated key.
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+	lib.Attributes().PutStr("region", "scope-region")
+	lib.Attributes().PutStr("aws_account", "000000000000")
+	lib.Attributes().PutStr("bucketname", "scope-bucket")
+	lib.Attributes().PutStr("cluster_arn", "arn:aws:ecs:us-east-1:000000000000:cluster/scope")
+	lib.Attributes().PutStr("scope.custom", "scope-value")
+
+	ddspan := rcv.convertSpan(res, lib, span)
+
+	// The identity tags come from the span and resource attributes.
+	assert.Equal(t, region, ddspan.Meta["region"])
+	assert.Equal(t, accountID, ddspan.Meta["aws_account"])
+	// aws.s3.bucket is not mapped, and this path never copies scope attributes
+	// into Meta, so no bucketname tag exists at all here.
+	assert.NotContains(t, ddspan.Meta, "bucketname")
+	assert.Equal(t, clusterARN, ddspan.Meta["cluster_arn"])
+
+	// The OpenTelemetry keys are still present alongside them.
+	assert.Equal(t, region, ddspan.Meta[string(semconv127.CloudRegionKey)])
+	assert.Equal(t, accountID, ddspan.Meta[string(semconv127.CloudAccountIDKey)])
+	assert.Equal(t, bucket, ddspan.Meta[string(semconv127.AWSS3BucketKey)])
+	assert.Equal(t, clusterARN, ddspan.Meta[string(semconv127.AWSECSClusterARNKey)])
+
+	// No scope attribute reaches Meta on this path, identity-named or not; only
+	// the scope's name and version do.
+	assert.NotContains(t, ddspan.Meta, "scope.custom")
+	assert.Equal(t, "test-lib", ddspan.Meta["otel.library.name"])
+
+	// The OpenTelemetry source attributes are still carried verbatim alongside
+	// their Datadog companions, so OTel-keyed queries keep working.
+	assert.Equal(t, semconv127.CloudProviderAWS.Value.AsString(), ddspan.Meta[string(semconv127.CloudProviderKey)])
+
+	// A numeric span attribute under a Datadog tag name goes to Metrics, not
+	// Meta, which is why producerSetSpanTag ignores numeric span attributes.
+	assert.Equal(t, float64(999999999999), ddspan.Metrics["aws_account"])
+	assert.Equal(t, accountID, ddspan.Meta["aws_account"])
+}
+
+// TestOTLPReceiveResourceSpansAWSIdentityPathParity is the receiver-level
+// regression test for V1/V2 parity of the AWS identity tags.
+//
+// The two receiver paths do not hand the same resource to the conversion:
+// receiveResourceSpansV2 first calls attributes.ConsumeContainerTagsFromResource,
+// which moves every resource attribute named after a Datadog container tag into
+// the chunk's container tags and removes it from the resource, while
+// receiveResourceSpansV1 passes the resource through untouched. Of the mapped
+// identity tags, region and task_arn are container tag names, so a guard that
+// consulted them on the resource would suppress the mapping on V1 while the V2
+// conversion could not even see them, and one payload would produce different
+// span tags on the two paths.
+//
+// This drives the real receiver (not the conversion helpers) over one payload on
+// both paths and requires every identity tag to match.
+func TestOTLPReceiveResourceSpansAWSIdentityPathParity(t *testing.T) {
+	const (
+		accountID  = "123456789012"
+		region     = "us-east-1"
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"
+		bucket     = "real-bucket"
+	)
+
+	identityTags := []string{
+		"region", "aws_account", "task_arn", "cluster_arn", "bucketname", "tablename",
+	}
+
+	// The resource carries the OpenTelemetry keys and ALSO producer-set
+	// attributes under two Datadog tag names: region (a container tag name, so
+	// V2 consumes it) and bucketname (not a container tag name, so it survives
+	// on both paths).
+	payload := func() []testutil.OTLPResourceSpan {
+		return []testutil.OTLPResourceSpan{
+			{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{
+					string(semconv127.CloudProviderKey):    semconv127.CloudProviderAWS.Value.AsString(),
+					string(semconv127.CloudAccountIDKey):   accountID,
+					string(semconv127.CloudRegionKey):      region,
+					string(semconv127.AWSECSTaskARNKey):    taskARN,
+					string(semconv127.AWSECSClusterARNKey): clusterARN,
+					"region":                               "producer-region",
+					"bucketname":                           "producer-bucket",
+				},
+				Spans: []*testutil.OTLPSpan{
+					{
+						Kind: ptrace.SpanKindClient,
+						Attributes: map[string]interface{}{
+							string(semconv127.AWSS3BucketKey): bucket,
+							// The plain-string form of the attribute, which some
+							// instrumentations send. The array form is covered at
+							// the conversion level, where a real pcommon slice can
+							// be built; this receiver-level test builder renders a
+							// Go slice as a string.
+							string(semconv127.AWSDynamoDBTableNamesKey): "real-table",
+						},
+					},
+				},
+			},
+		}
+	}
+
+	receive := func(t *testing.T, v2 bool) map[string]string {
+		t.Helper()
+		cfg := NewTestConfig(t)
+		if !v2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
+		out := make(chan *Payload, 1)
+		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rspans := testutil.NewOTLPTracesRequest(payload()).Traces().ResourceSpans().At(0)
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for payload")
+			return nil
+		case p := <-out:
+			require.NotEmpty(t, p.TracerPayload.Chunks)
+			require.NotEmpty(t, p.TracerPayload.Chunks[0].Spans)
+			return p.TracerPayload.Chunks[0].Spans[0].Meta
+		}
+	}
+
+	v1Meta := receive(t, false)
+	v2Meta := receive(t, true)
+
+	for _, tag := range identityTags {
+		assert.Equal(t, v1Meta[tag], v2Meta[tag], "V1 and V2 disagree on %s", tag)
+	}
+
+	// The agreed values: the OpenTelemetry attributes supply region, aws_account
+	// and the ARNs, and bucketname stays with the producer on both paths because
+	// it is not a container tag name and so survives the V2 filter.
+	assert.Equal(t, region, v2Meta["region"])
+	assert.Equal(t, accountID, v2Meta["aws_account"])
+	assert.Equal(t, taskARN, v2Meta["task_arn"])
+	assert.Equal(t, clusterARN, v2Meta["cluster_arn"])
+	assert.Equal(t, "real-table", v2Meta["tablename"])
+	// bucketname is not mapped, so the producer's resource value stands on both
+	// paths: it is not a container tag name, so the V2 filter leaves it alone.
+	assert.Equal(t, "producer-bucket", v2Meta["bucketname"])
+
+	// The OpenTelemetry keys are still present on both paths.
+	for _, key := range []string{
+		string(semconv127.CloudRegionKey),
+		string(semconv127.CloudAccountIDKey),
+		string(semconv127.AWSECSTaskARNKey),
+		string(semconv127.AWSECSClusterARNKey),
+		string(semconv127.AWSS3BucketKey),
+	} {
+		assert.Equal(t, v1Meta[key], v2Meta[key], "V1 and V2 disagree on %s", key)
+		assert.NotEmpty(t, v2Meta[key], "%s should be preserved", key)
+	}
+
+	// Guard the premise of the parity fix: exactly these mapped tag names are
+	// Datadog container tag names, so exactly these are the ones the V2 filter
+	// can consume from the resource.
+	containerNamed := []string{}
+	for _, ddKey := range attributes.AWSIdentitySpanMappings {
+		if attributes.IsContainerTagName(ddKey) {
+			containerNamed = append(containerNamed, ddKey)
+		}
+	}
+	sort.Strings(containerNamed)
+	assert.Equal(t, []string{"region", "task_arn"}, containerNamed)
+	assert.False(t, attributes.IsContainerTagName("aws_account"))
+	assert.False(t, attributes.IsContainerTagName("bucketname"))
+	assert.False(t, attributes.IsContainerTagName("tablename"))
+}
+
+// TestOTLPConvertSpanAWSIdentityV1Coverage exercises the full mapping on the
+// legacy V1 conversion, which otherwise only has the scope test and the two
+// peer-service goldens: every mapped tag, the provider gate, and the DynamoDB
+// single-table rule.
+func TestOTLPConvertSpanAWSIdentityV1Coverage(t *testing.T) {
+	const (
+		accountID  = "123456789012"
+		region     = "us-east-1"
+		lambdaARN  = "arn:aws:lambda:us-east-1:123456789012:function:my-fn"
+		taskARN    = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+		clusterARN = "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster"
+		eksARN     = "arn:aws:eks:us-east-1:123456789012:cluster/my-eks"
+		bucket     = "real-bucket"
+	)
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]any
+		rattrs       map[string]any
+		expectedMeta map[string]string
+		absentMeta   []string
+	}{
+		{
+			name: "every mapped tag is produced on the V1 path",
+			sattrs: map[string]any{
+				string(semconv127.AWSLambdaInvokedARNKey):   lambdaARN,
+				string(semconv127.AWSECSTaskARNKey):         taskARN,
+				string(semconv127.AWSS3BucketKey):           bucket,
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"real-table"},
+			},
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):    semconv127.CloudProviderAWS.Value.AsString(),
+				string(semconv127.CloudAccountIDKey):   accountID,
+				string(semconv127.CloudRegionKey):      region,
+				string(semconv127.AWSECSClusterARNKey): clusterARN,
+				string(semconv127.AWSEKSClusterARNKey): eksARN,
+			},
+			expectedMeta: map[string]string{
+				"region":          region,
+				"aws_account":     accountID,
+				"function_arn":    lambdaARN,
+				"task_arn":        taskARN,
+				"cluster_arn":     clusterARN,
+				"eks_cluster_arn": eksARN,
+				"tablename":       "real-table",
+				// OpenTelemetry companions preserved.
+				string(semconv127.CloudRegionKey):         region,
+				string(semconv127.CloudAccountIDKey):      accountID,
+				string(semconv127.AWSLambdaInvokedARNKey): lambdaARN,
+				string(semconv127.AWSECSTaskARNKey):       taskARN,
+				string(semconv127.AWSECSClusterARNKey):    clusterARN,
+				string(semconv127.AWSEKSClusterARNKey):    eksARN,
+				string(semconv127.AWSS3BucketKey):         bucket,
+			},
+			// aws.s3.bucket is deliberately not mapped.
+			absentMeta: []string{"bucketname"},
+		},
+		{
+			name: "non-aws provider produces no aws_account on the V1 path",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):  semconv127.CloudProviderGCP.Value.AsString(),
+				string(semconv127.CloudAccountIDKey): "my-gcp-project",
+				string(semconv127.CloudRegionKey):    region,
+			},
+			expectedMeta: map[string]string{"region": region},
+			absentMeta:   []string{"aws_account"},
+		},
+		{
+			name: "empty cloud.provider is absent, not conflicting, on the V1 path",
+			rattrs: map[string]any{
+				string(semconv127.CloudProviderKey):  "",
+				string(semconv127.CloudAccountIDKey): accountID,
+			},
+			absentMeta: []string{"aws_account"},
+		},
+		{
+			name: "multi-table dynamodb produces no tablename on the V1 path",
+			sattrs: map[string]any{
+				string(semconv127.AWSDynamoDBTableNamesKey): []string{"a", "b"},
+			},
+			absentMeta: []string{"tablename"},
+		},
+	}
+
+	putAttrs := func(m pcommon.Map, attrs map[string]any) {
+		for k, v := range attrs {
+			switch val := v.(type) {
+			case string:
+				m.PutStr(k, val)
+			case []string:
+				s := m.PutEmptySlice(k)
+				for _, e := range val {
+					s.AppendEmpty().SetStr(e)
+				}
+			}
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetKind(ptrace.SpanKindClient)
+			span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+			span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+			putAttrs(span.Attributes(), tt.sattrs)
+
+			res := pcommon.NewResource()
+			putAttrs(res.Attributes(), tt.rattrs)
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := rcv.convertSpan(res, lib, span)
+
+			for key, expectedVal := range tt.expectedMeta {
+				assert.Equal(t, expectedVal, ddspan.Meta[key], "expected %s=%s", key, expectedVal)
+			}
+			for _, key := range tt.absentMeta {
+				assert.NotContains(t, ddspan.Meta, key, "did not expect %s", key)
+			}
+		})
+	}
+
+	// The rollback switch gates this path too, on the same constant the V2
+	// conversion uses, so a rename cannot leave the legacy path mapping.
+	t.Run("disable_otlp_aws_identity_tags turns the mapping off on the V1 path", func(t *testing.T) {
+		cfg := NewTestConfig(t)
+		cfg.Features[transform.DisableAWSIdentityTagsFeature] = struct{}{}
+		rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.SetKind(ptrace.SpanKindClient)
+		span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+		span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+		span.Attributes().PutStr(string(semconv127.AWSDynamoDBTableNamesKey), "orders")
+
+		res := pcommon.NewResource()
+		res.Attributes().PutStr(string(semconv127.CloudProviderKey), semconv127.CloudProviderAWS.Value.AsString())
+		res.Attributes().PutStr(string(semconv127.CloudAccountIDKey), accountID)
+		res.Attributes().PutStr(string(semconv127.CloudRegionKey), region)
+
+		lib := pcommon.NewInstrumentationScope()
+		lib.SetName("test-lib")
+
+		ddspan := rcv.convertSpan(res, lib, span)
+
+		for _, key := range []string{"region", "aws_account", "tablename"} {
+			assert.NotContains(t, ddspan.Meta, key, "%s should be absent when disabled", key)
+		}
+		// The OpenTelemetry keys are untouched by the switch.
+		assert.Equal(t, region, ddspan.Meta[string(semconv127.CloudRegionKey)])
+		assert.Equal(t, accountID, ddspan.Meta[string(semconv127.CloudAccountIDKey)])
+	})
 }

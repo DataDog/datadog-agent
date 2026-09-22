@@ -1,0 +1,87 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: OTLP spans that carry cloud resource identity through OpenTelemetry
+    semantic conventions now also receive the tag names used by the Datadog tracers
+    and the Agent tagger for the same information, so natively instrumented and
+    OpenTelemetry instrumented workloads can be queried with the same identity tags.
+    ``cloud.region`` is mapped to ``region`` for every cloud provider, matching how
+    the container tag of that name is already derived. The remaining mappings are
+    AWS-specific: ``cloud.account.id`` to ``aws_account`` when ``cloud.provider`` is
+    ``aws``; ``aws.lambda.invoked_arn`` to ``function_arn``; ``aws.ecs.task.arn`` to
+    ``task_arn``; ``aws.ecs.cluster.arn`` to ``cluster_arn``;
+    ``aws.eks.cluster.arn`` to ``eks_cluster_arn`` (anticipating the native support
+    for that tag name, which lands separately); and a span-level
+    ``aws.dynamodb.table_names`` naming exactly one table to ``tablename``. The
+    OpenTelemetry attribute keys are kept on the span. ``aws.lambda.invoked_arn`` is
+    mapped as received, so a function invoked through a version or alias qualifier
+    yields a ``function_arn`` that does not match the unqualified tag natively
+    instrumented spans carry for the same function.
+    A mapped tag does not overwrite a tag of the same name that the producer set on
+    the span's own attributes, nor one set on the resource attributes, with these
+    exceptions: a producer tag whose value is empty carries no identity and is
+    written over; a numeric span attribute under one of these names is reported as
+    a span metric rather than a tag, so it does not suppress the mapping; a value
+    set as an instrumentation-scope attribute is overwritten, since scope
+    attributes describe the instrumentation rather than the resource; and
+    ``region`` and ``task_arn`` set as resource attributes are Datadog container
+    tag names that the default receiver path already consumes into the chunk's
+    container tags, so the mapped value wins for those two. The mapping can be
+    turned off with the ``disable_otlp_aws_identity_tags`` feature, set in
+    ``apm_config.features`` (``DD_APM_FEATURES``). See the upgrade section for the
+    effect on APM stats aggregation and on ``replace_tags`` redaction rules.
+  - |
+    APM: ``aws_account`` is on the credit card obfuscator's skip list while
+    ``cloud.account.id`` is not, so an AWS account ID that the obfuscator redacts
+    under ``cloud.account.id`` (it treats a 12 to 16 digit value with a recognized
+    issuer prefix as a card number, before the optional Luhn check is applied) is
+    preserved under the ``aws_account`` tag added for OTLP spans. The redacted
+    ``cloud.account.id`` value on the same span is unchanged.
+upgrade:
+  - |
+    APM: an OTLP span whose own attributes carry ``aws.dynamodb.table_names``
+    naming exactly one table now resolves the ``peer.aws.dynamodb.table`` peer tag,
+    whose only precursor is the Datadog tag ``tablename``, on both the trace path
+    and the OTLP APM stats path. ``peer_tags_aggregation`` is enabled by default,
+    so for most deployments this adds a peer tag to those spans and changes their
+    APM stats aggregation keys, which splits their existing time series once. Peer
+    tags apply to client, producer and consumer spans, so server and internal
+    spans are unaffected either way. It also lets those spans share the
+    ``peer.aws.dynamodb.table`` value with natively instrumented DynamoDB spans,
+    though the rest of the aggregation key (service, operation name, resource, type
+    and span kind) still differs between the two instrumentations.
+    ``aws.s3.bucket`` is deliberately not mapped to ``bucketname``: it is already a
+    declared precursor of ``peer.aws.s3.bucket``, so that concept already resolves
+    for OTLP spans, and adding the Datadog name would make a span carry both
+    precursors and change its aggregation keys for no gain. ``tablename`` is the
+    only one of the mapped names that is a peer tag precursor, so a span without a
+    single-table ``aws.dynamodb.table_names`` has unchanged aggregation keys unless
+    one of the mapped names is listed in ``apm_config.peer_tags``, which makes that
+    name an aggregation key in its own right.
+    Separately, these tag names now resolve for OTLP spans where span-derived
+    primary tags apply, and so participate in APM stats aggregation there: the
+    Datadog connector's ``span_derived_primary_tags``, and
+    ``apm_config.span_derived_primary_tags`` in the serverless contexts where the
+    Agent honors it (it is deprecated and ignored elsewhere). ``task_arn`` is
+    per-task and ``function_arn`` carries whatever version or alias qualifier the
+    invocation used, so naming either there is cardinality sensitive.
+    Because the identity value is now present under a second tag name, review any
+    ``replace_tags`` rule that redacts or rewrites one of the OpenTelemetry keys: a
+    rule naming a specific tag matches that name exactly, so one written for
+    ``cloud.account.id`` or ``aws.ecs.task.arn`` does NOT cover the same value
+    under ``aws_account`` or ``task_arn``, and the value will reach the intake
+    unredacted under the new name. A rule with name ``*`` already covers every tag
+    this mapping adds.
+    The mapping can be turned off with the ``disable_otlp_aws_identity_tags``
+    feature, set in ``apm_config.features`` (``DD_APM_FEATURES``), to restore the
+    previous span tags and aggregation keys. As with the other OTLP conversion
+    switches, it applies to the trace-agent's own OTLP paths; the Datadog
+    connector builds its trace-agent configuration from its own component config
+    and does not read ``apm_config.features``.

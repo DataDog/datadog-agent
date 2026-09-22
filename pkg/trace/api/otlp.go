@@ -746,6 +746,14 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 			span.Name = name
 		}
 	}
+	// Alias AWS resource identity attributes to the Datadog tag names, as the V2 path does.
+	// No ordering against instrumentation-scope attributes is needed here: this path
+	// copies only the scope's name and version into Meta, never its attributes, so a
+	// scope attribute cannot reach one of these tags. See
+	// TestOTLPConvertSpanAWSIdentityScopeAttributes.
+	if !o.conf.HasFeature(transform.DisableAWSIdentityTagsFeature) {
+		transform.MapAWSIdentityAttributes(in.Attributes(), res.Attributes(), span)
+	}
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
