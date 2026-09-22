@@ -75,6 +75,18 @@ func WithClock(clk clock.Clock) Option {
 	}
 }
 
+// StreamState describes the current gNMI subscribe stream lifecycle.
+type StreamState int
+
+const (
+	// StreamStateNotReady means the client has not yet established a subscribe stream.
+	StreamStateNotReady StreamState = iota
+	// StreamStateConnected means the client is actively receiving updates.
+	StreamStateConnected
+	// StreamStateReconnecting means the client lost its stream and is reconnecting.
+	StreamStateReconnecting
+)
+
 // Client maintains a streaming gNMI subscription and a latest-value cache.
 type Client struct {
 	cfg       Config
@@ -91,6 +103,8 @@ type Client struct {
 	cache *cache
 
 	reconnectAttempts int
+	streamState       StreamState
+	everConnected     bool
 }
 
 // New creates a client. Call Start to open the subscription loop.
@@ -219,8 +233,48 @@ func (c *Client) ReconnectAttempts() int {
 	return c.reconnectAttempts
 }
 
+// StreamState returns the current subscribe stream lifecycle state.
+func (c *Client) StreamState() StreamState {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.streamState
+}
+
+// ReceivedSamples returns the number of cached samples.
+func (c *Client) ReceivedSamples() int {
+	return c.cache.count()
+}
+
+func (c *Client) setStreamState(state StreamState) {
+	c.mu.Lock()
+	c.streamState = state
+	c.mu.Unlock()
+}
+
+func (c *Client) setPreConnectStreamState() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.everConnected {
+		c.streamState = StreamStateReconnecting
+	} else {
+		c.streamState = StreamStateNotReady
+	}
+}
+
+func (c *Client) setPostDisconnectStreamState() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.everConnected {
+		c.streamState = StreamStateReconnecting
+	} else {
+		c.streamState = StreamStateNotReady
+	}
+}
+
 func (c *Client) run(ctx context.Context) {
 	defer close(c.done)
+
+	c.setStreamState(StreamStateNotReady)
 
 	policy := backoff.NewExpBackoffPolicy(
 		2,
@@ -237,6 +291,8 @@ func (c *Client) run(ctx context.Context) {
 			return
 		}
 
+		c.setPreConnectStreamState()
+
 		synced, err := c.connectAndReceive(ctx)
 		if ctx.Err() != nil {
 			c.setCloseErr(ctx.Err())
@@ -246,6 +302,7 @@ func (c *Client) run(ctx context.Context) {
 			if synced {
 				numErrors = 0
 			}
+			c.setPostDisconnectStreamState()
 			numErrors = policy.IncError(numErrors)
 			c.setReconnectAttempts(numErrors)
 
@@ -318,7 +375,11 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 		}
 		if isSync && !synced {
 			c.cache.replace(initialCache)
-			c.setReconnectAttempts(0)
+			c.mu.Lock()
+			c.reconnectAttempts = 0
+			c.everConnected = true
+			c.streamState = StreamStateConnected
+			c.mu.Unlock()
 			synced = true
 		}
 	}
