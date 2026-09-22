@@ -225,16 +225,32 @@ var procmgrConfigs = []procmgrConfig{
 	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
 }
 
+func resolveDDOTExtensionPackageRoot() (string, error) {
+	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
+	packagePath := repos.Get(agentPackage).StablePath()
+	if resolved, err := filepath.EvalSymlinks(packagePath); err == nil {
+		packagePath = resolved
+	}
+	return packagePath, nil
+}
+
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if processManagerEnabled {
-		return cfg.write(installRoot)
+	root := installRoot
+	if cfg.label == "DDOT" {
+		if root, err = resolveDDOTExtensionPackageRoot(); err != nil {
+			return err
+		}
 	}
-	if err := cfg.remove(installRoot); err != nil {
+
+	if processManagerEnabled {
+		return cfg.write(root)
+	}
+	if err := cfg.remove(root); err != nil {
 		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
