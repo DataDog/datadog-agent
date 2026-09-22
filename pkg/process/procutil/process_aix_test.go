@@ -9,6 +9,8 @@ package procutil
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func makePsinfo(fname, psargs string) *psinfo {
@@ -21,18 +23,9 @@ func makePsinfo(fname, psargs string) *psinfo {
 func TestPsinfoToProcessASCIIArgs(t *testing.T) {
 	proc := psinfoToProcess(makePsinfo("rmcd", "/opt/rsct/bin/rmcd -a IBM.LPCommands"), 42)
 
-	if proc.Name != "rmcd" || proc.Comm != "rmcd" {
-		t.Errorf("expected name/comm rmcd, got %q/%q", proc.Name, proc.Comm)
-	}
-	want := []string{"/opt/rsct/bin/rmcd", "-a", "IBM.LPCommands"}
-	if len(proc.Cmdline) != len(want) {
-		t.Fatalf("expected cmdline %v, got %v", want, proc.Cmdline)
-	}
-	for i := range want {
-		if proc.Cmdline[i] != want[i] {
-			t.Errorf("expected cmdline[%d]=%q, got %q", i, want[i], proc.Cmdline[i])
-		}
-	}
+	require.Equal(t, "rmcd", proc.Name)
+	require.Equal(t, "rmcd", proc.Comm)
+	require.Equal(t, []string{"/opt/rsct/bin/rmcd", "-a", "IBM.LPCommands"}, proc.Cmdline)
 }
 
 func TestPsinfoToProcessNonASCIIArgs(t *testing.T) {
@@ -40,15 +33,7 @@ func TestPsinfoToProcessNonASCIIArgs(t *testing.T) {
 	// junk and replaced by the bracket fallback.
 	proc := psinfoToProcess(makePsinfo("python", "python worker.py --label café"), 42)
 
-	want := []string{"python", "worker.py", "--label", "café"}
-	if len(proc.Cmdline) != len(want) {
-		t.Fatalf("expected cmdline %v, got %v", want, proc.Cmdline)
-	}
-	for i := range want {
-		if proc.Cmdline[i] != want[i] {
-			t.Errorf("expected cmdline[%d]=%q, got %q", i, want[i], proc.Cmdline[i])
-		}
-	}
+	require.Equal(t, []string{"python", "worker.py", "--label", "café"}, proc.Cmdline)
 }
 
 func TestPsinfoToProcessUnreadableArgs(t *testing.T) {
@@ -60,23 +45,16 @@ func TestPsinfoToProcessUnreadableArgs(t *testing.T) {
 
 	proc := psinfoToProcess(psi, 42)
 
-	if proc.Name != "IBM.Softdird" || proc.Comm != "IBM.Softdird" {
-		t.Errorf("expected name/comm IBM.Softdird, got %q/%q", proc.Name, proc.Comm)
-	}
-	want := []string{"[IBM.Softdird]"}
-	if len(proc.Cmdline) != 1 || proc.Cmdline[0] != want[0] {
-		t.Errorf("expected cmdline %v, got %v", want, proc.Cmdline)
-	}
+	require.Equal(t, "IBM.Softdird", proc.Name)
+	require.Equal(t, "IBM.Softdird", proc.Comm)
+	require.Equal(t, []string{"[IBM.Softdird]"}, proc.Cmdline)
 }
 
 func TestPsinfoToProcessEmptyNameAndArgs(t *testing.T) {
 	// e.g. the swapper (pid 0): nothing to fall back to.
 	proc := psinfoToProcess(makePsinfo("", ""), 0)
 
-	if proc.Name != "" || proc.Comm != "" {
-		t.Errorf("expected empty name/comm, got %q/%q", proc.Name, proc.Comm)
-	}
-	if len(proc.Cmdline) != 0 {
-		t.Errorf("expected empty cmdline, got %v", proc.Cmdline)
-	}
+	require.Empty(t, proc.Name)
+	require.Empty(t, proc.Comm)
+	require.Empty(t, proc.Cmdline)
 }
