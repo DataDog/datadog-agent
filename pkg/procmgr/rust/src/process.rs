@@ -101,10 +101,14 @@ pub struct ManagedProcess {
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
+    agent_credential: Option<platform::SpawnCredential>,
 }
 
 impl ManagedProcess {
-    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -117,7 +121,10 @@ impl ManagedProcess {
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         let profile = SpawnProfile::profile_for(&name);
-        let user = platform::intended_spawn_user(&name, profile);
+        #[cfg(windows)]
+        let (user, agent_credential) = platform::initial_spawn_identity(&name, profile);
+        #[cfg(not(windows))]
+        let user = platform::initial_spawn_identity(&name, profile);
         Self {
             name,
             uuid,
@@ -133,6 +140,10 @@ impl ManagedProcess {
             last_exit_status: None,
             #[cfg(windows)]
             job_object: None,
+            #[cfg(windows)]
+            user_profile: None,
+            #[cfg(windows)]
+            agent_credential,
         }
     }
 
@@ -160,12 +171,38 @@ impl ManagedProcess {
         &self.config
     }
 
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
+        self.user_profile = Some(profile);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn clear_windows_spawn_resources(&mut self) {
+        self.job_object = None;
+        self.user_profile = None;
+    }
+
     pub(crate) fn profile(&self) -> SpawnProfile {
         self.profile
     }
 
     pub fn user(&self) -> &str {
         &self.user
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn agent_credential(&self) -> Option<&platform::SpawnCredential> {
+        self.agent_credential.as_ref()
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -202,19 +239,60 @@ impl ManagedProcess {
     }
 
     #[must_use]
+    fn condition_path_exists_met(&self) -> bool {
+        let Some(raw) = &self.config.condition_path_exists else {
+            return true;
+        };
+        let path = expand_env_vars(raw);
+        if std::path::Path::new(&path).exists() {
+            return true;
+        }
+        info!("[{}] condition_path_exists not met: {path}", self.name);
+        false
+    }
+
+    #[must_use]
+    fn config_gate_met(&self) -> bool {
+        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            return true;
+        }
+        info!(
+            "[{}] condition_config_any not met: {}",
+            self.name,
+            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+        );
+        false
+    }
+
+    #[must_use]
+    fn start_conditions_met(&self) -> bool {
+        self.condition_path_exists_met() && self.config_gate_met()
+    }
+
+    /// Conditions only, deliberately ignoring `auto_start`: a process that was
+    /// started once should keep its restart policy even though `auto_start`
+    /// only governs boot.
+    #[must_use]
+    pub(crate) fn may_respawn(&self) -> bool {
+        self.start_conditions_met()
+    }
+
+    /// Whether any start condition is declared. Reload re-evaluates conditions
+    /// only for such processes: one with no conditions that is still `Created`
+    /// was never attempted rather than blocked, and starting it on an unrelated
+    /// reload would override whatever left it alone.
+    #[must_use]
+    pub(crate) fn has_start_conditions(&self) -> bool {
+        self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
+    }
+
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref raw) = self.config.condition_path_exists {
-            let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
-                info!("[{}] condition_path_exists not met: {path}", self.name);
-                return false;
-            }
-        }
-        true
+        self.start_conditions_met()
     }
 
     pub(crate) fn spawn(&mut self, exit_tx: mpsc::Sender<ExitEvent>) -> Result<()> {
@@ -229,6 +307,8 @@ impl ManagedProcess {
                 Ok(())
             }
             Err(e) => {
+                #[cfg(windows)]
+                self.clear_windows_spawn_resources();
                 self.transition_to(ProcessState::Failed);
                 Err(e)
             }
@@ -261,8 +341,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        info!("[{}] spawn profile: {}", self.name, self.profile);
-        let handle = platform::spawn_child_handle(self.name(), self.config())?;
+        let handle = self.spawn_child_handle()?;
 
         self.pid = handle.id();
         info!(
@@ -271,17 +350,6 @@ impl ManagedProcess {
             self.pid.map_or("unknown".to_string(), |p| p.to_string()),
             self.config.command
         );
-
-        #[cfg(windows)]
-        if let Some(pid) = self.pid {
-            match platform::JobObject::new() {
-                Ok(job) => match job.assign_process(pid) {
-                    Ok(()) => self.job_object = Some(job),
-                    Err(e) => warn!("[{}] failed to assign to job object: {e:#}", self.name),
-                },
-                Err(e) => warn!("[{}] failed to create job object: {e:#}", self.name),
-            }
-        }
 
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
@@ -297,9 +365,7 @@ impl ManagedProcess {
         self.pid = None;
         self.watcher_handle = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -394,9 +460,7 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
     }
 
     #[cfg(test)]
@@ -431,6 +495,13 @@ impl ManagedProcess {
                     self.name
                 );
             }
+            return None;
+        }
+
+        // Checked before the burst limit so a closed gate neither consumes
+        // burst budget nor advances the backoff.
+        if !self.may_respawn() {
+            info!("[{}] start conditions not met, not restarting", self.name);
             return None;
         }
 
@@ -523,13 +594,12 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_spawn_watcher_owns_handle() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
-        let _exit_rx = spawn_ok(&mut proc);
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
         assert!(proc.is_running());
         assert!(proc.pid().is_some());
@@ -537,16 +607,18 @@ pub mod tests {
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for watcher after external kill");
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_works_after_spawn() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
 
@@ -599,11 +671,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "sleeper".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
 
         assert!(!proc.is_running());
@@ -611,8 +682,8 @@ pub mod tests {
         assert!(proc.is_running());
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
@@ -627,16 +698,15 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
 
         let mut bad_cfg = proc.config().clone();
@@ -706,7 +776,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_does_not_inherit_parent_env() {
-        unsafe { std::env::set_var("PROCMGRD_TEST_SECRET", "leaked") };
+        let _env = test_helpers::EnvGuard::set(&[("PROCMGRD_TEST_SECRET", "leaked")]).await;
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
         let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
@@ -722,21 +792,49 @@ pub mod tests {
             Some(0),
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
-        unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[tokio::test]
+    async fn test_spawn_inherits_opted_in_parent_env() {
+        let _env = test_helpers::EnvGuard::set(&[
+            ("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_"),
+            ("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, "),
+            ("INHERITED_PREFIX_VALUE", "prefix"),
+            ("INHERITED_PREFIX_FILE", "parent"),
+            ("INHERITED_EXACT", "parent"),
+            ("NOT_INHERITED", "secret"),
+        ])
+        .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "INHERITED_PREFIX_FILE=file\n").unwrap();
+
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        #[cfg(windows)]
+        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.env
+            .insert("INHERITED_EXACT".to_string(), "override".to_string());
+
+        let mut proc =
+            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        assert_eq!(status.code(), Some(0));
     }
 
     #[tokio::test]
     async fn test_spawn_with_environment_file() {
         let dir = tempfile::tempdir().unwrap();
         let env_file = dir.path().join("env");
-        std::fs::write(&env_file, "# comment\nFROM_FILE=hello\nPATH=/usr/bin\n\n").unwrap();
+        std::fs::write(&env_file, "# comment\nEXIT_CODE=42\n\n").unwrap();
 
-        let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
-        let script = "test \"$FROM_FILE\" = 'hello' && echo $PATH";
-        #[cfg(windows)]
-        let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%) else (exit 1)";
-        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        let (cmd, args) = test_helpers::exit_env_cmd("EXIT_CODE");
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
         let mut proc = ManagedProcess::new_config("envfile".into(), test_helpers::test_uuid(), cfg);
@@ -744,7 +842,7 @@ pub mod tests {
         let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
-            Some(0),
+            Some(42),
             "child should see vars from env file"
         );
     }
@@ -978,26 +1076,24 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_transitions_to_stopped() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::OnFailure;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
@@ -1007,8 +1103,14 @@ runtime_success_sec: 5
         let _ = exit_rx.try_recv();
 
         let mut exit_rx = spawn_ok(&mut proc);
-        test_helpers::cleanup_process(proc.pid().expect("running pid"));
-        let status = exit_rx.recv().await.expect("exit event").status;
+        if let Some(pid) = proc.pid() {
+            test_helpers::cleanup_process(pid);
+        }
+        let status = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for external kill exit")
+            .expect("exit event")
+            .status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -1020,20 +1122,42 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_skips_restart() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::Always;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
             proc.handle_restart().is_none(),
             "stopped process should not restart even with Always policy"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unmet_condition_skips_restart() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        proc.set_last_status(status);
+
+        assert!(
+            proc.handle_restart().is_none(),
+            "restart should be skipped while a start condition is unmet"
+        );
+        assert_eq!(
+            proc.restart_count(),
+            0,
+            "a skipped restart must not consume burst budget"
         );
     }
 

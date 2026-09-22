@@ -47,6 +47,7 @@ pkg_filegroup(
         "//conditions:default": [],
     }) + select({
         "@platforms//os:macos": [
+            ":collected_libs",
             "//deps/agent_data_plane:all_files",
         ],
         "//conditions:default": [],
@@ -71,6 +72,10 @@ dd_collect_dependencies(
     name = "_collected_libs",
     srcs = select({
         "//packages/agent:linux_default": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/trace-agent",
             "//deps/msodbcsql18:installed_libs",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
@@ -80,6 +85,10 @@ dd_collect_dependencies(
             "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_fips": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/trace-agent",
             "//deps/msodbcsql18:installed_libs",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
@@ -89,9 +98,19 @@ dd_collect_dependencies(
             "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_heroku": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/trace-agent",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
+        ],
+        "@platforms//os:macos": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/trace-agent",
         ],
         "//conditions:default": [],
     }),
