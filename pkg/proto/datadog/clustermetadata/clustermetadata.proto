@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package datadog.clustermetadata;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+// Answer kinds mirror pkg/clustermetadata.AnswerKind.
+enum ClusterMetadataAnswerKind {
+  CLUSTER_METADATA_FOUND = 0;
+  CLUSTER_METADATA_ABSENT = 1;
+  CLUSTER_METADATA_NOT_MINE = 2;
+  CLUSTER_METADATA_NOT_READY = 3;
+}
+
+// Cardinality mirrors the tagger's TagCardinality.
+enum ClusterMetadataCardinality {
+  CLUSTER_METADATA_LOW = 0;
+  CLUSTER_METADATA_ORCHESTRATOR = 1;
+  CLUSTER_METADATA_HIGH = 2;
+}
+
+message ClusterMetadataScope {
+  string consumer = 1;
+  ClusterMetadataCardinality cardinality = 2;
+}
+
+message ClusterMetadataEntityKey {
+  string kind = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message ClusterMetadataQueryRequest {
+  ClusterMetadataEntityKey key = 1;
+  ClusterMetadataScope scope = 2;
+}
+
+message ClusterMetadataOriginRequest {
+  string pod_uid = 1;
+  string container_id = 2;
+  string container_name = 3;
+  ClusterMetadataScope scope = 4;
+}
+
+message ClusterMetadataAnswer {
+  ClusterMetadataAnswerKind kind = 1;
+  repeated string tags = 2;
+}
+
+message ClusterMetadataNodeEvent {
+  string kind = 1;
+  string namespace = 2;
+  string name = 3;
+  bool deleted = 4;
+  repeated string tags = 5;
+}
+
+message ClusterMetadataSnapshotRequest {
+  string kind = 1;
+  string namespace = 2;
+  ClusterMetadataScope scope = 3;
+}
+
+message ClusterMetadataSnapshot {
+  repeated string nodes = 1;
+  repeated ClusterMetadataNodeEvent events = 2;
+}
+
+message ClusterMetadataRingMember {
+  string name = 1;
+  repeated string nodes = 2;
+  bool ready = 3;
+}
+
+message ClusterMetadataRingRequest {}
+
+message ClusterMetadataRing {
+  repeated ClusterMetadataRingMember members = 1;
+}
+
+// ClusterMetadata is the peer-facing surface of the metadata ring: every
+// method answers from the serving replica's local cache only, never fanning
+// out to further peers.
+service ClusterMetadata {
+  rpc Query(ClusterMetadataQueryRequest) returns (ClusterMetadataAnswer);
+  rpc QueryOrigin(ClusterMetadataOriginRequest) returns (ClusterMetadataAnswer);
+  rpc Snapshot(ClusterMetadataSnapshotRequest) returns (ClusterMetadataSnapshot);
+  rpc Ring(ClusterMetadataRingRequest) returns (ClusterMetadataRing);
+}
