@@ -157,7 +157,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         // FLAG_TLS_CLASSIFICATION_DONE. To avoid skipping the new flow's handshake, only early-exit on non-handshake
         // records; let a TLS handshake record (ClientHello/ServerHello) fall through to be re-parsed below.
         tls_record_header_t early_hdr = {0};
-        if (!is_tls(skb, skb_info.data_off, skb_info.data_end, &early_hdr) || early_hdr.content_type != TLS_HANDSHAKE) {
+        bool is_handshake = is_tls(skb, skb_info.data_off, skb_info.data_end, &early_hdr) && early_hdr.content_type == TLS_HANDSHAKE;
+
+        // Re-fetch after is_tls() to work around an issue where older kernel verifiers fail marking the
+        // use of protocol_stack an invalid access after a helper call while the pointer is held live.
+        protocol_stack = get_protocol_stack_if_exists(&skb_tup);
+
+        if (!is_handshake) {
             return;
         }
     }
