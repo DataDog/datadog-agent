@@ -14,6 +14,7 @@
 package pulumiworker
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -127,6 +128,19 @@ func ReadFakeintakeOutput(entry envstore.Entry, enabled bool, meta *envstore.Met
 	if fi.URL == "" {
 		return fmt.Errorf("snapshot %s has no URL for the Pulumi-provisioned fakeintake", entry.SnapshotPath())
 	}
+	// Cloud fakeintakes (ECS Fargate) run in the same VPC as the agent and
+	// the operator — the URL is the same from both. The Pulumi component sets
+	// only `url` at construction time; the agent/query split is a local-Docker
+	// distinction (container DNS name vs published host port).
+	if fi.AgentURL == "" {
+		fi.AgentURL = fi.URL
+	}
+	if fi.QueryURL == "" {
+		fi.QueryURL = fi.URL
+	}
+	if err := provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "fakeIntake", mustMarshal(fi)); err != nil {
+		return err
+	}
 	meta.FakeIntakeURL = fi.URL
 	meta.FakeIntakePort = int(fi.Port)
 	return nil
@@ -138,4 +152,12 @@ var stackNameRegexp = regexp.MustCompile(`[^a-zA-Z0-9-_.]`)
 // bookkeeping, deterministic so destroy finds what provision created.
 func StackName(name string) string {
 	return "e2ectl-" + stackNameRegexp.ReplaceAllString(name, "-")
+}
+
+func mustMarshal(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err) // outputs.FakeintakeOutput is always marshalable
+	}
+	return data
 }
