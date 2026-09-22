@@ -1087,6 +1087,8 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - .gitlab/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
+        - .gitlab/windows/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
         - .gitlab/test/e2e/e2e_templates.yml
