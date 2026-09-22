@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
@@ -176,9 +175,7 @@ func TestLoadIPCCredentialsWaitsForCoreAgent(t *testing.T) {
 		_ = os.WriteFile(certPath, staged, 0600)
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	authToken, clientTLS, err := loadIPCCredentials(ctx, tokenPath, certPath, 10*time.Millisecond, pkglog.NewWrapper(2))
+	authToken, clientTLS, err := loadIPCCredentials(tokenPath, certPath, 10*time.Second, 10*time.Millisecond, pkglog.NewWrapper(2))
 	<-done
 	require.NoError(t, err)
 	require.Equal(t, "0123456789abcdef0123456789abcdef", authToken)
@@ -190,32 +187,12 @@ func TestLoadIPCCredentialsTimesOut(t *testing.T) {
 	timeout := 100 * time.Millisecond
 
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	_, _, err := loadIPCCredentials(
-		ctx,
 		filepath.Join(dir, "absent_token"), filepath.Join(dir, "absent_cert.pem"),
-		10*time.Millisecond, pkglog.NewWrapper(2),
+		timeout, 10*time.Millisecond, pkglog.NewWrapper(2),
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "load IPC credentials")
 	// It waited rather than failing on the first read, which is what got containers restarted.
 	require.GreaterOrEqual(t, time.Since(start), timeout)
-}
-
-func TestRegisterWithBackoffStopsWhenContextEnds(t *testing.T) {
-	c := &consumer{
-		log:    pkglog.NewWrapper(2),
-		params: configstreamconsumer.Params{ClientName: "trace-agent"},
-	}
-	c.ctx, c.cancel = context.WithCancel(context.Background())
-	defer c.cancel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// A canceled context must abort before the first attempt: a single attempt can burn
-	// queryTimeout, which is what left remote agents unkillable while core was down.
-	err := c.registerWithBackoff(ctx)
-	require.ErrorIs(t, err, context.Canceled)
 }

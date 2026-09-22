@@ -6,7 +6,7 @@ A shared Go library for remote agents (system-probe, trace-agent, process-agent,
 
 - **Real-time config**: Receive full snapshot then incremental updates from the core agent over gRPC.
 - **RAR-gated**: Only registered remote agents can subscribe; session ID is required (fixed or via `SessionIDProvider`).
-- **Readiness gating**: construction blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded. That budget covers the whole bootstrap — waiting for the core agent's IPC credentials, registering with the RAR, and the first snapshot — and is interruptible by SIGINT/SIGTERM, so a remote agent stays killable while the core agent is unreachable.
+- **Readiness gating**: `Start` blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded.
 - **Single source of truth**: Streamed config is written into `config.Component` via `model.Writer`. Callers read config through `config.Component` directly — not through this component.
 - **Ordered updates**: Sequential application by sequence ID; stale updates dropped, discontinuities trigger resync.
 - **Session lifecycle**: The RAR session is refreshed at the interval the registry recommends, and re-minted whenever the registry rejects it (`PermissionDenied`/`Unauthenticated`), so a dropped stream recovers on its own. The core agent also refreshes the session for as long as it holds the stream, which keeps clients that predate this behaviour alive during a rolling upgrade.

@@ -19,12 +19,9 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"os/signal"
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
@@ -61,11 +58,12 @@ const noSessionPollInterval = time.Second
 // seqIDUnset marks "nothing applied on this stream yet" so sequence ID 0 is still accepted.
 const seqIDUnset = -1
 
-// ipcPollInterval is how often the wait for the core agent's IPC credentials retries.
-const ipcPollInterval = 2 * time.Second
-
-// defaultReadyTimeout bounds the whole bootstrap when Params.ReadyTimeout is unset.
-const defaultReadyTimeout = 60 * time.Second
+// ipcTimeout bounds the wait for the core agent to write the IPC auth token and certificate, and
+// ipcPollInterval is how often that wait retries.
+const (
+	ipcTimeout      = 60 * time.Second
+	ipcPollInterval = 2 * time.Second
+)
 
 // Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
@@ -138,11 +136,12 @@ type noopConsumer struct{}
 
 func (noopConsumer) IsActive() bool { return false }
 
-// loadIPCCredentials reads the IPC auth token and client certificate, retrying until ctx ends.
+// loadIPCCredentials reads the IPC auth token and client certificate, retrying until timeout.
 // A remote agent must never mint either artifact itself, so when the core agent has not written
 // them yet — routine when both start together in a container — the only option is to wait.
 // Failing immediately exits before FX startup completes, which restarts the container.
-func loadIPCCredentials(ctx context.Context, authTokenPath, certPath string, interval time.Duration, logger log.Component) (string, *tls.Config, error) {
+func loadIPCCredentials(authTokenPath, certPath string, timeout, interval time.Duration, logger log.Component) (string, *tls.Config, error) {
+	deadline := time.Now().Add(timeout)
 	waiting := false
 
 	for {
@@ -158,28 +157,15 @@ func loadIPCCredentials(ctx context.Context, authTokenPath, certPath string, int
 			}
 		}
 
-		if ctx.Err() != nil {
-			return "", nil, fmt.Errorf("load IPC credentials: %w (last error: %v)", ctx.Err(), err)
+		if time.Now().After(deadline) {
+			return "", nil, fmt.Errorf("load IPC credentials: gave up after %v: %w", timeout, err)
 		}
 		if !waiting {
-			logger.Infof("configstreamconsumer: waiting for the core agent to write the IPC credentials (%v)", err)
+			logger.Infof("configstreamconsumer: waiting up to %v for the core agent to write the IPC credentials (%v)", timeout, err)
 			waiting = true
 		}
-		select {
-		case <-ctx.Done():
-			return "", nil, fmt.Errorf("load IPC credentials: %w (last error: %v)", ctx.Err(), err)
-		case <-time.After(interval):
-		}
+		time.Sleep(interval)
 	}
-}
-
-// bootstrapBudget covers the whole bootstrap: IPC credentials, RAR registration and the first
-// snapshot.
-func bootstrapBudget(p configstreamconsumer.Params) time.Duration {
-	if p.ReadyTimeout == 0 {
-		return defaultReadyTimeout
-	}
-	return p.ReadyTimeout
 }
 
 // NewComponent returns a no-op when configstream is disabled; otherwise it blocks until
@@ -204,18 +190,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// in system-probe's binary (log.Component depends on config).
 	logger := pkglog.NewWrapper(2)
 
-	// The constructor runs before FX installs signal handling, so a wait that watched only a
-	// deadline would leave the process deaf to SIGTERM for as long as the core agent is down.
-	bootCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
-	bootCtx, cancelBoot := context.WithTimeout(bootCtx, bootstrapBudget(reqs.Params))
-	defer cancelBoot()
-
 	authToken, clientTLS, err := loadIPCCredentials(
-		bootCtx,
 		configstreambootstrap.AuthTokenFilepath(),
 		configstreambootstrap.IPCCertFilepath(),
-		ipcPollInterval, logger,
+		ipcTimeout, ipcPollInterval, logger,
 	)
 	if err != nil {
 		return Provides{}, err
@@ -239,7 +217,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	c.initMetrics()
 
-	if err := c.start(bootCtx); err != nil {
+	if err := c.start(context.Background()); err != nil {
 		return Provides{}, err
 	}
 
@@ -247,14 +225,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: c}, nil
 }
 
-// start registers with the RAR and blocks until the first snapshot lands. bootCtx bounds that
-// wait; c.ctx outlives it and belongs to the background loops.
-func (c *consumer) start(bootCtx context.Context) error {
+func (c *consumer) start(_ context.Context) error {
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.startTime = time.Now()
 
-	if err := c.registerWithBackoff(bootCtx); err != nil {
-		c.cancel()
+	if err := c.registerWithBackoff(); err != nil {
 		return err
 	}
 
@@ -262,8 +237,14 @@ func (c *consumer) start(bootCtx context.Context) error {
 	go c.sessionLoop()
 	go c.streamLoop()
 
-	c.log.Infof("configstreamconsumer[%s]: waiting for initial configuration (budget: %v)...", c.params.ClientName, bootstrapBudget(c.params))
-	if err := c.waitReady(bootCtx); err != nil {
+	timeout := c.params.ReadyTimeout
+	if timeout == 0 {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	c.log.Infof("configstreamconsumer[%s]: waiting for initial configuration (timeout: %v)...", c.params.ClientName, timeout)
+	if err := c.waitReady(ctx); err != nil {
 		c.cancel()
 		c.wg.Wait()
 		return fmt.Errorf("waiting for initial config snapshot: %w", err)
@@ -375,23 +356,23 @@ func (c *consumer) registerOnce() error {
 	return nil
 }
 
-// registerWithBackoff retries until ctx ends, with no fallback.
-func (c *consumer) registerWithBackoff(ctx context.Context) error {
+// registerWithBackoff retries forever until ctx is canceled, with no fallback.
+func (c *consumer) registerWithBackoff() error {
 	bo := newRegistrationBackoff()
 	for attempt := 1; ; attempt++ {
-		if ctx.Err() != nil {
-			return fmt.Errorf("registering with the remote agent registry: %w", ctx.Err())
-		}
 		err := c.registerOnce()
 		if err == nil {
 			return nil
+		}
+		if c.ctx.Err() != nil {
+			return c.ctx.Err()
 		}
 		// NextBackOff never returns backoff.Stop when MaxElapsedTime is 0 (the default).
 		next := bo.NextBackOff()
 		c.log.Warnf("configstreamconsumer[%s]: register attempt %d failed (%v); retrying in %s", c.params.ClientName, attempt, err, next)
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("registering with the remote agent registry: %w (last error: %v)", ctx.Err(), err)
+		case <-c.ctx.Done():
+			return c.ctx.Err()
 		case <-time.After(next):
 		}
 	}
