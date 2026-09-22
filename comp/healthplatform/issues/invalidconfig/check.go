@@ -77,7 +77,8 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	payloads := make([]violationPayload, 0, len(violations))
 	for i, violation := range violations {
 		path := scrubViolationPath(violation.Path)
-		// Never forward raw schema messages: non-type errors can quote values.
+		// Raw validator messages can expose configured values or credentials in paths.
+		// Build messages from scrubbed paths and type names instead.
 		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
 		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
 			continue
