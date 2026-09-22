@@ -47,13 +47,38 @@ func TestFormatCacheKey(t *testing.T) {
 	assert.Equal(t, "/interfaces/interface/state/counters/in-octets{name=eth0}", key)
 }
 
-func TestCommandsRegistersSubscribe(t *testing.T) {
+func TestCommandsRegistersSubscribeAndPreviewMetrics(t *testing.T) {
 	commands := Commands(&command.GlobalParams{})
 	require.Len(t, commands, 1)
-	require.Len(t, commands[0].Commands(), 1)
-	subscribe := commands[0].Commands()[0]
-	assert.Equal(t, "subscribe", subscribe.Name())
+	require.Len(t, commands[0].Commands(), 2)
+
+	names := []string{
+		commands[0].Commands()[0].Name(),
+		commands[0].Commands()[1].Name(),
+	}
+	assert.ElementsMatch(t, []string{"subscribe", "preview-metrics"}, names)
+
+	subscribe, _, err := commands[0].Find([]string{"subscribe"})
+	require.NoError(t, err)
 	assert.Equal(t, "true", subscribe.Flags().Lookup("use-tls").DefValue)
+	preview, _, err := commands[0].Find([]string{"preview-metrics"})
+	require.NoError(t, err)
+	assert.Equal(t, "true", preview.Flags().Lookup("use-tls").DefValue)
+}
+
+func TestValidatePreviewMetricsParams(t *testing.T) {
+	require.Error(t, validatePreviewMetricsParams(nil))
+	require.Error(t, validatePreviewMetricsParams(&previewMetricsParams{cliParams: &cliParams{}}))
+	require.Error(t, validatePreviewMetricsParams(&previewMetricsParams{
+		cliParams: &cliParams{interval: time.Second},
+		once:      true,
+		timeout:   0,
+	}))
+	require.NoError(t, validatePreviewMetricsParams(&previewMetricsParams{
+		cliParams: &cliParams{interval: time.Second},
+		once:      true,
+		timeout:   time.Second,
+	}))
 }
 
 func TestValidateSubscribeParams(t *testing.T) {

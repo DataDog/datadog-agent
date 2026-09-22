@@ -68,35 +68,15 @@ func (t TopologyConfig) SubscriptionPaths() []PathSubscriptionConfig {
 		return nil
 	}
 
-	seen := make(map[string]struct{})
-	out := make([]PathSubscriptionConfig, 0, 8)
-
-	add := func(path string, keyed bool) {
-		path = normalizeMetadataPath(path)
-		if path == "" {
-			return
-		}
-		if _, ok := seen[path]; ok {
-			return
-		}
-		seen[path] = struct{}{}
-
+	paths := t.LookupPaths()
+	out := make([]PathSubscriptionConfig, 0, len(paths))
+	for _, path := range paths {
 		spec := PathSubscriptionConfig{Path: path}
-		if keyed && len(t.LLDP.Keys) > 0 {
+		if len(t.LLDP.Keys) > 0 {
 			spec.Tags = copyStringMap(t.LLDP.Keys)
 		}
 		out = append(out, spec)
 	}
-
-	add(t.LLDP.ChassisID, true)
-	add(t.LLDP.ChassisIDType, true)
-	add(t.LLDP.PortID, true)
-	add(t.LLDP.PortIDType, true)
-	add(t.LLDP.SystemName, true)
-	add(t.LLDP.SystemDescription, true)
-	add(t.LLDP.PortDescription, true)
-	add(t.LLDP.ManagementAddress, true)
-
 	return out
 }
 
@@ -154,17 +134,21 @@ func validateTopologyConfig(topology TopologyConfig) error {
 		return nil
 	}
 
-	for field, path := range map[string]string{
-		"lldp.chassis_id":         topology.LLDP.ChassisID,
-		"lldp.chassis_id_type":    topology.LLDP.ChassisIDType,
-		"lldp.port_id":            topology.LLDP.PortID,
-		"lldp.port_id_type":       topology.LLDP.PortIDType,
-		"lldp.system_name":        topology.LLDP.SystemName,
-		"lldp.system_description": topology.LLDP.SystemDescription,
-		"lldp.port_description":   topology.LLDP.PortDescription,
-		"lldp.management_address": topology.LLDP.ManagementAddress,
-	} {
-		if err := validateMetadataPath(path, field); err != nil {
+	paths := [...]struct {
+		field string
+		path  string
+	}{
+		{"lldp.chassis_id", topology.LLDP.ChassisID},
+		{"lldp.chassis_id_type", topology.LLDP.ChassisIDType},
+		{"lldp.port_id", topology.LLDP.PortID},
+		{"lldp.port_id_type", topology.LLDP.PortIDType},
+		{"lldp.system_name", topology.LLDP.SystemName},
+		{"lldp.system_description", topology.LLDP.SystemDescription},
+		{"lldp.port_description", topology.LLDP.PortDescription},
+		{"lldp.management_address", topology.LLDP.ManagementAddress},
+	}
+	for _, item := range paths {
+		if err := validateMetadataPath(item.path, item.field); err != nil {
 			return err
 		}
 	}
