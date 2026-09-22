@@ -12,5 +12,8 @@ requires-python = ">=3.8"
 [tool.hatch.build.targets.wheel]
 # glustercli is from gluster/glustercli-python (GPLv2/LGPLv3+).
 # glusterlib is from gluster/gstatus (GPLv3).
-# gstatus (__main__.py, __init__.py, version.py) is from gluster/gstatus (GPLv3).
+# gstatus (__main__.py, __init__.py) is from gluster/gstatus (GPLv3).
+# version.py is at the top level because the upstream __main__.py does
+# `import version as gstatus_version` which expects a top-level module.
 packages = ["glustercli", "glusterlib", "gstatus"]
+force-include = { "version.py" = "version.py" }
