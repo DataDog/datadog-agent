@@ -23,6 +23,9 @@ const RingLeaseLabel = "clusteragent.datadoghq.com/metadata-ring"
 // RingLeaseNamePrefix is the prefix of every ring member's Lease name.
 const RingLeaseNamePrefix = "dd-metadata-ring-"
 
+// PodIPAnnotation carries the member's pod IP on its Lease
+const PodIPAnnotation = "clusteragent.datadoghq.com/pod-ip"
+
 // MemberID is the member identity: "namespace/pod-name".
 func MemberID(namespace, podName string) string {
 	return namespace + "/" + podName
@@ -37,28 +40,30 @@ func MemberID(namespace, podName string) string {
 //   - lists the other members' leases on demand for ring computation,
 //   - deletes ring Leases that expired longer than the retention window ago.
 type LeaseManager struct {
-	client     kubernetes.Interface
-	namespace  string
-	podName    string
-	leaseName  string
-	duration   time.Duration
-	retention  time.Duration
-	ringLabels labels.Set
+	clientSource func() (kubernetes.Interface, error)
+	podIPSource  func() (string, error)
+	namespace    string
+	podName      string
+	leaseName    string
+	duration     time.Duration
+	retention    time.Duration
+	ringLabels   labels.Set
 
 	mu         sync.RWMutex
 	ownedNodes []string
 }
 
 // NewLeaseManager returns the manager for this replica.
-func NewLeaseManager(client kubernetes.Interface, namespace, podName string, duration, retention time.Duration) *LeaseManager {
+func NewLeaseManager(clientSource func() (kubernetes.Interface, error), podIPSource func() (string, error), namespace, podName string, duration, retention time.Duration) *LeaseManager {
 	return &LeaseManager{
-		client:     client,
-		namespace:  namespace,
-		podName:    podName,
-		leaseName:  RingLeaseNamePrefix + podName,
-		duration:   duration,
-		retention:  retention,
-		ringLabels: labels.Set{RingLeaseLabel: "true"},
+		clientSource: clientSource,
+		podIPSource:  podIPSource,
+		namespace:    namespace,
+		podName:      podName,
+		leaseName:    RingLeaseNamePrefix + podName,
+		duration:     duration,
+		retention:    retention,
+		ringLabels:   labels.Set{RingLeaseLabel: "true"},
 	}
 }
 
@@ -72,7 +77,11 @@ func (m *LeaseManager) SetOwnedNodes(nodes []string) {
 
 // Ensure creates this replica's Lease if it does not exist yet.
 func (m *LeaseManager) Ensure(ctx context.Context) error {
-	_, err := m.client.CoordinationV1().Leases(m.namespace).Get(ctx, m.leaseName, metav1.GetOptions{})
+	client, err := m.clientSource()
+	if err != nil {
+		return err
+	}
+	_, err = client.CoordinationV1().Leases(m.namespace).Get(ctx, m.leaseName, metav1.GetOptions{})
 	if err == nil {
 		return nil
 	}
@@ -93,7 +102,7 @@ func (m *LeaseManager) Ensure(ctx context.Context) error {
 			RenewTime:            &now,
 		},
 	}
-	_, err = m.client.CoordinationV1().Leases(m.namespace).Create(ctx, lease, metav1.CreateOptions{})
+	_, err = client.CoordinationV1().Leases(m.namespace).Create(ctx, lease, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
 		return nil
 	}
@@ -106,7 +115,11 @@ func (m *LeaseManager) Ensure(ctx context.Context) error {
 // (harmless: same holder identity, converged content, last writer wins) or
 // an actor we do not defend against. The renewal tick retries anyway.
 func (m *LeaseManager) Renew(ctx context.Context) error {
-	lease, err := m.client.CoordinationV1().Leases(m.namespace).Get(ctx, m.leaseName, metav1.GetOptions{})
+	client, err := m.clientSource()
+	if err != nil {
+		return err
+	}
+	lease, err := client.CoordinationV1().Leases(m.namespace).Get(ctx, m.leaseName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -123,6 +136,12 @@ func (m *LeaseManager) Renew(ctx context.Context) error {
 
 	now := metav1.NowMicro()
 	lease.Spec.RenewTime = &now
+	if podIP, err := m.podIPSource(); err == nil && podIP != "" {
+		if lease.Annotations == nil {
+			lease.Annotations = map[string]string{}
+		}
+		lease.Annotations[PodIPAnnotation] = podIP
+	}
 	if lease.Labels == nil {
 		lease.Labels = map[string]string{}
 	}
@@ -132,13 +151,17 @@ func (m *LeaseManager) Renew(ctx context.Context) error {
 	}
 	lease.Annotations[OwnedNodesAnnotation] = encoded
 
-	_, err = m.client.CoordinationV1().Leases(m.namespace).Update(ctx, lease, metav1.UpdateOptions{})
+	_, err = client.CoordinationV1().Leases(m.namespace).Update(ctx, lease, metav1.UpdateOptions{})
 	return err
 }
 
 // Members lists the ring leases (including expired ones!!) and returns their lease state.
 func (m *LeaseManager) Members(ctx context.Context) ([]MemberInfo, error) {
-	list, err := m.client.CoordinationV1().Leases(m.namespace).List(ctx, metav1.ListOptions{
+	client, err := m.clientSource()
+	if err != nil {
+		return nil, err
+	}
+	list, err := client.CoordinationV1().Leases(m.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: m.ringLabels.AsSelector().String(),
 	})
 	if err != nil {
@@ -156,7 +179,11 @@ func (m *LeaseManager) Members(ctx context.Context) ([]MemberInfo, error) {
 
 // Cleanup deletes ring Leases that expired longer than the `retention` window.
 func (m *LeaseManager) Cleanup(ctx context.Context, now time.Time) error {
-	list, err := m.client.CoordinationV1().Leases(m.namespace).List(ctx, metav1.ListOptions{
+	client, err := m.clientSource()
+	if err != nil {
+		return err
+	}
+	list, err := client.CoordinationV1().Leases(m.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: m.ringLabels.AsSelector().String(),
 	})
 	if err != nil {
@@ -176,7 +203,7 @@ func (m *LeaseManager) Cleanup(ctx context.Context, now time.Time) error {
 		if now.Before(expiredAt.Add(m.retention)) {
 			continue
 		}
-		err := m.client.CoordinationV1().Leases(m.namespace).Delete(ctx, lease.Name, metav1.DeleteOptions{})
+		err := client.CoordinationV1().Leases(m.namespace).Delete(ctx, lease.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -190,7 +217,7 @@ func memberInfoFromLease(lease *coordinationv1.Lease) (MemberInfo, bool) {
 		return MemberInfo{}, false
 	}
 
-	info := MemberInfo{Name: *lease.Spec.HolderIdentity}
+	info := MemberInfo{Name: *lease.Spec.HolderIdentity, PodIP: lease.Annotations[PodIPAnnotation]}
 	if lease.Spec.RenewTime != nil {
 		info.RenewedAt = lease.Spec.RenewTime.Time
 	}

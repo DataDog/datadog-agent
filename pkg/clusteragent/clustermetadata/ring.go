@@ -21,18 +21,31 @@ type MemberInfo struct {
 	Name      string
 	RenewedAt time.Time
 	Duration  time.Duration
+	// PodIP is the member's pod address from its Lease annotation; empty
+	// until the member published it.
+	PodIP string
 }
 
-// AliveMembers returns the names of members whose lease is still valid (at now)
-func AliveMembers(members []MemberInfo, now time.Time) []string {
-	alive := make([]string, 0, len(members))
+// AliveMembers returns the members whose lease is still valid (at now),
+// sorted by name.
+func AliveMembers(members []MemberInfo, now time.Time) []MemberInfo {
+	alive := make([]MemberInfo, 0, len(members))
 	for _, m := range members {
 		if m.Name != "" && now.Before(m.RenewedAt.Add(m.Duration)) {
-			alive = append(alive, m.Name)
+			alive = append(alive, m)
 		}
 	}
-	sort.Strings(alive)
+	sort.Slice(alive, func(i, j int) bool { return alive[i].Name < alive[j].Name })
 	return alive
+}
+
+// MemberNames returns the IDs of the given members.
+func MemberNames(members []MemberInfo) []string {
+	names := make([]string, 0, len(members))
+	for _, m := range members {
+		names = append(names, m.Name)
+	}
+	return names
 }
 
 // Owner returns the member that owns node under rendezvous hashing.

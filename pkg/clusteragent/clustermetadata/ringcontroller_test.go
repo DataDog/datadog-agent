@@ -18,6 +18,7 @@ import (
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubernetes "k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -52,7 +53,7 @@ func newRingFixture(t *testing.T, nodes []string) (*RingController, *k8sfake.Cli
 	_, err = client.CoordinationV1().Leases("datadog").Create(ctx, ringLease("", "dca-2", 41*time.Second), metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	manager := NewLeaseManager(client, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
+	manager := NewLeaseManager(func() (kubernetes.Interface, error) { return client, nil }, func() (string, error) { return "10.0.0.1", nil }, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
 	controller := NewRingController(manager, MemberID("datadog", "dca-0"), time.Second,
 		func(ctx context.Context) ([]string, error) {
 			return nodes, nil
@@ -73,7 +74,7 @@ func TestRingControllerReconcile(t *testing.T) {
 	require.NoError(t, controller.Reconcile(ctx))
 
 	state := controller.State()
-	assert.Equal(t, []string{MemberID("datadog", "dca-0"), MemberID("datadog", "dca-1")}, state.Members,
+	assert.Equal(t, []string{MemberID("datadog", "dca-0"), MemberID("datadog", "dca-1")}, MemberNames(state.MemberInfos),
 		"expired dca-2 is excluded")
 	assert.False(t, state.Ready(), "no sync marks yet: not ready")
 
@@ -114,7 +115,7 @@ func TestRingControllerMembershipChange(t *testing.T) {
 	}
 
 	var prev, next []string
-	controller.OnOwnedNodesChanged(func(p, n []string) {
+	controller.SubscribeOwnedNodes(func(p, n []string) {
 		prev, next = p, n
 	})
 
@@ -129,7 +130,7 @@ func TestRingControllerMembershipChange(t *testing.T) {
 	require.NoError(t, controller.Reconcile(ctx))
 
 	newState := controller.State()
-	require.Len(t, newState.Members, 3)
+	require.Len(t, newState.MemberInfos, 3)
 	assert.Equal(t, state.MyNodes, prev, "callback received the previous owned set")
 	assert.Equal(t, newState.MyNodes, next, "callback received the new owned set")
 	assert.Less(t, len(newState.MyNodes), len(state.MyNodes), "dca-2 took some nodes over")
@@ -164,7 +165,7 @@ func TestLocalStoreReadinessGate(t *testing.T) {
 		deployments: map[string]*workloadmeta.KubernetesDeployment{},
 		nodes:       map[string]*workloadmeta.KubernetesNode{},
 	}
-	store := NewLocalStore(wmeta, &fakeTagger{tags: map[taggertypes.EntityID][]string{}}, controller)
+	store := NewLocalStore(wmeta, &fakeTagger{tags: map[taggertypes.EntityID][]string{}}, controller, nil)
 
 	miss := cm.LookupRequest{
 		Key:   cm.EntityKey{Kind: KindPod, Namespace: "default", Name: "missing"},
@@ -212,7 +213,7 @@ func TestRingControllerLeaseDeletionRecovery(t *testing.T) {
 
 	require.NoError(t, controller.Reconcile(ctx))
 	state := controller.State()
-	assert.Contains(t, state.Members, MemberID("datadog", "dca-0"))
+	assert.Contains(t, MemberNames(state.MemberInfos), MemberID("datadog", "dca-0"))
 
 	// Delete our lease, as a namespace wipe or a human could.
 	require.NoError(t, client.CoordinationV1().Leases("datadog").
@@ -221,7 +222,7 @@ func TestRingControllerLeaseDeletionRecovery(t *testing.T) {
 	require.NoError(t, controller.Reconcile(ctx))
 
 	recovered := controller.State()
-	assert.Contains(t, recovered.Members, MemberID("datadog", "dca-0"),
+	assert.Contains(t, MemberNames(recovered.MemberInfos), MemberID("datadog", "dca-0"),
 		"the member is alive in its own ring view after one pass")
 	assert.Equal(t, state.MyNodes, recovered.MyNodes, "owned set recomputed identically")
 }

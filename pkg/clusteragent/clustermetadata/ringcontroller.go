@@ -15,8 +15,9 @@ import (
 
 // RingState is this replica's current view of the ring.
 type RingState struct {
-	// Members is the alive member IDs.
-	Members []string
+	// MemberInfos are the alive members' lease state, including their pod
+	// addresses: the peer fanout dials members directly.
+	MemberInfos []MemberInfo
 	// Owned maps each alive member to the nodes it owns.
 	Owned map[string][]string
 	// MyNodes is the node set owned by this replica.
@@ -48,7 +49,8 @@ type RingController struct {
 	mu    sync.RWMutex
 	state RingState
 
-	onOwnedNodesChanged func(prev, next []string)
+	subscribers map[int]func(prev, next []string)
+	nextSubID   int
 }
 
 // NewRingController returns a controller for this replica.
@@ -61,11 +63,22 @@ func NewRingController(manager *LeaseManager, selfID string, interval time.Durat
 	}
 }
 
-// OnOwnedNodesChanged registers a callback fired when a rebalance changes this replica's owned nodes.
-func (c *RingController) OnOwnedNodesChanged(fn func(prev, next []string)) {
+// SubscribeOwnedNodes registers fn, fired when a rebalance changes this
+// replica's owned nodes. It returns an unsubscribe function.
+func (c *RingController) SubscribeOwnedNodes(fn func(prev, next []string)) func() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.onOwnedNodesChanged = fn
+	if c.subscribers == nil {
+		c.subscribers = make(map[int]func(prev, next []string))
+	}
+	id := c.nextSubID
+	c.nextSubID++
+	c.subscribers[id] = fn
+	return func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		delete(c.subscribers, id)
+	}
 }
 
 // Reconsile is responsible for ensuring our lease is present,
@@ -82,7 +95,8 @@ func (c *RingController) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	alive := AliveMembers(members, time.Now())
+	aliveInfos := AliveMembers(members, time.Now())
+	alive := MemberNames(aliveInfos)
 
 	// get the node set owned by this replica
 	nodes, err := c.nodeSource(ctx)
@@ -95,7 +109,6 @@ func (c *RingController) Reconcile(ctx context.Context) error {
 	c.mu.RLock()
 	prev := c.state.MyNodes
 	prevSynced := c.state.NodeSynced
-	callback := c.onOwnedNodesChanged
 	c.mu.RUnlock()
 
 	// publish our owned set on our own Lease
@@ -111,15 +124,21 @@ func (c *RingController) Reconcile(ctx context.Context) error {
 
 	c.mu.Lock()
 	c.state = RingState{
-		Members:    alive,
-		Owned:      owned,
-		MyNodes:    myNodes,
-		NodeSynced: nodeSynced,
+		MemberInfos: aliveInfos,
+		Owned:       owned,
+		MyNodes:     myNodes,
+		NodeSynced:  nodeSynced,
+	}
+	subscribers := make([]func(prev, next []string), 0, len(c.subscribers))
+	for _, fn := range c.subscribers {
+		subscribers = append(subscribers, fn)
 	}
 	c.mu.Unlock()
 
-	if callback != nil && !sameNodes(prev, myNodes) {
-		callback(prev, myNodes)
+	if !sameNodes(prev, myNodes) {
+		for _, fn := range subscribers {
+			fn(prev, myNodes)
+		}
 	}
 	return nil
 }
@@ -146,10 +165,10 @@ func (c *RingController) State() RingState {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	state := RingState{
-		Members:    append([]string(nil), c.state.Members...),
-		Owned:      make(map[string][]string, len(c.state.Owned)),
-		MyNodes:    append([]string(nil), c.state.MyNodes...),
-		NodeSynced: make(map[string]bool, len(c.state.NodeSynced)),
+		MemberInfos: append([]MemberInfo(nil), c.state.MemberInfos...),
+		Owned:       make(map[string][]string, len(c.state.Owned)),
+		MyNodes:     append([]string(nil), c.state.MyNodes...),
+		NodeSynced:  make(map[string]bool, len(c.state.NodeSynced)),
 	}
 	for member, nodes := range c.state.Owned {
 		state.Owned[member] = append([]string(nil), nodes...)
