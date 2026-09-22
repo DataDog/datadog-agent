@@ -309,7 +309,9 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 // When pulumi_verbose_progress_streams is set the raw Pulumi progress output is
 // streamed to the logger; otherwise the progress output goes through
 // NewProgressFilter and only clean, formatted resource events are shown.
-// Error output always goes to the logger unfiltered.
+// The filter already passes through error/warning lines, so no separate
+// ErrorProgressStreams is needed in the filtered path (the Pulumi CLI puts
+// most progress output on stderr, which ErrorProgressStreams forwards raw).
 func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) []optup.Option {
 	verboseProgressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
@@ -317,12 +319,11 @@ func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) []optup.Option 
 	}
 
 	if verboseProgressStreams {
-		return []optup.Option{optup.ProgressStreams(logger)}
+		return []optup.Option{optup.ProgressStreams(logger), optup.ErrorProgressStreams(logger)}
 	}
 
 	return []optup.Option{
 		optup.ProgressStreams(NewProgressFilter(logger)),
-		optup.ErrorProgressStreams(logger),
 	}
 }
 
@@ -333,12 +334,11 @@ func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) []optdestr
 	}
 
 	if verboseProgressStreams {
-		return []optdestroy.Option{optdestroy.ProgressStreams(logger)}
+		return []optdestroy.Option{optdestroy.ProgressStreams(logger), optdestroy.ErrorProgressStreams(logger)}
 	}
 
 	return []optdestroy.Option{
 		optdestroy.ProgressStreams(NewProgressFilter(logger)),
-		optdestroy.ErrorProgressStreams(logger),
 	}
 }
 
