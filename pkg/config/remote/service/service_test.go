@@ -1018,6 +1018,69 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	assert.Equal(t, "BAD_ORG", updatedKey)
 
 }
+func TestWithApiKeyUpdateDisabled(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+
+	cfg := configmock.New(t)
+	dir := t.TempDir()
+	cfg.SetInTest("run_path", dir)
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := (&telemetryReporter{})
+	options := []Option{
+		WithAPIKey("initialKey"),
+		WithoutAPIKeyUpdates(),
+		uptaneFactoryOption(uptaneClient),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, service.Stop())
+	})
+	service.api = api
+	service.mu.uptane = uptaneClient
+
+	cfg.SetInTest("api_key", "ignored")
+	api.AssertNotCalled(t, "UpdateAPIKey", mock.Anything)
+	uptaneClient.AssertNotCalled(t, "StoredOrgUUID")
+}
+
+func TestRemoteConfigStatusInstancesDoNotOverwriteDefaultStatus(t *testing.T) {
+	defaultStatus := getRemoteConfigStatus(DefaultStatusInstance)
+	extraStatus := getRemoteConfigStatus("test-extra")
+	t.Cleanup(func() {
+		defaultStatus.orgEnabled.Set("")
+		defaultStatus.keyAuthorized.Set("")
+		defaultStatus.lastUpdateErr.Set("")
+		extraStatus.orgEnabled.Set("")
+		extraStatus.keyAuthorized.Set("")
+		extraStatus.lastUpdateErr.Set("")
+	})
+
+	defaultAPI := &mockAPI{}
+	defaultAPI.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{Enabled: true, Authorized: true}, nil)
+	extraAPI := &mockAPI{}
+	extraAPI.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{Enabled: false, Authorized: false}, nil)
+
+	newOrgStatusPoller(time.Minute, defaultStatus).poll(defaultAPI, DefaultStatusInstance)
+	newOrgStatusPoller(time.Minute, extraStatus).poll(extraAPI, "test-extra")
+
+	var status map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(exportedMapStatus.String()), &status))
+	assert.Equal(t, "true", status["orgEnabled"])
+	assert.Equal(t, "true", status["apiKeyScoped"])
+
+	instances, ok := status["instances"].(map[string]interface{})
+	require.True(t, ok)
+	extraInstance, ok := instances["test-extra"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "false", extraInstance["orgEnabled"])
+	assert.Equal(t, "false", extraInstance["apiKeyScoped"])
+
+	defaultAPI.AssertExpectations(t)
+	extraAPI.AssertExpectations(t)
+}
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	api := &mockAPI{}
@@ -1522,4 +1585,35 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	assert.Equal(t, service.orgStatusPoller.refreshInterval, 54*time.Second)
 	assert.NotNil(t, service)
 	service.Stop()
+}
+
+// TestEndpointStatusDropsCredentials checks the endpoint published to the
+// status keeps only what identifies the backend. The URL comes from user
+// configuration and the status output ends up in flares.
+func TestEndpointStatusDropsCredentials(t *testing.T) {
+	for _, tc := range []struct{ raw, want string }{
+		{"https://user:pass@localhost/path", "https://localhost/path"},
+		{"https://localhost/path?token=SECRET", "https://localhost/path"},
+		{"https://localhost/path#token=SECRET", "https://localhost/path"},
+		{"https://localhost", "https://localhost"},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("run_path", t.TempDir())
+			instance := "endpoint-test-" + tc.want + tc.raw
+
+			service, err := NewService(cfg, "Remote Config", tc.raw, "localhost", getHostTags,
+				&telemetryReporter{}, agentVersion,
+				WithAPIKey("key"),
+				WithStatusInstance(instance),
+				uptaneFactoryOption(&mockCoreAgentUptane{}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, service.Stop()) })
+
+			assert.Equal(t, tc.want, getRemoteConfigStatus(instance).endpoint.Value())
+			assert.NotContains(t, getRemoteConfigStatus(instance).endpoint.Value(), "SECRET")
+			assert.NotContains(t, getRemoteConfigStatus(instance).endpoint.Value(), "pass")
+		})
+	}
 }
