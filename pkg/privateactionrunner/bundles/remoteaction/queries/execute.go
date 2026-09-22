@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -471,37 +470,12 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			"totalBytes": receipt.GetTotalBytes(),
 		},
 	}
-	// The optional typed diagnostics ride beside the receipt when the Agent
-	// forwarded them; absent stays absent and nothing else about the output changes.
-	if diagnostics := finalEvent.GetExecutionDiagnostics(); diagnostics != nil {
-		if diagnosticsObject, err := remoteQueryExecutionDiagnosticsOutput(diagnostics); err == nil {
-			output["executionDiagnostics"] = diagnosticsObject
-		}
-	}
-	return output, nil
-}
-
-// remoteQueryExecutionDiagnosticsOutput renders the validated typed diagnostics
-// message as the AP output's executionDiagnostics object with protojson: camelCase
-// contract keys, unset fields omitted, no nulls. The protojson bytes are decoded
-// into the generic map the AP output carries so the exact contract key set crosses
-// AP unchanged.
-func remoteQueryExecutionDiagnosticsOutput(diagnostics *pb.RemoteQueryExecutionDiagnostics) (map[string]interface{}, error) {
-	encoded, err := protojson.Marshal(diagnostics)
-	if err != nil {
-		return nil, err
-	}
-	var output map[string]interface{}
-	if err := json.Unmarshal(encoded, &output); err != nil {
-		return nil, err
-	}
 	return output, nil
 }
 
 // remoteQueryErrorOutput propagates a terminal error event without a receipt. The error
 // object carries exactly code and message: the AP metadata ExecutionError schema is
-// strict and the worker reads only those two fields. The optional typed diagnostics ride
-// beside the error when the Agent forwarded them; absent stays absent.
+// strict and the worker reads only those two fields.
 func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]interface{} {
 	output := map[string]interface{}{
 		"status": errEvent.GetCode(),
@@ -509,11 +483,6 @@ func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]inte
 			"code":    errEvent.GetCode(),
 			"message": errEvent.GetMessage(),
 		},
-	}
-	if diagnostics := errEvent.GetExecutionDiagnostics(); diagnostics != nil {
-		if diagnosticsObject, err := remoteQueryExecutionDiagnosticsOutput(diagnostics); err == nil {
-			output["executionDiagnostics"] = diagnosticsObject
-		}
 	}
 	return output
 }
