@@ -9,9 +9,9 @@ package containerd
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -49,7 +49,7 @@ func TestHiddenBytesCacheLRUEviction(t *testing.T) {
 	cache := newHiddenBytesCache("")
 	results := hiddenBytesTestResult(hiddenBytesTestImage("fixture"))
 	for i := 0; i < hiddenBytesCacheEntries; i++ {
-		require.NoError(t, cache.put(digest.FromString(fmt.Sprint(i)).String(), results))
+		require.NoError(t, cache.put(digest.FromString(strconv.Itoa(i)).String(), results))
 	}
 	_, ok := cache.get(digest.FromString("0").String())
 	require.True(t, ok)
@@ -66,10 +66,10 @@ func TestHiddenBytesCacheByteBound(t *testing.T) {
 	cache := newHiddenBytesCache(path)
 	results := make([]hiddenLayerResult, hiddenBytesCacheMaxLayers)
 	for i := range results {
-		results[i] = hiddenLayerResult{DiffID: digest.FromString(fmt.Sprint(i)).String(), Bytes: 42}
+		results[i] = hiddenLayerResult{DiffID: digest.FromString(strconv.Itoa(i)).String(), Bytes: 42}
 	}
 	for i := 0; i < 8; i++ {
-		require.NoError(t, cache.put(digest.FromString(fmt.Sprint(i)).String(), results))
+		require.NoError(t, cache.put(digest.FromString(strconv.Itoa(i)).String(), results))
 	}
 	stat, err := os.Stat(path)
 	require.NoError(t, err)

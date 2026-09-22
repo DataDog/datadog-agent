@@ -9,6 +9,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -206,7 +207,7 @@ func (c *collector) collectHiddenBytes(ctx context.Context, img *workloadmeta.Co
 		results, err = h.scan(scanCtx, img)
 		cancel()
 		if err == nil && !hiddenResultsMatch(img, results) {
-			err = fmt.Errorf("hidden-byte results do not match ordered image layers")
+			err = errors.New("hidden-byte results do not match ordered image layers")
 		}
 	}
 	if ctx.Err() != nil {
@@ -221,7 +222,7 @@ func (c *collector) collectHiddenBytes(ctx context.Context, img *workloadmeta.Co
 		return
 	}
 	if err == nil && !hiddenResultsMatch(current, results) {
-		err = fmt.Errorf("current image metadata no longer matches hidden-byte results")
+		err = errors.New("current image metadata no longer matches hidden-byte results")
 	}
 	if err != nil {
 		job.attempts++
@@ -294,7 +295,7 @@ func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta
 		return nil, err
 	}
 	if len(bytes) != len(layers) {
-		return nil, fmt.Errorf("hidden-byte result count does not match image layers")
+		return nil, errors.New("hidden-byte result count does not match image layers")
 	}
 	results := make([]hiddenLayerResult, len(layers))
 	for i, layer := range layers {

@@ -125,7 +125,7 @@ func TestHiddenBytesFailureReturnsNoPartialCounts(t *testing.T) {
 	t.Run("hardlink", func(t *testing.T) {
 		require.NoError(t, os.Link(filepath.Join(layers[0].Path, "app"), filepath.Join(layers[0].Path, "linked")))
 		got, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), attrs)
-		require.ErrorContains(t, err, "hardlinked")
+		require.ErrorContains(t, err, "hard links")
 		require.Nil(t, got)
 	})
 }

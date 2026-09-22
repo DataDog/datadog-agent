@@ -9,7 +9,7 @@ package containerd
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,19 +57,19 @@ func (c *hiddenBytesCache) load() error {
 		return err
 	}
 	if len(data) > hiddenBytesCacheMaxBytes {
-		return fmt.Errorf("hidden-byte cache exceeds size limit")
+		return errors.New("hidden-byte cache exceeds size limit")
 	}
 	var stored hiddenBytesCacheFile
 	if err := json.Unmarshal(data, &stored); err != nil {
 		return err
 	}
 	if stored.Version != hiddenBytesAlgorithmVersion || len(stored.Entries) > hiddenBytesCacheEntries {
-		return fmt.Errorf("unsupported hidden-byte cache version or entry count")
+		return errors.New("unsupported hidden-byte cache version or entry count")
 	}
 	seen := make(map[string]bool, len(stored.Entries))
 	for _, entry := range stored.Entries {
 		if seen[entry.ImageID] || !validHiddenCacheEntry(entry) {
-			return fmt.Errorf("invalid hidden-byte cache entry")
+			return errors.New("invalid hidden-byte cache entry")
 		}
 		seen[entry.ImageID] = true
 	}
@@ -102,7 +102,7 @@ func (c *hiddenBytesCache) get(id string) ([]hiddenLayerResult, bool) {
 func (c *hiddenBytesCache) put(id string, results []hiddenLayerResult) error {
 	entry := hiddenBytesCacheEntry{ImageID: id, Layers: slices.Clone(results)}
 	if !validHiddenCacheEntry(entry) {
-		return fmt.Errorf("invalid hidden-byte cache result")
+		return errors.New("invalid hidden-byte cache result")
 	}
 	for i := range c.entries {
 		if c.entries[i].ImageID == id {

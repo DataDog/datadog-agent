@@ -212,7 +212,7 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 				return errors.New("unsupported image file metadata")
 			}
 			if info.Mode().IsRegular() && stat.Nlink != 1 {
-				return fmt.Errorf("hardlinked image file is unsupported: %s", relative)
+				return fmt.Errorf("image file with hard links is unsupported: %s", relative)
 			}
 			meta, err := metadata(path, layer.UserXAttr)
 			if err != nil {
