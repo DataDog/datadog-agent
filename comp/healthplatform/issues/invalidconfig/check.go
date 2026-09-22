@@ -49,6 +49,10 @@ func newChecker(cfg config.Component, hostname hostnameinterface.Component, self
 }
 
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
+	return c.validate()
+}
+
+func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	// Validate effective customer settings, including locally resolved secrets.
 	raw := c.cfg.AllSettingsWithoutDefault()
 	if len(raw) == 0 {

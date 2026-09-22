@@ -78,6 +78,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		errMap[path] = slice
 	}
 
+	// Add optional violation details before converting the map to protobuf.
 	extraFields := map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
@@ -128,6 +129,8 @@ var typeLabels = map[string]string{
 	"null":    "null",
 }
 
+// formatCorrections renders up to ten fixes from the validation details.
+// Missing or unusable details fall back to the generic remediation.
 func formatCorrections(raw string) string {
 	var violations []violationPayload
 	if err := json.Unmarshal([]byte(raw), &violations); err != nil || len(violations) == 0 {
@@ -145,17 +148,19 @@ func formatCorrections(raw string) string {
 		return corrections[0]
 	}
 	result := "- " + strings.Join(corrections, "\n- ")
-	if len(violations) > limit {
-		remaining := len(violations) - limit
-		wording := "violations are"
-		if remaining == 1 {
-			wording = "violation is"
-		}
-		result += fmt.Sprintf("\n\n%d more %s listed in the description.", remaining, wording)
+	remaining := len(violations) - len(corrections)
+	if remaining == 0 {
+		return result
 	}
-	return result
+	wording := "violations are"
+	if remaining == 1 {
+		wording = "violation is"
+	}
+	return result + fmt.Sprintf("\n\n%d more %s listed in the description.", remaining, wording)
 }
 
+// formatCorrection explains one type mismatch and its default, when known.
+// An empty result tells the caller to use the generic remediation instead.
 func formatCorrection(violation violationPayload) string {
 	actual := typeLabels[violation.ActualType]
 	if actual == "" || len(violation.ExpectedTypes) == 0 {
@@ -186,16 +191,18 @@ func formatCorrection(violation violationPayload) string {
 		if violation.DefaultValue == "" {
 			correction += " (an empty string)"
 		}
-		correction += "."
+		return correction + "."
 	case "none":
-		correction += " This setting has no default."
+		return correction + " This setting has no default."
 	case "unknown":
+		return correction
 	default:
 		return ""
 	}
-	return correction
 }
 
+// inlineCode replaces control characters with spaces and wraps text as Markdown code.
+// Its fence is longer than any backtick run so the text cannot close it.
 func inlineCode(text string) string {
 	text = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
