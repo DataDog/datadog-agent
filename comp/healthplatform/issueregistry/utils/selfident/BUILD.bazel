@@ -13,10 +13,12 @@ go_library(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -40,8 +42,8 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//comp/def",
         "//pkg/config/env",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common/namespace",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
     ],
 )
