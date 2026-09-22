@@ -1,11 +1,15 @@
 """BUILD file for the fetched gstatus repo.
 
 Exports only the files we need:
-gstatus/glusterlib/ (cluster aggregation + display logic).
-We do NOT include gstatus/__main__.py (replaced by our own gstatus.py).
+- gstatus/__main__.py (entry point, GPLv3)
+- gstatus/__init__.py
+- gstatus/glusterlib/ (cluster aggregation + display logic)
+- LICENSE (GPLv3)
 """
 
 exports_files([
+    "gstatus/__init__.py",
+    "gstatus/__main__.py",
     "gstatus/glusterlib/__init__.py",
     "gstatus/glusterlib/cluster.py",
     "gstatus/glusterlib/display_status.py",
@@ -15,6 +19,8 @@ exports_files([
 filegroup(
     name = "all_files",
     srcs = [
+        "gstatus/__init__.py",
+        "gstatus/__main__.py",
         "gstatus/glusterlib/__init__.py",
         "gstatus/glusterlib/cluster.py",
         "gstatus/glusterlib/display_status.py",

@@ -10,7 +10,7 @@ license = "GPL-3.0-only"
 requires-python = ">=3.8"
 
 [tool.hatch.build.targets.wheel]
-# Only include the packages fetched from upstream — not the entire source tree.
 # glustercli is from gluster/glustercli-python (GPLv2/LGPLv3+).
-# gstatus/glusterlib is from gluster/gstatus (GPLv3).
-packages = ["glustercli", "glusterlib"]
+# glusterlib is from gluster/gstatus (GPLv3).
+# gstatus (__main__.py, __init__.py, version.py) is from gluster/gstatus (GPLv3).
+packages = ["glustercli", "glusterlib", "gstatus"]

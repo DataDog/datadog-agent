@@ -1,13 +1,15 @@
 # gstatus - fetched from upstream at build time, not committed.
 #
-# The gstatus entry-point script (gstatus.py) and the wheel build config
-# (pyproject.toml) are committed here. The glustercli and glusterlib
-# source is fetched from upstream via http_archive (see gstatus.MODULE.bazel)
-# and assembled into a wheel at build time.
+# The wheel build config (pyproject.toml) is committed here. The glustercli,
+# glusterlib, and gstatus (__main__.py, __init__.py) source is fetched from
+# upstream via http_archive (see gstatus.MODULE.bazel) and assembled into
+# a wheel at build time. A version.py is generated at build time since the
+# upstream repo does not include it (it is generated at release time from
+# git tags).
 #
 # This replaces the old 8.2 MiB PEP 441 zipapp with a ~140 KiB lightweight
-# wheel + thin entry-point script that runs on the agent's embedded Python.
-# See gstatus.py for details.
+# wheel + entry-point script that runs on the agent's embedded Python.
+# All upstream code is GPLv3 (gstatus) or GPLv2/LGPLv3+ (glustercli).
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -24,16 +26,15 @@ package(
 
 license(
     name = "license",
-    # glusterlib (from gstatus) is GPLv3; glustercli is GPLv2/LGPLv3+.
-    # The combined work is GPLv3 (the most restrictive of the dual licenses).
+    # glusterlib and __main__.py (from gstatus) are GPLv3; glustercli is
+    # GPLv2/LGPLv3+. The combined work is GPLv3 (the most restrictive).
     license_kinds = ["@rules_license//licenses/spdx:GPL-3.0-only"],
     license_text = "@gstatus_source//:LICENSE",
     visibility = ["//visibility:public"],
 )
 
 # Stage glustercli source files from the fetched glustercli-python repo.
-# Files land at their path within the repo (e.g. glustercli/cli/volume.py).
-# We exclude glustercli/metrics/ (gstatus never imports it) via include_srcs_patterns.
+# We exclude glustercli/metrics/ (gstatus never imports it).
 copy_to_directory(
     name = "glustercli_srcs",
     srcs = ["@glustercli_python//:all_files"],
@@ -58,22 +59,45 @@ copy_to_directory(
     root_paths = ["gstatus"],
 )
 
-# Merge the staged glustercli + glusterlib directories and add our pyproject.toml
-# into a single flat directory that hatchling can build from.
-# replace_prefixes flattens the intermediate directory names
-# (glustercli_srcs_dir/, glusterlib_srcs_dir/) so packages land at
-# glustercli/... and glusterlib/... at the root of wheel_src_dir.
+# Stage gstatus package files (__main__.py, __init__.py) from the fetched
+# gstatus repo. These land at gstatus/... (keeping the gstatus/ prefix
+# since __main__.py imports `import version as gstatus_version` which
+# resolves to gstatus/version.py when the package is installed).
+copy_to_directory(
+    name = "gstatus_pkg_srcs",
+    srcs = ["@gstatus_source//:all_files"],
+    out = "gstatus_pkg_srcs_dir",
+    include_external_repositories = ["*gstatus_source*"],
+    include_srcs_patterns = [
+        "gstatus/__init__.py",
+        "gstatus/__main__.py",
+    ],
+)
+
+# Generate version.py (not in the upstream repo — generated at release time).
+genrule(
+    name = "version_py",
+    outs = ["version.py"],
+    cmd = "echo '\"\"\"Version\"\"\"' > $@ && echo 'VERSION = \"v1.0.9\"' >> $@",
+)
+
+# Merge all staged sources + pyproject.toml + generated version.py into a
+# single flat directory that hatchling can build from.
 copy_to_directory(
     name = "wheel_src",
     srcs = [
         "pyproject.toml",
         ":glustercli_srcs",
         ":glusterlib_srcs",
+        ":gstatus_pkg_srcs",
+        ":version_py",
     ],
     out = "wheel_src_dir",
     replace_prefixes = {
         "glustercli_srcs_dir/": "",
         "glusterlib_srcs_dir/": "",
+        "gstatus_pkg_srcs_dir/": "",
+        "version.py": "gstatus/version.py",
     },
 )
 
@@ -91,13 +115,13 @@ run_binary(
     tool = "//deps/agent_integrations:build_wheel_tool",
 )
 
-# gstatus entry-point script. The shebang points at the agent's embedded Python,
-# which has the vendored glustercli/glusterlib packages on its import path.
+# gstatus entry-point script. Created from the upstream __main__.py with
+# the shebang replaced to point at the agent's embedded Python.
 genrule(
     name = "gstatus_script",
-    srcs = ["gstatus.py"],
+    srcs = ["@gstatus_source//:gstatus/__main__.py"],
     outs = ["gstatus"],
-    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location gstatus.py) >$@",
+    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_source//:gstatus/__main__.py) >$@",
     target_compatible_with = ["@platforms//os:linux"],
 )
 
