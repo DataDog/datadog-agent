@@ -283,13 +283,15 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   new pin. On the main pipeline, e2e waits for `publish_fakeintake_pinned` (via
   the optional need in `.needs_fakeintake_publish`) so it never runs against a
   not-yet-published tag.
-- **Release branches never build or publish fakeintake.** All fakeintake jobs
+- **Release branches never build or publish fakeintake.** The build/publish jobs
   are skipped on release branches (`7.x.x`) and PRs targeting them
   (`.except_fakeintake_off_main` in `.gitlab-ci.yml`): a fakeintake change there
   is ignored — no rebuild, no publish, no e2e override; e2e runs against the
-  branch's pinned image. **Never backport fakeintake server changes or bump
-  `version/VERSION` on a release branch** — its pin must always reference a tag
-  that was published from main, or e2e on that branch breaks.
+  branch's pinned image. **`version/VERSION` must never exceed main's** on such
+  branches: the pinned tag is published from main only, so a greater value
+  references an image that will never exist and breaks e2e on the branch.
+  `fakeintake_check_version_bump` enforces this — values already published from
+  main (e.g. carried by a fix backport) are fine.
 - **Known limitation — cross-pipeline publish window.** Because the pinned tag
   is published only after the bump merges to main, there is a window (the main
   pipeline's fakeintake build + publish, up to ~10-20 min) during which the new

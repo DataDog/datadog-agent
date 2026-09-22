@@ -21,13 +21,20 @@ fakeintake_check_version_bump:
   stage: binary_build
   timeout: 15m
   rules:
-    # Fakeintake is main-only: a release-branch VERSION bump would never be published.
+    # Off main, the pin must never exceed main's (the pinned tag is published
+    # from main only): run on VERSION changes so the task can fail them.
+    - if: '$COMPARE_TO_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/'
+      changes:
+        paths:
+          - test/fakeintake/version/VERSION
+        compare_to: $COMPARE_TO_BRANCH
+    # Other off-main server changes are ignored (nothing publishes them).
     - !reference [.except_fakeintake_off_main]
     - !reference [.on_fakeintake_changes]
   needs: []
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
-    GIT_DEPTH: 0  # Full history: fakeintake.check-version-bump uses merge-base
+    GIT_DEPTH: 0 # Full history: fakeintake.check-version-bump uses merge-base
   script:
     - dda inv -- fakeintake.check-version-bump

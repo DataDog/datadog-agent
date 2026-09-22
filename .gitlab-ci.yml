@@ -976,7 +976,7 @@ workflow:
   - !reference [.except_light_pipeline]
   # Fakeintake server change: run e2e against the built v<sha> override image.
   # Main-targeting pipelines only.
-  - if: $COMPARE_TO_BRANCH = "main"
+  - if: $COMPARE_TO_BRANCH == "main"
     changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
