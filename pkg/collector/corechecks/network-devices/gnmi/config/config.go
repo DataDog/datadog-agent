@@ -35,6 +35,8 @@ type InstanceConfig struct {
 	MetadataCollectionInterval int      `yaml:"metadata_collection_interval"`
 	Tags                       []string `yaml:"tags"`
 	CollectTopology            bool     `yaml:"collect_topology"`
+	UseTLS                     bool     `yaml:"use_tls"`
+	InsecureSkipVerify         bool     `yaml:"insecure_skip_verify"`
 }
 
 // CheckConfig combines a validated instance config with its loaded profile.
@@ -66,6 +68,7 @@ func ParseInstanceConfig(rawInstance integration.Data) (*InstanceConfig, error) 
 	instance := InstanceConfig{
 		Port:                  DefaultPort,
 		MinCollectionInterval: DefaultMinCollectionInterval,
+		UseTLS:                true,
 	}
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
@@ -101,30 +104,35 @@ func validateInstanceConfig(instance *InstanceConfig) error {
 	if instance.MetadataCollectionInterval < 0 {
 		return fmt.Errorf("invalid `metadata_collection_interval` %d: must be greater than or equal to 0", instance.MetadataCollectionInterval)
 	}
+	if instance.InsecureSkipVerify && !instance.UseTLS {
+		return errors.New("`insecure_skip_verify` requires `use_tls: true`")
+	}
 	return nil
 }
 
 // String returns a redacted representation safe for logs and error messages.
 func (c *CheckConfig) String() string {
-	return fmt.Sprintf("CheckConfig{Address=`%s`, Port=`%d`, Username=`%s`, Profile=`%s`, MinCollectionInterval=`%d`, CollectTopology=`%t`, MetricCount=`%d`}",
+	return fmt.Sprintf("CheckConfig{Address=`%s`, Port=`%d`, Username=`%s`, Profile=`%s`, MinCollectionInterval=`%d`, CollectTopology=`%t`, UseTLS=`%t`, MetricCount=`%d`}",
 		c.Instance.Address,
 		c.Instance.Port,
 		c.Instance.Username,
 		c.Instance.Profile,
 		c.Instance.MinCollectionInterval,
 		c.Instance.CollectTopology,
+		c.Instance.UseTLS,
 		len(c.Profile.Metrics),
 	)
 }
 
 // String returns a redacted representation safe for logs and error messages.
 func (c *InstanceConfig) String() string {
-	return fmt.Sprintf("InstanceConfig{Address=`%s`, Port=`%d`, Username=`%s`, Profile=`%s`, MinCollectionInterval=`%d`, CollectTopology=`%t`}",
+	return fmt.Sprintf("InstanceConfig{Address=`%s`, Port=`%d`, Username=`%s`, Profile=`%s`, MinCollectionInterval=`%d`, CollectTopology=`%t`, UseTLS=`%t`}",
 		c.Address,
 		c.Port,
 		c.Username,
 		c.Profile,
 		c.MinCollectionInterval,
 		c.CollectTopology,
+		c.UseTLS,
 	)
 }
