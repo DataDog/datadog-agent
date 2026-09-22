@@ -8,7 +8,6 @@ rust_static_library(
         "lib/rc-x509-ffi/src/ctx.rs",
         "lib/rc-x509-ffi/src/io_handle.rs",
         "lib/rc-x509-ffi/src/lib.rs",
-        "lib/rc-x509-ffi/src/log_sink.rs",
     ],
     compile_data = ["lib/rc-x509-ffi/README.md"],
     crate_name = "rc_x509_ffi",
@@ -23,7 +22,6 @@ rust_static_library(
         "@libdd_rc_crates//:tokio-stream",
         "@libdd_rc_crates//:tokio-util",
         "@libdd_rc_crates//:tracing",
-        "@libdd_rc_crates//:tracing-subscriber",
     ],
 )
 
