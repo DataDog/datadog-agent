@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads"
 	"go.yaml.in/yaml/v3"
@@ -43,12 +44,13 @@ type Environment struct {
 	SectionNode *yaml.Node // original positions for schema diagnostics
 }
 
-// Agent mirrors Environment: the installer selector plus the installer-owned
-// section, held as a node until the selected installer's schema consumes it.
-// There is deliberately no shared agent field bag: what an install consumes
-// (version, image, config, integrations) is defined by the installer's own
-// section schema, so fields irrelevant to an installation method cannot be
-// written at all.
+// Agent is the simplified installation surface: the user picks at most one
+// source (source/pipeline/version) plus common fields; the install mechanism
+// and artifact provider are DERIVED from (source, environment base) and held
+// in the internal fields below. The installer-owned sections still exist,
+// but only the derivation writes them — agent.install and agent.build are no
+// longer user-facing YAML (breaking change; old shapes are rejected with a
+// pointer to the new one).
 type ReceiverSelection struct {
 	Type        string
 	Section     []byte
@@ -62,11 +64,16 @@ type BuildSelection struct {
 }
 
 type Agent struct {
-	Build       *BuildSelection
-	Receiver    *ReceiverSelection
-	Install     string
-	Section     []byte
-	SectionNode *yaml.Node // original positions for schema diagnostics
+	// Selection is the parsed user-facing agent input.
+	Selection agent.Config
+	Receiver  *ReceiverSelection
+
+	// Install, Section and Build are the derived internal selection consumed
+	// by the existing installer and build-provider machinery. SectionNode is
+	// nil: the section is generated, so Decode (not DecodeNode) applies.
+	Install string
+	Section []byte
+	Build   *BuildSelection
 }
 
 func (f *File) FakeIntakeEnabled() bool { return f.Environment.Fixtures.FakeIntake }
@@ -164,69 +171,78 @@ func (f *File) parseEnvironment(n *yaml.Node) error {
 	return err
 }
 
-// parseAgent mirrors parseEnvironment: the `install` selector plus exactly one
-// installer-owned section named by it. Section *contents* are validated later,
-// when the selected installer's schema consumes them — the same two-stage flow
-// as the environment section (base selects a driver, the driver validates).
+// parseAgent parses the simplified agent surface: at most one source
+// (source/pipeline/version) plus the common config/integrations/values fields
+// and the receiver selection. The legacy install/build selectors and the
+// installer-owned sections are rejected with a pointer to the new shape — a
+// deliberate breaking change, no dual format. The internal installer and
+// build-provider selections are then DERIVED from (base, selection) so the
+// existing machinery consumes them unchanged.
 func (f *File) parseAgent(n *yaml.Node) error {
 	if n == nil {
-		return errf("agent.install", "missing")
+		return errf("agent", "missing")
 	}
-	members, err := configschema.Mapping(n, "agent")
-	if err != nil {
+	// Mapping validates the envelope's key shape (string keys, no duplicates).
+	if _, err := configschema.Mapping(n, "agent"); err != nil {
 		return err
 	}
-	inst := members["install"]
-	if inst == nil || inst.Tag != "!!str" || inst.Value == "" {
-		return errf("agent.install", "expected a nonempty string")
-	}
-	f.Agent.Install = inst.Value
-	// Iterate original input order for diagnostics, independently of install's position.
+	// Iterate original input order for diagnostics, independently of the
+	// fields' positions.
+	var err error
+	filtered := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for i := 0; i < len(n.Content); i += 2 {
 		key, value := n.Content[i], n.Content[i+1]
 		switch key.Value {
-		case "install":
-		case "build":
-			f.Agent.Build, err = parseBuild(value)
-			if err != nil {
-				return err
-			}
+		case "source", "pipeline", "version", "config", "integrations", "values":
+			filtered.Content = append(filtered.Content, key, value)
 		case "receiver":
 			f.Agent.Receiver, err = parseReceiver(value)
 			if err != nil {
 				return err
 			}
-		case f.Agent.Install:
-			f.Agent.SectionNode = value
-			f.Agent.Section, err = configschema.Encode(value)
-			if err != nil {
-				return err
-			}
+		case "install":
+			return errf("agent.install", "no longer exists: the install mechanism is derived from the agent source (source, pipeline or version) and environment.base — see the e2ectl README")
+		case "build":
+			return errf("agent.build", "no longer exists: the artifact source is derived from the agent source — see the e2ectl README")
+		case "binary", "helm", "script", "package":
+			return errf("agent."+key.Value, "installer sections are no longer user-facing: set the common agent fields (config, integrations, values) and let the source select the mechanism — see the e2ectl README")
 		default:
-			return errf("agent."+key.Value, "unknown field (agent sections are installer-owned; set it under agent.%s)", f.Agent.Install)
+			return errf("agent."+key.Value, "unknown field (supported: source, pipeline, version, config, integrations, values, receiver)")
 		}
+	}
+	selection, _, err := agent.Schema.DecodeNode(filtered, "agent")
+	if err != nil {
+		return err
+	}
+	f.Agent.Selection = selection
+	resolved, err := agent.Derive(f.Environment.Base, selection)
+	if err != nil {
+		return err
+	}
+	f.Agent.Install = resolved.Installer
+	f.Agent.Section = resolved.Section
+	if resolved.Build != nil {
+		f.Agent.Build = &BuildSelection{Provider: resolved.Build.Provider, Section: resolved.Build.Section}
 	}
 	return nil
 }
 
 // Example composes the generated environment schema, the shared fixture schema
-// and the selected installer's agent section. Only envelope names/selectors are
-// specified here, not provider or installer fields. Secret-store contents and
-// live environment state are never consulted.
-func Example(base, description, install string, section, agentSection *yaml.Node, receiverSection ...*yaml.Node) ([]byte, error) {
+// and the simplified agent section (its default source selection plus the
+// optional receiver). Only envelope names are specified here, not installer
+// fields. Secret-store contents and live environment state are never consulted.
+func Example(base, description string, section, agentSection *yaml.Node, receiverSection ...*yaml.Node) ([]byte, error) {
 	fixtureNode, err := fixtures.Schema.Example(nil)
 	if err != nil {
 		return nil, err
 	}
 	str := func(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
-	installKey := str("install")
-	installKey.HeadComment = "Agent installation method selected for this environment."
-	agent := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{installKey, str(install)}}
+	agentNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if agentSection != nil {
-		agent.Content = append(agent.Content, str(install), agentSection)
+		agentNode.Content = append(agentNode.Content, agentSection.Content...)
 	}
 	if len(receiverSection) > 0 && receiverSection[0] != nil {
-		agent.Content = append(agent.Content, str("receiver"), receiverSection[0])
+		agentNode.Content = append(agentNode.Content, str("receiver"), receiverSection[0])
 	}
 	env := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{str("base"), str(base)}}
 	env.Content = append(env.Content, fixtureNode.Content...)
@@ -234,7 +250,7 @@ func Example(base, description, install string, section, agentSection *yaml.Node
 	root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", HeadComment: description + "\nGenerated starter config: review example values before provisioning.\nCredentials come from the runner profile, not this file.", Content: []*yaml.Node{
 		str("schema"), {Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprint(SchemaVersion)},
 		str("environment"), env,
-		str("agent"), agent,
+		str("agent"), agentNode,
 	}}
 	return configschema.Encode(root)
 }

@@ -30,6 +30,13 @@ type ExistingPackage struct {
 	Path     string `yaml:"path" config:"required" description:"Exact absolute datadog-agent DEB path" example:"/home/user/artifacts/agent.deb"`
 	Manifest string `yaml:"manifest,omitempty" description:"Previously generated artifact receipt"`
 }
+
+// PipelinePackage selects the exact DEB a GitLab pipeline produced. The
+// download provider fetches it through the repository's package.download
+// invoke task and computes the digest itself: no user-typed pin.
+type PipelinePackage struct {
+	Pipeline int `yaml:"pipeline" config:"required" description:"GitLab pipeline id whose datadog-agent DEB is downloaded" example:"138372337"`
+}
 type OmnibusRepackage struct {
 	Repository        string `yaml:"repository" config:"required" description:"Absolute source checkout root" example:"/home/user/datadog-agent"`
 	BuildImage        string `yaml:"build-image" config:"required" description:"Locally available isolated native Omnibus build image with dda" example:"registry.example.com/agent-build:latest"`
@@ -42,4 +49,5 @@ var InvokeImageSchema = configschema.Must[InvokeImage]()
 var ExistingBinarySchema = configschema.Must[ExistingBinary]()
 var InvokeBinarySchema = configschema.Must[InvokeBinary]()
 var ExistingPackageSchema = configschema.Must[ExistingPackage]()
+var PipelinePackageSchema = configschema.Must[PipelinePackage]()
 var OmnibusRepackageSchema = configschema.Must[OmnibusRepackage]()

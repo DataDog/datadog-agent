@@ -23,7 +23,7 @@ import (
 func routingEntry(t *testing.T) (envstore.Entry, *config.File) {
 	t.Helper()
 	entry := envstore.Entry{Name: "dev", Dir: t.TempDir(), Meta: envstore.Meta{Base: "local"}}
-	raw := []byte("schema: 1\nenvironment: {base: local, fakeintake: false}\nagent:\n  install: binary\n  binary: {}\n  receiver:\n    type: blackhole\n    blackhole: {url: 'http://sink:8080'}\n")
+	raw := []byte("schema: 1\nenvironment: {base: local, fakeintake: false}\nagent:\n  source: true\n  receiver:\n    type: blackhole\n    blackhole: {url: 'http://sink:8080'}\n")
 	if err := os.WriteFile(entry.ConfigPath(), raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,6 @@ func TestBinaryNoFixturePreparesWithoutCredentials(t *testing.T) {
 	}
 	// Destination/credential conflicts are rejected before Docker/container removal.
 	cfg.Agent.Section = []byte("config: 'api_key: secret'")
-	cfg.Agent.SectionNode = nil
 	if _, err := (&Binary{}).prepareConfig(cfg, entry, section); err == nil {
 		t.Fatal("raw conflict was accepted")
 	}

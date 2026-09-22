@@ -23,7 +23,7 @@ func TestCandidateValidationDoesNotReplaceStoredConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := filepath.Join(t.TempDir(), "candidate.yaml")
-	invalid := []byte("schema: 1\nenvironment:\n  base: kind\n  kind:\n    nodes: -1\nagent:\n  install: helm\n")
+	invalid := []byte("schema: 1\nenvironment:\n  base: kind\n  kind:\n    nodes: -1\nagent:\n  version: \"7.83.0\"\n")
 	if err := os.WriteFile(candidate, invalid, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -43,9 +43,7 @@ environment:
   kind:
     nodes: 0 # original comment
 agent:
-  install: helm
-  helm:
-    version: 7.83.0
+  version: 7.83.0
 `
 	for _, tt := range []struct {
 		name        string
@@ -65,7 +63,7 @@ agent:
 			}
 			candidate := filepath.Join(t.TempDir(), "candidate.yaml")
 			// Changing the Agent version is permitted; infrastructure must match.
-			data := "schema: 1\nenvironment:\n" + tt.environment + "agent:\n  install: helm\n  helm:\n    version: 7.69.0\n"
+			data := "schema: 1\nenvironment:\n" + tt.environment + "agent:\n  version: 7.69.0\n"
 			if err := os.WriteFile(candidate, []byte(data), 0o600); err != nil {
 				t.Fatal(err)
 			}

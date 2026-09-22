@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/driver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
+	agentconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/agent"
 )
 
 type installerDescription struct {
@@ -27,9 +28,10 @@ type installerDescription struct {
 }
 
 type environmentDescription struct {
-	Base        string                 `json:"base"`
-	Description string                 `json:"description"`
-	Installers  []installerDescription `json:"installers"`
+	Base          string                 `json:"base"`
+	Description   string                 `json:"description"`
+	DefaultSource string                 `json:"defaultSource"`
+	Installers    []installerDescription `json:"installers"`
 }
 
 func cmdEnvironments(args []string) error {
@@ -56,9 +58,10 @@ func listEnvironmentTypes(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		desc := environmentDescription{
-			Base:        d.ID(),
-			Description: d.Description(),
-			Installers:  make([]installerDescription, 0),
+			Base:          d.ID(),
+			Description:   d.Description(),
+			DefaultSource: agentconfig.DefaultSource(d.ID()),
+			Installers:    make([]installerDescription, 0),
 		}
 		for _, inst := range d.Installers() {
 			_, updatable := inst.(installer.Updatable)
@@ -72,7 +75,7 @@ func listEnvironmentTypes(args []string, stdout, stderr io.Writer) error {
 	}
 
 	w := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "BASE\tINSTALLERS\tDESCRIPTION")
+	fmt.Fprintln(w, "BASE\tDEFAULT SOURCE\tINSTALLERS (DERIVED)\tDESCRIPTION")
 	for _, env := range environments {
 		methods := make([]string, 0, len(env.Installers))
 		for _, inst := range env.Installers {
@@ -82,7 +85,7 @@ func listEnvironmentTypes(args []string, stdout, stderr io.Writer) error {
 			}
 			methods = append(methods, label)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", env.Base, strings.Join(methods, ", "), env.Description)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", env.Base, env.DefaultSource, strings.Join(methods, ", "), env.Description)
 	}
 	return w.Flush()
 }

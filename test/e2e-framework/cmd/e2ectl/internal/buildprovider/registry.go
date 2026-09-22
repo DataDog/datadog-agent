@@ -200,6 +200,18 @@ var Packages = NewRegistry(
 		}
 		return PackageResult{out}, err
 	}, func(p bc.ExistingPackage) error { return receiptProfile(p.Manifest) }),
+	Define("pipeline", "Download the exact pipeline DEB and stage it", bc.PipelinePackageSchema, func(p bc.PipelinePackage) error {
+		if p.Pipeline <= 0 {
+			return fmt.Errorf("pipeline must be a positive pipeline id")
+		}
+		return nil
+	}, func(ctx context.Context, p bc.PipelinePackage, r Request) (PackageResult, error) {
+		out, err := downloadPipelinePackage(ctx, p.Pipeline, r)
+		if err == nil {
+			out, err = agentbuild.Stage(out, r.OutputDir)
+		}
+		return PackageResult{out}, err
+	}),
 	Define("omnibus-repackage", "Run existing Omnibus repack in an isolated native build container", bc.OmnibusRepackageSchema, func(p bc.OmnibusRepackage) error {
 		if err := absolute(p.Repository); err != nil {
 			return err

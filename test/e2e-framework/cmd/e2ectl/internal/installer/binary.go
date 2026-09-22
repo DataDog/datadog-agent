@@ -113,27 +113,35 @@ func (b *Binary) Install(cfg *config.File, entry envstore.Entry) error {
 // datadog-agent wrapper). The existing StaticStackProvisioner rehydrates
 // environments.Host from these resources with zero provisioner changes.
 func (b *Binary) writeSnapshotOutputs(entry envstore.Entry, result agentbuild.Result) error {
+	updates, err := localHostOutputs(entry, result.Binary.OSVersion)
+	if err != nil {
+		return err
+	}
+	return publishArtifact(entry, result, updates)
+}
+
+func localHostOutputs(entry envstore.Entry, osVersion string) (provisioner.RawResources, error) {
 	hostOut := outputs.HostOutput{
 		CloudProvider: "local",
 		Transport:     "docker",
 		Address:       localinfra.AgentContainer(entry.Name),
 		OSFamily:      e2eostypes.LinuxFamily,
 		OSFlavor:      e2eostypes.Ubuntu,
-		OSVersion:     result.Binary.OSVersion,
+		OSVersion:     osVersion,
 		Architecture:  binaryArchitecture(),
 	}
 	hostJSON, err := json.Marshal(hostOut)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	agentJSON, err := json.Marshal(outputs.HostAgentOutput{
 		Host:         hostOut,
 		AgentBinPath: agentBinPathInContainer,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return publishArtifact(entry, result, provisioner.RawResources{"remoteHost": hostJSON, "agent": agentJSON})
+	return provisioner.RawResources{"remoteHost": hostJSON, "agent": agentJSON}, nil
 }
 
 // Update prepares/acquires and verifies a fresh immutable generation before
@@ -344,7 +352,7 @@ func renderBinaryConfig(entry envstore.Entry, section binaryconfig.Config, apiKe
 	return string(data), err
 }
 
-func writePreparedAgentFiles(entry envstore.Entry, section binaryconfig.Config, agentYAML string) error {
+func writePreparedAgentConfig(entry envstore.Entry, agentYAML string) error {
 	// Atomic replacement prevents the running bind mount from observing partial
 	// config; activation recreates the container against the new inode.
 	f, err := os.CreateTemp(entry.Dir, ".agent-*.yaml")
@@ -359,10 +367,13 @@ func writePreparedAgentFiles(entry envstore.Entry, section binaryconfig.Config, 
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(f.Name(), filepath.Join(entry.Dir, "agent.yaml")); err != nil {
+	return os.Rename(f.Name(), filepath.Join(entry.Dir, "agent.yaml"))
+}
+
+func writePreparedAgentFiles(entry envstore.Entry, section binaryconfig.Config, agentYAML string) error {
+	if err := writePreparedAgentConfig(entry, agentYAML); err != nil {
 		return err
 	}
-
 	confDir := filepath.Join(entry.Dir, "conf.d")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		return err

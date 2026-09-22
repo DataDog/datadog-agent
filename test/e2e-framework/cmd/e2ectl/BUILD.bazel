@@ -20,6 +20,7 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/receiver",
         "//test/e2e-framework/cmd/e2ectl/internal/testcmd",
         "//test/e2e-framework/cmd/e2ectl/internal/workloads",
+        "//test/e2e-framework/cmd/internal/envconfig/agent",
     ],
 )
 
@@ -44,6 +45,7 @@ dd_agent_go_test(
         "//test/e2e-framework/cmd/e2ectl/internal/driver",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/internal/receiver",
         "//test/e2e-framework/testing/provisioner",
     ],
 )

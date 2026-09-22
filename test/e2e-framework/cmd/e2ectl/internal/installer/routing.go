@@ -35,6 +35,26 @@ type RoutingApplier interface {
 	ApplyRouting(*config.File, envstore.Entry) error
 }
 
+// ManagedSinkSyncer is the optional driver capability for receivers whose sink
+// the environment provides itself: the local base starts and stops the managed
+// blackhole sink. Install, update and receiver apply sync it before resolving
+// routing — the sink must exist before the Agent container starts. Drivers
+// without the capability are skipped; their receivers fail closed in
+// resolution with the receiver's own message.
+type ManagedSinkSyncer interface {
+	SyncManagedSink(cfg *config.File, entry envstore.Entry) error
+}
+
+// SyncManagedSink reconciles environment-provided sinks for the selected
+// receiver. A nil syncer (driver without the capability) is a no-op, so no
+// caller dispatches on the environment type.
+func SyncManagedSink(s ManagedSinkSyncer, cfg *config.File, entry envstore.Entry) error {
+	if s == nil {
+		return nil
+	}
+	return s.SyncManagedSink(cfg, entry)
+}
+
 func (*Binary) PrepareRouting(c *config.File, e envstore.Entry) (*receivers.Plan, error) {
 	return PrepareRouting(c, e, true)
 }
@@ -81,6 +101,12 @@ func PrepareRouting(cfg *config.File, entry envstore.Entry, separateNetwork bool
 			return nil, fmt.Errorf("expected fakeintake fixture missing: %w", err)
 		}
 		facts.FakeIntake = &fi
+	}
+	// A managed blackhole sink fact may be absent (never started, removed, or a
+	// null tombstone): only a running managed sink yields a resolvable fact.
+	var bh receiver.BlackholeOutput
+	if err := provisioner.ReadSnapshotResource(entry.SnapshotPath(), "blackhole", &bh); err == nil && bh.AgentURL != "" {
+		facts.Blackhole = &bh
 	}
 	p, err := receiver.Resolve(cfg.Agent.Receiver, facts)
 	if err != nil {
@@ -139,6 +165,7 @@ func bindAPIKey(p *receivers.Plan) (string, error) {
 // RoutingState is independent of infrastructure readiness and artifact outputs.
 // No raw errors are persisted: transports may include credential-bearing output.
 type RoutingState struct {
+	Scope      string          `json:"scope,omitempty"`
 	Generation string          `json:"generation"`
 	Phase      string          `json:"phase"`
 	Plan       *receivers.Plan `json:"plan,omitempty"`
@@ -181,6 +208,9 @@ func WithRoutingState(inst Installer, cfg *config.File, entry envstore.Entry, op
 		return err
 	}
 	state.Plan = p
+	if scoped, ok := inst.(interface{ RoutingScope(envstore.Entry) string }); ok {
+		state.Scope = scoped.RoutingScope(entry)
+	}
 	if err := provisioner.UpdateSnapshotResources(entry.SnapshotPath(), nil, map[string]any{"_agent_routing": state}); err != nil {
 		return err
 	}

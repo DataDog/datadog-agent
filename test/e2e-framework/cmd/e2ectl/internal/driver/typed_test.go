@@ -26,7 +26,9 @@ type plainDriver struct {
 	received fakeParams
 }
 
-func (*plainDriver) ID() string          { return "fake" }
+// The ID must be a derivation-known base: starter generation derives the
+// agent section from (base, default source).
+func (*plainDriver) ID() string          { return "ec2-host" }
 func (*plainDriver) Description() string { return "Offline test driver." }
 func (*plainDriver) Installers() []installer.Installer {
 	return []installer.Installer{&installer.HostScript{}}
@@ -52,7 +54,7 @@ func (d *checkedDriver) Validate(p fakeParams) error {
 }
 
 func testFile(raw string) *config.File {
-	return &config.File{Environment: config.Environment{Base: "fake", Section: []byte(raw)}}
+	return &config.File{Environment: config.Environment{Base: "ec2-host", Section: []byte(raw)}}
 }
 
 func TestTypedDriverNeedsNoValidatorOrTemplate(t *testing.T) {
@@ -106,7 +108,7 @@ func TestOptionalDriverValidate(t *testing.T) {
 }
 
 func TestPreparePreservesOriginalLocations(t *testing.T) {
-	cfg, errs := config.Parse([]byte("schema: 1\nenvironment:\n  kind:\n    nodes: -1\n  base: kind\nagent:\n  install: helm\n"))
+	cfg, errs := config.Parse([]byte("schema: 1\nenvironment:\n  kind:\n    nodes: -1\n  base: kind\nagent:\n  version: \"7.83.0\"\n"))
 	if len(errs) != 0 {
 		t.Fatal(errs)
 	}

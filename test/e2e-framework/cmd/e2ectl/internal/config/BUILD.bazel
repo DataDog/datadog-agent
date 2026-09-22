@@ -3,14 +3,12 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
-    srcs = [
-        "build.go",
-        "config.go",
-    ],
+    srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [
         "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/agent",
         "//test/e2e-framework/cmd/internal/envconfig/fixtures",
         "//test/e2e-framework/cmd/internal/envconfig/workloads",
         "@in_yaml_go_yaml_v3//:yaml",

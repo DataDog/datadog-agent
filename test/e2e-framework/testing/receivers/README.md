@@ -171,8 +171,7 @@ New `init` examples select fakeintake and deliberately disable Remote Config.
 
 ```yaml
 agent:
-  install: binary
-  binary: {}
+  source: true
   receiver:
     type: fakeintake
     fakeintake:
@@ -180,6 +179,16 @@ agent:
 ```
 
 Other registered selections (use exactly the section matching `type`):
+
+```yaml
+receiver:
+  type: blackhole
+```
+
+With no `url`, the local base manages the sink itself: install/apply start a
+blackhole container on the environment's Docker network, compute its
+`<env>-blackhole:8080` endpoint and route the Agent to it. On remote bases
+(kind, EC2) — or to reuse your own sink anywhere — bring it explicitly:
 
 ```yaml
 receiver:
@@ -209,6 +218,10 @@ choosing a receiver does not create, destroy or reconfigure any fixture.
 ```sh
 e2ectl receiver serve --type blackhole --listen 0.0.0.0:8080
 ```
+
+The local base runs this same command inside a managed container (see the
+e2ectl receiver docs); this foreground form is the operator-owned variant for
+the `url` escape hatch and for environments without a managed sink.
 
 This foreground process streams request bodies to discard, without a payload
 store, decompression, forwarding, payload/header logging or query API. It accepts

@@ -18,7 +18,7 @@ import (
 
 func TestListShowsFirstAndUpdateActivationFailuresWithoutInstalledFlag(t *testing.T) {
 	store := lifecycleEnv(t) // no Docker, credentials, or executor on PATH
-	cfg, errs := config.Parse([]byte("schema: 1\nenvironment: {base: local}\nagent: {install: binary}\n"))
+	cfg, errs := config.Parse([]byte("schema: 1\nenvironment: {base: local}\nagent: {}\n"))
 	if len(errs) > 0 {
 		t.Fatal(errs)
 	}

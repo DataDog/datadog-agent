@@ -67,7 +67,7 @@ environment:
   kind:
     version: "1.31"
 agent:
-  install: helm
+  version: "7.83.0"
 `
 	f, errs := config.Parse([]byte(badKind))
 	if len(errs) > 0 {
@@ -87,7 +87,7 @@ schema: 1
 environment:
   base: ec2-host
 agent:
-  install: script
+  version: "7.83.0"
 `)
 	f, errs = config.Parse(badEC2)
 	if len(errs) > 0 {

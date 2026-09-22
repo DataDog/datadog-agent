@@ -47,7 +47,7 @@ func TestFailedStartMarksErrorAndStopRecovers(t *testing.T) {
 environment:
   base: kind
 agent:
-  install: helm
+  version: "7.83.0"
 `)
 	if err := cmdStart([]string{"--config", cfgPath, "--name", "dev"}); err == nil {
 		t.Fatal("start must fail without kind on PATH")
@@ -77,7 +77,7 @@ environment:
   ec2-host:
     os: ubuntu-22.04
 agent:
-  install: script
+  version: "7.83.0"
 `))
 	if len(errs) > 0 {
 		t.Fatal(errs)
@@ -118,7 +118,7 @@ func TestLocalFailedStartIsRecoverable(t *testing.T) {
 environment:
   base: local
 agent:
-  install: binary
+  source: true
 `)
 	if err := cmdStart([]string{"--config", cfgPath, "--name", "dev"}); err == nil {
 		t.Fatal("start must fail without docker on PATH")

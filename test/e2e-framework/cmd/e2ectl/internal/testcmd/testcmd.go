@@ -40,6 +40,10 @@ func defaultRunPattern(base string) (string, bool) {
 		return "OnLocal", true
 	case "ec2-host":
 		return "OnHost", true
+	case "docker-host":
+		return "OnDockerHost", true
+	case "eks":
+		return "OnEKS", true
 	default:
 		return "", false
 	}
@@ -53,6 +57,7 @@ func Run(args []string) error {
 	run := fs.String("run", "\x00", "go test -run pattern (default: the attach entry-point pattern for the environment's base; set '' to run every test)")
 	verbose := fs.Bool("v", true, "pass -v to go test")
 	timeout := fs.String("timeout", "90m", "go test -timeout for the whole suite (suites with warmup waits need more than the 10m go-test default)")
+	cached := fs.Bool("cached", false, "allow go test caching; by default -count=1 forces a real run (the attached environment is mutable state go test cannot see, so a cache hit would be a false PASS)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -90,6 +95,14 @@ func Run(args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Agent routing: %s; delivery: %s (retained fixture data may belong to older/other senders)\n", state.Phase, state.Delivery)
 	goArgs := []string{"test", "-tags", "test", "-timeout", *timeout}
+	// The suite attaches to a live, mutable environment (receiver changes,
+	// reinstalls, new payloads) that is invisible to go test's cache key: an
+	// unchanged command line must still re-run against it. -count=1 disables
+	// caching; `-- -count=N` in extra args still overrides it (go test takes
+	// the last -count).
+	if !*cached {
+		goArgs = append(goArgs, "-count", "1")
+	}
 	if *verbose {
 		goArgs = append(goArgs, "-v")
 	}

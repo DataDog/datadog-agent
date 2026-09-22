@@ -107,6 +107,13 @@ func (b *Binary) ApplyRouting(cfg *config.File, entry envstore.Entry) error {
 	if cfg.Agent.Receiver == nil {
 		return fmt.Errorf("receiver apply requires an explicit selection")
 	}
+	if err := validateRoutingOnlyChange(cfg, entry); err != nil {
+		return err
+	}
+	return b.applyRouting(cfg, entry)
+}
+
+func validateRoutingOnlyChange(cfg *config.File, entry envstore.Entry) error {
 	stored, err := entry.LoadConfig()
 	if err != nil {
 		return err
@@ -140,6 +147,10 @@ func (b *Binary) ApplyRouting(cfg *config.File, entry envstore.Entry) error {
 	if !reflect.DeepEqual(stored.Workloads, cfg.Workloads) {
 		return fmt.Errorf("receiver apply cannot change workloads")
 	}
+	return nil
+}
+
+func (b *Binary) applyRouting(cfg *config.File, entry envstore.Entry) error {
 	section, err := decodeBinarySection(cfg)
 	if err != nil {
 		return err

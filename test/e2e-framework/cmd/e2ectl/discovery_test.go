@@ -82,7 +82,7 @@ func TestEnvironmentTypeDiscovery(t *testing.T) {
 	if err := listEnvironmentTypes(nil, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"BASE", "INSTALLERS", "DESCRIPTION", "kind", "ec2-host", "helm (update)", "script"} {
+	for _, want := range []string{"BASE", "DEFAULT SOURCE", "INSTALLERS (DERIVED)", "DESCRIPTION", "kind", "ec2-host", "helm (update)", "script", "source: true", "version: 7.83.0"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("human-readable discovery missing %q: %s", want, stdout.String())
 		}
@@ -102,8 +102,8 @@ func TestInitToStdout(t *testing.T) {
 			if len(errs) != 0 {
 				t.Fatalf("stdout must contain only valid config YAML: %v", errs)
 			}
-			if cfg.Environment.Base != id || cfg.Agent.SectionNode == nil {
-				t.Fatalf("generated config for %q must show the installer's agent section", id)
+			if cfg.Environment.Base != id || cfg.Agent.Install == "" || len(cfg.Agent.Section) == 0 {
+				t.Fatalf("generated config for %q must derive an install mechanism", id)
 			}
 			if strings.Contains(stdout.String(), "api-key") {
 				t.Fatalf("generated config for %q must not contain credentials", id)

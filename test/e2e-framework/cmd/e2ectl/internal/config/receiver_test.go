@@ -18,7 +18,7 @@ func TestReceiverSelectionEnvelope(t *testing.T) {
 		{"    type: fakeintake\n    type: blackhole\n", false},
 		{"    fakeintake: {}\n", false},
 	} {
-		f, errs := Parse([]byte("schema: 1\nenvironment: {base: local}\nagent:\n  receiver:\n" + tc.section + "  install: binary\n"))
+		f, errs := Parse([]byte("schema: 1\nenvironment: {base: local}\nagent:\n  receiver:\n" + tc.section + "  source: true\n"))
 		if (len(errs) == 0) != tc.valid {
 			t.Fatalf("%s: %v", tc.section, errs)
 		}

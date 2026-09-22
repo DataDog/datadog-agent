@@ -29,13 +29,16 @@ func TestUnprofiledBinaryRejectedBeforePreparationOrActivation(t *testing.T) {
 			if err := agentbuild.Write(manifest, r); err != nil {
 				t.Fatal(err)
 			}
-			raw := append(cfg.Source(), []byte("  build:\n    provider: existing-binary\n    existing-binary:\n      manifest: "+manifest+"\n")...)
-			var errs []error
-			cfg, errs = config.Parse(raw)
-			if len(errs) != 0 {
-				t.Fatal(errs)
+			// The build selection is derived/internal now: install/reuse pin it
+			// directly to exercise the same installer gate (unprofiled receipts
+			// rejected); apply must keep the derived selection so the routing-only
+			// change check sees the stored config's identical derivation.
+			cfg.Agent.Install = "binary"
+			cfg.Agent.Section = []byte("{}\n")
+			if operation != "apply" {
+				cfg.Agent.Build = &config.BuildSelection{Provider: "existing-binary", Section: []byte("manifest: " + manifest + "\n")}
 			}
-			if err := os.WriteFile(entry.ConfigPath(), raw, 0600); err != nil {
+			if err := os.WriteFile(entry.ConfigPath(), cfg.Source(), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if err := publishArtifact(entry, r, nil); err != nil {

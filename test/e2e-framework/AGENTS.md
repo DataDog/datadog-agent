@@ -166,6 +166,19 @@ Packages are organized first by environment type, then by installation method:
   success. This does not attest the full postinst/conffile filesystem. Existing
   permanent/runtime service masks must not be adopted or unconditionally removed.
   RPM/MSI and package receiver capability attestations are not yet supported.
+- `testing/installers/container/packagecore` installs an exact SHA256-selected DEB
+  into an unprivileged native Ubuntu Docker filesystem with real dpkg and blocked
+  service auto-start. It is the container-target mechanism of the unified
+  `package` e2ectl installer (`package-core` no longer exists): a limited
+  core-health/configuration target, not a producer capability attestation or
+  a systemd/subagent test. Its config uses the standard receiver-validated
+  `datadog.yaml` overlay (re-enabling the core-only pins is rejected, never
+  silently overridden); it probes with a dummy key and no network before
+  resolving credentials, and records package/executable/runtime image identity
+  plus checked effective settings separately from the unchanged artifact
+  receipt. It never grants profiles to unprofiled packages or weakens the SSH
+  package gate. Receiver apply reuses the owned runtime volume; native RC
+  transitions still require a fresh environment.
 - `testing/installers/agentbuild` is a Pulumi-free artifact boundary: typed requests,
   verified result receipts, Invoke/existing-artifact adapters, immutable staging,
   and isolated Omnibus repack execution. Framework callers do not need CLI config
@@ -197,29 +210,35 @@ provisioner-specific representations and update `env.Agent`. The same installer
 therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
 State serialization and persistence belong to the caller that owns that state.
 
-`e2ectl environments [--json]` lists registered environment types, while
-`e2ectl list` lists created instances. `e2ectl init --base <type>` prints an
-annotated starter config; `--output <path>` creates a new private file and refuses
-to overwrite an existing path. Both commands are offline. Declare data-only
-config types in `cmd/internal/envconfig` and register them through `driver.Define`;
-`Description` remains required, while validation/defaults/examples come from the
-schema annotations. Do not add duplicate worker parameter structs or handwritten
-YAML templates. Optional `Validate(params)` hooks run after automatic validation;
-cloud rules needed at both process boundaries belong on the shared schema. The
-`agent:` section mirrors this exactly: `install` selects the installer and the
-section named after it (`agent.script`, `agent.helm`) is that installer's typed
-config, declared in `cmd/internal/envconfig/{script,helm}` — fields an installation
-method does not consume (e.g. `image` for a script install) do not exist there, and
+`e2ectl environments [--json]` lists registered environment types (with each
+base's default agent source), while `e2ectl list` lists created instances.
+`e2ectl init --base <type>` prints an annotated starter config; `--output <path>`
+creates a new private file and refuses to overwrite an existing path. Both
+commands are offline. Declare data-only config types in `cmd/internal/envconfig`
+and register them through `driver.Define`; `Description` remains required, while
+validation/defaults/examples come from the schema annotations. Do not add
+duplicate worker parameter structs or handwritten YAML templates. Optional
+`Validate(params)` hooks run after automatic validation; cloud rules needed at
+both process boundaries belong on the shared schema. The `agent:` section is the
+simplified installation surface: users pick at most one source (`source: true`,
+`pipeline: N`, `version: "X"`; none selects the base default) plus common fields
+(`config`, `integrations`, `values` — the Helm bases kind and eks) and `receiver`. The install
+mechanism and artifact provider are DERIVED from (source, base) by the pure
+`Derive` function in `cmd/internal/envconfig/agent`, which fills the internal
+installer/build selections the existing machinery consumes; installer sections
+(`agent.binary`, `agent.helm`, ...) are internal and rejected in user YAML, as
+are legacy `agent.install`/`agent.build` blocks. Derivation runs at parse time;
 section contents are validated at install/update time, so `start` may use an
-infrastructure-only config. See
-`cmd/e2ectl/README.md` and `cmd/internal/configschema/README.md`.
+infrastructure-only config. See `cmd/e2ectl/README.md` and
+`cmd/internal/configschema/README.md`.
 
-Artifact acquisition is independently selected by `agent.build.provider` and its
-provider-owned section. Explicit registrations live in `cmd/e2ectl/internal/buildprovider`;
-main commands/drivers must not gain task names or format switches. Legacy Helm
-image install AND update consume an existing image without building; local image
-rebuilds require `invoke-image`. `--skip-build` verifies installed environment-owned
-receipts, never silently re-pins checkout outputs. Preparation and runtime checks
+Artifact acquisition is selected by the same derivation (no user-facing
+`agent.build`). Explicit registrations live in `cmd/e2ectl/internal/buildprovider`,
+including the `pipeline` provider that downloads the exact CI DEB through
+`dda inv package.download` and pins its digest in the receipt; main
+commands/drivers must not gain task names or format switches. `--skip-build`
+verifies installed environment-owned receipts, never silently re-pins checkout
+outputs. Preparation and runtime checks
 must finish before stopping the old Agent. Mutable binary-Agent runtime/RC data
 belongs in an owned Docker named volume, not a host envstore bind mount: root-owned
 private nested files otherwise break normal teardown. Verify its label and recorded

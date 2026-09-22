@@ -15,17 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	binaryconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/binary"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
+	"go.yaml.in/yaml/v3"
 )
 
 func binaryConfig(t *testing.T, section string) *config.File {
 	t.Helper()
-	data := "schema: 1\nenvironment:\n  base: local\nagent:\n  install: binary\n"
-	if section != "" {
-		data += "  binary:\n" + section
-	}
-	f, errs := config.Parse([]byte(data))
+	f, errs := config.Parse([]byte("schema: 1\nenvironment:\n  base: local\nagent: {}\n"))
 	if len(errs) > 0 {
 		t.Fatal(errs)
+	}
+	if section != "" {
+		// The installer-owned section is internal now: tests may still pin it
+		// directly to exercise the installer schema's own rejection rules.
+		f.Agent.Section = []byte(section)
 	}
 	return f
 }
@@ -53,8 +55,12 @@ func TestBinaryAgentExampleIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	section, err := yaml.Marshal(node)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := decodeBinarySection(&config.File{
-		Agent: config.Agent{Install: "binary", SectionNode: node},
+		Agent: config.Agent{Install: "binary", Section: section},
 	}); err != nil {
 		t.Fatal(err)
 	}

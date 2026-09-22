@@ -1,17 +1,25 @@
 ## Agent artifact sources
 
-`agent.install` chooses the consumer; optional `agent.build.provider` chooses the
-producer/acquirer independently. Provider sections are typed, reject unknown
-fields, and are shared by install/update. Main commands and environment drivers
-have no task names or artifact-format dispatch. All paths in **new** provider
-sections must be absolute; they are not relative to the stored config copy.
+> **User-facing surface (simplified):** users now pick at most one agent source
+> (`source: true`, `pipeline: N`, `version: "X"`) and the derivation in
+> `cmd/internal/envconfig/agent` selects both the consumer installer and the
+> producer provider below. `agent.install`/`agent.build` are no longer
+> user-writable; the providers and sections documented here are the derived
+> internal contracts (still typed, unknown-field-rejecting, shared by
+> install/update). The `pipeline` provider is new: it downloads the exact CI
+> DEB via `dda inv package.download` and pins its digest in the receipt.
+
+Provider sections are typed, reject unknown fields, and are shared by
+install/update. Main commands and environment drivers have no task names or
+artifact-format dispatch. All paths in **new** provider sections must be
+absolute; they are not relative to the stored config copy.
 
 | Installer | Providers | Current target |
 |---|---|---|
-| `binary` (local) | `invoke-binary`, `existing-binary` | Native Linux amd64/arm64; matching Ubuntu runtime image/Python ABI |
-| `helm` (kind) | `invoke-image`, `existing-image` | Linux, homogeneous cluster architecture; local Docker image delivery |
-| `package` (ec2-host) | `existing-package`, `omnibus-repackage` | Ubuntu SSH host, exact datadog-agent DEB; no RPM/MSI |
-| `script` | none | Unchanged released install-script behavior |
+| `binary` (local) | `invoke-binary` (from `source: true`), `existing-binary` (internal/receipts) | Native Linux amd64/arm64; matching Ubuntu runtime image/Python ABI |
+| `helm` (kind) | `invoke-image` (from `source: true`), `existing-image` (internal/receipts) | Linux, homogeneous cluster architecture; local Docker image delivery |
+| `package` (local container + ec2-host) | `pipeline` (from `pipeline: N`), `existing-package` (internal), `omnibus-repackage` (internal) | Ubuntu targets, exact datadog-agent DEB; no RPM/MSI |
+| `script` | none (from `version: "X"` on ec2-host) | Unchanged released install-script behavior |
 
 For example, this replaces only the Agent on an existing kind environment (set
 `repository` to your actual checkout; retain its existing environment settings):
@@ -23,24 +31,15 @@ environment:
   fakeintake: true
   kind: {version: 1.33.0, nodes: 0}
 agent:
-  install: helm
-  helm:
-    version: 7.83.0
-    values: |
-      agents:
-        customAgentConfig:
-          log_level: debug
+  source: true     # derived: helm + invoke-image (repository = the invocation
+                   # root, deterministic dev tag, pinned 7.83.0 base image)
+  values: |
+    agents:
+      customAgentConfig:
+        log_level: debug
   receiver:
     type: fakeintake
     fakeintake: {remote-config: disabled}
-  build:
-    provider: invoke-image
-    invoke-image:
-      repository: /home/me/datadog-agent
-      reference: localhost/datadog-agent:7.99.0-dev
-      base-image: registry.datadoghq.com/agent:7.83.0
-      rebuild-components: [trace-agent, process-agent]
-      race: false
 ```
 
 `invoke-image` wraps `dda inv agent.hacky-dev-image-build`. Core is always rebuilt;
@@ -64,9 +63,12 @@ actual daemon image identity, and known source/base provenance—not an input ca
 fingerprint. The source-content hash describes observed checkout content, not a
 reproducible-build or signature certification.
 
-To reuse the image above, replace **only** `agent.build` with:
+The image-reuse path (consuming an exported receipt without rebuilding) is now
+internal-only — no agent source derives `existing-image` — but its contract is
+unchanged:
 
 ```yaml
+  # internal/derived-only:
   build:
     provider: existing-image
     existing-image:
@@ -87,17 +89,10 @@ refresh a missing artifact. Delivery uses an ID-specific
 changes the pod template. Node Agent/runner image overrides preserve sibling Helm
 values. The separate Cluster Agent stays released 7.83.0, not a retagged core image.
 
-For a local binary, use `agent.install: binary`, `agent.binary: {}` and either:
-
-```yaml
-  build:
-    provider: invoke-binary
-    invoke-binary: {repository: /home/me/datadog-agent, race: false}
-```
-
-or `provider: existing-binary` with
-`existing-binary: {manifest: /home/me/artifacts/binary-result.json}`. The latter
-requires an actual bundle receipt, not an arbitrary executable path.
+For a local binary, use `source: true` on the local base (derived:
+`binary` + `invoke-binary` with the invocation root as repository). The
+`existing-binary` receipt-reuse path is internal-only and requires an actual
+bundle receipt, not an arbitrary executable path.
 Managed binary routing additionally requires the bounded core-source profile
 emitted by `invoke-binary`. Existing unprofiled receipts need an explicit rebuild;
 runtime probes alone never establish endpoint-coverage capability.
@@ -123,15 +118,9 @@ environment:
   fakeintake: true
   ec2-host: {os: ubuntu-22.04, arch: amd64}
 agent:
-  install: package
-  package:
-    allow-unsigned: true
-    config: |
-      log_level: debug
-  build:
-    provider: existing-package
-    existing-package:
-      path: /home/me/artifacts/datadog-agent.deb
+  pipeline: 138372337   # derived: package + the pipeline download provider
+  config: |
+    log_level: debug
 ```
 
 This intentionally omits `receiver`: package capability evidence is not yet
@@ -179,10 +168,10 @@ There is no promised rollback of a partly installed package.
 ### Reuse, compatibility and extension
 
 - Existing image/package providers **never build**, including ordinary update.
-  Legacy `helm.image` now means existing-image on both install and update; select
-  `invoke-image` explicitly to retain a local rebuild loop. Version-only Helm and
-  standalone script installs keep their released behavior. A Helm provider
-  reference must not also be set in `agent.helm.image`.
+  `source: true` on kind is the local rebuild loop (derived `invoke-image`);
+  the legacy `helm.image` field and `existing-*` selections are internal/derived
+  only now. Version-only Helm and standalone script installs keep their released
+  behavior.
 - Legacy binary configs still build from the invocation's repository root on a
   normal install/update, but new builds use verified embedded-runtime generations.
   Old unprofiled pins are not sufficient for managed receiver-only apply.

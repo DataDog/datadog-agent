@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "buildprovider",
-    srcs = ["registry.go"],
+    srcs = [
+        "pipeline.go",
+        "registry.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/buildprovider",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [

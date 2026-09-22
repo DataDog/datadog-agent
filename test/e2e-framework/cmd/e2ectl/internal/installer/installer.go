@@ -58,17 +58,11 @@ type Installer interface {
 	Install(cfg *config.File, entry envstore.Entry) error
 }
 
-// decodeAgentSection decodes the installer-owned agent section against its
-// schema, preserving the original file positions in errors. The section is
-// optional in the envelope; an absent section decodes as empty and the
-// schema's required/default rules then apply.
+// decodeAgentSection decodes the DERIVED installer-owned agent section against
+// its schema. The section is produced by the derivation, never parsed from
+// user YAML, so there is no original node to preserve positions from.
 func decodeAgentSection[A any](schema *configschema.Schema[A], cfg *config.File, id string) (A, error) {
-	path := "agent." + id
-	if cfg.Agent.SectionNode != nil {
-		value, _, err := schema.DecodeNode(cfg.Agent.SectionNode, path)
-		return value, err
-	}
-	value, _, err := schema.Decode(cfg.Agent.Section, path)
+	value, _, err := schema.Decode(cfg.Agent.Section, "agent."+id)
 	return value, err
 }
 

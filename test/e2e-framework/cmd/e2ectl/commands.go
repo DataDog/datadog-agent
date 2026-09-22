@@ -158,6 +158,12 @@ func cmdInstall(args []string) error {
 		return config.NewErrors(errs)
 	}
 
+	// Environment-provided sinks (managed blackhole) are reconciled before
+	// routing resolution: the sink must exist before the agent starts against it.
+	if err := installer.SyncManagedSink(d.SinkSyncer(), cfg, entry); err != nil {
+		return err
+	}
+
 	if err := installer.WithRoutingState(inst, cfg, entry, func() error { return inst.Install(cfg, entry) }); err != nil {
 		entry.Meta.AgentInstalled = false
 		_ = store.UpdateMeta(entry)
@@ -231,6 +237,12 @@ func cmdUpdate(args []string) error {
 	}
 	if errs := inst.Validate(cfg); len(errs) > 0 {
 		return config.NewErrors(errs)
+	}
+
+	// Environment-provided sinks are reconciled before the reused artifact and
+	// routing resolution: a no-build update still routes to a live sink.
+	if err := installer.SyncManagedSink(d.SinkSyncer(), cfg, entry); err != nil {
+		return err
 	}
 
 	if err := installer.WithRoutingState(inst, cfg, entry, func() error { return updatable.Update(cfg, entry, *skipBuild) }); err != nil {

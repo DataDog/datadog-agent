@@ -1,0 +1,25 @@
+# Example e2ectl environment: EKS cluster (AL2023 Linux nodes, optional
+# Windows nodes) with the agent installed from the released Helm chart.
+#
+#   e2ectl start   --config eks.yml --name myeks
+#   e2ectl install --config eks.yml --env myeks
+#   e2ectl fakeintake metrics --env myeks
+#   e2ectl stop    --env myeks
+#
+# The cluster endpoint is private: the runner-profile VPN must be up for
+# e2ectl install/test (and kubectl) to reach it — the same access the
+# framework's own EKS tests rely on.
+#
+schema: 1
+environment:
+  base: eks
+  fakeintake: true
+  eks:                 # the eks-driver-owned section (also the executor params)
+    linux: true
+    windows: false     # Windows nodes are added alongside Linux, never instead
+    version: "1.34"    # control plane + node AMI version
+agent:
+  version: "7.83.0"   # released chart version installed by the shared Helm installer
+  # values: |          # optional Helm chart values (kind and eks only)
+  #   datadog:
+  #     logLevel: DEBUG

@@ -19,9 +19,7 @@ environment:
     version: "1.31.0"
     nodes: 1
 agent:
-  install: helm
-  helm:
-    image: gcr.io/datadoghq/agent:7.99.0-e2ectl
+  version: "7.83.0"
 `
 
 const validEC2 = `
@@ -33,13 +31,26 @@ environment:
     os: ubuntu-22.04
     arch: amd64
 agent:
-  install: script
-  script:
-    version: "7.69.0"
+  version: "7.69.0"
+`
+
+const validLocal = `
+schema: 1
+environment:
+  base: local
+  fakeintake: true
+  local: {}
+agent:
+  source: true
+  config: |
+    log_level: debug
+  integrations:
+    cpu.d: |
+      init_config: {}
 `
 
 func TestParseValid(t *testing.T) {
-	for name, content := range map[string]string{"kind": validKind, "ec2": validEC2} {
+	for name, content := range map[string]string{"kind": validKind, "ec2": validEC2, "local": validLocal} {
 		t.Run(name, func(t *testing.T) {
 			f, errs := Parse([]byte(content))
 			if len(errs) > 0 {
@@ -48,11 +59,51 @@ func TestParseValid(t *testing.T) {
 			if !f.FakeIntakeEnabled() {
 				t.Error("fakeintake should default to true when not set")
 			}
-			if name == "kind" && f.Environment.Section == nil {
-				t.Error("the kind section should be preserved raw for the driver")
+			if f.Environment.Section == nil {
+				t.Error("the environment section should be preserved raw for the driver")
 			}
-			if f.Agent.SectionNode == nil {
-				t.Error("the agent section should be preserved for the installer")
+			if f.Agent.Install == "" {
+				t.Error("the install mechanism should be derived")
+			}
+		})
+	}
+}
+
+func TestParseDerivesTheInstallMechanism(t *testing.T) {
+	for name, tc := range map[string]struct {
+		base      string
+		agent     string
+		installer string
+		section   string
+		build     string
+	}{
+		"local source":      {"local", "  source: true\n  config: |\n    log_level: debug\n", "binary", "log_level: debug", "invoke-binary"},
+		"local default":     {"local", "  {}\n", "binary", "{}\n", "invoke-binary"},
+		"local pipeline":    {"local", "  pipeline: 138372337\n", "package", "allow-unsigned: true\n", "pipeline"},
+		"kind version":      {"kind", "  version: \"7.83.0\"\n", "helm", "version: 7.83.0\n", ""},
+		"kind default":      {"kind", "  {}\n", "helm", "version: 7.83.0\n", ""},
+		"kind source":       {"kind", "  source: true\n", "helm", "{}\n", "invoke-image"},
+		"ec2-host version":  {"ec2-host", "  version: \"7.83.0\"\n", "script", "version: 7.83.0\n", ""},
+		"ec2-host pipeline": {"ec2-host", "  pipeline: 138372337\n", "package", "allow-unsigned: true\n", "pipeline"},
+		"ec2-host default":  {"ec2-host", "  {}\n", "script", "version: 7.83.0\n", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw := "schema: 1\nenvironment: {base: " + tc.base + "}\nagent:\n" + tc.agent
+			f, errs := Parse([]byte(raw))
+			if len(errs) > 0 {
+				t.Fatalf("unexpected errors: %v", errs)
+			}
+			if f.Agent.Install != tc.installer {
+				t.Fatalf("derived installer %q, want %q", f.Agent.Install, tc.installer)
+			}
+			if !strings.Contains(string(f.Agent.Section), strings.TrimSuffix(tc.section, "\n")) {
+				t.Fatalf("derived section %q does not contain %q", f.Agent.Section, tc.section)
+			}
+			if tc.build == "" && f.Agent.Build != nil {
+				t.Fatalf("unexpected derived build provider %q", f.Agent.Build.Provider)
+			}
+			if tc.build != "" && (f.Agent.Build == nil || f.Agent.Build.Provider != tc.build) {
+				t.Fatalf("derived build provider %v, want %q", f.Agent.Build, tc.build)
 			}
 		})
 	}
@@ -104,7 +155,7 @@ environment:
     nodes: 1
   base: kind
 agent:
-  install: helm
+  version: "7.83.0"
 `
 	f, errs := Parse([]byte(bad))
 	if len(errs) != 0 || f.Environment.Base != "kind" || f.Environment.SectionNode == nil {
@@ -117,7 +168,6 @@ func TestParseErrorsAreAccumulated(t *testing.T) {
 schema: 2
 environment: {}
 agent:
-  install: nope
   version: "7.x"
 `
 	_, errs := Parse([]byte(bad))
@@ -125,81 +175,138 @@ agent:
 	for _, e := range errs {
 		joined += e.Error() + "\n"
 	}
-	for _, want := range []string{"schema:", "environment.base:", "agent.version:"} {
+	for _, want := range []string{"schema:", "environment.base:"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("expected an error anchored at %q, got: %v", want, errs)
 		}
 	}
 }
 
-func TestParseExtractsTheAgentSection(t *testing.T) {
+func TestParseExtractsTheAgentSelection(t *testing.T) {
 	f, errs := Parse([]byte(validEC2))
 	if len(errs) > 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
-	if f.Agent.Install != "script" {
-		t.Fatalf("agent selector mismatch: %q", f.Agent.Install)
+	if f.Agent.Selection.Version != "7.69.0" {
+		t.Fatalf("agent selection mismatch: %+v", f.Agent.Selection)
 	}
 	var section map[string]any
 	if err := StrictDecode(f.Agent.Section, &section); err != nil {
-		t.Fatalf("agent section is not valid YAML: %v", err)
+		t.Fatalf("derived agent section is not valid YAML: %v", err)
 	}
 	if section["version"] != "7.69.0" {
-		t.Errorf("agent section mismatch: %v", section)
+		t.Errorf("derived agent section mismatch: %v", section)
 	}
 }
 
 func TestParseLegacyAgentFieldsAreRejectedWithGuidance(t *testing.T) {
-	// The pre-typed-section flat fields must fail with where to move them.
-	legacy := strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"",
-		"agent:\n  install: script\n  version: \"7.69.0\"", 1)
-	_, errs := Parse([]byte(legacy))
-	if len(errs) != 1 {
-		t.Fatalf("expected 1 error, got %v", errs)
-	}
-	if !strings.Contains(errs[0].Error(), "agent.version: unknown field") ||
-		!strings.Contains(errs[0].Error(), "set it under agent.script") {
-		t.Fatalf("expected an actionable unknown-field error, got: %v", errs[0])
-	}
-}
-
-func TestParseAgentSelectorRequired(t *testing.T) {
-	for name, raw := range map[string]string{
-		"missing agent": strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"\n", "", 1),
-		"empty agent":   strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"", "agent: {}", 1),
-		"blank install": strings.Replace(validEC2, "install: script\n  script:\n    version: \"7.69.0\"", "install: \"\"\n  script:\n    version: \"7.69.0\"", 1),
+	for name, legacy := range map[string]string{
+		"install selector": `
+schema: 1
+environment: {base: local}
+agent:
+  install: binary
+  binary: {}
+`,
+		"build selector": `
+schema: 1
+environment: {base: local}
+agent:
+  source: true
+  build:
+    provider: invoke-binary
+`,
+		"installer section": `
+schema: 1
+environment: {base: kind}
+agent:
+  version: "7.83.0"
+  helm:
+    values: |
+      datadog: {}
+`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, errs := Parse([]byte(raw))
-			found := false
-			for _, e := range errs {
-				if strings.Contains(e.Error(), "agent.install") {
-					found = true
-				}
+			_, errs := Parse([]byte(legacy))
+			if len(errs) == 0 {
+				t.Fatalf("legacy agent shape must be rejected: %v", errs)
 			}
-			if !found {
-				t.Fatalf("expected an agent.install-anchored error, got: %v", errs)
+			joined := ""
+			for _, e := range errs {
+				joined += e.Error() + "\n"
+			}
+			if !strings.Contains(joined, "see the e2ectl README") {
+				t.Fatalf("rejection must point to the new shape, got: %v", errs)
 			}
 		})
 	}
 }
 
-func TestParseAgentSectionOptional(t *testing.T) {
-	// An infrastructure-only config: the installer validates the (empty) section
-	// and its required/default rules at install time, mirroring the environment
-	// section's optionality at start time.
-	infraOnly := strings.Replace(validKind, "  helm:\n    image: gcr.io/datadoghq/agent:7.99.0-e2ectl\n", "", 1)
-	f, errs := Parse([]byte(infraOnly))
-	if len(errs) > 0 || f.Agent.Install != "helm" || f.Agent.SectionNode != nil {
-		t.Fatalf("agent section should be optional in the envelope: %v %v", f.Agent, errs)
+func TestParseSourcesAreMutuallyExclusive(t *testing.T) {
+	for name, raw := range map[string]string{
+		"source and version":   "schema: 1\nenvironment: {base: local}\nagent:\n  source: true\n  version: \"7.83.0\"\n",
+		"pipeline and version": "schema: 1\nenvironment: {base: local}\nagent:\n  pipeline: 1\n  version: \"7.83.0\"\n",
+		"all three":            "schema: 1\nenvironment: {base: local}\nagent:\n  source: true\n  pipeline: 1\n  version: \"7.83.0\"\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, errs := Parse([]byte(raw))
+			if len(errs) == 0 || !strings.Contains(errs[0].Error(), "mutually exclusive") {
+				t.Fatalf("expected a mutual-exclusion error, got: %v", errs)
+			}
+		})
 	}
 }
 
-func TestParseAgentSectionOrderIndependent(t *testing.T) {
-	reordered := strings.Replace(validEC2, "  install: script\n  script:\n    version: \"7.69.0\"",
-		"  script:\n    version: \"7.69.0\"\n  install: script", 1)
-	f, errs := Parse([]byte(reordered))
-	if len(errs) > 0 || f.Agent.Install != "script" || f.Agent.SectionNode == nil {
-		t.Fatalf("agent key order must not affect parsing: %v %v", f.Agent, errs)
+func TestParseUnsupportedSourceBaseCombinationsAreRejected(t *testing.T) {
+	for name, tc := range map[string]struct {
+		base  string
+		agent string
+		want  string
+	}{
+		"source on ec2-host": {"ec2-host", "source: true\n", "not yet automated for remote targets"},
+		"pipeline on kind":   {"kind", "pipeline: 138372337\n", "pipeline images are not downloadable yet"},
+		"version on local":   {"local", "version: \"7.83.0\"\n", "released versions install on the Helm bases"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			raw := "schema: 1\nenvironment: {base: " + tc.base + "}\nagent:\n  " + tc.agent
+			_, errs := Parse([]byte(raw))
+			if len(errs) == 0 || !strings.Contains(errs[0].Error(), tc.want) {
+				t.Fatalf("expected %q, got: %v", tc.want, errs)
+			}
+		})
+	}
+}
+
+func TestParseUnknownAgentFieldIsRejected(t *testing.T) {
+	raw := "schema: 1\nenvironment: {base: local}\nagent:\n  image: localhost/agent:dev\n"
+	_, errs := Parse([]byte(raw))
+	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "unknown field (supported: source, pipeline, version, config, integrations, values, receiver)") {
+		t.Fatalf("expected an actionable unknown-field error, got: %v", errs)
+	}
+}
+
+func TestParseAgentRequired(t *testing.T) {
+	// The agent key selects the installation source; it may be empty (the
+	// base's default), but it cannot be absent — e2ectl configs install agents.
+	if _, errs := Parse([]byte("schema: 1\nenvironment: {base: local, fakeintake: true}\n")); len(errs) == 0 {
+		t.Fatal("expected an agent-anchored error for a missing agent section")
+	}
+	if f, errs := Parse([]byte("schema: 1\nenvironment: {base: local, fakeintake: true}\nagent: {}\n")); len(errs) != 0 || f.Agent.Install != "binary" {
+		t.Fatalf("an empty agent section must select the base default, got: %v %v", f.Agent, errs)
+	}
+}
+
+func TestParseValuesRouting(t *testing.T) {
+	// values reach the helm section only on kind
+	f, errs := Parse([]byte("schema: 1\nenvironment: {base: kind}\nagent:\n  version: \"7.83.0\"\n  values: |\n    datadog:\n      logLevel: DEBUG\n"))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if !strings.Contains(string(f.Agent.Section), "logLevel") {
+		t.Fatalf("values were not routed into the derived helm section: %q", f.Agent.Section)
+	}
+	_, errs = Parse([]byte("schema: 1\nenvironment: {base: local}\nagent:\n  source: true\n  values: |\n    datadog: {}\n"))
+	if len(errs) == 0 {
+		t.Fatal("values on a non-kind base must be rejected")
 	}
 }
