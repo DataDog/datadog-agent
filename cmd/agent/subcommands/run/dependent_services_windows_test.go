@@ -11,9 +11,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/svc"
@@ -227,19 +229,39 @@ func TestWaitForProcmgrInitialState(t *testing.T) {
 	})
 
 	t.Run("waits through start pending until stopped", func(t *testing.T) {
-		shortenStartupPolling(t)
-		calls := 0
+		clk := useMockStartupClock(t)
+		var calls atomic.Int64
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			calls++
-			if calls < 3 {
+			if calls.Add(1) < 3 {
 				return svc.StartPending, nil
 			}
 			return svc.Stopped, nil
 		}
-		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
-		assert.False(t, running)
-		assert.True(t, done)
-		assert.GreaterOrEqual(t, calls, 3)
+
+		type outcome struct{ running, done bool }
+		res := make(chan outcome, 1)
+		go func() {
+			running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
+			res <- outcome{running, done}
+		}()
+
+		// Each Add fires at most one tick, and the first Adds may land before the
+		// ticker is registered, so drive the clock until the wait reports back.
+		var got outcome
+		require.Eventually(t, func() bool {
+			clk.Add(procmgrStartupPollInterval)
+			select {
+			case r := <-res:
+				got = r
+				return true
+			default:
+				return false
+			}
+		}, 5*time.Second, time.Millisecond)
+
+		assert.False(t, got.running)
+		assert.True(t, got.done)
+		assert.GreaterOrEqual(t, calls.Load(), int64(3))
 	})
 
 	t.Run("gives up when the agent is shutting down", func(t *testing.T) {
@@ -319,13 +341,15 @@ func stubServiceState(t *testing.T) {
 	})
 }
 
-func shortenStartupPolling(t *testing.T) {
+func useMockStartupClock(t *testing.T) *clock.Mock {
 	t.Helper()
-	prev := procmgrStartupPollInterval
-	procmgrStartupPollInterval = time.Millisecond
+	prev := procmgrStartupClock
+	mock := clock.NewMock()
+	procmgrStartupClock = mock
 	t.Cleanup(func() {
-		procmgrStartupPollInterval = prev
+		procmgrStartupClock = prev
 	})
+	return mock
 }
 
 func cancelledContext() context.Context {

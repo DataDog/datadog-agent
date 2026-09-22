@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -351,7 +352,7 @@ func waitForProcmgrInitialState(ctx context.Context, serviceName string) (runnin
 		return state == svc.Running, true
 	}
 
-	ticker := time.NewTicker(procmgrStartupPollInterval)
+	ticker := procmgrStartupClock.Ticker(procmgrStartupPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -393,8 +394,12 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 var getServiceStateForStartupWait = winutil.GetServiceState
 
 // procmgrStartupPollInterval is how often the startup wait polls the SCM for
-// dd-procmgr-service. Overridable in tests to keep them off the wall clock.
-var procmgrStartupPollInterval = 300 * time.Millisecond
+// dd-procmgr-service.
+const procmgrStartupPollInterval = 300 * time.Millisecond
+
+// procmgrStartupClock sources the startup wait's poll ticks. Tests swap in a
+// clock.Mock so the wait is driven explicitly instead of by the wall clock.
+var procmgrStartupClock clock.Clock = clock.New()
 
 func procmgrProcessDefinitionExists(fileName string) bool {
 	installPath, err := procmgrInstallRootForDefinitionCheck()
