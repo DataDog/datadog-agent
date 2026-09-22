@@ -206,6 +206,10 @@ func (s *configSuite) TestConfigFailureTimeout() {
 		config, err := s.Agent.Configuration()
 		require.NoError(c, err)
 		require.Equal(c, "info", config["log_level"])
+
+		state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+		require.NoError(c, err)
+		require.Empty(c, state.ExperimentConfigVersion, "config experiment rollback should be complete")
 	}, 60*time.Second, 5*time.Second)
 }
 
