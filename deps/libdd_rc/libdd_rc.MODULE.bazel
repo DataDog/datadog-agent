@@ -25,7 +25,7 @@ crate.annotation(
 crate.annotation(
     build_script_env_select = {
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
-        "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
+        "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     crate = "aws-lc-fips-sys",
 )

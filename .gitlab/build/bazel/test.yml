@@ -95,12 +95,18 @@ bazel:rc-x509-ffi:linux-amd64:
     - command -v cmake && cmake --version
     - command -v go && go version
     - command -v perl && perl --version
-    - bazel cquery --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
+    - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
     - bazel build -c opt --jobs=$KUBERNETES_CPU_REQUEST --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
-    - find -L bazel-out -type f \( -name '*rc_x509_ffi*.a' -o -name 'libaws_lc_fips*' \) -print > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt" || true
+    - |-
+      output_path="$(bazel info output_path 2>/dev/null)" || true
+      if [ -n "$output_path" ]; then
+        find "$output_path" -type f \( -name '*rc_x509_ffi*.a' -o -name 'libaws_lc_fips*' \) -print > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt" || true
+      else
+        : > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt"
+      fi
     - |-
       while IFS= read -r native_output; do
         cp "$native_output" "$RC_X509_ARTIFACTS_DIR/"
