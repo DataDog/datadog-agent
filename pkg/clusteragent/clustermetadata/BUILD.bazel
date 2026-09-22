@@ -8,6 +8,7 @@ go_library(
         "localstore.go",
         "ring.go",
         "ringcontroller.go",
+        "scope.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata",
     visibility = ["//visibility:public"],
@@ -31,6 +32,7 @@ dd_agent_go_test(
         "localstore_test.go",
         "ring_test.go",
         "ringcontroller_test.go",
+        "scope_test.go",
     ],
     embed = [":clustermetadata"],
     deps = [

@@ -136,7 +136,31 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	return nil
 }
 
-// Delete notifies the workloadmeta store with  an EventTypeUnset for the given
+// flushUnset emits an EventTypeUnset for every entity this store has seen and clears the seen map.
+func (r *reflectorStore) flushUnset() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var events []workloadmeta.CollectorEvent
+	for _, entityID := range r.seen {
+		entity, err := entityFromEntityID(entityID)
+		if err != nil {
+			return err
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: entity,
+		})
+	}
+
+	r.wlmetaStore.Notify(events)
+	r.seen = make(map[string]workloadmeta.EntityID)
+	return nil
+}
+
+// Delete notifies the workloadmeta store with an EventTypeUnset for the given
 // object.
 func (r *reflectorStore) Delete(obj interface{}) error {
 	r.mu.Lock()

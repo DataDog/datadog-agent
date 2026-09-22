@@ -41,6 +41,10 @@ type dependencies struct {
 
 	Config          config.Component
 	AutoscalingGate *autoscalinggate.Gate
+	// PodScope and SyncReporter are provided by the cluster-agent when the
+	// metadata ring is enabled; they stay nil otherwise (watch-all pods).
+	PodScope     workloadmeta.PodWatchScope    `optional:"true"`
+	SyncReporter workloadmeta.NodeSyncReporter `optional:"true"`
 }
 
 // storeGenerator returns a new store specific to a given resource
@@ -204,6 +208,8 @@ type collector struct {
 	catalog         workloadmeta.AgentType
 	config          config.Reader
 	autoscalingGate *autoscalinggate.Gate
+	podScope        workloadmeta.PodWatchScope
+	syncReporter    workloadmeta.NodeSyncReporter
 }
 
 // NewCollector returns a kubeapiserver CollectorProvider that instantiates its colletor
@@ -214,6 +220,8 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			catalog:         workloadmeta.ClusterAgent,
 			config:          deps.Config,
 			autoscalingGate: deps.AutoscalingGate,
+			podScope:        deps.PodScope,
+			syncReporter:    deps.SyncReporter,
 		},
 	}, nil
 }
@@ -256,18 +264,25 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	if shouldHavePodStore(c.config) {
 		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
-		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
 
-		if lazyStart {
-			// The store is intentionally not added to objectStores. It would
-			// block the startup readiness check.
-			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
+		if c.podScope != nil {
+			// if the pod scope is not nil, we are using the metadata ring
+			watcher := newPerNodePodWatcher(wlmetaStore, c.config, client, c.podScope, c.syncReporter)
+			go watcher.run(ctx)
 		} else {
-			reflector, store := newPodStore(wlmetaStore, c.config, client)
-			objectStores = append(objectStores, store)
-			go reflector.Run(ctx.Done())
-			if autoscalingEnabled {
-				go c.markPodCollectionSyncedWhenReady(ctx, store)
+			lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
+
+			if lazyStart {
+				// The store is intentionally not added to objectStores. It would
+				// block the startup readiness check.
+				go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
+			} else {
+				reflector, store := newPodStore(wlmetaStore, c.config, client)
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+				if autoscalingEnabled {
+					go c.markPodCollectionSyncedWhenReady(ctx, store)
+				}
 			}
 		}
 	}
