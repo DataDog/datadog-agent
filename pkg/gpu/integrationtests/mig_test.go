@@ -19,11 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
-// canonicalMIGProfile matches NVIDIA's canonical MIG profile names, e.g.
-// "1g.35gb" or "1g.18gb+me" for the media-extension variants. The driver
-// reports them with a "MIG " prefix, which must be stripped before the value
-// reaches the gpu_mig_profile tag.
-var canonicalMIGProfile = regexp.MustCompile(`^[0-9]+g\.[0-9]+gb(\+me)?$`)
+// canonicalMIGProfile matches GPU-instance-level MIG profile names: "1g.35gb",
+// and suffixed variants such as "1g.24gb+me", "1g.24gb-me", "1g.24gb+me.all"
+// or "4g.96gb+gfx". A split-CI device's leading "<n>c." is not part of it.
+var canonicalMIGProfile = regexp.MustCompile(`^[0-9]+g\.[0-9]+gb(?:[+-][a-z]+(?:\.[a-z]+)*)?$`)
 
 func requireMIGTests(t *testing.T) {
 	t.Helper()
@@ -136,5 +135,9 @@ func TestMIGDeviceProfileName(t *testing.T) {
 			"profile name %q should not carry the driver's MIG prefix", migDevice.Profile)
 		require.Regexp(t, canonicalMIGProfile, migDevice.Profile,
 			"profile name %q should be a canonical MIG profile name", migDevice.Profile)
+		// On a privileged runner the fallback can produce the profile too, and
+		// would mask a broken primary path; check the name-based one directly.
+		require.Equal(t, migDevice.Profile, safenvml.ParseMIGProfileFromDeviceName(info.Name),
+			"device name %q should carry the profile, so no privileged fallback is needed", info.Name)
 	}
 }

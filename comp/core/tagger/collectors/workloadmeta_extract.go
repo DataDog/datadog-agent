@@ -1010,11 +1010,12 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
 	if gpu.MIGProfile != "" {
-		// The NVIDIA device plugin replaces '+' with '.' in resource names.
-		// Normalize both to dashes to match KSM's mig_profile tag values
-		// (e.g. "1g.35gb+me" -> "1g-35gb-me").
-		profile := strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), ".", "-")
-		tagList.AddLow(tags.GPUMIGProfile, strings.ReplaceAll(profile, "+", "-"))
+		// Keep NVIDIA's profile name. '+' is the one character outside the tag
+		// value charset, and the backend would turn it into '_' anyway; doing it
+		// here keeps the documented value the one users see. Collapsing '.' and
+		// '+' into '-' instead (as the KSM mig_profile tag's values end up)
+		// would merge distinct profiles such as 1g.24gb+me and 1g.24gb-me.
+		tagList.AddLow(tags.GPUMIGProfile, strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), "+", "_"))
 	}
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)

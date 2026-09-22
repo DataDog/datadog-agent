@@ -363,6 +363,15 @@ func TestParseMIGProfileFromDeviceName(t *testing.T) {
 		{name: "plain profile", input: "NVIDIA H200 MIG 1g.35gb", want: "1g.35gb"},
 		{name: "media extension profile", input: "NVIDIA H200 MIG 1g.18gb+me", want: "1g.18gb+me"},
 		{name: "model with memory suffix", input: "NVIDIA A100-SXM4-40GB MIG 3g.20gb", want: "3g.20gb"},
+		// Blackwell (RTX PRO 6000) profile names, as advertised in live
+		// ResourceSlices.
+		{name: "media engines excluded", input: "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb-me", want: "1g.24gb-me"},
+		{name: "all media engines", input: "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb+me.all", want: "1g.24gb+me.all"},
+		{name: "graphics", input: "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 4g.96gb+gfx", want: "4g.96gb+gfx"},
+		// Split compute instances prefix the compute-slice count; the tag
+		// describes the GPU instance.
+		{name: "split compute instance", input: "NVIDIA A100-SXM4-40GB MIG 1c.3g.20gb", want: "3g.20gb"},
+		{name: "split compute instance with suffix", input: "NVIDIA H100 80GB HBM3 MIG 2c.4g.40gb+me", want: "4g.40gb+me"},
 		{name: "physical device has no profile", input: "NVIDIA H200", want: ""},
 		{name: "MIG marker without profile", input: "NVIDIA H200 MIG", want: ""},
 		{name: "unrecognized suffix", input: "NVIDIA H200 MIG unknown", want: ""},

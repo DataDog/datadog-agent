@@ -4255,9 +4255,14 @@ func TestExtractGPUMIGProfileTag(t *testing.T) {
 		profile string
 		want    string
 	}{
-		{name: "plain", profile: "1g.35gb", want: "1g-35gb"},
-		{name: "media extension", profile: "1g.35gb+me", want: "1g-35gb-me"},
-		{name: "case normalization", profile: "1G.35GB+ME", want: "1g-35gb-me"},
+		{name: "plain", profile: "1g.35gb", want: "1g.35gb"},
+		{name: "media extension", profile: "1g.24gb+me", want: "1g.24gb_me"},
+		// Must stay distinct from "+me": the two are different profiles on the
+		// same card.
+		{name: "media engines excluded", profile: "1g.24gb-me", want: "1g.24gb-me"},
+		{name: "all media engines", profile: "1g.24gb+me.all", want: "1g.24gb_me.all"},
+		{name: "graphics", profile: "1g.24gb+gfx", want: "1g.24gb_gfx"},
+		{name: "case normalization", profile: "1G.35GB+ME", want: "1g.35gb_me"},
 		{name: "unavailable"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -4399,7 +4404,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",
-						"gpu_mig_profile:3g-20gb",
+						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",

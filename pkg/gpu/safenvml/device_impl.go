@@ -190,7 +190,7 @@ func (d *safeDeviceImpl) getMIGInstanceProfileName(gpuInstanceID int, getProfile
 
 	// The driver reports the profile name with a "MIG" prefix (e.g.
 	// "MIG 1g.35gb"); strip it so the value matches the canonical profile
-	// name used elsewhere (e.g. the KSM mig_profile tag convention).
+	// name as it appears in device names and ResourceSlices.
 	return normalizeMIGProfileName(fixedSizeString(profileInfo.Name[:])), nil
 }
 

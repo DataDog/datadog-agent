@@ -38,11 +38,10 @@ var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
 
-// migProfileTagValue matches the gpu_mig_profile tag values, which carry the
-// canonical MIG profile name with dots and pluses rewritten as dashes to match
-// the KSM mig_profile convention: "1g.35gb" -> "1g-35gb", "1g.35gb+me" ->
-// "1g-35gb-me".
-var migProfileTagValue = regexp.MustCompile(`^[0-9]+g-[0-9]+gb(-me)?$`)
+// migProfileTagValue matches the gpu_mig_profile tag values: NVIDIA's profile
+// name lowercased, with '+' (outside the tag charset) written as '_' --
+// "1g.35gb", "1g.24gb_me", "1g.24gb-me", "1g.24gb_me.all", "4g.96gb_gfx".
+var migProfileTagValue = regexp.MustCompile(`^[0-9]+g\.[0-9]+gb(?:[_-][a-z]+(?:\.[a-z]+)*)?$`)
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]

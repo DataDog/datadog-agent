@@ -13,46 +13,39 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// canonicalMIGProfileRegexp matches the canonical MIG profile names embedded
-// in MIG device names, e.g. "1g.35gb" or "1g.18gb+me" for the
-// media-extension variants.
-var canonicalMIGProfileRegexp = regexp.MustCompile(`^[0-9]+g\.[0-9]+gb(\+me)?$`)
+// migProfileRegexp matches the MIG profile embedded in a MIG device name and
+// captures its GPU-instance-level part. NVIDIA's profile names vary by
+// generation: a plain "1g.35gb", suffixed variants such as "1g.24gb+me",
+// "1g.24gb-me", "1g.24gb+me.all" or "1g.24gb+gfx" (Blackwell), and, when a GPU
+// instance is split into several compute instances, a leading compute-slice
+// count as in "1c.3g.20gb". The tag describes the GPU instance, so that
+// leading "<n>c." is matched but not captured.
+var migProfileRegexp = regexp.MustCompile(`^(?:[0-9]+c\.)?([0-9]+g\.[0-9]+gb(?:[+-][a-z]+(?:\.[a-z]+)*)?)$`)
 
-// ParseMIGProfileFromDeviceName extracts the canonical MIG profile name
-// (e.g. "1g.35gb", "1g.18gb+me") from a MIG device name. NVML reports MIG
-// device names as "<GPU name> MIG <profile>" (e.g. "NVIDIA H200 MIG 1g.35gb",
-// verified on driver 580). This costs no NVML calls beyond the GetName the
-// device cache already performs, and needs no privileges. Returns "" when
-// the name does not carry a recognizable profile.
+// ParseMIGProfileFromDeviceName extracts the GPU-instance-level MIG profile
+// name (e.g. "1g.35gb", "1g.24gb+me.all", or "3g.20gb" from a split-CI
+// "1c.3g.20gb") from a MIG device name. NVML reports MIG device names as
+// "<GPU name> MIG <profile>" (e.g. "NVIDIA H200 MIG 1g.35gb", verified on
+// driver 580). This costs no NVML calls beyond the GetName the device cache
+// already performs, and needs no privileges. Returns "" when the name does
+// not carry a recognizable profile.
 func ParseMIGProfileFromDeviceName(name string) string {
 	idx := strings.LastIndex(name, " MIG ")
 	if idx < 0 {
 		return ""
 	}
-	profile := strings.TrimSpace(name[idx+len(" MIG "):])
-	if !canonicalMIGProfileRegexp.MatchString(profile) {
+	m := migProfileRegexp.FindStringSubmatch(strings.TrimSpace(name[idx+len(" MIG "):]))
+	if m == nil {
 		return ""
 	}
-	return profile
+	return m[1]
 }
-
-// migProfileCache caches fallback-chain resolutions keyed by
-// "<parent UUID>/<GPU instance id>", including failures (empty string): a GPU
-// instance's profile never changes during its lifetime, the device cache is
-// rebuilt on every workloadmeta pull (default every 5s), and the fallback
-// costs three NVML calls per attempt. Caching a failure also means its
-// one-time log is emitted once per GPU instance, not once per rebuild.
-var (
-	migProfileCacheMu sync.Mutex
-	migProfileCache   = map[string]string{}
-)
 
 // SafeDevice represents a safe wrapper around NVML device operations.
 // It ensures that operations are only performed when the corresponding
@@ -378,31 +371,13 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		// so this costs no additional NVML calls and needs no privileges.
 		migChildDevice.Profile = ParseMIGProfileFromDeviceName(migChildDevice.Name)
 
-		// Fallback for name formats that do not carry a recognizable profile:
-		// resolve through the GPU instance handle. This path needs a
-		// privileged agent (nvml.h marks nvmlDeviceGetGpuInstanceById as
-		// "Requires privileged user"), so it is expected to fail on default
-		// non-privileged core-agent deployments; the miss is cached and logged
-		// once per GPU instance. Non-fatal in any case: the profile only backs
-		// the gpu_mig_profile tag, so an empty value means no tag.
+		// Fallback for names without a recognizable profile: resolve through
+		// the GPU instance handle, which needs a privileged agent. Best effort
 		if migChildDevice.Profile == "" {
-			key := fmt.Sprintf("%s/%d", d.UUID, gpuInstanceID)
-			migProfileCacheMu.Lock()
-			cached, ok := migProfileCache[key]
-			migProfileCacheMu.Unlock()
-			if ok {
-				migChildDevice.Profile = cached
+			if profile, err := d.SafeDevice.GetMIGInstanceProfileName(gpuInstanceID); err != nil {
+				log.Infof("MIG device %s (GPU instance %d on %s): the gpu_mig_profile tag is unavailable because its name carries no profile and resolving it through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById): %v", migChildDevice.UUID, gpuInstanceID, d.UUID, err)
 			} else {
-				profile := ""
-				if resolved, err := d.SafeDevice.GetMIGInstanceProfileName(gpuInstanceID); err != nil {
-					log.Infof("MIG device on %s, GPU instance %d: could not resolve the MIG profile name (%v); the gpu_mig_profile tag will be missing for this device. Resolving through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById, per nvml.h)", d.UUID, gpuInstanceID, err)
-				} else {
-					profile = resolved
-				}
 				migChildDevice.Profile = profile
-				migProfileCacheMu.Lock()
-				migProfileCache[key] = profile
-				migProfileCacheMu.Unlock()
 			}
 		}
 
