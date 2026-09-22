@@ -962,8 +962,10 @@ func (c *collector) collectServicesWithTimer(ctx context.Context, collectionTime
 				log.Debugf("startup service collection readiness check stopped: %v", err)
 			}
 		case <-collectionTimer.C():
-			cancelStartup()
-			startupReady = nil
+			if startupReady != nil {
+				cancelStartup()
+				startupReady = nil
+			}
 			collectOnce(ctx)
 			collectionTimer.Reset(collectionInterval)
 		case <-ctx.Done():
