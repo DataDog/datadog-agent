@@ -6,6 +6,7 @@
 //! The fd module contains helpers and types to represent information located
 //! in /proc/<pid>/fd
 
+use std::collections::HashSet;
 use std::fs::{read_dir, read_link};
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,7 @@ const MAX_LOG_FILES: usize = 100;
 #[derive(Debug, Default)]
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
-    pub logs: Vec<PathBuf>,
+    pub logs: HashSet<PathBuf>,
     pub tracer_memfds: Vec<PathBuf>,
     pub memfd_path: Option<PathBuf>,
     pub has_gpu_device: bool,
@@ -63,8 +64,7 @@ fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInf
             return;
         }
 
-        // A linear lookup is ok, because of MAX_LOG_FILES
-        if result.logs.iter().any(|path| path == &link) {
+        if result.logs.contains(&link) {
             return;
         }
 
@@ -76,7 +76,7 @@ fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInf
         };
 
         if is_write_append_mode(fd_info.flags) {
-            result.logs.push(link);
+            result.logs.insert(link);
         }
     } else if result.tracer_memfds.len() < MAX_TRACER_MEMFDS && is_tracer_memfd(link.as_path()) {
         result.tracer_memfds.push(entry);
@@ -547,8 +547,8 @@ mod tests {
             );
 
             assert_eq!(result.logs.len(), MAX_LOG_FILES);
-            assert_eq!(result.logs.first(), Some(&duplicate));
-            assert_eq!(result.logs.last(), Some(&PathBuf::from("/tmp/99.log")));
+            assert!(result.logs.contains(&duplicate));
+            assert!(result.logs.contains(&PathBuf::from("/tmp/99.log")));
             assert_eq!(result.sockets.len(), 1);
         }
 
@@ -570,7 +570,8 @@ mod tests {
             );
             process_file(&append, &path, &mut result);
 
-            assert_eq!(result.logs, vec![path]);
+            assert_eq!(result.logs.len(), 1);
+            assert!(result.logs.contains(&path));
         }
     }
 
