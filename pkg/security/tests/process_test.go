@@ -35,7 +35,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
@@ -123,9 +122,17 @@ func TestProcessEBPFLess(t *testing.T) {
 	})
 }
 
+// clearForTouch removes testFile so that the touch which follows really creates it.
+// RunMultiMode runs its docker and std legs against the same path, and uutils
+// coreutils -- the default touch since Ubuntu 25.10 -- skips the O_CREAT open that
+// GNU touch always issues when the file is already there, leaving the open rules
+// below with no event to match.
+func clearForTouch(testFile string) {
+	_ = os.Remove(testFile)
+}
+
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -844,6 +851,8 @@ func TestProcessContext(t *testing.T) {
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -869,6 +878,8 @@ func TestProcessContext(t *testing.T) {
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
+
+		clearForTouch(testFile)
 
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
@@ -899,6 +910,8 @@ func TestProcessContext(t *testing.T) {
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -923,6 +936,8 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 		envs := []string{"DD_SERVICE=myservice"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -945,6 +960,8 @@ func TestProcessContext(t *testing.T) {
 
 		shell, executable := "sh", "touch"
 		args := []string{"-x", "-c", "$(" + executable + " " + testFile + ")"}
+
+		clearForTouch(testFile)
 
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
