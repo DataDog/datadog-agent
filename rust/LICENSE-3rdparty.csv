@@ -302,6 +302,7 @@ rand_core,https://github.com/rust-random/rand_core,MIT OR Apache-2.0,The Rand Pr
 rand_xoshiro,https://github.com/rust-random/rngs,MIT OR Apache-2.0,The Rand Project Developers
 rapidhash,https://github.com/hoxxep/rapidhash,MIT OR Apache-2.0,Liam Gray <gmail@liamg.me>
 raw-cpuid,https://github.com/gz/rust-cpuid,MIT,Gerd Zellweger <mail@gerdzellweger.com>
+rawzip,https://github.com/nickbabcock/rawzip,MIT,Nick Babcock <nbabcock19@hotmail.com>
 rayon,https://github.com/rayon-rs/rayon,MIT OR Apache-2.0,The rayon Authors
 rayon-core,https://github.com/rayon-rs/rayon,MIT OR Apache-2.0,The rayon-core Authors
 redox_syscall,https://gitlab.redox-os.org/redox-os/syscall,MIT,Jeremy Soller <jackpot51@gmail.com>
@@ -503,6 +504,8 @@ wit-component,https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wi
 wit-parser,https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-parser,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Alex Crichton <alex@alexcrichton.com>
 wnaf,https://github.com/RustCrypto/elliptic-curves,Apache-2.0 OR MIT,RustCrypto Developers
 writeable,https://github.com/unicode-org/icu4x,Unicode-3.0,The ICU4X Project Developers
+xml,https://github.com/kornelski/xml-rs,MIT,"Vladimir Matveev <vmatveev@citrine.cc>, Kornel (https://github.com/kornelski)"
+xml-rs,https://github.com/netvl/xml-rs,MIT,"Vladimir Matveev <vmatveev@citrine.cc>, Kornel (https://github.com/kornelski)"
 yansi,https://github.com/SergioBenitez/yansi,MIT OR Apache-2.0,Sergio Benitez <sb@sergio.bz>
 yoke,https://github.com/unicode-org/icu4x,Unicode-3.0,Manish Goregaokar <manishsmail@gmail.com>
 yoke-derive,https://github.com/unicode-org/icu4x,Unicode-3.0,Manish Goregaokar <manishsmail@gmail.com>
