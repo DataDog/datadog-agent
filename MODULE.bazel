@@ -567,16 +567,3 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 bazel_dep(name = "apple_support", version = "2.8.4")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
-
-###########################################################################
-## Hybrid build. Capture binaries built with dda (or whatever) as if they
-## were built as bazel targets.
-###########################################################################
-
-prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
-
-prebuilt_file(
-    name = "trace_loader_binary",
-    target_label = "@@//:bin/trace-loader/trace-loader",
-    target_name = "trace_loader",
-)

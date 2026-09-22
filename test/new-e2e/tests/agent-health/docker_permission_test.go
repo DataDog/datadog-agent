@@ -48,7 +48,7 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().Fakeintake.Client()
 
-	const issueID = "docker-socket-permissions"
+	const issueIDPrefix = "docker-socket-permissions"
 
 	// Pre-condition: docker socket must be restricted so the issue is active.
 	host.MustExecute("sudo chmod 660 /var/run/docker.sock")
@@ -58,7 +58,7 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		assert.NoError(ct, err)
 		var found bool
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
+			for _, iss := range findIssuesByPrefix(p, issueIDPrefix) {
 				if iss.PersistedIssue != nil {
 					found = true
 				}
@@ -90,7 +90,7 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		assert.NoError(ct, err)
 		reloadedIssues = nil
 		for _, p := range payloads {
-			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
+			for _, iss := range findIssuesByPrefix(p, issueIDPrefix) {
 				if iss.PersistedIssue != nil &&
 					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
 					reloadedIssues = append(reloadedIssues, iss)
@@ -113,7 +113,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().Fakeintake.Client()
 
-	const issueID = "docker-socket-permissions"
+	const issueIDPrefix = "docker-socket-permissions"
 
 	containers, err := suite.Env().Docker.Client.ListContainers()
 	require.NoError(suite.T(), err)
@@ -135,7 +135,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			assert.NoError(ct, err)
 			issues = nil
 			for _, p := range payloads {
-				for _, iss := range findIssuesByID(t, p, issueID) {
+				for _, iss := range findIssuesByPrefix(p, issueIDPrefix) {
 					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
 					}
@@ -146,7 +146,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]
-		assert.Equal(t, "docker-socket-permissions", issue.Id)
+		assert.True(t, strings.HasPrefix(issue.Id, "docker-socket-permissions:"), "issue id %q must carry the docker-socket-permissions prefix", issue.Id)
 		assert.Equal(t, "Docker Socket Permission", issue.IssueName)
 		assert.Equal(t, "docker_socket_permission", issue.IssueType)
 		assert.Equal(t, "permissions", issue.Category)
@@ -178,7 +178,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
 			for _, p := range payloads {
-				for _, iss := range findIssuesByID(t, p, issueID) {
+				for _, iss := range findIssuesByPrefix(p, issueIDPrefix) {
 					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
 						return
 					}

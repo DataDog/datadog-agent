@@ -623,6 +623,12 @@ impl DaemonHandle {
 
     /// Like [`start`](Self::start), but also sets the given extra environment variables on the
     /// daemon process.
+    ///
+    /// The daemon is a real child process, so config gates read `DD_*` from the inherited
+    /// environment rather than through the process-global hook the in-process tests use.
+    /// Environment variables outrank the gated YAML file, so every gate input is removed
+    /// before `extra_env` is applied: otherwise a runner with, say,
+    /// `DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED` exported opens a gate no test wrote.
     pub fn start_with_env(
         config_dir: &Path,
         socket_path: &Path,
@@ -635,6 +641,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for name in dd_procmgrd::config_gate::gate_env_var_names() {
+            cmd.env_remove(name);
+        }
         for (k, v) in extra_env {
             cmd.env(k, v);
         }
