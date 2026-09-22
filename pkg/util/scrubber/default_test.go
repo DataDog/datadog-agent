@@ -622,6 +622,26 @@ network_devices:
 log_level: info`)
 }
 
+func TestDataSecurityScanningRules(t *testing.T) {
+	// Inline (single-line) form, as produced by the datasecurity provider's compact JSON.
+	assertClean(t,
+		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "\d+"}]`,
+		`scanning_rules: "********"`)
+
+	// Object/YAML form: the object scrubber (used to report the check instance_config)
+	// replaces the whole rules value regardless of its structure (list of maps).
+	scrubbed, err := ScrubYamlString(`
+scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: '\d+'
+task_id: task-1`)
+	require.NoError(t, err)
+	assert.Contains(t, scrubbed, `scanning_rules: "********"`)
+	assert.NotContains(t, scrubbed, "proprietary")
+	assert.NotContains(t, scrubbed, `\d+`)
+}
+
 func TestBearerToken(t *testing.T) {
 	assertClean(t,
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,

@@ -194,6 +194,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
+	// The datasecurity check's dd-sds scanning rules are sensitive and must never
+	// be logged, flared, or reported to Datadog via the check inventory payload.
+	scanningRulesReplacer := matchYAMLKey(
+		`(scanning_rules)`,
+		[]string{"scanning_rules"},
+		[]byte(`$1 "********"`),
+	)
+	scanningRulesReplacer.LastUpdated = parseVersion("7.85.0") // DATASEC-330
 	certReplacer := Replacer{
 		/*
 		   Try to match as accurately as possible. RFC 7468's ABNF
@@ -348,6 +356,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, secretReplacer)
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)

@@ -52,6 +52,19 @@ func TestScrubDataObj(t *testing.T) {
 			},
 		},
 		{
+			name: "DataSecurityScanningRules",
+			input: map[string]interface{}{
+				"scanning_rules": []interface{}{
+					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": `\d+`},
+				},
+				"task_id": "task-1",
+			},
+			expected: map[string]interface{}{
+				"scanning_rules": "********",
+				"task_id":        "task-1",
+			},
+		},
+		{
 			name: "Scrub sensitive info from nested map",
 			input: map[string]interface{}{
 				"user": map[string]interface{}{
