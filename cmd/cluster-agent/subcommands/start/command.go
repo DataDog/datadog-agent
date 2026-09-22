@@ -303,7 +303,7 @@ func start(log log.Component,
 	dcametadataComp dcametadata.Component,
 	hostnameGetter hostnameinterface.Component,
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
-	metadataPeerServer *clustermetadata.PeerServer,
+	metadataRingController *clustermetadata.RingController,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
@@ -386,6 +386,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
+	metadataPeerServer := startMetadataRing(config, wmeta, taggerComp, ipc, metadataRingController)
 	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, metadataPeerServer); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
