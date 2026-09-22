@@ -15,6 +15,7 @@ import (
 
 func TestDescriptorValidate(t *testing.T) {
 	validDescriptor := Descriptor{
+		FQN:     "com.datadoghq.authoredscripts.testAction",
 		Package: "com.datadoghq.authoredscripts.test",
 		Version: "0.0.1",
 		URL:     "oci://registry.example.test/authored-script:0.0.1",
@@ -26,11 +27,11 @@ func TestDescriptorValidate(t *testing.T) {
 		errorString string
 	}{
 		{name: "valid", descriptor: validDescriptor},
-		{name: "package", descriptor: Descriptor{Version: validDescriptor.Version, URL: validDescriptor.URL, SHA256: validDescriptor.SHA256}, errorString: "package is required"},
-		{name: "version", descriptor: Descriptor{Package: validDescriptor.Package, URL: validDescriptor.URL, SHA256: validDescriptor.SHA256}, errorString: "version is required"},
-		{name: "URL", descriptor: Descriptor{Package: validDescriptor.Package, Version: validDescriptor.Version, SHA256: validDescriptor.SHA256}, errorString: "URL is required"},
-		{name: "SHA-256", descriptor: Descriptor{Package: validDescriptor.Package, Version: validDescriptor.Version, URL: validDescriptor.URL}, errorString: "SHA-256 digest is required"},
-		{name: "invalid SHA-256", descriptor: Descriptor{Package: validDescriptor.Package, Version: validDescriptor.Version, URL: validDescriptor.URL, SHA256: "not-a-digest"}, errorString: "invalid authored-script SHA-256 digest"},
+		{name: "package", descriptor: Descriptor{FQN: validDescriptor.FQN, Version: validDescriptor.Version, URL: validDescriptor.URL, SHA256: validDescriptor.SHA256}, errorString: "package is required"},
+		{name: "version", descriptor: Descriptor{FQN: validDescriptor.FQN, Package: validDescriptor.Package, URL: validDescriptor.URL, SHA256: validDescriptor.SHA256}, errorString: "version is required"},
+		{name: "URL", descriptor: Descriptor{FQN: validDescriptor.FQN, Package: validDescriptor.Package, Version: validDescriptor.Version, SHA256: validDescriptor.SHA256}, errorString: "URL is required"},
+		{name: "SHA-256", descriptor: Descriptor{FQN: validDescriptor.FQN, Package: validDescriptor.Package, Version: validDescriptor.Version, URL: validDescriptor.URL}, errorString: "SHA-256 digest is required"},
+		{name: "invalid SHA-256", descriptor: Descriptor{FQN: validDescriptor.FQN, Package: validDescriptor.Package, Version: validDescriptor.Version, URL: validDescriptor.URL, SHA256: "not-a-digest"}, errorString: "invalid authored-script SHA-256 digest"},
 	}
 
 	for _, test := range tests {

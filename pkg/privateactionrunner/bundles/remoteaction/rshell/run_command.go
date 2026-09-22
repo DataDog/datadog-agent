@@ -279,16 +279,12 @@ func cloneSystemServiceAllowlist(services map[string][]string) map[string][]stri
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
-//
-// Newer tasks carry backend allowlists in system_inputs.remote_action. The
-// legacy allowedCommands/allowedPaths input fields are still accepted as a
-// compatibility fallback for tasks signed by older servers.
+// Command and path allowlists are accepted only from the signed
+// system_inputs.remote_action policy.
 type RunCommandInputs struct {
-	Command              string              `json:"command"`
-	AllowedCommands      []string            `json:"allowedCommands"`
-	AllowedPaths         map[string][]string `json:"allowedPaths"`
-	EffectivePermissions string              `json:"effectivePermissions"`
-	ElevatableCommands   []string            `json:"elevatableCommands"`
+	Command              string   `json:"command"`
+	EffectivePermissions string   `json:"effectivePermissions"`
+	ElevatableCommands   []string `json:"elevatableCommands"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -330,7 +326,10 @@ func (h *RunCommandHandler) Run(
 		}
 	}
 
-	backendCommands, backendPaths, backendSystemServices := backendAllowlistsFromTask(task, inputs)
+	backendCommands, backendPaths, backendSystemServices, err := backendAllowlistsFromTask(task)
+	if err != nil {
+		return nil, err
+	}
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	backendAllowedSystemServices := backendSystemServiceGrants(backendSystemServices)
@@ -490,14 +489,14 @@ func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 	return policy
 }
 
-func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string, systemServices map[string]*structpb.ListValue) {
+func backendAllowlistsFromTask(task *types.Task) ([]string, []string, map[string]*structpb.ListValue, error) {
 	// The signed system inputs are authoritative for new tasks. A present but
 	// empty remote_action allowlist intentionally blocks that axis.
 	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
-		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices
+		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices, nil
 	}
 
-	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths), nil
+	return nil, nil, nil, errors.New("signed remote action policy is required")
 }
 
 // resolveProcPath returns the proc filesystem path appropriate for the current

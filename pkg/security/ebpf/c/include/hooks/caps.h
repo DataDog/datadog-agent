@@ -26,6 +26,20 @@ static __attribute__((always_inline)) int is_in_creds_override() {
     return cred != real_cred;
 }
 
+static __attribute__((always_inline)) int is_current_task_cred(void *cred) {
+    u64 cred_offset = get_task_struct_cred_offset();
+    if (cred_offset == 0) {
+        return 1;
+    }
+
+    void *task = (void *)bpf_get_current_task();
+
+    void *current_cred = NULL;
+    bpf_probe_read(&current_cred, sizeof(current_cred), (char *)task + cred_offset);
+
+    return cred == current_cred;
+}
+
 // On kernels < 6.13, override_creds/revert_creds are still out-of-line and hookable. They maintain a
 // per-thread depth counter so that capability checks made under overridden credentials are skipped,
 // which also covers kernels without BTF where is_in_creds_override() cannot resolve the cred offsets.
@@ -76,8 +90,19 @@ int hook_security_capable(ctx_t *ctx) {
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
 
+    // clear before any early return: this program can be skipped while the return still runs
+    if (cap_context) {
+        cap_context->cap_as_mask = 0;
+    }
+
     if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
         // do not track capabilities checked under temporarily overridden credentials
+        return 0;
+    }
+
+    // security_capable() is also asked about credentials that are not the current task's: another
+    // task's real_cred, a file's f_cred, a tracer
+    if (!is_current_task_cred((void *)CTX_PARM1(ctx))) {
         return 0;
     }
 
@@ -136,18 +161,24 @@ int rethook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (!cap_context || !cap_context->cap_as_mask) {
+    if (!cap_context) {
         // unexpected, we should have a context at this point since we created one in hook_security_capable
         return 0;
     }
 
-    if (is_in_creds_override() || cap_context->override_creds_depth != 0) {
-        // do not track capabilities checked under temporarily overridden credentials
-        return 0;
+    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
+    u64 override_creds_depth = cap_context->override_creds_depth;
+
+    // consume on every path, a leftover mask would be picked up by an untracked call's return
+    if (override_creds_depth == 0) {
+        bpf_map_delete_elem(&capabilities_contexts, &tid);
+    } else {
+        cap_context->cap_as_mask = 0; // the depth counter has to outlive the call
     }
 
-    u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
-    bpf_map_delete_elem(&capabilities_contexts, &tid); // Free the context because we are done with it at this point
+    if (!cap_as_mask || override_creds_depth != 0 || is_in_creds_override()) {
+        return 0;
+    }
 
     int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
     if (retval != 0) { // If the capability check was not successful, we do not need to update the used capabilities set
