@@ -103,7 +103,7 @@ func TestRunRemapsAllowlistedMetrics(t *testing.T) {
 		CheckBase: corechecks.NewCheckBase(CheckName),
 		telemetry: tel,
 		metrics: []allowlistedMetric{
-			{name: "bad_namespace__calls", sendAs: "feature_a__request_count"},
+			{name: "bad_namespace__calls", sendAs: "feature_a__calls"},
 			{name: "feature_b__calls"},
 		},
 	}
