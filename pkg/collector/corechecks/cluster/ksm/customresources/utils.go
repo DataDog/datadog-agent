@@ -138,25 +138,16 @@ func labelConflictSuffix(label string, count int) string {
 	return fmt.Sprintf("%s_conflict%d", label, count)
 }
 
-// objectOwnerRef returns the lowercased kind and name of obj's controller
-// owner reference (falling back to the last owner reference if none is
-// marked as controller), following the same pattern as
-// containerResourceOwnerGenerator in pod.go. Works for any Kubernetes object
-// since they all embed metav1.ObjectMeta. ok is false when obj has no owner
-// references.
+// objectOwnerRef returns the lowercased kind and name of obj's first owner
+// reference. Works for any Kubernetes object since they all embed
+// metav1.ObjectMeta. ok is false when obj has no owner references.
 func objectOwnerRef(obj metav1.Object) (kind, name string, ok bool) {
 	owners := obj.GetOwnerReferences()
 	if len(owners) == 0 {
 		return "", "", false
 	}
-	for _, owner := range owners {
-		kind = strings.ToLower(owner.Kind)
-		name = owner.Name
-		if owner.Controller != nil {
-			break
-		}
-	}
-	return kind, name, true
+	owner := owners[0]
+	return strings.ToLower(owner.Kind), owner.Name, true
 }
 
 // mergeKeyValues merges label keys and values slice pairs into a single slice pair.
