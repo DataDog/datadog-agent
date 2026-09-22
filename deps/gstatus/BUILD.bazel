@@ -1,15 +1,15 @@
 # gstatus - fetched from upstream at build time, not committed.
 #
-# The wheel build config (pyproject.toml) is committed here. The glustercli,
-# glusterlib, and gstatus (__main__.py, __init__.py) source is fetched from
-# upstream via http_archive (see gstatus.MODULE.bazel) and assembled into
-# a wheel at build time. A version.py is generated at build time since the
-# upstream repo does not include it (it is generated at release time from
-# git tags).
+# The wheel build config (pyproject.toml), version.py, and the gstatus
+# wrapper script are committed here. The glustercli, glusterlib, and
+# gstatus (__main__.py, __init__.py) source is fetched from upstream
+# via http_archive (see gstatus.MODULE.bazel) and assembled into a wheel
+# at build time.
 #
 # This replaces the old 8.2 MiB PEP 441 zipapp with a ~140 KiB lightweight
-# wheel + entry-point script that runs on the agent's embedded Python.
+# wheel + wrapper script that runs on the agent's embedded Python.
 # All upstream code is GPLv3 (gstatus) or GPLv2/LGPLv3+ (glustercli).
+# The wrapper script is Apache-2.0 (not a derivative of upstream code).
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -74,23 +74,16 @@ copy_to_directory(
     ],
 )
 
-# Generate version.py (not in the upstream repo — generated at release time).
-genrule(
-    name = "version_py",
-    outs = ["version.py"],
-    cmd = "echo '\"\"\"Version\"\"\"' > $@ && echo 'VERSION = \"v1.0.9\"' >> $@",
-)
-
-# Merge all staged sources + pyproject.toml + generated version.py into a
+# Merge all staged sources + pyproject.toml + committed version.py into a
 # single flat directory that hatchling can build from.
 copy_to_directory(
     name = "wheel_src",
     srcs = [
         "pyproject.toml",
+        "version.py",
         ":glustercli_srcs",
         ":glusterlib_srcs",
         ":gstatus_pkg_srcs",
-        ":version_py",
     ],
     out = "wheel_src_dir",
     replace_prefixes = {
@@ -115,26 +108,21 @@ run_binary(
     tool = "//deps/agent_integrations:build_wheel_tool",
 )
 
-# gstatus entry-point script. Created from the upstream __main__.py with
-# the shebang replaced to point at the agent's embedded Python.
-genrule(
-    name = "gstatus_script",
-    srcs = ["@gstatus_source//:gstatus/__main__.py"],
-    outs = ["gstatus"],
-    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_source//:gstatus/__main__.py) >$@",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
+# gstatus entry-point wrapper script. This is a thin Apache-2.0 wrapper
+# that runs the upstream (unmodified) __main__.py via runpy. It is not
+# a derivative work of the GPLv3 upstream code.
 pkg_files(
     name = "bin_files",
-    srcs = [":gstatus_script"],
+    srcs = ["gstatus_wrapper.py"],
     attributes = pkg_attributes(
         group = "root",
-        # Must be writable for signing script to work.
         mode = "0755",
         owner = "root",
     ),
     prefix = "embedded/sbin",
+    renames = {
+        "gstatus_wrapper.py": "gstatus",
+    },
 )
 
 pkg_files(
