@@ -78,6 +78,11 @@ message ClusterMetadataRing {
   repeated ClusterMetadataRingMember members = 1;
 }
 
+message ClusterMetadataSubscribeRequest {
+  string node = 1;
+  ClusterMetadataScope scope = 2;
+}
+
 // ClusterMetadata is the peer-facing surface of the metadata ring: every
 // method answers from the serving replica's local cache only, never fanning
 // out to further peers.
@@ -85,5 +90,17 @@ service ClusterMetadata {
   rpc Query(ClusterMetadataQueryRequest) returns (ClusterMetadataAnswer);
   rpc QueryOrigin(ClusterMetadataOriginRequest) returns (ClusterMetadataAnswer);
   rpc Snapshot(ClusterMetadataSnapshotRequest) returns (ClusterMetadataSnapshot);
+  rpc Ring(ClusterMetadataRingRequest) returns (ClusterMetadataRing);
+}
+
+// ClusterMetadataConsumer is the consumer-facing surface: every method has
+// coordinator semantics. A pod query asked of any replica fans out to the
+// peer replicas through the ClusterMetadata service and answers for the
+// whole ring. Subscribe streams one node's events from its owning replica.
+service ClusterMetadataConsumer {
+  rpc Query(ClusterMetadataQueryRequest) returns (ClusterMetadataAnswer);
+  rpc QueryOrigin(ClusterMetadataOriginRequest) returns (ClusterMetadataAnswer);
+  rpc Snapshot(ClusterMetadataSnapshotRequest) returns (ClusterMetadataSnapshot);
+  rpc Subscribe(ClusterMetadataSubscribeRequest) returns (stream ClusterMetadataNodeEvent);
   rpc Ring(ClusterMetadataRingRequest) returns (ClusterMetadataRing);
 }
