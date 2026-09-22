@@ -130,6 +130,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		host.MustExecute("sudo chmod 660 /var/run/docker.sock")
 
 		var issues []*healthplatform.Issue
+		var reportHost *healthplatform.HostInfo
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
@@ -138,6 +139,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 				for _, iss := range findIssuesByPrefix(p, issueIDPrefix) {
 					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
+						reportHost = p.HealthReport.Host
 					}
 				}
 			}
@@ -156,6 +158,14 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.Contains(t, issue.Tags, "docker-socket")
 		require.NotNil(t, issue.Remediation, "remediation should be provided")
 		assert.NotEmpty(t, issue.Remediation.Summary)
+
+		// This suite runs on a plain RemoteHost — no Kubernetes, not the
+		// Cluster Agent — so the reporting agent's resource identity in the
+		// serialized HealthReport must be "host" plus its own hostname.
+		require.NotNil(t, reportHost, "health report Host missing")
+		assert.Equal(t, "host", reportHost.ResourceType)
+		assert.Equal(t, reportHost.Hostname, reportHost.ResourceId)
+		assert.NotEmpty(t, reportHost.ResourceId)
 		assert.NotEmpty(t, issue.Remediation.Steps)
 	})
 

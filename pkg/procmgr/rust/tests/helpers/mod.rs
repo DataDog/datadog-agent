@@ -1528,6 +1528,12 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
+    /// `path` is matched against the rendered condition summary, which lists `path:key`.
+    pub fn assert_config_gate_not_met_logged(&self, name: &str, path: &str) {
+        let prefix = format!("[{name}] condition_config_any not met");
+        self.assert_daemon_log_line_contains(&[&prefix, path]);
+    }
+
     pub fn assert_pid_gone(&self, pid: u64) {
         assert!(
             wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
