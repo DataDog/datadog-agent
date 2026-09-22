@@ -11,12 +11,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/receivers"
 )
 
+// URL is an optional escape hatch: empty selects the environment-managed sink
+// (the local base starts it during install/apply), non-empty is an operator-
+// owned sink that must outlive the Agent installation.
 type Config struct {
-	URL string `yaml:"url" config:"required" example:"http://sink.example.test:8080" description:"Externally managed HTTP(S) sink reachable from the Agent network."`
+	URL string `yaml:"url" example:"http://sink.example.test:8080" description:"Externally managed HTTP(S) sink reachable from the Agent network. Empty selects the environment-managed sink (local base)."`
 }
 type Rules struct{}
 
 func (Rules) Validate(c Config) error {
+	if c.URL == "" {
+		return nil
+	}
 	_, err := receivers.EndpointURL(c.URL)
 	return err
 }

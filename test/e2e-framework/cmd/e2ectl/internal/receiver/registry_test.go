@@ -23,6 +23,7 @@ func TestRegistrySchemaValidationIsOffline(t *testing.T) {
 	}{
 		{nil, true}, {selection("fakeintake", ""), true}, {selection("fakeintake", "remote-config: disabled"), true},
 		{selection("fakeintake", "remote-config: receiver"), false}, {selection("blackhole", "url: http://sink:8080"), true},
+		{selection("blackhole", ""), true}, {selection("blackhole", "{}"), true},
 		{selection("datadog", "site: datadoghq.eu\napi-key-ref: runner/api_key"), true}, {selection("datadog", "site: datadoghq.eu\napi-key: secret"), false},
 		{selection("other", ""), false}, {selection("blackhole", "url: ftp://sink"), false},
 	} {
@@ -63,5 +64,57 @@ func TestExpectedFakeintakeNeverFallsBack(t *testing.T) {
 	}
 	if p.Endpoint != "http://dev-fakeintake:80" || p.QueryURL != "http://127.0.0.1:8080" {
 		t.Fatal(p)
+	}
+}
+
+// An empty url selects the environment-managed sink: resolution fails closed
+// until the environment provides the fact, then routes exactly to it. A set
+// url is the external escape hatch and ignores the managed fact.
+func TestBlackholeManagedSelectionResolvesFromFacts(t *testing.T) {
+	s := selection("blackhole", "")
+	for _, facts := range []Facts{{}, {SeparateNetwork: true}, {Blackhole: &BlackholeOutput{}}, {FakeIntake: &outputs.FakeintakeOutput{AgentURL: "http://fixture:80"}}} {
+		if _, err := Resolve(s, facts); err == nil {
+			t.Fatalf("managed blackhole without a running sink fact must fail: %+v", facts)
+		}
+	}
+	p, err := Resolve(s, Facts{SeparateNetwork: true, Blackhole: &BlackholeOutput{AgentURL: "http://dev-blackhole:8080"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Endpoint != "http://dev-blackhole:8080" || p.Type != "blackhole" {
+		t.Fatal(p)
+	}
+	external, err := Resolve(selection("blackhole", "url: http://sink:8080"), Facts{Blackhole: &BlackholeOutput{AgentURL: "http://dev-blackhole:8080"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if external.Endpoint != "http://sink:8080" {
+		t.Fatalf("explicit url must win over the managed fact: %+v", external)
+	}
+	if _, err := Resolve(selection("blackhole", "url: http://127.0.0.1:8080"), Facts{SeparateNetwork: true}); err == nil {
+		t.Fatal("producer-loopback sink URL must stay rejected")
+	}
+}
+
+// Only a valid blackhole selection with an empty url asks the environment for
+// a sink; every other shape stays the caller's own responsibility.
+func TestManagedSinkRequiredPredicate(t *testing.T) {
+	for _, tc := range []struct {
+		s    *config.ReceiverSelection
+		want bool
+	}{
+		{nil, false},
+		{selection("fakeintake", ""), false},
+		{selection("datadog", "site: datadoghq.eu\napi-key-ref: runner/api_key"), false},
+		{selection("blackhole", "url: http://sink:8080"), false},
+		{selection("blackhole", ""), true},
+		{selection("blackhole", "{}"), true},
+		// Invalid sections are reported by validation, never silently managed.
+		{selection("blackhole", "url: not a url"), false},
+		{selection("blackhole", "unknown: x"), false},
+	} {
+		if got := ManagedSinkRequired(tc.s); got != tc.want {
+			t.Fatalf("%+v: managed=%v want %v", tc.s, got, tc.want)
+		}
 	}
 }

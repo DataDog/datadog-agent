@@ -90,6 +90,14 @@ func cmdReceiver(args []string) error {
 	if !ok {
 		return fmt.Errorf("installer does not consume receivers")
 	}
+	// Environment-provided sinks are reconciled before resolution: switching to
+	// a managed blackhole starts the sink, switching away removes it. Planning
+	// stays read-only and reports a missing managed sink instead of creating one.
+	if sub == "apply" {
+		if err := installer.SyncManagedSink(d.SinkSyncer(), cfg, entry); err != nil {
+			return err
+		}
+	}
 	plan, err := planner.PrepareRouting(cfg, entry)
 	if err != nil {
 		return err

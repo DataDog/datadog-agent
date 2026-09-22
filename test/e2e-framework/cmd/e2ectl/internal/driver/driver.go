@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/receiver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
+	agentconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/agent"
 )
 
 // Implementation is the typed extension contract. Validate(P) error is optional;
@@ -43,6 +44,9 @@ type Driver interface {
 	Prepare(*config.File) (*Prepared, error)
 	StarterConfig() ([]byte, error)
 	Stop(envstore.Entry, *envstore.Store) error
+	// SinkSyncer exposes the implementation's optional environment-provided
+	// receiver sink capability, or nil when the base does not provide one.
+	SinkSyncer() installer.ManagedSinkSyncer
 }
 
 // Prepared captures typed input so validation and execution use the same value.
@@ -87,6 +91,13 @@ func Define[P any](schema *configschema.Schema[P], defaultInstaller string, impl
 func (d *typedDriver[P]) ID() string                        { return d.impl.ID() }
 func (d *typedDriver[P]) Description() string               { return d.impl.Description() }
 func (d *typedDriver[P]) Installers() []installer.Installer { return d.impl.Installers() }
+
+// SinkSyncer forwards the implementation's optional sink capability; drivers
+// without one surface a nil syncer, never an error, so callers stay uniform.
+func (d *typedDriver[P]) SinkSyncer() installer.ManagedSinkSyncer {
+	s, _ := any(d.impl).(installer.ManagedSinkSyncer)
+	return s
+}
 
 func (d *typedDriver[P]) Prepare(cfg *config.File) (*Prepared, error) {
 	if err := receiver.Validate(cfg.Agent.Receiver); err != nil {
@@ -162,23 +173,24 @@ func (d *typedDriver[P]) StarterConfig() ([]byte, error) {
 			return nil, fmt.Errorf("invalid %q example: %w", d.ID(), err)
 		}
 	}
-	inst, err := InstallerFor(d, d.defaultInstaller)
+	// The agent section is the simplified surface: the base's default source
+	// selection with comments explaining the three options. The receiver
+	// example is emitted when the base's default mechanism consumes receivers.
+	agentSection, err := agentconfig.Example(d.ID())
 	if err != nil {
 		return nil, err
 	}
-	agentSection, err := inst.AgentExample()
-	if err != nil {
-		return nil, fmt.Errorf("generating %q agent example: %w", d.ID(), err)
-	}
 	var receiverNode *yaml.Node
-	if _, ok := inst.(installer.RoutingConsumer); ok {
+	if inst, err := InstallerFor(d, d.defaultInstaller); err != nil {
+		return nil, err
+	} else if _, ok := inst.(installer.RoutingConsumer); ok {
 		var doc yaml.Node
 		if err := yaml.Unmarshal([]byte("type: fakeintake\nfakeintake:\n  remote-config: disabled\n"), &doc); err != nil {
 			return nil, err
 		}
 		receiverNode = doc.Content[0]
 	}
-	data, err := config.Example(d.ID(), d.Description(), d.defaultInstaller, section, agentSection, receiverNode)
+	data, err := config.Example(d.ID(), d.Description(), section, agentSection, receiverNode)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +198,14 @@ func (d *typedDriver[P]) StarterConfig() ([]byte, error) {
 	if err := config.NewErrors(errs); err != nil {
 		return nil, err
 	}
+	// Validate through the DERIVED installer: the generated config must
+	// install as-is, not just parse.
+	inst, err := InstallerFor(d, cfg.Agent.Install)
+	if err != nil {
+		return nil, err
+	}
 	if err := config.NewErrors(inst.Validate(cfg)); err != nil {
-		return nil, fmt.Errorf("invalid installer example: %w", err)
+		return nil, fmt.Errorf("invalid starter agent selection: %w", err)
 	}
 	return data, nil
 }

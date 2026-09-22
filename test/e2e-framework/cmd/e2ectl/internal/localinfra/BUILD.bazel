@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "localinfra",
     srcs = [
+        "blackhole.go",
         "docker.go",
         "fakeintake.go",
         "volume.go",
@@ -20,6 +21,9 @@ go_library(
 
 dd_agent_go_test(
     name = "localinfra_test",
-    srcs = ["volume_test.go"],
+    srcs = [
+        "blackhole_test.go",
+        "volume_test.go",
+    ],
     embed = [":localinfra"],
 )

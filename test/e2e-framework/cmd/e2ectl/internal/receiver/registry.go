@@ -24,13 +24,22 @@ import (
 // Facts are inventory projection, not a topology or an initialized environment.
 type Facts struct {
 	FakeIntake      *outputs.FakeintakeOutput
+	Blackhole       *BlackholeOutput
 	SeparateNetwork bool
+}
+
+// BlackholeOutput is the environment-managed sink's snapshot projection: the
+// URL the Agent uses inside the environment network. It is present only while
+// the managed sink container is running.
+type BlackholeOutput struct {
+	AgentURL string `json:"agentURL"`
 }
 
 type Definition struct {
 	ID          string
 	Description string
 	validate    func(*config.ReceiverSelection) error
+	decode      func(*config.ReceiverSelection) (any, error)
 	resolve     func(*config.ReceiverSelection, Facts) (receivers.Plan, error)
 	Serve       func() http.Handler
 }
@@ -51,6 +60,7 @@ func Define[P any](id, description string, schema *configschema.Schema[P], resol
 	}
 	return Definition{ID: id, Description: description, Serve: serve,
 		validate: func(s *config.ReceiverSelection) error { _, err := decode(s); return err },
+		decode:   func(s *config.ReceiverSelection) (any, error) { return decode(s) },
 		resolve: func(s *config.ReceiverSelection, f Facts) (receivers.Plan, error) {
 			p, err := decode(s)
 			if err != nil {
@@ -78,13 +88,39 @@ var registry = []Definition{
 		return p, err
 	}, nil),
 	Define("datadog", "Native Datadog ingestion with explicit site and runner reference", dc.Schema, func(p dc.Config, _ Facts) (receivers.Plan, error) { return receivers.Datadog(p.Site, p.APIKeyRef) }, nil),
-	Define("blackhole", "Stateless, externally managed HTTP intake sink", bc.Schema, func(p bc.Config, f Facts) (receivers.Plan, error) {
-		endpoint, err := receivers.AgentURL(p.URL, f.SeparateNetwork)
+	Define("blackhole", "Stateless HTTP intake sink: environment-managed on the local base, or bring your own via url", bc.Schema, func(p bc.Config, f Facts) (receivers.Plan, error) {
+		url := p.URL
+		if url == "" {
+			if f.Blackhole == nil || f.Blackhole.AgentURL == "" {
+				return receivers.Plan{}, fmt.Errorf("managed blackhole sink is not running; the local base starts it on install/receiver apply, or set blackhole.url for an externally managed sink")
+			}
+			url = f.Blackhole.AgentURL
+		}
+		endpoint, err := receivers.AgentURL(url, f.SeparateNetwork)
 		if err != nil {
 			return receivers.Plan{}, err
 		}
 		return receivers.Capture("blackhole", endpoint, "")
 	}, blackhole.Handler),
+}
+
+// ManagedSinkRequired reports whether the selection resolves through the
+// environment-provided sink: blackhole with an empty url. Invalid sections are
+// never managed — schema validation reports them before any sink is started.
+func ManagedSinkRequired(s *config.ReceiverSelection) bool {
+	if s == nil || s.Type != "blackhole" {
+		return false
+	}
+	d, err := Get("blackhole")
+	if err != nil {
+		return false
+	}
+	v, err := d.decode(s)
+	if err != nil {
+		return false
+	}
+	c, ok := v.(bc.Config)
+	return ok && c.URL == ""
 }
 
 func Get(id string) (Definition, error) {
