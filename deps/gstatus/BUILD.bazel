@@ -76,6 +76,9 @@ copy_to_directory(
 
 # Merge all staged sources + pyproject.toml + committed version.py into a
 # single flat directory that hatchling can build from.
+# version.py is placed at the top level (not under gstatus/) because the
+# upstream __main__.py does `import version as gstatus_version` which
+# expects a top-level version module.
 copy_to_directory(
     name = "wheel_src",
     srcs = [
@@ -90,7 +93,6 @@ copy_to_directory(
         "glustercli_srcs_dir/": "",
         "glusterlib_srcs_dir/": "",
         "gstatus_pkg_srcs_dir/": "",
-        "version.py": "gstatus/version.py",
     },
 )
 
