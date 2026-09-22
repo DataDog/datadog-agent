@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 // fakeWmeta implements only the workloadmeta methods LocalStore uses.
@@ -161,7 +163,18 @@ func newTestStore(t *testing.T) *LocalStore {
 		deploymentEntity: {"kube_namespace:default", "deployment:web"},
 	}}
 
-	return NewLocalStore(wmeta, tagger, "dca-0")
+	client := k8sfake.NewSimpleClientset()
+	manager := NewLeaseManager(client, "datadog", "dca-0", 40*time.Second, 2*time.Hour)
+	ring := NewRingController(manager, MemberID("datadog", "dca-0"), time.Second,
+		func(ctx context.Context) ([]string, error) {
+			return []string{"node-a"}, nil
+		})
+	require.NoError(t, ring.Reconcile(context.Background()))
+	for _, node := range ring.State().MyNodes {
+		ring.SetNodeSynced(node, true)
+	}
+
+	return NewLocalStore(wmeta, tagger, ring)
 }
 
 // TestLookup tests named lookups across kinds and found/absent results.
@@ -280,7 +293,7 @@ func TestLookupFanout(t *testing.T) {
 
 	local := newTestStore(t)
 	peer := &fakePeer{}
-	store := NewLocalStore(local.wmeta, local.tagger, "dca-0", peer)
+	store := NewLocalStore(local.wmeta, local.tagger, local.ring, peer)
 
 	found, err := store.Lookup(ctx, podReq)
 	require.NoError(t, err)
@@ -330,7 +343,7 @@ func TestLookupOriginFanout(t *testing.T) {
 
 	local := newTestStore(t)
 	peer := &fakePeer{}
-	store := NewLocalStore(local.wmeta, local.tagger, "dca-0", peer)
+	store := NewLocalStore(local.wmeta, local.tagger, local.ring, peer)
 
 	found, err := store.LookupOrigin(ctx, localReq)
 	require.NoError(t, err)
@@ -364,9 +377,9 @@ func TestRingAndSubscribe(t *testing.T) {
 	ring, err := store.Ring(ctx)
 	require.NoError(t, err)
 	require.Len(t, ring.Members, 1)
-	assert.Equal(t, "dca-0", ring.Members[0].Name)
+	assert.Equal(t, MemberID("datadog", "dca-0"), ring.Members[0].Name)
 	assert.Equal(t, []string{"node-a"}, ring.Members[0].Nodes)
-	assert.True(t, ring.Members[0].Ready)
+	assert.True(t, ring.Members[0].Ready, "all owned nodes are synced in the test fixture")
 
 	_, _, err = store.Subscribe(ctx, "node-a", cm.Scope{Consumer: "test"})
 	assert.Error(t, err, "subscribe arrives with the node stream increment")
