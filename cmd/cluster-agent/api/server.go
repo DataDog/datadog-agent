@@ -43,6 +43,7 @@ import (
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	apiMiddleware "github.com/DataDog/datadog-agent/pkg/api/middleware"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -59,7 +60,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component, metadataPeerServer *clustermetadata.PeerServer) error {
 	// create the root HTTP router
 	router = http.NewServeMux()
 	apiRouter = http.NewServeMux()
@@ -131,6 +132,11 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		taggerServer:       taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 		kubeMetadataServer: startKubeMetadataStreamer(ctx, w),
 	})
+	if metadataPeerServer != nil {
+		// The metadata ring's peer surface: answers from the local cache
+		// only, behind the same auth interceptor as the rest.
+		metadataPeerServer.Register(grpcSrv)
+	}
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
 	errorLog := stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
