@@ -26,12 +26,17 @@ Configured Delegated Auth Instances:
   {{- if $info.CredentialSource }}
   Credential Source: {{ $info.CredentialSource }}
   {{- end }}
+  {{- if $info.RefreshInterval }}
   Refresh Interval: {{ $info.RefreshInterval }}
+  {{- end }}
   {{- if $info.LastRefresh }}
   Last Refresh: {{ $info.LastRefresh }}
   {{- end }}
   {{- if $info.NextRefresh }}
   Next Refresh: {{ $info.NextRefresh }}
+  {{- end }}
+  {{- if $info.NextRetry }}
+  Next Retry: {{ $info.NextRetry }}
   {{- end }}
   {{- if $info.Error }}
   Error: {{ $info.Error }}

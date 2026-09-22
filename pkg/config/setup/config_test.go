@@ -7,7 +7,6 @@ package setup
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,59 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func TestAddDelegatedAuthInstanceRecoversAfterDeadlineWhenAsyncStartupIsAllowed(t *testing.T) {
-	config := newTestConf(t)
-	config.Set("api_key", "static-key", pkgconfigmodel.SourceFile)
-	backgroundCall := make(chan struct{}, 1)
-	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
-		backgroundCall <- struct{}{}
-		return nil
-	}}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-	defer cancel()
-	params := delegatedauth.InstanceParams{Config: config, APIKeyConfigKey: "api_key", AllowAsyncStartup: true}
-
-	require.NoError(t, addDelegatedAuthInstance(ctx, comp, params))
-	select {
-	case <-backgroundCall:
-		assert.Equal(t, "delegated-key", config.GetString("api_key"))
-	case <-time.After(time.Second):
-		t.Fatal("background recovery did not update the API key")
-	}
-}
-
-func TestAddDelegatedAuthInstanceKeepsStaticKeyAfterDeadlineWhenAsyncStartupIsDisabled(t *testing.T) {
-	config := newTestConf(t)
-	config.Set("logs_config.api_key", "static-key", pkgconfigmodel.SourceFile)
-	calls := 0
-	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
-		calls++
-		if calls > 1 {
-			params.Config.Set(params.APIKeyConfigKey, "delegated-key", pkgconfigmodel.SourceAgentRuntime)
-		}
-		return ctx.Err()
-	}}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-	defer cancel()
-
-	err := addDelegatedAuthInstance(ctx, comp, delegatedauth.InstanceParams{
-		Config:          config,
-		APIKeyConfigKey: "logs_config.api_key",
-	})
-
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.Equal(t, 1, calls)
-	assert.Equal(t, "static-key", config.GetString("logs_config.api_key"))
-}
-
 func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
 	config := newTestConf(t)
-	config.Set("delegated_auth.org_uuid", "primary-org", pkgconfigmodel.SourceFile)
-	config.Set("logs_config.delegated_auth.org_uuid", "logs-org", pkgconfigmodel.SourceFile)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
 
 	paramsByKey := map[string]delegatedauth.InstanceParams{}
 	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
@@ -97,21 +47,24 @@ func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T)
 	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
 }
 
-func TestConfigureDelegatedAuthSharesStartupBudgetAcrossEndpointShapes(t *testing.T) {
+func TestConfigureDelegatedAuthSharesStartupBudgetAndAllowsEndpointRecovery(t *testing.T) {
 	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
-	backgroundCalls := make(chan string, 3)
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	var sharedCtx context.Context
 	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
-		if ctx.Done() != nil {
+		if sharedCtx == nil {
+			sharedCtx = ctx
 			startupCtx.expire()
-			<-ctx.Done()
-			return ctx.Err()
+		} else {
+			assert.Same(t, sharedCtx, ctx)
 		}
-		backgroundCalls <- params.APIKeyConfigKey
-		return errors.New("stop after recording background registration")
+		paramsByKey[params.APIKeyConfigKey] = params
+		return ctx.Err()
 	}}
 	config := confFromYAML(t, `
 delegated_auth:
   org_uuid: flat-org
+  startup_timeout_secs: 5
 additional_endpoints:
   https://metrics.datadoghq.com:
     - DELA(map-org, aws)
@@ -121,22 +74,22 @@ logs_config:
     - host: logs.datadoghq.com
       api_key: DELA(list-org, aws)
 `)
+	startedAt := time.Now()
 	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+	require.NotNil(t, sharedCtx)
+	assert.NotSame(t, startupCtx, sharedCtx)
+	deadline, ok := sharedCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, startedAt.Add(5*time.Second), deadline, time.Second)
 
-	got := make([]string, 0, 3)
-	for range 3 {
-		select {
-		case key := <-backgroundCalls:
-			got = append(got, key)
-		case <-time.After(time.Second):
-			t.Fatal("background registration did not run")
-		}
-	}
-	assert.ElementsMatch(t, []string{
+	for _, key := range []string{
 		"api_key",
 		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
 		"logs_config.additional_endpoints[0][list-org]",
-	}, got)
+	} {
+		require.Contains(t, paramsByKey, key)
+		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
 }
 
 type expiringDeadlineContext struct {

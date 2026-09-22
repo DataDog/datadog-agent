@@ -235,7 +235,7 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 	params.ProviderConfig = instanceProviderConfig
 	params.AdditionalEndpointDirective = directiveText
 
-	err = addDelegatedAuthInstance(ctx, delegatedAuthComp, params)
+	err = delegatedAuthComp.AddInstance(ctx, params)
 	if err != nil {
 		log.Errorf("Failed to configure delegated auth for %s: %v", describe, err)
 	}
