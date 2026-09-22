@@ -166,11 +166,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task()
-def gen_mocks(ctx):
+def gen_mocks(_):
     """
     Generate mocks.
     """
-    ctx.run("mockery")
+    bazel("run", "//internal/tools:mockery")
 
 
 @task
@@ -581,7 +581,9 @@ def cws_go_generate(ctx, verbose=False):
     bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
     bazel("run", "//docs/cloud-workload-security:secl_linux")
     bazel("run", "//docs/cloud-workload-security:secl_windows")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
+    bazel("run", "//pkg/security/secl/schemas:policy_schema")
+    bazel("run", "//docs/cloud-workload-security:workload_protection_agent_config_schema")
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
             ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
