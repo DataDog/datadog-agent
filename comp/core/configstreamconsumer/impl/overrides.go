@@ -46,15 +46,16 @@ func (c *consumer) applyOverrides() {
 	streamed := configstreambootstrap.Config()
 	for _, o := range overrides {
 		cfg := streamed
-		if o.target == systemProbeTarget {
-			cfg = configstreambootstrap.SystemProbeConfig()
-		}
 		// Non-string values are dropped: pkg/util/log/setup's log_level callback asserts to string unchecked.
 		value, _ := streamed.Get(o.namespacedKey).(string)
-		if value == "" && o.target != streamedTarget {
-			// The base key only carries the streamed value on the streamed object, so a write to
-			// another object has to carry it across itself rather than fall through to it.
-			value, _ = streamed.Get(o.baseKey).(string)
+		if o.target == systemProbeTarget {
+			cfg = configstreambootstrap.SystemProbeConfig()
+			// The destination object holds none of the stream's layers for the base key, so the write
+			// cannot lose to them: resolve the winner here and copy it over instead.
+			base, _ := streamed.Get(o.baseKey).(string)
+			if base != "" && (value == "" || streamed.GetSource(o.baseKey).IsGreaterThan(pkgconfigmodel.SourceAgentRuntime)) {
+				value = base
+			}
 		}
 		if value != "" {
 			// SourceAgentRuntime outranks file/env yet still loses to a streamed RC/CLI value; Set panics on SourceEnvVar.
