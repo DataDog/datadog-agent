@@ -15,7 +15,8 @@ import (
 const OwnedNodesAnnotation = "clusteragent.datadoghq.com/owned-nodes"
 
 // MemberInfo is a ring member's lease state, extracted from its Lease by
-// the wiring layer. Name is the member identity (pod name).
+// the wiring layer. Name is the member identity: "namespace/pod-name"
+// (see MemberID).
 type MemberInfo struct {
 	Name      string
 	RenewedAt time.Time
