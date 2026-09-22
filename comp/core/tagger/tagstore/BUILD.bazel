@@ -38,6 +38,7 @@ dd_agent_go_test(
         "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",

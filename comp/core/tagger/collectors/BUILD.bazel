@@ -47,7 +47,9 @@ dd_agent_go_test(
     name = "collectors_test",
     srcs = [
         "ecs_common_test.go",
+        "export_test.go",
         "resolvable_adapter_test.go",
+        "workloadmeta_tagstore_test.go",
         "workloadmeta_test.go",
     ],
     embed = [":collectors"],
@@ -57,6 +59,7 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/core/tagger/taglist",
         "//comp/core/tagger/tags",
+        "//comp/core/tagger/tagstore",
         "//comp/core/tagger/types",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
@@ -72,6 +75,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@org_uber_go_fx//:fx",
     ],
 )

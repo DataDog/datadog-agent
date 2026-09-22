@@ -60,6 +60,16 @@ func TestShouldHaveDeploymentStore(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			// Autoscaler kinds hang off the KubernetesDeployment entity, so the
+			// store has to run even when nothing else needs it.
+			name: "autoscaler tags enabled on its own",
+			cfg: map[string]interface{}{
+				"cluster_agent.autoscaler_tags.enabled": true,
+				"language_detection.enabled":            false,
+			},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

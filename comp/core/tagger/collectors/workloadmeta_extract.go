@@ -50,11 +50,6 @@ const (
 	dockerLabelService = "com.datadoghq.tags.service"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
-
-	// Datadog Autoscaling annotation
-	// (from pkg/clusteragent/autoscaling/workload/model/const.go)
-	// no importing due to packages it pulls
-	datadogAutoscalingIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 )
 
 var (
@@ -336,25 +331,16 @@ func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workl
 		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
 	}
 
-	low, orch, high, standard := tagList.Compute()
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
+	// Registered even when no annotation maps to a tag: the container is still
+	// this image's child. The TagInfo may be empty, which clears previously
+	// published annotation tags right away (and is a no-op otherwise), rather
+	// than leaving them to the next image event's DeleteEntity and deletedTTL.
 	c.registerChild(image.EntityID, container.EntityID)
 
-	return &types.TagInfo{
-		// containerImageSource here is not a mistake: image annotation tags are
-		// owned by the image entity, so the container inherits them from that
-		// source.
-		Source:               containerImageSource,
-		EntityID:             common.BuildTaggerEntityID(container.EntityID),
-		HighCardTags:         high,
-		OrchestratorCardTags: orch,
-		LowCardTags:          low,
-		StandardTags:         standard,
-		IsComplete:           c.containerCompleteness(container.ID, rawComplete),
-	}
+	// containerImageSource here is not a mistake: image annotation tags are
+	// owned by the image entity, so the container inherits them from that
+	// source.
+	return newTagInfo(containerImageSource, container.EntityID, tagList, c.containerCompleteness(container.ID, rawComplete))
 }
 
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
@@ -397,22 +383,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 		ExtractGPUTags(gpu, tagList)
 	}
 
-	low, orch, high, standard := tagList.Compute()
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
-			Source:               processSource,
-			EntityID:             common.BuildTaggerEntityID(process.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
+	return []*types.TagInfo{newTagInfo(processSource, process.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*types.TagInfo {
@@ -553,9 +524,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
-	// autoscaler presence
-	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
-		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
+	// autoscaler presence. The set is populated by the Cluster Agent, which
+	// resolves every autoscaler kind acting on the pod's workload, and is
+	// empty when the workload is not autoscaled.
+	for kind := range pod.AutoscalerKinds {
+		tagList.AddLow(tags.KubeAutoscalerKind, kind)
 	}
 
 	kubeServiceDisabled := slices.Contains(c.cfg.GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
@@ -785,42 +758,28 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
 	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
 
-	if len(labelsAsTags)+len(annotationsAsTags) == 0 {
-		return nil
-	}
-
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
 	tagList := taglist.NewTagList()
 
-	for name, value := range deployment.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	// Note this runs before the labels/annotations-as-tags check below: a
+	// deployment can carry autoscaler tags without any of those configured.
+	for kind := range deployment.AutoscalerKinds {
+		tagList.AddLow(tags.KubeAutoscalerKind, kind)
 	}
 
-	for name, value := range deployment.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	if len(labelsAsTags)+len(annotationsAsTags) > 0 {
+		globLabels := c.globK8sResourcesLabels[groupResource]
+		globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+		for name, value := range deployment.Labels {
+			k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+		}
+
+		for name, value := range deployment.Annotations {
+			k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+		}
 	}
 
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               deploymentSource,
-			EntityID:             common.BuildTaggerEntityID(deployment.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
-
-	return tagInfos
+	return []*types.TagInfo{newTagInfo(deploymentSource, deployment.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.TagInfo {
@@ -838,23 +797,7 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 	tagList := taglist.NewTagList()
 	c.addResourceLabelsAndAnnotationsAsTags(groupResource, node.Labels, node.Annotations, tagList)
 
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
-			Source:               nodeSource,
-			EntityID:             common.BuildTaggerEntityID(node.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
+	return []*types.TagInfo{newTagInfo(nodeSource, node.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
@@ -879,25 +822,7 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
 	}
 
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               kubeMetadataSource,
-			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
-
-	return tagInfos
+	return []*types.TagInfo{newTagInfo(kubeMetadataSource, kubeMetadata.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleKubeKueueQueue(ev workloadmeta.Event) []*types.TagInfo {
@@ -905,23 +830,7 @@ func (c *WorkloadMetaCollector) handleKubeKueueQueue(ev workloadmeta.Event) []*t
 
 	tagList := taglist.NewTagList()
 	c.extractKueueQueueTags(queue, tagList)
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
-			Source:               kueueQueueSource,
-			EntityID:             common.BuildTaggerEntityID(queue.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
+	return []*types.TagInfo{newTagInfo(kueueQueueSource, queue.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Event) []*types.TagInfo {
@@ -929,23 +838,7 @@ func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Ev
 
 	tagList := taglist.NewTagList()
 	c.extractKueueResourceFlavorTags(flavor, tagList)
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
-			Source:               kueueResourceFlavorSource,
-			EntityID:             common.BuildTaggerEntityID(flavor.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
+	return []*types.TagInfo{newTagInfo(kueueResourceFlavorSource, flavor.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) []*types.TagInfo {
@@ -953,23 +846,7 @@ func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) [
 
 	tagList := taglist.NewTagList()
 	c.extractKueueWorkloadAndRelatedTags(workload, "", tagList)
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
-			Source:               kueueWorkloadSource,
-			EntityID:             common.BuildTaggerEntityID(workload.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
+	return []*types.TagInfo{newTagInfo(kueueWorkloadSource, workload.EntityID, tagList, ev.IsComplete)}
 }
 
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
@@ -978,25 +855,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	tagList := taglist.NewTagList()
 	ExtractGPUTags(gpu, tagList)
 
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               gpuSource,
-			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
-	}
-
-	return tagInfos
+	return []*types.TagInfo{newTagInfo(gpuSource, gpu.EntityID, tagList, ev.IsComplete)}
 }
 
 // ExtractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
@@ -1430,6 +1289,26 @@ func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityI
 	}
 
 	m[childTaggerEntityID] = struct{}{}
+}
+
+// newTagInfo builds the TagInfo publishing tagList for entityID under source.
+//
+// It always returns a TagInfo, even when tagList is empty. An empty one tells
+// the tag store that this source has no tags for the entity (anymore), and the
+// store decides what that means: nothing if the source never published
+// anything for it, clearing the previous tags otherwise. Returning nil instead
+// would mean "no update", leaving stale tags in place for good.
+func newTagInfo(source string, entityID workloadmeta.EntityID, tagList *taglist.TagList, isComplete bool) *types.TagInfo {
+	low, orch, high, standard := tagList.Compute()
+	return &types.TagInfo{
+		Source:               source,
+		EntityID:             common.BuildTaggerEntityID(entityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+		IsComplete:           isComplete,
+	}
 }
 
 func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.TagInfo {

@@ -66,7 +66,11 @@ func shouldHaveDeploymentStore(cfg config.Reader) bool {
 	hasDeploymentsLabelsAsTags := len(metadataAsTags.GetResourcesLabelsAsTags()["deployments.apps"]) > 0
 	hasDeploymentsAnnotationsAsTags := len(metadataAsTags.GetResourcesAnnotationsAsTags()["deployments.apps"]) > 0
 
-	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
+	// Autoscaler tags hang off the KubernetesDeployment entity, so the store has
+	// to run whenever the feature is on, regardless of the other consumers.
+	return shouldCollectAutoscalerTags(cfg) ||
+		cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") ||
+		hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
@@ -276,6 +280,12 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		reflector, store := newDeploymentStore(wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
+	}
+
+	if shouldCollectAutoscalerTags(c.config) {
+		index := newAutoscalerIndex(wlmetaStore)
+		objectStores = append(objectStores, startAutoscalerStores(ctx, index, client.Discovery(), apiserverClient.DynamicInformerCl)...)
+		go index.watchPods(ctx, wlmetaStore)
 	}
 
 	if shouldHaveKueueMetadata(c.config) {

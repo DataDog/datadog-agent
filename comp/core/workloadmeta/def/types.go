@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -122,6 +123,13 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
+
+	// SourceKubeAutoscalers represents the mapping from a workload to the
+	// autoscalers acting on it, collected from the Kubernetes API Server by the
+	// Cluster Agent. It is kept separate from SourceKubeAPIServer because both
+	// write to the same entity IDs and workloadmeta merges sources by key
+	// union: only this source may ever set AutoscalerKinds.
+	SourceKubeAutoscalers Source = "kube_autoscalers"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -831,13 +839,18 @@ type KubernetesPod struct {
 	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	FinishedAt                 time.Time           `proto:"ignore"`
-	SecurityContext            *PodSecurityContext `proto:"ignore"`
-	Resources                  ContainerResources  `proto:"ignore"`
-	DeletionTimestamp          *time.Time          `proto:"ignore"`
-	ReadyTimestamp             *time.Time          `proto:"ignore"`
+	// AutoscalerKinds is the set of autoscaler kinds acting on the workload
+	// owning this pod: hpa, wpa, dpa, keda, vpa. Empty when the workload is
+	// not autoscaled, or when autoscaler tag collection is disabled in the
+	// Cluster Agent.
+	AutoscalerKinds      sets.Set[string]
+	NamespaceLabels      map[string]string
+	NamespaceAnnotations map[string]string   `proto:"ignore"`
+	FinishedAt           time.Time           `proto:"ignore"`
+	SecurityContext      *PodSecurityContext `proto:"ignore"`
+	Resources            ContainerResources  `proto:"ignore"`
+	DeletionTimestamp    *time.Time          `proto:"ignore"`
+	ReadyTimestamp       *time.Time          `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
@@ -926,6 +939,7 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
+		_, _ = fmt.Fprintln(&sb, "Autoscaler Kinds:", sliceToString(sets.List(p.AutoscalerKinds)))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
 		_, _ = fmt.Fprintln(&sb, "Namespace Annotations:", mapToString(p.NamespaceAnnotations))
 
@@ -1413,6 +1427,11 @@ type KubernetesDeployment struct {
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
 	DetectedLanguages languagemodels.ContainersLanguages
+
+	// AutoscalerKinds is the set of autoscaler kinds acting on this deployment:
+	// hpa, wpa, dpa, keda, vpa. Empty when the deployment is not autoscaled, or
+	// when autoscaler tag collection is disabled.
+	AutoscalerKinds sets.Set[string]
 }
 
 // GetID implements Entity#GetID.
@@ -1483,6 +1502,9 @@ func (d KubernetesDeployment) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
 	langPrinter(d.DetectedLanguages)
+
+	_, _ = fmt.Fprintln(&sb, "----------- Autoscalers -----------")
+	_, _ = fmt.Fprintln(&sb, "Autoscaler Kinds:", sliceToString(sets.List(d.AutoscalerKinds)))
 	return sb.String()
 }
 

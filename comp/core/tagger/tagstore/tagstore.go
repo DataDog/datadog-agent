@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -132,6 +133,24 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			expiryDate:           info.ExpiryDate,
 		}
 
+		// A TagInfo with no tags means "this source has no tags for this
+		// entity". Collectors send one whenever that is the case, and the store
+		// is where it gets its meaning, because only the store knows what was
+		// published before:
+		//   - if this source never published anything for the entity, there is
+		//     nothing to clear: ignore it, so no empty entity or source entry is
+		//     created. The check is per (entity, source), not per entity: a
+		//     container is always known, and an empty source entry on every one
+		//     of them would be pure churn for subscribers.
+		//   - otherwise it clears the source's tags (below), and removes the
+		//     entity outright if no source has tags left.
+		// sources() rather than tagsForSource(): single-source entities log an
+		// error when asked about another source.
+		clearing := newSt.isEmpty()
+		if clearing && (!exist || !slices.Contains(storedTags.sources(), info.Source)) {
+			continue
+		}
+
 		eventType := types.EventTypeModified
 		tagsChanged := true
 		if exist {
@@ -160,6 +179,20 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			storedTags.setTagsForSource(info.Source, newSt)
 		}
 		storedTags.setIsComplete(info.IsComplete)
+
+		// The entity has no tags left from any source: remove it now rather
+		// than at the next Prune(). An entity found with no tags is not the
+		// same as one not found: origin detection treats the former as
+		// resolved and skips its fallbacks.
+		if clearing && storedTags.shouldRemove() {
+			delete(s.incompleteEntities, info.EntityID)
+			s.store.Unset(info.EntityID)
+			events = append(events, types.EntityEvent{
+				EventType: types.EventTypeDeleted,
+				Entity:    storedTags.toEntity(),
+			})
+			continue
+		}
 
 		s.trackCompletenessDelay(info.EntityID, eventType, info.IsComplete)
 

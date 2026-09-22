@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -247,26 +248,18 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 			HighCardTags: []string{"s2tag"},
 		},
 		{
-			Source:      "emptySource1",
-			EntityID:    emptyEntityID1,
-			LowCardTags: []string{},
-		},
-		{
-			Source:       "emptySource2",
-			EntityID:     emptyEntityID2,
-			StandardTags: []string{},
-		},
-		{
-			Source:      "emptySource3",
-			EntityID:    entityID3,
-			LowCardTags: []string{},
-		},
-		{
 			Source:      "source3",
 			EntityID:    entityID3,
 			LowCardTags: []string{"s3tag"},
 		},
 	})
+
+	// ProcessTagInfo no longer creates empty entities or empty source entries
+	// (see TestProcessTagInfo_EmptyTagInfo), but Prune still has to clean them
+	// up if they exist, so set that state up directly.
+	s.setRawSourceTags(emptyEntityID1, "emptySource1", sourceTags{lowCardTags: []string{}})
+	s.setRawSourceTags(emptyEntityID2, "emptySource2", sourceTags{standardTags: []string{}})
+	s.setRawSourceTags(entityID3, "emptySource3", sourceTags{lowCardTags: []string{}})
 
 	tagStoreSize := s.tagstore.store.Size()
 	assert.Equalf(s.T(), tagStoreSize, 5, "should have 5 item(s), but has %d", tagStoreSize)
@@ -295,6 +288,17 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	assert.ErrorIs(s.T(), err, ErrNotFound)
 	_, err = s.tagstore.LookupHashed(emptyEntityID2, types.HighCardinality)
 	assert.ErrorIs(s.T(), err, ErrNotFound)
+}
+
+// setRawSourceTags writes a source's tags straight into the store, bypassing
+// ProcessTagInfo, to set up states it would not produce itself.
+func (s *StoreTestSuite) setRawSourceTags(entityID types.EntityID, source string, st sourceTags) {
+	et, exists := s.tagstore.store.Get(entityID)
+	if !exists {
+		et = newEntityTags(entityID, source)
+		s.tagstore.store.Set(entityID, et)
+	}
+	et.setTagsForSource(source, st)
 }
 
 func (s *StoreTestSuite) TestList() {
@@ -682,6 +686,133 @@ func TestSubscribe(t *testing.T) {
 
 	checkEvents(t, expectedEvents, highCardEvents, types.HighCardinality)
 	checkEvents(t, expectedEvents, lowCardEvents, types.LowCardinality)
+}
+
+// TestProcessTagInfo_EmptyTagInfo covers what a TagInfo carrying no tags (as
+// opposed to a DeleteEntity) means to the store. Collectors send one whenever a
+// source has no tags for an entity, and only the store knows whether that
+// clears something.
+func TestProcessTagInfo_EmptyTagInfo(t *testing.T) {
+	entityID := types.NewEntityID(types.KubernetesDeployment, "default/fooapp")
+
+	// Subscribing needs a telemetry store; NewTagStore(nil) would panic there.
+	newStore := func(t *testing.T) *TagStore {
+		tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+		return newTagStoreWithClock(clock.New(), taggerTelemetry.NewStore(tel))
+	}
+
+	// eventsDuring returns the events subscribers receive while fn runs.
+	eventsDuring := func(t *testing.T, store *TagStore, fn func()) []types.EntityEvent {
+		t.Helper()
+		sub, err := store.Subscribe("empty-taginfo-test", types.NewFilterBuilder().Build(types.HighCardinality))
+		require.NoError(t, err)
+		// Subscribing replays existing entities as Added; drain those first.
+		for drained := false; !drained; {
+			select {
+			case <-sub.EventsChan():
+			default:
+				drained = true
+			}
+		}
+		fn()
+		var events []types.EntityEvent
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go collectEvents(&wg, &events, sub.EventsChan())
+		sub.Unsubscribe()
+		wg.Wait()
+		return events
+	}
+	empty := func(source string) []*types.TagInfo {
+		return []*types.TagInfo{{Source: source, EntityID: entityID, LowCardTags: []string{}}}
+	}
+	withTags := func(source string, tags ...string) []*types.TagInfo {
+		return []*types.TagInfo{{Source: source, EntityID: entityID, LowCardTags: tags}}
+	}
+
+	for _, agentFlavor := range []string{flavor.DefaultAgent, flavor.ClusterAgent} {
+		// The Cluster Agent stores single-source entities, every other flavor
+		// multi-source ones: both have to agree.
+		t.Run(agentFlavor, func(t *testing.T) {
+			flavor.SetTestFlavor(t, agentFlavor)
+
+			t.Run("never published: no entity created", func(t *testing.T) {
+				store := newStore(t)
+				events := eventsDuring(t, store, func() { store.ProcessTagInfo(empty("src")) })
+
+				_, err := store.LookupHashed(entityID, types.LowCardinality)
+				assert.ErrorIs(t, err, ErrNotFound)
+				assert.Empty(t, events)
+			})
+
+			t.Run("published before: cleared and removed immediately", func(t *testing.T) {
+				store := newStore(t)
+				store.ProcessTagInfo(withTags("src", "team:platform"))
+
+				events := eventsDuring(t, store, func() { store.ProcessTagInfo(empty("src")) })
+
+				// No Prune() call: removal must not wait for it. An entity found
+				// with no tags would stop origin detection's fallbacks.
+				_, err := store.LookupHashed(entityID, types.LowCardinality)
+				assert.ErrorIs(t, err, ErrNotFound)
+				require.Len(t, events, 1)
+				assert.Equal(t, types.EventTypeDeleted, events[0].EventType)
+				assert.Equal(t, entityID, events[0].Entity.ID)
+			})
+
+			t.Run("published before, then again: re-created", func(t *testing.T) {
+				store := newStore(t)
+				store.ProcessTagInfo(withTags("src", "team:platform"))
+				store.ProcessTagInfo(empty("src"))
+				store.ProcessTagInfo(withTags("src", "team:data"))
+
+				tags, err := store.LookupHashed(entityID, types.LowCardinality)
+				require.NoError(t, err)
+				assert.Equal(t, []string{"team:data"}, tags.Get())
+			})
+		})
+	}
+
+	// Multi-source only: the single-source entities of the Cluster Agent cannot
+	// hold a second source.
+	t.Run("multi-source", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		collectors.CollectorPriorities["src1"] = types.NodeRuntime
+		collectors.CollectorPriorities["src2"] = types.NodeOrchestrator
+		t.Cleanup(func() {
+			delete(collectors.CollectorPriorities, "src1")
+			delete(collectors.CollectorPriorities, "src2")
+		})
+
+		// The check is per (entity, source), not per entity: a container is
+		// always a known entity, so an entity-level check would add an empty
+		// source entry, and an event, for every one of them.
+		t.Run("source never published on a known entity: ignored", func(t *testing.T) {
+			store := newStore(t)
+			store.ProcessTagInfo(withTags("src1", "a:1"))
+
+			events := eventsDuring(t, store, func() { store.ProcessTagInfo(empty("src2")) })
+
+			assert.Empty(t, events)
+			et, ok := store.store.Get(entityID)
+			require.True(t, ok)
+			assert.Equal(t, []string{"src1"}, et.sources(), "no empty source entry")
+		})
+
+		t.Run("one of two sources cleared: the other survives", func(t *testing.T) {
+			store := newStore(t)
+			store.ProcessTagInfo(withTags("src1", "a:1"))
+			store.ProcessTagInfo(withTags("src2", "b:2"))
+
+			events := eventsDuring(t, store, func() { store.ProcessTagInfo(empty("src2")) })
+
+			tags, err := store.LookupHashed(entityID, types.LowCardinality)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"a:1"}, tags.Get())
+			require.Len(t, events, 1)
+			assert.Equal(t, types.EventTypeModified, events[0].EventType)
+		})
+	})
 }
 
 func collectEvents(wg *sync.WaitGroup, events *[]types.EntityEvent, ch chan []types.EntityEvent) {

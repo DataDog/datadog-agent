@@ -154,3 +154,47 @@ const (
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"
 )
+
+// Autoscaler API groups and plural resource names, used to discover and watch
+// the autoscalers acting on a workload.
+const (
+	// HorizontalPodAutoscalerGroupName is the API group of the built-in HorizontalPodAutoscaler
+	HorizontalPodAutoscalerGroupName = "autoscaling"
+	// HorizontalPodAutoscalerResourceName is the plural resource name for HorizontalPodAutoscaler objects
+	HorizontalPodAutoscalerResourceName = "horizontalpodautoscalers"
+	// VerticalPodAutoscalerGroupName is the API group of the VerticalPodAutoscaler CRD
+	VerticalPodAutoscalerGroupName = "autoscaling.k8s.io"
+	// VerticalPodAutoscalerResourceName is the plural resource name for VerticalPodAutoscaler objects
+	VerticalPodAutoscalerResourceName = "verticalpodautoscalers"
+	// DatadogGroupName is the API group of the Datadog CRDs
+	DatadogGroupName = "datadoghq.com"
+	// WatermarkPodAutoscalerResourceName is the plural resource name for WatermarkPodAutoscaler objects
+	WatermarkPodAutoscalerResourceName = "watermarkpodautoscalers"
+	// DatadogPodAutoscalerResourceName is the plural resource name for DatadogPodAutoscaler objects
+	DatadogPodAutoscalerResourceName = "datadogpodautoscalers"
+
+	// KedaScaledObjectKind is the kind of the KEDA resource that owns the
+	// HorizontalPodAutoscaler (or WatermarkPodAutoscaler) it generates. KEDA is
+	// detected through this owner reference rather than by watching its CRDs,
+	// so no KEDA API dependency is needed.
+	KedaScaledObjectKind = "ScaledObject"
+	// KedaManagedByLabelValue is the value KEDA sets on the standard
+	// app.kubernetes.io/managed-by label of the autoscalers it generates.
+	KedaManagedByLabelValue = "keda-operator"
+	// ManagedByLabelKey is the standard Kubernetes "managed by" label key.
+	ManagedByLabelKey = "app.kubernetes.io/managed-by"
+)
+
+// Autoscaler kinds, as reported by the kube_autoscaler_kind tag.
+const (
+	// AutoscalerKindHPA is a built-in HorizontalPodAutoscaler
+	AutoscalerKindHPA = "hpa"
+	// AutoscalerKindWPA is a WatermarkPodAutoscaler
+	AutoscalerKindWPA = "wpa"
+	// AutoscalerKindDPA is a DatadogPodAutoscaler
+	AutoscalerKindDPA = "dpa"
+	// AutoscalerKindVPA is a VerticalPodAutoscaler
+	AutoscalerKindVPA = "vpa"
+	// AutoscalerKindKeda is an autoscaler generated and driven by KEDA
+	AutoscalerKindKeda = "keda"
+)

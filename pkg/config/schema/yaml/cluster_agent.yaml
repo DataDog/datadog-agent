@@ -195,6 +195,19 @@ properties:
                     node_type: setting
                     type: string
                     default: ''
+  autoscaler_tags:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: >-
+          collects the mapping between workloads and the autoscalers acting on
+          them (HorizontalPodAutoscaler, WatermarkPodAutoscaler,
+          DatadogPodAutoscaler, VerticalPodAutoscaler and KEDA), and exposes it
+          as the kube_autoscaler_kind tag on pods and containers
   cluster_tagger:
     node_type: section
     type: object

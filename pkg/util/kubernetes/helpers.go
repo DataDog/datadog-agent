@@ -39,6 +39,44 @@ func ParseReplicaSetForPodName(name string) string {
 	return removeKubernetesNameSuffix(name)
 }
 
+// WorkloadTarget identifies the workload controller that ultimately owns a pod.
+// It is the key used to associate a pod with cluster-scoped facts about its
+// workload, such as which autoscalers act on it.
+type WorkloadTarget struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+// ResolveWorkloadTarget maps a pod owner reference onto the workload controller
+// that ultimately owns the pod, resolving ReplicaSet -> Deployment (or
+// ReplicaSet -> Argo Rollout, which uses ReplicaSets too and is told apart by a
+// label on the pod).
+//
+// It reports false when the owner is not a supported workload controller, or
+// when the ReplicaSet name does not carry a parseable parent name.
+func ResolveWorkloadTarget(namespace, ownerKind, ownerName string, podLabels map[string]string) (WorkloadTarget, bool) {
+	switch ownerKind {
+	case DeploymentKind, StatefulSetKind, RolloutKind:
+		return WorkloadTarget{Kind: ownerKind, Namespace: namespace, Name: ownerName}, true
+
+	case ReplicaSetKind:
+		parent := ParseDeploymentForReplicaSet(ownerName)
+		if parent == "" {
+			return WorkloadTarget{}, false
+		}
+		// Argo Rollouts also own their pods through ReplicaSets, so the parent
+		// name parsed above is a Rollout, not a Deployment. The rollout
+		// controller stamps this label on the pods it manages.
+		if podLabels[ArgoRolloutLabelKey] != "" {
+			return WorkloadTarget{Kind: RolloutKind, Namespace: namespace, Name: parent}, true
+		}
+		return WorkloadTarget{Kind: DeploymentKind, Namespace: namespace, Name: parent}, true
+	}
+
+	return WorkloadTarget{}, false
+}
+
 // ParseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156

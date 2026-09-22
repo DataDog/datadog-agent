@@ -27,6 +27,7 @@ go_library(
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@io_k8s_apimachinery//pkg/version",
         "@org_uber_go_fx//:fx",
     ],

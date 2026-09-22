@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -835,14 +836,77 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
-			name: "datadog autoscaling tag",
+			name: "single autoscaler kind",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:      podName,
 					Namespace: podNamespace,
-					Annotations: map[string]string{
-						datadogAutoscalingIDAnnotation: "datadogpodautoscaler",
+				},
+				AutoscalerKinds: sets.New(kubernetes.AutoscalerKindDPA),
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"kube_autoscaler_kind:dpa",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// A workload can be scaled horizontally and vertically at the same
+			// time, so the tag key is multi-valued.
+			name: "multiple autoscaler kinds",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				AutoscalerKinds: sets.New(kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA),
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"kube_autoscaler_kind:hpa",
+						"kube_autoscaler_kind:vpa",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// Container metrics are what users actually query, and a container
+			// gets its tags from a copy of the pod's tag list. The autoscaler
+			// kinds have to survive that copy.
+			name: "autoscaler kinds are inherited by containers",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				AutoscalerKinds: sets.New(kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA),
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    noEnvContainerID,
+						Name:  containerName,
+						Image: image,
 					},
 				},
 			},
@@ -856,7 +920,60 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
-						"kube_autoscaler_kind:datadogpodautoscaler",
+						"kube_autoscaler_kind:hpa",
+						"kube_autoscaler_kind:vpa",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: noEnvContainerTaggerEntityID,
+					HighCardTags: []string{
+						"container_id:" + noEnvContainerID,
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"kube_autoscaler_kind:hpa",
+						"kube_autoscaler_kind:vpa",
+						"kube_container_name:" + containerName,
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// The autoscaler-id annotation used to drive this tag. It is now
+			// driven by the Cluster Agent's autoscaler index instead, so the
+			// annotation on its own must produce nothing.
+			name: "autoscaler annotation alone produces no tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"autoscaling.datadoghq.com/autoscaler-id": "default/my-dpa",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -1410,7 +1527,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 		expected                      []*types.TagInfo
 	}{
 		{
-			name: "namespace with labels and annotations as tags",
+			name: "namespace with no matching labels/annotations reports an empty TagInfo",
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
 				"namespaces": {
 					"ns_tier":            "ns_tier",
@@ -1441,7 +1558,16 @@ func TestHandleKubeMetadata(t *testing.T) {
 					Resource: "namespaces",
 				},
 			},
-			expected: nil,
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					EntityID:             types.NewEntityID(types.KubernetesMetadata, kubeMetadataEntityID.ID),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+			},
 		},
 	}
 
@@ -2491,7 +2617,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 		expected                      []*types.TagInfo
 	}{
 		{
-			name: "deployment with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			name: "deployment with no matching labels/annotations for annotations/labels as tags reports an empty TagInfo; the tag store ignores it for an entity it never saw",
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
 				"deployments.apps": {
 					"depl_tier":   "depl_tier",
@@ -2521,7 +2647,16 @@ func TestHandleKubeDeployment(t *testing.T) {
 					Resource: "deployments",
 				},
 			},
-			expected: nil,
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+			},
 		},
 		{
 			name: "deployment with generic annotations/labels as tags",
@@ -2587,6 +2722,154 @@ func TestHandleKubeDeployment(t *testing.T) {
 			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &test.kubeMetadata,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
+// TestHandleKubeDeploymentAutoscalerKinds covers handleKubeDeployment directly.
+// It used to return early unless deployments.apps labels or annotations were
+// configured as tags; autoscaler kinds must be emitted regardless of that.
+func TestHandleKubeDeploymentAutoscalerKinds(t *testing.T) {
+	deploymentEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesDeployment,
+		ID:   "default/fooapp",
+	}
+	taggerEntityID := types.NewEntityID(types.KubernetesDeployment, deploymentEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		deployment                    workloadmeta.KubernetesDeployment
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "autoscaler kinds without any labels or annotations as tags configured",
+			deployment: workloadmeta.KubernetesDeployment{
+				EntityID: deploymentEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "fooapp",
+					Namespace: "default",
+					Labels:    map[string]string{"env": "dev"},
+				},
+				AutoscalerKinds: sets.New(kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA),
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               deploymentSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"kube_autoscaler_kind:hpa",
+						"kube_autoscaler_kind:vpa",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "autoscaler kinds combined with labels and annotations as tags",
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": {"env": "depl_env"},
+			},
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"deployments.apps": {"tier": "depl_tier"},
+			},
+			deployment: workloadmeta.KubernetesDeployment{
+				EntityID: deploymentEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "fooapp",
+					Namespace:   "default",
+					Labels:      map[string]string{"env": "dev"},
+					Annotations: map[string]string{"tier": "backend"},
+				},
+				AutoscalerKinds: sets.New(kubernetes.AutoscalerKindKeda),
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               deploymentSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"kube_autoscaler_kind:keda",
+						"depl_env:dev",
+						"depl_tier:backend",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "labels and annotations as tags without autoscaler kinds are unchanged",
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": {"env": "depl_env"},
+			},
+			deployment: workloadmeta.KubernetesDeployment{
+				EntityID: deploymentEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "fooapp",
+					Namespace: "default",
+					Labels:    map[string]string{"env": "dev"},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               deploymentSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{"depl_env:dev"},
+					StandardTags:         []string{},
+				},
+			},
+		},
+		{
+			// An empty tagger entity is noise, so nothing to emit means no
+			// TagInfo at all, as before.
+			name: "no autoscaler kinds and nothing configured reports an empty TagInfo",
+			deployment: workloadmeta.KubernetesDeployment{
+				EntityID: deploymentEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "fooapp",
+					Namespace: "default",
+					Labels:    map[string]string{"env": "dev"},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               deploymentSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeDeployment(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.deployment,
 			})
 
 			assertTagInfoListEqual(tt, test.expected, actual)
@@ -4033,6 +4316,102 @@ func TestHandleContainer_ImageAnnotationTags_IsComplete(t *testing.T) {
 	}
 }
 
+// tagInfoRecorder is a tag processor that records what it is given.
+type tagInfoRecorder struct {
+	tagInfos []*types.TagInfo
+}
+
+func (r *tagInfoRecorder) ProcessTagInfo(tagInfos []*types.TagInfo) {
+	r.tagInfos = append(r.tagInfos, tagInfos...)
+}
+
+// TestImageAnnotationTagsClearedImmediately covers image annotation tags going
+// away while the container keeps the image. They are a second source on the
+// container, and used to be cleared only by the next image event's
+// DeleteEntity, which the tag store applies after deletedTTL (5 minutes). The
+// handler now reports an empty TagInfo instead, which clears them right away,
+// and keeps the container registered as the image's child so no DeleteEntity
+// follows.
+func TestImageAnnotationTagsClearedImmediately(t *testing.T) {
+	const (
+		imageID       = "sha256:imageconfigdigest"
+		annotationKey = "com.datadoghq.test.imageformat"
+	)
+	imageAnnotationsAsTags := map[string]string{annotationKey: "image_format"}
+
+	container := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "test-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "agent"},
+		Image:      workloadmeta.ContainerImage{ID: imageID},
+	}
+	containerTaggerID := types.NewEntityID(types.ContainerID, container.ID)
+	image := func(annotations map[string]string) *workloadmeta.ContainerImageMetadata {
+		return &workloadmeta.ContainerImageMetadata{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
+			EntityMeta: workloadmeta.EntityMeta{Annotations: annotations},
+		}
+	}
+
+	newCollector := func(t *testing.T, annotationsAsTags map[string]string) (*WorkloadMetaCollector, workloadmetamock.Mock, *tagInfoRecorder) {
+		cfg := configmock.New(t)
+		wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return cfg }),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		wmeta.Set(container)
+		recorder := &tagInfoRecorder{}
+		collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, recorder)
+		collector.initContainerMetaAsTags(nil, nil, annotationsAsTags)
+		return collector, wmeta, recorder
+	}
+	// imageEvent delivers an image Set event and returns what the collector
+	// published for the container under the image annotation source.
+	imageEvent := func(collector *WorkloadMetaCollector, wmeta workloadmetamock.Mock, recorder *tagInfoRecorder, img *workloadmeta.ContainerImageMetadata) []*types.TagInfo {
+		wmeta.Set(img)
+		recorder.tagInfos = nil
+		collector.processEvents(workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: img, IsComplete: true}},
+		})
+		var published []*types.TagInfo
+		for _, ti := range recorder.tagInfos {
+			if ti.EntityID == containerTaggerID && ti.Source == containerImageSource {
+				published = append(published, ti)
+			}
+		}
+		return published
+	}
+
+	t.Run("annotations stop mapping to tags: empty TagInfo, no DeleteEntity", func(t *testing.T) {
+		collector, wmeta, recorder := newCollector(t, imageAnnotationsAsTags)
+
+		published := imageEvent(collector, wmeta, recorder, image(map[string]string{annotationKey: "nydus-demo"}))
+		require.Len(t, published, 1)
+		assert.Equal(t, []string{"image_format:nydus-demo"}, published[0].LowCardTags)
+
+		published = imageEvent(collector, wmeta, recorder, image(map[string]string{"com.example.unmapped": "x"}))
+		require.Len(t, published, 1, "exactly one update for the container: the clearing one")
+		assert.False(t, published[0].DeleteEntity, "clearing must be immediate, not a deletedTTL expiry")
+		assert.Empty(t, published[0].LowCardTags)
+		assert.Empty(t, published[0].OrchestratorCardTags)
+		assert.Empty(t, published[0].HighCardTags)
+		assert.Empty(t, published[0].StandardTags)
+	})
+
+	// These mean "not applicable" rather than "no tags": nothing was published,
+	// so there is nothing to clear and no reason to track the container.
+	t.Run("not applicable: no TagInfo", func(t *testing.T) {
+		unconfigured, _, _ := newCollector(t, nil)
+		assert.Nil(t, unconfigured.imageAnnotationTagsForContainer(container, true), "feature not configured")
+
+		collector, wmeta, _ := newCollector(t, imageAnnotationsAsTags)
+		assert.Nil(t, collector.imageAnnotationTagsForContainer(container, true), "image unknown")
+
+		wmeta.Set(image(nil))
+		assert.Nil(t, collector.imageAnnotationTagsForContainer(container, true), "image without annotations")
+	})
+}
+
 func TestHandleContainerImage(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainerImageMetadata,
@@ -4623,7 +5002,7 @@ func TestHandleKubeNode(t *testing.T) {
 		expected                      []*types.TagInfo
 	}{
 		{
-			name: "node with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			name: "node with no matching labels/annotations for annotations/labels as tags reports an empty TagInfo; the tag store ignores it for an entity it never saw",
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
 				"nodes": {
 					"node_tier": "node_tier",
@@ -4646,7 +5025,16 @@ func TestHandleKubeNode(t *testing.T) {
 					},
 				},
 			},
-			expected: nil,
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					EntityID:             nodeTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+			},
 		},
 		{
 			name: "node with generic labels/annotations as tags",
@@ -5221,6 +5609,16 @@ func TestHandleProcess(t *testing.T) {
 				Pid:     12345,
 				Service: nil,
 			},
+			// No tags is reported as an empty TagInfo, not nil: nil would mean
+			// "no update" and leave previously published tags in place.
+			expectedTagInfo: &types.TagInfo{
+				Source:               processSource,
+				EntityID:             types.NewEntityID(types.Process, pid),
+				HighCardTags:         []string{},
+				OrchestratorCardTags: []string{},
+				LowCardTags:          []string{},
+				StandardTags:         []string{},
+			},
 		},
 		{
 			name: "process with empty service metadata",
@@ -5238,6 +5636,16 @@ func TestHandleProcess(t *testing.T) {
 						Version: "",
 					},
 				},
+			},
+			// No tags is reported as an empty TagInfo, not nil: nil would mean
+			// "no update" and leave previously published tags in place.
+			expectedTagInfo: &types.TagInfo{
+				Source:               processSource,
+				EntityID:             types.NewEntityID(types.Process, pid),
+				HighCardTags:         []string{},
+				OrchestratorCardTags: []string{},
+				LowCardTags:          []string{},
+				StandardTags:         []string{},
 			},
 		},
 		{

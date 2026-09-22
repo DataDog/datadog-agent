@@ -11,6 +11,7 @@ go_library(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/proto/pbgo/core",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )
@@ -31,6 +32,7 @@ dd_agent_go_test(
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@org_golang_google_protobuf//proto",
     ],
 )

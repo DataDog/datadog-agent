@@ -1,0 +1,40 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The Cluster Agent can now report which autoscalers manage a Kubernetes
+    workload as the low-cardinality ``kube_autoscaler_kind`` tag on Deployments,
+    their pods and their containers. HorizontalPodAutoscaler, KEDA,
+    WatermarkPodAutoscaler, DatadogPodAutoscaler and VerticalPodAutoscaler are
+    reported as ``hpa``, ``keda``, ``wpa``, ``dpa`` and ``vpa`` respectively.
+    A workload scaled both horizontally and vertically carries the tag once per
+    autoscaler. Set ``cluster_agent.autoscaler_tags.enabled`` to ``true`` to
+    enable it; it is disabled by default. The Cluster Agent needs ``list`` and
+    ``watch`` permissions on the autoscaler resources present in the cluster;
+    any whose CRD is absent is skipped.
+upgrade:
+  - |
+    The ``kube_autoscaler_kind`` tag value for a DatadogPodAutoscaler changes
+    from ``datadogpodautoscaler`` to ``dpa``, and the tag is now derived from
+    the autoscalers the Cluster Agent observes rather than from the
+    ``autoscaling.datadoghq.com/autoscaler-id`` pod annotation. Pods previously
+    carried the tag only when the admission controller had stamped that
+    annotation, which excluded DatadogPodAutoscalers doing horizontal scaling
+    only. The tag is now emitted for every autoscaled workload, but only when
+    ``cluster_agent.autoscaler_tags.enabled`` is set to ``true``, which is not
+    the default. Dashboards and monitors filtering on
+    ``kube_autoscaler_kind:datadogpodautoscaler`` need updating.
+fixes:
+  - |
+    Tags derived from Kubernetes resource labels and annotations (Deployments,
+    Nodes, Namespaces and other resources configured as tags), Kueue queues,
+    resource flavors and workloads, GPUs, process service metadata and container
+    image annotations are now removed as soon as they stop applying. Previously
+    they persisted until the entity itself was deleted, or for five more minutes
+    in the case of container image annotations.

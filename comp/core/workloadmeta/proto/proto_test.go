@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
@@ -813,6 +814,83 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 	actualProtoEvent, err := ProtobufEventFromWorkloadmetaEvent(wlmEvent)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedProtoEvent, actualProtoEvent)
+}
+
+// TestKubernetesPodAutoscalerKindsRoundTrip covers what the generic round-trip
+// test cannot: it only ever populates fields, so it never exercises a nil or an
+// empty set. Each case goes through real proto marshalling, as the remote
+// workloadmeta stream does.
+func TestKubernetesPodAutoscalerKindsRoundTrip(t *testing.T) {
+	tests := []struct {
+		name         string
+		kinds        sets.Set[string]
+		expectedWire []string
+		expected     sets.Set[string]
+	}{
+		{
+			name:         "nil set",
+			kinds:        nil,
+			expectedWire: nil,
+			expected:     nil,
+		},
+		{
+			// An empty set and a nil set mean the same thing: no autoscaler.
+			// Both must come back as nil, so consumers never have to tell
+			// them apart.
+			name:         "empty set comes back nil",
+			kinds:        sets.New[string](),
+			expectedWire: nil,
+			expected:     nil,
+		},
+		{
+			// Sorted on the wire, so an unchanged set never looks like a diff.
+			name:         "populated set is sorted on the wire",
+			kinds:        sets.New(kubernetes.AutoscalerKindVPA, kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindDPA),
+			expectedWire: []string{kubernetes.AutoscalerKindDPA, kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA},
+			expected:     sets.New(kubernetes.AutoscalerKindDPA, kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "pod-uid",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "my-pod",
+						Namespace: "default",
+					},
+					AutoscalerKinds: test.kinds,
+				},
+			}
+
+			protoEvent, err := ProtobufEventFromWorkloadmetaEvent(event)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedWire, protoEvent.GetKubernetesPod().GetAutoscalerKinds())
+
+			// Go through real serialization: an empty repeated field is not
+			// encoded at all, which is exactly the case under test.
+			wire, err := proto.Marshal(protoEvent)
+			require.NoError(t, err)
+			var decoded pb.WorkloadmetaEvent
+			require.NoError(t, proto.Unmarshal(wire, &decoded))
+
+			roundTripped, err := WorkloadmetaEventFromProtoEvent(&decoded)
+			require.NoError(t, err)
+
+			pod, ok := roundTripped.Entity.(*workloadmeta.KubernetesPod)
+			require.True(t, ok)
+			if test.expected == nil {
+				assert.Nil(t, pod.AutoscalerKinds)
+			} else {
+				assert.True(t, test.expected.Equal(pod.AutoscalerKinds), "got %v, want %v", sets.List(pod.AutoscalerKinds), sets.List(test.expected))
+			}
+		})
+	}
 }
 
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {

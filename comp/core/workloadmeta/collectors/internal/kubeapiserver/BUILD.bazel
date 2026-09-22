@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "kubeapiserver",
     srcs = [
+        "autoscalers.go",
         "crd.go",
         "deployments.go",
         "kubeapiserver.go",
@@ -50,6 +51,7 @@ go_library(
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_apimachinery//pkg/util/framer",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@io_k8s_apimachinery//pkg/util/validation",
         "@io_k8s_apimachinery//pkg/watch",
         "@io_k8s_client_go//discovery",
@@ -66,6 +68,7 @@ go_library(
 dd_agent_go_test(
     name = "kubeapiserver_test",
     srcs = [
+        "autoscalers_test.go",
         "deployments_test.go",
         "kubeapiserver_test.go",
         "main_test.go",
@@ -102,10 +105,13 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_apimachinery//pkg/util/sets",
         "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//kubernetes/fake",
         "@org_uber_go_fx//:fx",
     ],

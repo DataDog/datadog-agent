@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 var emptyTimestampUnix = new(time.Time).Unix()
@@ -505,7 +506,30 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
+		// sets.List sorts, so an unchanged set never looks like a change to
+		// consumers diffing the wire format.
+		AutoscalerKinds: autoscalerKindsToProto(kubernetesPod.AutoscalerKinds),
 	}, nil
+}
+
+// autoscalerKindsToProto flattens the autoscaler kind set into a sorted slice.
+// A nil or empty set maps to a nil slice so it round-trips unchanged.
+func autoscalerKindsToProto(kinds sets.Set[string]) []string {
+	if kinds.Len() == 0 {
+		return nil
+	}
+	return sets.List(kinds)
+}
+
+// autoscalerKindsFromProto rebuilds the set from the wire representation. An
+// empty slice maps back to a nil set rather than an empty one, so that a pod
+// with no autoscalers is indistinguishable from one that never had the field
+// set.
+func autoscalerKindsFromProto(kinds []string) sets.Set[string] {
+	if len(kinds) == 0 {
+		return nil
+	}
+	return sets.New(kinds...)
 }
 
 func toProtoEntityMetaFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) *pb.EntityMeta {
@@ -1155,6 +1179,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
 		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
+		AutoscalerKinds:            autoscalerKindsFromProto(protoKubernetesPod.AutoscalerKinds),
 	}, nil
 }
 

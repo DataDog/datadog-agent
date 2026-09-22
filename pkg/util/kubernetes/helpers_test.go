@@ -119,3 +119,76 @@ func TestParseCronJobForJob(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveWorkloadTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		ownerKind string
+		ownerName string
+		podLabels map[string]string
+		expected  WorkloadTarget
+		expectOK  bool
+	}{
+		{
+			name:      "deployment owner",
+			ownerKind: DeploymentKind,
+			ownerName: "my-app",
+			expected:  WorkloadTarget{Kind: DeploymentKind, Namespace: "ns", Name: "my-app"},
+			expectOK:  true,
+		},
+		{
+			name:      "statefulset owner",
+			ownerKind: StatefulSetKind,
+			ownerName: "my-sts",
+			expected:  WorkloadTarget{Kind: StatefulSetKind, Namespace: "ns", Name: "my-sts"},
+			expectOK:  true,
+		},
+		{
+			name:      "replicaset resolves to its deployment",
+			ownerKind: ReplicaSetKind,
+			ownerName: "my-app-7d9f8b6c5d",
+			expected:  WorkloadTarget{Kind: DeploymentKind, Namespace: "ns", Name: "my-app"},
+			expectOK:  true,
+		},
+		{
+			// Argo Rollouts own pods through ReplicaSets too, so the parsed
+			// parent is a Rollout rather than a Deployment. Getting this wrong
+			// would attribute a same-named Deployment's autoscalers to it.
+			name:      "replicaset of an argo rollout resolves to the rollout",
+			ownerKind: ReplicaSetKind,
+			ownerName: "my-app-7d9f8b6c5d",
+			podLabels: map[string]string{ArgoRolloutLabelKey: "7d9f8b6c5d"},
+			expected:  WorkloadTarget{Kind: RolloutKind, Namespace: "ns", Name: "my-app"},
+			expectOK:  true,
+		},
+		{
+			name:      "rollout owner",
+			ownerKind: RolloutKind,
+			ownerName: "my-rollout",
+			expected:  WorkloadTarget{Kind: RolloutKind, Namespace: "ns", Name: "my-rollout"},
+			expectOK:  true,
+		},
+		{
+			name:      "replicaset without a parseable parent",
+			ownerKind: ReplicaSetKind,
+			ownerName: "noparent",
+			expectOK:  false,
+		},
+		{
+			name:      "unsupported owner kind",
+			ownerKind: "DaemonSet",
+			ownerName: "my-ds",
+			expectOK:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			target, ok := ResolveWorkloadTarget("ns", test.ownerKind, test.ownerName, test.podLabels)
+			assert.Equal(t, test.expectOK, ok)
+			if test.expectOK {
+				assert.Equal(t, test.expected, target)
+			}
+		})
+	}
+}
