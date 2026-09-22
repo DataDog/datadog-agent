@@ -63,6 +63,7 @@ dd_agent_go_test(
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//comp/logs-library/metrics",
+        "//pkg/config/model",
         "//pkg/config/schema",
         "//pkg/util/fxutil",
         "//test/fakeintake/client",
