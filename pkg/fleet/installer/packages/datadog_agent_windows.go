@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -1077,17 +1078,16 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }
 
-// SetProcessManager enables or disables dd-procmgrd as the supervisor for the processes that
-// support it, moving them off (or back onto) their standalone Windows services.
-func SetProcessManager(_ context.Context, enabled bool) error {
-	if env.FromEnv().ProcessManagerEnabled == enabled {
-		return nil
-	}
+func setProcmgrConfigs(enabled bool) error {
 	for _, cfg := range procmgrConfigs {
 		if err := ensureProcmgrConfig(cfg, enabled); err != nil {
 			return fmt.Errorf("failed to configure %s process manager config: %w", cfg.label, err)
 		}
 	}
+	return nil
+}
+
+func transitionServices(enabled bool) error {
 	services := []string{otelServiceName, parServiceName}
 	if enabled {
 		for _, service := range services {
@@ -1098,19 +1098,57 @@ func SetProcessManager(_ context.Context, enabled bool) error {
 		if err := startServiceIfExists(ddProcmgrServiceName); err != nil {
 			return fmt.Errorf("could not start %s: %w", ddProcmgrServiceName, err)
 		}
-	} else {
-		if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
-			return fmt.Errorf("could not stop %s: %w", ddProcmgrServiceName, err)
+		return nil
+	}
+	if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
+		return fmt.Errorf("could not stop %s: %w", ddProcmgrServiceName, err)
+	}
+	for _, service := range services {
+		if err := startServiceIfExists(service); err != nil {
+			return fmt.Errorf("could not start service %s: %w", service, err)
 		}
-		for _, service := range services {
-			if err := startServiceIfExists(service); err != nil {
-				return fmt.Errorf("could not start service %s: %w", service, err)
+	}
+	return nil
+}
+
+func SetProcessManager(ctx context.Context, enabled bool) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "set_process_manager")
+	span.SetTag("enabled", enabled)
+	defer func() { span.Finish(err) }()
+
+	previouslyEnabled := env.FromEnv().ProcessManagerEnabled
+	if previouslyEnabled == enabled {
+		return nil
+	}
+
+	pendingActions := []func() error{}
+	unwind := func() error {
+		var errs error
+		slices.Reverse(pendingActions)
+		for i, action := range pendingActions {
+			if actionErr := action(); actionErr != nil {
+				log.Errorf("failed to unwind process manager switch step %d/%d: %v", i, len(pendingActions), actionErr)
+				errs = errors.Join(errs, actionErr)
 			}
 		}
+		return errs
 	}
-	if err := persistProcessManagerEnv(enabled); err != nil {
-		return fmt.Errorf("could not persist process manager selection: %w", err)
+
+	pendingActions = append(pendingActions, func() error { return setProcmgrConfigs(previouslyEnabled) })
+	if err = setProcmgrConfigs(enabled); err != nil {
+		return errors.Join(err, unwind())
 	}
+
+	pendingActions = append(pendingActions, func() error { return transitionServices(previouslyEnabled) })
+	if err = transitionServices(enabled); err != nil {
+		return errors.Join(err, unwind())
+	}
+
+	pendingActions = append(pendingActions, func() error { return persistProcessManagerEnv(previouslyEnabled) })
+	if err = persistProcessManagerEnv(enabled); err != nil {
+		return errors.Join(err, unwind())
+	}
+
 	return nil
 }
 

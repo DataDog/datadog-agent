@@ -295,7 +295,7 @@ func FromEnv() *Env {
 		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-		ProcessManagerEnabled: boolEnvOrDefault(EnvProcessManagerEnabled, defaultEnv.ProcessManagerEnabled),
+		ProcessManagerEnabled: strings.ToLower(os.Getenv(EnvProcessManagerEnabled)) != "false",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -572,14 +572,6 @@ func getBoolEnv(env string) *bool {
 	default:
 		return nil
 	}
-}
-
-func boolEnvOrDefault(env string, defaultValue bool) bool {
-	v, set := os.LookupEnv(env)
-	if !set {
-		return defaultValue
-	}
-	return strings.ToLower(v) == "true"
 }
 
 func getProxySetting(ddEnv string, env string) string {
