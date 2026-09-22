@@ -17,6 +17,8 @@ def _test_wires_checker_action(name):
         name = name,
         impl = _test_wires_checker_action_impl,
         target = name + "_subject",
+        # TODO: Add macos and windows implementations.
+        target_compatible_with = ["@platforms//os:linux"],
     )
 
 def _test_wires_checker_action_impl(env, target):
@@ -41,6 +43,4 @@ def check_for_symbols_test_suite(name):
         tests = [
             _test_wires_checker_action,
         ],
-        # TODO: Add macos and windows implementations.
-        target_compatible_with = ["@platforms//os:linux"],
     )
