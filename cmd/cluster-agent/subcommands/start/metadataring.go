@@ -42,7 +42,15 @@ const (
 	metadataRingRetention     = 2 * time.Hour
 )
 
-func metadataRingScope(lc fx.Lifecycle, cfg config.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ipc ipc.Component) (workloadmeta.PodWatchScope, workloadmeta.NodeSyncReporter, *clustermetadata.PeerServer) {
+// metadataRingScope builds the ring's control side (lease manager,
+// controller, scope) and provides the workloadmeta pod-watch interfaces
+// consumed by the kubeapiserver collector. It must not depend on the
+// workloadmeta or tagger components: the collector depends on this provider,
+// the components depend on their collectors — taking them here is a
+// dependency cycle. The node set therefore comes from the API server client,
+// not workloadmeta. The serving side (LocalStore, peers, gRPC server) is
+// built later by startMetadataRing, once the graph is up.
+func metadataRingScope(lc fx.Lifecycle, cfg config.Component) (workloadmeta.PodWatchScope, workloadmeta.NodeSyncReporter, *clustermetadata.RingController) {
 	if !cfg.GetBool("cluster_agent.metadata_ring.enabled") {
 		return nil, nil, nil
 	}
@@ -70,14 +78,7 @@ func metadataRingScope(lc fx.Lifecycle, cfg config.Component, wmeta workloadmeta
 		metadataRingRetention,
 	)
 
-	nodeSource := func(ctx context.Context) ([]string, error) {
-		nodes := wmeta.ListKubernetesNodes()
-		names := make([]string, 0, len(nodes))
-		for _, node := range nodes {
-			names = append(names, node.EntityID.ID)
-		}
-		return names, nil
-	}
+	nodeSource := nodeListSource
 
 	controller := clustermetadata.NewRingController(
 		manager,
@@ -86,15 +87,6 @@ func metadataRingScope(lc fx.Lifecycle, cfg config.Component, wmeta workloadmeta
 		nodeSource,
 	)
 
-	pool := &metadataPeerPool{
-		controller: controller,
-		selfID:     selfID,
-		tlsConfig:  ipc.GetTLSClientConfig(),
-		authToken:  ipc.GetAuthToken(),
-		port:       cfg.GetInt("cluster_agent.cmd_port"),
-	}
-
-	store := clustermetadata.NewLocalStore(wmeta, taggerComp, controller, pool.peers)
 	scope := clustermetadata.NewRingScope(controller)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,13 +97,59 @@ func metadataRingScope(lc fx.Lifecycle, cfg config.Component, wmeta workloadmeta
 		},
 		OnStop: func(context.Context) error {
 			cancel()
-			pool.close()
 			return nil
 		},
 	})
 
 	log.Infof("metadata ring enabled: member %s in namespace %s", selfID, podNamespace)
-	return scope, scope, clustermetadata.NewPeerServer(store)
+	return scope, scope, controller
+}
+
+// startMetadataRing builds the serving side of the ring in the start
+// function, where workloadmeta and the tagger are available: the LocalStore,
+// the peer pool, and the peer gRPC server. Returns nil when the ring is off.
+func startMetadataRing(cfg config.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ipc ipc.Component, controller *clustermetadata.RingController) *clustermetadata.PeerServer {
+	if controller == nil {
+		return nil
+	}
+
+	// Peers dial each other by pod IP, but the DCA serving certificate only
+	// carries the service DNS names — hostname verification against an IP
+	// fails. The Bearer token interceptor stays the auth boundary (peers are
+	// the same trust domain as node agents), so peer connections skip host
+	// verification until there is a certificate story for pod-IP dialing.
+	peerTLS := ipc.GetTLSClientConfig().Clone()
+	peerTLS.InsecureSkipVerify = true
+
+	pool := &metadataPeerPool{
+		controller: controller,
+		selfID:     controller.SelfID(),
+		tlsConfig:  peerTLS,
+		authToken:  ipc.GetAuthToken(),
+		port:       cfg.GetInt("cluster_agent.cmd_port"),
+	}
+
+	store := clustermetadata.NewLocalStore(wmeta, taggerComp, controller, pool.peers)
+	return clustermetadata.NewPeerServer(store)
+}
+
+// nodeListSource returns the cluster's node names from the API server
+// client. The scope provider cannot read workloadmeta (dependency cycle);
+// a node list is metadata-only and watch-cache served, so this stays cheap.
+func nodeListSource(ctx context.Context) ([]string, error) {
+	client, err := apiserver.GetAPIClient()
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := client.InformerCl.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(nodes.Items))
+	for _, node := range nodes.Items {
+		names = append(names, node.Name)
+	}
+	return names, nil
 }
 
 // metadataPeerPool holds one gRPC connection per alive ring member and
