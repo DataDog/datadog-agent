@@ -19,14 +19,14 @@ import (
 )
 
 // goMemLimitPattern matches the GOMEMLIMIT format accepted by the Go runtime:
-// a non-negative integer with an optional IEC binary suffix (B, KiB, MiB, GiB, TiB, PiB, EiB)
-// or the special value "off".
-var goMemLimitPattern = regexp.MustCompile(`^([0-9]+(B|KiB|MiB|GiB|TiB|PiB|EiB)?|off)$`)
+// a non-negative integer with an optional IEC binary suffix (B, KiB, MiB, GiB, TiB)
+// or the special value "off". This mirrors parseByteCount in the Go runtime (src/runtime/string.go).
+var goMemLimitPattern = regexp.MustCompile(`^([0-9]+([KMGT]iB|B)?|off)$`)
 
 // ValidateGoMemLimit returns an error if value is not a valid GOMEMLIMIT string.
 func ValidateGoMemLimit(value string) error {
 	if !goMemLimitPattern.MatchString(value) {
-		return fmt.Errorf("invalid GOMEMLIMIT value %q: must be a non-negative integer with optional IEC suffix (B, KiB, MiB, GiB, TiB, PiB, EiB) or \"off\"", value)
+		return fmt.Errorf("invalid GOMEMLIMIT value %q: must be a non-negative integer with optional IEC suffix (B, KiB, MiB, GiB, TiB) or \"off\"", value)
 	}
 	return nil
 }
