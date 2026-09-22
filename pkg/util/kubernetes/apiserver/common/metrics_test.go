@@ -19,9 +19,11 @@ func TestFindMetricFamily(t *testing.T) {
 	families := []prometheus.MetricFamily{
 		{Name: "apiserver_resource_objects"},
 		{Name: "apiserver_storage_objects"},
+		{Name: "etcd_object_counts"},
 	}
 
-	assert.Same(t, &families[1], findMetricFamily(families, "apiserver_storage_objects", "apiserver_resource_objects"))
-	assert.Same(t, &families[0], findMetricFamily(families, "missing", "apiserver_resource_objects"))
+	assert.Same(t, &families[1], findMetricFamily(families, "apiserver_storage_objects", "apiserver_resource_objects", "etcd_object_counts"))
+	assert.Same(t, &families[0], findMetricFamily(families, "missing", "apiserver_resource_objects", "etcd_object_counts"))
+	assert.Same(t, &families[2], findMetricFamily(families, "missing", "also_missing", "etcd_object_counts"))
 	assert.Nil(t, findMetricFamily(families, "missing"))
 }

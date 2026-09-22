@@ -50,6 +50,7 @@ const (
 	KubeControlPaneCheck                = "kube_apiserver_controlplane.up"
 	storageObjectsMetricName            = "apiserver_storage_objects"
 	replacementStorageObjectsMetricName = "apiserver_resource_objects"
+	legacyStorageObjectsMetricName      = "etcd_object_counts"
 	eventTokenKey                       = "event"
 	componentStatusMaxVersionString     = "v1.35.0"
 	maxEventCardinality                 = 300
@@ -633,12 +634,12 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 }
 
 // sendStorageObjectsMetrics scrapes the API server's own /metrics endpoint for
-// apiserver_storage_objects or its replacement, apiserver_resource_objects. They
-// report the number of objects of each resource type (including CRDs) currently held
-// in the underlying storage. Unlike the rest of this check, this reflects cluster-wide
-// storage state rather than the state of whichever API server node happened to answer
-// the request, so it is safe to treat as a single, cluster-level data point emitted
-// once per leader run.
+// apiserver_storage_objects, its replacement apiserver_resource_objects, or the
+// legacy etcd_object_counts metric. They report the number of objects of each resource
+// type (including CRDs) currently held in the underlying storage. Unlike the rest of
+// this check, this reflects cluster-wide storage state rather than the state of whichever
+// API server node happened to answer the request, so it is safe to treat as a single,
+// cluster-level data point emitted once per leader run.
 //
 // The API server's /metrics endpoint is not guaranteed to be reachable in every
 // environment (e.g. restrictive network policies), so any failure here is
@@ -652,6 +653,7 @@ func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
 		k.ac.Cl.Discovery(),
 		storageObjectsMetricName,
 		replacementStorageObjectsMetricName,
+		legacyStorageObjectsMetricName,
 	)
 	if err != nil {
 		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
@@ -659,9 +661,10 @@ func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
 	}
 	if family == nil {
 		log.Debugf(
-			"Metrics %s and %s not found in the API server's /metrics endpoint",
+			"Metrics %s, %s, and %s not found in the API server's /metrics endpoint",
 			storageObjectsMetricName,
 			replacementStorageObjectsMetricName,
+			legacyStorageObjectsMetricName,
 		)
 		return
 	}
@@ -674,9 +677,9 @@ func apiServerClientTimeout() time.Duration {
 }
 
 // submitStorageObjectsMetrics emits one kube_apiserver.storage_objects gauge per sample
-// from either Kubernetes storage-object metric family. The replacement family splits the
-// legacy resource label into group and resource labels, so recombine them to keep the
-// Datadog metric's resource tag backward-compatible.
+// from any supported Kubernetes storage-object metric family. The replacement family
+// splits the legacy resource label into group and resource labels, so recombine them to
+// keep the Datadog metric's resource tag backward-compatible.
 func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
 	for _, sample := range family.Samples {
 		resource := sample.Metric["resource"]
