@@ -4249,6 +4249,36 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestExtractGPUMIGProfileTag(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		profile string
+		want    string
+	}{
+		{name: "plain", profile: "1g.35gb", want: "1g-35gb"},
+		{name: "media extension", profile: "1g.35gb+me", want: "1g-35gb-me"},
+		{name: "case normalization", profile: "1G.35GB+ME", want: "1g-35gb-me"},
+		{name: "unavailable"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			ExtractGPUTags(&workloadmeta.GPU{MIGProfile: tt.profile}, tagList)
+			low, _, _, _ := tagList.Compute()
+			var profileTags []string
+			for _, tag := range low {
+				if strings.HasPrefix(tag, tags.GPUMIGProfile+":") {
+					profileTags = append(profileTags, tag)
+				}
+			}
+			if tt.want == "" {
+				require.Empty(t, profileTags)
+			} else {
+				require.Equal(t, []string{tags.GPUMIGProfile + ":" + tt.want}, profileTags)
+			}
+		})
+	}
+}
+
 func TestHandleGPU(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindGPU,
@@ -4352,6 +4382,7 @@ func TestHandleGPU(t *testing.T) {
 				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				MIGProfile:         "3g.20gb",
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
@@ -4368,6 +4399,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",
+						"gpu_mig_profile:3g-20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",

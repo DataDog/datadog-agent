@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Add a ``gpu_mig_profile`` tag to GPU metrics for MIG devices. The tag carries
+    the canonical MIG profile name of the device (e.g. ``1g-35gb``), resolved
+    from the device's own NVML name, and applies to all ``gpu.*`` metrics
+    regardless of how the MIG instance was allocated (DRA, device plugin, or
+    idle). Tag values follow the same convention as the ``mig_profile`` tag on
+    ``kubernetes_state.*`` metrics, so per-profile queries can join node-side
+    and cluster-side data. On drivers where the profile cannot be resolved
+    from the device name, the agent falls back to the GPU instance handle,
+    which requires a privileged agent; the fallback failure is logged once
+    per GPU instance and the tag is omitted.
