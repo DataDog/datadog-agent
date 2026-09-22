@@ -74,7 +74,7 @@ var (
 	sysprobeSchemaGetter = getSysprobeSchema
 )
 
-// Violation is a leaf validation error with fields that callers can safely
+// Violation is a validation error with structured data and a human-readable Message
 // consume without parsing the human-readable Message.
 type Violation struct {
 	Message       string
