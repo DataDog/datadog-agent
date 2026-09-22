@@ -569,8 +569,14 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // OTel exporter config. This ensures Unmarshal constructs endpoint URLs with the correct site.
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
+	// Validate that site is configured in pkgconfig
+	site := pkgconfig.GetString("site")
+	if site == "" {
+		return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+	}
+
 	if ddcfg == nil {
-		return map[string]any{"api": map[string]any{"site": pkgconfig.GetString("site")}}, nil
+		return map[string]any{"api": map[string]any{"site": site}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -578,7 +584,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		ddcfgMap["api"] = map[string]any{"site": pkgconfig.GetString("site")}
+		ddcfgMap["api"] = map[string]any{"site": site}
 		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
@@ -586,8 +592,9 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		return nil, errors.New("invalid datadog exporter config")
 	}
 	apiSite, ok := apicfgMap["site"]
-	if !ok || apiSite == "" {
-		apicfgMap["site"] = pkgconfig.GetString("site")
+	apiSiteStr, isString := apiSite.(string)
+	if !ok || !isString || apiSiteStr == "" {
+		apicfgMap["site"] = site
 	}
 	return ddcfgMap, nil
 }
