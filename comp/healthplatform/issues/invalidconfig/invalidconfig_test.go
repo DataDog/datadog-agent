@@ -6,6 +6,7 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
@@ -77,11 +79,7 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
-// A duration setting written as a duration string (e.g. "5s") in datadog.yaml is
-// coerced by the config into a time.Duration. time.Duration marshals back to a
-// string through go-yaml, but the schema types duration fields as numbers, so the
-// checker must normalize durations to their numeric form to avoid a spurious
-// "got string, want number" violation. Regression test for the e2e diagnose suite.
+// Duration strings must remain accepted for both dotted and nested config keys.
 func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 	for _, yaml := range []string{
 		"remote_configuration.refresh_interval: 5s\n",   // flat dotted key
@@ -108,7 +106,68 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
+	assert.Equal(t, "at '/agent_ipc/port': got string, want integer", reports[0].Context[contextErrorKey(0)])
+}
+
+func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
+	requireSchema(t)
+	for _, testCase := range []struct {
+		yaml string
+		want string
+	}{
+		{"forwarder_apikey_validation_interval: 61\n", ""},
+		{"api_key: [secret]\n", "got array, want string"},
+		{"api_key: {value: secret}\n", "got object, want string"},
+		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", "got string, want integer"},
+	} {
+		t.Run(testCase.yaml, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, testCase.yaml)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			if testCase.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Contains(t, reports[0].Context[contextErrorKey(0)], testCase.want)
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
+			assert.NotContains(t, string(encoded), "ENC[")
+		})
+	}
+}
+
+func TestCheck_ResolvedSecrets(t *testing.T) {
+	requireSchema(t)
+	for _, tc := range []struct{ name, value, want string }{
+		{"valid_integer", "5001", ""},
+		{"invalid_integer", "SECRET_INVALID_INTEGER", "got string, want integer"},
+		{"resolved_enc_literal", "ENC[SECRET_LITERAL]", "got string, want integer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, "agent_ipc:\n  port: ENC[value]\n")
+			cfg.Set("agent_ipc.port", tc.value, model.SourceSecret)
+
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Empty(t, reports)
+				return
+			}
+			require.Len(t, reports, 1)
+			assert.Equal(t, "at '/agent_ipc/port': "+tc.want, reports[0].Context[contextErrorKey(0)])
+			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(issue)
+			require.NoError(t, err)
+			assert.NotContains(t, string(encoded), tc.value)
+		})
+	}
 }
 
 // Two checkers with the same hostname but different config files must not
