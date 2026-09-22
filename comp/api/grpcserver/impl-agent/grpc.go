@@ -180,7 +180,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			telemetry:            reqs.Telemetry,
 			hostname:             reqs.Hostname,
 			configStream:         reqs.ConfigStream,
-			remoteQueries:        remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), remotequeriesimpl.RemoteQueriesQueryAllowlistEnabled(reqs.Cfg), reqs.Cfg),
+			remoteQueries:        remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), reqs.Cfg),
 			remoteQueriesResolve: remotequeriesimpl.NewRemoteQueryResolveService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesResolveEnabledConfig)),
 			healthPlatformStore:  reqs.HealthPlatformStore,
 		},

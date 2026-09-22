@@ -79,17 +79,20 @@ func testGetConfig(t *testing.T) {
 	require.NotNil(t, config)
 	assert.Equal(t, "5001", C.GoString(config))
 
-	GetConfig(C.CString("remote_queries.execute.enable_query_allowlist"), &config)
-	require.NotNil(t, config)
-	assert.Equal(t, "true", C.GoString(config))
-
-	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.enable_query_allowlist", false)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.enable_query_allowlist", pkgconfigmodel.SourceUnknown)
-	})
-	GetConfig(C.CString("remote_queries.execute.enable_query_allowlist"), &config)
+	// remote_queries.execute.enabled is the execute-bridge toggle, a registered
+	// boolean of the same section as the Test Drive selector key below: GetConfig
+	// returns its default and then reflects an in-test override.
+	GetConfig(C.CString("remote_queries.execute.enabled"), &config)
 	require.NotNil(t, config)
 	assert.Equal(t, "false", C.GoString(config))
+
+	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.enabled", pkgconfigmodel.SourceUnknown)
+	})
+	GetConfig(C.CString("remote_queries.execute.enabled"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, "true", C.GoString(config))
 
 	// remote_queries.execute.intake_test_drive is the Test Drive selector key
 	// read by integrations-core through datadog_agent.get_config. It must be

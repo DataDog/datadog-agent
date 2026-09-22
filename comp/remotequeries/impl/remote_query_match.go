@@ -31,7 +31,6 @@ const (
 	// integration-owned: its database eligibility is autodiscovery-aware and lives
 	// only in the loaded Python check instance, so the Agent asks the bridge
 	// resolver once per loaded check and never parses its instance config itself.
-	// The name still scopes the proof-query allowlist.
 	postgresIntegration = "postgres"
 	// clickhouseIntegration is the one integration whose matching stays Agent-side
 	// in this wave: its effective identity is fully config-derived (documented

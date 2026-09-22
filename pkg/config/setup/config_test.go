@@ -1674,7 +1674,6 @@ func TestRemoteQueriesExecuteIntakeTestDriveConfig(t *testing.T) {
 
 	// Sanity: the sibling remote_queries.execute settings stay registered.
 	assert.True(t, conf.IsKnown("remote_queries.execute.enabled"))
-	assert.True(t, conf.IsKnown("remote_queries.execute.enable_query_allowlist"))
 }
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {

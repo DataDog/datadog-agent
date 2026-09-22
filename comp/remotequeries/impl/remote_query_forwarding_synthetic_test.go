@@ -85,7 +85,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 		{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
 		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":3,"totalRows":123456,"totalBytes":987654}}`},
 	})
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
 		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
@@ -165,7 +165,7 @@ func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":0,"totalRows":0,"totalBytes":0}}`},
 	})
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
@@ -185,7 +185,7 @@ func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 // without the backend-injected upload handle the request never reaches the integration.
 func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
 	runner := newSyntheticForwardRunner(nil)
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 
 	_, err := NewRemoteQueryExecuteRequest(
 		"postgres",
@@ -221,7 +221,7 @@ func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
 	})
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
@@ -264,7 +264,7 @@ func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
 			runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 				{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
 			})
-			service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+			service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 			req, err := NewRemoteQueryExecuteRequest(
 				"postgres",
 				RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
@@ -291,7 +291,7 @@ func TestExecuteStreamForwardsNoTraceContextWhenAbsent(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
 	})
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
 	req, err := NewRemoteQueryExecuteRequest(
 		"postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},

@@ -52,7 +52,7 @@ func TestRemoteQueryExecuteStreamRejectsInvalidRequestWithTerminalErrorEvent(t *
 
 func remoteQueriesServiceForTest(t *testing.T) *remotequeriesimpl.RemoteQueryExecuteService {
 	t.Helper()
-	return remotequeriesimpl.NewRemoteQueryExecuteService(nil, true, true, nil)
+	return remotequeriesimpl.NewRemoteQueryExecuteService(nil, true, nil)
 }
 
 func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {

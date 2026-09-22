@@ -8700,10 +8700,6 @@ properties:
         node_type: section
         type: object
         properties:
-          enable_query_allowlist:
-            node_type: setting
-            type: boolean
-            default: true
           enabled:
             node_type: setting
             type: boolean
