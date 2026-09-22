@@ -150,7 +150,7 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    module_info = module.split(" ")
+                    module_info = module.split()
                     if len(module_info) == 2:
                         module_path, module_version = module_info
                         if not module_path.startswith(LOCKSTEP_MODULE_PREFIXES):
