@@ -1,6 +1,6 @@
-name: update-balance
+name: update-owner
 scan_data:
-  - sub_task_id: update-balance
+  - sub_task_id: update-owner
     connection:
       host: localhost
       port: 5432
@@ -14,7 +14,7 @@ scan_data:
       database: labdb
       schema: public
       table: accounts
-    query: "UPDATE accounts SET balance = 0"
+    query: "UPDATE accounts SET owner = 'owner_mutated'"
     timeout_seconds: 30
 expected:
   - resource:
@@ -37,5 +37,5 @@ expected:
         scanMetadata:
           scanTaskMetadata:
             taskId: e2e-datasec-postgres
-            subTaskId: update-balance
+            subTaskId: update-owner
             status: ERROR

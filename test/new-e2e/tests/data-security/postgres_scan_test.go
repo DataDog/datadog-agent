@@ -27,12 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
-// accountRow is one `accounts` row. Balance is text so NUMERIC compares exactly.
+// accountRow columns must not change. Omit balance (rewritten by
+// test/e2e-framework/components/integration/postgres/postgres-workload.sh)
+// and created_at.
 type accountRow struct {
-	ID        int64
-	Owner     string
-	Balance   string
-	CreatedAt string
+	ID    int64
+	Owner string
 }
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
@@ -64,11 +64,6 @@ func TestDataSecurityPostgresScan(t *testing.T) {
 }
 
 func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
-	// The compose workload updates balances on a loop; stop it so a before/after
-	// row comparison is stable and an UPDATE scan cannot hide behind it.
-	_, err := s.Env().RemoteHost.Execute("docker stop postgres-workload")
-	require.NoError(s.T(), err, "stop postgres-workload so account rows are stable")
-
 	before := s.fetchAccounts()
 	require.NotEmpty(s.T(), before, "accounts should be seeded before the scan")
 
@@ -113,14 +108,14 @@ func (s *postgresScanSuite) fetchAccounts() []accountRow {
 	require.NoError(s.T(), err)
 	defer conn.Close(context.Background())
 
-	rows, err := conn.Query(ctx, `SELECT id, owner, balance::text, created_at::text FROM accounts ORDER BY id`)
+	rows, err := conn.Query(ctx, `SELECT id, owner FROM accounts ORDER BY id`)
 	require.NoError(s.T(), err)
 	defer rows.Close()
 
 	var out []accountRow
 	for rows.Next() {
 		var row accountRow
-		err := rows.Scan(&row.ID, &row.Owner, &row.Balance, &row.CreatedAt)
+		err := rows.Scan(&row.ID, &row.Owner)
 		require.NoError(s.T(), err)
 		out = append(out, row)
 	}
