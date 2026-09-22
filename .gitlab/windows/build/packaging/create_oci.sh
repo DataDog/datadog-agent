@@ -16,11 +16,7 @@ SRC_DIR="$(mktemp -d)"
 EXTRA_FLAGS=""
 case "${WIN_SOURCE_TYPE}" in
   msi)
-    if [ -n "${WIN_MSI_DESTINATION_PRODUCT:-}" ]; then
-      cp "${ARTIFACT}" "${SRC_DIR}/${WIN_MSI_DESTINATION_PRODUCT}-${PACKAGE_VERSION}-x86_64.msi"
-    else
-      cp "${ARTIFACT}" "${SRC_DIR}/"
-    fi
+    cp "${ARTIFACT}" "${SRC_DIR}/"
     ;;
   zip)
     unzip -q "${ARTIFACT}" -d "${SRC_DIR}"
