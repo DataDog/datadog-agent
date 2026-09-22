@@ -305,13 +305,16 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
-// getProgressStreamsOnUp returns the progress stream options for stack up operations.
+// getProgressStreamsOnUp returns the progress options for a single stack up
+// operation.
 // When pulumi_verbose_progress_streams is set the raw Pulumi progress output is
-// streamed to the logger; otherwise the progress output goes through
-// NewProgressFilter and only clean, formatted resource events are shown.
-// The filter already passes through error/warning lines, so no separate
-// ErrorProgressStreams is needed in the filtered path (the Pulumi CLI puts
-// most progress output on stderr, which ErrorProgressStreams forwards raw).
+// streamed to the logger; otherwise the structured Pulumi engine event stream
+// is consumed and only clean, formatted resource events are shown.
+// The event formatter already passes through error/warning diagnostics, so no
+// separate ErrorProgressStreams is needed in the filtered path.
+// The returned options must be rebuilt for every operation attempt: the Pulumi
+// SDK closes the event channel after each operation, and sending to a closed
+// channel would panic.
 func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) []optup.Option {
 	verboseProgressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
@@ -323,7 +326,7 @@ func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) []optup.Option 
 	}
 
 	return []optup.Option{
-		optup.ProgressStreams(NewProgressFilter(logger)),
+		optup.EventStreams(startEventStreamLogger(logger)),
 	}
 }
 
@@ -338,7 +341,7 @@ func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) []optdestr
 	}
 
 	return []optdestroy.Option{
-		optdestroy.ProgressStreams(NewProgressFilter(logger)),
+		optdestroy.EventStreams(startEventStreamLogger(logger)),
 	}
 }
 
@@ -382,14 +385,12 @@ func (sm *StackManager) destroyStack(ctx context.Context, stackID string, stack 
 		return err
 	}
 
-	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
-
 	downCount := 0
 	var destroyErr error
 	for {
 		downCount++
 		destroyContext, cancel := context.WithTimeout(ctx, defaultStackDestroyTimeout)
-		_, destroyErr = stack.Destroy(destroyContext, append(progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))...)
+		_, destroyErr = stack.Destroy(destroyContext, append(sm.getProgressStreamsOnDestroy(logger), optdestroy.DebugLogging(loggingOptions))...)
 		cancel()
 		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", "stack:" + stack.Name(), fmt.Sprintf("retries:%d", downCount)})
@@ -504,9 +505,6 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 	}
 	var logger = params.LogWriter
 
-	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
-	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
-
 	var upResult auto.UpResult
 	var upError error
 	upCount := 0
@@ -515,7 +513,9 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, params.UpTimeout)
 		now := time.Now()
-		upResult, upError = stack.Up(upCtx, append(progressStreamsUpOption, optup.DebugLogging(loggingOptions))...)
+		// The progress options are rebuilt on every attempt: the Pulumi SDK
+		// closes the engine event channel after each operation.
+		upResult, upError = stack.Up(upCtx, append(sm.getProgressStreamsOnUp(logger), optup.DebugLogging(loggingOptions))...)
 		fmt.Fprintf(logger, "Stack up took %v at attempt %v\n", time.Since(now), upCount)
 		cancel()
 
@@ -546,7 +546,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		case ReCreate:
 			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v\n", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, params.DestroyTimeout)
-			_, err = stack.Destroy(destroyCtx, append(progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))...)
+			_, err = stack.Destroy(destroyCtx, append(sm.getProgressStreamsOnDestroy(logger), optdestroy.DebugLogging(loggingOptions))...)
 			cancel()
 			if err != nil {
 				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v\n", err)
