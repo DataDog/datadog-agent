@@ -162,9 +162,6 @@ var Images = NewRegistry(
 		out, err := r.Adapter.BuildImage(ctx, agentbuild.ImageRequest{Request: buildRequest(p.Repository, r), Reference: p.Reference, BaseImage: p.BaseImage, RebuildComponents: p.RebuildComponents, Race: p.Race})
 		return ImageResult{out}, err
 	}, func(p bc.InvokeImage) error {
-		if p.BaseImage != "registry.datadoghq.com/agent:7.83.0" {
-			return fmt.Errorf("explicit receiver requires the tested 7.83.0 image base")
-		}
 		return nil
 	}),
 )

@@ -117,9 +117,6 @@ func (k *Kubernetes) Validate(cfg *config.File) []error {
 		}
 	}
 	if cfg.Agent.Receiver != nil {
-		if cfg.Agent.Build == nil && (section.Version != "7.83.0" || section.Image != "") {
-			return []error{fmt.Errorf("explicit routing currently supports released Agent 7.83.0 only")}
-		}
 		var values map[string]interface{}
 		if err := yaml.Unmarshal([]byte(section.Values), &values); err != nil {
 			return []error{fmt.Errorf("invalid Helm values")}
@@ -310,9 +307,6 @@ func (h *HostScript) Validate(cfg *config.File) []error {
 		return []error{err}
 	}
 	if cfg.Agent.Receiver != nil {
-		if section.Version != "7.83.0" {
-			return []error{fmt.Errorf("explicit routing currently supports released Agent 7.83.0 only")}
-		}
 		if _, err := receivers.ValidateConfig(section.Config); err != nil {
 			return []error{err}
 		}

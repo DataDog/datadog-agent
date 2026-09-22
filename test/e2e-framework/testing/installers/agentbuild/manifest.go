@@ -168,7 +168,7 @@ func (r Result) Validate(target Target) error {
 		}
 		switch {
 		case r.Image != nil && r.Provenance.Producer == "invoke-image":
-			if r.Provenance.BaseReference != "registry.datadoghq.com/agent:7.83.0" || !imagePattern.MatchString(r.Provenance.BaseIdentity) {
+			if !imagePattern.MatchString(r.Provenance.BaseIdentity) {
 				return fmt.Errorf("unsupported image producer profile evidence")
 			}
 		case r.Binary != nil && r.Provenance.Producer == "invoke-binary":

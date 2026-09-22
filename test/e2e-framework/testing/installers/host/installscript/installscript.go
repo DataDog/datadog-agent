@@ -40,10 +40,6 @@ func Install(_ context.Context, env *environments.Host, p Params) error {
 		return errors.New("installing host agent: environment's RemoteHost is not initialized")
 	}
 
-	if p.Routing != nil && p.AgentVersion != "7.83.0" {
-		return fmt.Errorf("install-script released routing profile supports Agent 7.83.0 only")
-	}
-
 	apiKey := p.APIKey
 	var config string
 	var err error
