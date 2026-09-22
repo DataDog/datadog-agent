@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -61,7 +62,7 @@ func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 

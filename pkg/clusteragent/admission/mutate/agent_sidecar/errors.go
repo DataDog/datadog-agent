@@ -7,6 +7,14 @@
 
 package agentsidecar
 
+import "errors"
+
+var (
+	errAgentSidecarSecretNotFound = errors.New("Agent sidecar Secret datadog-secret was not found")
+	errAgentSidecarAPIKeyNotFound = errors.New("Agent sidecar Secret datadog-secret does not contain key api-key")
+	errAgentSidecarTokenNotFound  = errors.New("Agent sidecar Secret datadog-secret does not contain key token")
+)
+
 // VolumeAlreadyAttached indicates that a give volume has
 // already been attached to a Pod's spec
 type VolumeAlreadyAttached struct {

@@ -406,19 +406,18 @@
 /omnibus/package-scripts/agent-rpm/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
-/omnibus/package-scripts/installer-deb/                  @DataDog/agent-build @DataDog/fleet
-/omnibus/package-scripts/installer-rpm/                  @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
 /omnibus/resources/*/msi/                                @DataDog/windows-products
 
-/packages/        @DataDog/agent-build
-/packages/debian/ @DataDog/agent-build @DataDog/fleet
-/packages/redhat/ @DataDog/agent-build @DataDog/fleet
-/packages/macos   @DataDog/agent-build @DataDog/windows-products
-/packages/windows @DataDog/agent-build @DataDog/windows-products
+/packages/                                               @DataDog/agent-build
+/packages/debian/                                        @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                                        @DataDog/agent-build @DataDog/fleet
+/packages/macos                                          @DataDog/agent-build @DataDog/windows-products
+/packages/windows                                        @DataDog/agent-build @DataDog/windows-products
+/packages/installer                                      @DataDog/agent-build @DataDog/fleet
 
 # AIX
 /packaging/aix/ @DataDog/agent-build
@@ -1036,6 +1035,7 @@
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go @DataDog/fleet-automation
 /test/new-e2e/tests/containers/ecs_test.go                      @DataDog/ecs-experiences
 /test/new-e2e/tests/cspm                                        @DataDog/agent-cspm @DataDog/agent-security
+/test/new-e2e/tests/ddi                                         @DataDog/container-platform
 /test/new-e2e/tests/discovery                                   @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance                             @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                                    @DataDog/network-device-monitoring-core

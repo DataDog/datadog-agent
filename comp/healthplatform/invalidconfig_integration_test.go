@@ -8,6 +8,7 @@
 package healthplatform
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -59,9 +61,10 @@ func requireSchema(t *testing.T) {
 // TestInvalidConfigExtraErrorsSurviveFullPipeline exercises the complete
 // pipeline: schema violation in config → startup check → runner.BuildIssue →
 // store → forwarder → fakeintake. Asserts that extra.errors reaches the intake
-// as a path-keyed struct.
+// without exposing a locally resolved secret value.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
+	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -80,7 +83,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			cfg := config.NewMock(t)
+			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\n")
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
@@ -89,6 +92,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
 			cfg.SetInTest("agent_ipc.port", "not-a-number")
+			cfg.Set("logs_enabled", rawInvalidLogsEnabled, model.SourceSecret)
 			return cfg
 		}),
 		telemetrymock.Module(),
@@ -101,6 +105,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		waitInterval = 50 * time.Millisecond
 	)
 
+	var receivedIssue *healthplatformpayload.Issue
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
@@ -108,23 +113,12 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		}
 		for _, p := range payloads {
 			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-				errorsStruct := iss.GetExtra().GetFields()["errors"].GetStructValue()
-				return errorsStruct != nil && len(errorsStruct.GetFields()) > 0
+				receivedIssue = iss
+				return true
 			}
 		}
 		return false
-	}, waitTimeout, waitInterval, "invalid-config issue with path-keyed extra.errors never reached fakeintake")
-
-	payloads, err := fiClient.GetAgentHealth()
-	require.NoError(t, err)
-
-	var receivedIssue *healthplatformpayload.Issue
-	for _, p := range payloads {
-		if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-			receivedIssue = iss
-			break
-		}
-	}
+	}, waitTimeout, waitInterval, "invalid-config issue never reached fakeintake")
 	require.NotNil(t, receivedIssue)
 
 	errorsStruct := receivedIssue.GetExtra().GetFields()["errors"].GetStructValue()
@@ -134,4 +128,11 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	vals := portErrors.GetListValue().GetValues()
 	require.NotEmpty(t, vals)
 	assert.Contains(t, vals[0].GetStringValue(), "want integer")
+	logsEnabledErrors := errorsStruct.GetFields()["/logs_enabled"]
+	require.NotNil(t, logsEnabledErrors, "/logs_enabled must be present in extra.errors")
+	assert.Contains(t, logsEnabledErrors.GetListValue().GetValues()[0].GetStringValue(), "want boolean")
+
+	receivedJSON, err := json.Marshal(receivedIssue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
 }

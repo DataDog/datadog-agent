@@ -49,3 +49,22 @@ func TestMockConfig(t *testing.T) {
 }
 
 // TODO: test various bundle params
+
+type activeConfigStream struct{}
+
+func (activeConfigStream) IsActive() bool { return true }
+
+// The streamed snapshot only carries the core agent's config, so the security agent's own
+// file still has to be merged on the configstream path.
+func TestSecurityAgentConfigMergedWithConfigStream(t *testing.T) {
+	dir := t.TempDir()
+	securityAgentPath := filepath.Join(dir, "security-agent.yaml")
+	require.NoError(t, os.WriteFile(securityAgentPath, []byte("runtime_security_config:\n  enabled: true\n"), 0o600))
+
+	cfg, err := newConfig(dependencies{
+		Params:    NewSecurityAgentParams([]string{filepath.Join(dir, "datadog.yaml"), securityAgentPath}),
+		Cfgstream: activeConfigStream{},
+	})
+	require.NoError(t, err)
+	require.True(t, cfg.GetBool("runtime_security_config.enabled"))
+}

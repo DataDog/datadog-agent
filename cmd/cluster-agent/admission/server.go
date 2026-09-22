@@ -51,6 +51,8 @@ func maxRequestBodyBytes() int64 {
 
 // Request contains the information of an admission request
 type Request struct {
+	// Context is canceled when the HTTP admission request is canceled.
+	Context context.Context
 	// UID is the unique identifier of the AdmissionRequest
 	UID types.UID
 	// Name is the name of the object
@@ -256,6 +258,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			admissionResponse = probeResp
 		} else {
 			admissionRequest := Request{
+				Context:       r.Context(),
 				UID:           admissionReviewReq.Request.UID,
 				Kind:          admissionReviewReq.Request.Kind,
 				Name:          admissionReviewReq.Request.Name,
@@ -288,6 +291,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			admissionResponse = probeResp
 		} else {
 			admissionRequest := Request{
+				Context:       r.Context(),
 				UID:           admissionReviewReq.Request.UID,
 				Kind:          admissionReviewReq.Request.Kind,
 				Name:          admissionReviewReq.Request.Name,
