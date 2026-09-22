@@ -1206,6 +1206,11 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 				cp.Limits[res] = qty.DeepCopy()
 			}
 		}
+		if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+			cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+				Gomemlimit: cr.Runtime.Gomemlimit,
+			}
+		}
 		result[i] = cp
 	}
 	return result

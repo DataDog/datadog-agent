@@ -582,12 +582,16 @@ def environ(env):
             os.environ.pop(key, None)
         else:
             os.environ[key] = value
-    yield
-    for var in env:
-        if var in original_environ:
-            os.environ[var] = original_environ[var]
-        else:
-            os.environ.pop(var)
+    try:
+        yield
+    finally:
+        # Restore even if the body raised, so an exception doesn't leak a deleted/overridden
+        # var into the rest of the process (e.g. a later nested `environ()` call).
+        for var in env:
+            if var in original_environ:
+                os.environ[var] = original_environ[var]
+            else:
+                os.environ.pop(var, None)
 
 
 def is_pr_context(branch, pr_id, test_name):

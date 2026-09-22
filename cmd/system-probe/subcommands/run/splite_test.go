@@ -149,7 +149,7 @@ func TestMaybeSPLite(t *testing.T) {
 }
 
 func TestRunCommandExecsSPLiteBeforeLifecycleStart(t *testing.T) {
-	configPath := prepareRunCommandTest(t)
+	configPath, _ := prepareRunCommandTest(t)
 	fakeBinaryPath, executableFn := createFakeSPLiteBinary(t)
 	pidFilePath := filepath.Join(t.TempDir(), "system-probe.pid")
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
