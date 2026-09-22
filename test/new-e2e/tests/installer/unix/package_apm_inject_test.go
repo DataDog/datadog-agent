@@ -736,7 +736,7 @@ func (s *packageApmInjectSuite) installGCC() {
 	case e2eos.Ubuntu, e2eos.Debian:
 		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
 	case e2eos.Suse:
-		host.MustExecute("sudo zypper --non-interactive install -y gcc glibc-devel")
+		// gcc/glibc-devel are pre-baked into the suse/15-4-e2e AMI.
 	default:
 		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
 	}

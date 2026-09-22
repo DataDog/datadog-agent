@@ -47,12 +47,12 @@ var (
 		e2eos.Debian12,
 		e2eos.RedHat9,
 		e2eos.CentOS7,
-		e2eos.Suse15,
+		e2eos.Suse15E2E,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
-		e2eos.Suse15,
+		e2eos.Suse15E2E,
 	}
 	// apmInjectMultilibFlavors are the hosts the multilib launcher suite runs on:
 	// one per glibc $LIB convention. Debian/Ubuntu resolve $LIB to the multiarch
@@ -219,12 +219,13 @@ func (s *packageBaseSuite) SetupSuite() {
 }
 
 func (s *packageBaseSuite) updatePythonOnSuse() {
-	// Suse15 comes with Python3.6 by default which is too old for injection
+	// The suse/15-4-e2e AMI ships python311 pre-baked (needed for injection,
+	// since the default Python3.6 is too old) but deliberately leaves
+	// /usr/bin/python3 pointing at 3.6 so cloud-init's first-boot SSH key
+	// injection still works. Repoint it now that cloud-init has already run.
 	if s.os.Flavor != e2eos.Suse {
 		return
 	}
-	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
-	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
 	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
@@ -382,7 +383,9 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
+		// ansible is pre-baked into the suse/15-4-e2e AMI (installed via
+		// python3.11 -m pip), whose console scripts land in /usr/local/bin.
+		pathPrefix = "/usr/local/bin/"
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
 		pathPrefix = "/usr/bin/"
