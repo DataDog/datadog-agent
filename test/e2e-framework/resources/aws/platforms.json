@@ -62,13 +62,13 @@
     },
     "redhat": {
         "x86_64": {
-            "8": "ami-031eff1ae75bb87e4",
+            "8": "ami-0fbdded980e0521d5",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14",
-            "9-fapolicyd": "ami-0838852bcc66ea9a2",
-            "9-selinux-npm": "ami-04e7f0e0bde783f77",
-            "10": "ami-07b1b74df74f960a5"
+            "9": "ami-0e34b695d191812aa",
+            "9-fapolicyd": "ami-01f0a4c82982b7042",
+            "9-selinux-npm": "ami-0bc45d2baad82a17f",
+            "10": "ami-0adac54b92c530a04"
         }
     },
     "suse": {
