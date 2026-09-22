@@ -31,7 +31,6 @@ dd_agent_go_test(
         "system_api_test.go",
     ],
     embed = [":windows"],
-    visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
