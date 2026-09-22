@@ -216,8 +216,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	managerMods = append(managerMods, &modifiers.SleepableProgramModifier{
 		ProbeIDs:             sleepableIDs,
 		PatchPerfEventOutput: perfOutputRedundant,
-	},
-		&modifiers.HashMapNoPreallocModifier{})
+	})
+
+	if e.cfg.ForceNoPreallocHash.USM {
+		managerMods = append(managerMods, &modifiers.HashMapNoPreallocModifier{})
+	}
 
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
 

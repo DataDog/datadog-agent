@@ -47,7 +47,12 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		filename = "noisy-neighbor-debug.o"
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
-		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", &ebpftelemetry.ErrorsTelemetryModifier{}, &modifiers.HashMapNoPreallocModifier{})
+		mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}}
+		if cfg.ForceNoPreallocHash.Misc {
+			mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+		}
+
+		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", mgrModifiers...)
 		const uid = "noisy"
 		p.mgr.Probes = []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup", UID: uid}},
