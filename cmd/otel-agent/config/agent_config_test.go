@@ -518,6 +518,18 @@ func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
 	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
 }
 
+func (suite *ConfigTestSuite) TestEmptyDDSiteError() {
+	t := suite.T()
+	// Explicitly set DD_SITE to empty string to test error handling
+	t.Setenv("DD_SITE", "")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	// Should return an error when site is empty
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "site configuration is empty")
+	assert.Nil(t, c)
+}
+
 func (suite *ConfigTestSuite) TestNilDatadogExporter() {
 	t := suite.T()
 	fileName := "testdata/config_nil_datadog_exporter.yaml"
