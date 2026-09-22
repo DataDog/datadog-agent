@@ -67,8 +67,17 @@ func TestCountPEMCerts(t *testing.T) {
 }
 
 func TestWriteCertDirListing(t *testing.T) {
+	// Directory listing behavior mirrors Go's Unix root loader and uses
+	// symlinks; restrict it to the platforms the provider supports.
+	if runtime.GOOS != "linux" && runtime.GOOS != "aix" {
+		t.Skipf("skipping on %s", runtime.GOOS)
+	}
+
 	dir := t.TempDir()
 	certPEM := generateTestCertificate(t)
+	// a distinct certificate only present in a nested directory: it must be
+	// listed but not counted in the total (Go only reads immediate entries)
+	nestedCertPEM := generateTestCertificate(t)
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), certPEM, 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "garbage.txt"), []byte("junk"), 0644))
@@ -76,7 +85,7 @@ func TestWriteCertDirListing(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(dir, "ca.pem"), filepath.Join(dir, "absolute"))) // symlink with a "/" in target
 	require.NoError(t, os.Symlink("/does/not/exist", filepath.Join(dir, "dangling")))
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "extra"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "extra", "ca2.pem"), certPEM, 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "extra", "ca2.pem"), nestedCertPEM, 0644))
 
 	b := new(bytes.Buffer)
 	loaded := make(map[[sha256.Size]byte]struct{})
@@ -91,12 +100,14 @@ func TestWriteCertDirListing(t *testing.T) {
 	assert.Contains(t, out, "absolute -> "+filepath.Join(dir, "ca.pem")+" (1 certificates)")
 	assert.Contains(t, out, "dangling -> /does/not/exist (dangling)")
 	assert.Contains(t, out, "extra/")
+	// the nested certificate is listed but not counted in the total
+	assert.Contains(t, out, "ca2.pem (1 certificates)")
 
 	// 3 file entries (ca.pem, garbage.txt, extra/ca2.pem) and 2 directories
 	assert.Equal(t, 3, stats.files)
 	assert.Equal(t, 2, stats.dirs)
-	// unique certificates: ca.pem, its absolute symlink target and extra/ca2.pem
-	// are the same certificate
+	// unique certificates counted: ca.pem and its absolute symlink target;
+	// the distinct nested certificate must not be included
 	assert.Len(t, loaded, 1)
 }
 

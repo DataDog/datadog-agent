@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -113,16 +114,21 @@ func writeCertFilesSection(b *bytes.Buffer, loaded map[[sha256.Size]byte]struct{
 
 	used := false
 	for _, f := range files {
-		data, err := os.ReadFile(f)
+		data, err := readCertFile(f)
 		if err != nil {
-			fmt.Fprintf(b, "%s: not found\n", f)
+			if os.IsNotExist(err) {
+				fmt.Fprintf(b, "%s: not found\n", f)
+			} else {
+				fmt.Fprintf(b, "%s: %v\n", f, err)
+			}
 			continue
 		}
 		if !used {
 			used = true
 			fmt.Fprintf(b, "%s: %d bytes, %d certificates (used)\n", f, len(data), countPEMCerts(data, loaded))
 		} else {
-			fmt.Fprintf(b, "%s: %d bytes, %d certificates (not used)\n", f, len(data), countPEMCerts(data, make(map[[sha256.Size]byte]struct{})))
+			// Go only loads the first readable file; count the others for display only.
+			fmt.Fprintf(b, "%s: %d bytes, %d certificates (not used)\n", f, len(data), countPEMCerts(data, nil))
 		}
 	}
 	fmt.Fprintln(b)
@@ -155,7 +161,9 @@ type certDirStats struct {
 
 // writeCertDirListing writes an ls -R style listing of dir into b, recursing
 // into sub-directories up to certDirListMaxDepth. Symlinked directories are
-// not followed. Certificates found are added to loaded.
+// not followed. When loaded is not nil, the certificates found in dir are
+// added to it; nested directories pass nil so their certificates are listed
+// but not counted (Go only loads the immediate entries of each directory).
 func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirStats, loaded map[[sha256.Size]byte]struct{}) {
 	if depth >= certDirListMaxDepth {
 		return
@@ -201,7 +209,11 @@ func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirS
 			case st.IsDir():
 				fmt.Fprintf(dirBuffer, "%s -> %s\n", name, target)
 			default:
-				fmt.Fprintf(dirBuffer, "%s -> %s (%d certificates)\n", name, target, countCertsInFile(full, loaded))
+				if n, err := countCertsInFile(full, loaded); err != nil {
+					fmt.Fprintf(dirBuffer, "%s -> %s (%s)\n", name, target, err)
+				} else {
+					fmt.Fprintf(dirBuffer, "%s -> %s (%d certificates)\n", name, target, n)
+				}
 			}
 
 		default:
@@ -212,10 +224,10 @@ func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirS
 				continue
 			}
 			line := fmt.Sprintf("%s %10d %s  %s", st.Mode().String(), st.Size(), st.ModTime().Format(time.RFC3339), name)
-			if st.Size() > certMaxParseSize {
-				line += " (too large to parse)"
+			if n, err := countCertsInFile(full, loaded); err != nil {
+				line += fmt.Sprintf(" (%s)", err)
 			} else {
-				line += fmt.Sprintf(" (%d certificates)", countCertsInFile(full, loaded))
+				line += fmt.Sprintf(" (%d certificates)", n)
 			}
 			fmt.Fprintln(dirBuffer, line)
 		}
@@ -226,23 +238,41 @@ func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirS
 	stats.dirs++
 
 	for _, sub := range subDirs {
-		writeCertDirListing(b, filepath.Join(dir, sub), depth+1, stats, loaded)
+		writeCertDirListing(b, filepath.Join(dir, sub), depth+1, stats, nil)
 	}
 }
 
-// countCertsInFile parses the PEM certificates in path, adds them to loaded
-// (deduplicated, like a CertPool) and returns the number of unique ones.
-func countCertsInFile(path string, loaded map[[sha256.Size]byte]struct{}) int {
-	data, err := os.ReadFile(path)
+// readCertFile returns the content of path if it is a regular file not larger
+// than certMaxParseSize. Symlinks are followed, so that a link to a huge file
+// cannot exhaust memory and a FIFO or device cannot block flare generation.
+func readCertFile(path string) ([]byte, error) {
+	st, err := os.Stat(path)
 	if err != nil {
-		return 0
+		return nil, err
 	}
-	return countPEMCerts(data, loaded)
+	if !st.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	if st.Size() > certMaxParseSize {
+		return nil, errors.New("too large to parse")
+	}
+	return os.ReadFile(path)
+}
+
+// countCertsInFile parses the PEM certificates in path and adds them to
+// loaded (deduplicated, like a CertPool). It returns the number of unique
+// certificates found, or an error when the file cannot be read safely.
+func countCertsInFile(path string, loaded map[[sha256.Size]byte]struct{}) (int, error) {
+	data, err := readCertFile(path)
+	if err != nil {
+		return 0, err
+	}
+	return countPEMCerts(data, loaded), nil
 }
 
 // countPEMCerts parses the PEM certificate blocks of data and adds them to
-// loaded (deduplicated, like a CertPool). It returns the number of unique
-// certificates found in data.
+// loaded if it is not nil (deduplicated, like a CertPool). It returns the
+// number of unique certificates found in data.
 func countPEMCerts(data []byte, loaded map[[sha256.Size]byte]struct{}) int {
 	local := make(map[[sha256.Size]byte]struct{})
 	for {
@@ -261,8 +291,10 @@ func countPEMCerts(data []byte, loaded map[[sha256.Size]byte]struct{}) int {
 		}
 		local[sha256.Sum256(cert.Raw)] = struct{}{}
 	}
-	for sum := range local {
-		loaded[sum] = struct{}{}
+	if loaded != nil {
+		for sum := range local {
+			loaded[sum] = struct{}{}
+		}
 	}
 	return len(local)
 }
