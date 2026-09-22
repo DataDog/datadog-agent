@@ -11,9 +11,11 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/client/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
@@ -26,7 +28,7 @@ import (
 )
 
 type etcdBackend interface {
-	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
+	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 }
 
 // EtcdConfigProvider implements the Config Provider interface
@@ -43,10 +45,9 @@ func NewEtcdConfigProvider(providerConfig *constants.ConfigurationProviders, _ *
 		providerConfig = &constants.ConfigurationProviders{}
 	}
 
-	clientCfg := client.Config{
-		Endpoints:               []string{providerConfig.TemplateURL},
-		Transport:               client.DefaultTransport,
-		HeaderTimeoutPerRequest: time.Second,
+	clientCfg := clientv3.Config{
+		Endpoints:   []string{providerConfig.TemplateURL},
+		DialTimeout: time.Second,
 	}
 	if len(providerConfig.Username) > 0 && len(providerConfig.Password) > 0 {
 		log.Info("Using provided etcd credentials: username ", providerConfig.Username)
@@ -54,12 +55,11 @@ func NewEtcdConfigProvider(providerConfig *constants.ConfigurationProviders, _ *
 		clientCfg.Password = providerConfig.Password
 	}
 
-	cl, err := client.New(clientCfg)
+	c, err := clientv3.New(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
 	cache := newProviderCache()
-	c := client.NewKeysAPI(cl)
 	return &EtcdConfigProvider{Client: c, templateDir: providerConfig.TemplateDir, cache: cache}, nil
 }
 
@@ -85,18 +85,23 @@ func (p *EtcdConfigProvider) Collect(ctx context.Context) ([]integration.Config,
 // and return their names.
 func (p *EtcdConfigProvider) getIdentifiers(ctx context.Context, key string) []string {
 	identifiers := make([]string, 0)
-	resp, err := p.Client.Get(ctx, key, &client.GetOptions{Recursive: true})
+	resp, err := p.Client.Get(ctx, key+"/", clientv3.WithPrefix(), clientv3.WithKeysOnly())
 	if err != nil {
 		log.Error("Can't get templates keys from etcd: ", err)
 		return identifiers
 	}
-	children := resp.Node.Nodes
-	for _, node := range children {
-		if node.Dir && hasTemplateFields(node.Nodes) {
-			split := strings.Split(node.Key, "/")
-			identifiers = append(identifiers, split[len(split)-1])
+	children := make(map[string][]string)
+	for _, kv := range resp.Kvs {
+		if split := strings.Split(string(kv.Key[len(key)+1:]), "/"); len(split) == 2 {
+			children[split[0]] = append(children[split[0]], split[1])
 		}
 	}
+	for identifier, nodes := range children {
+		if hasTemplateFields(nodes) {
+			identifiers = append(identifiers, identifier)
+		}
+	}
+	sort.Strings(identifiers)
 	return identifiers
 }
 
@@ -136,12 +141,15 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 
 // getEtcdValue retrieves content from etcd
 func (p *EtcdConfigProvider) getEtcdValue(ctx context.Context, key string) (string, error) {
-	resp, err := p.Client.Get(ctx, key, nil)
+	resp, err := p.Client.Get(ctx, key)
 	if err != nil {
 		return "", fmt.Errorf("Failed to retrieve %s from etcd: %s", key, err)
 	}
+	if len(resp.Kvs) == 0 {
+		return "", fmt.Errorf("Failed to retrieve %s from etcd: not found", key)
+	}
 
-	return resp.Node.Value, nil
+	return string(resp.Kvs[0].Value), nil
 }
 
 func (p *EtcdConfigProvider) getCheckNames(ctx context.Context, key string) ([]string, error) {
@@ -169,11 +177,16 @@ func (p *EtcdConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	adListUpdated := false
 	dateIdx := p.cache.mostRecentMod
 
-	resp, err := p.Client.Get(ctx, p.templateDir, &client.GetOptions{Recursive: true})
+	resp, err := p.Client.Get(ctx, p.templateDir+"/", clientv3.WithPrefix(), clientv3.WithKeysOnly())
 	if err != nil {
 		return false, err
 	}
-	identifiers := resp.Node.Nodes
+	identifiers := make(map[string][]*mvccpb.KeyValue)
+	for _, kv := range resp.Kvs {
+		if split := strings.Split(string(kv.Key[len(p.templateDir)+1:]), "/"); len(split) == 2 {
+			identifiers[split[0]] = append(identifiers[split[0]], kv)
+		}
+	}
 
 	// When a node is deleted the Modified time of the children processed isn't changed.
 	if p.cache.count != len(identifiers) {
@@ -185,13 +198,13 @@ func (p *EtcdConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 		p.cache.count = len(identifiers)
 	}
 
-	for _, identifier := range identifiers {
-		if len(identifier.Nodes) != 3 {
-			log.Infof("%v does not have a correct format to be considered in the cache", identifier.Key)
+	for identifier, nodes := range identifiers {
+		if len(nodes) != 3 {
+			log.Infof("%v does not have a correct format to be considered in the cache", identifier)
 			continue
 		}
-		for _, tplkey := range identifier.Nodes {
-			dateIdx = math.Max(float64(tplkey.ModifiedIndex), dateIdx)
+		for _, tplkey := range nodes {
+			dateIdx = math.Max(float64(tplkey.ModRevision), dateIdx)
 		}
 	}
 	if dateIdx > p.cache.mostRecentMod || adListUpdated {
@@ -211,7 +224,7 @@ func (p *EtcdConfigProvider) String() string {
 
 // hasTemplateFields verifies that a node array contains
 // the needed information to build a config template
-func hasTemplateFields(nodes client.Nodes) bool {
+func hasTemplateFields(nodes []string) bool {
 	tplKeys := []string{instancePath, checkNamePath, initConfigPath}
 	if len(nodes) < 3 {
 		return false
@@ -219,9 +232,8 @@ func hasTemplateFields(nodes client.Nodes) bool {
 
 	for _, tpl := range tplKeys {
 		has := false
-		for _, k := range nodes {
-			split := strings.Split(k.Key, "/")
-			if split[len(split)-1] == tpl {
+		for _, node := range nodes {
+			if node == tpl {
 				has = true
 			}
 		}
