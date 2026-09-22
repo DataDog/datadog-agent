@@ -161,6 +161,11 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 
 // Common filter functions
 
+// FilterReadableOnly returns true for entries with read permission
+func FilterReadableOnly(entry MapsEntry) bool {
+	return len(entry.Permissions) > 0 && entry.Permissions[0] == 'r'
+}
+
 // FilterExecutableOnly returns true for entries with execute permission
 func FilterExecutableOnly(entry MapsEntry) bool {
 	return bytes.Contains([]byte(entry.Permissions), []byte("x"))
