@@ -201,6 +201,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	scanningRulesReplacer.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
+
+	// Compact JSON form; RE2 cannot match nested arrays, so mask to end of line.
+	scanningRulesJSONReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(\\?"scanning_rules\\?"\s*:)\s*[\[{].*`),
+		Hints:       []string{"scanning_rules"},
+		Repl:        []byte(`$1"********"`),
+		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
+	}
 	certReplacer := Replacer{
 		/*
 		   Try to match as accurately as possible. RFC 7468's ABNF
@@ -356,6 +364,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 	scrubber.AddReplacer(SingleLine, scanningRulesReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesJSONReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)

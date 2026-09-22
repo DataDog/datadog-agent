@@ -623,13 +623,18 @@ log_level: info`)
 }
 
 func TestDataSecurityScanningRules(t *testing.T) {
-	// Inline (single-line) form, as produced by the datasecurity provider's compact JSON.
 	assertClean(t,
 		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "\d+"}]`,
 		`scanning_rules: "********"`)
 
-	// Object/YAML form: the object scrubber (used to report the check instance_config)
-	// replaces the whole rules value regardless of its structure (list of maps).
+	assertClean(t,
+		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","license":"proprietary","pattern":"\\d+","proximity_keywords":{"included_keywords":["token"]}}],"scan_data":[]}`,
+		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":"********"`)
+
+	assertClean(t,
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"license\":\"proprietary\"}]}"), } }`,
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":"********"`)
+
 	scrubbed, err := ScrubYamlString(`
 scanning_rules:
   - id: rule-1
