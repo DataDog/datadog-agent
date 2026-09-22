@@ -231,6 +231,7 @@
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                                 @DataDog/agent-build
+/.gitlab/windows/build/packaging/                                         @DataDog/agent-build @DataDog/windows-products
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
