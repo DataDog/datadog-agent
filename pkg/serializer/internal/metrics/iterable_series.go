@@ -292,16 +292,18 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	err := pb.ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
 		var err error
 
-		err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-			err = ps.String(resourceType, "host")
+		if serie.Host != "" {
+			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+				err = ps.String(resourceType, "host")
+				if err != nil {
+					return err
+				}
+
+				return ps.String(resourceName, serie.Host)
+			})
 			if err != nil {
 				return err
 			}
-
-			return ps.String(resourceName, serie.Host)
-		})
-		if err != nil {
-			return err
 		}
 
 		if serie.Device != "" {
