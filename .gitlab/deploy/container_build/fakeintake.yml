@@ -3,6 +3,8 @@ docker_build_fakeintake:
   stage: container_build
   rules:
     - !reference [.except_light_pipeline]
+    # Fakeintake is main-only: skip release branches and PRs targeting them.
+    - !reference [.except_fakeintake_off_main]
     - !reference [.on_fakeintake_changes]
     - !reference [.on_fakeintake_changes_on_main]
   needs: []

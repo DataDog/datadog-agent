@@ -271,7 +271,8 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   merge queue, so two PRs bumping to the same value can never collide.
 - **On your PR**, e2e suites don't need the bump to see a server change: CI sets
   `E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
-  changes, and every suite honors that override globally. A client/CLI change
+  changes (main-targeting pipelines only — see the release-branch bullet below),
+  and every suite honors that override globally. A client/CLI change
   runs e2e against the pinned image (no override, no rebuild) so it is still
   exercised.
 - **On merge to main**, `publish_fakeintake_pinned` publishes the image under
@@ -282,6 +283,13 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   new pin. On the main pipeline, e2e waits for `publish_fakeintake_pinned` (via
   the optional need in `.needs_fakeintake_publish`) so it never runs against a
   not-yet-published tag.
+- **Release branches never build or publish fakeintake.** All fakeintake jobs
+  are skipped on release branches (`7.x.x`) and PRs targeting them
+  (`.except_fakeintake_off_main` in `.gitlab-ci.yml`): a fakeintake change there
+  is ignored — no rebuild, no publish, no e2e override; e2e runs against the
+  branch's pinned image. **Never backport fakeintake server changes or bump
+  `version/VERSION` on a release branch** — its pin must always reference a tag
+  that was published from main, or e2e on that branch breaks.
 - **Known limitation — cross-pipeline publish window.** Because the pinned tag
   is published only after the bump merges to main, there is a window (the main
   pipeline's fakeintake build + publish, up to ~10-20 min) during which the new

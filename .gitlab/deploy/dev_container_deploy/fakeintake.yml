@@ -4,6 +4,8 @@ publish_fakeintake:
   stage: dev_container_deploy
   rules:
     - !reference [.except_light_pipeline]
+    # Fakeintake is main-only: skip release branches and PRs targeting them.
+    - !reference [.except_fakeintake_off_main]
     - !reference [.on_fakeintake_changes]
   needs:
     - job: docker_build_fakeintake
