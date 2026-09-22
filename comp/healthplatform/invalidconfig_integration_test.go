@@ -158,15 +158,26 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
-	const correction = "`/logs_enabled` received a string instead of true or false. Replace it with true or false. The default value for this setting is `false`."
+	const explanation = "`/logs_enabled` expects true or false, but received a string."
+	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
+	assert.Contains(t, receivedIssue.GetDescription(), explanation)
 	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
-	var localRemediation string
-	for _, result := range Diagnose(store, diagnose.Config{Verbose: true}) {
-		if result.Category == receivedIssue.Id {
-			localRemediation = result.Remediation
+	for _, verbose := range []bool{false, true} {
+		found := false
+		for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
+			if result.Category != receivedIssue.Id {
+				continue
+			}
+			found = true
+			assert.Contains(t, result.Diagnosis, explanation)
+			assert.NotContains(t, result.Diagnosis+result.Remediation, rawInvalidLogsEnabled)
+			if verbose {
+				assert.Contains(t, result.Remediation, correction)
+			} else {
+				assert.Empty(t, result.Remediation)
+			}
 		}
+		assert.True(t, found, "invalid-config issue missing from diagnostics")
 	}
-	assert.Contains(t, localRemediation, correction)
-	assert.NotContains(t, localRemediation, rawInvalidLogsEnabled)
 	t.Logf("received invalid-config issue: %s", receivedJSON)
 }

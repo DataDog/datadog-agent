@@ -37,28 +37,25 @@ type InvalidConfigIssue struct{}
 
 // BuildIssue decodes the IssueReport.Context and builds the proto Issue.
 func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
+	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
+	errorWord := english.PluralWord(count, "error", "errors")
+	violationWord := english.PluralWord(count, "Schema Violation", "Schema Violations")
 	path := ctx[contextKeyConfigPath]
+	var desc, configStep string
 	if path == "" {
 		path = "(unknown path)"
+		desc = fmt.Sprintf("Found %d %s in the Agent configuration", count, errorWord)
+		configStep = "Check the settings listed below in your Agent configuration file or environment variables."
+	} else {
+		desc = fmt.Sprintf("Found %d configuration %s in %s", count, errorWord, path)
+		configStep = fmt.Sprintf("Open %s in an editor.", path)
 	}
-	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
 
 	errLines := make([]string, 0, count)
 	for i := 0; i < count; i++ {
 		if v := ctx[contextErrorKey(i)]; v != "" {
 			errLines = append(errLines, v)
 		}
-	}
-
-	suffix := ""
-	if count != 1 {
-		suffix = "s"
-	}
-	desc := fmt.Sprintf("Found %d schema violation%s in %s", count, suffix, path)
-	if len(errLines) > 0 {
-		desc += ": " + strings.Join(errLines, "; ")
-	} else {
-		desc += "."
 	}
 
 	errGroups := make(map[string][]string, len(errLines))
@@ -85,18 +82,26 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		contextKeyErrors:     errMap,
 		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 	}
+	description := strings.Join(errLines, "; ")
 	correction := defaultCorrection
 	var violations []any
 	if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
 		fields[contextKeyViolations] = violations
-		correction = formatCorrections(ctx[contextKeyViolations])
+		if details, fixes := formatViolations(ctx[contextKeyViolations]); details != "" {
+			description, correction = details, fixes
+		}
 	}
 	extra, _ := structpb.NewStruct(fields)
+	if description != "" {
+		desc += ": " + description
+	} else {
+		desc += "."
+	}
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
 		IssueType:   IssueType,
-		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
+		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d %s in %s", count, violationWord, filepath.Base(path)),
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",
@@ -107,7 +112,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		Remediation: &healthplatform.Remediation{
 			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
+				{Order: 1, Text: configStep},
 				{Order: 2, Text: correction},
 				{Order: 3, Text: "Restart the Datadog Agent."},
 				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
@@ -126,69 +131,66 @@ var typeLabels = map[string]string{
 	"null":    "null",
 }
 
-// formatCorrections renders up to ten fixes from the validation details.
-// Missing or unusable details fall back to the generic remediation.
-func formatCorrections(raw string) string {
+// formatViolations explains each error and how to fix it.
+// Unusable details leave the existing description and generic remediation intact.
+func formatViolations(raw string) (string, string) {
 	var violations []violationPayload
 	if err := json.Unmarshal([]byte(raw), &violations); err != nil || len(violations) == 0 {
-		return defaultCorrection
+		return "", defaultCorrection
 	}
-	const limit = 10
-	corrections := make([]string, min(len(violations), limit))
-	for i := range corrections {
-		corrections[i] = formatCorrection(violations[i])
-		if corrections[i] == "" {
-			return defaultCorrection
+	descriptions := make([]string, len(violations))
+	corrections := make([]string, len(violations))
+	for i, violation := range violations {
+		descriptions[i], corrections[i] = formatViolation(violation)
+		if descriptions[i] == "" {
+			return "", defaultCorrection
 		}
 	}
+	description := strings.Join(descriptions, " ")
 	if len(violations) == 1 {
-		return corrections[0]
+		return description, corrections[0]
 	}
-	result := "- " + strings.Join(corrections, "\n- ")
-	remaining := len(violations) - len(corrections)
-	if remaining == 0 {
-		return result
-	}
-	wording := english.PluralWord(remaining, "violation is", "violations are")
-	return result + fmt.Sprintf("\n\n%d more %s listed in the description.", remaining, wording)
+	return description, "- " + strings.Join(corrections, "\n- ")
 }
 
-// formatCorrection explains one type mismatch and its default, when known.
-// An empty result tells the caller to use the generic remediation instead.
-func formatCorrection(violation violationPayload) string {
+// formatViolation separates what is wrong from how to fix it.
+// Empty results tell the caller to keep the existing safe messages.
+func formatViolation(violation violationPayload) (string, string) {
 	actual := typeLabels[violation.ActualType]
 	if actual == "" || len(violation.ExpectedTypes) == 0 {
-		return ""
+		return "", ""
 	}
 	expected := make([]string, len(violation.ExpectedTypes))
 	for i, kind := range violation.ExpectedTypes {
 		expected[i] = typeLabels[kind]
 		if expected[i] == "" {
-			return ""
+			return "", ""
 		}
 	}
 	want := english.OxfordWordSeries(expected, "or")
 	if violation.Path == "" {
 		violation.Path = "/"
 	}
-	correction := fmt.Sprintf("%s received %s instead of %s. Replace it with %s.", inlineCode(violation.Path), actual, want, want)
+	path := inlineCode(violation.Path)
+	description := fmt.Sprintf("%s expects %s, but received %s.", path, want, actual)
+	correction := fmt.Sprintf("Set %s to %s.", path, want)
 	switch violation.DefaultStatus {
 	case "known":
 		value, err := json.Marshal(violation.DefaultValue)
 		if err != nil || violation.DefaultValue == nil {
-			return ""
+			return "", ""
 		}
 		correction += " The default value for this setting is " + inlineCode(string(value))
 		if violation.DefaultValue == "" {
 			correction += " (an empty string)"
 		}
-		return correction + "."
+		return description, correction + "."
 	case "none":
-		return correction + " This setting has no default."
+		return description, correction + " This setting has no default."
 	case "unknown":
-		return correction
+		return description, correction
 	default:
-		return ""
+		return "", ""
 	}
 }
 

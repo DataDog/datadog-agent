@@ -8,6 +8,7 @@ package invalidconfig
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,6 +60,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations in datadog.yaml", issue.GetTitle())
+	assert.Equal(t, "Open /etc/datadog-agent/datadog.yaml in an editor.", issue.Remediation.Steps[0].Text)
 	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
@@ -72,62 +74,80 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
 }
 
+func TestBuildIssue_MissingConfigPath(t *testing.T) {
+	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{contextKeyErrorCount: "1"})
+	require.NoError(t, err)
+	assert.Equal(t, "Found 1 error in the Agent configuration.", issue.Description)
+	assert.Equal(t, "Check the settings listed below in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "(unknown path)", issue.Extra.GetFields()[contextKeyConfigPath].GetStringValue())
+}
+
 func TestBuildIssue_Remediation(t *testing.T) {
 	const fallback = "Fix each violation listed in the description."
-	for _, tc := range []struct{ name, violations, want string }{
+	for _, tc := range []struct{ name, violations, description, want string }{
 		{"integer_default", `[{"path":"/dogstatsd_port","actual_type":"object","expected_types":["integer"],"default_status":"known","default_value":8125}]`,
-			"`/dogstatsd_port` received a YAML mapping instead of a whole number. Replace it with a whole number. The default value for this setting is `8125`."},
+			"`/dogstatsd_port` expects a whole number, but received a YAML mapping.",
+			"Set `/dogstatsd_port` to a whole number. The default value for this setting is `8125`."},
 		{"empty_default", `[{"path":"/api_key","actual_type":"array","expected_types":["string"],"default_status":"known","default_value":""}]`,
-			"`/api_key` received a YAML list instead of a string. Replace it with a string. The default value for this setting is `\"\"` (an empty string)."},
+			"`/api_key` expects a string, but received a YAML list.",
+			"Set `/api_key` to a string. The default value for this setting is `\"\"` (an empty string)."},
 		{"no_default", `[{"path":"/agent_ipc","actual_type":"string","expected_types":["object"],"default_status":"none"}]`,
-			"`/agent_ipc` received a string instead of a YAML mapping. Replace it with a YAML mapping. This setting has no default."},
+			"`/agent_ipc` expects a YAML mapping, but received a string.",
+			"Set `/agent_ipc` to a YAML mapping. This setting has no default."},
 		{"unknown_default", `[{"path":"/additional_endpoints/example","actual_type":"null","expected_types":["array"],"default_status":"unknown"}]`,
-			"`/additional_endpoints/example` received null instead of a YAML list. Replace it with a YAML list."},
+			"`/additional_endpoints/example` expects a YAML list, but received null.",
+			"Set `/additional_endpoints/example` to a YAML list."},
 		{"union", `[{"path":"/setting","actual_type":"boolean","expected_types":["integer","number","string"],"default_status":"unknown"}]`,
-			"`/setting` received true or false instead of a whole number, a number, or a string. Replace it with a whole number, a number, or a string."},
+			"`/setting` expects a whole number, a number, or a string, but received true or false.",
+			"Set `/setting` to a whole number, a number, or a string."},
 		{"markdown", "[{\"path\":\"/key`[link](https://example.test)\\n\",\"actual_type\":\"number\",\"expected_types\":[\"string\"],\"default_status\":\"known\",\"default_value\":\"`example`\"}]",
-			"``/key`[link](https://example.test) `` received a number instead of a string. Replace it with a string. The default value for this setting is ``\"`example`\"``."},
-		{"empty_facts", "[]", fallback},
-		{"malformed_facts", "not JSON", fallback},
-		{"incomplete_facts", "[{}]", fallback},
-		{"unsupported_type", `[{"path":"/setting","actual_type":"string","expected_types":["unsupported"],"default_status":"unknown"}]`, fallback},
-		{"missing_default", `[{"path":"/setting","actual_type":"string","expected_types":["integer"],"default_status":"known"}]`, fallback},
+			"``/key`[link](https://example.test) `` expects a string, but received a number.",
+			"Set ``/key`[link](https://example.test) `` to a string. The default value for this setting is ``\"`example`\"``."},
+		{"empty_facts", "[]", "", fallback},
+		{"malformed_facts", "not JSON", "", fallback},
+		{"incomplete_facts", "[{}]", "", fallback},
+		{"unsupported_type", `[{"path":"/setting","actual_type":"string","expected_types":["unsupported"],"default_status":"unknown"}]`, "", fallback},
+		{"missing_default", `[{"path":"/setting","actual_type":"string","expected_types":["integer"],"default_status":"known"}]`, "", fallback},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+				contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
+				contextKeyErrorCount: "1",
+				contextErrorKey(0):   "at '/setting': configuration does not match schema",
 				contextKeyViolations: tc.violations,
 			})
 			require.NoError(t, err)
+			description := tc.description
+			if description == "" {
+				description = "at '/setting': configuration does not match schema"
+			}
+			assert.Equal(t, "Found 1 configuration error in /etc/datadog-agent/datadog.yaml: "+description, issue.Description)
 			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
 		})
 	}
 }
 
 func TestBuildIssue_MultipleCorrections(t *testing.T) {
-	for _, tc := range []struct {
-		count, shown int
-		ending       string
-	}{
-		{2, 2, "Replace it with a whole number."},
-		{11, 10, "1 more violation is listed in the description."},
-		{12, 10, "2 more violations are listed in the description."},
-	} {
-		violations := make([]violationPayload, tc.count)
-		for i := range violations {
-			violations[i] = violationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
-		}
-		raw, err := json.Marshal(violations)
-		require.NoError(t, err)
-		issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-			contextKeyViolations: string(raw),
-		})
-		require.NoError(t, err)
-		text := issue.Remediation.Steps[1].Text
-		assert.True(t, strings.HasPrefix(text, "- `/setting0` received a string instead of a whole number."))
-		assert.Equal(t, tc.shown, strings.Count(text, "Replace it with a whole number."))
-		assert.True(t, strings.HasSuffix(text, tc.ending), text)
-		assert.NotContains(t, text, "`/setting10`")
+	const count = 12
+	violations := make([]violationPayload, count)
+	for i := range violations {
+		violations[i] = violationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
 	}
+	raw, err := json.Marshal(violations)
+	require.NoError(t, err)
+	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
+		contextKeyErrorCount: strconv.Itoa(count),
+		contextKeyViolations: string(raw),
+	})
+	require.NoError(t, err)
+	text := issue.Remediation.Steps[1].Text
+	assert.True(t, strings.HasPrefix(text, "- Set `/setting0` to a whole number."))
+	assert.Equal(t, count, strings.Count(text, "to a whole number."))
+	assert.True(t, strings.HasSuffix(text, "Set `/setting11` to a whole number."), text)
+	assert.Contains(t, text, "Set `/setting10` to a whole number.")
+	assert.Equal(t, count, strings.Count(issue.Description, "expects a whole number, but received a string."))
+	assert.True(t, strings.HasPrefix(issue.Description, "Found 12 errors in the Agent configuration:"))
+	assert.Contains(t, issue.Description, "`/setting11`")
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -169,7 +189,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 
 	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 	require.NoError(t, err)
-	assert.Equal(t, "`/agent_ipc/port` received a string instead of a whole number. Replace it with a whole number. The default value for this setting is `0`.", issue.Remediation.Steps[1].Text)
+	assert.Equal(t, "Set `/agent_ipc/port` to a whole number. The default value for this setting is `0`.", issue.Remediation.Steps[1].Text)
 	fields := issue.GetExtra().GetFields()
 	issueViolations := fields[contextKeyViolations].GetListValue().GetValues()
 	require.Len(t, issueViolations, 1)
