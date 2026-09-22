@@ -191,3 +191,17 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":procutil"],
 )
+
+dd_agent_go_test(
+    name = "process_aix_test",
+    srcs = ["process_aix_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+)
+
+dd_agent_go_test(
+    name = "process_aix_test",
+    srcs = ["process_aix_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+)
