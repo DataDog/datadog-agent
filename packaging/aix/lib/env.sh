@@ -95,7 +95,10 @@ if [ -n "${AGENT_BUILD:-}" ]; then
     AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
 fi
 
-export AGENT_VERSION AGENT_BUILD AGENT_VRMF
+# --- Output artifact path ---
+BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
+
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF BFF_PATH
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 

@@ -26,6 +26,7 @@ package_aix-ppc64:
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
     - copy_file_from_aix /opt/dd-build/*.bff $CI_PROJECT_DIR/
+    - aix_run_cmd 'rm -f /opt/dd-build/*.bff'
   artifacts:
     expire_in: 2 weeks
     paths:
