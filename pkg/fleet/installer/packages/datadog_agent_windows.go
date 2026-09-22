@@ -148,6 +148,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 
 	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
 	for _, cfg := range procmgrConfigs {
+		if cfg.label == "DDOT" {
+			continue
+		}
 		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
 			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
 		}
@@ -215,6 +218,7 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {

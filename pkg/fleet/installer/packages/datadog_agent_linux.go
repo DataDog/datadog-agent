@@ -1187,16 +1187,19 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 
 	state, err := repository.NewRepositories(paths.PackagesPath, nil).GetState(agentPackage)
 	if err != nil {
-		return fmt.Errorf("failed to get agent package state: %w", err)
+		err = fmt.Errorf("failed to get agent package state: %w", err)
+		return err
 	}
 	if state.HasExperiment() {
-		return errors.New("cannot switch the process manager while an experiment is in progress")
+		err = errors.New("cannot switch the process manager while an experiment is in progress")
+		return err
 	}
 
 	switch currentType := service.GetServiceManagerType(hookCtx.PackagePath); currentType {
 	case service.SystemdType, service.ProcmgrType:
 	default:
-		return errors.New("switching the process manager is only supported under systemd")
+		err = errors.New("switching the process manager is only supported under systemd")
+		return err
 	}
 
 	// Each step registers what has to run once the switch tears the old manager down: on success
@@ -1204,27 +1207,28 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	// part registered so far restores the old one.
 	pendingActions := []func() error{}
 	unwind := func() error {
-		var errs error
 		slices.Reverse(pendingActions)
 		for i, action := range pendingActions {
-			if err := action(); err != nil {
-				log.Errorf("failed to perform step %d/%d: %v", i, len(pendingActions), err)
-				errs = errors.Join(errs, err)
+			if err2 := action(); err2 != nil {
+				log.Errorf("failed to perform step %d/%d: %v", i, len(pendingActions), err2)
+				err = errors.Join(err, err2)
 			}
 		}
-		return errs
+		return err
 	}
 
 	pendingActions = append(pendingActions, func() error { return agentService.RestartStable(hookCtx) })
 	pendingActions = append(pendingActions, func() error { return agentService.EnableStable(hookCtx) })
 	if err := agentService.DisableStable(hookCtx); err != nil {
 		log.Warnf("failed to disable stable units: %v", err)
-		return errors.Join(err, unwind())
+		err = errors.Join(err, unwind())
+		return err
 	}
 	pendingActions = append(pendingActions, func() error { return agentService.WriteStable(hookCtx) })
 	if err := agentService.RemoveStable(hookCtx); err != nil {
 		log.Warnf("failed to remove stable units: %v", err)
-		return errors.Join(err, unwind())
+		err = errors.Join(err, unwind())
+		return err
 	}
 
 	value := "false"
@@ -1233,7 +1237,8 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	}
 	if err := os.Setenv(env.EnvProcessManagerEnabled, value); err != nil {
 		log.Warnf("failed to set process manager state: %v", err)
-		return errors.Join(err, unwind())
+		err = errors.Join(err, unwind())
+		return err
 	}
 
 	pendingActions = append(pendingActions, func() error { return agentService.WriteProcesses(hookCtx.PackagePath) })
