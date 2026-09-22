@@ -305,29 +305,41 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
-func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
-	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+// getProgressStreamsOnUp returns the progress stream options for stack up operations.
+// When pulumi_verbose_progress_streams is set the raw Pulumi progress output is
+// streamed to the logger; otherwise the progress output goes through
+// NewProgressFilter and only clean, formatted resource events are shown.
+// Error output always goes to the logger unfiltered.
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) []optup.Option {
+	verboseProgressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
-		return optup.ErrorProgressStreams(logger)
+		return []optup.Option{optup.ErrorProgressStreams(logger)}
 	}
 
-	if progressStreams {
-		return optup.ProgressStreams(logger)
+	if verboseProgressStreams {
+		return []optup.Option{optup.ProgressStreams(logger)}
 	}
 
-	return optup.ErrorProgressStreams(logger)
+	return []optup.Option{
+		optup.ProgressStreams(NewProgressFilter(logger)),
+		optup.ErrorProgressStreams(logger),
+	}
 }
 
-func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
-	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) []optdestroy.Option {
+	verboseProgressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
-		return optdestroy.ErrorProgressStreams(logger)
+		return []optdestroy.Option{optdestroy.ErrorProgressStreams(logger)}
 	}
 
-	if progressStreams {
-		return optdestroy.ProgressStreams(logger)
+	if verboseProgressStreams {
+		return []optdestroy.Option{optdestroy.ProgressStreams(logger)}
 	}
-	return optdestroy.ErrorProgressStreams(logger)
+
+	return []optdestroy.Option{
+		optdestroy.ProgressStreams(NewProgressFilter(logger)),
+		optdestroy.ErrorProgressStreams(logger),
+	}
 }
 
 func (sm *StackManager) destroyAndRemoveStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer, ddEventSender datadogEventSender) error {
@@ -377,7 +389,7 @@ func (sm *StackManager) destroyStack(ctx context.Context, stackID string, stack 
 	for {
 		downCount++
 		destroyContext, cancel := context.WithTimeout(ctx, defaultStackDestroyTimeout)
-		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+		_, destroyErr = stack.Destroy(destroyContext, append(progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))...)
 		cancel()
 		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", "stack:" + stack.Name(), fmt.Sprintf("retries:%d", downCount)})
@@ -503,7 +515,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, params.UpTimeout)
 		now := time.Now()
-		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		upResult, upError = stack.Up(upCtx, append(progressStreamsUpOption, optup.DebugLogging(loggingOptions))...)
 		fmt.Fprintf(logger, "Stack up took %v at attempt %v\n", time.Since(now), upCount)
 		cancel()
 
@@ -534,7 +546,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		case ReCreate:
 			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v\n", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, params.DestroyTimeout)
-			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+			_, err = stack.Destroy(destroyCtx, append(progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))...)
 			cancel()
 			if err != nil {
 				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v\n", err)

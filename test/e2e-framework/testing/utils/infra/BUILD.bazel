@@ -4,6 +4,7 @@ go_library(
     name = "infra",
     srcs = [
         "datadog_event_sender.go",
+        "progress_filter.go",
         "retriable_errors.go",
         "stack_manager.go",
     ],
@@ -29,7 +30,10 @@ go_library(
 
 go_test(
     name = "infra_test",
-    srcs = ["stack_manager_test.go"],
+    srcs = [
+        "progress_filter_test.go",
+        "stack_manager_test.go",
+    ],
     embed = [":infra"],
     gotags = ["test"],
     tags = ["manual"],
