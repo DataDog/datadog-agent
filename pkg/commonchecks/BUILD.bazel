@@ -55,6 +55,7 @@ go_library(
         "//pkg/collector/corechecks/net/ntp",
         "//pkg/collector/corechecks/net/wlan",
         "//pkg/collector/corechecks/network-devices/cisco-sdwan",
+        "//pkg/collector/corechecks/network-devices/gnmi",
         "//pkg/collector/corechecks/network-devices/versa",
         "//pkg/collector/corechecks/networkconfigmanagement",
         "//pkg/collector/corechecks/networkpath",

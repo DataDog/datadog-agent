@@ -38,6 +38,7 @@ ALL_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
+    "gnmi",
     "goexperiment.systemcrypto",  # used for FIPS mode
     "jmx",
     "kubeapiserver",
@@ -103,6 +104,7 @@ AGENT_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
+    "gnmi",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -134,6 +136,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "docker",
         "ec2",
         "fargateprocess",
+        "gnmi",  # network device telemetry is not used from Heroku dynos
         "kubeapiserver",
         "kubelet",
         "nvml",
