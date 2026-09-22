@@ -10,12 +10,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 )
 
+// configTarget names the config object an override is written to.
+type configTarget int
+
+const (
+	// streamedTarget is the config object the snapshot is applied to.
+	streamedTarget configTarget = iota
+	// systemProbeTarget is the separate system-probe config object, which system-probe's logger
+	// reads and the stream never writes to.
+	systemProbeTarget
+)
+
+type override struct {
+	// namespacedKey holds the per-agent value; when empty the agent uses baseKey's streamed value.
+	namespacedKey string
+	baseKey       string
+	target        configTarget
+}
+
 // Per each agent binary, define which configstream-sender keys map to which configstream-receiver key.
-// No system-probe entry: its key is absent from the core schema and config.Adjust already folds it on the sysprobe object.
-var overridesByClient = map[string]map[string]string{
-	"security-agent": {"security_agent.log_level": "log_level"},
-	"process-agent":  {"process_config.log_level": "log_level"},
-	"trace-agent":    {"apm_config.log_level": "log_level"},
+var overridesByClient = map[string][]override{
+	"security-agent": {{namespacedKey: "security_agent.log_level", baseKey: "log_level"}},
+	"process-agent":  {{namespacedKey: "process_config.log_level", baseKey: "log_level"}},
+	"trace-agent":    {{namespacedKey: "apm_config.log_level", baseKey: "log_level"}},
+	// system_probe, not system_probe_config: the latter is the system-probe schema's own section, and the two objects hold different values for it.
+	"system-probe":   {{namespacedKey: "system_probe.log_level", baseKey: "log_level", target: systemProbeTarget}},
 }
 
 // applyOverrides folds this client's namespaced settings onto their base keys, retractably.
@@ -24,22 +43,31 @@ func (c *consumer) applyOverrides() {
 	if len(overrides) == 0 {
 		return
 	}
-	cfg := configstreambootstrap.Config()
-	for namespacedKey, baseKey := range overrides {
+	streamed := configstreambootstrap.Config()
+	for _, o := range overrides {
+		cfg := streamed
+		if o.target == systemProbeTarget {
+			cfg = configstreambootstrap.SystemProbeConfig()
+		}
 		// Non-string values are dropped: pkg/util/log/setup's log_level callback asserts to string unchecked.
-		value, isString := cfg.Get(namespacedKey).(string)
-		if isString && value != "" {
+		value, _ := streamed.Get(o.namespacedKey).(string)
+		if value == "" && o.target != streamedTarget {
+			// The base key only carries the streamed value on the streamed object, so a write to
+			// another object has to carry it across itself rather than fall through to it.
+			value, _ = streamed.Get(o.baseKey).(string)
+		}
+		if value != "" {
 			// SourceAgentRuntime outranks file/env yet still loses to a streamed RC/CLI value; Set panics on SourceEnvVar.
-			cfg.Set(baseKey, value, pkgconfigmodel.SourceAgentRuntime)
+			cfg.Set(o.baseKey, value, pkgconfigmodel.SourceAgentRuntime)
 			if c.appliedOverrides == nil {
 				c.appliedOverrides = make(map[string]struct{}, len(overrides))
 			}
-			c.appliedOverrides[baseKey] = struct{}{}
+			c.appliedOverrides[o.baseKey] = struct{}{}
 			continue
 		}
-		if _, written := c.appliedOverrides[baseKey]; written {
-			cfg.UnsetForSource(baseKey, pkgconfigmodel.SourceAgentRuntime)
-			delete(c.appliedOverrides, baseKey)
+		if _, written := c.appliedOverrides[o.baseKey]; written {
+			cfg.UnsetForSource(o.baseKey, pkgconfigmodel.SourceAgentRuntime)
+			delete(c.appliedOverrides, o.baseKey)
 		}
 	}
 }
