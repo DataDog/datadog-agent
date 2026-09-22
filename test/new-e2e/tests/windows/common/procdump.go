@@ -26,23 +26,16 @@ const (
 	ProcdumpsPath = "C:/procdumps"
 )
 
-// SetupProcdump ensures procdump is present on the remote host and creates its output directory.
+// SetupProcdump downloads and extracts procdump to the remote host if not already present.
 func SetupProcdump(host *components.RemoteHost) error {
-	procdumpExists, err := host.FileExists(ProcdumpExe)
+	err := host.HostArtifactClient.Get("windows-products/Procdump.zip", ProcdumpZipPath)
 	if err != nil {
-		return fmt.Errorf("failed to check whether procdump is already installed: %w", err)
+		return fmt.Errorf("failed to download procdump: %w", err)
 	}
 
-	if !procdumpExists {
-		err = host.HostArtifactClient.Get("windows-products/Procdump.zip", ProcdumpZipPath)
-		if err != nil {
-			return fmt.Errorf("failed to download procdump: %w", err)
-		}
-
-		_, err = host.Execute(fmt.Sprintf(`Expand-Archive -Path '%s' -DestinationPath '%s' -Force`, ProcdumpZipPath, ProcdumpPath))
-		if err != nil {
-			return fmt.Errorf("failed to setup procdump: %w", err)
-		}
+	_, err = host.Execute(fmt.Sprintf(`if (-Not (Test-Path -Path '%s')) { Expand-Archive -Path '%s' -DestinationPath '%s' }`, ProcdumpPath, ProcdumpZipPath, ProcdumpPath))
+	if err != nil {
+		return fmt.Errorf("failed to setup procdump: %w", err)
 	}
 
 	// Create the procdump output directory (separate from WER dumps)
