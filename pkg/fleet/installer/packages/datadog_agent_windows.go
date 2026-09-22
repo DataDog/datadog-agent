@@ -1179,7 +1179,11 @@ func persistProcessManagerEnv(enabled bool) error {
 		updated = append(updated, fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled))
 	}
 
-	if err := key.SetStringsValue("Environment", updated); err != nil {
+	if len(updated) == 0 {
+		if err := key.DeleteValue("Environment"); err != nil && !errors.Is(err, registry.ErrNotExist) {
+			return err
+		}
+	} else if err := key.SetStringsValue("Environment", updated); err != nil {
 		return err
 	}
 

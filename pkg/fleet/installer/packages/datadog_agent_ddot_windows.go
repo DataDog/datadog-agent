@@ -374,17 +374,13 @@ func stopServiceIfExists(name string) error {
 
 // startServiceIfExists starts the service if it exists
 func startServiceIfExists(name string) error {
-	m, err := mgr.Connect()
-	if err != nil {
+	if err := winutil.StartService(name); err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return nil
+		}
 		return err
 	}
-	defer m.Disconnect()
-	s, err := m.OpenService(name)
-	if err != nil {
-		return nil
-	}
-	defer s.Close()
-	return s.Start()
+	return nil
 }
 
 // deleteServiceIfExists deletes the service if it exists
