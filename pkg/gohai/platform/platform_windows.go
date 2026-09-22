@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"unicode/utf16"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -37,8 +37,6 @@ var (
 	modNetapi32          = windows.NewLazySystemDLL("Netapi32.dll")
 	procNetServerGetInfo = modNetapi32.NewProc("NetServerGetInfo")
 	procNetAPIBufferFree = modNetapi32.NewProc("NetApiBufferFree")
-	ntdll                = windows.NewLazySystemDLL("Ntdll.dll")
-	procRtlGetVersion    = ntdll.NewProc("RtlGetVersion")
 	winbrand             = windows.NewLazySystemDLL("winbrand.dll")
 	kernel32             = windows.NewLazySystemDLL("kernel32.dll")
 	procIsWow64Process2  = kernel32.NewProc("IsWow64Process2")
@@ -70,9 +68,6 @@ const (
 
 const registryHive = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 const productNameKey = "ProductName"
-const buildNumberKey = "CurrentBuildNumber"
-const majorKey = "CurrentMajorVersionNumber"
-const minorKey = "CurrentMinorVersionNumber"
 
 func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	var outdata *byte
@@ -129,42 +124,6 @@ func fetchOsDescription() (string, error) {
 	return "(undetermined windows version)", err
 }
 
-func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
-	var osversion windows.OsVersionInfoEx
-	status, _, _ := procRtlGetVersion.Call(uintptr(unsafe.Pointer(&osversion)))
-	if status == 0 {
-		major = uint64(osversion.MajorVersion)
-		minor = uint64(osversion.MinorVersion)
-		build = uint64(osversion.BuildNumber)
-	} else {
-		var regkey registry.Key
-		regkey, err = registry.OpenKey(registry.LOCAL_MACHINE,
-			registryHive,
-			registry.QUERY_VALUE)
-		if err != nil {
-			return
-		}
-		defer regkey.Close()
-		major, _, err = regkey.GetIntegerValue(majorKey)
-		if err != nil {
-			return
-		}
-
-		minor, _, err = regkey.GetIntegerValue(minorKey)
-		if err != nil {
-			return
-		}
-
-		var regbuild string
-		regbuild, _, err = regkey.GetStringValue(buildNumberKey)
-		if err != nil {
-			return
-		}
-		build, err = strconv.ParseUint(regbuild, 10, 0)
-	}
-	return
-}
-
 // check to see if we're running on syswow64 on another architecture
 // (specifically arm)
 // the function we're going to use (IsWow64Process2) isn't available prior
@@ -208,8 +167,8 @@ func (platformInfo *Info) fillPlatformInfo() {
 	platformInfo.Machine = utils.NewValue(getNativeArchInfo())
 	platformInfo.OS = utils.NewValueFrom(fetchOsDescription())
 
-	maj, min, bld, err := fetchWindowsVersion()
-	platformInfo.KernelRelease = utils.NewValueFrom(fmt.Sprintf("%d.%d.%d", maj, min, bld), err)
+	version, err := winutil.GetWindowsVersionComponents()
+	platformInfo.KernelRelease = utils.NewValueFrom(fmt.Sprintf("%s.%s.%s", version.Major, version.Minor, version.Build), err)
 
 	platformInfo.KernelName = utils.NewValue("Windows")
 

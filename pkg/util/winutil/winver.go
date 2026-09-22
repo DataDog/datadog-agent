@@ -11,6 +11,7 @@ package winutil
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -24,8 +25,6 @@ var (
 	versiondll = windows.NewLazySystemDLL("version.dll")
 	shlwapi    = windows.NewLazySystemDLL("shlwapi.dll")
 
-	procGetModuleHandle          = k32.NewProc("GetModuleHandleW")
-	procGetModuleFileName        = k32.NewProc("GetModuleFileNameW")
 	procGetFileVersionInfoSizeEx = versiondll.NewProc("GetFileVersionInfoSizeExW")
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
 	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
@@ -35,59 +34,68 @@ var (
 // ErrNoPEBuildTimestamp indicates the PE header timestamp is not present or zero.
 var ErrNoPEBuildTimestamp = errors.New("no PE build timestamp")
 
-// GetWindowsBuildString retrieves the windows build version by querying
-// the resource string as directed here https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
-// as of Windows 8.1, the core GetVersion() APIs have been changed to
-// return the version of Windows manifested with the application, not
-// the application version
-func GetWindowsBuildString() (verstring string, err error) {
-	h, err := getModuleHandle("kernel32.dll")
-	if err != nil {
-		return
-	}
-	fullpath, err := getModuleFileName(h)
-	if err != nil {
-		return
-	}
-	data, err := getFileVersionInfo(fullpath)
-	if err != nil {
-		return
-	}
-	return getVersionInfo(data)
-}
-
 // windowsCurrentVersionKey records the version of the running Windows installation.
 const windowsCurrentVersionKey = `SOFTWARE\Microsoft\Windows NT\CurrentVersion`
+
+// WindowsVersion contains the version fields reported by the running Windows installation.
+// For example, version 10.0.26100.4652 has Major "10", Minor "0", Build "26100", and
+// Revision "4652".
+type WindowsVersion struct {
+	// Major is the first version component, such as "10".
+	Major string
+	// Minor is the second version component, such as "0".
+	Minor string
+	// Build identifies the Windows release, such as "26100".
+	Build string
+	// Revision is the UBR registry value identifying the cumulative-update revision, such as "4652".
+	Revision string
+}
 
 // GetWindowsVersion returns the full version of the running Windows installation,
 // formatted as "major.minor.build.revision" — for example "10.0.26100.4652".
 //
 // This is the version winver.exe reports ("OS Build 26100.4652"). The revision, which
-// the cumulative update advances, is recorded only here: RtlGetVersion's OSVERSIONINFOEX
-// has no field for it, and GetWindowsBuildString reads kernel32.dll's version resource,
-// which carries that file's revision rather than the system's.
+// the cumulative update advances, is recorded only in the CurrentVersion registry key.
+// RtlGetVersion's OSVERSIONINFOEX has no field for it, and kernel32.dll's version resource
+// carries that file's revision rather than the system's.
+//
+// Use GetWindowsVersionComponents when the individual registry values need a different
+// representation.
 func GetWindowsVersion() (string, error) {
+	version, err := GetWindowsVersionComponents()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s.%s.%s", version.Major, version.Minor, version.Build, version.Revision), nil
+}
+
+// GetWindowsVersionComponents returns the version fields reported by the running Windows
+// installation. Build is kept as the registry string so callers do not lose information.
+func GetWindowsVersionComponents() (WindowsVersion, error) {
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsCurrentVersionKey, registry.QUERY_VALUE)
 	if err != nil {
-		return "", fmt.Errorf("failed to open %s: %w", windowsCurrentVersionKey, err)
+		return WindowsVersion{}, fmt.Errorf("failed to open %s: %w", windowsCurrentVersionKey, err)
 	}
 	defer func() { _ = key.Close() }()
 
+	version := WindowsVersion{}
 	major, _, err := key.GetIntegerValue("CurrentMajorVersionNumber")
 	if err != nil {
-		return "", fmt.Errorf("failed to read CurrentMajorVersionNumber: %w", err)
+		return WindowsVersion{}, fmt.Errorf("failed to read CurrentMajorVersionNumber: %w", err)
 	}
+	version.Major = strconv.FormatUint(major, 10)
 
 	minor, _, err := key.GetIntegerValue("CurrentMinorVersionNumber")
 	if err != nil {
-		return "", fmt.Errorf("failed to read CurrentMinorVersionNumber: %w", err)
+		return WindowsVersion{}, fmt.Errorf("failed to read CurrentMinorVersionNumber: %w", err)
 	}
+	version.Minor = strconv.FormatUint(minor, 10)
 
 	// CurrentBuildNumber is a string value, and is used as-is: it is the build number
 	// users recognise, and reformatting it could only lose information.
-	build, _, err := key.GetStringValue("CurrentBuildNumber")
+	version.Build, _, err = key.GetStringValue("CurrentBuildNumber")
 	if err != nil {
-		return "", fmt.Errorf("failed to read CurrentBuildNumber: %w", err)
+		return WindowsVersion{}, fmt.Errorf("failed to read CurrentBuildNumber: %w", err)
 	}
 
 	// An absent UBR is reported as revision zero rather than as an error: the rest of the
@@ -97,41 +105,26 @@ func GetWindowsVersion() (string, error) {
 	revision, _, err := key.GetIntegerValue("UBR")
 	if err != nil {
 		if !errors.Is(err, registry.ErrNotExist) {
-			return "", fmt.Errorf("failed to read UBR: %w", err)
+			return WindowsVersion{}, fmt.Errorf("failed to read UBR: %w", err)
 		}
 		revision = 0
 	}
+	version.Revision = strconv.FormatUint(revision, 10)
 
-	return fmt.Sprintf("%d.%d.%s.%d", major, minor, build, revision), nil
+	return version, nil
 }
 
-func getModuleHandle(fname string) (handle uintptr, err error) {
-	file := windows.StringToUTF16Ptr(fname)
-	handle, _, err = procGetModuleHandle.Call(uintptr(unsafe.Pointer(file)))
-	if handle == 0 {
-		return handle, err
+// GetWindowsBuildString returns the Windows operating-system version in the established
+// "major.minor Build build" format.
+//
+// Unlike the old kernel32.dll resource-based implementation, this reports the running
+// operating-system build rather than the version of a system file.
+func GetWindowsBuildString() (string, error) {
+	version, err := GetWindowsVersionComponents()
+	if err != nil {
+		return "", err
 	}
-	return handle, nil
-}
-
-func getModuleFileName(h uintptr) (fname string, err error) {
-	fname = ""
-	err = nil
-	var sizeIncr = uint32(1024)
-	var size = sizeIncr
-	for {
-		buf := make([]uint16, size)
-		ret, _, err := procGetModuleFileName.Call(h, uintptr(unsafe.Pointer(&buf[0])), uintptr(size))
-		if ret == uintptr(size) || err == windows.ERROR_INSUFFICIENT_BUFFER {
-			size += sizeIncr
-			continue
-		} else if err != nil {
-			fname = windows.UTF16ToString(buf)
-		}
-		break
-	}
-	return
-
+	return fmt.Sprintf("%s.%s Build %s", version.Major, version.Minor, version.Build), nil
 }
 
 func getFileVersionInfo(filename string) (block []uint8, err error) {
@@ -201,15 +194,6 @@ func queryFixedFileInfo(block []uint8) (*tagVSFIXEDFILEINFO, error) {
 		return nil, fmt.Errorf("unexpected VS_FIXEDFILEINFO signature 0x%x", ffi.dwSignature)
 	}
 	return ffi, nil
-}
-
-func getVersionInfo(block []uint8) (string, error) {
-	ffi, err := queryFixedFileInfo(block)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%d.%d Build %d", ffi.dwProductVersionMS>>16, ffi.dwProductVersionMS&0xFF, ffi.dwProductVersionLS>>16), nil
 }
 
 // fixedFileVersion returns the file version from the VS_FIXEDFILEINFO structure of a
