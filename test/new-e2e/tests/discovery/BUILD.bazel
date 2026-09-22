@@ -13,6 +13,7 @@ dd_agent_go_test(
     data = [
         "config/helm-values.tmpl",
         "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-pgbouncer.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
@@ -43,6 +44,7 @@ dd_agent_go_test(
     embedsrcs = [
         "config/helm-values.tmpl",
         "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-pgbouncer.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
         "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
@@ -70,6 +72,7 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",

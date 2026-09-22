@@ -104,7 +104,7 @@ Auto-discovery IDs: unresolved_config
 check_name: ""
 init_config: null
 instances:
-- unresolved:sad: null
+    - unresolved:sad: null
 logs_config: null
 
 
