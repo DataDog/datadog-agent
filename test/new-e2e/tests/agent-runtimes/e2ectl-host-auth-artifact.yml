@@ -1,0 +1,41 @@
+# The e2ectl environment contract for the agent-runtimes auth-artifact IPC
+# security suite. Kept next to the test it serves:
+# TestAuthArtifactIPCSecurityLinuxSuiteOnHost (host_auth_artifact_test.go)
+# will run the ORIGINAL authArtifactLinux suite against an environment
+# created from this file:
+#
+#   e2ectl start --config e2ectl-host-auth-artifact.yml --name <name>
+#   e2ectl install -env <name>
+#
+# The suite's Pulumi entry point (TestAuthArtifactIPCSecurityLinuxSuite) uses
+# awshost.ProvisionerNoFakeIntake with the auth agent config
+# (auth_artifact/fixtures/config.yaml, verbatim below). The suite asserts
+# the IPC auth artifacts loaded by all four agent processes through the
+# systemd service lifecycle — host state, not payloads, hence no fakeintake.
+#
+# INCOMPLETE ON PURPOSE (see the skip on the entry point): the suite also
+# provisions /etc/datadog-agent/security-agent.yaml
+# (auth_artifact/fixtures/security-agent.yaml) and system-probe.yaml
+# (network_config: enabled), and skips waiting for agent readiness — none of
+# which agent.script can express today. The datadog.yaml part IS expressed
+# below; the two subagent config files are the pending installer inputs.
+schema: 1
+environment:
+  base: ec2-host
+  fakeintake: false
+  ec2-host:
+    os: ubuntu-22.04
+agent:
+  version: "7.83.0"
+  # auth_artifact/fixtures/config.yaml, verbatim.
+  config: |
+    log_level: debug
+
+    apm_config:
+      enabled: true
+      socket_activation:
+        enabled: false
+
+    process_config:
+      process_collection:
+        enabled: true

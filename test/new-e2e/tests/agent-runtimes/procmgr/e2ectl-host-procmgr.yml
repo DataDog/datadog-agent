@@ -1,0 +1,27 @@
+# The e2ectl environment contract for the procmgr smoke suite. Kept next to
+# the test it serves: TestProcmgrSmokeLinuxSuiteOnHost (host_test.go) will run
+# the ORIGINAL procmgrLinuxSuite against an environment created from this
+# file:
+#
+#   e2ectl start --config e2ectl-host-procmgr.yml --name <name>
+#   e2ectl install -env <name>
+#
+# The suite's Pulumi entry point (TestProcmgrSmokeLinuxSuite) uses
+# awshost.ProvisionerNoFakeIntake with three processes.d files provisioned
+# via agentparams.WithFile; this file is the attach-mode base environment.
+# No fakeintake: the suite asserts host state (the dd-procmgrd systemd unit
+# and the processes it supervises), not payloads.
+#
+# INCOMPLETE ON PURPOSE (see the skip on the entry point): the three
+# processes.d files — test-sleep.yaml, datadog-agent-ddot.yaml and
+# missing-binary.yaml under /opt/datadog-agent/processes.d — have no
+# agent.script equivalent today. The DDOT binary itself is installed at
+# runtime by the suite (apt), so only the config files are the gap.
+schema: 1
+environment:
+  base: ec2-host
+  fakeintake: false
+  ec2-host:
+    os: ubuntu-22.04
+agent:
+  version: "7.83.0"

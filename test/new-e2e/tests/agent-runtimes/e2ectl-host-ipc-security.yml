@@ -1,0 +1,29 @@
+# The e2ectl environment contract for the agent-runtimes IPC security suite.
+# Kept next to the test it serves: TestIPCSecurityLinuxSuiteOnHost
+# (host_ipc_security_test.go) will run the ORIGINAL ipcSecurityLinuxSuite
+# against an environment created from this file:
+#
+#   e2ectl start --config e2ectl-host-ipc-security.yml --name <name>
+#   e2ectl install -env <name>
+#
+# The suite's Pulumi entry point (TestIPCSecurityLinuxSuite) uses the default
+# awshost.Provisioner() (with fakeintake) and applies the IPC cert/ports
+# config through UpdateEnv inside the test — this file carries the base
+# environment the test will mutate.
+#
+# INCOMPLETE ON PURPOSE (see the skip on the entry point): the per-test
+# mutation applies a templated datadog.yaml (ipc/fixtures/config.yaml.tmpl
+# with the non-default IPC/CMD ports and ipc_cert_file_path), a
+# security-agent.yaml, a system-probe config, and agentclientparams port
+# rewiring — the config mutator (gap-analysis Step 1) plus those installer
+# inputs are the pending seams. The template's values are dynamic per
+# environment, so like the hostname suite no static config can fully express
+# this suite; this file is the base environment only.
+schema: 1
+environment:
+  base: ec2-host
+  fakeintake: true
+  ec2-host:
+    os: ubuntu-22.04
+agent:
+  version: "7.83.0"

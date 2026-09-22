@@ -1,0 +1,143 @@
+# The e2ectl environment for the agent-runtimes infra_basic suite. Kept next
+# to the test it serves: TestBasicLinuxSuiteOnLocal (local_test.go) runs the
+# ORIGINAL basicLinuxSuite body against an environment created from this file:
+#
+#   e2ectl start --config e2ectl-local.yml --name <name>
+#   e2ectl install -env <name>
+#   E2ECTL_ENV=<name> E2ECTL_HOME=<home> \
+#     E2E_API_KEY=00000000000000000000000000000000 \
+#     E2E_APP_KEY=0000000000000000000000000000000000000000 \
+#     dda inv -- new-e2e-tests.run --targets=./tests/agent-runtimes/ \
+#     --run='^TestBasicLinuxSuiteOnLocal$/^TestCheckSchedulingBehavior$' \
+#     --timeout=10m
+#
+# The suite's Pulumi entry point (TestBasicLinuxSuite) expresses the same
+# setup as agentparams options; this file is the attach-mode equivalent:
+#   - agentparams.WithAgentConfig(basicModeAgentConfig)  -> agent.binary.config
+#   - agentparams.WithIntegration(<check>.d, minimal)     -> agent.binary.integrations
+#     for every allowed AND excluded check (infra_basic_common_test.go:
+#     allowedChecks/excludedChecks) — the excluded ones are provisioned too,
+#     so the suite can assert basic mode blocks them.
+#
+# The install builds the agent binary from the working tree (dda inv
+# agent.build), pins it into a container on the environment's network and
+# records its path — the AgentClient invokes it directly, no sudo.
+#
+# Known attach-mode boundary: TestAdditionalCheckWorks needs the mid-suite
+# config mutator (gap-analysis Step 1) and is selected out with the --run
+# pattern above; see local_test.go.
+schema: 1
+environment:
+  base: local
+  # The fakeintake runs as a container on the environment's network.
+  fakeintake: true
+  local: {}
+agent:
+  source: true
+  # The suite's basicModeAgentConfig, verbatim.
+  config: |
+    infrastructure_mode: "basic"
+    logs_enabled: false
+    apm_config:
+      enabled: false
+    process_config:
+      enabled: false
+    telemetry:
+      enabled: true
+  integrations:
+    # allowedChecks (infra_basic_common_test.go) — each with the suite's
+    # minimalCheckConfig, verbatim.
+    cpu.d: |
+      init_config:
+      instances:
+        - {}
+    memory.d: |
+      init_config:
+      instances:
+        - {}
+    disk.d: |
+      init_config:
+      instances:
+        - {}
+    uptime.d: |
+      init_config:
+      instances:
+        - {}
+    load.d: |
+      init_config:
+      instances:
+        - {}
+    network.d: |
+      init_config:
+      instances:
+        - {}
+    ntp.d: |
+      init_config:
+      instances:
+        - {}
+    io.d: |
+      init_config:
+      instances:
+        - {}
+    file_handle.d: |
+      init_config:
+      instances:
+        - {}
+    system_core.d: |
+      init_config:
+      instances:
+        - {}
+    telemetry.d: |
+      init_config:
+      instances:
+        - {}
+    # excludedChecks — provisioned too, so the suite can assert basic mode
+    # blocks them.
+    container_lifecycle.d: |
+      init_config:
+      instances:
+        - {}
+    container_image.d: |
+      init_config:
+      instances:
+        - {}
+    container.d: |
+      init_config:
+      instances:
+        - {}
+    kubelet.d: |
+      init_config:
+      instances:
+        - {}
+    docker.d: |
+      init_config:
+      instances:
+        - {}
+    orchestrator_pod.d: |
+      init_config:
+      instances:
+        - {}
+    cri.d: |
+      init_config:
+      instances:
+        - {}
+    containerd.d: |
+      init_config:
+      instances:
+        - {}
+    coredns.d: |
+      init_config:
+      instances:
+        - {}
+    kubernetes_apiserver.d: |
+      init_config:
+      instances:
+        - {}
+    datadog_cluster_agent.d: |
+      init_config:
+      instances:
+        - {}
+    kube_apiserver_metrics.d: |
+      init_config:
+      instances:
+        - {}

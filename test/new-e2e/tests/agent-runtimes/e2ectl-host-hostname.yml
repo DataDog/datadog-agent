@@ -1,0 +1,30 @@
+# The e2ectl environment contract for the agent-runtimes hostname IMDSv2
+# suite. Kept next to the test it serves: TestBaseHostnameSuiteOnHost
+# (host_hostname_test.go) will run the ORIGINAL baseHostnameSuite against an
+# environment created from this file:
+#
+#   e2ectl start --config e2ectl-host-hostname.yml --name <name>
+#   e2ectl install -env <name>
+#
+# The suite's Pulumi entry point (TestBaseHostnameSuite) uses
+# awshost.ProvisionerNoFakeIntake() with the default agent install; this file
+# is the attach-mode equivalent: an Ubuntu EC2 VM, a released agent installed
+# by the official install script, no fakeintake (the suite asserts hostname
+# resolution through EC2 metadata, not payloads).
+#
+# INCOMPLETE ON PURPOSE — the suite cannot attach yet (see the skip on
+# TestBaseHostnameSuiteOnHost): every subtest re-provisions via UpdateEnv
+# with a per-case agent config plus, for TestWithoutIMDSv1, the EC2 instance
+# option ec2.WithIMDSv1Disable(). The pending seams are the config mutator
+# (gap-analysis Step 1) and an IMDSv1-disable capability in this section.
+# When they land, the per-case config is still dynamic (it varies per
+# subtest), so no static config can ever fully express this suite — this file
+# is the base environment, the subtest configs are the mutator's input.
+schema: 1
+environment:
+  base: ec2-host
+  fakeintake: false
+  ec2-host:
+    os: ubuntu-22.04
+agent:
+  version: "7.83.0"

@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "procmgr_test",
     srcs = [
+        "host_test.go",
         "par_procmgr_win_test.go",
         "procmgr_common_test.go",
         "procmgr_nix_test.go",

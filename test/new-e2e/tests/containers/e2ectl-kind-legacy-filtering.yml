@@ -1,0 +1,51 @@
+# The e2ectl environment for the containers legacy filtering suite. Kept next
+# to the test it serves: TestK8SLegacyFilteringSuiteOnLocalKind
+# (local_filtering_test.go) runs the ORIGINAL k8sFilteringSuiteBase against an
+# environment created from this file:
+#
+#   e2ectl start --config e2ectl-kind-legacy-filtering.yml --name <name>
+#   e2ectl install -env <name>
+#   E2ECTL_ENV=<name> E2ECTL_HOME=<home> \
+#     dda inv -- new-e2e-tests.run --targets=./tests/containers/ \
+#     --run='^TestK8SLegacyFilteringSuiteOnLocalKind$' --timeout=10m
+#
+# The suite's Pulumi entry point (TestK8SLegacyFilteringSuite) expresses the
+# same setup as scenario options; this file is the attach-mode equivalent:
+#   - kubernetesagentparams.WithHelmValues(legacyContainerExcludeConfig)
+#     -> agent.helm.values (the embedded fixture
+#     fixtures/datadog-agent-legacy-exclude.yml, verbatim)
+#   - three K8sAppDefinition workloads -> the workloads section below:
+#       nginx in workload-nginx (catalog app, default namespace)
+#       redis in default          (image form: the catalog redis app deploys
+#                                  to workload-redis, this suite needs it in
+#                                  default so the name:redis* exclude matches)
+#       nginx in filtered-ns      (catalog app with a namespace override; the
+#                                  catalog nginx manifests render into the
+#                                  given namespace, creating it themselves)
+schema: 1
+environment:
+  base: kind
+  fakeintake: true
+  kind:
+    nodes: 0
+agent:
+  version: 7.69.0
+  values: |
+    datadog:
+      # The embedded legacy-exclude fixture, verbatim.
+      containerExclude: "kube_namespace:filtered-ns name:redis*"
+      # Installs the datadog-crds subchart (DatadogMetric CRD) — the
+      # catalog nginx manifests declare a DatadogMetric.
+      autoscaling:
+        workload:
+          enabled: true
+workloads:
+  # The VerticalPodAutoscaler CRD comes first: the catalog nginx manifests
+  # declare a VPA.
+  - app: vpa-crd
+  - app: nginx
+  - app: nginx
+    namespace: filtered-ns
+  - image: ghcr.io/datadog/redis:v0.0.7
+    name: redis
+    namespace: default

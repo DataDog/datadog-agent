@@ -1,0 +1,31 @@
+# The e2ectl environment for the cluster-agent secret-generic-connector suite.
+# Kept next to the test it serves: TestClusterAgentSGCBinaryOnLocalKind
+# (local_cluster_agent_sgc_test.go) runs the ORIGINAL clusterAgentBinarySuite
+# against an environment created from this file:
+#
+#   e2ectl start --config e2ectl-kind-sgc.yml --name <name>
+#   e2ectl install -env <name>
+#   E2ECTL_ENV=<name> E2ECTL_HOME=<home> \
+#     dda inv -- new-e2e-tests.run --targets=./tests/containers/ \
+#     --run='^TestClusterAgentSGCBinaryOnLocalKind$' --timeout=10m
+#
+# The suite's Pulumi entry point (TestClusterAgentBinarySuite) uses the kindvm
+# provisioner with scenkind.WithoutFakeIntake() and
+# kubernetesagentparams.WithNamespace("datadog"); the e2ectl kind base already
+# installs the release into the "datadog" namespace, so this file needs no
+# extra Helm values. No fakeintake and no workloads: the suite asserts the
+# binary inside the cluster-agent pod, nothing else.
+#
+# Config + entry only: not validated in this migration pass.
+schema: 1
+environment:
+  base: kind
+  fakeintake: false
+  kind:
+    nodes: 0
+agent:
+  # Version floor: the suite asserts the secret-generic-connector binary
+  # inside the released cluster-agent image; verify the pinned version
+  # ships it (or bump to 7.83.0) before the first live run — the same
+  # silent-incompatibility class as the CEL filtering version floor.
+  version: 7.69.0
