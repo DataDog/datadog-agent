@@ -151,6 +151,9 @@ const (
 	GPUType = "gpu_type"
 	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
 	GPUSlicingMode = "gpu_slicing_mode"
+	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g-35gb).
+	// Only set on MIG devices.
+	GPUMIGProfile = "gpu_mig_profile"
 	// GPUParentGPUUUID is the tag for the parent GPU UUID
 	GPUParentGPUUUID = "gpu_parent_uuid"
 	// GPUPCIBusID is the tag for the PCI bus ID of the GPU

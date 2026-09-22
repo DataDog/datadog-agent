@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -36,6 +37,12 @@ import (
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
+
+// migProfileTagValue matches the gpu_mig_profile tag values, which carry the
+// canonical MIG profile name with dots and pluses rewritten as dashes to match
+// the KSM mig_profile convention: "1g.35gb" -> "1g-35gb", "1g.35gb+me" ->
+// "1g-35gb-me".
+var migProfileTagValue = regexp.MustCompile(`^[0-9]+g-[0-9]+gb(-me)?$`)
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
@@ -355,6 +362,53 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
 			assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
+
+// TestMIGProfileTagScope checks the gpu_mig_profile tag contract: MIG device
+// metrics carry a canonical profile value, and everything else carries no such
+// tag. CI GPUs are not MIG-capable, so in practice this guards the degradation
+// path -- a driver without the versioned profile API, or a whole card, must not
+// grow a spurious or empty gpu_mig_profile tag. The positive path on real MIG
+// hardware is covered by pkg/gpu/integrationtests (RUN_MIG_TESTS=1) and the
+// tag value mapping by the tagger unit tests.
+func (v *gpuBaseSuite[Env]) TestMIGProfileTagScope() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	const metricName = "gpu.core.limit"
+	const migProfileTagKey = "gpu_mig_profile"
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		if !assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metricName) {
+			return
+		}
+
+		for _, metric := range metrics {
+			var isMIGDevice bool
+			var profileValues []string
+			for _, tag := range metric.GetTags() {
+				switch {
+				case strings.HasPrefix(tag, "gpu_uuid:mig-"):
+					isMIGDevice = true
+				case strings.HasPrefix(tag, migProfileTagKey+":"):
+					profileValues = append(profileValues, strings.TrimPrefix(tag, migProfileTagKey+":"))
+				}
+			}
+
+			if isMIGDevice {
+				if assert.Len(c, profileValues, 1, "MIG device metric should carry exactly one %s tag, tags: %v", migProfileTagKey, metric.GetTags()) {
+					assert.Regexp(c, migProfileTagValue, profileValues[0],
+						"%s value should be a canonical profile name, tags: %v", migProfileTagKey, metric.GetTags())
+				}
+			} else {
+				assert.Empty(c, profileValues,
+					"non-MIG device metric must not carry %s, tags: %v", migProfileTagKey, metric.GetTags())
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }

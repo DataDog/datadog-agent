@@ -1009,6 +1009,13 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	if gpu.MIGProfile != "" {
+		// The NVIDIA device plugin replaces '+' with '.' in resource names.
+		// Normalize both to dashes to match KSM's mig_profile tag values
+		// (e.g. "1g.35gb+me" -> "1g-35gb-me").
+		profile := strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), ".", "-")
+		tagList.AddLow(tags.GPUMIGProfile, strings.ReplaceAll(profile, "+", "-"))
+	}
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
 	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))

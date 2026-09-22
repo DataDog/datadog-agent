@@ -94,6 +94,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+		gpuDeviceInfo.MIGProfile = d.Profile
 		if d.Parent != nil {
 			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
 		}
