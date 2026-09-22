@@ -2425,6 +2425,8 @@ code.cloudfoundry.org/garden v0.3.0 h1:1Tya48yAdbMTDIYHWSkH1n/fQaoVTW4jHuPduiR8O
 code.cloudfoundry.org/garden v0.3.0/go.mod h1:L49tUGMI/PKVFQN/8+PgN8dyxlq6dMlaZrLy3QZhHvc=
 code.cloudfoundry.org/lager/v3 v3.86.0 h1:VL/d2whyzaUixVeqktrfoadUnszHGPSxlRyM0XL2wIU=
 code.cloudfoundry.org/lager/v3 v3.86.0/go.mod h1:pNoj2tmVKLSPChEBi95l8b0raJVdgU/zI1uWlC3xdcA=
+code.cloudfoundry.org/lager/v3 v3.87.0 h1:e6zDuyV8/jsMhHaSCtFecWh65dSLNeNVlydwAznI9D0=
+code.cloudfoundry.org/lager/v3 v3.87.0/go.mod h1:2PulAlxdP8DQApM9bvxiAiJnV+Xs6HkyxgcPvQ4fTPg=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
 code.cloudfoundry.org/locket v1.1.0/go.mod h1:uHOC1u/FKBvYHW0wTzFjI3WT85O2jGxz1I4+2nrjWLk=
 code.cloudfoundry.org/tlsconfig v0.60.0 h1:bB+VlWZ1Y3RTHJBNMnUx0pnkSN0DrzmJI3A0g1YSnVw=
@@ -4327,6 +4329,8 @@ github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
 github.com/onsi/ginkgo/v2 v2.32.1 h1:6tlvcDm/3sE8lGJbZ4+d4mO3RLy24/tQWOFzVSQNIfw=
 github.com/onsi/ginkgo/v2 v2.32.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
+github.com/onsi/ginkgo/v2 v2.32.2 h1:2o6vyFvR6snrJWgRVztC+OwuqqPEMI1UzYl2s2iU7Cg=
+github.com/onsi/ginkgo/v2 v2.32.2/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.43.0 h1:VlG/1FxqNxhSO+lq/OHBNaaqwiBK/mO8JbVkX9Y+FeU=
 github.com/onsi/gomega v1.43.0/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.159.0 h1:GydJD6qg5Sx7ES/c0IrSlDAiFBL32LsxhJVj9matf8g=
