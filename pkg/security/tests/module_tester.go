@@ -444,6 +444,36 @@ func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
 	tm.eventHandlers.Unlock()
 }
 
+// DrainProbeEvents discards the probe events already delivered to userspace, so that
+// events caused by a previous action are not mistaken for the result of the next one.
+// It returns once the stream has been quiet for drainQuietPeriod, or after drainMaxWait.
+func (tm *testModule) DrainProbeEvents() {
+	const (
+		drainQuietPeriod = 250 * time.Millisecond
+		drainMaxWait     = time.Second
+	)
+
+	seen := make(chan struct{}, 1)
+	tm.RegisterProbeEventHandler(func(_ *model.Event) {
+		select {
+		case seen <- struct{}{}:
+		default:
+		}
+	})
+	defer tm.RegisterProbeEventHandler(nil)
+
+	deadline := time.After(drainMaxWait)
+	for {
+		select {
+		case <-seen:
+		case <-time.After(drainQuietPeriod):
+			return
+		case <-deadline:
+			return
+		}
+	}
+}
+
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -816,6 +846,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
 		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
+		"EnableSecurityProfileV2":                    !opts.disableSecurityProfileV2,
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
