@@ -375,7 +375,9 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		// the GPU instance handle, which needs a privileged agent. Best effort
 		if migChildDevice.Profile == "" {
 			if profile, err := d.SafeDevice.GetMIGInstanceProfileName(gpuInstanceID); err != nil {
-				log.Infof("MIG device %s (GPU instance %d on %s): the gpu_mig_profile tag is unavailable because its name carries no profile and resolving it through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById): %v", migChildDevice.UUID, gpuInstanceID, d.UUID, err)
+				if logLimiter.ShouldLog() {
+					log.Infof("MIG device %s (GPU instance %d on %s): the gpu_mig_profile tag is unavailable because its name carries no profile and resolving it through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById): %v", migChildDevice.UUID, gpuInstanceID, d.UUID, err)
+				}
 			} else {
 				migChildDevice.Profile = profile
 			}
