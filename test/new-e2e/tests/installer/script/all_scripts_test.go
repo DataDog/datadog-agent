@@ -38,12 +38,12 @@ var (
 		e2eos.Debian12,
 		e2eos.RedHat9,
 		e2eos.CentOS7,
-		e2eos.Suse15E2E,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
-		e2eos.Suse15E2E,
+		e2eos.Suse15,
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},

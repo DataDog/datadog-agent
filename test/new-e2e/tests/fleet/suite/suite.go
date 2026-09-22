@@ -36,7 +36,7 @@ var (
 		e2eos.Debian12,
 		e2eos.RedHat9,
 		// e2eos.CentOS7,
-		e2eos.Suse15E2E,
+		e2eos.Suse15,
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{

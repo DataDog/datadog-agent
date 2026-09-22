@@ -47,12 +47,12 @@ var (
 		e2eos.Debian12,
 		e2eos.RedHat9,
 		e2eos.CentOS7,
-		e2eos.Suse15E2E,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
-		e2eos.Suse15E2E,
+		e2eos.Suse15,
 	}
 	// apmInjectMultilibFlavors are the hosts the multilib launcher suite runs on:
 	// one per glibc $LIB convention. Debian/Ubuntu resolve $LIB to the multiarch
@@ -219,7 +219,7 @@ func (s *packageBaseSuite) SetupSuite() {
 }
 
 func (s *packageBaseSuite) updatePythonOnSuse() {
-	// The suse/15-4-e2e AMI ships python311 pre-baked (needed for injection,
+	// The suse/15-4 AMI ships python311 pre-baked (needed for injection,
 	// since the default Python3.6 is too old) but deliberately leaves
 	// /usr/bin/python3 pointing at 3.6 so cloud-init's first-boot SSH key
 	// injection still works. Repoint it now that cloud-init has already run.
@@ -383,7 +383,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
-		// ansible is pre-baked into the suse/15-4-e2e AMI (installed via
+		// ansible is pre-baked into the suse/15-4 AMI (installed via
 		// python3.11 -m pip), whose console scripts land in /usr/local/bin.
 		pathPrefix = "/usr/local/bin/"
 	default:

@@ -34,7 +34,6 @@ var (
 
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
-	Suse15E2E   = NewDescriptor(Suse, "15-4-e2e")
 
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
