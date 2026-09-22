@@ -57,6 +57,9 @@ var (
 	MutationAttempts = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
 		[]string{"mutation_type", "status", "injected", "error"}, "Number of pod mutation attempts by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	AgentSidecarInjectionSkipped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("admission_webhooks", "agent_sidecar_injection_skipped",
+		[]string{"reason"}, "Number of Agent sidecar injections skipped because the required Secret is not ready",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"admission_webhooks",
 		"webhooks_received",

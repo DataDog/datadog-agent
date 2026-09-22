@@ -23,6 +23,7 @@ dd_agent_go_test(
     srcs = ["bootstrap_test.go"],
     embed = [":configstreambootstrap"],
     deps = [
+        "//pkg/config/model",
         "//pkg/config/setup",
         "@com_github_stretchr_testify//require",
     ],

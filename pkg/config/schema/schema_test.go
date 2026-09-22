@@ -12,6 +12,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/assert/yaml"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -120,4 +121,17 @@ func TestValidateCoreFileInvalidType(t *testing.T) {
 	errs, err = ValidateCoreConfig(map[string]interface{}{"tags": map[string]interface{}{"a": "1234"}})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"at '/tags': got object, want array"}, errs)
+}
+
+func TestValidateCoreConfigDetailedTypeViolation(t *testing.T) {
+	initTestSchema(t)
+	violations, err := ValidateCoreConfigDetailed(map[string]any{"api_key": 1234})
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Equal(t, Violation{
+		Message:       "at '/api_key': got number, want string",
+		Path:          "/api_key",
+		ActualType:    "number",
+		ExpectedTypes: []string{"string"},
+	}, violations[0])
 }

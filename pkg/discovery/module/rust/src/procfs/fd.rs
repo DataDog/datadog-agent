@@ -6,10 +6,9 @@
 //! The fd module contains helpers and types to represent information located
 //! in /proc/<pid>/fd
 
+use std::collections::HashSet;
 use std::fs::{read_dir, read_link};
 use std::path::{Path, PathBuf};
-
-use log::trace;
 
 use crate::procfs::root_path;
 
@@ -20,19 +19,15 @@ const O_APPEND: u32 = 0o2000;
 // tracers.
 const MAX_TRACER_MEMFDS: usize = 25;
 
-#[derive(Debug)]
+const MAX_LOG_FILES: usize = 100;
+
+#[derive(Debug, Default)]
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
-    pub logs: Vec<FdPath>,
+    pub logs: HashSet<PathBuf>,
     pub tracer_memfds: Vec<PathBuf>,
     pub memfd_path: Option<PathBuf>,
     pub has_gpu_device: bool,
-}
-
-#[derive(Debug)]
-pub struct FdPath {
-    pub fd: String,
-    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -42,13 +37,7 @@ struct FdInfo {
 
 pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
-    let mut result = OpenFilesInfo {
-        sockets: Vec::new(),
-        logs: Vec::new(),
-        tracer_memfds: Vec::new(),
-        memfd_path: None,
-        has_gpu_device: false,
-    };
+    let mut result = OpenFilesInfo::default();
 
     read_dir(fd_path)?
         .map_while(|entry_result| entry_result.ok())
@@ -57,71 +46,43 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             let link = read_link(&path).ok()?;
             Some((path, link))
         })
-        .for_each(|(entry, link)| {
-            if is_gpu_device(link.as_path()) {
-                result.has_gpu_device = true;
-                return;
-            }
-
-            if let Some(socket) = is_socket(link.as_path()) {
-                result.sockets.push(socket);
-            } else if is_logfile(link.as_path()) {
-                if let Some(fd_path) = entry.to_str().map(|s| s.to_string()) {
-                    result.logs.push(FdPath {
-                        fd: fd_path,
-                        path: link,
-                    });
-                }
-            } else if result.tracer_memfds.len() < MAX_TRACER_MEMFDS
-                && is_tracer_memfd(link.as_path())
-            {
-                result.tracer_memfds.push(entry);
-            } else if is_language_memfd(link.as_path()) {
-                result.memfd_path = Some(entry);
-            }
-        });
+        .for_each(|(entry, link)| process_fd(pid, entry, link, &mut result));
 
     Ok(result)
 }
 
-pub fn get_log_files(pid: i32, candidates: &[FdPath]) -> Vec<String> {
-    use std::collections::HashSet;
-
-    let mut seen = HashSet::new();
-    let mut logs = Vec::new();
-
-    for candidate in candidates {
-        if seen.contains(&candidate.path) {
-            continue;
-        }
-
-        let Some(fd_num) = candidate.fd.rsplit('/').next() else {
-            continue;
-        };
-
-        let Some(fd_info) = read_fdinfo(pid, fd_num) else {
-            continue;
-        };
-
-        if !is_write_append_mode(fd_info.flags) {
-            trace!(
-                "Discarding log candidate {} for pid {} due to invalid flags: {:#o}",
-                candidate.path.display(),
-                pid,
-                fd_info.flags
-            );
-            continue;
-        }
-
-        if !seen.insert(&candidate.path) {
-            continue;
-        }
-
-        let path = candidate.path.to_string_lossy().into_owned();
-        logs.push(path);
+fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInfo) {
+    if is_gpu_device(link.as_path()) {
+        result.has_gpu_device = true;
+        return;
     }
 
-    logs
+    if let Some(socket) = is_socket(link.as_path()) {
+        result.sockets.push(socket);
+    } else if is_logfile(link.as_path()) {
+        if result.logs.len() >= MAX_LOG_FILES {
+            return;
+        }
+
+        if result.logs.contains(&link) {
+            return;
+        }
+
+        let Some(fd_num) = entry.file_name().and_then(|name| name.to_str()) else {
+            return;
+        };
+        let Some(fd_info) = read_fdinfo(pid, fd_num) else {
+            return;
+        };
+
+        if is_write_append_mode(fd_info.flags) {
+            result.logs.insert(link);
+        }
+    } else if result.tracer_memfds.len() < MAX_TRACER_MEMFDS && is_tracer_memfd(link.as_path()) {
+        result.tracer_memfds.push(entry);
+    } else if is_language_memfd(link.as_path()) {
+        result.memfd_path = Some(entry);
+    }
 }
 
 fn is_write_append_mode(flags: u32) -> bool {
@@ -455,69 +416,51 @@ mod tests {
         }
     }
 
-    mod get_log_files {
-        use std::path::PathBuf;
+    #[cfg(target_os = "linux")]
+    #[allow(clippy::expect_used)]
+    mod log_collection {
+        use std::fs::{File, OpenOptions, read_link};
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::os::fd::AsRawFd;
+        use std::path::{Path, PathBuf};
 
-        use super::super::{FdPath, get_log_files};
+        use tempfile::TempDir;
 
-        #[cfg(target_os = "linux")]
-        use {
-            crate::procfs::fd::get_open_files_info,
-            std::fs::{File, OpenOptions},
-            std::io::Write,
-        };
+        use super::super::{MAX_LOG_FILES, OpenFilesInfo, get_open_files_info, process_fd};
+        use crate::procfs::root_path;
 
-        #[test]
-        fn returns_empty_for_empty_candidates() {
-            let candidates: Vec<FdPath> = vec![];
-            let result = get_log_files(1, &candidates);
-            assert!(result.is_empty());
+        fn fd_path(fd: &impl AsRawFd) -> PathBuf {
+            root_path()
+                .join(std::process::id().to_string())
+                .join("fd")
+                .join(fd.as_raw_fd().to_string())
+        }
+
+        fn process_file(file: &File, path: &Path, result: &mut OpenFilesInfo) {
+            process_fd(
+                std::process::id().cast_signed(),
+                fd_path(file),
+                path.to_path_buf(),
+                result,
+            );
+        }
+
+        fn append_file(path: &Path) -> File {
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .expect("Failed to open append file")
         }
 
         #[test]
-        fn returns_empty_when_fdinfo_not_accessible() {
-            let nonexistent_pid = i32::MAX;
-            let candidates = vec![
-                FdPath {
-                    fd: format!("/proc/{}/fd/3", nonexistent_pid),
-                    path: PathBuf::from("/var/log/app.log"),
-                },
-                FdPath {
-                    fd: format!("/proc/{}/fd/5", nonexistent_pid),
-                    path: PathBuf::from("/var/log/app.log"),
-                },
-            ];
-
-            let result = get_log_files(nonexistent_pid, &candidates);
-            assert!(result.is_empty());
-        }
-
-        #[test]
-        fn handles_invalid_fd_path() {
-            let candidates = vec![FdPath {
-                fd: "invalid".to_string(),
-                path: PathBuf::from("/var/log/app.log"),
-            }];
-
-            let result = get_log_files(1234, &candidates);
-            assert!(result.is_empty());
-        }
-
-        #[test]
-        #[cfg(target_os = "linux")]
-        #[allow(clippy::expect_used)]
         fn test_get_log_files_integration() {
-            use tempfile::TempDir;
-
             let temp_dir = TempDir::new().expect("Failed to create temp dir");
             let temp_path = temp_dir.path();
 
             let valid_log = temp_path.join("test.log");
-            let _file1 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&valid_log)
-                .expect("Failed to open valid log");
+            let _file1 = append_file(&valid_log);
 
             let no_append_log = temp_path.join("noappend.log");
             let _file2 = OpenOptions::new()
@@ -537,11 +480,7 @@ mod tests {
                 .expect("Failed to open readwrite log");
 
             let wrong_ext = temp_path.join("test.log.txt");
-            let _file4 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&wrong_ext)
-                .expect("Failed to open wrong-ext log");
+            let _file4 = append_file(&wrong_ext);
 
             let readonly_log = temp_path.join("read.log");
             {
@@ -557,65 +496,82 @@ mod tests {
 
             let long_name = "a".repeat(128) + ".log";
             let long_log = temp_path.join(&long_name);
-            let _file6 = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&long_log)
-                .expect("Failed to open long log");
-
-            let _file7 = OpenOptions::new()
-                .append(true)
-                .open(&valid_log)
-                .expect("Failed to reopen valid log");
+            let _file6 = append_file(&long_log);
+            let _file7 = append_file(&valid_log);
 
             let pid = std::process::id().cast_signed();
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 
-            let temp_path_str = temp_path
-                .to_str()
-                .expect("Temp path should be valid UTF-8 for test");
-
-            let our_logs: Vec<FdPath> = open_files_info
+            let result: Vec<_> = open_files_info
                 .logs
                 .into_iter()
-                .filter(|fd_path| {
-                    fd_path
-                        .path
-                        .to_str()
-                        .map(|s| s.starts_with(temp_path_str))
-                        .unwrap_or(false)
-                })
+                .filter(|path| path.starts_with(temp_path))
                 .collect();
 
-            let result = get_log_files(pid, &our_logs);
             assert!(!result.is_empty());
             assert!(result.len() <= 2);
+            assert_eq!(result.iter().filter(|path| *path == &valid_log).count(), 1);
+            assert!(!result.contains(&no_append_log));
+            assert!(!result.contains(&readwrite_log));
+            assert!(!result.contains(&wrong_ext));
+            assert!(!result.contains(&readonly_log));
+        }
 
-            let valid_log_str = valid_log
-                .to_str()
-                .expect("valid_log path should be valid UTF-8");
-            assert!(result.iter().any(|p| p == valid_log_str));
-            let no_append_str = no_append_log
-                .to_str()
-                .expect("no_append_log path should be valid UTF-8");
-            let readwrite_str = readwrite_log
-                .to_str()
-                .expect("readwrite_log path should be valid UTF-8");
-            let wrong_ext_str = wrong_ext
-                .to_str()
-                .expect("wrong_ext path should be valid UTF-8");
-            let readonly_str = readonly_log
-                .to_str()
-                .expect("readonly_log path should be valid UTF-8");
+        #[test]
+        fn bounds_and_deduplicates_logs_without_stopping_enumeration() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let file = append_file(&temp_dir.path().join("source.log"));
+            let duplicate = PathBuf::from(format!("/tmp/{}.log", "a".repeat(3000)));
+            let mut result = OpenFilesInfo::default();
 
-            assert!(!result.iter().any(|p| p == no_append_str));
-            assert!(!result.iter().any(|p| p == readwrite_str));
-            assert!(!result.iter().any(|p| p == wrong_ext_str));
-            assert!(!result.iter().any(|p| p == readonly_str));
+            for _ in 0..=MAX_LOG_FILES {
+                process_file(&file, &duplicate, &mut result);
+            }
+            for index in 1..=MAX_LOG_FILES {
+                process_file(
+                    &file,
+                    &PathBuf::from(format!("/tmp/{index}.log")),
+                    &mut result,
+                );
+            }
 
-            let count = result.iter().filter(|p| *p == valid_log_str).count();
-            assert_eq!(count, 1);
+            let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
+            let listener_fd = fd_path(&listener);
+            let listener_link = read_link(&listener_fd).expect("Failed to read listener link");
+            process_fd(
+                std::process::id().cast_signed(),
+                listener_fd,
+                listener_link,
+                &mut result,
+            );
+
+            assert_eq!(result.logs.len(), MAX_LOG_FILES);
+            assert!(result.logs.contains(&duplicate));
+            assert!(result.logs.contains(&PathBuf::from("/tmp/99.log")));
+            assert_eq!(result.sockets.len(), 1);
+        }
+
+        #[test]
+        fn rejected_descriptor_does_not_suppress_valid_descriptor() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let path = temp_dir.path().join("application.log");
+            File::create(&path).expect("Failed to create log");
+            let read_only = File::open(&path).expect("Failed to open read-only log");
+            let append = append_file(&path);
+            let mut result = OpenFilesInfo::default();
+
+            process_file(&read_only, &path, &mut result);
+            process_fd(
+                i32::MAX,
+                PathBuf::from("invalid"),
+                path.clone(),
+                &mut result,
+            );
+            process_file(&append, &path, &mut result);
+
+            assert_eq!(result.logs.len(), 1);
+            assert!(result.logs.contains(&path));
         }
     }
 

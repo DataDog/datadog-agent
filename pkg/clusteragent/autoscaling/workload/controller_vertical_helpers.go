@@ -595,6 +595,21 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
+	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
+	// admission webhook — they cannot be updated on a running container via pods/resize.
+	// Force the rollout path so pods are recreated and pick up the new values.
+	//
+	// Known limitation: this forces a rollout whenever a GOMEMLIMIT is present in the recommendation,
+	// even if the value has not changed (e.g. only CPU requests/limits changed). Fixing this requires
+	// comparing the recommended value against the running pod's env vars, which isRolloutRequired does
+	// not currently have access to. Left for a follow-up.
+	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
+		for _, cr := range sv.Vertical.ContainerResources {
+			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+				return true
+			}
+		}
+	}
 	spec := autoscalerInternal.Spec()
 	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
 		return false

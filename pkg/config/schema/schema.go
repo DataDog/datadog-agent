@@ -13,7 +13,9 @@ import (
 	"fmt"
 
 	"github.com/DataDog/zstd"
+	"github.com/qri-io/jsonpointer"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -72,31 +74,60 @@ var (
 	sysprobeSchemaGetter = getSysprobeSchema
 )
 
-func collectValidationErrors(ve *jsonschema.ValidationError, out *[]string) {
+// Violation is a validation error with structured data and a human-readable Message
+// consume without parsing the human-readable Message.
+type Violation struct {
+	Message       string
+	Path          string
+	ActualType    string
+	ExpectedTypes []string
+}
+
+func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 	if len(ve.Causes) == 0 {
-		*out = append(*out, ve.Error())
+		violation := Violation{
+			Message: ve.Error(),
+			Path:    jsonpointer.Pointer(ve.InstanceLocation).String(),
+		}
+		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
+			violation.ActualType = typeError.Got
+			violation.ExpectedTypes = typeError.Want
+		}
+		*out = append(*out, violation)
 		return
 	}
 	for _, cause := range ve.Causes {
-		collectValidationErrors(cause, out)
+		collectViolations(cause, out)
 	}
 }
 
 func validateData(sch *jsonschema.Schema, config interface{}) ([]string, error) {
+	violations, err := validateDataDetailed(sch, config)
+	if err != nil || len(violations) == 0 {
+		return nil, err
+	}
+	out := make([]string, len(violations))
+	for index, violation := range violations {
+		out[index] = violation.Message
+	}
+	return out, nil
+}
+
+func validateDataDetailed(sch *jsonschema.Schema, config interface{}) ([]Violation, error) {
 	if sch == nil {
 		return nil, errors.New("no embedded schema")
 	}
 
 	err := sch.Validate(config)
 	if err == nil {
-		return nil, err
+		return nil, nil
 	}
 	var ve *jsonschema.ValidationError
 	if !errors.As(err, &ve) {
-		return []string{err.Error()}, nil
+		return []Violation{{Message: err.Error()}}, nil
 	}
-	var out []string
-	collectValidationErrors(ve, &out)
+	var out []Violation
+	collectViolations(ve, &out)
 	return out, nil
 }
 
@@ -107,6 +138,16 @@ func ValidateCoreConfig(config interface{}) ([]string, error) {
 		return nil, err
 	}
 	return validateData(sch, config)
+}
+
+// ValidateCoreConfigDetailed validates unmarshaled YAML/JSON contents against
+// the core Agent schema and returns the individual validation leaves.
+func ValidateCoreConfigDetailed(config interface{}) ([]Violation, error) {
+	sch, err := coreSchemaGetter()
+	if err != nil {
+		return nil, err
+	}
+	return validateDataDetailed(sch, config)
 }
 
 // ValidateSystemProbeConfig validates a unmarshal YAML/JSON contents against the system-probe agent schema

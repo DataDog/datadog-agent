@@ -23,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -1120,4 +1121,89 @@ func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
 			"toggling burstable must change the recommendationID so the vertical controller "+
 				"detects that pods carry a stale hash and triggers a rollout to restore CPU limits")
 	})
+}
+
+func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
+	// Enable in-place vertical scaling so that the flag-based early-return does not interfere.
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+
+	t.Run("no runtime — rollout not forced", func(t *testing.T) {
+		sv := model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				ResourcesHash: "hash-1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+				},
+			},
+		}
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: sv,
+		}).Build()
+		assert.False(t, isRolloutRequired(&ai), "no GOMEMLIMIT should not force a rollout")
+	})
+
+	t.Run("GOMEMLIMIT present — rollout forced", func(t *testing.T) {
+		sv := model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				ResourcesHash: "hash-2",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name:     "app",
+						Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+						Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+					},
+				},
+			},
+		}
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: sv,
+		}).Build()
+		assert.True(t, isRolloutRequired(&ai),
+			"GOMEMLIMIT must force the rollout path so pods are recreated via the admission webhook")
+	})
+}
+
+func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+			},
+			{
+				Name:     "disabled",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "128MiB"},
+			},
+		},
+	}
+
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{Name: "disabled", Enabled: pointer.Ptr(false)},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	// "disabled" container (with its Runtime) must be gone from ContainerResources
+	require.Len(t, vertical.ContainerResources, 1)
+	assert.Equal(t, "app", vertical.ContainerResources[0].Name)
+	require.NotNil(t, vertical.ContainerResources[0].Runtime)
+	assert.Equal(t, "256MiB", vertical.ContainerResources[0].Runtime.Gomemlimit)
+
+	// Hash must be recomputed and consistent with the new state
+	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
