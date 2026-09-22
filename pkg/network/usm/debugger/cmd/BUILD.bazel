@@ -10,14 +10,14 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # this package under matching names before they can be embedded.
 genrule(
     name = "copy_usm_debug_o",
-    srcs = ["//pkg/network/ebpf/c/prebuilt:usm-debug"],
+    srcs = ["//pkg/network/ebpf/c/runtime:usm-debug"],
     outs = ["usm-debug.o"],
     cmd = "cp $< $@",
 )
 
 genrule(
     name = "copy_shared_libraries_debug_o",
-    srcs = ["//pkg/network/ebpf/c/prebuilt:shared-libraries-debug"],
+    srcs = ["//pkg/network/ebpf/c/runtime:shared-libraries-debug"],
     outs = ["shared-libraries-debug.o"],
     cmd = "cp $< $@",
 )
