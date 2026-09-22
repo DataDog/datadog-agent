@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -62,9 +61,6 @@ type remoteIssueAttributes struct {
 
 func newRemoteIssueLoader(cfg config.Component, hostname hostnameinterface.Component) *remoteIssueLoader {
 	site := strings.TrimSpace(cfg.GetString("site"))
-	if site == "" {
-		site = constants.DefaultSite
-	}
 	return &remoteIssueLoader{
 		config:   cfg,
 		hostname: hostname,
