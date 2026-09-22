@@ -148,7 +148,18 @@
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
     - ls -l ${OUTPUT_DIR}/
-    - datadog-package merge ${OUTPUT_DIR}/*.tar
+    - |
+      # Older installers select the first OS/architecture match, ignoring the variant.
+      # merge preserves argument order, so keep base manifests ahead of FIPS manifests.
+      BASE_ARCHIVES=()
+      FIPS_ARCHIVES=()
+      for ARCHIVE in "${OUTPUT_DIR}"/*.tar; do
+        case "$(basename "${ARCHIVE}")" in
+          datadog-fips-*|*-fips.oci.tar) FIPS_ARCHIVES+=("${ARCHIVE}") ;;
+          *) BASE_ARCHIVES+=("${ARCHIVE}") ;;
+        esac
+      done
+      datadog-package merge "${BASE_ARCHIVES[@]}" "${FIPS_ARCHIVES[@]}"
     # We need to propagate the exact version in the pipeline artifact
     - mv merged.tar ${OMNIBUS_PACKAGE_DIR}/${MERGED_FILE}
   artifacts:
@@ -170,6 +181,8 @@ agent_oci:
     - "datadog-otel-agent-x64-fips"
     - "datadog-otel-agent-arm64-fips"
     - job: "agent_win_oci"
+      optional: true
+    - job: "agent_win_oci_fips"
       optional: true
   variables:
     OCI_PRODUCT: "datadog-agent"
