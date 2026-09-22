@@ -10,6 +10,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -185,6 +186,22 @@ func (s *Servicedef) ShouldStop() bool {
 	return s.shouldShutdown
 }
 
+// dependentServicesStartup tracks the in-flight startup pass so shutdown can join it
+// rather than race it. Add happens in startDependentServicesAsync, before the goroutine
+// exists, so it can never be concurrent with the Wait in stopDependentServices.
+var dependentServicesStartup sync.WaitGroup
+
+// startDependentServicesAsync runs the startup pass in the background. It has to be in the
+// background because the agent may still be in service start pending, where the SCM calls
+// below would block or fail.
+func startDependentServicesAsync(coreConf model.Reader, sysprobeConf model.Reader) {
+	dependentServicesStartup.Add(1)
+	go func() {
+		defer dependentServicesStartup.Done()
+		startDependentServices(coreConf, sysprobeConf)
+	}()
+}
+
 func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 	// stopAgent cancels the main context immediately before calling stopDependentServices,
 	// so it doubles as this goroutine's shutdown signal. That matters because shutdown
@@ -350,6 +367,13 @@ func waitForProcmgrInitialState(ctx context.Context, serviceName string) (runnin
 }
 
 func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
+	// Cancelling the main context stops the startup pass from starting anything further,
+	// but a service it already decided to start may be mid-Start right now. Joining the
+	// pass keeps that Start from landing after the loop below, which would leave the
+	// service running once the agent exits. The wait is bounded: after cancellation the
+	// pass only has one winutil.StartService left to finish.
+	dependentServicesStartup.Wait()
+
 	for _, svc := range subservices(coreConf, sysprobeConf) {
 		if !svc.ShouldStop() {
 			log.Infof("Service %s is not configured to stop, not stopping", svc.name)

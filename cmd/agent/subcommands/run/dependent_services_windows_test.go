@@ -150,6 +150,41 @@ func TestProcessServiceNotYetProcmgrManaged(t *testing.T) {
 		"wiring process-agent suppression requires flipping auto_start in the fleet template in the same change")
 }
 
+// stopDependentServices must not run its stop loop while a startup pass is still in
+// flight, or a service that pass is mid-Start on would survive agent shutdown.
+func TestStopDependentServicesJoinsStartupPass(t *testing.T) {
+	release := make(chan struct{})
+	passDone := make(chan struct{})
+
+	dependentServicesStartup.Add(1)
+	go func() {
+		defer dependentServicesStartup.Done()
+		<-release
+		close(passDone)
+	}()
+
+	joined := make(chan struct{})
+	go func() {
+		dependentServicesStartup.Wait()
+		close(joined)
+	}()
+
+	select {
+	case <-joined:
+		require.Fail(t, "shutdown joined before the startup pass finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	<-passDone
+
+	select {
+	case <-joined:
+	case <-time.After(2 * time.Second):
+		require.Fail(t, "shutdown did not return after the startup pass finished")
+	}
+}
+
 func TestServicedefShouldStop(t *testing.T) {
 	assert.True(t, (&Servicedef{shouldShutdown: true}).ShouldStop())
 	assert.False(t, (&Servicedef{shouldShutdown: false}).ShouldStop())
