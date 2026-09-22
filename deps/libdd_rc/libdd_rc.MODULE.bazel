@@ -21,6 +21,21 @@ crate.annotation(
     crate = "rc-x509-proto",
 )
 
+# libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
+# valuable integration is gated on both the Cargo feature and this cfg in
+# tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
+crate.annotation(
+    crate = "tracing",
+    rustc_flags = ["--cfg=tracing_unstable"],
+)
+crate.annotation(
+    crate = "tracing-core",
+    # Cargo declares this edge under cfg(tracing_unstable), which
+    # crate_universe cannot infer from a custom rustc cfg.
+    deps = ["@libdd_rc_crates//:valuable-0.1.1"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+)
+
 # TODO: update as needed
 crate.annotation(
     build_script_env_select = {
