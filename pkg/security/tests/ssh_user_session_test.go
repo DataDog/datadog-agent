@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -406,6 +407,64 @@ func getLogFile() (bool, string, uint64) {
 	return false, "", 0
 }
 
+// sshAuthMethod returns the ssh_auth_method of a serialized event, or "" if absent.
+func sshAuthMethod(data []byte) string {
+	var obj interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return ""
+	}
+	el, err := jsonpath.JsonPathLookup(obj, `$.process.user_session.ssh_auth_method`)
+	if err != nil {
+		return ""
+	}
+	method, _ := el.(string)
+	return method
+}
+
+// getResolvedSSHEvent ssh's in as testUser and returns the serialized event. The agent fills
+// ssh_auth_method from the sshd log line without waiting for it to be written, so the first
+// event of a connection can legitimately carry "unknown": reconnect until one resolves.
+func getResolvedSSHEvent(t *testing.T, test *testModule, testUser *testSSHUser) []byte {
+	t.Helper()
+
+	var data []byte
+	err := retry(t, func() error {
+		test.msgSender.flush()
+
+		if err := test.GetEventSent(t, func() error {
+			if err := sshConnectAsTestUser(testUser, "pwd"); err != nil {
+				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
+				return err
+			}
+			return nil
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			return true
+		}, time.Second*3, "test_rule_ssh_user_session"); err != nil {
+			return err
+		}
+
+		if err := retry(t, func() error {
+			msg := test.msgSender.getMsg("test_rule_ssh_user_session")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			data = msg.Data
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(15)); err != nil {
+			return err
+		}
+
+		if method := sshAuthMethod(data); method != "public_key" {
+			return fmt.Errorf("ssh_auth_method not resolved: %q", method)
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(8))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 func TestSSHUserSession(t *testing.T) {
 	SkipIfNotAvailable(t)
 	if testEnvironment == DockerEnvironment {
@@ -442,38 +501,16 @@ func TestSSHUserSession(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ssh_then_pwd", func(t *testing.T) {
-		err := test.GetEventSent(t, func() error {
-			if err := sshConnectAsTestUser(testUser, "pwd"); err != nil {
-				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
-				return err
-			}
-			return nil
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
-		}, time.Second*3, "test_rule_ssh_user_session")
+		data := getResolvedSSHEvent(t, test, testUser)
+		validateMessageSchema(t, string(data))
 
-		if err != nil {
-			t.Fatal(err)
+		// Check all the fields
+		expectedAuthType := "public_key"
+		expected := &SSHUserSessionExpected{
+			AuthMethod:        &expectedAuthType,
+			ExpectedPublicKey: &testUser.PubKeyFingerprint,
 		}
-		err = retry(t, func() error {
-			msg := test.msgSender.getMsg("test_rule_ssh_user_session")
-			if msg == nil {
-				return errors.New("not found")
-			}
-			validateMessageSchema(t, string(msg.Data))
-
-			// Check all the fields
-			expectedAuthType := "public_key"
-			expected := &SSHUserSessionExpected{
-				AuthMethod:        &expectedAuthType,
-				ExpectedPublicKey: &testUser.PubKeyFingerprint,
-			}
-			checkSSHUserSessionJSON(test, t, msg.Data, expected)
-
-			return nil
-		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
-		assert.NoError(t, err)
-
+		checkSSHUserSessionJSON(test, t, data, expected)
 	})
 }
 
@@ -535,39 +572,17 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	assert.NotEqual(t, inodeBeforeRotate, inodeAfterRotate, "inode of %s should be different after rotate", logPath)
 
 	t.Run("ssh_then_pwd_after_rotation", func(t *testing.T) {
-		err := test.GetEventSent(t, func() error {
-			if err := sshConnectAsTestUser(testUser, "pwd"); err != nil {
-				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
-				return err
-			}
-			return nil
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
-		}, time.Second*3, "test_rule_ssh_user_session")
+		data := getResolvedSSHEvent(t, test, testUser)
+		validateMessageSchema(t, string(data))
 
-		if err != nil {
-			t.Fatal(err)
+		// Check all the fields
+		expectedAuthType := "public_key"
+		expected := &SSHUserSessionExpected{
+			AuthMethod:        &expectedAuthType,
+			ExpectedPublicKey: &testUser.PubKeyFingerprint,
 		}
-		err = retry(t, func() error {
-			msg := test.msgSender.getMsg("test_rule_ssh_user_session")
-			if msg == nil {
-				return errors.New("not found")
-			}
-			validateMessageSchema(t, string(msg.Data))
 
-			// Check all the fields
-			expectedAuthType := "public_key"
-			expected := &SSHUserSessionExpected{
-				AuthMethod:        &expectedAuthType,
-				ExpectedPublicKey: &testUser.PubKeyFingerprint,
-			}
-
-			checkSSHUserSessionJSON(test, t, msg.Data, expected)
-
-			return nil
-		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
-		assert.NoError(t, err)
-
+		checkSSHUserSessionJSON(test, t, data, expected)
 	})
 }
 

@@ -74,6 +74,8 @@ func TestTickSendsActiveIssues(t *testing.T) {
 	assert.Contains(t, reports[0].Issues, "issue-1")
 	assert.Equal(t, "test-host", reports[0].Host.Hostname)
 	assert.Equal(t, eventType, reports[0].EventType)
+	assert.Equal(t, "host", reports[0].Host.ResourceType)
+	assert.Equal(t, "test-host", reports[0].Host.ResourceId)
 }
 
 func TestTickSkipsWhenEmpty(t *testing.T) {
@@ -175,6 +177,20 @@ func TestBuildReport(t *testing.T) {
 	assert.Len(t, report.Issues, 2)
 	_, err := time.Parse(time.RFC3339, report.EmittedAt)
 	assert.NoError(t, err)
+}
+
+// TestBuildReportUsesStoreResourceIdentity verifies buildReport populates
+// Host.ResourceType/ResourceId from the store's ResourceIdentity, so a
+// Cluster Agent or node-agent identity set on the store propagates into the
+// report actually sent to the forwarder.
+func TestBuildReportUsesStoreResourceIdentity(t *testing.T) {
+	store := storemock.New(t, storemock.WithResourceIdentity("cluster", "cluster-id-123"))
+	e := newTestEgress(t, store, forwardermock.New(t))
+
+	report := e.buildReport(map[string]*healthplatformpayload.Issue{"a": {Id: "a"}})
+
+	assert.Equal(t, "cluster", report.Host.ResourceType)
+	assert.Equal(t, "cluster-id-123", report.Host.ResourceId)
 }
 
 // TestResolvedIssueSentOnce verifies that resolved tombstones are cleared after a successful send.

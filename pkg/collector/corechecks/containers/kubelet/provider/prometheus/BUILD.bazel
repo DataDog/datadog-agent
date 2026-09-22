@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "prometheus",
@@ -11,5 +12,26 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/prometheus",
+    ],
+)
+
+dd_agent_go_test(
+    name = "prometheus_test",
+    srcs = ["provider_test.go"],
+    embed = [":prometheus"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
+    deps = [
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/util/prometheus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

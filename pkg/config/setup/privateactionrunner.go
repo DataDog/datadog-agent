@@ -41,8 +41,6 @@ const (
 	RShellCommandNamespacePrefix               = "rshell:"
 	RShellCommandAllowAllWildcard              = RShellCommandNamespacePrefix + "*"
 	RShellPathAllowAll                         = "/"
-	RShellPathAllowMapContainerizedKey         = "containerized"
-	RShellPathAllowMapDefaultKey               = "default"
 	RShellPrivilegedSocketDefault              = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage

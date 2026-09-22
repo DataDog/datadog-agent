@@ -381,7 +381,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
 		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,

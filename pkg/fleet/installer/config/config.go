@@ -400,6 +400,7 @@ var (
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/conf.d/snmp.d/credentials/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")

@@ -556,6 +556,21 @@ func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
 	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
 }
 
+// ResourceIdentity returns the resource_type/resource_id describing the
+// entity this agent process represents; see the Component interface doc.
+func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {
+	if h.agentFlavor == flavor.ClusterAgent {
+		if clusterID := h.selfIdent.ClusterID(); clusterID != "" {
+			return "cluster", clusterID
+		}
+		return "host", hostname
+	}
+	if deploymentID := h.selfIdent.DeploymentID(); deploymentID != "" {
+		return "deployment", deploymentID
+	}
+	return "host", hostname
+}
+
 // ============================================================================
 // Internal Helper Methods
 // ============================================================================
@@ -819,6 +834,7 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	if err != nil {
 		hostname = "unknown"
 	}
+	resourceType, resourceID := h.ResourceIdentity(hostname)
 
 	agentVersion := version.AgentVersion
 	report := &healthplatform.HealthReport{
@@ -828,6 +844,8 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
+			ResourceType: resourceType,
+			ResourceId:   resourceID,
 		},
 		Issues: issues,
 	}

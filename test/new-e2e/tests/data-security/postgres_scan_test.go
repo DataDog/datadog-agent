@@ -27,10 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
-// postgresAccountsSeedRows is the number of rows inserted into `accounts` by
-// postgres-init.sql. The workload generator updates balances but does not add
-// or delete account rows.
-const postgresAccountsSeedRows int64 = 200
+// accountRow columns must not change. Omit balance (rewritten by
+// test/e2e-framework/components/integration/postgres/postgres-workload.sh)
+// and created_at.
+type accountRow struct {
+	ID    int64
+	Owner string
+}
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
 type postgresScanEnv struct {
@@ -61,6 +64,9 @@ func TestDataSecurityPostgresScan(t *testing.T) {
 }
 
 func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
+	before := s.fetchAccounts()
+	require.NotEmpty(s.T(), before, "accounts should be seeded before the scan")
+
 	// The packaged check loads and runs without error. Parse the check output
 	// with the shared testcommon helper — no manual struct parsing.
 	out, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"datasecurity", "--json", "--delay", "1000"}))
@@ -71,6 +77,8 @@ func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
 	data := check.ParseJSONOutput(s.T(), []byte(out))
 	require.NotEmpty(s.T(), data, "empty check JSON: %s", out)
 	assert.Equal(s.T(), 0, data[0].Runner.TotalErrors, "datasecurity check reported errors")
+
+	s.assertAccountsUnchanged(before)
 
 	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -83,13 +91,16 @@ func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
 			}
 		}
 	}, 2*time.Minute, 10*time.Second)
-
-	s.assertAccountsUnchanged()
 }
 
 // assertAccountsUnchanged queries Postgres on the host (not via SDS) so a
-// DELETE/DROP that ran and then failed later still fails the test.
-func (s *postgresScanSuite) assertAccountsUnchanged() {
+// mutation that ran and then failed later still fails the test.
+func (s *postgresScanSuite) assertAccountsUnchanged(before []accountRow) {
+	after := s.fetchAccounts()
+	require.Equal(s.T(), before, after, "accounts rows changed; a scan query mutated the table")
+}
+
+func (s *postgresScanSuite) fetchAccounts() []accountRow {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -97,10 +108,19 @@ func (s *postgresScanSuite) assertAccountsUnchanged() {
 	require.NoError(s.T(), err)
 	defer conn.Close(context.Background())
 
-	var n int64
-	err = conn.QueryRow(ctx, `SELECT COUNT(*) FROM accounts`).Scan(&n)
-	require.NoError(s.T(), err, "accounts should still exist after destructive scan queries")
-	assert.Equal(s.T(), postgresAccountsSeedRows, n, "accounts row count changed; a scan query mutated the table")
+	rows, err := conn.Query(ctx, `SELECT id, owner FROM accounts ORDER BY id`)
+	require.NoError(s.T(), err)
+	defer rows.Close()
+
+	var out []accountRow
+	for rows.Next() {
+		var row accountRow
+		err := rows.Scan(&row.ID, &row.Owner)
+		require.NoError(s.T(), err)
+		out = append(out, row)
+	}
+	require.NoError(s.T(), rows.Err())
+	return out
 }
 
 func (s *postgresScanSuite) openPostgres(ctx context.Context) (*pgx.Conn, error) {

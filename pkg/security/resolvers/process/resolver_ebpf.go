@@ -1603,9 +1603,27 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 	}
 }
 
-// SnapshotOTelProcessContext resolves the OTel process context of a process
-// that published before the agent was watching.
-func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
+// OTelProcessContextSnapshot resolves the OTel process contexts of processes
+// that published before the agent was watching. It holds the scratch state one
+// Resolve hands to the next, so a walk wants one of these for its whole length
+// rather than one per process -- and, being scoped to the walk, releases that
+// state when the walk is done.
+//
+// Not safe for concurrent use.
+type OTelProcessContextSnapshot struct {
+	resolver *EBPFResolver
+	target   otelTargetProcess
+}
+
+// NewOTelProcessContextSnapshot returns a snapshot to resolve a walk's
+// processes through.
+func (p *EBPFResolver) NewOTelProcessContextSnapshot() *OTelProcessContextSnapshot {
+	return &OTelProcessContextSnapshot{resolver: p}
+}
+
+// Resolve resolves the OTel process context of pid.
+func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
+	p := s.resolver
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
@@ -1613,12 +1631,18 @@ func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid)
+	p.resolveAndUpdateOTelTLS(pid, &s.target)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
 // OTel process context
 func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
+	// Reused across resolutions: parsing /proc/<pid>/maps is the bulk of a
+	// resolution's allocations, and this loop runs one for every process that
+	// publishes or updates an OTel process context. Owned by this goroutine,
+	// which is why it needs no synchronization.
+	target := new(otelTargetProcess)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -1634,13 +1658,16 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
-			p.resolveAndUpdateOTelTLS(pid)
+			p.resolveAndUpdateOTelTLS(pid, target)
 		}
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
-	target := newOTelTargetProcess(pid)
+// resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
+// which it rebinds to pid: callers pass a target they own and reuse across
+// calls rather than one per resolution.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+	target.reset(pid)
 
 	procCtx, err := target.processContext()
 	if err != nil {

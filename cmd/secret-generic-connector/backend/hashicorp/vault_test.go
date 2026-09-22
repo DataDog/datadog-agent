@@ -546,6 +546,12 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 			expectError:   false,
 		},
 		{
+			name:           "KV v1 does not strip an extra data segment",
+			secretString:   "vault://secret/simple#/data/data/key1",
+			expectError:    true,
+			errorSubstring: "no value found for pointer",
+		},
+		{
 			name:          "Access lease_duration",
 			secretString:  "vault://secret/simple#/lease_duration",
 			expectedValue: "2764800", // Changed from "0" - Vault's actual default lease duration
@@ -639,13 +645,25 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 	// Create test data in KV v2 format
 	_, err = client.Logical().Write("kv2/data/complex", map[string]interface{}{
 		"data": map[string]interface{}{
-			"key1": "value1",
-			"key2": "value2",
+			"key1":     "value1",
+			"key2":     "value2",
+			"nullable": "fallback_value",
+			"missing":  nil,
+			"data": map[string]interface{}{
+				"key2":     "nested_value2",
+				"nullable": nil,
+				"empty":    "",
+				"false":    false,
+				"zero":     0,
+			},
 			"nested": map[string]interface{}{
 				"subkey1": "subvalue1",
 				"subkey2": "subvalue2",
 			},
 			"array": []interface{}{"item1", "item2", "item3"},
+			"a/b": map[string]interface{}{
+				"~key": "escaped_value",
+			},
 		},
 	})
 	assert.NoError(t, err)
@@ -673,6 +691,70 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 			expectError:   false,
 		},
 		{
+			name:          "KV v2 legacy datadog-vault-secrets pointer",
+			secretString:  "vault://kv2/data/complex#/data/data/key1",
+			expectedValue: "value1",
+			expectError:   false,
+		},
+		{
+			name:          "KV v2 native nested data takes precedence",
+			secretString:  "vault://kv2/data/complex#/data/data/key2",
+			expectedValue: "nested_value2",
+		},
+		{
+			name:          "KV v2 legacy pointer when native value is null",
+			secretString:  "vault://kv2/data/complex#/data/data/nullable",
+			expectedValue: "fallback_value",
+		},
+		{
+			name:          "KV v2 empty string is a resolved value",
+			secretString:  "vault://kv2/data/complex#/data/data/empty",
+			expectedValue: "",
+		},
+		{
+			name:          "KV v2 false is a resolved value",
+			secretString:  "vault://kv2/data/complex#/data/data/false",
+			expectedValue: "false",
+		},
+		{
+			name:          "KV v2 zero is a resolved value",
+			secretString:  "vault://kv2/data/complex#/data/data/zero",
+			expectedValue: "0",
+		},
+		{
+			name:          "KV v2 legacy nested object access",
+			secretString:  "vault://kv2/data/complex#/data/data/nested/subkey1",
+			expectedValue: "subvalue1",
+		},
+		{
+			name:          "KV v2 legacy array access",
+			secretString:  "vault://kv2/data/complex#/data/data/array/0",
+			expectedValue: "item1",
+		},
+		{
+			name:          "KV v2 legacy escaped keys",
+			secretString:  "vault://kv2/data/complex#/data/data/a~1b/~0key",
+			expectedValue: "escaped_value",
+		},
+		{
+			name:           "KV v2 missing legacy value remains an error",
+			secretString:   "vault://kv2/data/complex#/data/data/absent",
+			expectError:    true,
+			errorSubstring: "no value found for pointer",
+		},
+		{
+			name:           "KV v2 null legacy value remains an error",
+			secretString:   "vault://kv2/data/complex#/data/data/missing",
+			expectError:    true,
+			errorSubstring: "no value found for pointer",
+		},
+		{
+			name:           "KV v2 does not strip arbitrary prefixes",
+			secretString:   "vault://kv2/data/complex#/data/other/key1",
+			expectError:    true,
+			errorSubstring: "no value found for pointer",
+		},
+		{
 			name:          "KV v2 nested object access",
 			secretString:  "vault://kv2/data/complex#/data/nested/subkey1",
 			expectedValue: "subvalue1",
@@ -695,8 +777,8 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 				assert.Nil(t, secretOutput.Value)
 				require.ErrorContains(t, errors.New(*secretOutput.Error), tt.errorSubstring)
 			} else {
-				assert.NotNil(t, secretOutput.Value)
-				assert.Nil(t, secretOutput.Error)
+				require.Nil(t, secretOutput.Error)
+				require.NotNil(t, secretOutput.Value)
 				assert.Equal(t, tt.expectedValue, *secretOutput.Value)
 			}
 		})

@@ -430,12 +430,12 @@ func TestResolveTemplate(t *testing.T) {
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching services
-		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
+		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{}, nil)
 		ac.processNewService(matchingService)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching services
-		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{})
+		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
@@ -459,20 +459,20 @@ func TestResolveTemplate(t *testing.T) {
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching endpoints
-		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
+		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{}, nil)
 		ac.processNewService(matchingService)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching endpoints
-		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
+		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
-		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{})
+		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
-		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"})
+		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 

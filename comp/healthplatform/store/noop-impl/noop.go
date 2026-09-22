@@ -71,6 +71,11 @@ func (n *NoopHealthPlatform) IssueDiscriminator(hostID string) string {
 	return hostID
 }
 
+// ResourceIdentity returns empty strings when the health platform is disabled.
+func (n *NoopHealthPlatform) ResourceIdentity(_ string) (string, string) {
+	return "", ""
+}
+
 // GetIssuesHandler handles GET /health-platform/issues when disabled.
 func (n *NoopHealthPlatform) GetIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

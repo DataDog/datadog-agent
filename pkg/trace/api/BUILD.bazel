@@ -157,6 +157,7 @@ dd_agent_go_test(
         "profiles_test.go",
         "responses_test.go",
         "symdb_test.go",
+        "telemetry_scrub_bench_test.go",
         "telemetry_scrub_test.go",
         "telemetry_test.go",
         "tracer_flare_test.go",

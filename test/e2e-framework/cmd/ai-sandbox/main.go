@@ -72,7 +72,7 @@ func parseFlags(args []string) (*options, error) {
 
 	// Provisioning
 	fs.StringVar(&opts.stackName, "stack-name", "ai-sandbox", "Pulumi stack name to provision")
-	fs.StringVar(&opts.osDescriptor, "os", "ubuntu:22-04", "OS descriptor (flavor:version, e.g. ubuntu:22-04, amazon-linux:2023, debian:12)")
+	fs.StringVar(&opts.osDescriptor, "os", "ubuntu:24-04", "OS descriptor (flavor:version, e.g. ubuntu:24-04, amazon-linux:2023, debian:12)")
 	fs.StringVar(&opts.arch, "arch", "x86_64", "CPU architecture: x86_64 or arm64")
 	fs.StringVar(&opts.instanceType, "instance-type", "", "EC2 instance type (empty uses the framework default)")
 	fs.StringVar(&opts.agentVersion, "agent-version", "", "Agent version to install (empty installs the latest)")
@@ -216,7 +216,7 @@ func parseOSDescriptor(descStr, arch string) (desc oscomp.Descriptor, err error)
 	// oscomp.DescriptorFromString panics on malformed input; recover into an error.
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("invalid --os %q (expected flavor:version, e.g. ubuntu:22-04): %v", descStr, r)
+			err = fmt.Errorf("invalid --os %q (expected flavor:version, e.g. ubuntu:24-04): %v", descStr, r)
 		}
 	}()
 	desc = oscomp.DescriptorFromString(descStr, oscomp.UbuntuDefault)
