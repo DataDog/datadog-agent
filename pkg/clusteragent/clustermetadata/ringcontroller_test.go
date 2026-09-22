@@ -226,12 +226,3 @@ func TestRingControllerLeaseDeletionRecovery(t *testing.T) {
 		"the member is alive in its own ring view after one pass")
 	assert.Equal(t, state.MyNodes, recovered.MyNodes, "owned set recomputed identically")
 }
-
-func contains(nodes []string, node string) bool {
-	for _, n := range nodes {
-		if n == node {
-			return true
-		}
-	}
-	return false
-}
