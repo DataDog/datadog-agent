@@ -44,18 +44,13 @@ def go_labels_fixture(name, tags = None, **kwargs):
         **kwargs: Attributes forwarded to rules_go's go_binary.
     """
     raw_name = name + "_raw"
-    target_compatible_with = kwargs.get("target_compatible_with")
     go_binary(
         name = raw_name,
         tags = (tags or []) + ["manual"],
         **kwargs
     )
 
-    fixture_kwargs = {}
-    if target_compatible_with != None:
-        fixture_kwargs["target_compatible_with"] = target_compatible_with
     _go_labels_fixture(
         name = name,
         src = ":" + raw_name,
-        **fixture_kwargs
     )
