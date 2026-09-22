@@ -130,7 +130,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath
 		}
 	}
 
-	if err := replaceFile(tempPath, finalPath); err != nil {
+	if err := os.Rename(tempPath, finalPath); err != nil {
 		return "", err
 	}
 
