@@ -49,6 +49,8 @@ p256 = { version = "0.14", default-features = false }
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots-no-provider"] }
+# Same source as @rules_rust//rust/runfiles, published so cargo builds resolve it too.
+runfiles = "0.3.0"
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }
 rustls-native-certs = { version = "0.8", default-features = false }
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
@@ -80,7 +82,7 @@ ureq = { version = "3.0", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
 saphyr-parser = "0.0.12"
-yaml-rust2 = "0.12"
+yaml-rust2 = "0.13"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
 futures = "0.3"
