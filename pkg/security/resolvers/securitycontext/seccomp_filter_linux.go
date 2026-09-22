@@ -66,7 +66,7 @@ const (
 type ArgCondition struct {
 	Index  int           // args[0..5]
 	Op     string        // "==", "!=", "&"
-	Value  uint32        // constant compared against
+	Value  uint64        // constant compared against
 	Action SeccompAction // action when condition matches
 }
 
@@ -380,22 +380,22 @@ func extractConditions(j bpf.JumpIf, argIdx int, masked bool, maskVal uint32, in
 		switch j.Cond {
 		case bpf.JumpBitsSet:
 			if trueAction != "" {
-				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: trueAction})
+				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(j.Val), Action: trueAction})
 			}
 		case bpf.JumpBitsNotSet:
 			if falseAction != "" {
-				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: falseAction})
+				conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(j.Val), Action: falseAction})
 			}
 		default:
 			// ALUOpAnd + JumpEqual/NotEqual on 0 is the typical pattern
 			if j.Cond == bpf.JumpEqual && j.Val == 0 {
 				// A & MASK == 0: false branch means bits are set
 				if falseAction != "" {
-					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: maskVal, Action: falseAction})
+					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(maskVal), Action: falseAction})
 				}
 			} else if j.Cond == bpf.JumpNotEqual && j.Val == 0 {
 				if trueAction != "" {
-					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: maskVal, Action: trueAction})
+					conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(maskVal), Action: trueAction})
 				}
 			}
 		}
@@ -405,35 +405,35 @@ func extractConditions(j bpf.JumpIf, argIdx int, masked bool, maskVal uint32, in
 	switch j.Cond {
 	case bpf.JumpEqual:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "==", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "==", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpNotEqual:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "!=", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "!=", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpGreaterThan:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: ">", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: ">", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpGreaterOrEqual:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: ">=", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: ">=", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpLessThan:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "<", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "<", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpLessOrEqual:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "<=", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "<=", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpBitsSet:
 		if trueAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: trueAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(j.Val), Action: trueAction})
 		}
 	case bpf.JumpBitsNotSet:
 		if falseAction != "" {
-			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: j.Val, Action: falseAction})
+			conds = append(conds, ArgCondition{Index: argIdx, Op: "&", Value: uint64(j.Val), Action: falseAction})
 		}
 	}
 	return conds

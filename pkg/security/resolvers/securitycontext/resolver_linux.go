@@ -44,35 +44,53 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *Sec
 	}
 
 	container, err := r.wmeta.GetContainer(string(id))
-	if err != nil || container == nil || container.SecurityContext == nil {
+	if err != nil || container == nil {
 		return Key{}, nil
 	}
 
 	// Pod lookup is best-effort so non-k8s containers still get keyed by name.
 	key := Key{ContainerName: container.Name}
+	var podSC *workloadmeta.PodSecurityContext
 	if pod, err := r.wmeta.GetKubernetesPodForContainer(string(id)); err == nil && pod != nil {
 		key.Namespace = pod.Namespace
 		key.OwnerKind, key.OwnerName = walkToTopLevelOwner(pod)
+		podSC = pod.SecurityContext
 	}
 
 	sc := container.SecurityContext
-	out := &SecurityContext{
-		Privileged:               sc.Privileged,
-		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
-		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
-		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	if sc == nil && podSC == nil {
+		return Key{}, nil
 	}
-	if sc.Capabilities != nil {
-		if len(sc.Capabilities.Add) > 0 {
-			out.CapabilitiesAdd = slices.Clone(sc.Capabilities.Add)
+
+	out := &SecurityContext{}
+	if sc != nil {
+		out.Privileged = sc.Privileged
+		out.RunAsNonRoot = copyBoolPtr(sc.RunAsNonRoot)
+		out.AllowPrivilegeEscalation = copyBoolPtr(sc.AllowPrivilegeEscalation)
+		out.ReadOnlyRootFilesystem = copyBoolPtr(sc.ReadOnlyRootFilesystem)
+		if sc.Capabilities != nil {
+			if len(sc.Capabilities.Add) > 0 {
+				out.CapabilitiesAdd = slices.Clone(sc.Capabilities.Add)
+			}
+			if len(sc.Capabilities.Drop) > 0 {
+				out.CapabilitiesDrop = slices.Clone(sc.Capabilities.Drop)
+			}
 		}
-		if len(sc.Capabilities.Drop) > 0 {
-			out.CapabilitiesDrop = slices.Clone(sc.Capabilities.Drop)
+		out.Seccomp = seccompFromWmeta(sc.SeccompProfile)
+	}
+
+	// Kubernetes lets a pod set seccomp and runAsNonRoot for all its containers;
+	// a container that declares its own overrides the pod. Fall back to the pod
+	// value only when the container left it unset.
+	if podSC != nil {
+		if out.Seccomp == nil {
+			out.Seccomp = seccompFromWmeta(podSC.SeccompProfile)
+		}
+		if out.RunAsNonRoot == nil {
+			out.RunAsNonRoot = copyBoolPtr(podSC.RunAsNonRoot)
 		}
 	}
-	if seccomp := seccompFromWmeta(sc.SeccompProfile); seccomp != nil {
-		out.Seccomp = seccomp
-	}
+
 	return key, out
 }
 

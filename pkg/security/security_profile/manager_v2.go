@@ -1225,12 +1225,21 @@ func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id c
 		return
 	}
 
-	if sc.Seccomp != nil && sc.Seccomp.Type != 0 {
+	switch {
+	case sc.Seccomp == nil:
+		seclog.Warnf("no declared seccomp profile for container %s; skipping filter extraction", id)
+	case sc.Seccomp.Type == 0:
+		seclog.Warnf("unknown declared seccomp type for container %s; skipping filter extraction", id)
+	default:
 		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(id, utils.RuntimeArch())
-		if err != nil {
-			seclog.Debugf("seccomp filter extraction for %s: %v", id, err)
-		} else if filter != nil {
+		switch {
+		case err != nil:
+			seclog.Warnf("seccomp filter extraction failed for container %s (declared seccomp type %d): %v", id, sc.Seccomp.Type, err)
+		case filter == nil:
+			seclog.Warnf("seccomp declared (type %d) but no BPF filter was extracted for container %s", sc.Seccomp.Type, id)
+		default:
 			sc.Seccomp.Filter = filter
+			seclog.Warnf("extracted seccomp filter for container %s: default action %s, %d syscall rules", id, filter.DefaultAction, len(filter.Syscalls))
 		}
 	}
 

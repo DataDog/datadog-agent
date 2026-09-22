@@ -64,9 +64,11 @@ type Spec struct {
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
 type PodSecurityContextSpec struct {
-	RunAsUser  int32 `json:"runAsUser,omitempty"`
-	RunAsGroup int32 `json:"runAsGroup,omitempty"`
-	FsGroup    int32 `json:"fsGroup,omitempty"`
+	RunAsUser      int32               `json:"runAsUser,omitempty"`
+	RunAsGroup     int32               `json:"runAsGroup,omitempty"`
+	FsGroup        int32               `json:"fsGroup,omitempty"`
+	RunAsNonRoot   *bool               `json:"runAsNonRoot,omitempty"`
+	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers

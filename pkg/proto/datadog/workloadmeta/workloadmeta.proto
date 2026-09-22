@@ -183,6 +183,14 @@ message Container {
   ContainerSecurityContext securityContext = 16;
 }
 
+message PodSecurityContext {
+  int32 runAsUser = 1;
+  int32 runAsGroup = 2;
+  int32 fsGroup = 3;
+  optional bool runAsNonRoot = 4;
+  SeccompProfile seccompProfile = 5;
+}
+
 message KubernetesPodOwner {
   string kind = 1;
   string name = 2;
@@ -212,6 +220,7 @@ message KubernetesPod {
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
   repeated OrchestratorContainer ephemeralContainers = 15;
+  PodSecurityContext securityContext = 16;
 }
 
 enum ECSLaunchType {

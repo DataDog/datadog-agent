@@ -128,7 +128,7 @@ func TestAnalyzeArgConditions_EqualityCheck(t *testing.T) {
 	require.Len(t, conds, 1)
 	assert.Equal(t, 0, conds[0].Index)
 	assert.Equal(t, "==", conds[0].Op)
-	assert.Equal(t, uint32(2), conds[0].Value)
+	assert.Equal(t, uint64(2), conds[0].Value)
 	assert.Equal(t, ActionAllow, conds[0].Action)
 }
 
@@ -167,7 +167,7 @@ func TestAnalyzeArgConditions_BitmaskCheck(t *testing.T) {
 	require.Len(t, conds, 1)
 	assert.Equal(t, 0, conds[0].Index)
 	assert.Equal(t, "&", conds[0].Op)
-	assert.Equal(t, uint32(0x7E020000), conds[0].Value)
+	assert.Equal(t, uint64(0x7E020000), conds[0].Value)
 	assert.Equal(t, ActionErrno, conds[0].Action)
 }
 
@@ -205,7 +205,7 @@ func TestAnalyzeArgConditions_MultipleValues(t *testing.T) {
 	conds := result[41]
 	require.Len(t, conds, 3)
 
-	values := make(map[uint32]bool)
+	values := make(map[uint64]bool)
 	for _, c := range conds {
 		assert.Equal(t, 0, c.Index)
 		assert.Equal(t, "==", c.Op)
@@ -245,6 +245,6 @@ func TestAnalyzeArgConditions_BitsSetDirect(t *testing.T) {
 	conds := result[56]
 	require.Len(t, conds, 1)
 	assert.Equal(t, "&", conds[0].Op)
-	assert.Equal(t, uint32(0x10000), conds[0].Value)
+	assert.Equal(t, uint64(0x10000), conds[0].Value)
 	assert.Equal(t, ActionErrno, conds[0].Action)
 }

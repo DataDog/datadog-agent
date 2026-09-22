@@ -342,9 +342,27 @@ func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityCont
 	}
 
 	return &workloadmeta.PodSecurityContext{
-		RunAsUser:  spec.SecurityContext.RunAsUser,
-		RunAsGroup: spec.SecurityContext.RunAsGroup,
-		FsGroup:    spec.SecurityContext.FsGroup,
+		RunAsUser:      spec.SecurityContext.RunAsUser,
+		RunAsGroup:     spec.SecurityContext.RunAsGroup,
+		FsGroup:        spec.SecurityContext.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(spec.SecurityContext.RunAsNonRoot),
+		SeccompProfile: seccompProfileFromSpec(spec.SecurityContext.SeccompProfile),
+	}
+}
+
+// seccompProfileFromSpec maps a kubelet seccomp profile spec to its
+// workloadmeta representation, or nil when unset.
+func seccompProfileFromSpec(sp *kubelet.SeccompProfileSpec) *workloadmeta.SeccompProfile {
+	if sp == nil {
+		return nil
+	}
+	localhostProfile := ""
+	if sp.LocalhostProfile != nil {
+		localhostProfile = *sp.LocalhostProfile
+	}
+	return &workloadmeta.SeccompProfile{
+		Type:             workloadmeta.SeccompProfileType(sp.Type),
+		LocalhostProfile: localhostProfile,
 	}
 }
 
@@ -366,20 +384,7 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 		privileged = *spec.SecurityContext.Privileged
 	}
 
-	var seccompProfile *workloadmeta.SeccompProfile
-	if spec.SecurityContext.SeccompProfile != nil {
-		localhostProfile := ""
-		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
-			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
-		}
-
-		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
-
-		seccompProfile = &workloadmeta.SeccompProfile{
-			Type:             spType,
-			LocalhostProfile: localhostProfile,
-		}
-	}
+	seccompProfile := seccompProfileFromSpec(spec.SecurityContext.SeccompProfile)
 
 	return &workloadmeta.ContainerSecurityContext{
 		Capabilities:             caps,

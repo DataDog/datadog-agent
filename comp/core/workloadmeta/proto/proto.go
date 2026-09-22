@@ -401,6 +401,19 @@ func copyBoolPtr(src *bool) *bool {
 	return &v
 }
 
+func toProtoPodSecurityContext(sc *workloadmeta.PodSecurityContext) *pb.PodSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &pb.PodSecurityContext{
+		RunAsUser:      sc.RunAsUser,
+		RunAsGroup:     sc.RunAsGroup,
+		FsGroup:        sc.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(sc.RunAsNonRoot),
+		SeccompProfile: toProtoSeccompProfile(sc.SeccompProfile),
+	}
+}
+
 func toProtoCapabilities(caps *workloadmeta.Capabilities) *pb.Capabilities {
 	if caps == nil {
 		return nil
@@ -550,6 +563,7 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
+		SecurityContext:            toProtoPodSecurityContext(kubernetesPod.SecurityContext),
 	}, nil
 }
 
@@ -1052,6 +1066,19 @@ func toWorkloadmetaContainerSecurityContext(sc *pb.ContainerSecurityContext) *wo
 	}
 }
 
+func toWorkloadmetaPodSecurityContext(sc *pb.PodSecurityContext) *workloadmeta.PodSecurityContext {
+	if sc == nil {
+		return nil
+	}
+	return &workloadmeta.PodSecurityContext{
+		RunAsUser:      sc.RunAsUser,
+		RunAsGroup:     sc.RunAsGroup,
+		FsGroup:        sc.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(sc.RunAsNonRoot),
+		SeccompProfile: toWorkloadmetaSeccompProfile(sc.SeccompProfile),
+	}
+}
+
 func toWorkloadmetaCapabilities(caps *pb.Capabilities) *workloadmeta.Capabilities {
 	if caps == nil {
 		return nil
@@ -1235,6 +1262,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
 		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
+		SecurityContext:            toWorkloadmetaPodSecurityContext(protoKubernetesPod.SecurityContext),
 	}, nil
 }
 
