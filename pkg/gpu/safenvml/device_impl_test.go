@@ -112,6 +112,7 @@ func TestNewDeviceLogsNVLinkWarningOncePerDevice(t *testing.T) {
 	writer := bufio.NewWriter(&logs)
 	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(writer, log.DebugLvl)
 	require.NoError(t, err)
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
 	log.SetupLogger(logger, "debug")
 
 	oldLogLimiter := logLimiter
