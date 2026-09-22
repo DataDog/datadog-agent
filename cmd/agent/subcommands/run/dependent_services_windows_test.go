@@ -8,9 +8,11 @@
 package run
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -155,21 +157,18 @@ func TestFindService(t *testing.T) {
 }
 
 func TestStartProcmgrIfEnabled(t *testing.T) {
-	assert.False(t, startProcmgrIfEnabled(Servicedef{}, false))
-	assert.False(t, startProcmgrIfEnabled(Servicedef{name: "procmgr"}, true))
+	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{}, false))
+	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{name: "procmgr"}, true))
 }
 
 func TestWaitForProcmgrInitialState(t *testing.T) {
-	prev := getServiceStateForStartupWait
-	t.Cleanup(func() {
-		getServiceStateForStartupWait = prev
-	})
+	stubServiceState(t)
 
 	t.Run("returns immediately on stopped", func(t *testing.T) {
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
 			return svc.Stopped, nil
 		}
-		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
 		assert.False(t, running)
 		assert.True(t, done)
 	})
@@ -178,12 +177,13 @@ func TestWaitForProcmgrInitialState(t *testing.T) {
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
 			return svc.Running, nil
 		}
-		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
 		assert.True(t, running)
 		assert.True(t, done)
 	})
 
 	t.Run("waits through start pending until stopped", func(t *testing.T) {
+		shortenStartupPolling(t)
 		calls := 0
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
 			calls++
@@ -192,31 +192,46 @@ func TestWaitForProcmgrInitialState(t *testing.T) {
 			}
 			return svc.Stopped, nil
 		}
-		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
 		assert.False(t, running)
 		assert.True(t, done)
 		assert.GreaterOrEqual(t, calls, 3)
 	})
+
+	t.Run("gives up when the agent is shutting down", func(t *testing.T) {
+		getServiceStateForStartupWait = func(string) (svc.State, error) {
+			return svc.StartPending, nil
+		}
+		running, done := waitForProcmgrInitialState(cancelledContext(), "dd-procmgr-service")
+		assert.False(t, running)
+		assert.False(t, done)
+	})
 }
 
 func TestWaitForProcmgrStartupOutcome(t *testing.T) {
-	prev := getServiceStateForStartupWait
-	t.Cleanup(func() {
-		getServiceStateForStartupWait = prev
-	})
+	stubServiceState(t)
 
 	t.Run("suppresses when procmgr is running", func(t *testing.T) {
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
 			return svc.Running, nil
 		}
-		assert.True(t, waitForProcmgrStartupOutcome("dd-procmgr-service"))
+		assert.True(t, waitForProcmgrStartupOutcome(context.Background(), "dd-procmgr-service"))
 	})
 
 	t.Run("falls back when procmgr is stopped", func(t *testing.T) {
 		getServiceStateForStartupWait = func(string) (svc.State, error) {
 			return svc.Stopped, nil
 		}
-		assert.False(t, waitForProcmgrStartupOutcome("dd-procmgr-service"))
+		assert.False(t, waitForProcmgrStartupOutcome(context.Background(), "dd-procmgr-service"))
+	})
+
+	// Shutdown stops dd-procmgr-service, so a wait that outlived the agent would see
+	// Stopped and tell the caller to start the legacy service the stop pass just stopped.
+	t.Run("suppresses when the agent is shutting down", func(t *testing.T) {
+		getServiceStateForStartupWait = func(string) (svc.State, error) {
+			return svc.StartPending, nil
+		}
+		assert.True(t, waitForProcmgrStartupOutcome(cancelledContext(), "dd-procmgr-service"))
 	})
 }
 
@@ -252,6 +267,29 @@ func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
 			assert.True(t, svc.needsProcmgrStartupGate(cfg))
 		})
 	})
+}
+
+func stubServiceState(t *testing.T) {
+	t.Helper()
+	prev := getServiceStateForStartupWait
+	t.Cleanup(func() {
+		getServiceStateForStartupWait = prev
+	})
+}
+
+func shortenStartupPolling(t *testing.T) {
+	t.Helper()
+	prev := procmgrStartupPollInterval
+	procmgrStartupPollInterval = time.Millisecond
+	t.Cleanup(func() {
+		procmgrStartupPollInterval = prev
+	})
+}
+
+func cancelledContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
 }
 
 func withProcmgrInstallRoot(t *testing.T, installRoot string, fn func()) {

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -181,12 +182,19 @@ func (s *Servicedef) ShouldStop() bool {
 }
 
 func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
+	// stopAgent cancels the main context immediately before calling stopDependentServices,
+	// so it doubles as this goroutine's shutdown signal. That matters because shutdown
+	// stops dd-procmgr-service, and procmgr going Stopped is exactly what resolves the
+	// startup wait toward the legacy fallback: without this, a shutdown during the wait
+	// would start the legacy services again just after the stop pass had stopped them.
+	ctx, _ := pkgcommon.GetMainCtxCancel()
+
 	svcs := subservices(coreConf, sysprobeConf)
 
 	procmgrWait := make(chan bool, 1)
 	go func() {
 		procmgr, ok := findService(svcs, "procmgr")
-		procmgrWait <- startProcmgrIfEnabled(procmgr, ok)
+		procmgrWait <- startProcmgrIfEnabled(ctx, procmgr, ok)
 	}()
 
 	var independent, gated []Servicedef
@@ -203,6 +211,10 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 
 	startServices := func(services []Servicedef, procmgrStarted bool) {
 		for _, svc := range services {
+			if ctx.Err() != nil {
+				log.Infof("Agent is shutting down, not starting remaining dependent services")
+				return
+			}
 			if !svc.IsEnabled(procmgrStarted, coreConf) {
 				log.Infof("Service %s is disabled, not starting", svc.name)
 				continue
@@ -229,7 +241,7 @@ func findService(svcs []Servicedef, name string) (Servicedef, bool) {
 	return Servicedef{}, false
 }
 
-func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
+func startProcmgrIfEnabled(ctx context.Context, procmgr Servicedef, ok bool) bool {
 	if !ok {
 		return false
 	}
@@ -242,7 +254,7 @@ func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
 		log.Warnf("Failed to start services %s: %s", procmgr.name, err.Error())
 		return false
 	}
-	if waitForProcmgrStartupOutcome(procmgr.serviceName) {
+	if waitForProcmgrStartupOutcome(ctx, procmgr.serviceName) {
 		log.Debugf("Started service %s", procmgr.name)
 		return true
 	}
@@ -250,12 +262,20 @@ func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
 	return false
 }
 
-// waitForProcmgrStartupOutcome waits for dd-procmgr-service to reach Running or fail.
-// Legacy services are suppressed when procmgr is Running or still StartPending after
-// startup waits, avoiding duplicate workloads; fallback is allowed only on Stopped.
-func waitForProcmgrStartupOutcome(serviceName string) bool {
-	if running, done := waitForProcmgrInitialState(serviceName); done {
+// waitForProcmgrStartupOutcome reports whether legacy services should stay suppressed.
+// Ambiguity resolves toward suppression, because a slow procmgr that eventually runs
+// would otherwise produce two copies of the same workload: a state query that fails, or
+// a service still StartPending after both waits, suppresses. Only a state that says
+// procmgr is definitely not coming up, Stopped above all, allows the legacy fallback.
+func waitForProcmgrStartupOutcome(ctx context.Context, serviceName string) bool {
+	if running, done := waitForProcmgrInitialState(ctx, serviceName); done {
 		return running
+	}
+	if ctx.Err() != nil {
+		// The agent is shutting down. The caller starts nothing in that case, but keep
+		// the safer answer so this never reads as "procmgr failed, start the legacy one".
+		log.Infof("Agent is shutting down, abandoning the wait for service %s", serviceName)
+		return true
 	}
 
 	state, err := getServiceStateForStartupWait(serviceName)
@@ -267,18 +287,18 @@ func waitForProcmgrStartupOutcome(serviceName string) bool {
 	switch state {
 	case svc.Running:
 		return true
-	case svc.Stopped:
-		return false
 	case svc.StartPending:
 		// Handled below: give the SCM more time rather than deciding now.
 	default:
+		// Stopped, Paused, StopPending and the rest: procmgr is not supervising
+		// anything, so the legacy service is the only way to run the workload.
 		return false
 	}
 
 	log.Warnf("Service %s is still in StartPending after initial wait; waiting for SCM transition", serviceName)
-	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	waitCtx, cancel := context.WithTimeout(ctx, winutil.DefaultServiceCommandTimeout*time.Second)
 	defer cancel()
-	finalState, err := winutil.WaitForPendingStateChange(ctx, serviceName, svc.StartPending)
+	finalState, err := winutil.WaitForPendingStateChange(waitCtx, serviceName, svc.StartPending)
 	if err != nil {
 		log.Warnf("Service %s still StartPending after startup waits; suppressing legacy services: %v", serviceName, err)
 		return true
@@ -287,9 +307,10 @@ func waitForProcmgrStartupOutcome(serviceName string) bool {
 }
 
 // waitForProcmgrInitialState polls until dd-procmgr-service reaches Running or Stopped.
-// Returns (running, true) on success/failure terminal states, or (_, false) on timeout.
-func waitForProcmgrInitialState(serviceName string) (running bool, done bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+// Returns (running, true) on success/failure terminal states, or (_, false) on timeout
+// or agent shutdown.
+func waitForProcmgrInitialState(ctx context.Context, serviceName string) (running bool, done bool) {
+	ctx, cancel := context.WithTimeout(ctx, winutil.DefaultServiceCommandTimeout*time.Second)
 	defer cancel()
 
 	checkState := func() (svc.State, bool) {
@@ -309,7 +330,7 @@ func waitForProcmgrInitialState(serviceName string) (running bool, done bool) {
 		return state == svc.Running, true
 	}
 
-	ticker := time.NewTicker(300 * time.Millisecond)
+	ticker := time.NewTicker(procmgrStartupPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -342,6 +363,10 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 
 // getServiceStateForStartupWait is overridable in tests.
 var getServiceStateForStartupWait = winutil.GetServiceState
+
+// procmgrStartupPollInterval is how often the startup wait polls the SCM for
+// dd-procmgr-service. Overridable in tests to keep them off the wall clock.
+var procmgrStartupPollInterval = 300 * time.Millisecond
 
 func procmgrProcessDefinitionExists(fileName string) bool {
 	installPath, err := procmgrInstallRootForDefinitionCheck()
