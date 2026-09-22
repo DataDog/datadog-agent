@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "clustermetadata",
-    srcs = ["localstore.go"],
+    srcs = [
+        "localstore.go",
+        "ring.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata",
     visibility = ["//visibility:public"],
     deps = [
@@ -17,7 +20,10 @@ go_library(
 
 dd_agent_go_test(
     name = "clustermetadata_test",
-    srcs = ["localstore_test.go"],
+    srcs = [
+        "localstore_test.go",
+        "ring_test.go",
+    ],
     embed = [":clustermetadata"],
     deps = [
         "//comp/core/tagger/def",
