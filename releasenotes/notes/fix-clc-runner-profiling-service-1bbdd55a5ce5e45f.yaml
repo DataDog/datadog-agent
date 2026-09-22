@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix the Agent's internal profiling service name when running as a Cluster Check Runner
+    (deployed as ``datadog-agent-cluster-worker``). Profiles are now reported under
+    ``service:datadog-agent-cluster-worker`` instead of ``service:datadog-agent``, so they
+    can be filtered in the Profile Explorer without also filtering on ``pod_name``. Profiles
+    collected before this change remain under the old service name. Node Agent profiling is
+    unaffected.

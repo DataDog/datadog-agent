@@ -49,7 +49,8 @@ pkg_filegroup(
         "//packages/agent/iot:example_config",
         "//packages/agent/iot:system_dirs",
     ],
-    prefix = "/opt/datadog-agent",
+    package_variables = ":variables",
+    prefix = "$(install_dir)",
 )
 
 # Only a source for the debian package, which requires a single tar as input.
