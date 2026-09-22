@@ -27,6 +27,10 @@ write_pb_go(
         "//pkg/proto/datadog/autodiscovery:autodiscovery_go_proto": [
             "autodiscovery.pb.go",
         ],
+        "//pkg/proto/datadog/clustermetadata:clustermetadata_go_proto": [
+            "clustermetadata.pb.go",
+            "clustermetadata_grpc.pb.go",
+        ],
         "//pkg/proto/datadog/kubemetadata:kubemetadata_go_proto": [
             "kubemetadata.pb.go",
         ],
@@ -71,6 +75,8 @@ go_library(
         "echo_grpc.pb.go",
         "flare.pb.go",
         "flare_grpc.pb.go",
+        "clustermetadata.pb.go",
+        "clustermetadata_grpc.pb.go",
         "kubemetadata.pb.go",
         "model.pb.go",
         "remoteagent.pb.go",
