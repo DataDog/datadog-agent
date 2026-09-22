@@ -26,7 +26,7 @@ require (
 	github.com/DataDog/orchestrion v1.13.0
 	github.com/DataDog/rshell v0.0.28
 	github.com/aws/aws-sdk-go-v2 v1.47.0
-	github.com/aws/aws-sdk-go-v2/config v1.33.4
+	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/cenkalti/backoff/v7 v7.0.0
@@ -123,7 +123,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.4 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
@@ -139,7 +139,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.50.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.0 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -303,18 +303,18 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.27.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.27.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.27.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.27.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.27.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.27.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.28.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.37.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0 // indirect
