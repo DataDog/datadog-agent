@@ -25,7 +25,12 @@ def _foldspace_src(ctx, source):
 
 
 def _checkout_pinned(ctx):
-    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "datadog-agent" / "foldspace" / FOLDSPACE_GIT_COMMIT
+    cache = (
+        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+        / "datadog-agent"
+        / "foldspace"
+        / FOLDSPACE_GIT_COMMIT
+    )
     git_dir = cache / ".git"
     if git_dir.is_dir():
         head = ctx.run(
