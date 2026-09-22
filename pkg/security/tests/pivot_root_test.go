@@ -53,12 +53,7 @@ func TestPivotRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Drain pending events
-	if err := test.GetProbeEvent(nil, func(_ *model.Event) bool { return false }, 1000*time.Millisecond); err != nil {
-		if _, ok := err.(ErrTimeout); !ok {
-			t.Fatal(err)
-		}
-	}
+	test.DrainProbeEvents()
 
 	t.Run("pivot-root-generates-pivot-root-events", func(t *testing.T) {
 		var eventCount atomic.Int32
