@@ -58,10 +58,10 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 
 	// Subscribe to remote config updates
 	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingSettings, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		cr.processorCallback(&cr.settingsProcessor, update, applyStateCallback)
+		cr.processorCallback(data.ProductContainerAutoscalingSettings, &cr.settingsProcessor, update, applyStateCallback)
 	})
 	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		cr.processorCallback(&cr.valuesProcessor, update, applyStateCallback)
+		cr.processorCallback(data.ProductContainerAutoscalingValues, &cr.valuesProcessor, update, applyStateCallback)
 	})
 
 	// Add a regular reconcile for settings. Several edge cases can happen that would prevent creation or deletion of a PodAutoscaler
@@ -99,8 +99,12 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 	return cr, nil
 }
 
-func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (cr *ConfigRetriever) processorCallback(product string, processor autoscalingProcessor, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	timestamp := cr.clock.Now()
+
+	// Record what this update carried, for `cluster-agent status`. Done before
+	// processing so a config that fails to apply is still visible as received.
+	recordRemoteConfigUpdate(product, timestamp, update)
 
 	processor.preProcess()
 	for configKey, rawConfig := range update {
@@ -109,6 +113,7 @@ func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, upd
 		err := processor.processItem(timestamp, configKey, rawConfig)
 		if err != nil {
 			log.Warnf("Error processing item from product %s for config key %s: %v", rawConfig.Metadata.Product, configKey, err)
+			recordRemoteConfigError(product, timestamp, err)
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
