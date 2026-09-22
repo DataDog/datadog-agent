@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	ecsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
@@ -42,7 +43,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 	}
 	opts = append(opts, pulumi.Parent(component))
 
-	image := dockerOTelAgentFullImagePath(&e)
+	image := agent.DockerOTelAgentFullImagePath(&e)
 
 	container := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Cpu:       pulumi.IntPtr(0),
