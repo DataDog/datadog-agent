@@ -96,10 +96,7 @@ func (s *LocalStore) Snapshot(ctx context.Context, kind string, namespace string
 		return cm.ShardSnapshot{}, fmt.Errorf("enumeration of kind %q is not supported yet", kind)
 	}
 
-	nodes := make([]string, 0)
-	for _, node := range s.wmeta.ListKubernetesNodes() {
-		nodes = append(nodes, node.EntityID.ID)
-	}
+	nodes := s.ring.State().MyNodes
 
 	pods := s.wmeta.ListKubernetesPods()
 	events := make([]cm.NodeEvent, 0, len(pods))
