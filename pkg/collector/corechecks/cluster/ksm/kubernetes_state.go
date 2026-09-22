@@ -1540,6 +1540,13 @@ func labelsMapperOverride(metricName string) map[string]string {
 			"service": "kube_service",
 		}
 	}
+
+	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
+		return map[string]string{
+			"ownerref_kind": tags.KubeOwnerRefKind,
+			"ownerref_name": tags.KubeOwnerRefName,
+		}
+	}
 	return nil
 }
 
