@@ -44,7 +44,7 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
-	// RemoteRestoration is supplied only by the long-running node Agent. The
+	// RemoteRestoration is supplied only by long-running Agent processes. The
 	// Health Platform bundle is also used by one-shot CLI commands, which must
 	// not perform backend restoration during their startup.
 	RemoteRestoration *healthplatformdef.RemoteRestorationParams `optional:"true"`

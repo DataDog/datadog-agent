@@ -27,17 +27,20 @@ import (
 )
 
 const (
-	remoteIssuesEndpointPrefix = "https://api."
-	remoteIssuesEndpointPath   = "/api/v2/agenthealth/hosts/%s/issues"
-	remoteIssuesResourceType   = "agent_health_issue"
-	remoteIssuesHTTPTimeout    = 10 * time.Second
-	remoteIssuesMaxResponse    = 10 * 1024 * 1024
-	jsonAPIContentType         = "application/vnd.api+json"
+	remoteIssuesEndpointPrefix   = "https://api."
+	remoteIssuesEndpointPath     = "/api/v2/agenthealth/hosts/%s/issues"
+	remoteIssuesAgentTypeParam   = "agent_type"
+	remoteIssuesClusterAgentType = "cluster"
+	remoteIssuesResourceType     = "agent_health_issue"
+	remoteIssuesHTTPTimeout      = 10 * time.Second
+	remoteIssuesMaxResponse      = 10 * 1024 * 1024
+	jsonAPIContentType           = "application/vnd.api+json"
 )
 
 type remoteIssueLoader struct {
 	config     config.Component
 	hostname   hostnameinterface.Component
+	agentType  string
 	baseURL    string
 	httpClient *http.Client
 }
@@ -81,10 +84,21 @@ func hasRemoteRestorationCredentials(cfg config.Component) bool {
 
 func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIssueLoader {
 	remoteEnabled := reqs.RemoteRestoration != nil && reqs.RemoteRestoration.Enabled
-	if !remoteEnabled || agentFlavor != flavor.DefaultAgent || confighelper.IsCLCRunner(reqs.Config) {
+	if !remoteEnabled || confighelper.IsCLCRunner(reqs.Config) {
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration disabled for this process")
 		return nil
 	}
+
+	if agentFlavor != flavor.DefaultAgent && agentFlavor != flavor.ClusterAgent {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration disabled for this process")
+		return nil
+	}
+
+	agentType := ""
+	if agentFlavor == flavor.ClusterAgent {
+		agentType = remoteIssuesClusterAgentType
+	}
+
 	if reqs.Config.GetBool("fips.enabled") {
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration is unsupported with the FIPS proxy")
 		return nil
@@ -99,7 +113,9 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIss
 	}
 
 	reqs.Log.Info("Running on Kubernetes: restoring health platform issue state from the Datadog API")
-	return newRemoteIssueLoader(reqs.Config, reqs.Hostname)
+	loader := newRemoteIssueLoader(reqs.Config, reqs.Hostname)
+	loader.agentType = agentType
+	return loader
 }
 
 func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
@@ -122,6 +138,11 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 	endpointURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("parse remote issue endpoint: %w", err)
+	}
+	if r.agentType != "" {
+		query := endpointURL.Query()
+		query.Set(remoteIssuesAgentTypeParam, r.agentType)
+		endpointURL.RawQuery = query.Encode()
 	}
 	if !strings.EqualFold(endpointURL.Scheme, "https") {
 		return nil, errors.New("remote issue endpoint must use HTTPS")
