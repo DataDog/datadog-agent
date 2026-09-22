@@ -43,8 +43,7 @@ build do
     # Temporary while we are still building with dda.
     # We need the systemd headers in place for to build coreos/go-systemd.
     # After migration we can delete this.
-    command "bazel run #{omnibazel_flags} -- @systemd//:install --destdir=#{install_dir}", \
-        :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- @systemd//:install --destdir=#{install_dir}"
 
     # Next steps:
     # - Add //cmd/installer:installer to the deps in //packages/agent/iot
@@ -58,12 +57,12 @@ build do
 
     # Installs: bin/ and run/ dirs
     command "bazel run #{omnibazel_flags} -- " \
-            "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+            "//packages/agent/iot:install --destdir=#{install_dir}"
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Installs: example yaml
     command "bazel run #{omnibazel_flags} -- " \
-            "//packages/agent/iot:install_example_config --destdir=/", :live_stream => Omnibus.logger.live_stream(:info)
+            "//packages/agent/iot:install_example_config --destdir=/"
 
     # /var/log/datadog is a runtime directory; not managed by Bazel packaging.
     mkdir "/var/log/datadog"

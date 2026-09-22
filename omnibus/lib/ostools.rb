@@ -67,7 +67,7 @@ end
 # build environment variables.
 # 💡 Mirrors `_insert_omnibazel_flags` in tasks/libs/build/bazel.py.
 def omnibazel_flags()
-  flags = []
+  flags = ["--noshow_progress"]
   flags << "--//packages/agent:flavor=#{ENV['AGENT_FLAVOR']}" if ENV['AGENT_FLAVOR']
   # In macos, omnibus install_dir is the build location, which is different from the expected install location
   flags << (osx_target? ? "--//:install_dir=/opt/datadog-agent" : "--//:install_dir=#{install_dir}")

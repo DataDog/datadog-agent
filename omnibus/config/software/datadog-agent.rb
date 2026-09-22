@@ -25,8 +25,7 @@ unless do_repackage?
   end
 
   build do
-      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
-          :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
   end
   build do
       # Delete empty folders that can still be present when building
@@ -92,20 +91,17 @@ build do
     if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
-      :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
     # Put the static rtloader library where it gets picked up by the go build linking to it
-    command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
-      :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
-      :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose"
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
@@ -119,8 +115,7 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
-    :live_stream => Omnibus.logger.live_stream(:info)
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
@@ -208,11 +203,11 @@ build do
     end
 
     if linux_target?
-      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env
     end
 
     if linux_target? || windows_target?
-      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env
     end
   end
 
@@ -260,12 +255,12 @@ build do
 
   # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
-    command "bazel run #{omnibazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env
   end
 
   # dd-procmgrd (process manager daemon)
   if (linux_target? || windows_target?) && !heroku_target?
-    command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env
   end
 
   # Security agent
@@ -299,9 +294,9 @@ build do
   end
 
   if osx_target?
-    command "bazel run #{omnibazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}"
 
-    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
