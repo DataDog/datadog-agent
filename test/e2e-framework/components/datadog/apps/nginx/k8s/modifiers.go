@@ -181,6 +181,14 @@ func WithAnnotations(annotations map[string]string) DeploymentModifier {
 	}
 }
 
+func removeDatadogAnnotations(annotations pulumi.StringMap) {
+	for key := range annotations {
+		if strings.HasPrefix(key, "ad.datadoghq.com/") {
+			delete(annotations, key)
+		}
+	}
+}
+
 // WithoutDatadogAnnotations removes Datadog Autodiscovery annotations from a Deployment's pod template.
 func WithoutDatadogAnnotations() DeploymentModifier {
 	return func(d *appsv1.DeploymentArgs) error {
@@ -193,11 +201,7 @@ func WithoutDatadogAnnotations() DeploymentModifier {
 		if !ok {
 			return errors.New("type check failed for pod template annotations")
 		}
-		for key := range annotations {
-			if strings.HasPrefix(key, "ad.datadoghq.com/") {
-				delete(annotations, key)
-			}
-		}
+		removeDatadogAnnotations(annotations)
 		return nil
 	}
 }
@@ -213,11 +217,7 @@ func WithoutDatadogServiceAnnotations(service *corev1.ServiceArgs) error {
 	if !ok {
 		return errors.New("type check failed for service annotations")
 	}
-	for key := range annotations {
-		if strings.HasPrefix(key, "ad.datadoghq.com/") {
-			delete(annotations, key)
-		}
-	}
+	removeDatadogAnnotations(annotations)
 	return nil
 }
 
