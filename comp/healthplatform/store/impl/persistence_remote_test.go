@@ -137,6 +137,20 @@ func TestRemoteIssueLoaderLoadEmpty(t *testing.T) {
 	assert.Empty(t, state.Issues)
 }
 
+func TestRemoteIssueLoaderLoadClusterAgent(t *testing.T) {
+	requestURI := make(chan string, 1)
+	loader := newTestRemoteIssueLoader(t, "cluster-node", func(w http.ResponseWriter, r *http.Request) {
+		requestURI <- r.RequestURI
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	})
+	loader.agentType = remoteIssuesClusterAgentType
+
+	state, err := loader.load(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, "/api/v2/agenthealth/hosts/cluster-node/issues?agent_type=cluster", <-requestURI)
+}
+
 func TestRemoteIssueLoaderLoadRequiresCredentials(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -294,6 +308,7 @@ func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 		skipSSLValidation bool
 		clcRunner         bool
 		want              bool
+		wantAgentType     string
 	}{
 		{
 			name:        "without long-running marker",
@@ -337,6 +352,8 @@ func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 			remoteEnabled: true,
 			apiKey:        "api-key",
 			appKey:        "app-key",
+			want:          true,
+			wantAgentType: remoteIssuesClusterAgentType,
 		},
 		{
 			name:          "Cluster Check Runner",
@@ -372,7 +389,8 @@ func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 
 			loader := newRemoteIssueLoaderIfEnabled(reqs, test.agentFlavor)
 			if test.want {
-				assert.NotNil(t, loader)
+				require.NotNil(t, loader)
+				assert.Equal(t, test.wantAgentType, loader.agentType)
 			} else {
 				assert.Nil(t, loader)
 			}
