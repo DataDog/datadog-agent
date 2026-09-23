@@ -70,13 +70,15 @@ write their kubeconfig (context renamed to the environment name) into the
 environment dir and merge the context into your kubeconfig without touching
 unrelated entries or your current context: `kubectl config use-context dev`.
 
-When the private key is passphrase-protected, `connect` also loads it into the
-running ssh-agent: the passphrase is read from the runner profile
+When the private key is passphrase-protected, `connect` loads it into a
+**dedicated e2ectl ssh-agent** (`~/.ssh/e2ectl-agent.sock`, started on demand):
+the passphrase is read from the runner profile
 (`E2E_<PROVIDER>_PRIVATE_KEY_PASSWORD`), driven through an ephemeral askpass
-helper that is deleted immediately, and never printed. The entry carries
-`AddKeysToAgent yes`, so ssh re-adds the key after the first use when the
-agent restarts. Without a reachable agent or a stored passphrase, connect
-prints the one-time `ssh-add <key>` command instead.
+helper that is deleted immediately, and never printed. The managed entry
+carries `IdentityAgent <socket>`, so ssh resolves the key through e2ectl's own
+agent — the user's agent (including one forwarded from another host) is never
+read or modified. Without a stored passphrase, connect prints the one-time
+`ssh-add <key>` command instead.
 
 ## Run tests on it
 

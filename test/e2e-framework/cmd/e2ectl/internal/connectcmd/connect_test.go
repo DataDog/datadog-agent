@@ -480,56 +480,72 @@ func TestSSHAddWithPassphrase(t *testing.T) {
 	if _, err := exec.LookPath("ssh-agent"); err != nil {
 		t.Skip("ssh-agent not available")
 	}
-	// A private agent serves the round trip without touching the user's. The
-	// daemonized agent child inherits stdout, so the env lines are captured
-	// through a file — Output() would block until EOF that never comes.
-	outfile := filepath.Join(t.TempDir(), "agent.env")
-	agent := exec.Command("ssh-agent", "-s")
-	f, err := os.Create(outfile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	agent.Stdout = f
-	agent.Stderr = f
-	if err := agent.Run(); err != nil {
-		t.Skipf("starting ssh-agent: %v", err)
-	}
-	f.Close()
-	env, err := os.ReadFile(outfile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sock, pid := parseAgentEnv(string(env))
-	if sock == "" {
-		t.Fatal("could not parse ssh-agent environment")
-	}
-	if pid != "" {
-		t.Setenv("SSH_AGENT_PID", pid)
+	// A dedicated agent plays e2ectl's own, and a second one plays the user's
+	// (possibly forwarded) agent on SSH_AUTH_SOCK: the key must land in the
+	// dedicated one ONLY. The daemonized agent children inherit stdout, so
+	// the env lines are captured through a file — Output() would block until
+	// EOF that never comes.
+	startAgent := func() (sock string) {
+		outfile := filepath.Join(t.TempDir(), "agent.env")
+		agent := exec.Command("ssh-agent", "-s")
+		f, err := os.Create(outfile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent.Stdout = f
+		agent.Stderr = f
+		if err := agent.Run(); err != nil {
+			t.Skipf("starting ssh-agent: %v", err)
+		}
+		f.Close()
+		envb, err := os.ReadFile(outfile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sock, pid := parseAgentEnv(string(envb))
+		if sock == "" {
+			t.Fatal("could not parse ssh-agent environment")
+		}
 		t.Cleanup(func() {
-			_ = exec.Command("ssh-agent", "-k").Run()
+			k := exec.Command("ssh-agent", "-k")
+			k.Env = append(os.Environ(), "SSH_AGENT_PID="+pid)
+			_ = k.Run()
 		})
+		return sock
 	}
-	t.Setenv("SSH_AUTH_SOCK", sock)
+	dedicated := startAgent()
+	t.Setenv("SSH_AUTH_SOCK", startAgent()) // the decoy user agent
 
 	dir := t.TempDir()
 	key := filepath.Join(dir, "id_protected")
 	generateKey(t, key, "pass with 'quotes' and $dollar")
 
-	if err := sshAddWithPassphrase(key, "pass with 'quotes' and $dollar"); err != nil {
+	if err := sshAddToAgent(dedicated, key, "pass with 'quotes' and $dollar"); err != nil {
 		t.Fatal(err)
 	}
-	list, err := exec.Command("ssh-add", "-l").Output()
+	list := exec.Command("ssh-add", "-l")
+	list.Env = append(os.Environ(), "SSH_AUTH_SOCK="+dedicated)
+	out, err := list.Output()
 	if err != nil {
 		t.Fatalf("ssh-add -l after load: %v", err)
 	}
-	if !strings.Contains(string(list), "ED25519") {
-		t.Fatalf("key not listed in the agent:\n%s", list)
+	listOut := string(out)
+	if !strings.Contains(listOut, "ED25519") {
+		t.Fatalf("key not listed in the dedicated agent:\n%s", listOut)
+	}
+	// The user's agent (the decoy on SSH_AUTH_SOCK) must stay empty: it may
+	// be forwarded from another host and must never be modified.
+	user := exec.Command("ssh-add", "-l")
+	user.Env = append(os.Environ(), "SSH_AUTH_SOCK="+os.Getenv("SSH_AUTH_SOCK"))
+	userOut, err := user.Output()
+	if err == nil && strings.Contains(string(userOut), "ED25519") {
+		t.Fatalf("the key leaked into the user's agent:\n%s", userOut)
 	}
 
 	// A wrong passphrase must be an error, never a silent success.
 	wrong := filepath.Join(dir, "id_wrong")
 	generateKey(t, wrong, "correct-horse")
-	if err := sshAddWithPassphrase(wrong, "wrong-horse"); err == nil {
+	if err := sshAddToAgent(dedicated, wrong, "wrong-horse"); err == nil {
 		t.Fatal("wrong passphrase accepted")
 	}
 }

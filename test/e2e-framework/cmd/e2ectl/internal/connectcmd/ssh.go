@@ -7,6 +7,7 @@ package connectcmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -52,10 +53,11 @@ func connectHost(entry envstore.Entry, printOnly bool) error {
 			strings.ToUpper(string(host.CloudProvider)))
 		return nil
 	}
-	if err := ensureKeyLoaded(keyPath, host, printOnly); err != nil {
+	agentSocket, err := ensureKeyLoaded(keyPath, host, printOnly)
+	if err != nil {
 		return err
 	}
-	return writeSSHConfig(entry.Name, host, keyPath, printOnly)
+	return writeSSHConfig(entry.Name, host, keyPath, agentSocket, printOnly)
 }
 
 // resolveSSHKeyPath looks the host's private key path up exactly like the
@@ -93,61 +95,105 @@ func keyHasPassphrase(keyPath string) bool {
 }
 
 // ensureKeyLoaded makes `ssh <env>` work without typing the key passphrase.
-// A protected key cannot carry its passphrase in an ssh config entry, so the
-// key is loaded into the running ssh-agent once, via an ephemeral askpass
-// helper that holds the profile passphrase; AddKeysToAgent yes in the entry
-// keeps it loaded. Without a reachable agent or a stored passphrase the
-// manual one-time command is printed — never a silent fallback.
-func ensureKeyLoaded(keyPath string, host outputs.HostOutput, printOnly bool) error {
+// A protected key cannot carry its passphrase in an ssh config entry, and the
+// user's agent must never be modified — it may be forwarded from another
+// host. Instead e2ectl runs its OWN dedicated long-lived agent, loads the key
+// there once (via an ephemeral askpass helper holding the profile
+// passphrase), and the entry points ssh at it with IdentityAgent. The
+// returned socket path is empty when no agent is needed (unprotected key).
+// Without a stored passphrase the manual one-time command is printed — never
+// a silent fallback.
+func ensureKeyLoaded(keyPath string, host outputs.HostOutput, printOnly bool) (agentSocket string, err error) {
 	if !keyHasPassphrase(keyPath) {
-		return nil
-	}
-	if !agentReachable() {
-		fmt.Println("note: the private key is passphrase-protected and no ssh-agent is running")
-		fmt.Printf("load it once per session with:\n  ssh-add %s\n", keyPath)
-		fmt.Println("(the ssh entry keeps AddKeysToAgent yes, so ssh re-adds it after the first use)")
-		return nil
+		return "", nil
 	}
 	passphrase, err := resolveSSHKeyPassphrase(host)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if passphrase == "" {
 		fmt.Println("note: the private key is passphrase-protected and the runner profile stores no passphrase for it")
 		fmt.Printf("load it once per session with:\n  ssh-add %s\n", keyPath)
-		return nil
+		return "", nil
 	}
 	if printOnly {
-		fmt.Printf("would load %s into the running ssh-agent using the profile passphrase\n", keyPath)
-		return nil
+		fmt.Printf("would start the dedicated e2ectl ssh-agent (if not running) and load %s into it\n", keyPath)
+		return e2ectlAgentSocket(), nil
 	}
-	if err := sshAddWithPassphrase(keyPath, passphrase); err != nil {
-		fmt.Printf("note: could not load the key into the ssh-agent (%v); load it once with:\n  ssh-add %s\n", err, keyPath)
-		return nil
+	socket, err := ensureE2ectlAgent()
+	if err != nil {
+		fmt.Printf("note: could not start the dedicated ssh-agent (%v); load the key once with:\n  ssh-add %s\n", err, keyPath)
+		return "", nil
 	}
-	fmt.Printf("loaded %s into the running ssh-agent (AddKeysToAgent keeps it)\n", keyPath)
-	return nil
+	if err := sshAddToAgent(socket, keyPath, passphrase); err != nil {
+		fmt.Printf("note: could not load the key into the dedicated ssh-agent (%v); load it once with:\n  ssh-add %s\n", err, keyPath)
+		return "", nil
+	}
+	fmt.Printf("loaded %s into the dedicated e2ectl ssh-agent (the entry wires it with IdentityAgent)\n", keyPath)
+	return socket, nil
 }
 
-// agentReachable reports whether an ssh-agent answers on SSH_AUTH_SOCK.
+// e2ectlAgentSocket is the socket of the dedicated agent e2ectl owns and
+// manages. It is independent from SSH_AUTH_SOCK so a forwarded user agent is
+// never touched, read or written.
+func e2ectlAgentSocket() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".ssh", "e2ectl-agent.sock")
+}
+
+// ensureE2ectlAgent returns the socket of the running dedicated agent,
+// starting one (ssh-agent -a <socket>, daemonized) when absent or dead. A
+// stale socket file from a previous boot is removed first.
+func ensureE2ectlAgent() (string, error) {
+	socket := e2ectlAgentSocket()
+	if agentAnswers(socket) {
+		return socket, nil
+	}
+	if _, err := os.Stat(socket); err == nil {
+		if err := os.Remove(socket); err != nil {
+			return "", err
+		}
+	}
+	// The daemonized child inherits stdout, so both streams go to /dev/null —
+	// capturing them would block until an EOF that never comes.
+	devnull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		return "", err
+	}
+	defer devnull.Close()
+	agent := exec.Command("ssh-agent", "-a", socket)
+	agent.Stdout = devnull
+	agent.Stderr = devnull
+	if err := agent.Run(); err != nil {
+		return "", fmt.Errorf("ssh-agent -a %s: %w", socket, err)
+	}
+	if !agentAnswers(socket) {
+		return "", errors.New("ssh-agent started but does not answer on its socket")
+	}
+	return socket, nil
+}
+
+// agentAnswers reports whether an ssh-agent answers on the socket.
 // ssh-add -l exits 0 or 1 with a reachable agent (identities or none) and 2
-// when no agent is running.
-func agentReachable() bool {
-	if os.Getenv("SSH_AUTH_SOCK") == "" {
-		return false
-	}
+// when no agent is listening.
+func agentAnswers(socket string) bool {
 	cmd := exec.Command("ssh-add", "-l")
-	return cmd.Run() == nil || cmd.ProcessState.ExitCode() == 1
+	cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK="+socket)
+	_ = cmd.Run()
+	return cmd.ProcessState != nil && (cmd.ProcessState.ExitCode() == 0 || cmd.ProcessState.ExitCode() == 1)
 }
 
-// sshAddWithPassphrase loads the key into the running agent. ssh-add has no
-// passphrase flag, so it is driven through OpenSSH's SSH_ASKPASS mechanism:
-// an ephemeral 0700 script echoes the profile passphrase, is removed right
-// after, and the passphrase is never printed or stored anywhere else. The
-// script is one-shot: ssh-add retries a wrong passphrase indefinitely, so a
-// second invocation fails and ssh-add aborts with an error instead of
-// looping forever.
-func sshAddWithPassphrase(keyPath, passphrase string) error {
+// sshAddToAgent loads the key into the dedicated agent on socket. ssh-add
+// has no passphrase flag, so it is driven through OpenSSH's SSH_ASKPASS
+// mechanism: an ephemeral 0700 script echoes the profile passphrase, is
+// removed right after, and the passphrase is never printed or stored
+// anywhere else. The script is one-shot: ssh-add retries a wrong passphrase
+// indefinitely, so a second invocation fails and ssh-add aborts with an error
+// instead of looping forever.
+func sshAddToAgent(socket, keyPath, passphrase string) error {
 	dir, err := os.MkdirTemp("", "e2ectl-askpass-")
 	if err != nil {
 		return err
@@ -162,7 +208,10 @@ func sshAddWithPassphrase(keyPath, passphrase string) error {
 		return err
 	}
 	cmd := exec.Command("ssh-add", keyPath)
+	// Bind to the dedicated agent explicitly: the user's SSH_AUTH_SOCK (a
+	// forwarded agent) must never receive the key or be modified.
 	cmd.Env = append(os.Environ(),
+		"SSH_AUTH_SOCK="+socket,
 		"SSH_ASKPASS="+script,
 		"SSH_ASKPASS_REQUIRE=force",
 		"DISPLAY=:0")
@@ -179,17 +228,23 @@ func sshAddWithPassphrase(keyPath, passphrase string) error {
 }
 
 // sshHostBlock renders the managed config entry for one environment.
-func sshHostBlock(env string, host outputs.HostOutput, keyPath string) string {
+// agentSocket is the dedicated e2ectl agent's socket (empty when the key
+// needs no agent): IdentityAgent points ssh at it, so the user's own or
+// forwarded agent is never consulted for this host.
+func sshHostBlock(env string, host outputs.HostOutput, keyPath, agentSocket string) string {
+	agentLine := ""
+	if agentSocket != "" {
+		agentLine = "\n    IdentityAgent " + agentSocket
+	}
 	return fmt.Sprintf(`# e2ectl:%s begin
 Host %s
     HostName %s
     Port %d
     User %s
     IdentityFile %s
-    IdentitiesOnly yes
-    AddKeysToAgent yes
+    IdentitiesOnly yes%s
     StrictHostKeyChecking accept-new
-# e2ectl:%s end`, env, env, host.Address, host.Port, host.Username, keyPath, env)
+# e2ectl:%s end`, env, env, host.Address, host.Port, host.Username, keyPath, agentLine, env)
 }
 
 // sshMarkers returns the begin/end markers of env's managed block.
@@ -236,7 +291,7 @@ func ensureSSHInclude(content string) (string, bool) {
 
 // writeSSHConfig writes (or prints, with printOnly) env's managed ssh entry
 // and the Include line that makes ssh load it.
-func writeSSHConfig(env string, host outputs.HostOutput, keyPath string, printOnly bool) error {
+func writeSSHConfig(env string, host outputs.HostOutput, keyPath, agentSocket string, printOnly bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -249,7 +304,7 @@ func writeSSHConfig(env string, host outputs.HostOutput, keyPath string, printOn
 	if err != nil {
 		return err
 	}
-	updated, err := upsertSSHBlock(content, env, sshHostBlock(env, host, keyPath))
+	updated, err := upsertSSHBlock(content, env, sshHostBlock(env, host, keyPath, agentSocket))
 	if err != nil {
 		return err
 	}
