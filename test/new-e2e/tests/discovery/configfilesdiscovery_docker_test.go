@@ -549,7 +549,12 @@ func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf
 	// /nginx_status and collects a metric.
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: nginxIntegrationName,
-		containerNames:  []string{nginxContainerName},
+		containerNames: []string{
+			nginxContainerName,
+			nginxDefaultContainerName,
+			nginxExplicitContainerName,
+		},
+		startContainerNames: []string{nginxContainerName},
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
