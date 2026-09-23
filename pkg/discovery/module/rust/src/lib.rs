@@ -27,11 +27,14 @@ mod ephemeral;
 mod errors;
 pub mod ffi;
 mod fs;
+mod http_probe;
 mod language;
 mod netns;
+mod openmetrics;
 mod params;
 mod ports;
 mod procfs;
+mod scan;
 mod service_name;
 mod services;
 mod tracer_metadata;
@@ -43,6 +46,9 @@ pub(crate) mod test_utils;
 // Re-export the public API
 pub use language::Language;
 pub use params::Params;
+pub use scan::{
+    LanguageFilter, ProbeOptions, ScanOptions, ScanReport, netns_child, run_scan,
+};
 pub use services::{Service, ServicesResponse, get_services};
 pub use tracer_metadata::TracerMetadata;
 pub use ust::UST;
