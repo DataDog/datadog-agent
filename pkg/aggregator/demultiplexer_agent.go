@@ -483,12 +483,14 @@ func (d *AgentDemultiplexer) Stop() {
 		case <-trigger.blockChan:
 		case <-stopCtx.Done():
 			d.log.Errorf("completing flushing data on Stop() timed out")
+			return
 		}
 	}
 
-	// A timed-out flush above may still be running in the background, holding d.m's
-	// read lock. Reuse the same deadline here so that case can't turn Stop() into an
-	// indefinite hang: give up on the write lock too, and skip cleanup below.
+	// A pre-existing flush may still be running in the background if triggering timed
+	// out above, holding d.m's read lock. Reuse the same deadline here so that case
+	// can't turn Stop() into an indefinite hang: give up on the write lock too, and
+	// skip cleanup below.
 	if !d.acquireLockOrTimeout(stopCtx) {
 		d.log.Errorf("timed out waiting for aggregator lock on Stop(), skipping resource cleanup")
 		return
