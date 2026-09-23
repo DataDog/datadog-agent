@@ -6,6 +6,7 @@
 package npm
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
