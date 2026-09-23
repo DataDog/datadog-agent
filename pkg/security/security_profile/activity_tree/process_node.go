@@ -866,16 +866,20 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 
 	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
 
-	// Evict unused socket nodes
-	for i := len(pn.Sockets) - 1; i >= 0; i-- {
-		socketNode := pn.Sockets[i]
-		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if socketNode.SeenIsEmpty() {
-				removedBytes += socketNode.size()
-				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
-			}
+	// Evict unused socket nodes: children age out by their own timestamps, and a socket is
+	// removed only once it holds no children (see SocketNode.evictBeforeTimestamp).
+	newSockets := pn.Sockets[:0]
+	for _, socketNode := range pn.Sockets {
+		socketEmpty, socketRemoved := socketNode.evictBeforeTimestamp(before)
+		removedBytes += socketRemoved
+		if socketEmpty {
+			removedBytes += socketNode.size()
+			continue
 		}
+		newSockets = append(newSockets, socketNode)
 	}
+	clear(pn.Sockets[len(newSockets):])
+	pn.Sockets = newSockets
 
 	// Evict unused capability nodes
 	for i := len(pn.Capabilities) - 1; i >= 0; i-- {

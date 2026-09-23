@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -139,6 +140,42 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	sn.Connect = newConnect
 
 	return len(newBind) == 0 && len(newConnect) == 0, removed
+}
+
+// evictBeforeTimestamp evicts bind/connect children by their own NodeBase timestamps (a
+// SocketNode's base is only stamped by TagAllNodes, not on insert, so it can't drive child
+// eviction). Returns (socketIsEmpty, bytesRemoved): the caller subtracts bytesRemoved and, when
+// empty, sn.size(). A childless socket carries no info, so it's reported empty regardless of base.
+func (sn *SocketNode) evictBeforeTimestamp(before time.Time) (bool, int64) {
+	var removed int64
+
+	// Filter in place, clearing the tail so evicted pointers aren't pinned (mirrors evictImageTag).
+	newBind := sn.Bind[:0]
+	for _, bind := range sn.Bind {
+		if bind.NodeBase.EvictBeforeTimestamp(before) > 0 && bind.SeenIsEmpty() {
+			removed += bindSize(bind)
+			continue
+		}
+		newBind = append(newBind, bind)
+	}
+	clear(sn.Bind[len(newBind):])
+	sn.Bind = newBind
+
+	newConnect := sn.Connect[:0]
+	for _, conn := range sn.Connect {
+		if conn.NodeBase.EvictBeforeTimestamp(before) > 0 && conn.SeenIsEmpty() {
+			removed += connectSize(conn)
+			continue
+		}
+		newConnect = append(newConnect, conn)
+	}
+	clear(sn.Connect[len(newConnect):])
+	sn.Connect = newConnect
+
+	// Age out the socket's own image-tag timestamps so stale tags don't accumulate.
+	sn.NodeBase.EvictBeforeTimestamp(before)
+
+	return len(sn.Bind) == 0 && len(sn.Connect) == 0, removed
 }
 
 // InsertBindEvent inserts a bind event inside a socket node. When a new BindNode is
