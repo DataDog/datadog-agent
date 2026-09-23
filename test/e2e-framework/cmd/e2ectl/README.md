@@ -48,6 +48,28 @@ image from the checkout, loads it into the cluster and deploys it — the
 
 And to clean up: `e2ectl stop --env dev` (or `e2ectl list` to see what you have).
 
+## Shell access to an environment
+
+`e2ectl connect <env>` configures the shell for an existing environment, so
+the ordinary tools work after a one-time setup:
+
+```sh
+e2ectl connect dev                     # host bases: managed ssh entry → `ssh dev`
+                                       # cluster bases: context `dev` in your kubeconfig
+                                       # local base: prints the docker commands
+e2ectl connect dev --print             # show the plan without writing anything
+```
+
+Host environments get a managed block in `~/.ssh/config.d/e2ectl` (never
+touched elsewhere), included from `~/.ssh/config`; re-running `connect` replaces
+only that environment's block. The SSH key path is resolved from the runner
+profile (`E2E_<PROVIDER>_PRIVATE_KEY_PATH` or `~/.test_infra_config.yaml`) —
+without a key, connect prints the one-off `ssh -p <port> <user>@<host>`
+command instead of writing a password into a config file. Cluster environments
+write their kubeconfig (context renamed to the environment name) into the
+environment dir and merge the context into your kubeconfig without touching
+unrelated entries or your current context: `kubectl config use-context dev`.
+
 ## Run tests on it
 
 `e2ectl test` runs a new-e2e suite attached to a live environment — the same

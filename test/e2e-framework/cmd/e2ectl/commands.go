@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/connectcmd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/driver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd"
@@ -352,6 +353,14 @@ func cmdFakeintake(args []string) error {
 	default:
 		return fmt.Errorf("unknown fakeintake subcommand %q (names|metrics|health)", sub)
 	}
+}
+
+func cmdConnect(args []string) error {
+	store, err := envstore.New()
+	if err != nil {
+		return err
+	}
+	return connectcmd.Run(args, store)
 }
 
 func cmdStop(args []string) error {

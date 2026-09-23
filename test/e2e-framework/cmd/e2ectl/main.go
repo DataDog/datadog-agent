@@ -45,6 +45,8 @@ func main() {
 		err = cmdReceiver(os.Args[2:])
 	case "fakeintake":
 		err = cmdFakeintake(os.Args[2:])
+	case "connect":
+		err = cmdConnect(os.Args[2:])
 	case "stop":
 		err = cmdStop(os.Args[2:])
 	case "version", "-v", "--version":
@@ -82,6 +84,7 @@ Usage:
   e2ectl receiver <plan|apply|status> --env <name> [--config <file>]
   e2ectl receiver serve --type blackhole --listen :8080
   e2ectl fakeintake <names|metrics|health> --env <name>
+  e2ectl connect <name> [--print]                      configure shell access (ssh alias / kubeconfig context); --print only shows the plan
   e2ectl stop --env <name> [--force]               destroy the environment (--force removes the entry even if teardown fails)
 
 Get started:
