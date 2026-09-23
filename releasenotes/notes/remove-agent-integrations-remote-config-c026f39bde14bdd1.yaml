@@ -1,6 +1,0 @@
----
-deprecations:
-  - |
-    Remove the unused, disabled-by-default ``AGENT_INTEGRATIONS`` Remote
-    Configuration product and its ``remote_configuration.agent_integrations``
-    settings. Fleet Automation is unaffected.
