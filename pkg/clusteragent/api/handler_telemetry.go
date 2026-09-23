@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -59,7 +60,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if p := recover(); p != nil {
-			if !wrapper.wroteHeader {
+			if !wrapper.wroteHeader.Load() {
 				wrapper.setSpanTags(http.StatusInternalServerError)
 			}
 			var panicErr error
@@ -71,7 +72,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 			span.Finish(tracer.WithError(panicErr))
 			panic(p)
 		}
-		if !wrapper.wroteHeader {
+		if !wrapper.wroteHeader.Load() {
 			wrapper.setSpanTags(http.StatusOK)
 		}
 		if wrapper.forwarded {
@@ -88,7 +89,12 @@ type telemetryWriterWrapper struct {
 	http.ResponseWriter
 	handlerName string
 	startTime   time.Time
-	wroteHeader bool
+	// wroteHeader guards against writing the header more than once. It's an
+	// atomic.Bool (rather than a plain bool) because this writer can be handed
+	// to code that may call WriteHeader/Write from more than one goroutine for
+	// the same request (e.g. httputil.ReverseProxy when forwarding to the DCA
+	// leader), and a plain bool's check-then-set is racy in that case.
+	wroteHeader atomic.Bool
 	forwarded   bool
 	capturedErr error
 	setSpanTags func(int)
@@ -107,17 +113,16 @@ func SetSpanError(w http.ResponseWriter, err error) {
 // handler calls Write before WriteHeader) is tracked by wroteHeader, preventing a
 // subsequent explicit WriteHeader call from writing the header twice.
 func (w *telemetryWriterWrapper) Write(b []byte) (int, error) {
-	if !w.wroteHeader {
+	if !w.wroteHeader.Load() {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
-	if w.wroteHeader {
+	if !w.wroteHeader.CompareAndSwap(false, true) {
 		return
 	}
-	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(statusCode)
 	forwarded := w.Header().Get(respForwarded)
 	if forwarded == "" {
