@@ -89,3 +89,42 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 	assert.Equal(t, expected, endpoints)
 	assert.Equal(t, "logs_config.additional_endpoints", path)
 }
+
+func TestFoldspaceDefaults(t *testing.T) {
+	_, l := getLogsConfigKeys(t)
+	assert.False(t, l.foldspaceEnabled())
+}
+
+func TestFoldspaceEnvAndYAML(t *testing.T) {
+	mockConfig, l := getLogsConfigKeys(t)
+	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
+	assert.True(t, l.foldspaceEnabled())
+}
+
+func TestValidateFoldspaceTCP(t *testing.T) {
+	mockConfig, _ := getLogsConfigKeys(t)
+	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
+	mockConfig.SetInTest("logs_config.force_use_tcp", true)
+	err := ValidateFoldspace(mockConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "force_use_tcp")
+}
+
+func TestValidateFoldspaceSOCKS5(t *testing.T) {
+	mockConfig, _ := getLogsConfigKeys(t)
+	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
+	mockConfig.SetInTest("logs_config.socks5_proxy_address", "127.0.0.1:1080")
+	err := ValidateFoldspace(mockConfig)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "socks5")
+}
+
+func TestFoldspaceSkipsAdditionalEndpointsTCPRule(t *testing.T) {
+	mockConfig, l := getLogsConfigKeys(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{
+		{"api_key": "k", "Host": "extra.example", "Port": 443},
+	})
+	assert.True(t, l.shouldUseTCP())
+	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
+	assert.False(t, l.shouldUseTCP())
+}

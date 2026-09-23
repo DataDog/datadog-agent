@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender/foldspace"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -41,6 +42,7 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
+	foldspaceDriver *foldspace.Driver,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -48,7 +50,9 @@ func NewPipeline(
 	useContainerTimestamp := cfg.GetBool("logs_config.use_container_timestamp")
 
 	var encoder processor.Encoder
-	if serverlessMeta.IsEnabled() {
+	if foldspaceDriver != nil {
+		encoder = processor.PassthroughEncoder
+	} else if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
 	} else if endpoints.UseHTTP {
 		encoder = processor.NewJSONEncoder(useContainerTimestamp)
@@ -57,7 +61,14 @@ func NewPipeline(
 	} else {
 		encoder = processor.NewRawEncoder(useContainerTimestamp)
 	}
-	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
+
+	var strategy sender.Strategy
+	if foldspaceDriver != nil {
+		strategy = foldspace.NewFanInStrategy(strategyInput, foldspaceDriver)
+		flushChan = nil
+	} else {
+		strategy = getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
+	}
 
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
@@ -87,7 +98,9 @@ func (p *Pipeline) Stop() {
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.flushChan <- struct{}{}
+	if p.flushChan != nil {
+		p.flushChan <- struct{}{}
+	}
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
