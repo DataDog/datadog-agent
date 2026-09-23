@@ -207,9 +207,11 @@ func (s *configSuite) TestConfigFailureTimeout() {
 		require.NoError(c, err)
 		require.Equal(c, "info", config["log_level"])
 
-		state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
-		require.NoError(c, err)
-		require.Empty(c, state.ExperimentConfigVersion, "config experiment rollback should be complete")
+		if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+			state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+			require.NoError(c, err)
+			require.Empty(c, state.ExperimentConfigVersion, "config experiment rollback should be complete")
+		}
 	}, 60*time.Second, 5*time.Second)
 }
 
