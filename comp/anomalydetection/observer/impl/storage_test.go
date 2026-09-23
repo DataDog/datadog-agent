@@ -65,6 +65,54 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_LogContextIsStorageOwnedSnapshot(t *testing.T) {
+	s := newTimeSeriesStorage()
+	result := s.Add("logs", "log.pattern.count", 1, 100, nil)
+
+	first := observer.LogContext{
+		Pattern: "request <*> failed",
+		Example: "request 42 failed",
+		Dimensions: observer.LogDimensions{
+			Service: "api",
+			Env:     "prod",
+		},
+	}
+	s.SetLogContext(result.Ref, first)
+
+	got, ok := s.GetLogContext(result.Ref)
+	require.True(t, ok)
+	assert.Equal(t, first, got)
+
+	got.Example = "caller mutation must not reach storage"
+	updated := first
+	updated.Example = "request 43 failed"
+	s.SetLogContext(result.Ref, updated)
+
+	got, ok = s.GetLogContext(result.Ref)
+	require.True(t, ok)
+	assert.Equal(t, updated, got)
+}
+
+func TestTimeSeriesStorage_LogContextMissingOrEvicted(t *testing.T) {
+	s := newTimeSeriesStorage()
+	assert.False(t, func() bool {
+		_, ok := s.GetLogContext(999)
+		return ok
+	}())
+
+	result := s.Add("logs", "log.pattern.count", 1, 100, nil)
+	assert.False(t, func() bool {
+		_, ok := s.GetLogContext(result.Ref)
+		return ok
+	}())
+
+	s.SetLogContext(result.Ref, observer.LogContext{Pattern: "request <*>"})
+	removed := s.RemoveSeriesByRefs([]observer.SeriesRef{result.Ref})
+	require.Equal(t, []observer.SeriesRef{result.Ref}, removed)
+	_, ok := s.GetLogContext(result.Ref)
+	assert.False(t, ok)
+}
+
 func TestTimeSeriesStorage_AddWithKeyAndHost(t *testing.T) {
 	s := newTimeSeriesStorage()
 	tags := []string{"env:prod"}

@@ -159,6 +159,10 @@ func (s *seriesListOnlyStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.
 
 func (*seriesListOnlyStorage) GetContext(observer.SeriesRef) *observer.MetricContext { return nil }
 
+func (*seriesListOnlyStorage) GetLogContext(observer.SeriesRef) (observer.LogContext, bool) {
+	return observer.LogContext{}, false
+}
+
 func (s *seriesListOnlyStorage) GetSeriesRange(observer.SeriesRef, int64, int64, observer.Aggregate) *observer.Series {
 	return nil
 }

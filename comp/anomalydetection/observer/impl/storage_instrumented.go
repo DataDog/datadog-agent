@@ -151,6 +151,10 @@ func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef
 	return s.inner.GetContext(ref)
 }
 
+func (s *instrumentedStorage) GetLogContext(ref observerdef.SeriesRef) (observerdef.LogContext, bool) {
+	return s.inner.GetLogContext(ref)
+}
+
 func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter, dst []observerdef.SeriesRef) []observerdef.SeriesRef {
 	s.readCount++
 	result := listSeriesRefs(s.inner, filter, dst)

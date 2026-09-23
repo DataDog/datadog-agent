@@ -535,6 +535,25 @@ type MetricContext struct {
 	SplitTags map[string]string
 }
 
+// LogDimensions contains the dimensions used to partition log-pattern
+// clustering. They are stored as fields rather than a map because the set is
+// fixed and known at compile time.
+type LogDimensions struct {
+	Source  string
+	Service string
+	Env     string
+	Host    string
+}
+
+// LogContext is display metadata for a log-derived metric series. Storage owns
+// one context per live series; anomaly consumers resolve it through SeriesRef
+// only when they materialize output.
+type LogContext struct {
+	Pattern    string
+	Example    string
+	Dimensions LogDimensions
+}
+
 // StorageReader provides read access to time series data.
 // Detectors use this to pull whatever data they need.
 //
@@ -564,9 +583,14 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
-	// GetContext returns the optional context associated with a series, or nil
+	// GetContext returns the legacy optional context associated with a series, or nil
 	// if the series has been evicted or has no context.
 	GetContext(ref SeriesRef) *MetricContext
+
+	// GetLogContext returns a value snapshot of display metadata associated with
+	// a log-derived series. ok is false when the series has been evicted or has
+	// no log context.
+	GetLogContext(ref SeriesRef) (LogContext, bool)
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.

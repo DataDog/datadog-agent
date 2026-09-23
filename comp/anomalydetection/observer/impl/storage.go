@@ -171,7 +171,8 @@ type seriesStats struct {
 	// Zero means this series owns its original composite view directly.
 	tagInternFingerprint uint64
 	ref                  observer.SeriesRef      // compact numeric ID assigned on creation
-	context              *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	context              *observer.MetricContext // legacy optional context; removed after migration
+	logContext           *observer.LogContext    // optional display metadata owned by this series
 	// supportedAggregations is a bit mask. Zero means all aggregations are
 	// supported; materialized log count buckets set only Average because each
 	// stored point is already one aggregated window count.
@@ -987,6 +988,35 @@ func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricC
 		return stats.context
 	}
 	return nil
+}
+
+// SetLogContext stores display metadata on the series identified by ref. The
+// storage keeps one allocation per contextual series and updates that value on
+// later observations. No-op when ref is out of range or has been removed.
+func (s *timeSeriesStorage) SetLogContext(ref observer.SeriesRef, context observer.LogContext) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
+	}
+	if stats.logContext == nil {
+		stats.logContext = new(observer.LogContext)
+	}
+	*stats.logContext = context
+}
+
+// GetLogContext returns a value snapshot of a series' display metadata. The
+// snapshot prevents callers from observing or mutating storage-owned state
+// after the read lock is released.
+func (s *timeSeriesStorage) GetLogContext(ref observer.SeriesRef) (observer.LogContext, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil || stats.logContext == nil {
+		return observer.LogContext{}, false
+	}
+	return *stats.logContext, true
 }
 
 // SetSupportedAggregations limits which interpretations detectors should use

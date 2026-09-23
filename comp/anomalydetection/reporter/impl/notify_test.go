@@ -43,6 +43,10 @@ func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.Met
 	return s.contexts[ref]
 }
 
+func (*sumRangeStorage) GetLogContext(observerdef.SeriesRef) (observerdef.LogContext, bool) {
+	return observerdef.LogContext{}, false
+}
+
 func TestFormatScorerContributorMessage(t *testing.T) {
 	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
 		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
