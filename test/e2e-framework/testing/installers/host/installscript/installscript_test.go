@@ -74,4 +74,15 @@ func TestCommand(t *testing.T) {
 		assert.NotContains(t, cmd, "DD_AGENT_MINOR_VERSION")
 		assert.Contains(t, cmd, "install_script_agent7.sh", "still defaults to the major-7 script")
 	})
+
+	t.Run("package repos use S3 buckets instead of CloudFront", func(t *testing.T) {
+		cmd := command("7.65.0", "test-api-key")
+		// Same S3 bucket overrides as the Pulumi path (host_linuxos.go), so
+		// hosts without public internet reach the packages via the S3 VPC
+		// gateway endpoint.
+		assert.Contains(t, cmd, "TESTING_APT_URL=s3.amazonaws.com/apt.datadoghq.com")
+		assert.Contains(t, cmd, "TESTING_YUM_URL=s3.amazonaws.com/yum.datadoghq.com")
+		assert.Contains(t, cmd, "TESTING_KEYS_URL=s3.amazonaws.com/public-signing-keys")
+		assert.Contains(t, cmd, "TESTING_REPORT_URL=undefined")
+	})
 }

@@ -75,9 +75,21 @@ func Install(_ context.Context, env *environments.Host, p Params) error {
 // components/datadog/agent/host_linuxos.go's getInstallCommand constructs for a real
 // Pulumi-provisioned host. version == "" or "latest" omits the version variables,
 // letting the script default to the latest stable major 7 release.
+// The package repos are pointed at the S3 buckets directly instead of the
+// CloudFront-backed domains, so hosts without public internet access can
+// reach them via the S3 VPC gateway endpoint (same as the Pulumi path).
 func command(version, apiKey string) string {
 	major := "7"
-	envVars := []string{fmt.Sprintf("DD_API_KEY=%s", apiKey), "DD_INSTALL_ONLY=true"}
+	envVars := []string{
+		fmt.Sprintf("DD_API_KEY=%s", apiKey),
+		"DD_INSTALL_ONLY=true",
+		// S3 bucket URLs directly instead of the CloudFront-backed domains;
+		// see components/datadog/agent/host_linuxos.go.
+		"TESTING_APT_URL=s3.amazonaws.com/apt.datadoghq.com",
+		"TESTING_YUM_URL=s3.amazonaws.com/yum.datadoghq.com",
+		"TESTING_KEYS_URL=s3.amazonaws.com/public-signing-keys",
+		"TESTING_REPORT_URL=undefined",
+	}
 	if m, minor, ok := splitAgentVersion(version); ok {
 		major = m
 		envVars = append(envVars, fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", major))
