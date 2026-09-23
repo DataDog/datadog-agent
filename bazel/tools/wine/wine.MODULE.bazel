@@ -1,0 +1,31 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+deb_archive = use_repo_rule("//bazel/tools/wine:deb_archive.bzl", "deb_archive")
+
+# New-style WoW64 build: 64-bit prefix, no i386 host libraries required.
+http_archive(
+    name = "wine_linux_x86_64",
+    build_file = "//bazel/tools/wine:overlay/wine.BUILD.bazel",
+    sha256 = "39574efa1132c3ca0d5c77dd2eddbe4a49cca0d6cc2c290ff4924493a1c40314",
+    strip_prefix = "wine-11.0-amd64-wow64",
+    urls = ["https://github.com/Kron4ek/Wine-Builds/releases/download/11.0/wine-11.0-amd64-wow64.tar.xz"],
+)
+
+# snapshot.debian.org /file/<sha1> URLs are permanent and, unlike /archive/
+# ones, served without a redirect.
+
+# Runs the x86_64 Wine on Linux aarch64. Needs glibc 2.39+ and a 4K-page kernel.
+deb_archive(
+    name = "box64_linux_aarch64",
+    build_file = "//bazel/tools/wine:overlay/box64.BUILD.bazel",
+    sha256 = "136cf47a54345d180cdcdb61ac320717d50047d6c0d13ca5e3f6335cd7e1bdbf",
+    urls = ["https://snapshot.debian.org/file/e9592f539d960322f46859ebd436c13dcbb21b31/box64_0.4.3-3%2Bdfsg-1_arm64.deb"],
+)
+
+# Wine's ntdll.so links libgcc_s, which box64 has to run as emulated x86_64 code.
+deb_archive(
+    name = "libgcc_s_linux_x86_64",
+    build_file = "//bazel/tools/wine:overlay/libgcc_s.BUILD.bazel",
+    sha256 = "3c71917b490d1a17aed43196a2787a256ecf060526cdb20216a74bedc061b150",
+    urls = ["https://snapshot.debian.org/file/bdc0b54ff7f971ecd56ae54aea604d2ab0e47aaf/libgcc-s1_14.2.0-19_amd64.deb"],
+)

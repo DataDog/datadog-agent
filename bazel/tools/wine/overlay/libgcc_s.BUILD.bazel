@@ -1,0 +1,4 @@
+exports_files(
+    ["usr/lib/x86_64-linux-gnu/libgcc_s.so.1"],
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)
