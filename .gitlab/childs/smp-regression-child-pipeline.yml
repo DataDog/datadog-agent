@@ -31,7 +31,7 @@ variables:
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
 
 .smp_job_submit:
   - |
@@ -48,11 +48,12 @@ variables:
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
 
 # Base template shared by all SMP run jobs.
 # BASELINE_SHA is written to regression_detector.env in before_script so the
 # script can source it the same way as if it were a job artifact.
+# comment to trigger CI
 .single-machine-performance-run_regression_detector:
   stage: functional_test
   timeout: 1h10m
