@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
@@ -145,16 +146,29 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 	return cmd.Wait()
 }
 
+// getStringFlags mirrors the flags BFD derives from the input section header.
+// objcopy only copies the input section type when both flag sets are equal,
+// otherwise binutils < 2.35 turns the section into SHT_PROGBITS with sh_link
+// cleared, which makes the extracted .dynsym unreadable.
+// Sections handled here always have contents, SHT_NOBITS is not supported.
 func getStringFlags(flags elf.SectionFlag) string {
-	flagsStr := "contents"
-	if flags&elf.SHF_WRITE == 0 {
-		flagsStr += ",readonly"
-	}
+	flagsStr := []string{"contents"}
 	if flags&elf.SHF_ALLOC != 0 {
-		flagsStr += ",alloc"
+		flagsStr = append(flagsStr, "alloc", "load")
+	}
+	if flags&elf.SHF_WRITE == 0 {
+		flagsStr = append(flagsStr, "readonly")
 	}
 	if flags&elf.SHF_EXECINSTR != 0 {
-		flagsStr += ",exec"
+		flagsStr = append(flagsStr, "code")
+	} else if flags&elf.SHF_ALLOC != 0 {
+		flagsStr = append(flagsStr, "data")
 	}
-	return flagsStr
+	if flags&elf.SHF_MERGE != 0 {
+		flagsStr = append(flagsStr, "merge")
+	}
+	if flags&elf.SHF_STRINGS != 0 {
+		flagsStr = append(flagsStr, "strings")
+	}
+	return strings.Join(flagsStr, ",")
 }

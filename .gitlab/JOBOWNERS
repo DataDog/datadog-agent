@@ -88,7 +88,7 @@ iot_agent_deb*                       @DataDog/agent-build
 iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
-agent_win_oci*                       @DataDog/windows-products
+agent_win_oci                        @DataDog/windows-products
 installer_oci*                       @DataDog/agent-build
 ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
@@ -220,6 +220,7 @@ new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---
 new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
+new-e2e-ddi                             @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
 new-e2e-language-detection              @DataDog/container-experiences
 new-e2e-process*                        @DataDog/container-experiences
