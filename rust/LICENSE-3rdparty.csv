@@ -11,6 +11,7 @@ anstyle-query,https://github.com/rust-cli/anstyle,MIT OR Apache-2.0,The anstyle-
 anstyle-wincon,https://github.com/rust-cli/anstyle,MIT OR Apache-2.0,The anstyle-wincon Authors
 anyhow,https://github.com/dtolnay/anyhow,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 anymap3,https://github.com/reivilibre/anymap3,BlueOak-1.0.0 OR MIT OR Apache-2.0,"Olivier 'reivilibre' (fork maintainer) <contact@librepush.net>, Chris Morgan (original author) <rust@chrismorgan.info>"
+arc-swap,https://github.com/vorner/arc-swap,MIT OR Apache-2.0,Michal 'vorner' Vaner <vorner@vorner.cz>
 arraydeque,https://github.com/andylokandy/arraydeque,MIT OR Apache-2.0,andylokandy
 arrayvec,https://github.com/bluss/arrayvec,MIT OR Apache-2.0,bluss
 async-compression,https://github.com/Nullus157/async-compression,MIT OR Apache-2.0,"Wim Looman <wim@nemo157.com>, Allen Bui <fairingrey@gmail.com>"
@@ -40,6 +41,8 @@ bitflags,https://github.com/bitflags/bitflags,MIT OR Apache-2.0,The Rust Project
 bitmask-enum,https://github.com/Lukas3674/rust-bitmask-enum,MIT OR Apache-2.0,Lukas3674 <lukashassler@web.de>
 block-buffer,https://github.com/RustCrypto/utils,MIT OR Apache-2.0,RustCrypto Developers
 bs58,https://github.com/Nullus157/bs58-rs,MIT OR Apache-2.0,The bs58 Authors
+btoi,https://github.com/niklasf/rust-btoi,MIT OR Apache-2.0,Niklas Fiekas <niklas.fiekas@backscattering.de>
+bufstream,https://github.com/alexcrichton/bufstream,MIT OR Apache-2.0,The Rust Project Developers
 bumpalo,https://github.com/fitzgen/bumpalo,MIT OR Apache-2.0,Nick Fitzgerald <fitzgen@gmail.com>
 bytemuck,https://github.com/Lokathor/bytemuck,Zlib OR Apache-2.0 OR MIT,Lokathor <zefria@gmail.com>
 byteorder,https://github.com/BurntSushi/byteorder,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
@@ -91,6 +94,7 @@ ddsketch,https://github.com/DataDog/saluki,Apache-2.0,The ddsketch Authors
 der,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 der,https://github.com/RustCrypto/formats/tree/master/der,Apache-2.0 OR MIT,RustCrypto Developers
 deranged,https://github.com/jhpratt/deranged,MIT OR Apache-2.0,Jacob Pratt <jacob@jhpratt.dev>
+derive_utils,https://github.com/taiki-e/derive_utils,Apache-2.0 OR MIT,The derive_utils Authors
 digest,https://github.com/RustCrypto/traits,MIT OR Apache-2.0,RustCrypto Developers
 displaydoc,https://github.com/yaahc/displaydoc,MIT OR Apache-2.0,Jane Lusby <jlusby@yaah.dev>
 document-features,https://github.com/slint-ui/document-features,MIT OR Apache-2.0,Slint Developers <info@slint.dev>
@@ -179,6 +183,7 @@ idna_adapter,https://github.com/hsivonen/idna_adapter,Apache-2.0 OR MIT,The rust
 indexmap,https://github.com/bluss/indexmap,Apache-2.0 OR MIT,The indexmap Authors
 indexmap,https://github.com/indexmap-rs/indexmap,Apache-2.0 OR MIT,The indexmap Authors
 inlinable_string,https://github.com/fitzgen/inlinable_string,Apache-2.0 OR MIT,Nick Fitzgerald <fitzgen@gmail.com>
+io-enum,https://github.com/taiki-e/io-enum,Apache-2.0 OR MIT,The io-enum Authors
 io-extras,https://github.com/sunfishcode/io-extras,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
 io-lifetimes,https://github.com/sunfishcode/io-lifetimes,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
 ipnet,https://github.com/krisprice/ipnet,MIT OR Apache-2.0,Kris Price <kris@krisprice.nz>
@@ -215,12 +220,18 @@ mio,https://github.com/tokio-rs/mio,MIT,"Carl Lerche <me@carllerche.com>, Thomas
 moka,https://github.com/moka-rs/moka,(MIT OR Apache-2.0) AND Apache-2.0,The moka Authors
 monero,https://github.com/monero-rs/monero-rs,MIT,"Monero Rust Contributors, h4sh3d <h4sh3d@protonmail.com>"
 multimap,https://github.com/havarnov/multimap,MIT OR Apache-2.0,Håvar Nøvik <havar.novik@gmail.com>
+mysql,https://github.com/blackbeam/rust-mysql-simple,MIT OR Apache-2.0,blackbeam
+mysql_common,https://github.com/blackbeam/rust_mysql_common,MIT OR Apache-2.0,blackbeam <aikorsky@gmail.com>
+named_pipe,https://github.com/blackbeam/named_pipe,MIT OR Apache-2.0,Anatoly Ikorsky <aikorsky@gmail.com>
+native-tls,https://github.com/rust-native-tls/rust-native-tls,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
 nibble_vec,https://github.com/michaelsproul/rust_nibble_vec,MIT,Michael Sproul <micsproul@gmail.com>
 nix,https://github.com/nix-rust/nix,MIT,The nix Authors
 nom,https://github.com/Geal/nom,MIT,contact@geoffroycouprie.com
 nom,https://github.com/rust-bakery/nom,MIT,contact@geoffroycouprie.com
 normalize-path,https://github.com/cargo-bins/cargo-binstall,Apache-2.0 OR MIT,Jiahao XU <Jiahao_XU@outlook.com>
+num-bigint,https://github.com/rust-num/num-bigint,MIT OR Apache-2.0,The Rust Project Developers
 num-conv,https://github.com/jhpratt/num-conv,MIT OR Apache-2.0,Jacob Pratt <jacob@jhpratt.dev>
+num-integer,https://github.com/rust-num/num-integer,MIT OR Apache-2.0,The Rust Project Developers
 num-traits,https://github.com/rust-num/num-traits,MIT OR Apache-2.0,The Rust Project Developers
 num_cpus,https://github.com/seanmonstar/num_cpus,MIT OR Apache-2.0,Sean McArthur <sean@seanmonstar.com>
 objc2-core-foundation,https://github.com/madsmtm/objc2,Zlib OR Apache-2.0 OR MIT,The objc2-core-foundation Authors
@@ -239,6 +250,7 @@ parking_lot_core,https://github.com/Amanieu/parking_lot,MIT OR Apache-2.0,Amanie
 pastey,https://github.com/as1100k/pastey,MIT OR Apache-2.0,"Aditya Kumar <git@adityais.dev>, David Tolnay <dtolnay@gmail.com>"
 pear,https://github.com/SergioBenitez/Pear,MIT OR Apache-2.0,Sergio Benitez <sb@sergio.bz>
 pear_codegen,https://github.com/SergioBenitez/Pear,MIT OR Apache-2.0,Sergio Benitez <sb@sergio.bz>
+pem,https://github.com/jcreekmore/pem-rs,MIT,Jonathan Creekmore <jonathan@thecreekmores.org>
 pem-rfc7468,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 percent-encoding,https://github.com/servo/rust-url,MIT OR Apache-2.0,The rust-url developers
 petgraph,https://github.com/petgraph/petgraph,MIT OR Apache-2.0,"bluss, mitchmindtree"
@@ -331,6 +343,7 @@ saluki-metrics-macros,https://github.com/DataDog/saluki,Apache-2.0,The saluki-me
 saluki-tls,https://github.com/DataDog/saluki,Apache-2.0,The saluki-tls Authors
 same-file,https://github.com/BurntSushi/same-file,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
 saphyr-parser,https://github.com/saphyr-rs/saphyr,MIT OR Apache-2.0,"Ethiraric <ethiraric@gmail.com>, David Aguilar <davvid@gmail.com>, Yuheng Chen <yuhengchen@sensetime.com>"
+saturating,https://github.com/breeswish/saturating-rs,MIT,Breezewish <me@breeswish.org>
 schannel,https://github.com/steffengy/schannel-rs,MIT,"Steven Fackler <sfackler@gmail.com>, Steffen Butzer <steffen.butzer@outlook.com>"
 schemars,https://github.com/GREsau/schemars,MIT,Graham Esau <gesau@hotmail.co.uk>
 scopeguard,https://github.com/bluss/scopeguard,MIT OR Apache-2.0,bluss
@@ -416,6 +429,7 @@ tracing-attributes,https://github.com/tokio-rs/tracing,MIT,"Tokio Contributors <
 tracing-core,https://github.com/tokio-rs/tracing,MIT,Tokio Contributors <team@tokio.rs>
 triomphe,https://github.com/Manishearth/triomphe,MIT OR Apache-2.0,"Manish Goregaokar <manishsmail@gmail.com>, The Servo Project Developers"
 try-lock,https://github.com/seanmonstar/try-lock,MIT,Sean McArthur <sean@seanmonstar.com>
+twox-hash,https://github.com/shepmaster/twox-hash,MIT,Jake Goulding <jake.goulding@gmail.com>
 typed-path,https://github.com/chipsenkbeil/typed-path,MIT OR Apache-2.0,Chip Senkbeil <chip@senkbeil.org>
 typenum,https://github.com/paholg/typenum,MIT OR Apache-2.0,The typenum Authors
 uncased,https://github.com/SergioBenitez/uncased,MIT OR Apache-2.0,Sergio Benitez <sb@sergio.bz>

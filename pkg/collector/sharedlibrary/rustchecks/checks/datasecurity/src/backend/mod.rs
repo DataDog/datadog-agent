@@ -4,6 +4,9 @@ use anyhow::{Context, Result};
 
 use crate::config::SubTask;
 
+#[cfg(feature = "engine-mysql")]
+mod mysql;
+
 #[cfg(feature = "engine-postgres")]
 mod postgres;
 
@@ -40,6 +43,8 @@ pub trait ScanEngine: Sync {
 /// Compiled engines. Add a new engine here behind its `engine-*` feature.
 fn engines() -> &'static [&'static dyn ScanEngine] {
     &[
+        #[cfg(feature = "engine-mysql")]
+        &mysql::ENGINE,
         #[cfg(feature = "engine-postgres")]
         &postgres::ENGINE,
         #[cfg(test)]
@@ -61,12 +66,13 @@ pub fn fetch_data(sub_task: &SubTask) -> Result<ScanData> {
     engine_for(&sub_task.entity.platform)?.fetch_data(sub_task)
 }
 
-#[cfg(all(test, feature = "engine-postgres"))]
+#[cfg(all(test, feature = "engine-mysql", feature = "engine-postgres"))]
 mod tests {
     use super::engine_for;
 
     #[test]
-    fn resolves_postgres_engine() {
+    fn resolves_database_engines() {
+        assert_eq!(engine_for("mysql").unwrap().name(), "mysql");
         assert_eq!(engine_for("postgres").unwrap().name(), "postgres");
         assert!(engine_for("another_engine_not_register").is_err());
     }

@@ -8,14 +8,15 @@ use crate::config::{Connection, SslMode};
 
 /// OpenSSL connector, or `None` for `disable` (`NoTls`).
 pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
-    if conn.ssl == SslMode::Disable {
+    let mode = conn.ssl.postgres_mode();
+    if mode == SslMode::Disable {
         return Ok(None);
     }
 
     let mut builder =
         SslConnector::builder(SslMethod::tls()).context("creating the OpenSSL connector")?;
 
-    if matches!(conn.ssl, SslMode::VerifyCa | SslMode::VerifyFull) {
+    if matches!(mode, SslMode::VerifyCa | SslMode::VerifyFull) {
         builder.set_verify(SslVerifyMode::PEER);
         match conn.ssl_root_cert.as_deref() {
             // set_ca_file adds to the builder's system store; replace it so we trust only this CA.
@@ -50,7 +51,7 @@ pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
 
     let mut tls = MakeTlsConnector::new(builder.build());
     // postgres-openssl checks the host name by default; only `verify-full` wants that.
-    if conn.ssl != SslMode::VerifyFull {
+    if mode != SslMode::VerifyFull {
         tls.set_callback(|ssl, _domain| {
             ssl.set_verify_hostname(false);
             Ok(())

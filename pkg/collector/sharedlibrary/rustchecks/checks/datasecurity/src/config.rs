@@ -51,6 +51,8 @@ pub struct Entity {
     pub platform: String,
     pub database_cluster_name: String,
     pub database_instance_name: String,
+    #[serde(default)]
+    pub database_host_name: String,
     pub database: String,
     pub schema: String,
     pub table: String,
@@ -72,12 +74,19 @@ where
 }
 
 /// Database connection parameters for a sub task.
+///
+/// The provider mirrors each integration's own connection keys, so `ssl` is a
+/// Postgres SSL-mode string (`disable`/`allow`/...) or the MySQL `ssl` object
+/// (`{ ca, cert, key, check_hostname }`); see the `Ssl` enum.
 #[derive(Debug, Default, Deserialize)]
 pub struct Connection {
     /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
     pub host: String,
-    #[serde(default = "default_port")]
-    pub port: u16,
+    /// MySQL Unix socket path (integration key `sock`). Takes precedence over `host`.
+    #[serde(default)]
+    pub sock: Option<String>,
+    #[serde(default)]
+    pub port: Option<u16>,
     pub dbname: String,
     #[serde(default)]
     pub username: String,
@@ -86,7 +95,7 @@ pub struct Connection {
     #[serde(default = "default_application_name")]
     pub application_name: String,
     #[serde(default)]
-    pub ssl: SslMode,
+    pub ssl: Ssl,
     #[serde(default)]
     pub ssl_root_cert: Option<String>,
     #[serde(default)]
@@ -95,6 +104,65 @@ pub struct Connection {
     pub ssl_key: Option<String>,
     #[serde(default)]
     pub ssl_password: Option<String>,
+}
+
+/// The integration `ssl` value: a Postgres SSL-mode string or the MySQL `ssl`
+/// object. Deserialized untagged so a YAML string picks the Postgres variant and
+/// a mapping picks the MySQL one, matching what each integration writes.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Ssl {
+    Postgres(SslMode),
+    Mysql(MySqlSsl),
+}
+
+impl Default for Ssl {
+    fn default() -> Self {
+        Ssl::Postgres(SslMode::default())
+    }
+}
+
+impl Ssl {
+    /// Postgres SSL mode; defaults for a (mis-typed) MySQL object.
+    pub fn postgres_mode(&self) -> SslMode {
+        match self {
+            Ssl::Postgres(mode) => *mode,
+            Ssl::Mysql(_) => SslMode::default(),
+        }
+    }
+
+    /// MySQL TLS options, or `None` when TLS is not configured. Mirrors the
+    /// MySQL integration, where an empty `ssl` block means no TLS.
+    pub fn mysql(&self) -> Option<&MySqlSsl> {
+        match self {
+            Ssl::Mysql(ssl) if !ssl.is_empty() => Some(ssl),
+            _ => None,
+        }
+    }
+}
+
+/// MySQL TLS options, mirroring the MySQL integration's `ssl` section.
+#[derive(Debug, Default, Deserialize)]
+pub struct MySqlSsl {
+    pub ca: Option<String>,
+    pub cert: Option<String>,
+    pub key: Option<String>,
+    pub check_hostname: Option<bool>,
+}
+
+impl MySqlSsl {
+    /// True when no TLS field is set; such an `ssl` block means no TLS.
+    fn is_empty(&self) -> bool {
+        self.ca.is_none()
+            && self.cert.is_none()
+            && self.key.is_none()
+            && self.check_hostname.is_none()
+    }
+
+    /// Whether to verify the server hostname (defaults to true, like PyMySQL).
+    pub fn check_hostname(&self) -> bool {
+        self.check_hostname.unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -107,10 +175,6 @@ pub enum SslMode {
     Require,
     VerifyCa,
     VerifyFull,
-}
-
-fn default_port() -> u16 {
-    5432
 }
 
 fn default_application_name() -> String {

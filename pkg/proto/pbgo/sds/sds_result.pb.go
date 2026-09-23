@@ -115,7 +115,7 @@ func (x SdsResultPayload_ScanMetadata_ScanTaskMetadata_Status) Number() protoref
 
 // Deprecated: Use SdsResultPayload_ScanMetadata_ScanTaskMetadata_Status.Descriptor instead.
 func (SdsResultPayload_ScanMetadata_ScanTaskMetadata_Status) EnumDescriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 9, 0, 0}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 10, 0, 0}
 }
 
 type ScanStats struct {
@@ -694,6 +694,7 @@ type SdsResultPayload_ScanLocation struct {
 	//	*SdsResultPayload_ScanLocation_RdsTable
 	//	*SdsResultPayload_ScanLocation_SnowflakeTable
 	//	*SdsResultPayload_ScanLocation_PostgresTable
+	//	*SdsResultPayload_ScanLocation_MysqlTable
 	ScanLocation  isSdsResultPayload_ScanLocation_ScanLocation `protobuf_oneof:"ScanLocation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -823,6 +824,15 @@ func (x *SdsResultPayload_ScanLocation) GetPostgresTable() *SdsResultPayload_Pos
 	return nil
 }
 
+func (x *SdsResultPayload_ScanLocation) GetMysqlTable() *SdsResultPayload_MysqlTable {
+	if x != nil {
+		if x, ok := x.ScanLocation.(*SdsResultPayload_ScanLocation_MysqlTable); ok {
+			return x.MysqlTable
+		}
+	}
+	return nil
+}
+
 type isSdsResultPayload_ScanLocation_ScanLocationType interface {
 	isSdsResultPayload_ScanLocation_ScanLocationType()
 }
@@ -861,6 +871,10 @@ type SdsResultPayload_ScanLocation_PostgresTable struct {
 	PostgresTable *SdsResultPayload_PostgresTable `protobuf:"bytes,9,opt,name=postgresTable,proto3,oneof"`
 }
 
+type SdsResultPayload_ScanLocation_MysqlTable struct {
+	MysqlTable *SdsResultPayload_MysqlTable `protobuf:"bytes,10,opt,name=mysqlTable,proto3,oneof"`
+}
+
 func (*SdsResultPayload_ScanLocation_S3File) isSdsResultPayload_ScanLocation_ScanLocation() {}
 
 func (*SdsResultPayload_ScanLocation_RdsTable) isSdsResultPayload_ScanLocation_ScanLocation() {}
@@ -868,6 +882,8 @@ func (*SdsResultPayload_ScanLocation_RdsTable) isSdsResultPayload_ScanLocation_S
 func (*SdsResultPayload_ScanLocation_SnowflakeTable) isSdsResultPayload_ScanLocation_ScanLocation() {}
 
 func (*SdsResultPayload_ScanLocation_PostgresTable) isSdsResultPayload_ScanLocation_ScanLocation() {}
+
+func (*SdsResultPayload_ScanLocation_MysqlTable) isSdsResultPayload_ScanLocation_ScanLocation() {}
 
 type SdsResultPayload_RdsTable struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -1177,6 +1193,114 @@ func (x *SdsResultPayload_PostgresTable) GetScannedColumns() []*SdsResultPayload
 	return nil
 }
 
+type SdsResultPayload_MysqlTable struct {
+	state                protoimpl.MessageState                       `protogen:"open.v1"`
+	DatabaseClusterName  string                                       `protobuf:"bytes,1,opt,name=database_cluster_name,json=databaseClusterName,proto3" json:"database_cluster_name,omitempty"`
+	DatabaseInstanceName string                                       `protobuf:"bytes,2,opt,name=database_instance_name,json=databaseInstanceName,proto3" json:"database_instance_name,omitempty"`
+	DatabaseHostName     string                                       `protobuf:"bytes,3,opt,name=database_host_name,json=databaseHostName,proto3" json:"database_host_name,omitempty"`
+	DatabaseName         string                                       `protobuf:"bytes,4,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	SchemaName           string                                       `protobuf:"bytes,5,opt,name=schema_name,json=schemaName,proto3" json:"schema_name,omitempty"`
+	TableName            string                                       `protobuf:"bytes,6,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`
+	TableRowCount        int64                                        `protobuf:"varint,7,opt,name=table_row_count,json=tableRowCount,proto3" json:"table_row_count,omitempty"`
+	ScannedRowCount      int64                                        `protobuf:"varint,8,opt,name=scanned_row_count,json=scannedRowCount,proto3" json:"scanned_row_count,omitempty"`
+	ScannedColumns       []*SdsResultPayload_MysqlTable_ScannedColumn `protobuf:"bytes,9,rep,name=scanned_columns,json=scannedColumns,proto3" json:"scanned_columns,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SdsResultPayload_MysqlTable) Reset() {
+	*x = SdsResultPayload_MysqlTable{}
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SdsResultPayload_MysqlTable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SdsResultPayload_MysqlTable) ProtoMessage() {}
+
+func (x *SdsResultPayload_MysqlTable) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SdsResultPayload_MysqlTable.ProtoReflect.Descriptor instead.
+func (*SdsResultPayload_MysqlTable) Descriptor() ([]byte, []int) {
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 5}
+}
+
+func (x *SdsResultPayload_MysqlTable) GetDatabaseClusterName() string {
+	if x != nil {
+		return x.DatabaseClusterName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetDatabaseInstanceName() string {
+	if x != nil {
+		return x.DatabaseInstanceName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetDatabaseHostName() string {
+	if x != nil {
+		return x.DatabaseHostName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetSchemaName() string {
+	if x != nil {
+		return x.SchemaName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetTableName() string {
+	if x != nil {
+		return x.TableName
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable) GetTableRowCount() int64 {
+	if x != nil {
+		return x.TableRowCount
+	}
+	return 0
+}
+
+func (x *SdsResultPayload_MysqlTable) GetScannedRowCount() int64 {
+	if x != nil {
+		return x.ScannedRowCount
+	}
+	return 0
+}
+
+func (x *SdsResultPayload_MysqlTable) GetScannedColumns() []*SdsResultPayload_MysqlTable_ScannedColumn {
+	if x != nil {
+		return x.ScannedColumns
+	}
+	return nil
+}
+
 type SdsResultPayload_S3File struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
 	Path                    string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
@@ -1189,7 +1313,7 @@ type SdsResultPayload_S3File struct {
 
 func (x *SdsResultPayload_S3File) Reset() {
 	*x = SdsResultPayload_S3File{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[13]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1201,7 +1325,7 @@ func (x *SdsResultPayload_S3File) String() string {
 func (*SdsResultPayload_S3File) ProtoMessage() {}
 
 func (x *SdsResultPayload_S3File) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[13]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1214,7 +1338,7 @@ func (x *SdsResultPayload_S3File) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_S3File.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_S3File) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 5}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 6}
 }
 
 func (x *SdsResultPayload_S3File) GetPath() string {
@@ -1258,7 +1382,7 @@ type SdsResultPayload_RuleInfo struct {
 
 func (x *SdsResultPayload_RuleInfo) Reset() {
 	*x = SdsResultPayload_RuleInfo{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[14]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1270,7 +1394,7 @@ func (x *SdsResultPayload_RuleInfo) String() string {
 func (*SdsResultPayload_RuleInfo) ProtoMessage() {}
 
 func (x *SdsResultPayload_RuleInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[14]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1283,7 +1407,7 @@ func (x *SdsResultPayload_RuleInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_RuleInfo.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_RuleInfo) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 6}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 7}
 }
 
 func (x *SdsResultPayload_RuleInfo) GetId() string {
@@ -1342,7 +1466,7 @@ type SdsResultPayload_ScanMatch struct {
 
 func (x *SdsResultPayload_ScanMatch) Reset() {
 	*x = SdsResultPayload_ScanMatch{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[15]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1354,7 +1478,7 @@ func (x *SdsResultPayload_ScanMatch) String() string {
 func (*SdsResultPayload_ScanMatch) ProtoMessage() {}
 
 func (x *SdsResultPayload_ScanMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[15]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1491,7 @@ func (x *SdsResultPayload_ScanMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_ScanMatch.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_ScanMatch) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 7}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 8}
 }
 
 func (x *SdsResultPayload_ScanMatch) GetRuleId() string {
@@ -1475,7 +1599,7 @@ type SdsResultPayload_TableMatch struct {
 
 func (x *SdsResultPayload_TableMatch) Reset() {
 	*x = SdsResultPayload_TableMatch{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[16]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1487,7 +1611,7 @@ func (x *SdsResultPayload_TableMatch) String() string {
 func (*SdsResultPayload_TableMatch) ProtoMessage() {}
 
 func (x *SdsResultPayload_TableMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[16]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1500,7 +1624,7 @@ func (x *SdsResultPayload_TableMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_TableMatch.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_TableMatch) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 8}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 9}
 }
 
 func (x *SdsResultPayload_TableMatch) GetRuleId() string {
@@ -1548,7 +1672,7 @@ type SdsResultPayload_ScanMetadata struct {
 
 func (x *SdsResultPayload_ScanMetadata) Reset() {
 	*x = SdsResultPayload_ScanMetadata{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[17]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1560,7 +1684,7 @@ func (x *SdsResultPayload_ScanMetadata) String() string {
 func (*SdsResultPayload_ScanMetadata) ProtoMessage() {}
 
 func (x *SdsResultPayload_ScanMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[17]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1573,7 +1697,7 @@ func (x *SdsResultPayload_ScanMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_ScanMetadata.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_ScanMetadata) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 9}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 10}
 }
 
 func (x *SdsResultPayload_ScanMetadata) GetScanTaskMetadata() *SdsResultPayload_ScanMetadata_ScanTaskMetadata {
@@ -1596,7 +1720,7 @@ type SdsResultPayload_ScanResult struct {
 
 func (x *SdsResultPayload_ScanResult) Reset() {
 	*x = SdsResultPayload_ScanResult{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[18]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1608,7 +1732,7 @@ func (x *SdsResultPayload_ScanResult) String() string {
 func (*SdsResultPayload_ScanResult) ProtoMessage() {}
 
 func (x *SdsResultPayload_ScanResult) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[18]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1621,7 +1745,7 @@ func (x *SdsResultPayload_ScanResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SdsResultPayload_ScanResult.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_ScanResult) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 10}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 11}
 }
 
 func (x *SdsResultPayload_ScanResult) GetMatches() []*SdsResultPayload_ScanMatch {
@@ -1669,7 +1793,7 @@ type SdsResultPayload_SnowflakeTable_ScannedColumn struct {
 
 func (x *SdsResultPayload_SnowflakeTable_ScannedColumn) Reset() {
 	*x = SdsResultPayload_SnowflakeTable_ScannedColumn{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[20]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1681,7 +1805,7 @@ func (x *SdsResultPayload_SnowflakeTable_ScannedColumn) String() string {
 func (*SdsResultPayload_SnowflakeTable_ScannedColumn) ProtoMessage() {}
 
 func (x *SdsResultPayload_SnowflakeTable_ScannedColumn) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[20]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1721,7 +1845,7 @@ type SdsResultPayload_PostgresTable_ScannedColumn struct {
 
 func (x *SdsResultPayload_PostgresTable_ScannedColumn) Reset() {
 	*x = SdsResultPayload_PostgresTable_ScannedColumn{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[21]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1733,7 +1857,7 @@ func (x *SdsResultPayload_PostgresTable_ScannedColumn) String() string {
 func (*SdsResultPayload_PostgresTable_ScannedColumn) ProtoMessage() {}
 
 func (x *SdsResultPayload_PostgresTable_ScannedColumn) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[21]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1763,6 +1887,58 @@ func (x *SdsResultPayload_PostgresTable_ScannedColumn) GetDataType() string {
 	return ""
 }
 
+type SdsResultPayload_MysqlTable_ScannedColumn struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	DataType      string                 `protobuf:"bytes,2,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SdsResultPayload_MysqlTable_ScannedColumn) Reset() {
+	*x = SdsResultPayload_MysqlTable_ScannedColumn{}
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SdsResultPayload_MysqlTable_ScannedColumn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SdsResultPayload_MysqlTable_ScannedColumn) ProtoMessage() {}
+
+func (x *SdsResultPayload_MysqlTable_ScannedColumn) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SdsResultPayload_MysqlTable_ScannedColumn.ProtoReflect.Descriptor instead.
+func (*SdsResultPayload_MysqlTable_ScannedColumn) Descriptor() ([]byte, []int) {
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 5, 0}
+}
+
+func (x *SdsResultPayload_MysqlTable_ScannedColumn) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SdsResultPayload_MysqlTable_ScannedColumn) GetDataType() string {
+	if x != nil {
+		return x.DataType
+	}
+	return ""
+}
+
 type SdsResultPayload_ScanMetadata_ScanTaskMetadata struct {
 	state         protoimpl.MessageState                                `protogen:"open.v1"`
 	TaskId        string                                                `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
@@ -1777,7 +1953,7 @@ type SdsResultPayload_ScanMetadata_ScanTaskMetadata struct {
 
 func (x *SdsResultPayload_ScanMetadata_ScanTaskMetadata) Reset() {
 	*x = SdsResultPayload_ScanMetadata_ScanTaskMetadata{}
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[22]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1789,7 +1965,7 @@ func (x *SdsResultPayload_ScanMetadata_ScanTaskMetadata) String() string {
 func (*SdsResultPayload_ScanMetadata_ScanTaskMetadata) ProtoMessage() {}
 
 func (x *SdsResultPayload_ScanMetadata_ScanTaskMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_sds_sds_result_proto_msgTypes[22]
+	mi := &file_datadog_sds_sds_result_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1802,7 +1978,7 @@ func (x *SdsResultPayload_ScanMetadata_ScanTaskMetadata) ProtoReflect() protoref
 
 // Deprecated: Use SdsResultPayload_ScanMetadata_ScanTaskMetadata.ProtoReflect.Descriptor instead.
 func (*SdsResultPayload_ScanMetadata_ScanTaskMetadata) Descriptor() ([]byte, []int) {
-	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 9, 0}
+	return file_datadog_sds_sds_result_proto_rawDescGZIP(), []int{3, 10, 0}
 }
 
 func (x *SdsResultPayload_ScanMetadata_ScanTaskMetadata) GetTaskId() string {
@@ -1881,7 +2057,7 @@ const file_datadog_sds_sds_result_proto_rawDesc = "" +
 	"\x05Agent\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversionB\b\n" +
-	"\x06source\"\xc7$\n" +
+	"\x06source\"\x96)\n" +
 	"\x10SdsResultPayload\x12M\n" +
 	"\vscan_source\x18\x01 \x01(\x0e2(.datadog.sds.SdsResultPayload.ScanSourceB\x02\x18\x01R\n" +
 	"scanSource\x12\x1c\n" +
@@ -1896,7 +2072,7 @@ const file_datadog_sds_sds_result_proto_rawDesc = "" +
 	"\brule_ids\x18\t \x03(\tR\aruleIds\x1a2\n" +
 	"\bResource\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x1a\x9f\x04\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x1a\xeb\x04\n" +
 	"\fScanLocation\x12\x18\n" +
 	"\x04path\x18\x01 \x01(\tB\x02\x18\x01H\x00R\x04path\x12 \n" +
 	"\bdatabase\x18\x02 \x01(\tB\x02\x18\x01H\x00R\bdatabase\x12&\n" +
@@ -1906,7 +2082,11 @@ const file_datadog_sds_sds_result_proto_rawDesc = "" +
 	"\x06s3File\x18\x06 \x01(\v2$.datadog.sds.SdsResultPayload.S3FileH\x01R\x06s3File\x12D\n" +
 	"\brdsTable\x18\a \x01(\v2&.datadog.sds.SdsResultPayload.RdsTableH\x01R\brdsTable\x12V\n" +
 	"\x0esnowflakeTable\x18\b \x01(\v2,.datadog.sds.SdsResultPayload.SnowflakeTableH\x01R\x0esnowflakeTable\x12S\n" +
-	"\rpostgresTable\x18\t \x01(\v2+.datadog.sds.SdsResultPayload.PostgresTableH\x01R\rpostgresTableB\x12\n" +
+	"\rpostgresTable\x18\t \x01(\v2+.datadog.sds.SdsResultPayload.PostgresTableH\x01R\rpostgresTable\x12J\n" +
+	"\n" +
+	"mysqlTable\x18\n" +
+	" \x01(\v2(.datadog.sds.SdsResultPayload.MysqlTableH\x01R\n" +
+	"mysqlTableB\x12\n" +
 	"\x10ScanLocationTypeB\x0e\n" +
 	"\fScanLocation\x1a\xcb\x02\n" +
 	"\bRdsTable\x12!\n" +
@@ -1947,6 +2127,22 @@ const file_datadog_sds_sds_result_proto_rawDesc = "" +
 	"\x0ftable_row_count\x18\a \x01(\x03R\rtableRowCount\x12*\n" +
 	"\x11scanned_row_count\x18\b \x01(\x03R\x0fscannedRowCount\x12b\n" +
 	"\x0fscanned_columns\x18\t \x03(\v29.datadog.sds.SdsResultPayload.PostgresTable.ScannedColumnR\x0escannedColumns\x1a@\n" +
+	"\rScannedColumn\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
+	"\tdata_type\x18\x02 \x01(\tR\bdataType\x1a\x80\x04\n" +
+	"\n" +
+	"MysqlTable\x122\n" +
+	"\x15database_cluster_name\x18\x01 \x01(\tR\x13databaseClusterName\x124\n" +
+	"\x16database_instance_name\x18\x02 \x01(\tR\x14databaseInstanceName\x12,\n" +
+	"\x12database_host_name\x18\x03 \x01(\tR\x10databaseHostName\x12#\n" +
+	"\rdatabase_name\x18\x04 \x01(\tR\fdatabaseName\x12\x1f\n" +
+	"\vschema_name\x18\x05 \x01(\tR\n" +
+	"schemaName\x12\x1d\n" +
+	"\n" +
+	"table_name\x18\x06 \x01(\tR\ttableName\x12&\n" +
+	"\x0ftable_row_count\x18\a \x01(\x03R\rtableRowCount\x12*\n" +
+	"\x11scanned_row_count\x18\b \x01(\x03R\x0fscannedRowCount\x12_\n" +
+	"\x0fscanned_columns\x18\t \x03(\v26.datadog.sds.SdsResultPayload.MysqlTable.ScannedColumnR\x0escannedColumns\x1a@\n" +
 	"\rScannedColumn\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tdata_type\x18\x02 \x01(\tR\bdataType\x1a\xca\x01\n" +
@@ -2042,7 +2238,7 @@ func file_datadog_sds_sds_result_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_sds_sds_result_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_sds_sds_result_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_datadog_sds_sds_result_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_datadog_sds_sds_result_proto_goTypes = []any{
 	(SdsResultPayload_ScanSource)(0),                           // 0: datadog.sds.SdsResultPayload.ScanSource
 	(SdsResultPayload_ScanMetadata_ScanTaskMetadata_Status)(0), // 1: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.Status
@@ -2059,17 +2255,19 @@ var file_datadog_sds_sds_result_proto_goTypes = []any{
 	(*SdsResultPayload_RdsTable)(nil),                      // 12: datadog.sds.SdsResultPayload.RdsTable
 	(*SdsResultPayload_SnowflakeTable)(nil),                // 13: datadog.sds.SdsResultPayload.SnowflakeTable
 	(*SdsResultPayload_PostgresTable)(nil),                 // 14: datadog.sds.SdsResultPayload.PostgresTable
-	(*SdsResultPayload_S3File)(nil),                        // 15: datadog.sds.SdsResultPayload.S3File
-	(*SdsResultPayload_RuleInfo)(nil),                      // 16: datadog.sds.SdsResultPayload.RuleInfo
-	(*SdsResultPayload_ScanMatch)(nil),                     // 17: datadog.sds.SdsResultPayload.ScanMatch
-	(*SdsResultPayload_TableMatch)(nil),                    // 18: datadog.sds.SdsResultPayload.TableMatch
-	(*SdsResultPayload_ScanMetadata)(nil),                  // 19: datadog.sds.SdsResultPayload.ScanMetadata
-	(*SdsResultPayload_ScanResult)(nil),                    // 20: datadog.sds.SdsResultPayload.ScanResult
-	nil,                                                    // 21: datadog.sds.SdsResultPayload.RulesEntry
-	(*SdsResultPayload_SnowflakeTable_ScannedColumn)(nil),  // 22: datadog.sds.SdsResultPayload.SnowflakeTable.ScannedColumn
-	(*SdsResultPayload_PostgresTable_ScannedColumn)(nil),   // 23: datadog.sds.SdsResultPayload.PostgresTable.ScannedColumn
-	(*SdsResultPayload_ScanMetadata_ScanTaskMetadata)(nil), // 24: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata
-	(*timestamppb.Timestamp)(nil),                          // 25: google.protobuf.Timestamp
+	(*SdsResultPayload_MysqlTable)(nil),                    // 15: datadog.sds.SdsResultPayload.MysqlTable
+	(*SdsResultPayload_S3File)(nil),                        // 16: datadog.sds.SdsResultPayload.S3File
+	(*SdsResultPayload_RuleInfo)(nil),                      // 17: datadog.sds.SdsResultPayload.RuleInfo
+	(*SdsResultPayload_ScanMatch)(nil),                     // 18: datadog.sds.SdsResultPayload.ScanMatch
+	(*SdsResultPayload_TableMatch)(nil),                    // 19: datadog.sds.SdsResultPayload.TableMatch
+	(*SdsResultPayload_ScanMetadata)(nil),                  // 20: datadog.sds.SdsResultPayload.ScanMetadata
+	(*SdsResultPayload_ScanResult)(nil),                    // 21: datadog.sds.SdsResultPayload.ScanResult
+	nil,                                                    // 22: datadog.sds.SdsResultPayload.RulesEntry
+	(*SdsResultPayload_SnowflakeTable_ScannedColumn)(nil),  // 23: datadog.sds.SdsResultPayload.SnowflakeTable.ScannedColumn
+	(*SdsResultPayload_PostgresTable_ScannedColumn)(nil),   // 24: datadog.sds.SdsResultPayload.PostgresTable.ScannedColumn
+	(*SdsResultPayload_MysqlTable_ScannedColumn)(nil),      // 25: datadog.sds.SdsResultPayload.MysqlTable.ScannedColumn
+	(*SdsResultPayload_ScanMetadata_ScanTaskMetadata)(nil), // 26: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata
+	(*timestamppb.Timestamp)(nil),                          // 27: google.protobuf.Timestamp
 }
 var file_datadog_sds_sds_result_proto_depIdxs = []int32{
 	6,  // 0: datadog.sds.ScanStats.skipped_files_by_type:type_name -> datadog.sds.ScanStats.SkippedFilesByTypeEntry
@@ -2078,31 +2276,33 @@ var file_datadog_sds_sds_result_proto_depIdxs = []int32{
 	9,  // 3: datadog.sds.ScanningSource.agent:type_name -> datadog.sds.ScanningSource.Agent
 	0,  // 4: datadog.sds.SdsResultPayload.scan_source:type_name -> datadog.sds.SdsResultPayload.ScanSource
 	10, // 5: datadog.sds.SdsResultPayload.resource:type_name -> datadog.sds.SdsResultPayload.Resource
-	20, // 6: datadog.sds.SdsResultPayload.scan_results:type_name -> datadog.sds.SdsResultPayload.ScanResult
+	21, // 6: datadog.sds.SdsResultPayload.scan_results:type_name -> datadog.sds.SdsResultPayload.ScanResult
 	2,  // 7: datadog.sds.SdsResultPayload.scan_stats:type_name -> datadog.sds.ScanStats
 	3,  // 8: datadog.sds.SdsResultPayload.scanner_metadata:type_name -> datadog.sds.ScannerMetadata
-	21, // 9: datadog.sds.SdsResultPayload.rules:type_name -> datadog.sds.SdsResultPayload.RulesEntry
+	22, // 9: datadog.sds.SdsResultPayload.rules:type_name -> datadog.sds.SdsResultPayload.RulesEntry
 	4,  // 10: datadog.sds.SdsResultPayload.scanning_source:type_name -> datadog.sds.ScanningSource
-	15, // 11: datadog.sds.SdsResultPayload.ScanLocation.s3File:type_name -> datadog.sds.SdsResultPayload.S3File
+	16, // 11: datadog.sds.SdsResultPayload.ScanLocation.s3File:type_name -> datadog.sds.SdsResultPayload.S3File
 	12, // 12: datadog.sds.SdsResultPayload.ScanLocation.rdsTable:type_name -> datadog.sds.SdsResultPayload.RdsTable
 	13, // 13: datadog.sds.SdsResultPayload.ScanLocation.snowflakeTable:type_name -> datadog.sds.SdsResultPayload.SnowflakeTable
 	14, // 14: datadog.sds.SdsResultPayload.ScanLocation.postgresTable:type_name -> datadog.sds.SdsResultPayload.PostgresTable
-	22, // 15: datadog.sds.SdsResultPayload.SnowflakeTable.scanned_columns:type_name -> datadog.sds.SdsResultPayload.SnowflakeTable.ScannedColumn
-	23, // 16: datadog.sds.SdsResultPayload.PostgresTable.scanned_columns:type_name -> datadog.sds.SdsResultPayload.PostgresTable.ScannedColumn
-	24, // 17: datadog.sds.SdsResultPayload.ScanMetadata.scan_task_metadata:type_name -> datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata
-	17, // 18: datadog.sds.SdsResultPayload.ScanResult.matches:type_name -> datadog.sds.SdsResultPayload.ScanMatch
-	11, // 19: datadog.sds.SdsResultPayload.ScanResult.location:type_name -> datadog.sds.SdsResultPayload.ScanLocation
-	18, // 20: datadog.sds.SdsResultPayload.ScanResult.table_matches:type_name -> datadog.sds.SdsResultPayload.TableMatch
-	19, // 21: datadog.sds.SdsResultPayload.ScanResult.scan_metadata:type_name -> datadog.sds.SdsResultPayload.ScanMetadata
-	16, // 22: datadog.sds.SdsResultPayload.RulesEntry.value:type_name -> datadog.sds.SdsResultPayload.RuleInfo
-	25, // 23: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.started_at:type_name -> google.protobuf.Timestamp
-	25, // 24: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.ended_at:type_name -> google.protobuf.Timestamp
-	1,  // 25: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.status:type_name -> datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.Status
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	15, // 15: datadog.sds.SdsResultPayload.ScanLocation.mysqlTable:type_name -> datadog.sds.SdsResultPayload.MysqlTable
+	23, // 16: datadog.sds.SdsResultPayload.SnowflakeTable.scanned_columns:type_name -> datadog.sds.SdsResultPayload.SnowflakeTable.ScannedColumn
+	24, // 17: datadog.sds.SdsResultPayload.PostgresTable.scanned_columns:type_name -> datadog.sds.SdsResultPayload.PostgresTable.ScannedColumn
+	25, // 18: datadog.sds.SdsResultPayload.MysqlTable.scanned_columns:type_name -> datadog.sds.SdsResultPayload.MysqlTable.ScannedColumn
+	26, // 19: datadog.sds.SdsResultPayload.ScanMetadata.scan_task_metadata:type_name -> datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata
+	18, // 20: datadog.sds.SdsResultPayload.ScanResult.matches:type_name -> datadog.sds.SdsResultPayload.ScanMatch
+	11, // 21: datadog.sds.SdsResultPayload.ScanResult.location:type_name -> datadog.sds.SdsResultPayload.ScanLocation
+	19, // 22: datadog.sds.SdsResultPayload.ScanResult.table_matches:type_name -> datadog.sds.SdsResultPayload.TableMatch
+	20, // 23: datadog.sds.SdsResultPayload.ScanResult.scan_metadata:type_name -> datadog.sds.SdsResultPayload.ScanMetadata
+	17, // 24: datadog.sds.SdsResultPayload.RulesEntry.value:type_name -> datadog.sds.SdsResultPayload.RuleInfo
+	27, // 25: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.started_at:type_name -> google.protobuf.Timestamp
+	27, // 26: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.ended_at:type_name -> google.protobuf.Timestamp
+	1,  // 27: datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.status:type_name -> datadog.sds.SdsResultPayload.ScanMetadata.ScanTaskMetadata.Status
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_datadog_sds_sds_result_proto_init() }
@@ -2124,18 +2324,19 @@ func file_datadog_sds_sds_result_proto_init() {
 		(*SdsResultPayload_ScanLocation_RdsTable)(nil),
 		(*SdsResultPayload_ScanLocation_SnowflakeTable)(nil),
 		(*SdsResultPayload_ScanLocation_PostgresTable)(nil),
+		(*SdsResultPayload_ScanLocation_MysqlTable)(nil),
 	}
 	file_datadog_sds_sds_result_proto_msgTypes[10].OneofWrappers = []any{}
-	file_datadog_sds_sds_result_proto_msgTypes[15].OneofWrappers = []any{}
-	file_datadog_sds_sds_result_proto_msgTypes[18].OneofWrappers = []any{}
-	file_datadog_sds_sds_result_proto_msgTypes[22].OneofWrappers = []any{}
+	file_datadog_sds_sds_result_proto_msgTypes[16].OneofWrappers = []any{}
+	file_datadog_sds_sds_result_proto_msgTypes[19].OneofWrappers = []any{}
+	file_datadog_sds_sds_result_proto_msgTypes[24].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_sds_sds_result_proto_rawDesc), len(file_datadog_sds_sds_result_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -71,6 +71,7 @@ message SdsResultPayload {
       RdsTable rdsTable = 7;
       SnowflakeTable snowflakeTable = 8;
       PostgresTable postgresTable = 9;
+      MysqlTable mysqlTable = 10;
     }
   }
 
@@ -103,6 +104,23 @@ message SdsResultPayload {
   }
 
   message PostgresTable {
+    string database_cluster_name = 1;
+    string database_instance_name = 2;
+    string database_host_name = 3;
+    string database_name = 4;
+    string schema_name = 5;
+    string table_name = 6;
+    int64 table_row_count = 7;
+    int64 scanned_row_count = 8;
+    repeated ScannedColumn scanned_columns = 9;
+
+    message ScannedColumn {
+      string name = 1;
+      string data_type = 2;
+    }
+  }
+
+  message MysqlTable {
     string database_cluster_name = 1;
     string database_instance_name = 2;
     string database_host_name = 3;
