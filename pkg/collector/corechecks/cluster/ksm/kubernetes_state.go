@@ -1274,7 +1274,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.metadataMetricsRegex.MatchString(name)
+		isMetadataMetric := k.shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
