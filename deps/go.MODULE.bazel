@@ -111,6 +111,7 @@ use_repo(
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",
     "com_github_containerd_errdefs",
+    "com_github_containerd_platforms",
     "com_github_containerd_typeurl_v2",
     "com_github_containernetworking_cni",
     "com_github_coreos_go_semver",

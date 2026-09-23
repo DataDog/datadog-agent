@@ -24,3 +24,30 @@ spec:
     - name: same-step
       image: localhost/hidden-bytes/same-step:qa
       imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hardlink-fixtures
+  namespace: hidden-bytes-validation
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: seeded
+      image: localhost/hidden-bytes/hardlink-seeded:qa
+      imagePullPolicy: Never
+    - name: one-deleted
+      image: localhost/hidden-bytes/hardlink-one-deleted:qa
+      imagePullPolicy: Never
+    - name: both-deleted
+      image: localhost/hidden-bytes/hardlink-both-deleted:qa
+      imagePullPolicy: Never
+    - name: replaced
+      image: localhost/hidden-bytes/hardlink-replaced:qa
+      imagePullPolicy: Never
+    - name: old-deleted
+      image: localhost/hidden-bytes/hardlink-old-deleted:qa
+      imagePullPolicy: Never
+    - name: all-deleted
+      image: localhost/hidden-bytes/hardlink-all-deleted:qa
+      imagePullPolicy: Never

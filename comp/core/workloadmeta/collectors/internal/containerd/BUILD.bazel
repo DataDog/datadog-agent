@@ -106,11 +106,13 @@ dd_agent_go_test(
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_containerd_containerd_v2//pkg/namespaces",
+            "@com_github_containerd_containerd_v2//core/content",
+            "@com_github_containerd_platforms//:platforms",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_containerd_containerd_v2//pkg/namespaces",
+            "@com_github_containerd_containerd_v2//core/content",
+            "@com_github_containerd_platforms//:platforms",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

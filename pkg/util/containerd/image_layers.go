@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/core/snapshots"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
@@ -119,24 +117,19 @@ func BuildImageLayers(ctx context.Context, s SnapshotterStat, diffIDs []digest.D
 
 // AcquireImageLayers holds a private lease and read-only view of native overlayfs
 // snapshots. The caller must call cleanup even if subsequent collection fails.
-func AcquireImageLayers(ctx context.Context, client ContainerdItf, namespace string, img containerd.Image, expiration time.Duration) ([]ImageLayer, func(context.Context) error, error) {
+func AcquireImageLayers(ctx context.Context, client ContainerdItf, namespace string, manifest ocispec.Manifest, diffIDs []digest.Digest, expiration time.Duration) ([]ImageLayer, func(context.Context) error, error) {
 	ctx = namespaces.WithNamespace(ctx, namespace)
-	mounts, cleanup, err := acquireImageMounts(ctx, client.RawClient(), expiration, namespace, img, "overlayfs")
+	if len(diffIDs) == 0 {
+		return nil, nil, errors.New("image has no diff_ids")
+	}
+	mounts, cleanup, err := acquireImageMountsForChain(ctx, client.RawClient(), expiration, namespace, identity.ChainID(diffIDs).String(), "overlayfs")
 	if err != nil {
 		return nil, nil, err
 	}
 	fail := func(err error) ([]ImageLayer, func(context.Context) error, error) {
 		return nil, nil, errors.Join(err, cleanup(ctx))
 	}
-	diffIDs, err := img.RootFS(ctx)
-	if err != nil {
-		return fail(err)
-	}
 	if err := validateHiddenBytesMounts(mounts, len(diffIDs)); err != nil {
-		return fail(err)
-	}
-	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
-	if err != nil {
 		return fail(err)
 	}
 	layers, err := BuildImageLayers(ctx, client.RawClient().SnapshotService("overlayfs"), diffIDs, manifest, mounts)

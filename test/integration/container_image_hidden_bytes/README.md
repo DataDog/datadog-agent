@@ -1,8 +1,9 @@
 # Container image hidden bytes: manual QA
 
-This validates the **Agent payload**, not a backend aggregate or UI. It uses
-containerd overlayfs snapshots, not image tarballs, and checks exact values received
-at fakeintake's `/api/v2/contimage` endpoint. A missing field is not zero.
+This validates the **Agent payload**, not a backend aggregate or UI. It checks
+exact values received at fakeintake's `/api/v2/contimage` endpoint, using overlayfs
+snapshots first and local layer archives when snapshots cannot be scanned.
+A missing field is not zero. The Agent does not download missing image layers.
 
 Use a dedicated **ARM64** Docker/minikube environment. These wrappers use an ARM64
 Agent base pinned by digest; on another architecture select a compatible pinned
@@ -26,14 +27,18 @@ docker build -f test/integration/container_image_hidden_bytes/Dockerfile.agent \
   -t localhost/hidden-bytes/agent:qa .
 docker build -f test/integration/container_image_hidden_bytes/Dockerfile.fakeintake \
   -t localhost/hidden-bytes/fakeintake:qa .
-for scenario in seeded deleted replaced combined replaced-deleted same-step; do
+for scenario in seeded deleted replaced combined replaced-deleted same-step \
+  hardlink-seeded hardlink-one-deleted hardlink-both-deleted \
+  hardlink-replaced hardlink-old-deleted hardlink-all-deleted; do
   docker build -f test/integration/container_image_hidden_bytes/Dockerfile.fixtures \
     --target "$scenario" -t "localhost/hidden-bytes/${scenario}:qa" .
 done
 
 minikube start -p hidden-bytes-validation --driver=docker \
   --container-runtime=containerd --kubernetes-version=v1.35.1 --memory=6144 --cpus=4 --keep-context
-for image in agent fakeintake seeded deleted replaced combined replaced-deleted same-step; do
+for image in agent fakeintake seeded deleted replaced combined replaced-deleted same-step \
+  hardlink-seeded hardlink-one-deleted hardlink-both-deleted \
+  hardlink-replaced hardlink-old-deleted hardlink-all-deleted; do
   minikube -p hidden-bytes-validation image load "localhost/hidden-bytes/${image}:qa"
 done
 ```
@@ -52,11 +57,20 @@ The expected layout is `/var/lib/containerd` with socket
 `/var/run/containerd/containerd.sock`. Adjust both host paths if the node uses
 different locations. Do not silently scan a different runtime or snapshotter.
 
-The initial implementation omits results for hardlinked files, unsupported
-snapshotters, remapped user namespaces, metacopy/redirect metadata, unavailable
-snapshots, or scans exceeding their limits. It requires `CAP_SYS_ADMIN` in the
-initial Linux user namespace. These limitations apply to the whole image:
-partial counts are never published.
+Snapshot scanning requires native overlayfs metadata and `CAP_SYS_ADMIN` in the
+initial Linux user namespace. It supports complete hardlink groups within one
+layer; incomplete groups, cross-layer identities, remapped user namespaces and
+metacopy/redirect metadata are unsupported. Failure falls back to local layer
+archives, including for other snapshotters or inaccessible host mounts. Archive
+hardlinks must refer backward to an existing regular-file object in the same
+layer; forward or cross-layer links are unsupported. Missing archives, unsupported
+metadata, or exhausted scan limits can still leave an image unmeasured. Partial
+counts are never published; this is not universal containerd coverage.
+
+The snapshot path reads metadata, not regular-file contents. The archive path
+must read and decompress file bodies, but discards them without extracting files.
+Each image scan has a one-minute timeout; archive compressed input and decompressed
+output are each capped at 4 GiB, with additional metadata, entry and path limits.
 
 ```sh
 minikube -p hidden-bytes-validation kubectl -- --context=hidden-bytes-validation \
@@ -68,7 +82,7 @@ minikube -p hidden-bytes-validation kubectl -- --context=hidden-bytes-validation
 minikube -p hidden-bytes-validation kubectl -- --context=hidden-bytes-validation \
   -n hidden-bytes-validation rollout status deployment/agent --timeout=180s
 minikube -p hidden-bytes-validation kubectl -- --context=hidden-bytes-validation \
-  -n hidden-bytes-validation wait --for=condition=Ready pod/fixtures --timeout=180s
+  -n hidden-bytes-validation wait --for=condition=Ready pod/fixtures pod/hardlink-fixtures --timeout=180s
 ```
 
 **QA-only permissions:** the core Agent container gets a read-only mount of the
@@ -104,6 +118,9 @@ ordered RootFS DiffIDs to select
 the exact image, rather than confusing a tag or compressed layer digest with a
 DiffID. It verifies every filesystem layer, including explicit zero values, and
 waits up to two minutes per image for asynchronously collected results.
+On a cold archive-only run, large images ahead of a fixture in the single-worker
+queue can exceed that wait. Let the initial scans finish and rerun assertions;
+check scan-source/completion logs rather than treating a polling timeout as zero.
 
 | Fixture | Seed layer hidden bytes | Later replacement layer hidden bytes | Image total for QA only |
 | --- | ---: | ---: | ---: |
@@ -113,6 +130,13 @@ waits up to two minutes per image for asynchronously collected results.
 | combined | 12288 | 0 | 12288 |
 | replaced-deleted | 4096 | 12288 | 16384 |
 | same-step | — | — | 0 |
+| hardlink-seeded | 0 | — | 0 |
+| hardlink-one-deleted | 0 | — | 0 |
+| hardlink-both-deleted | 4096 | — | 4096 |
+| hardlink-replaced | 0 | 0 | 0 |
+| hardlink-old-deleted | 4096 | 0 | 4096 |
+| hardlink-all-deleted | 4096 | 12288 | 16384 |
+| native-only (separate import below) | 4096 | 12288 | 16384 |
 
 All other filesystem layers must report zero. History-only entries have no
 DiffID and no measurement. Values are logical file bytes, not compressed size
@@ -120,11 +144,18 @@ or guaranteed recoverable disk space. The Dockerfile independently defines these
 sizes: old app 4096 bytes, cache 8192 bytes, new app 12288 bytes. In `same-step`,
 the temporary file is removed before the layer is committed.
 
-The fixture base copies only the pinned BusyBox executable into a scratch image
-and installs its commands as **symlinks**, not hardlinks. This is a controlled
-no-hardlink fixture: the original BusyBox image contains hardlinked commands,
-which the initial collector deliberately rejects as unsupported. That rejection
-must produce an absent measurement, not a zero result.
+The fixture base copies the pinned BusyBox executable and libraries into scratch,
+installing commands as symlinks. The `hardlink-*` fixtures add a true hardlink pair
+sharing one 4096-byte file. Deleting one name hides no data while another name
+survives. Replacing the first name explicitly unlinks it before creating a new
+12288-byte file; truncating the shared inode would test different behavior.
+Only deleting the final old alias hides the original 4096 bytes. Deleting the new
+file afterward hides another 12288 bytes. Check the exported tar headers to prove
+the builder preserved the intended hardlinks, not two independent copies.
+
+Real pinned BusyBox and Agent images should also be scanned as smoke tests. Record
+success or the exact unsupported case; fixture results do not prove their coverage
+or independently establish their hidden-byte totals.
 
 For manual inspection:
 
@@ -164,11 +195,17 @@ test/fakeintake/build/fakeintakectl --url http://127.0.0.1:18080 flush
   Confirm no lease/view collision in logs during concurrent scans. Local-only
   fixture tags may lack repository digests and be skipped by the existing SBOM
   sender; cluster images such as CoreDNS can demonstrate SBOM emission instead.
-- **Disabled or inaccessible:** set `DD_CONTAINER_IMAGE_HIDDEN_BYTES_ENABLED=false`
-  and check `assert_payloads.sh http://127.0.0.1:18080 absent`. Separately re-enable it,
-  use a fresh `DD_RUN_PATH`, and set `HOST_ROOT=/missing-host-mount`. Normal image
-  metadata must still arrive, with `hidden_bytes` absent rather than zero. Restore
-  `HOST_ROOT=/host` afterward. A warm cache would invalidate this negative test.
+- **Archive fallback:** re-enable collection, use a fresh `DD_RUN_PATH`, and set
+  `HOST_ROOT=/missing-host-mount`. With local fixture blobs present, the normal
+  `present` assertions must still pass. Confirm the successful archive source in
+  debug logs; payload values alone cannot prove which scanner ran. Restore
+  `HOST_ROOT=/host` afterward. A warm cache would invalidate this fallback test.
+- **Disabled or both sources unavailable:** set
+  `DD_CONTAINER_IMAGE_HIDDEN_BYTES_ENABLED=false` and check
+  `assert_payloads.sh http://127.0.0.1:18080 absent`. Separately test both unreadable
+  snapshots and missing blobs with a fresh cache: metadata must arrive without
+  `hidden_bytes`. Use focused provider tests if safely isolating missing runtime
+  blobs is impractical; do not delete shared runtime content to force this case.
 - **Same tag, new image:** rebuild a fixture with different file sizes under the
   same tag, reload it and recreate its workload. Record the changed config ID and
   expected values manually; the stock assertion script intentionally only checks
@@ -191,7 +228,54 @@ minikube -p hidden-bytes-validation kubectl -- --context=hidden-bytes-validation
   DD_RUN_PATH=/tmp/hidden-bytes-cold-1 DD_SBOM_ENABLED=true DD_SBOM_CONTAINER_IMAGE_ENABLED=true
 ```
 
-## 4. Prove independence from layer tarballs
+## 4. Test a native-only image
+
+Build a distinct fixture and import it into containerd's **native** snapshotter.
+Do not use `minikube image load` or create a Kubernetes Pod for this fixture:
+either can unpack it into the default overlayfs snapshotter. Its unique last
+filesystem layer ensures the full chain is not already among the overlayfs tests.
+The Agent collects images in the `k8s.io` namespace even without a running Pod.
+
+```sh
+docker build -f test/integration/container_image_hidden_bytes/Dockerfile.fixtures \
+  --target native-only -t localhost/hidden-bytes/native-only:qa .
+qa_native_archive=$(mktemp /tmp/hidden-bytes-native.XXXXXX.tar)
+docker image save -o "$qa_native_archive" localhost/hidden-bytes/native-only:qa
+minikube -p hidden-bytes-validation cp "$qa_native_archive" /tmp/hidden-bytes-native.tar
+minikube -p hidden-bytes-validation ssh -- \
+  'sudo ctr -n k8s.io images import --local --snapshotter native /tmp/hidden-bytes-native.tar'
+```
+
+Confirm the final chain exists only in native. Run this snippet in **bash**:
+
+```bash
+qa_chain=""
+while read -r qa_diff; do
+  if [[ -z "$qa_chain" ]]; then
+    qa_chain=$qa_diff
+  else
+    qa_chain="sha256:$(printf '%s %s' "$qa_chain" "$qa_diff" | sha256sum | cut -d ' ' -f 1)"
+  fi
+done < <(docker image inspect localhost/hidden-bytes/native-only:qa | jq -r '.[0].RootFS.Layers[]')
+minikube -p hidden-bytes-validation ssh -- "sudo ctr -n k8s.io snapshots --snapshotter native info '$qa_chain'"
+minikube -p hidden-bytes-validation ssh -- "sudo ctr -n k8s.io snapshots --snapshotter overlayfs info '$qa_chain'"
+```
+
+The native lookup must succeed; the overlayfs lookup must specifically report
+`not found` (a connection/permission error does not establish absence). Use a fresh
+Agent cache, restore `HOST_ROOT=/host`, wait for rollout, flush fakeintake, and run:
+
+```sh
+bash test/integration/container_image_hidden_bytes/assert_payloads.sh \
+  http://127.0.0.1:18080 present native-only
+```
+
+Require both exact per-layer payload values and an archive-source success log for
+this image. This proves fallback for a real non-overlayfs image with local blobs,
+not support for every native/lazy/remote image. The assertion script also accepts
+any subset of scenario names after its URL and `present`/`absent` arguments.
+
+## 5. Prove independence from layer tarballs
 
 A cluster restart alone **does not prove** tarballs disappeared. In the dedicated
 profile, record each fixture manifest's layer blob digests and use

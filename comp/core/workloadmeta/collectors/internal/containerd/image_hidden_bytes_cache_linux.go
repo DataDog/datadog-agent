@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	hiddenBytesAlgorithmVersion = 1
+	hiddenBytesAlgorithmVersion = 2
 	hiddenBytesCacheEntries     = 128
 	hiddenBytesCacheMaxBytes    = 2 << 20
 	hiddenBytesCacheMaxLayers   = 4096

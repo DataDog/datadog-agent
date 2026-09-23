@@ -459,6 +459,11 @@ func acquireImageMounts(ctx context.Context, client *containerd.Client, expirati
 		return nil, nil, errors.New("image has no filesystem layers")
 	}
 	chainID := identity.ChainID(diffIDs).String()
+	return acquireImageMountsForChain(ctx, client, expiration, namespace, chainID, snapshotter)
+}
+
+func acquireImageMountsForChain(ctx context.Context, client *containerd.Client, expiration time.Duration, namespace, chainID, snapshotter string) ([]mount.Mount, func(context.Context) error, error) {
+	ctx = namespaces.WithNamespace(ctx, namespace)
 	imageID := "datadog-image-view-" + rand.Text()
 	// Create directly: Client.WithLease may reuse a lease inherited from ctx.
 	leaseService := client.LeasesService()

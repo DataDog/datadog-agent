@@ -29,3 +29,29 @@ FROM base AS same-step
 RUN mkdir /fixture && \
     dd if=/dev/zero of=/fixture/temporary bs=8192 count=1 && \
     rm /fixture/temporary
+
+FROM base AS hardlink-seeded
+RUN mkdir /fixture && \
+    dd if=/dev/zero of=/fixture/first bs=4096 count=1 && \
+    ln /fixture/first /fixture/second
+
+FROM hardlink-seeded AS hardlink-one-deleted
+RUN rm /fixture/first
+
+FROM hardlink-one-deleted AS hardlink-both-deleted
+RUN rm /fixture/second
+
+FROM hardlink-seeded AS hardlink-replaced
+# Unlink first: truncating an existing hardlink would change both names.
+RUN rm /fixture/first && dd if=/dev/zero of=/fixture/first bs=12288 count=1
+
+FROM hardlink-replaced AS hardlink-old-deleted
+RUN rm /fixture/second
+
+FROM hardlink-old-deleted AS hardlink-all-deleted
+RUN rm /fixture/first
+
+FROM hardlink-all-deleted AS native-only
+ENV HIDDEN_BYTES_QA_SNAPSHOTTER=native
+# A unique filesystem layer makes the full chain distinct from overlayfs fixtures.
+RUN touch /native-only

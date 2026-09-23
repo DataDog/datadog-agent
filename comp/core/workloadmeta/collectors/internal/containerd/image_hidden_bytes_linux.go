@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/opencontainers/go-digest"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -60,7 +61,7 @@ func (c *collector) initHiddenBytesCollection() {
 	if !c.imageMetadataCollectionIsEnabled() || !c.cfg.GetBool("container_image.hidden_bytes.enabled") {
 		return
 	}
-	cache := newHiddenBytesCache(filepath.Join(c.cfg.GetString("run_path"), "container-image-hidden-bytes-v1.json"))
+	cache := newHiddenBytesCache(filepath.Join(c.cfg.GetString("run_path"), "container-image-hidden-bytes-v2.json"))
 	if err := cache.load(); err != nil {
 		log.Debugf("Ignoring unavailable container image hidden-bytes cache: %v", err)
 	}
@@ -274,32 +275,50 @@ func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta
 	if err != nil {
 		return nil, err
 	}
-	config, err := img.Config(ctx)
+	resolved, err := cutil.ResolveHiddenBytesImage(ctx, img.ContentStore(), img.Target(), img.Platform(), digest.Digest(meta.ID))
 	if err != nil {
 		return nil, err
 	}
-	if config.Digest.String() != meta.ID {
-		return nil, fmt.Errorf("image reference no longer points to %s", meta.ID)
-	}
-	layers, cleanup, err := cutil.AcquireImageLayers(ctx, c.containerdClient, meta.Namespace, img, hiddenBytesScanTimeout)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := cleanup(ctx); err != nil {
-			log.Debugf("Unable to clean up hidden-byte image snapshot: %v", err)
+	bytes, err := scanHiddenBytesWithFallback(ctx, func(ctx context.Context) ([]uint64, error) {
+		layers, cleanup, err := cutil.AcquireImageLayers(ctx, c.containerdClient, meta.Namespace, resolved.Manifest, resolved.DiffIDs, hiddenBytesScanTimeout)
+		if err != nil {
+			return nil, err
 		}
-	}()
-	bytes, err := cutil.CalculateHiddenBytes(ctx, layers, cutil.DefaultHiddenBytesLimits())
+		defer func() {
+			if err := cleanup(ctx); err != nil {
+				log.Debugf("Unable to clean up hidden-byte image snapshot: %v", err)
+			}
+		}()
+		return cutil.CalculateHiddenBytes(ctx, layers, cutil.DefaultHiddenBytesLimits())
+	}, func(ctx context.Context) ([]uint64, error) {
+		return cutil.CalculateHiddenBytesFromContent(ctx, img.ContentStore(), resolved, cutil.DefaultHiddenBytesLimits())
+	})
 	if err != nil {
 		return nil, err
 	}
-	if len(bytes) != len(layers) {
+	if len(bytes) != len(resolved.DiffIDs) {
 		return nil, errors.New("hidden-byte result count does not match image layers")
 	}
-	results := make([]hiddenLayerResult, len(layers))
-	for i, layer := range layers {
-		results[i] = hiddenLayerResult{DiffID: layer.DiffID, Bytes: bytes[i]}
+	results := make([]hiddenLayerResult, len(resolved.DiffIDs))
+	for i, diffID := range resolved.DiffIDs {
+		results[i] = hiddenLayerResult{DiffID: diffID.String(), Bytes: bytes[i]}
 	}
 	return results, nil
+}
+
+func scanHiddenBytesWithFallback(ctx context.Context, snapshot, archive func(context.Context) ([]uint64, error)) ([]uint64, error) {
+	counts, snapshotErr := snapshot(ctx)
+	if snapshotErr == nil {
+		log.Debug("Collected container image hidden bytes from overlayfs snapshots")
+		return counts, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	counts, archiveErr := archive(ctx)
+	if archiveErr != nil {
+		return nil, errors.Join(fmt.Errorf("snapshot hidden-byte scan: %w", snapshotErr), fmt.Errorf("local archive hidden-byte scan: %w", archiveErr))
+	}
+	log.Debug("Collected container image hidden bytes from local layer archives")
+	return counts, nil
 }

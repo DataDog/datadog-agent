@@ -83,17 +83,17 @@ func TestHiddenBytesCacheByteBound(t *testing.T) {
 func TestHiddenBytesCacheRejectsInvalidData(t *testing.T) {
 	img := hiddenBytesTestImage("invalid")
 	entry := hiddenBytesCacheEntry{ImageID: img.ID, Layers: hiddenBytesTestResult(img)}
-	invalidVersion, err := json.Marshal(hiddenBytesCacheFile{Version: 999, Entries: []hiddenBytesCacheEntry{entry}})
+	invalidVersion, err := json.Marshal(hiddenBytesCacheFile{Version: hiddenBytesAlgorithmVersion - 1, Entries: []hiddenBytesCacheEntry{entry}})
 	require.NoError(t, err)
 	duplicate, err := json.Marshal(hiddenBytesCacheFile{Version: hiddenBytesAlgorithmVersion, Entries: []hiddenBytesCacheEntry{entry, entry}})
 	require.NoError(t, err)
 	for name, data := range map[string][]byte{
-		"truncated":       []byte(`{"version":1`),
-		"oversized":       []byte(strings.Repeat(" ", hiddenBytesCacheMaxBytes+1)),
-		"invalid-version": invalidVersion,
-		"duplicate-image": duplicate,
-		"invalid-digest":  []byte(`{"version":1,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":0}]}]}`),
-		"negative-bytes":  []byte(`{"version":1,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":-1}]}]}`),
+		"truncated":          []byte(`{"version":1`),
+		"oversized":          []byte(strings.Repeat(" ", hiddenBytesCacheMaxBytes+1)),
+		"previous-algorithm": invalidVersion,
+		"duplicate-image":    duplicate,
+		"invalid-digest":     []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":0}]}]}`),
+		"negative-bytes":     []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":-1}]}]}`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "cache.json")

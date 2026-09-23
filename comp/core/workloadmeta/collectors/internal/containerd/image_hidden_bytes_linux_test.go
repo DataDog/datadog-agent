@@ -16,7 +16,8 @@ import (
 	"time"
 
 	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/core/content"
+	"github.com/containerd/platforms"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -312,11 +313,19 @@ func TestPreserveHiddenBytesRequiresMatchingOrderedLayers(t *testing.T) {
 
 type hiddenBytesConfigImage struct {
 	containerd.Image
-	config func(context.Context) (ocispec.Descriptor, error)
+	target ocispec.Descriptor
 }
 
-func (i hiddenBytesConfigImage) Config(ctx context.Context) (ocispec.Descriptor, error) {
-	return i.config(ctx)
+func (i hiddenBytesConfigImage) Target() ocispec.Descriptor {
+	return i.target
+}
+
+func (hiddenBytesConfigImage) ContentStore() content.Store {
+	return nil // Inline metadata must not read a blob or reach either scanner.
+}
+
+func (hiddenBytesConfigImage) Platform() platforms.MatchComparer {
+	return platforms.Default()
 }
 
 func TestHiddenBytesRejectsMovedTag(t *testing.T) {
@@ -325,15 +334,60 @@ func TestHiddenBytesRejectsMovedTag(t *testing.T) {
 		MockImage: func(namespace, name string) (containerd.Image, error) {
 			assert.Equal(t, meta.Namespace, namespace)
 			assert.Equal(t, meta.Name, name)
-			return hiddenBytesConfigImage{config: func(ctx context.Context) (ocispec.Descriptor, error) {
-				namespace, ok := namespaces.Namespace(ctx)
-				assert.True(t, ok)
-				assert.Equal(t, meta.Namespace, namespace)
-				return ocispec.Descriptor{Digest: digest.FromString("new-image")}, nil
-			}}, nil
+			data := []byte(fmt.Sprintf(`{"schemaVersion":2,"config":{"digest":%q}}`, digest.FromString("new-image")))
+			return hiddenBytesConfigImage{target: ocispec.Descriptor{MediaType: ocispec.MediaTypeImageManifest, Digest: digest.FromBytes(data), Size: int64(len(data)), Data: data}}, nil
 		},
 	}}
 	result, err := c.scanImageHiddenBytes(t.Context(), meta)
 	require.ErrorContains(t, err, "no longer points to")
 	assert.Nil(t, result)
+}
+
+func TestHiddenBytesRejectsOversizedMetadataBeforeScanning(t *testing.T) {
+	meta := hiddenBytesTestImage("oversized")
+	c := &collector{containerdClient: &fake.MockedContainerdClient{
+		MockImage: func(string, string) (containerd.Image, error) {
+			return hiddenBytesConfigImage{target: ocispec.Descriptor{MediaType: ocispec.MediaTypeImageIndex, Digest: digest.FromString("large"), Size: 5 << 20}}, nil
+		},
+	}}
+	result, err := c.scanImageHiddenBytes(t.Context(), meta)
+	require.ErrorContains(t, err, "metadata blob size limit")
+	assert.Nil(t, result)
+}
+
+func TestHiddenBytesScanFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		snapshotErr, archiveErr error
+		cancel                  bool
+		wantArchive             bool
+		want                    []uint64
+	}{
+		{name: "snapshot success", want: []uint64{1, 2}},
+		{name: "archive fallback", snapshotErr: errors.New("no snapshots"), wantArchive: true, want: []uint64{3, 4}},
+		{name: "both fail", snapshotErr: errors.New("no snapshots"), archiveErr: errors.New("missing blob"), wantArchive: true},
+		{name: "cancelled snapshot", snapshotErr: context.Canceled, cancel: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			archiveCalled := false
+			got, err := scanHiddenBytesWithFallback(ctx, func(context.Context) ([]uint64, error) {
+				if tc.cancel {
+					cancel()
+				}
+				return []uint64{1, 2}, tc.snapshotErr
+			}, func(context.Context) ([]uint64, error) {
+				archiveCalled = true
+				return []uint64{3, 4}, tc.archiveErr
+			})
+			if tc.want == nil {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantArchive, archiveCalled)
+		})
+	}
 }

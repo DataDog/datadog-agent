@@ -24,6 +24,7 @@ type hiddenFixture struct {
 	whiteouts []string
 	opaque    []string
 	symlinks  map[string]string
+	hardlinks map[string]string
 }
 
 func makeHiddenLayers(t *testing.T, fixtures []hiddenFixture) ([]ImageLayer, overlayMetadataReader) {
@@ -58,6 +59,10 @@ func makeHiddenLayers(t *testing.T, fixtures []hiddenFixture) ([]ImageLayer, ove
 		for path, target := range fixture.symlinks {
 			require.NoError(t, os.Symlink(target, filepath.Join(root, path)))
 		}
+		for path, target := range fixture.hardlinks {
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0700))
+			require.NoError(t, os.Link(filepath.Join(root, target), filepath.Join(root, path)))
+		}
 	}
 	return layers, func(path string, _ bool) (overlayMetadata, error) { return attrs[path], nil }
 }
@@ -83,6 +88,15 @@ func TestHiddenBytesAttribution(t *testing.T) {
 		{"symlinks not followed", []hiddenFixture{{files: map[string]int64{"app": 4096}}, {symlinks: map[string]string{"app": "/etc/passwd", "outside": "/does/not/exist"}}}, []uint64{4096, 0}},
 		{"sparse logical bytes", []hiddenFixture{{files: map[string]int64{"sparse": 1 << 30}}, {whiteouts: []string{"sparse"}}}, []uint64{1 << 30, 0}},
 		{"no filesystem additions", []hiddenFixture{{}, {}}, []uint64{0, 0}},
+		{"hardlink untouched", []hiddenFixture{{files: map[string]int64{"z": 4096}, hardlinks: map[string]string{"a": "z"}}}, []uint64{0}},
+		{"hardlink survivor", []hiddenFixture{{files: map[string]int64{"a": 4096}, hardlinks: map[string]string{"b": "a"}}, {whiteouts: []string{"a"}}}, []uint64{0, 0}},
+		{"hardlink all hidden", []hiddenFixture{{files: map[string]int64{"a": 4096}, hardlinks: map[string]string{"b": "a"}}, {whiteouts: []string{"a", "b"}}}, []uint64{4096, 0}},
+		{"hardlink sequential deletion", []hiddenFixture{{files: map[string]int64{"a": 4096}, hardlinks: map[string]string{"b": "a"}}, {whiteouts: []string{"a"}}, {whiteouts: []string{"b"}}}, []uint64{4096, 0, 0}},
+		{"hardlink replacement survivor", []hiddenFixture{{files: map[string]int64{"a": 4096}, hardlinks: map[string]string{"b": "a"}}, {files: map[string]int64{"a": 12288}}}, []uint64{0, 0}},
+		{"hardlink replacement and delete", []hiddenFixture{{files: map[string]int64{"a": 4096}, hardlinks: map[string]string{"b": "a"}}, {files: map[string]int64{"a": 12288}}, {whiteouts: []string{"a", "b"}}}, []uint64{4096, 12288, 0}},
+		{"hardlink outside opaque directory", []hiddenFixture{{files: map[string]int64{"dir/a": 4096}, hardlinks: map[string]string{"b": "dir/a"}}, {opaque: []string{"dir"}}}, []uint64{0, 0}},
+		{"hardlinks inside opaque directory", []hiddenFixture{{files: map[string]int64{"dir/a": 4096}, hardlinks: map[string]string{"dir/b": "dir/a"}}, {opaque: []string{"dir"}}}, []uint64{4096, 0}},
+		{"directory with hardlinks replaced by file", []hiddenFixture{{files: map[string]int64{"dir/a": 4096}, hardlinks: map[string]string{"dir/b": "dir/a"}}, {files: map[string]int64{"dir": 1024}}}, []uint64{4096, 0}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			layers, attrs := makeHiddenLayers(t, tc.layers)
@@ -122,10 +136,10 @@ func TestHiddenBytesFailureReturnsNoPartialCounts(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, got)
 	})
-	t.Run("hardlink", func(t *testing.T) {
-		require.NoError(t, os.Link(filepath.Join(layers[0].Path, "app"), filepath.Join(layers[0].Path, "linked")))
+	t.Run("hardlink outside scanned layer", func(t *testing.T) {
+		require.NoError(t, os.Link(filepath.Join(layers[0].Path, "app"), filepath.Join(t.TempDir(), "linked")))
 		got, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), attrs)
-		require.ErrorContains(t, err, "hard links")
+		require.ErrorContains(t, err, "hardlink group")
 		require.Nil(t, got)
 	})
 }

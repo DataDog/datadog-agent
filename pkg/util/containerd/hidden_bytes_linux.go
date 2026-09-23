@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,22 +22,25 @@ import (
 
 // HiddenBytesLimits bounds work and path storage across an entire image scan.
 type HiddenBytesLimits struct {
-	MaxEntries   uint64
-	MaxPathBytes uint64
+	MaxEntries      uint64
+	MaxPathBytes    uint64
+	MaxArchiveBytes uint64
 }
 
 // DefaultHiddenBytesLimits returns the maximum supported image scan size.
 func DefaultHiddenBytesLimits() HiddenBytesLimits {
-	return HiddenBytesLimits{MaxEntries: 500000, MaxPathBytes: 64 << 20}
+	return HiddenBytesLimits{MaxEntries: 500000, MaxPathBytes: 64 << 20, MaxArchiveBytes: 4 << 30}
 }
 
-type hiddenEntry struct {
-	path     string
-	size     uint64
-	layer    int
-	mode     fs.FileMode
-	whiteout bool
-	opaque   bool
+type hiddenFileID struct {
+	device uint64
+	inode  uint64
+}
+
+type hiddenFileLinks struct {
+	data  *hiddenData
+	links uint64
+	seen  uint64
 }
 
 type overlayMetadata struct {
@@ -130,73 +131,20 @@ func readOverlayMetadata(path string, userXAttr bool) (overlayMetadata, error) {
 }
 
 func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits HiddenBytesLimits, metadata overlayMetadataReader) ([]uint64, error) {
-	if limits.MaxEntries == 0 || limits.MaxPathBytes == 0 {
-		return nil, errors.New("hidden byte scan limits must be positive")
-	}
-	if err := ctx.Err(); err != nil {
+	state, err := newHiddenBytesState(ctx, len(layers), limits)
+	if err != nil {
 		return nil, err
 	}
-	counts := make([]uint64, len(layers))
-	visible := make(map[string]hiddenEntry)
-	var entries, pathBytes uint64
-	reserve := func(path string) error {
-		if uint64(len(path)) > limits.MaxPathBytes-pathBytes {
-			return errors.New("hidden byte scan path memory limit exceeded")
-		}
-		pathBytes += uint64(len(path))
-		return nil
-	}
-	remove := func(path string, old hiddenEntry) error {
-		if old.mode.IsRegular() {
-			if old.size > math.MaxUint64-counts[old.layer] {
-				return errors.New("hidden byte count overflow")
-			}
-			counts[old.layer] += old.size
-		}
-		delete(visible, path)
-		pathBytes -= uint64(len(path))
-		return nil
-	}
-	hide := func(path string, childrenOnly bool) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if path != "." {
-			old, exists := visible[path]
-			if !exists {
-				return nil
-			}
-			if !old.mode.IsDir() {
-				if childrenOnly {
-					return nil
-				}
-				return remove(path, old)
-			}
-		}
-		for key, old := range visible {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if (key == path && !childrenOnly) || strings.HasPrefix(key, path+"/") || path == "." {
-				if err := remove(key, old); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
+	objects := make(map[hiddenFileID]*hiddenFileLinks)
 	for layerIndex, layer := range layers {
 		var current []hiddenEntry
+		var layerObjects []*hiddenFileLinks
 		var visit func(string) error
 		visit = func(relative string) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			entries++
-			if entries > limits.MaxEntries {
-				return errors.New("hidden byte scan entry limit exceeded")
-			}
-			if err := reserve(relative); err != nil {
+			if err := state.trackEntry(relative); err != nil {
 				return err
 			}
 			path := filepath.Join(layer.Path, relative)
@@ -211,9 +159,6 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 			if !ok || info.Size() < 0 {
 				return errors.New("unsupported image file metadata")
 			}
-			if info.Mode().IsRegular() && stat.Nlink != 1 {
-				return fmt.Errorf("image file with hard links is unsupported: %s", relative)
-			}
 			meta, err := metadata(path, layer.UserXAttr)
 			if err != nil {
 				return err
@@ -225,7 +170,22 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 			if meta.opaque && !info.IsDir() {
 				return fmt.Errorf("opaque marker on non-directory: %s", relative)
 			}
-			current = append(current, hiddenEntry{path: relative, size: uint64(info.Size()), layer: layerIndex, mode: info.Mode(), whiteout: meta.whiteout || nativeWhiteout, opaque: meta.opaque})
+			entry := hiddenEntry{path: relative, mode: info.Mode(), whiteout: meta.whiteout || nativeWhiteout, opaque: meta.opaque}
+			if info.Mode().IsRegular() && !entry.whiteout {
+				id := hiddenFileID{device: uint64(stat.Dev), inode: stat.Ino}
+				object, exists := objects[id]
+				if !exists {
+					object = &hiddenFileLinks{data: &hiddenData{size: uint64(info.Size()), layer: layerIndex}, links: uint64(stat.Nlink)}
+					objects[id] = object
+					layerObjects = append(layerObjects, object)
+				}
+				if object.data.layer != layerIndex || object.data.size != uint64(info.Size()) || object.links != uint64(stat.Nlink) || stat.Nlink == 0 {
+					return errors.New("inconsistent or cross-layer image hardlink metadata")
+				}
+				object.seen++
+				entry.data = object.data
+			}
+			current = append(current, entry)
 			if !info.IsDir() {
 				return nil
 			}
@@ -253,38 +213,14 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 		if err := visit("."); err != nil {
 			return nil, fmt.Errorf("scan layer %s: %w", layer.DiffID, err)
 		}
-		// Apply markers only to older layers, never to files added beside them.
-		for _, entry := range current {
-			if entry.whiteout || entry.opaque {
-				if err := hide(entry.path, entry.opaque); err != nil {
-					return nil, err
-				}
+		for _, object := range layerObjects {
+			if object.seen != object.links {
+				return nil, errors.New("image hardlink group extends outside its layer")
 			}
 		}
-		for _, entry := range current {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			if entry.whiteout || entry.path == "." {
-				continue
-			}
-			old, exists := visible[entry.path]
-			if exists && !(entry.mode.IsDir() && old.mode.IsDir()) {
-				if err := hide(entry.path, false); err != nil {
-					return nil, err
-				}
-			}
-			if _, exists := visible[entry.path]; exists {
-				pathBytes -= uint64(len(entry.path))
-			}
-			if err := reserve(entry.path); err != nil {
-				return nil, err
-			}
-			visible[entry.path] = entry
-		}
-		for _, entry := range current {
-			pathBytes -= uint64(len(entry.path))
+		if err := state.applyLayer(current); err != nil {
+			return nil, err
 		}
 	}
-	return counts, nil
+	return state.counts, nil
 }

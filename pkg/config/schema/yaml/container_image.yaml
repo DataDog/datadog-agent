@@ -61,9 +61,11 @@ properties:
         type: boolean
         default: false
         description: >-
-          Collect hidden bytes per image layer on Linux with containerd's overlayfs
-          snapshotter. Requires read-only access to the unpacked layer directories
-          and permission to read overlayfs extended attributes.
+          Collect hidden bytes per image layer on Linux from containerd overlayfs
+          snapshots, falling back to locally available layer archives. Snapshot
+          scanning requires read-only access to unpacked layer directories and
+          permission to read overlayfs extended attributes. The archive fallback
+          reads and decompresses local layers without downloading image content.
   input_chan_size:
     node_type: setting
     type: integer
