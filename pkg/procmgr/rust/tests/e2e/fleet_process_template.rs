@@ -36,7 +36,7 @@ const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
 const EMPTY_SYSPROBE_YAML: &str = "# no modules enabled\n";
 
 /// Every gated key pinned false, which is what an operator who turned process collection
-/// off looks like. All six have to be written out, since leaving one absent lets its
+/// off looks like. Each one has to be written out, since leaving one absent lets its
 /// default reopen the gate on its own.
 const DISABLED_AGENT_YAML: &str = concat!(
     "api_key: 0000001\n",
@@ -46,9 +46,16 @@ const DISABLED_AGENT_YAML: &str = concat!(
     "  container_collection:\n    enabled: false\n",
     "  process_discovery:\n    enabled: false\n",
 );
+/// `system_probe_config.enabled` is derived from module enablement rather than read
+/// literally, so closing that half of the gate means turning the modules off, not just
+/// writing the key. `discovery.enabled` is the one whose default is platform-dependent:
+/// it is on for Linux outside Fargate and off everywhere else. The daemon under test
+/// resolves it against the host it runs on, so leaving it absent would gate this test on
+/// the CI runner's OS rather than on the Windows install it is describing.
 const DISABLED_SYSPROBE_YAML: &str = concat!(
     "network_config:\n  enabled: false\n",
     "system_probe_config:\n  enabled: false\n",
+    "discovery:\n  enabled: false\n",
 );
 
 #[test]
