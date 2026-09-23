@@ -4225,7 +4225,7 @@
 
 
 <h1 id="component-guidelines">Component guidelines<a class="headerlink" href="#component-guidelines" title="Permanent link">&para;</a></h1>
-<p>These conventions apply to every Agent component. See the <a href="../../architecture/components/">component framework overview</a> for the design rationale and the <a href="../../tutorials/components/creating-components/">creation tutorial</a> for a worked example.</p>
+<p>These conventions apply to every Agent component. See the <a href="../../architecture/components/">component framework overview</a> for the design rationale, the <a href="../../architecture/components/fx/">Fx overview</a> for dependency injection and constructor adaptation, and the <a href="../../tutorials/components/creating-components/">creation tutorial</a> for a worked example.</p>
 <h2 id="ownership-and-interfaces">Ownership and interfaces<a class="headerlink" href="#ownership-and-interfaces" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Each component must be owned by one team responsible for its support and maintenance.</li>
@@ -4243,33 +4243,34 @@
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>      def /              &lt;-- The folder containing the component interface and ALL its public types.
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>      impl /             &lt;-- The only or primary implementation of the component.
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      impl-&lt;alternate&gt; / &lt;-- An alternate implementation.
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>      impl-none /        &lt;-- Optional. A noop implementation.
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>      fx /               &lt;-- All fx related logic for the primary implementation, if any.
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>      fx-&lt;alternate&gt; /   &lt;-- All fx related logic for a specific implementation.
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>      mock /             &lt;-- The mock implementation of the component to ease testing.
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>      fx /               &lt;-- All fx related logic for the primary implementation, if any.
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>      fx-&lt;alternate&gt; /   &lt;-- All fx related logic for a specific implementation.
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>      mock /             &lt;-- The mock implementation of the component to ease testing.
 </span></code></pre></div>
 <p>To note:</p>
 <ul>
 <li>If your component has only one implementation, it should live in the <code>impl</code> folder.</li>
 <li>If your component has several implementations instead of a single implementation, you have multiple <code>impl-&lt;version&gt;</code> folders instead of an <code>impl</code> folder. For example, a compression component can have <code>impl-zstd</code> and <code>impl-zip</code> folders instead of an <code>impl</code> folder.</li>
-<li>If your component needs to offer a dummy/empty version, it should live in the <code>impl-none</code> folder.</li>
+<li>No-op implementations follow the alternate implementation layout; existing packages use names such as <code>impl-none</code> and <code>impl-noop</code>. Choose between a no-op component and an absent option according to <a href="../../how-to/components/optional-dependencies/#choose-between-a-no-op-component-and-absence">what consumers need</a>. Existing wrapper names do not consistently distinguish these behaviors.</li>
 </ul>
 <h2 id="package-and-constructor-conventions">Package and constructor conventions<a class="headerlink" href="#package-and-constructor-conventions" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Keep the interface and all public types in <code>def</code>. Consumers should not need to import implementation packages.</li>
 <li>Name implementation packages <code>&lt;COMPONENT_NAME&gt;impl</code>, or <code>&lt;IMPL_NAME&gt;impl</code> for an alternate implementation, and expose a <code>NewComponent</code> constructor.</li>
-<li>Declare constructor dependencies in a public <code>Requires</code> struct and outputs in a public <code>Provides</code> struct. Keep their fields public so the Fx wrapper can use them.</li>
+<li>Declare constructor dependencies in a plain exported <code>Requires</code> struct and outputs in a plain exported <code>Provides</code> struct. Export their fields so the Fx wrapper can use them. Do not embed <code>fx.In</code> or <code>fx.Out</code>; the constructor adapter supplies those mechanisms and rejects manually included Fx fields.</li>
 <li>Return <code>Provides</code> from an infallible constructor, or <code>(Provides, error)</code> when construction can fail.</li>
-<li>Confine Fx imports and references to the <code>fx</code> packages. Each <code>fx.go</code> must expose <code>func Module() fxutil.Module</code> and wrap the corresponding implementation.</li>
-<li>Supply a <code>fx-none</code> wrapper when consumers need an absent optional implementation. See <a href="../../how-to/components/optional-dependencies/">optional dependencies</a>.</li>
+<li>Keep production component implementations independent of Fx and <code>fxutil</code>; register their constructors in the <code>fx</code> packages. Tests may use Fx helpers directly. Each <code>fx.go</code> must expose <code>func Module() fxutil.Module</code> and return <code>fxutil.Component(...)</code>. Register implementation constructors with <code>fxutil.ProvideComponentConstructor(...)</code>.</li>
+<li>Put value-group tags on fields in the plain <code>Requires</code> and <code>Provides</code> structs. Prefer these structs to <code>fx.Annotate</code> so dependencies, outputs, and tags remain readable together. The constructor adapter preserves these tags; see <a href="../../architecture/components/fx/#value-groups">value groups</a>.</li>
+<li>Register <code>fxutil.ProvideOptional[T]()</code> explicitly when exposing a present component to optional consumers. To provide absence, register a provider returning <code>option.None[T]()</code> in the selected Fx wrapper. An <code>option.Option[T]</code> dependency still requires a provider; see <a href="../../how-to/components/optional-dependencies/">optional dependencies</a>.</li>
 </ul>
 <h2 id="mocks">Mocks<a class="headerlink" href="#mocks" title="Permanent link">&para;</a></h2>
 <p>Components must provide a mock implementation unless their public interface has no methods. A mock must implement the interface in <code>def</code> and may expose additional testing helpers. Mock constructors must accept a <code>*testing.T</code> parameter.</p>
 <h2 id="go-modules">Go modules<a class="headerlink" href="#go-modules" title="Permanent link">&para;</a></h2>
-<p>Go modules are optional. To make a component available outside this repository, create separate modules for its <code>def</code> package, the implementations being exported, and its mock package. Never put a Go module at the component root or in an Fx wrapper package.</p>
+<p>Go modules are optional. To make a component available outside this repository, create separate modules for its <code>def</code> package, the implementations being exported, and its mock package. For new components, do not put a Go module at the component root or in an Fx wrapper package. Existing components may have different module layouts.</p>
 <p>See <a href="../../how-to/go/modules/">adding nested modules</a> for the procedure.</p>
 <h2 id="concurrency-and-lifecycle">Concurrency and lifecycle<a class="headerlink" href="#concurrency-and-lifecycle" title="Permanent link">&para;</a></h2>
 <p>Components must be thread safe, tested, and documented. Public methods must be usable as soon as construction completes, although they may do nothing or drop data before the Agent finishes initialization. Document these behaviors and use <a href="../../architecture/components/fx/#lifecycle">lifecycle hooks</a> for startup and shutdown work.</p>
+<p>Use <code>compdef.Lifecycle</code> and <code>compdef.Hook</code> in implementations. Ensure application wiring supplies lifecycle adaptation exactly once; <code>fxutil.Run</code> and <code>fxutil.OneShot</code> already include it. Direct callers must supply a lifecycle implementation. See the <a href="../../architecture/components/fx/#lifecycle">Fx lifecycle explanation</a> for adapter choices and startup and shutdown ordering.</p>
 <h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
 <p>The documentation (both package-level and method-level) should include everything a user of the component needs to know. In particular, the documentation must address any assumptions that might lead to panic if violated by the user.</p>
 <p>Detailed documentation of how to avoid bugs in using a component is an indicator of excessive complexity and should be treated as a bug. Simplifying the usage will improve the robustness of the Agent.</p>

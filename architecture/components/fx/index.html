@@ -533,21 +533,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-is-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        What Is It?
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#providing-and-requiring" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Providing and Requiring
+        Providing and requiring
       </span>
     </span>
   </a>
@@ -558,7 +547,7 @@
   <a href="#apps-and-options" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Apps and Options
+        Apps and options
       </span>
     </span>
   </a>
@@ -580,19 +569,30 @@
   <a href="#ins-and-outs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Ins and Outs
+        Ins and outs
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Ins and Outs">
+    <nav class="md-nav" aria-label="Ins and outs">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#value-groups" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Value Groups
+        Value groups
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Optional values
       </span>
     </span>
   </a>
@@ -605,10 +605,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#related-documentation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Next steps
+        Related documentation
       </span>
     </span>
   </a>
@@ -884,21 +884,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-is-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        What Is It?
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#providing-and-requiring" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Providing and Requiring
+        Providing and requiring
       </span>
     </span>
   </a>
@@ -909,7 +898,7 @@
   <a href="#apps-and-options" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Apps and Options
+        Apps and options
       </span>
     </span>
   </a>
@@ -931,19 +920,30 @@
   <a href="#ins-and-outs" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Ins and Outs
+        Ins and outs
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Ins and Outs">
+    <nav class="md-nav" aria-label="Ins and outs">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#value-groups" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Value Groups
+        Value groups
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Optional values
       </span>
     </span>
   </a>
@@ -956,10 +956,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#related-documentation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Next steps
+        Related documentation
       </span>
     </span>
   </a>
@@ -994,178 +994,81 @@
 
 
 <h1 id="overview-of-fx">Overview of Fx<a class="headerlink" href="#overview-of-fx" title="Permanent link">&para;</a></h1>
-<p>The Agent uses <a href="https://uber-go.github.io/fx">Fx</a> as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.</p>
-<h2 id="what-is-it">What Is It?<a class="headerlink" href="#what-is-it" title="Permanent link">&para;</a></h2>
-<p>Fx's core functionality is to create instances of required types "automatically," also known as <a href="https://en.wikipedia.org/wiki/Dependency_injection">dependency injection</a>. Within the agent, these instances are components, so Fx connects components to one another. Fx creates a single instance of each component, on demand.</p>
-<p>This means that each component declares a few things about itself to Fx, including the other components it depends on. An "app" then declares the components it contains to Fx, and instructs Fx to start up the whole assembly.</p>
-<h2 id="providing-and-requiring">Providing and Requiring<a class="headerlink" href="#providing-and-requiring" title="Permanent link">&para;</a></h2>
-<p>Fx connects components using types. Within the Agent, these are typically interfaces named <code>Component</code>. For example, <code>scrubber.Component</code> might be an interface defining functionality for scrubbing passwords from data structures:</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="scrubbercomponentgo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="scrubbercomponentgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> scrubber/component.go</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">ScrubString</span><span class="p">(</span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kt">string</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">}</span>
-</span></code></pre></div>
-</div>
-</div>
-</div>
-<p>Fx needs to know how to <em>provide</em> an instance of this type when needed, and there are a few ways:</p>
+<p>The Agent uses <a href="https://uber-go.github.io/fx">Fx</a> to assemble applications through dependency injection. Component implementations receive ordinary Go values, while wrapper packages describe how the application obtains those values. This separation lets the same implementation run inside an Agent binary or be constructed directly by tests and other callers.</p>
+<p>The <a href="../../../tutorials/components/creating-components/">creation tutorial</a> demonstrates this separation with a compression component. The <a href="../../../guidelines/components/">component guidelines</a> define the repository conventions.</p>
+<h2 id="providing-and-requiring">Providing and requiring<a class="headerlink" href="#providing-and-requiring" title="Permanent link">&para;</a></h2>
+<p>Fx connects providers and consumers by type. A constructor makes its outputs available to the application, and another constructor can request those types as dependencies. Registering a provider records how to construct a value; construction happens only when the application needs that value. Fx shares the constructed value with its consumers within the application.</p>
+<p>For example, the tutorial's compression implementation requires configuration and logging. When an application requests the compression interface, Fx first resolves those dependencies and then calls the compression constructor. Unused providers remain unconstructed.</p>
+<p>A component can become required through another constructor's dependencies or through an application entry point:</p>
 <ul>
-<li><a href="https://pkg.go.dev/go.uber.org/fx#Provide"><code>fx.Provide(NewScrubber)</code></a> where <code>NewScrubber</code> is a constructor that returns a <code>scrubber.Component</code>. This indicates that if and when a <code>scrubber.Component</code> is required, Fx should call <code>NewScrubber</code>. It will call <code>NewScrubber</code> only once, using the same value everywhere it is required.</li>
-<li><a href="https://pkg.go.dev/go.uber.org/fx#Supply"><code>fx.Supply(scrubber)</code></a> where <code>scrubber</code> implements the <code>scrubber.Component</code> interface. When another component requires a <code>scrubber.Component</code>, this is the instance it will get.</li>
+<li><a href="https://pkg.go.dev/go.uber.org/fx#Invoke"><code>fx.Invoke</code></a> requests its arguments and runs during application construction. It can request several dependencies and return an error.</li>
+<li><a href="https://pkg.go.dev/go.uber.org/fx#Populate"><code>fx.Populate</code></a> requests values and stores them in the variables addressed by its pointer arguments. Tests can then inspect or call the assembled components.</li>
 </ul>
-<p>The first form is much more common, as most components have constructors that do interesting things at runtime. A constructor can return multiple arguments, in which case the constructor is called if <em>any</em> of those argument types are required. Constructors can also return <code>error</code> as the final return type. Fx will treat an error as fatal to app startup.</p>
-<p>Fx also needs to know when an instance is <em>required</em>, and this is where the magic happens. In specific circumstances, it uses reflection to examine the argument list of functions, and creates instances of each argument's type. Those circumstances are:</p>
-<ul>
-<li>Constructors used with <code>fx.Provide</code>. Imagine <code>NewScrubber</code> depends on the config module to configure secret matchers:
-      <div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">NewScrubber</span><span class="p">(</span><span class="nx">config</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">scrubber</span><span class="p">{</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="nx">matchers</span><span class="p">:</span><span class="w"> </span><span class="nx">makeMatchersFromConfig</span><span class="p">(</span><span class="nx">config</span><span class="p">),</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">}</span>
-</span></code></pre></div></li>
-<li>
-<p>Functions passed to <a href="https://pkg.go.dev/go.uber.org/fx#Invoke"><code>fx.Invoke</code></a>:</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">fx</span><span class="p">.</span><span class="nx">Invoke</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">sc</span><span class="w"> </span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"scrubbed: %s"</span><span class="p">,</span><span class="w"> </span><span class="nx">sc</span><span class="p">.</span><span class="nx">ScrubString</span><span class="p">(</span><span class="nx">somevalue</span><span class="p">))</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">})</span>
+<p>These alternative fragments show the same request. Here, <code>compression</code> is the tutorial's interface package and <code>fx</code> is <code>go.uber.org/fx</code>; each option is applied to an application that registers the compression wrapper and its dependencies.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">var</span><span class="w"> </span><span class="nx">comp</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nx">fx</span><span class="p">.</span><span class="nx">Populate</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">comp</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Like constructors, Invoked functions can take multiple arguments, and can optionally return an error. Invoked functions are called automatically when an app is created.</p>
-</li>
-<li>
-<p>Pointers passed to <a href="https://pkg.go.dev/go.uber.org/fx#Populate"><code>fx.Populate</code></a>.</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">var</span><span class="w"> </span><span class="nx">sc</span><span class="w"> </span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">Component</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">// ...</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nx">fx</span><span class="p">.</span><span class="nx">Populate</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">sc</span><span class="p">)</span>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">var</span><span class="w"> </span><span class="nx">comp</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nx">fx</span><span class="p">.</span><span class="nx">Invoke</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">value</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nx">comp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">value</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">})</span>
 </span></code></pre></div>
-<p>Populate is useful in tests to fill an existing variable with a provided value. It's equivalent to <code>fx.Invoke(func(tmp scrubber.Component) { *sc = tmp })</code>.</p>
-<p>Functions can take multiple arguments of different types, requiring all of them.</p>
-</li>
-</ul>
-<h2 id="apps-and-options">Apps and Options<a class="headerlink" href="#apps-and-options" title="Permanent link">&para;</a></h2>
-<p>You may have noticed that all of the <code>fx</code> methods defined so far return an <code>fx.Option</code>. They don't actually do anything on their own. Instead, Fx uses the <a href="https://commandcenter.blogspot.com/2014/01/self-referential-functions-and-design.html">functional options pattern</a> from Rob Pike. The idea is that a function takes a variable number of options, each of which has a different effect on the result.</p>
-<p>In Fx's case, the function taking the options is <a href="https://pkg.go.dev/go.uber.org/fx#New"><code>fx.New</code></a>, which creates a new <a href="https://pkg.go.dev/go.uber.org/fx#New"><code>fx.App</code></a>. It's within the context of an app that requirements are met, constructors are called, and so on.</p>
-<p>Tying the example above together, a very simple app might look like this:</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nx">someValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"my password is hunter2"</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nx">app</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fx</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Provide</span><span class="p">(</span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">NewScrubber</span><span class="p">),</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Invoke</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">sc</span><span class="w"> </span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"scrubbed: %s"</span><span class="p">,</span><span class="w"> </span><span class="nx">sc</span><span class="p">.</span><span class="nx">ScrubString</span><span class="p">(</span><span class="nx">somevalue</span><span class="p">))</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="p">}))</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nx">app</span><span class="p">.</span><span class="nx">Run</span><span class="p">()</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1">// Output: scrubbed: my password is *******</span>
-</span></code></pre></div>
-<p>For anything more complex, it's not practical to call <code>fx.Provide</code> for every component in a single source file. Fx has two abstraction mechanisms that allow combining lots of options into one app:</p>
-<ul>
-<li><a href="https://pkg.go.dev/go.uber.org/fx#Options"><code>fx.Options</code></a> simply bundles several Option values into a single Option that can be placed in a variable. As the example in the Fx documentation shows, this is useful to gather the options related to a single Go package, which might include un-exported items, into a single value typically named <code>Module</code>.</li>
-<li><a href="https://pkg.go.dev/go.uber.org/fx#Module"><code>fx.Module</code></a> is very similar, with two additional features. First, it requires a module name which is used in some Fx logging and can help with debugging. Second, it creates a scope for the effects of <a href="https://pkg.go.dev/go.uber.org/fx#Decorate"><code>fx.Decorate</code></a> and <a href="https://pkg.go.dev/go.uber.org/fx#Replace"><code>fx.Replace</code></a>. The second feature is not used in the Agent.</li>
-</ul>
-<p>So a slightly more complex version of the example might be:</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="scrubbercomponentgo_1" name="__tabbed_2" type="radio" /><input id="maingo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="scrubbercomponentgo_1"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> scrubber/component.go</label><label for="maingo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> main.go</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">Module</span><span class="p">()</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Module</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Module</span><span class="p">(</span><span class="s">"scrubber"</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Provide</span><span class="p">(</span><span class="nx">newScrubber</span><span class="p">))</span><span class="w">    </span><span class="c1">// now newScrubber need not be exported</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">}</span>
-</span></code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nx">someValue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"my password is hunter2"</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nx">app</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fx</span><span class="p">.</span><span class="nx">New</span><span class="p">(</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">Module</span><span class="p">(),</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Invoke</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">sc</span><span class="w"> </span><span class="nx">scrubber</span><span class="p">.</span><span class="nx">Component</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">        </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Printf</span><span class="p">(</span><span class="s">"scrubbed: %s"</span><span class="p">,</span><span class="w"> </span><span class="nx">sc</span><span class="p">.</span><span class="nx">ScrubString</span><span class="p">(</span><span class="nx">somevalue</span><span class="p">))</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="p">}))</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nx">app</span><span class="p">.</span><span class="nx">Run</span><span class="p">()</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="c1">// Output: scrubbed: my password is *******</span>
-</span></code></pre></div>
-</div>
-</div>
-</div>
+<p>Underlying Fx also supports <a href="https://pkg.go.dev/go.uber.org/fx#Provide"><code>fx.Provide</code></a> for ordinary provider functions and <a href="https://pkg.go.dev/go.uber.org/fx#Supply"><code>fx.Supply</code></a> for existing values. A supplied value is registered under its concrete type, so it does not automatically satisfy every interface that type implements. A provider with an interface return type exposes that interface explicitly.</p>
+<h2 id="apps-and-options">Apps and options<a class="headerlink" href="#apps-and-options" title="Permanent link">&para;</a></h2>
+<p>Registration helpers return options describing an application. <a href="https://pkg.go.dev/go.uber.org/fx#New"><code>fx.New</code></a> applies those options, resolves dependencies requested by invocations and population, and reports construction errors through <code>app.Err()</code>. A missing dependency, duplicate provider, or constructor error prevents startup. <code>app.Run()</code> starts the application, waits for a shutdown signal, and stops it.</p>
+<p><a href="https://pkg.go.dev/go.uber.org/fx#Options"><code>fx.Options</code></a> combines options, while <a href="https://pkg.go.dev/go.uber.org/fx#Module"><code>fx.Module</code></a> also groups them under a name and scopes operations such as <code>fx.Decorate</code> and <code>fx.Replace</code>. Agent wrappers return <code>fxutil.Module</code> through <code>fxutil.Component(...)</code>, which derives the module's name from its location. This Agent wrapper type differs from the <code>fx.Option</code> returned directly by <code>fx.Module(...)</code>.</p>
+<p>Agent binaries commonly use <code>fxutil.Run</code> for a long-running application or <code>fxutil.OneShot</code> for a command. Both include the Agent's lifecycle and shutdown adapters and Fx logging. <code>OneShot</code> calls its command function after startup completes and shuts the application down afterward. Ordinary <code>fx.Invoke</code> callbacks run earlier, during construction.</p>
 <h2 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h2>
-<p>Fx provides an <a href="https://pkg.go.dev/go.uber.org/fx#Lifecycle"><code>fx.Lifecycle</code></a> component that allows hooking into application start-up and shut-down. Use it in your component's constructor like this:</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">newScrubber</span><span class="p">(</span><span class="nx">lc</span><span class="w"> </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Lifecycle</span><span class="p">)</span><span class="w"> </span><span class="nx">Component</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="nx">sc</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">scrubber</span><span class="p">{..}</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nx">lc</span><span class="p">.</span><span class="nx">Append</span><span class="p">(</span><span class="nx">fx</span><span class="p">.</span><span class="nx">Hook</span><span class="p">{</span><span class="nx">OnStart</span><span class="p">:</span><span class="w"> </span><span class="nx">sc</span><span class="p">.</span><span class="nx">start</span><span class="p">,</span><span class="w"> </span><span class="nx">OnStop</span><span class="p">:</span><span class="w"> </span><span class="nx">sc</span><span class="p">.</span><span class="nx">stop</span><span class="p">})</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">sc</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">}</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">sc</span><span class="w"> </span><span class="o">*</span><span class="nx">scrubber</span><span class="p">)</span><span class="w"> </span><span class="nx">start</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">sc</span><span class="w"> </span><span class="o">*</span><span class="nx">scrubber</span><span class="p">)</span><span class="w"> </span><span class="nx">stop</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">..</span><span class="w"> </span><span class="p">}</span>
+<p>Construction establishes dependencies; lifecycle hooks coordinate work that must start and stop with the application. Implementations express these hooks through <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/def/lifecycle.go"><code>compdef.Lifecycle</code> and <code>compdef.Hook</code></a> so their code remains independent of Fx.</p>
+<p>An implementation receives a lifecycle in its <code>Requires</code> struct and appends hooks during construction. The application goes through four phases:</p>
+<ol>
+<li>Initialization constructs requested components and runs invocations. Hooks are registered but have not run.</li>
+<li>Startup calls <code>OnStart</code> hooks in registration order. Dependencies are constructed before their consumers, so hooks appended by those constructors follow that order.</li>
+<li>Runtime begins after startup completes. Startup hooks schedule ongoing work and return, allowing later hooks to run.</li>
+<li>Shutdown calls <code>OnStop</code> hooks in reverse order. If startup fails, Fx rolls back the hooks whose startup completed successfully.</li>
+</ol>
+<p>An unused provider never gets an opportunity to register its hooks. This is why registering a component's wrapper alone does not start its background work. Public methods may also be called by an invocation before startup, which motivates the <a href="../../../guidelines/components/#concurrency-and-lifecycle">component lifecycle requirements</a>.</p>
+<p>The boundary between the plain lifecycle and Fx is explicit. <a href="https://github.com/DataDog/datadog-agent/blob/main/pkg/util/fxutil/provide_comp.go#L332"><code>fxutil.FxLifecycleAdapter()</code></a> supplies <code>compdef.Lifecycle</code> from Fx's lifecycle. <code>fxutil.FxAgentBase()</code> includes that adapter, the shutdown adapter, and Fx logging. An application built directly with <code>fx.New</code> needs the appropriate option when its components request these interfaces. The constructor adapter does not supply lifecycle adaptation.</p>
+<p><code>fxutil.Run</code> and <code>fxutil.OneShot</code> already register <code>FxAgentBase</code>. Adding either adapter option to them, or combining both options in an <code>fx.New</code> application, duplicates providers.</p>
+<p>Direct callers provide their own lifecycle implementation. Tests can use <code>compdef.NewTestLifecycle(t)</code> with the repository's <code>test</code> build tag. Older Agent implementations and underlying Fx examples may instead depend directly on <code>fx.Lifecycle</code> and <code>fx.Hook</code>.</p>
+<p>Fx applies startup and shutdown timeouts when running an application. Hooks that respect cancellation of their supplied context allow those limits to take effect.</p>
+<h2 id="ins-and-outs">Ins and outs<a class="headerlink" href="#ins-and-outs" title="Permanent link">&para;</a></h2>
+<p><a href="https://pkg.go.dev/go.uber.org/fx#In"><code>fx.In</code></a> and <a href="https://pkg.go.dev/go.uber.org/fx#Out"><code>fx.Out</code></a> identify dependency and result structs to Fx. Agent implementations use plain exported <code>Requires</code> and <code>Provides</code> structs so that their constructors also work without Fx.</p>
+<p><a href="https://github.com/DataDog/datadog-agent/blob/main/pkg/util/fxutil/provide_comp.go"><code>fxutil.ProvideComponentConstructor</code></a> creates an adapter around the plain constructor. It adds Fx's markers to generated input and output types, preserves exported fields and their tags, and translates values between the generated types and the implementation's structs. A <code>Provides</code> struct can expose several types; a constructor can also return an error, which the adapter passes through to Fx.</p>
+<p>For example, the compression tutorial's output and the adapter's corresponding output have these conceptual shapes. The <code>compression</code> alias denotes the tutorial's interface package and <code>fx</code> denotes <code>go.uber.org/fx</code>. The generated type is shown only to explain the adapter.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">Comp</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">}</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kd">type</span><span class="w"> </span><span class="nx">fxProvides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Out</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nx">Comp</span><span class="w"> </span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>This separates the application's lifecycle into a few distinct phases:</p>
+<p>The adapter rejects unexported fields and manually included <code>fx.In</code> or <code>fx.Out</code> fields. The wrapper owns Fx registration, while the implementation's types describe its dependencies and results. The <a href="../../../guidelines/components/#package-and-constructor-conventions">constructor conventions</a> capture this boundary.</p>
+<h3 id="value-groups">Value groups<a class="headerlink" href="#value-groups" title="Permanent link">&para;</a></h3>
+<p><a href="https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups">Value groups</a> let several providers contribute values of the same type. A producer tags an output with a group name, and a consumer requests a slice with that name. The constructor adapter preserves these tags.</p>
+<p>The <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/core/remoteagentregistry/impl/registry.go">remote-agent registry</a> uses this mechanism for event subscribers. Its <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/core/remoteagentregistry/def/subscriber.go">subscriber helper</a> returns an Fx-aware struct embedding <code>fx.Out</code>. The following example adapts the subscriber type and group tag to plain producer and consumer structs registered through <code>fxutil.ProvideComponentConstructor</code>. Only the group-related fields are shown; <code>remoteagentregistry</code> denotes <a href="https://github.com/DataDog/datadog-agent/tree/main/comp/core/remoteagentregistry/def">the registry's interface package</a>.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">Subscriber</span><span class="w"> </span><span class="o">*</span><span class="nx">remoteagentregistry</span><span class="p">.</span><span class="nx">EventSubscriber</span><span class="w"> </span><span class="s">`group:"remoteAgentEventSubscriber"`</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">}</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Requires</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nx">EventSubscribers</span><span class="w"> </span><span class="p">[]</span><span class="o">*</span><span class="nx">remoteagentregistry</span><span class="p">.</span><span class="nx">EventSubscriber</span><span class="w"> </span><span class="s">`group:"remoteAgentEventSubscriber"`</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>When the registry is requested, Fx constructs the providers contributing subscribers. Their order in the resulting slice is unspecified. A group with no providers yields an empty slice, so the registry can accept any number of subscribers.</p>
+<h3 id="optional-values">Optional values<a class="headerlink" href="#optional-values" title="Permanent link">&para;</a></h3>
+<p>An <code>option.Option[T]</code> dependency is an ordinary required type to Fx. It needs a provider even when its value represents absence. This differs from a value group, which can resolve without contributors.</p>
+<p><a href="https://github.com/DataDog/datadog-agent/blob/main/pkg/util/fxutil/provide_optional.go"><code>fxutil.ProvideOptional[T]()</code></a> requires a provider for <code>T</code> and wraps its value with <code>option.New[T](value)</code>; supplying absence requires a separate provider returning <code>option.None[T]()</code>. A no-op implementation still supplies <code>T</code>; converting it to an option produces a present value.</p>
+<p>The <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/core/ipc/fx-none/fx.go">IPC <code>fx-none</code> wrapper</a> supplies a no-op component and a present option. The <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/anomalydetection/recorder/fx-noop/fx_noop.go">recorder <code>fx-noop</code> wrapper</a> supplies an absent option. Existing package names do not consistently distinguish these behaviors.</p>
+<h2 id="related-documentation">Related documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Initialization - calling constructors to satisfy requirements, and calling invoked functions that require them.</li>
-<li>Startup - calling components' OnStart hooks (in the same order the components were initialized)</li>
-<li>Runtime - steady state</li>
-<li>Shutdown - calling components' OnStop hooks (reverse of the startup order)</li>
+<li>Follow the <a href="../../../tutorials/components/creating-components/">creation tutorial</a> to build and exercise a complete component.</li>
+<li>Follow the <a href="../../../how-to/components/optional-dependencies/">optional-dependency guide</a> to make an existing consumer work with an absent dependency.</li>
+<li>See <a href="../../../how-to/components/using-components/">using components in a binary</a> for application assembly.</li>
+<li>Consult the <a href="../../../guidelines/components/">component guidelines</a> for repository conventions.</li>
 </ul>
-<h2 id="ins-and-outs">Ins and Outs<a class="headerlink" href="#ins-and-outs" title="Permanent link">&para;</a></h2>
-<p>Fx provides some convenience types to help build constructors that require or provide lots of types: <a href="https://pkg.go.dev/go.uber.org/fx#In"><code>fx.In</code></a> and <a href="https://pkg.go.dev/go.uber.org/fx#Out"><code>fx.Out</code></a>. Both types are embedded in structs, which can then be used as argument and return types for constructors, respectively. By convention, these are named <code>dependencies</code> and <code>provides</code> in Agent code:</p>
-<div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">dependencies</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">In</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nx">Config</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">Component</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nx">Log</span><span class="w"> </span><span class="nx">log</span><span class="p">.</span><span class="nx">Component</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="nx">Status</span><span class="w"> </span><span class="nx">status</span><span class="p">.</span><span class="nx">Component</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">}</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="kd">type</span><span class="w"> </span><span class="nx">provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Out</span>
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
-</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="nx">Component</span>
-</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="c1">// ... (we'll see why this is useful below)</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="p">}</span>
-</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="kd">func</span><span class="w"> </span><span class="nx">newScrubber</span><span class="p">(</span><span class="nx">deps</span><span class="w"> </span><span class="nx">dependencies</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">provides</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// can return an fx.Out struct and other types, such as error</span>
-</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="c1">// ..</span>
-</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">provides</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">        </span><span class="nx">Component</span><span class="p">:</span><span class="w"> </span><span class="nx">scrubber</span><span class="p">,</span>
-</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">        </span><span class="c1">// ..</span>
-</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">    </span><span class="p">},</span><span class="w"> </span><span class="kc">nil</span>
-</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>In and Out provide a nice way to summarize and document requirements and provided types, and also allow annotations via Go struct tags. Note that annotations are also possible with <a href="https://pkg.go.dev/go.uber.org/fx#Annotate"><code>fx.Annotate</code></a>, but it is much less readable and its use is discouraged.</p>
-<h3 id="value-groups">Value Groups<a class="headerlink" href="#value-groups" title="Permanent link">&para;</a></h3>
-<p><a href="https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups">Value groups</a> make it easier to produce and consume many values of the same type. A component can add any type into groups which can be consumed by other components.</p>
-<p>For example:</p>
-<p>Here, two components add a <code>server.Endpoint</code> type to the <code>server</code> group (note the <code>group</code> label in the <code>fx.Out</code> struct).</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="todolisttodolistgo" name="__tabbed_3" type="radio" /><input id="usersusersgo" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="todolisttodolistgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> todolist/todolist.go</label><label for="usersusersgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> users/users.go</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Out</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nx">Component</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nx">Endpoint</span><span class="w"> </span><span class="nx">server</span><span class="p">.</span><span class="nx">Endpoint</span><span class="w"> </span><span class="s">`group:"server"`</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">}</span>
-</span></code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">provides</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Out</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nx">Component</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="nx">Endpoint</span><span class="w"> </span><span class="nx">server</span><span class="p">.</span><span class="nx">Endpoint</span><span class="w"> </span><span class="s">`group:"server"`</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">}</span>
-</span></code></pre></div>
-</div>
-</div>
-</div>
-<p>Here, a component requests all the types added to the <code>server</code> group. This takes the form of a slice received at instantiation (note once again the <code>group</code> label but in <code>fx.In</code> struct).</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="4:1"><input checked="checked" id="serverservergo" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="serverservergo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> server/server.go</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">dependencies</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">In</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nx">Endpoints</span><span class="w"> </span><span class="p">[]</span><span class="nx">Endpoint</span><span class="w"> </span><span class="s">`group:"server"`</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
-</span></code></pre></div>
-</div>
-</div>
-</div>
-<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>Follow the <a href="../../../tutorials/components/creating-components/">component creation tutorial</a> to apply these concepts, or see how to <a href="../../../how-to/components/using-components/">use components in a binary</a>. The <a href="../../../guidelines/components/">component guidelines</a> describe the conventions Agent components must follow.</p>
 
 
 

@@ -2003,10 +2003,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#optional-component" class="md-nav__link">
+  <a href="#choose-between-a-no-op-component-and-absence" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Optional Component
+        Choose between a no-op component and absence
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declare-the-optional-dependency" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Declare the optional dependency
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handle-absence-in-the-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Handle absence in the consumer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provide-a-present-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Provide a present implementation
       </span>
     </span>
   </a>
@@ -2018,6 +2051,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Provide an absent implementation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#register-and-verify-the-selected-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Register and verify the selected provider
       </span>
     </span>
   </a>
@@ -4085,10 +4129,43 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#optional-component" class="md-nav__link">
+  <a href="#choose-between-a-no-op-component-and-absence" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Optional Component
+        Choose between a no-op component and absence
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declare-the-optional-dependency" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Declare the optional dependency
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handle-absence-in-the-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Handle absence in the consumer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provide-a-present-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Provide a present implementation
       </span>
     </span>
   </a>
@@ -4100,6 +4177,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Provide an absent implementation
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#register-and-verify-the-selected-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Register and verify the selected provider
       </span>
     </span>
   </a>
@@ -4132,44 +4220,81 @@
 
 
 <h1 id="use-optional-component-dependencies">Use optional component dependencies<a class="headerlink" href="#use-optional-component-dependencies" title="Permanent link">&para;</a></h1>
-<h2 id="optional-component">Optional Component<a class="headerlink" href="#optional-component" title="Permanent link">&para;</a></h2>
-<p>You might need to express the fact that some of your dependencies are optional. This often happens for components that interact with many other components <strong>if available</strong> (that is, if they were included at compile time). This allows your component to interact with each other without forcing their inclusion in the current binary.</p>
-<p>The <a href="https://github.com/DataDog/datadog-agent/tree/main/pkg/util/option">option.Option</a> type answers this need.</p>
-<p>For examples, consider the metadata components that are included in multiple binaries (<code>core-agent</code>, <code>DogStatsD</code>, etc.). These components use the <code>sysprobeconfig</code> component if it is available. <code>sysprobeconfig</code> is available in the <code>core-agent</code> but not in <code>DogStatsD</code>.</p>
-<p>To do this in the <code>metadata</code> component:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>type Requires struct {
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    SysprobeConf optional.Option[sysprobeconfig.Component]
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    [...]
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>}
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>func NewMetadata(deps Requires) (metadata.Component) {
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    if sysprobeConf, found := deps.SysprobeConf.Get(); found {
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        // interact with sysprobeconfig
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    }
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>}
+<p>Use this guide when an existing component must work in binaries that omit one of its dependencies. It assumes the consumer already has a plain constructor and an Fx wrapper; follow the <a href="../../../tutorials/components/creating-components/">creation tutorial</a> if you need to create them first.</p>
+<p>The fragments below use the tutorial's compression interface. Adapt them to your existing consumer and register its constructor through its usual wrapper.</p>
+<h2 id="choose-between-a-no-op-component-and-absence">Choose between a no-op component and absence<a class="headerlink" href="#choose-between-a-no-op-component-and-absence" title="Permanent link">&para;</a></h2>
+<p>Choose a no-op implementation when consumers should keep calling the interface while its operations do nothing. Choose an absent option when consumers should detect that the component is unavailable and take their own fallback path.</p>
+<p>Check what an existing wrapper provides before selecting it. The <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/core/ipc/fx-none/fx.go">IPC <code>fx-none</code> wrapper</a> supplies a no-op component and a present option. The <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/anomalydetection/recorder/fx-noop/fx_noop.go">recorder <code>fx-noop</code> wrapper</a> supplies an absent option. See the <a href="../../../architecture/components/fx/#optional-values">Fx explanation</a> for the difference.</p>
+<h2 id="declare-the-optional-dependency">Declare the optional dependency<a class="headerlink" href="#declare-the-optional-dependency" title="Permanent link">&para;</a></h2>
+<p>Add these imports to the consumer's implementation:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="s">"github.com/DataDog/datadog-agent/pkg/util/option"</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>The above code produces a generic component, included in both <code>core-agent</code> and <code>DogStatsD</code> binaries, that <strong>can</strong> interact with <code>sysprobeconfig</code> without forcing the binaries to compile with it.</p>
-<p>You can use this pattern for every component, since all components provide Fx with a conversion function to convert their <code>Component</code> interfaces to <code>optional.Option[Component]</code> (see <a href="../../../tutorials/components/creating-components/">creating components</a>).</p>
+<p>Add an exported field to its existing <code>Requires</code> struct:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nx">Compression</span><span class="w"> </span><span class="nx">option</span><span class="p">.</span><span class="nx">Option</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">]</span>
+</span></code></pre></div>
+<p>Store that value on the consumer if it will be used after construction. Keep the consumer's existing constructor adapter; it handles this field just like other dependency types.</p>
+<h2 id="handle-absence-in-the-consumer">Handle absence in the consumer<a class="headerlink" href="#handle-absence-in-the-consumer" title="Permanent link">&para;</a></h2>
+<p>Call <code>Get()</code> before using the dependency and implement the absent case. This helper prepares bytes using compression when available. Add it to the consumer's implementation, add <code>"bytes"</code> to its imports, and call it from the consumer's existing method with the optional value and payload.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">preparePayload</span><span class="p">(</span><span class="nx">compressionOption</span><span class="w"> </span><span class="nx">option</span><span class="p">.</span><span class="nx">Option</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">],</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">compressor</span><span class="p">,</span><span class="w"> </span><span class="nx">found</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">compressionOption</span><span class="p">.</span><span class="nx">Get</span><span class="p">();</span><span class="w"> </span><span class="nx">found</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">compressor</span><span class="p">.</span><span class="nx">Compress</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">Clone</span><span class="p">(</span><span class="nx">data</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>This fallback returns a copy of the original data. A sender must also communicate the selected encoding to its receiver.</p>
+<h2 id="provide-a-present-implementation">Provide a present implementation<a class="headerlink" href="#provide-a-present-implementation" title="Permanent link">&para;</a></h2>
+<p>In the dependency's Fx wrapper, register its implementation constructor and an optional conversion. The following expression belongs inside <code>Module</code>, with <code>compression</code>, <code>compressionimpl</code>, and <code>fxutil</code> imported as in the <a href="../../../tutorials/components/creating-components/#register-the-component-with-fx">tutorial's wrapper</a>:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">return</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Component</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">ProvideComponentConstructor</span><span class="p">(</span><span class="nx">compressionimpl</span><span class="p">.</span><span class="nx">NewComponent</span><span class="p">),</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">ProvideOptional</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">](),</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The component scaffold includes <code>ProvideOptional</code> by default; check for it before adding the registration to an existing wrapper. The application must also register the configuration and logging dependencies of the compression implementation.</p>
 <h2 id="provide-an-absent-implementation">Provide an absent implementation<a class="headerlink" href="#provide-an-absent-implementation" title="Permanent link">&para;</a></h2>
-<p>Some binaries may omit a component required as an <a href="#optional-component">optional dependency</a>.</p>
-<p>Provide an Fx wrapper called <code>fx-none</code> so those binaries can supply an absent component without duplicating the wrapper.</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="compcompressionfx-nonefxgo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="compcompressionfx-nonefxgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/fx-none/fx.go</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">compression</span><span class="w"> </span><span class="s">"github.com/DataDog/datadog-agent/comp/compression/def"</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">)</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="kd">func</span><span class="w"> </span><span class="nx">Module</span><span class="p">()</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Module</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Component</span><span class="p">(</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Provide</span><span class="p">(</span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="nx">optional</span><span class="p">.</span><span class="nx">Option</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">optional</span><span class="p">.</span><span class="nx">NewNoneOption</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">]()</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="p">}))</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
+<p>For binaries that omit the dependency, register a provider returning <code>option.None[T]()</code> in the selected Fx wrapper, following the <a href="https://github.com/DataDog/datadog-agent/blob/main/comp/anomalydetection/recorder/fx-noop/fx_noop.go">recorder example</a>.</p>
+<p>For the compression example, add <code>"go.uber.org/fx"</code>, <code>"github.com/DataDog/datadog-agent/pkg/util/fxutil"</code>, and the compression and option imports shown above. Use this body for the wrapper's <code>func Module() fxutil.Module</code>:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">return</span><span class="w"> </span><span class="nx">fxutil</span><span class="p">.</span><span class="nx">Component</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nx">fx</span><span class="p">.</span><span class="nx">Provide</span><span class="p">(</span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="nx">option</span><span class="p">.</span><span class="nx">Option</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">option</span><span class="p">.</span><span class="nx">None</span><span class="p">[</span><span class="nx">compression</span><span class="p">.</span><span class="nx">Component</span><span class="p">]()</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="p">}),</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
 </span></code></pre></div>
-</div>
-</div>
-</div>
+<p>This provider needs no compression implementation or configuration and logging dependencies. It cannot satisfy a consumer that requires <code>compression.Component</code> directly.</p>
+<h2 id="register-and-verify-the-selected-provider">Register and verify the selected provider<a class="headerlink" href="#register-and-verify-the-selected-provider" title="Permanent link">&para;</a></h2>
+<p>Register the consumer's wrapper and exactly one provider of its optional dependency in the <a href="../using-components/">application</a>. Select the present wrapper when compression is available or the absent wrapper when the consumer should use its fallback. Request the consumer through an entry point such as <code>fx.Invoke</code> so Fx constructs it.</p>
+<p>Check both configurations:</p>
+<ul>
+<li>With the present wrapper, confirm that the consumer calls compression and handles any returned error.</li>
+<li>With the absent wrapper, confirm that the consumer takes the fallback path and returns a copy of the input.</li>
+</ul>
+<p>For direct constructor tests, import the <a href="../../../tutorials/components/creating-components/#add-a-mock-for-consumers">tutorial's mock</a> from <code>github.com/DataDog/datadog-agent/comp/compression/mock</code> as <code>compressionmock</code>. Pass <code>option.New[compression.Component](compressionmock.New(t).Comp)</code> or <code>option.None[compression.Component]()</code> in the consumer's <code>Requires</code> value. With this mock, expect the prepared payload to equal <code>[]byte("compressed")</code>; with absence, expect a copy of the input. Also exercise application assembly with each wrapper to check provider registration.</p>
+<p>If assembly fails, check these cases:</p>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Correction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Missing <code>option.Option[compression.Component]</code> provider (<code>missing type:</code> or <code>missing types:</code>).</td>
+<td>Register either the optional conversion or an absent-option provider.</td>
+</tr>
+<tr>
+<td>Missing <code>compression.Component</code> provider (<code>missing type:</code> or <code>missing types:</code>).</td>
+<td>Register its implementation alongside the optional conversion. <code>ProvideOptional</code> requires an existing component.</td>
+</tr>
+<tr>
+<td>Duplicate optional provider (<code>already provided by</code>).</td>
+<td>Register only the selected wrapper and remove any repeated conversion.</td>
+</tr>
+</tbody>
+</table>
 
 
 
