@@ -340,16 +340,35 @@ func TestAcquireLockOrTimeout(t *testing.T) {
 		d := &AgentDemultiplexer{}
 		d.m.Lock()
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-		defer cancel()
+		acquired := make(chan struct{})
+		released := make(chan struct{})
+		d.abandonedLockAcquiredHook = func() {
+			close(acquired)
+		}
+		d.abandonedLockReleasedHook = func() {
+			close(released)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 
 		require.False(t, d.acquireLockOrTimeout(ctx), "should give up once the deadline expires")
 
 		d.m.Unlock()
 
-		require.Eventually(t, func() bool {
-			return d.m.TryLock()
-		}, time.Second, time.Millisecond, "the lock acquired after giving up must still be released, not held forever")
+		select {
+		case <-acquired:
+		case <-time.After(time.Second):
+			require.FailNow(t, "timed out waiting for background lock acquisition")
+		}
+
+		select {
+		case <-released:
+		case <-time.After(time.Second):
+			require.FailNow(t, "timed out waiting for background lock release")
+		}
+
+		require.True(t, d.m.TryLock(), "the lock acquired after giving up must still be released, not held forever")
 		d.m.Unlock()
 	})
 }

@@ -80,6 +80,10 @@ type AgentDemultiplexer struct {
 
 	// sharded statsd time samplers
 	statsd
+
+	// test hooks
+	abandonedLockAcquiredHook func()
+	abandonedLockReleasedHook func()
 }
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
@@ -548,7 +552,13 @@ func (d *AgentDemultiplexer) acquireLockOrTimeout(ctx context.Context) bool {
 	case <-ctx.Done():
 		go func() {
 			<-acquired
+			if d.abandonedLockAcquiredHook != nil {
+				d.abandonedLockAcquiredHook()
+			}
 			d.m.Unlock()
+			if d.abandonedLockReleasedHook != nil {
+				d.abandonedLockReleasedHook()
+			}
 		}()
 		return false
 	}
