@@ -76,6 +76,30 @@ func TestIsEC2UUID(t *testing.T) {
 	assert.True(t, isEC2UUID())
 }
 
+func TestIsRunningOnDMI(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+
+	setupDMIForNotEC2(t)
+	assert.False(t, IsRunningOnDMI())
+
+	// board vendor identifies the host as EC2
+	setupDMIForEC2(t)
+	assert.True(t, IsRunningOnDMI())
+
+	// no board vendor, but UUID identifies the host as EC2
+	dmi.SetupMock(t, "ec20b498-1488-4e75-82ba-a6931a9daf36", "", "", "")
+	assert.True(t, IsRunningOnDMI())
+
+	dmi.SetupMock(t, "", "", "", "")
+	assert.False(t, IsRunningOnDMI())
+
+	cfg = configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", false)
+	setupDMIForEC2(t)
+	assert.False(t, IsRunningOnDMI())
+}
+
 func TestIsEC2UUIDSwapEndian(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("ec2_use_dmi", true)
