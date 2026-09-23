@@ -622,26 +622,37 @@ network_devices:
 log_level: info`)
 }
 
-func TestDataSecurityScanningRules(t *testing.T) {
-	assertClean(t,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: '\\d{6}'\ntask_id: task-1\n"), } }`,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: "********"`)
-
-	// `pattern` outside of scanning rules is left untouched.
-	assertClean(t, "log_processing_rules:\n  - pattern: 'keep\\s+me'", "log_processing_rules:\n  - pattern: 'keep\\s+me'")
-
-	scrubbed, err := ScrubYamlString(`
-scanning_rules:
+func TestDataSecurityScanningRulePatterns(t *testing.T) {
+	t.Run("YAML object: only patterns under scanning_rules are scrubbed", func(t *testing.T) {
+		input := `scanning_rules:
   - id: rule-1
     pattern: '\d+'
 log_processing_rules:
   - pattern: 'keep\s+me'
-task_id: task-1`)
-	require.NoError(t, err)
-	assert.Contains(t, scrubbed, `pattern: '********'`)
-	assert.Contains(t, scrubbed, `id: rule-1`)
-	assert.Contains(t, scrubbed, `keep\s+me`)
-	assert.NotContains(t, scrubbed, `\d+`)
+task_id: task-1
+`
+		expected := `scanning_rules:
+  - id: rule-1
+    pattern: "********"
+log_processing_rules:
+  - pattern: 'keep\s+me'
+task_id: task-1
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
+	t.Run("single-line YAML text: pattern is scrubbed to end of line", func(t *testing.T) {
+		input := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: '\\d{6}'\ntask_id: task-1\n"), } }`
+		expected := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: "********"`
+		assertClean(t, input, expected)
+	})
+
+	t.Run("YAML text: pattern outside of scanning_rules is preserved", func(t *testing.T) {
+		input := "log_processing_rules:\n  - pattern: 'keep\\s+me'"
+		assertClean(t, input, input)
+	})
 }
 
 func TestBearerToken(t *testing.T) {
