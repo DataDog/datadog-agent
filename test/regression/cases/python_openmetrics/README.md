@@ -50,6 +50,3 @@ Each metric is labeled with a realistic set of dimensions:
 - **CPU usage**: average total CPU must stay below 1,500 millicores
 - **Memory usage**: total PSS must stay below 4.75 GiB
 - **Check execution time**: average per-instance execution time must stay below 100ms. 
-  This is critical — if individual check runs take too long, the 500 instances cannot 
-  all complete within their 15-second collection interval, causing scheduling delays and
-  stale metrics.

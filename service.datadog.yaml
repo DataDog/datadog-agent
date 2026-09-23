@@ -16,19 +16,19 @@ links:
   - name: internal-chart
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent
   - name: internal-chart-with-operator
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
   - name: internal-image
     provider: github
     type: repo
-    url: https://github.com/DataDog/images/tree/master/datadog-agent
+    url: https://github.com/ddoghq/images/tree/master/datadog-agent
   - name: deployment
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops
   - name: Runbook
     type: doc
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
@@ -127,19 +127,19 @@ links:
   - name: internal-chart
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-cluster-agent
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-cluster-agent
   - name: internal-chart-with-operator
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
   - name: internal-image
     type: repo
     provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-cluster-agent
+    url: https://github.com/ddoghq/images/tree/master/datadog-cluster-agent
   - name: deployment
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops
   - name: Runbook
     type: doc
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
@@ -173,19 +173,19 @@ links:
   - name: internal-chart
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-cluster-worker
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-cluster-worker
   - name: internal-chart-with-operator
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
   - name: internal-image
     type: repo
     provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-agent-cluster-worker
+    url: https://github.com/ddoghq/images/tree/master/datadog-agent-cluster-worker
   - name: deployment
     type: repo
     provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops
   - name: Runbook
     type: doc
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks

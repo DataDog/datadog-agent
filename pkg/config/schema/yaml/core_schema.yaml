@@ -1491,7 +1491,8 @@ properties:
     default: 0
     visibility: public
     description: |-
-      `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+      `secret_refresh_interval` is the interval (in seconds) at which eligible Agent and integration secrets are refreshed.
+      This also retries integration secrets that could not be resolved initially. A 0 value means the feature is disabled.
       For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
     tags:
     - template_section:Agent
@@ -8636,7 +8637,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           sleep_interval:
             node_type: setting
             type: string
@@ -8817,6 +8818,8 @@ properties:
   security_agent:
     node_type: section
     type: object
+    visibility: public
+    description: Settings specific to the security Agent process.
     properties:
       cmd_port:
         node_type: setting
@@ -8924,12 +8927,38 @@ properties:
             node_type: setting
             type: string
             default: ''
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SECURITY_AGENT_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for the security Agent only.
+          Leave empty to use the global `log_level`.
       log_file:
         node_type: setting
         type: string
         default: ${log_path}/security-agent.log
     tags:
     - full-agent-only:true
+  system_probe:
+    node_type: section
+    type: object
+    visibility: public
+    description: system-probe settings the core Agent owns and streams to system-probe.
+    properties:
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SYSTEM_PROBE_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for system-probe only.
+          Leave empty to use the global `log_level`.
   serializer_compressor_kind:
     node_type: setting
     type: string

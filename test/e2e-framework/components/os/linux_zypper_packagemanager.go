@@ -70,6 +70,23 @@ func (m *ZypperPackageManager) Ensure(packageRef string, transform command.Trans
 	return cmd, nil
 }
 
+func (m *ZypperPackageManager) AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	pulumiOpts := append(params.PulumiResourceOptions, m.pulumiOpts...)
+
+	cmd, err := assertInstalledCommand(m.runner, m.namer, checkBinary, pulumiOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the package manager isn't running in parallel
+	m.pulumiOpts = append(m.pulumiOpts, utils.PulumiDependsOn(cmd))
+	return cmd, nil
+}
+
 func (m *ZypperPackageManager) EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
 	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
 	if err != nil {
