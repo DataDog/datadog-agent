@@ -52,12 +52,13 @@ cc_shared_library(
 pkg_files(
     name = "headers",
     srcs = ["include/yaml.h"],
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "yaml_pkg",
     input = ":yaml",
+    dest_dir = "embedded/lib",
     version = VERSION,
     installed_files = [":headers"],
     visibility = ["//visibility:public"],
@@ -68,6 +69,5 @@ pkg_filegroup(
     srcs = [
         ":headers",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

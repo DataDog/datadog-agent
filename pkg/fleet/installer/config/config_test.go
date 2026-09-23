@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
@@ -217,6 +218,32 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 	err = op.apply(context.Background(), root)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
+}
+
+func TestOperationApply_SNMPCredentialsFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	root, err := os.OpenRoot(tmpDir)
+	require.NoError(t, err)
+	defer root.Close()
+
+	// The credentials directory does not exist yet: writing the first file under it
+	// relies on the operation creating it.
+	op := &FileOperation{
+		FileOperationType: FileOperationMergePatch,
+		FilePath:          "/conf.d/snmp.d/credentials/snmp_credentials.yaml",
+		Patch:             []byte(`{"foo": "bar"}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	written, err := os.ReadFile(filepath.Join(tmpDir, "conf.d", "snmp.d", "credentials", "snmp_credentials.yaml"))
+	require.NoError(t, err)
+	var writtenMap map[string]any
+	err = yaml.Unmarshal(written, &writtenMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "bar", writtenMap["foo"])
 }
 
 func TestOperationApply_NestedConfigFile(t *testing.T) {
