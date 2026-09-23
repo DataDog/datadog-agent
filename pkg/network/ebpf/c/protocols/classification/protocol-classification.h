@@ -177,6 +177,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     // fail marking the use of protocol_stack an invalid access.
     protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
+    // Evaluate now rather than at the use site below: holding the nullable protocol_stack pointer live across
+    // is_tls()'s helper calls lets older verifiers (e.g. 4.14) lose track of it when spilled, rejecting the dereference.
+    bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
+
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
 
@@ -218,7 +222,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If we have already classified the encryption layer, we can skip the rest of the classification
-    if (is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (encryption_layer_known) {
         return;
     }
 
