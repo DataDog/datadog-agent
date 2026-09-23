@@ -173,9 +173,14 @@ func (w *Worker) Run(ctx context.Context) {
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
 	utilizationTracker := utilizationtracker.NewUtilizationTrackerWithClock(w.utilizationTickInterval, w.clock, alpha)
+
+	utilizationUpdaterDone := startUtilizationUpdater(w, utilizationTracker)
+	// Deferred in this order so that, on the way out, the tracker stops (closing
+	// its Output channel) before we wait for the updater goroutine to drain it
+	// and delete this worker's telemetry/expvar entries.
+	defer func() { <-utilizationUpdaterDone }()
 	defer utilizationTracker.Stop()
 
-	startUtilizationUpdater(w, utilizationTracker)
 	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval, w.clock)
 	defer cancel()
 
@@ -305,7 +310,11 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracker) {
+// startUtilizationUpdater starts a goroutine that publishes utilization
+// readings until ut.Output closes, then deletes this worker's telemetry and
+// expvar entries. The returned channel is closed once that cleanup has run,
+// so callers can wait for it instead of racing with it.
+func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracker) <-chan struct{} {
 	name := w.Name
 
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
@@ -315,7 +324,9 @@ func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracke
 
 	workerUtilization.Set(0, name)
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
 				Utilization: value.Utilization,
@@ -329,6 +340,8 @@ func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracke
 		// worker names are never reused, so remove the series with the worker.
 		workerUtilization.Delete(name)
 	}()
+
+	return done
 }
 
 func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration, clk clock.Clock) func() {
