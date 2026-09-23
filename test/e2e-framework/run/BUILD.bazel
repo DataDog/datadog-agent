@@ -5,11 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/run",
     visibility = ["//visibility:private"],
-    deps = [
-        "//test/e2e-framework/registry",
-        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
-        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
-    ],
+    deps = ["//test/e2e-framework/registry"],
 )
 
 go_binary(
