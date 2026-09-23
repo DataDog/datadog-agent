@@ -28,6 +28,9 @@ var (
 
 // IsRunningOn returns true if the agent is running on Oracle
 func IsRunningOn(ctx context.Context) bool {
+	if isChassisAssetTagOracle() {
+		return true
+	}
 	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}
