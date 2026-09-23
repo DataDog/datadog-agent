@@ -52,7 +52,50 @@ func TestHeadlessStreamParquetMatchesRetainedOutput(t *testing.T) {
 
 	retained := readObserverOutput(t, retainedOutput)
 	stream := readObserverOutput(t, streamOutput)
+	require.Nil(t, retained.DetectorAnomalies)
+	require.Nil(t, stream.DetectorAnomalies)
 	// Processing durations vary between runs; counts and observer results must match.
+	retained.Metadata.Stats.DetectorStats = nil
+	stream.Metadata.Stats.DetectorStats = nil
+	require.Equal(t, retained, stream)
+}
+
+func TestHeadlessStreamParquetMatchesRetainedDetectorOutput(t *testing.T) {
+	scenariosDir := t.TempDir()
+	parquetDir := filepath.Join(scenariosDir, "scenario", "parquet")
+	require.NoError(t, os.MkdirAll(parquetDir, 0o755))
+	writeParityLogParquet(t, filepath.Join(parquetDir, "observer-logs-000000.parquet"))
+	writeParityMetricParquet(t, filepath.Join(parquetDir, "observer-metrics-000000.parquet"))
+
+	retainedOutput := filepath.Join(t.TempDir(), "retained.json")
+	streamOutput := filepath.Join(t.TempDir(), "stream.json")
+	params := CLIParams{
+		ScenariosDir:             scenariosDir,
+		Headless:                 "scenario",
+		IncludeDetectorAnomalies: true,
+		ComponentSettings: observerimpl.ComponentSettings{Baseline: observerimpl.BaselineConfig{
+			Enabled:          true,
+			DurationSec:      60,
+			MuteNoisyMetrics: true,
+		}},
+	}
+
+	params.Output = retainedOutput
+	params.RetainParquet = true
+	runFxApp(t, params)
+
+	params.Output = streamOutput
+	params.RetainParquet = false
+	runFxApp(t, params)
+
+	retained := readObserverOutput(t, retainedOutput)
+	stream := readObserverOutput(t, streamOutput)
+	require.NotNil(t, retained.DetectorAnomalies)
+	require.NotNil(t, stream.DetectorAnomalies)
+	require.NotNil(t, retained.Metadata.TotalDetectorAnomalies)
+	require.NotNil(t, stream.Metadata.TotalDetectorAnomalies)
+	require.Equal(t, len(*retained.DetectorAnomalies), *retained.Metadata.TotalDetectorAnomalies)
+	require.Equal(t, len(*stream.DetectorAnomalies), *stream.Metadata.TotalDetectorAnomalies)
 	retained.Metadata.Stats.DetectorStats = nil
 	stream.Metadata.Stats.DetectorStats = nil
 	require.Equal(t, retained, stream)
