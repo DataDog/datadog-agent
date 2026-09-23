@@ -80,7 +80,6 @@ dd_agent_go_test(
         "installer_install_test.go",
         "installer_rollback_test.go",
         "installer_test.go",
-        "package_procmgr_switch_test.go",
         "persisting_extensions_test.go",
     ],
     data = [

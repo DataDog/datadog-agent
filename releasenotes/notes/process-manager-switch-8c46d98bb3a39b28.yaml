@@ -9,7 +9,7 @@
 features:
   - |
     Installer: The installer daemon can now switch which service manager (``dd-procmgrd`` or the
-    native systemd/SCM services) supervises the Agent's extension processes after install, via
+    native systemd services) supervises the Agent's extension processes after install on Linux with systemd, via
     its internal ``datadog-installer daemon process-manager enable|disable`` entry point. The
     switch runs inside the daemon itself so it reliably sees the host's actual process manager
     state, rather than reverting to the compiled default like a one-off CLI invocation would.

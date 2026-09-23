@@ -20,7 +20,6 @@ namespace Datadog.CustomActions
             ("DD_OTELCOLLECTOR_ENABLED", "DD_OTELCOLLECTOR_ENABLED"),
             // EUDM gate for the ai-usage extension (installed via installAgentExtensions)
             ("DD_INFRASTRUCTURE_MODE", "DD_INFRASTRUCTURE_MODE"),
-            ("DD_PROCESS_MANAGER_ENABLED", "DD_PROCESS_MANAGER_ENABLED"),
         };
 
         private readonly ISession _session;

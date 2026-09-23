@@ -37,7 +37,6 @@ type DatadogInstallerRunner interface {
 	StartExperiment(packageName string, packageVersion string) (string, error)
 	PromoteExperiment(packageName string) (string, error)
 	StopExperiment(packageName string) (string, error)
-	ProcessManager(subcommand string) (string, error)
 	InstallPackage(packageName string, opts ...installer.PackageOption) (string, error)
 	InstallExperiment(packageName string, opts ...installer.PackageOption) (string, error)
 	RemovePackage(packageName string) (string, error)
@@ -201,12 +200,6 @@ func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error)
 // StopExperiment will use the Datadog Installer service to stop an experiment.
 func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
-}
-
-// ProcessManager enables or disables dd-procmgrd as the supervisor for the processes that
-// support it, via the Datadog Installer daemon. subcommand must be "enable" or "disable".
-func (d *DatadogInstaller) ProcessManager(subcommand string) (string, error) {
-	return d.execute("daemon process-manager " + subcommand)
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.

@@ -12,14 +12,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -70,8 +67,6 @@ var datadogAgentPackage = hooks{
 const (
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
-	parServiceName        = "datadog-agent-action"
-	ddProcmgrServiceName  = "dd-procmgr-service"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -118,23 +113,6 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	// Persist the process manager selection, and write the ADP/PAR/PAR-executor processes.d
-	// configs, before touching extensions below: postInstallDDOTExtension (via
-	// installAgentExtensions/restoreAgentExtensions) reads process_manager.enabled back from
-	// datadog.yaml, so the config must already reflect the requested value by the time it runs.
-	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
-	if err := writeProcessManagerEnabledToConfig(processManagerEnabled); err != nil {
-		return fmt.Errorf("failed to persist process manager selection: %w", err)
-	}
-	for _, cfg := range procmgrConfigs {
-		if cfg.label == "DDOT" {
-			continue
-		}
-		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
-			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
-		}
-	}
-
 	// Common for both OCI and MSI: Restore extensions.
 	// For OCI fleet installs the MSI custom action fires RunPostInstallHook (PackageTypeMSI)
 	// AND the OCI hook chain also calls restoreAgentExtensions. The Install() call inside
@@ -162,6 +140,12 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if !isExperiment {
 		if err := installAgentExtensions(ctx, agentVersion, isExperiment); err != nil {
 			log.Warnf("failed to install extensions: %s", err)
+		}
+	}
+
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
 		}
 	}
 
@@ -227,35 +211,18 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
-	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
 }
 
-func resolveDDOTExtensionPackageRoot() (string, error) {
-	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
-	packagePath := repos.Get(agentPackage).StablePath()
-	if resolved, err := filepath.EvalSymlinks(packagePath); err == nil {
-		packagePath = resolved
-	}
-	return packagePath, nil
-}
-
-func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
+func ensureProcmgrConfig(cfg procmgrConfig) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	root := installRoot
-	if cfg.label == "DDOT" {
-		if root, err = resolveDDOTExtensionPackageRoot(); err != nil {
-			return err
-		}
+	if env.FromEnv().ProcessManagerEnabled {
+		return cfg.write(installRoot)
 	}
-
-	if processManagerEnabled {
-		return cfg.write(root)
-	}
-	if err := cfg.remove(root); err != nil {
+	if err := cfg.remove(installRoot); err != nil {
 		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
@@ -1099,143 +1066,6 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }
 
-func setProcmgrConfigs(enabled bool) error {
-	for _, cfg := range procmgrConfigs {
-		if err := ensureProcmgrConfig(cfg, enabled); err != nil {
-			return fmt.Errorf("failed to configure %s process manager config: %w", cfg.label, err)
-		}
-	}
-	return nil
-}
-
-func transitionServices(enabled bool) error {
-	services := []string{otelServiceName, parServiceName}
-	if enabled {
-		for _, service := range services {
-			if err := stopServiceIfExists(service); err != nil {
-				return fmt.Errorf("could not stop service %s: %w", service, err)
-			}
-		}
-		if err := startServiceIfExists(ddProcmgrServiceName); err != nil {
-			return fmt.Errorf("could not start %s: %w", ddProcmgrServiceName, err)
-		}
-		return nil
-	}
-	if err := stopServiceIfExists(ddProcmgrServiceName); err != nil {
-		return fmt.Errorf("could not stop %s: %w", ddProcmgrServiceName, err)
-	}
-	for _, service := range services {
-		if err := startServiceIfExists(service); err != nil {
-			return fmt.Errorf("could not start service %s: %w", service, err)
-		}
-	}
-	return nil
-}
-
-func SetProcessManager(ctx context.Context, enabled bool) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "set_process_manager")
-	span.SetTag("enabled", enabled)
-	defer func() { span.Finish(err) }()
-
-	previouslyEnabled, err := readProcessManagerEnabledFromConfig()
-	if err != nil {
-		return fmt.Errorf("failed to read current process manager selection: %w", err)
-	}
-	if previouslyEnabled == enabled {
-		return nil
-	}
-
-	pendingActions := []func() error{}
-	unwind := func() error {
-		var errs error
-		slices.Reverse(pendingActions)
-		for i, action := range pendingActions {
-			if actionErr := action(); actionErr != nil {
-				log.Errorf("failed to unwind process manager switch step %d/%d: %v", i, len(pendingActions), actionErr)
-				errs = errors.Join(errs, actionErr)
-			}
-		}
-		return errs
-	}
-
-	pendingActions = append(pendingActions, func() error { return setProcmgrConfigs(previouslyEnabled) })
-	if err = setProcmgrConfigs(enabled); err != nil {
-		return errors.Join(err, unwind())
-	}
-
-	pendingActions = append(pendingActions, func() error { return transitionServices(previouslyEnabled) })
-	if err = transitionServices(enabled); err != nil {
-		return errors.Join(err, unwind())
-	}
-
-	pendingActions = append(pendingActions, func() error { return writeProcessManagerEnabledToConfig(previouslyEnabled) })
-	if err = writeProcessManagerEnabledToConfig(enabled); err != nil {
-		return errors.Join(err, unwind())
-	}
-
-	return nil
-}
-
-func processManagerDatadogYAMLPath() string {
-	return filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-}
-
-func isProcessManagerEnabledInConfig() bool {
-	enabled, err := readProcessManagerEnabledFromConfig()
-	if err != nil {
-		log.Warnf("could not read process_manager.enabled from datadog.yaml, defaulting to enabled: %v", err)
-		return true
-	}
-	return enabled
-}
-
-func readProcessManagerEnabledFromConfig() (bool, error) {
-	data, err := os.ReadFile(processManagerDatadogYAMLPath())
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return true, nil
-		}
-		return false, fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-	var existing map[string]any
-	if err := yaml.Unmarshal(data, &existing); err != nil {
-		return false, fmt.Errorf("failed to parse datadog.yaml: %w", err)
-	}
-	section, ok := existing["process_manager"].(map[string]any)
-	if !ok {
-		return true, nil
-	}
-	enabled, ok := section["enabled"].(bool)
-	if !ok {
-		return true, nil
-	}
-	return enabled, nil
-}
-
-func writeProcessManagerEnabledToConfig(enabled bool) error {
-	datadogYamlPath := processManagerDatadogYAMLPath()
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-	var existing map[string]any
-	if len(data) > 0 {
-		if err := yaml.Unmarshal(data, &existing); err != nil {
-			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
-		}
-	}
-	if existing == nil {
-		existing = map[string]any{}
-	}
-	section, ok := existing["process_manager"].(map[string]any)
-	if !ok {
-		section = map[string]any{}
-	}
-	section["enabled"] = enabled
-	existing["process_manager"] = section
-	updated, err := yaml.Marshal(existing)
-	if err != nil {
-		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
-	}
-	return os.WriteFile(datadogYamlPath, updated, 0o640)
+func SetProcessManager(_ context.Context, _ bool) error {
+	return errors.New("switching the process manager is not supported on Windows")
 }

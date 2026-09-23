@@ -41,10 +41,8 @@ new-e2e-fleet-config:
         DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetConfig$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
 new-e2e-fleet-upgrade:
@@ -58,10 +56,8 @@ new-e2e-fleet-upgrade:
         DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
 
 new-e2e-fleet-extensions:
@@ -73,11 +69,9 @@ new-e2e-fleet-extensions:
         DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetExtensions$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
-        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
-        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
