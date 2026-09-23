@@ -419,6 +419,29 @@ func (suite *ConfigTestSuite) TestExplicitSiteWithEmptyDDSite() {
 	assert.Equal(t, "test.metrics.com", c.Get("dd_url"))
 }
 
+func (suite *ConfigTestSuite) TestSiteWithWhitespace() {
+	t := suite.T()
+	// Verify that api.site with whitespace is properly trimmed
+	fileName := "testdata/config_site_with_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Site should be trimmed
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestSiteWithOnlyWhitespace() {
+	t := suite.T()
+	// Site with only whitespace should fall back to pkgconfig default
+	fileName := "testdata/config_site_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Should use pkgconfig default (datadoghq.com)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+}
 func (suite *ConfigTestSuite) TestNilDatadogExporter() {
 	t := suite.T()
 	fileName := "testdata/config_nil_datadog_exporter.yaml"
