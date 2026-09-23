@@ -60,7 +60,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
 	assert.Equal(t, "Found 2 configuration errors in datadog.yaml", issue.GetTitle())
-	assert.Equal(t, "Open /etc/datadog-agent/datadog.yaml in an editor.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "Check the settings listed below in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
 	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
@@ -123,7 +123,7 @@ func TestBuildIssue_Remediation(t *testing.T) {
 				description = "at '/setting': configuration does not match schema"
 			}
 			assert.Equal(t, "Found 1 configuration error in datadog.yaml", issue.Title)
-			assert.Equal(t, "Found 1 configuration error in /etc/datadog-agent/datadog.yaml: "+description, issue.Description)
+			assert.Equal(t, "Found 1 configuration error in /etc/datadog-agent/datadog.yaml or environment variables: "+description, issue.Description)
 			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
 		})
 	}

@@ -40,16 +40,14 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
 	errorWord := english.PluralWord(count, "error", "errors")
 	path := ctx[contextKeyConfigPath]
-	var title, desc, configStep string
+	var title, desc string
 	if path == "" {
 		path = "(unknown path)"
 		desc = fmt.Sprintf("Found %d %s in the Agent configuration", count, errorWord)
 		title = desc
-		configStep = "Check the settings listed below in your Agent configuration file or environment variables."
 	} else {
 		title = fmt.Sprintf("Found %d configuration %s in %s", count, errorWord, filepath.Base(path))
-		desc = fmt.Sprintf("Found %d configuration %s in %s", count, errorWord, path)
-		configStep = fmt.Sprintf("Open %s in an editor.", path)
+		desc = fmt.Sprintf("Found %d configuration %s in %s or environment variables", count, errorWord, path)
 	}
 
 	errLines := make([]string, 0, count)
@@ -59,7 +57,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		}
 	}
 
-	errGroups := make(map[string][]string, len(errLines))
+	errGroups := make(map[string][]any, len(errLines))
 	for _, line := range errLines {
 		// Schema errors have the form: at '<path>': <message>
 		// Strip the "at '" prefix and trailing "'" to get a bare JSON path.
@@ -69,11 +67,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	}
 	errMap := make(map[string]any, len(errGroups))
 	for path, msgs := range errGroups {
-		slice := make([]any, len(msgs))
-		for i, m := range msgs {
-			slice[i] = m
-		}
-		errMap[path] = slice
+		errMap[path] = msgs
 	}
 
 	// Add optional violation details before converting the map to protobuf.
@@ -113,7 +107,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		Remediation: &healthplatform.Remediation{
 			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: configStep},
+				{Order: 1, Text: "Check the settings listed below in your Agent configuration file or environment variables."},
 				{Order: 2, Text: correction},
 				{Order: 3, Text: "Restart the Datadog Agent."},
 				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
