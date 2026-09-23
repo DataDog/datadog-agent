@@ -2,5 +2,4 @@
 enhancements:
   - |
     Agent Health configuration errors now explain what type of value a setting
-    needs, what type it received, and its default when known. Reports do not
-    include the values from your configuration.
+    needs, what type it received, and its default when known.
