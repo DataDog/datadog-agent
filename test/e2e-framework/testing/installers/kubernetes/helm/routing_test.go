@@ -130,7 +130,16 @@ func TestImageCapabilitiesAndDeliveryIdentityAreSeparate(t *testing.T) {
 	if err := bad.Validate(); err == nil {
 		t.Fatal("mixed Docker/OCI identities accepted")
 	}
-	if err := validateProducerProfile(Params{AgentVersion: "7.99.0-local", ClusterAgentVersion: "7.83.0"}); err == nil {
-		t.Fatal("semver tag accepted as capability proof")
+	devImage := ImageArtifact{Repository: "registry.example.test/dev/agent", Tag: "7.99.0-e2ectl-unique-build", LocalImageID: "sha256:" + strings.Repeat("a", 64)}
+	if err := validateProducerProfile(Params{AgentVersion: "7.99.0-local", ClusterAgentVersion: "7.83.0", Image: &devImage}); err == nil {
+		t.Fatal("dev image without capability profile accepted")
+	}
+	if err := validateProducerProfile(Params{AgentVersion: "7.99.0-local", ClusterAgentVersion: "7.83.0", Profile: profile}); err == nil {
+		t.Fatal("capability profile without its verified image accepted")
+	}
+	// Released installs are version-agnostic: any AgentVersion passes without
+	// capability evidence, and the DCA version is a caller default, not a gate.
+	if err := validateProducerProfile(Params{AgentVersion: "7.69.0", ClusterAgentVersion: "7.69.0"}); err != nil {
+		t.Fatal(err)
 	}
 }

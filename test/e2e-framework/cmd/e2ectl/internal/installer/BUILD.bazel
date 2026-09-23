@@ -24,6 +24,7 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/localinfra",
         "//test/e2e-framework/cmd/e2ectl/internal/receiver",
         "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/agent",
         "//test/e2e-framework/cmd/internal/envconfig/binary",
         "//test/e2e-framework/cmd/internal/envconfig/helm",
         "//test/e2e-framework/cmd/internal/envconfig/localpackage",

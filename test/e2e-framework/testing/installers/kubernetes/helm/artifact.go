@@ -45,27 +45,22 @@ func (a ImageArtifact) Validate() error {
 
 func validateProducerProfile(p Params) error {
 	if p.Profile == nil {
+		// Release installs render version-agnostic routing: the chart's standard
+		// datadog.* values. A released AgentVersion is not evidence, so none is
+		// required — but a dev image without capability evidence is a silent
+		// unsupported-combination risk, and is rejected honestly.
 		if p.Image != nil {
-			return fmt.Errorf("non-release artifact requires producer capabilities")
+			return fmt.Errorf("dev image artifacts require producer capability evidence")
 		}
-		if p.AgentVersion != "7.83.0" {
-			return fmt.Errorf("released routing profile supports Agent 7.83.0; other artifacts require capability and delivery evidence")
-		}
-	} else {
-		if err := p.Profile.Require(receivers.CoreAgent, receivers.TraceAgent, receivers.ProcessAgent, receivers.ClusterChecksRunner); err != nil {
-			return err
-		}
-		if p.Image == nil {
-			return fmt.Errorf("producer capability evidence requires its verified image artifact")
-		}
-		if err := p.Image.Validate(); err != nil {
-			return err
-		}
+		return nil
 	}
-	if p.ClusterAgentVersion != "7.83.0" {
-		return fmt.Errorf("Cluster Agent requires the released 7.83.0 profile")
+	if err := p.Profile.Require(receivers.CoreAgent, receivers.TraceAgent, receivers.ProcessAgent, receivers.ClusterChecksRunner); err != nil {
+		return err
 	}
-	return nil
+	if p.Image == nil {
+		return fmt.Errorf("producer capability evidence requires its verified image artifact")
+	}
+	return p.Image.Validate()
 }
 
 func applyImageArtifact(values map[string]interface{}, image *ImageArtifact) {

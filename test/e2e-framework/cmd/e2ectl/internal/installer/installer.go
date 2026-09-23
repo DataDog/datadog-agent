@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
+	agentconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/agent"
 	helmconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/helm"
 	scriptconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/script"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/agentbuild"
@@ -240,8 +241,9 @@ func (k *Kubernetes) install(cfg *config.File, entry envstore.Entry, skip bool) 
 		params.Profile = artifact.Profile
 		params.AgentVersion = tag
 		// The core image is not a rebuilt Cluster Agent. Keep its separately tested
-		// released image instead of silently retagging DCA or using mutable latest.
-		params.ClusterAgentVersion = "7.83.0"
+		// released image (the shared default released version) instead of silently
+		// retagging DCA or using mutable latest.
+		params.ClusterAgentVersion = agentconfig.DefaultVersion
 	} else {
 		params.AgentVersion = section.Version
 		params.ClusterAgentVersion = section.Version
