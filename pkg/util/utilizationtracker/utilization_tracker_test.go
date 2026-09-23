@@ -20,7 +20,7 @@ import (
 
 func newTracker(_ *testing.T) (*UtilizationTracker, *clock.Mock) {
 	clk := clock.NewMock()
-	ut := newUtilizationTrackerWithClock(
+	ut := NewUtilizationTrackerWithClock(
 		100*time.Millisecond,
 		clk,
 		0.25,
