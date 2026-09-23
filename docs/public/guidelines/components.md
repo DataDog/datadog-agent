@@ -1,6 +1,6 @@
 # Component guidelines
 
-These conventions apply to every Agent component. See the [component framework overview](../architecture/components/index.md) for the design rationale and the [creation tutorial](../tutorials/components/creating-components.md) for a worked example.
+These conventions apply to every Agent component. See the [component framework overview](../architecture/components/index.md) for the design rationale, the [Fx overview](../architecture/components/fx.md) for dependency injection and constructor adaptation, and the [creation tutorial](../tutorials/components/creating-components.md) for a worked example.
 
 ## Ownership and interfaces
 
@@ -23,7 +23,6 @@ comp /
       def /              <-- The folder containing the component interface and ALL its public types.
       impl /             <-- The only or primary implementation of the component.
       impl-<alternate> / <-- An alternate implementation.
-      impl-none /        <-- Optional. A noop implementation.
       fx /               <-- All fx related logic for the primary implementation, if any.
       fx-<alternate> /   <-- All fx related logic for a specific implementation.
       mock /             <-- The mock implementation of the component to ease testing.
@@ -33,16 +32,17 @@ To note:
 
 * If your component has only one implementation, it should live in the `impl` folder.
 * If your component has several implementations instead of a single implementation, you have multiple `impl-<version>` folders instead of an `impl` folder. For example, a compression component can have `impl-zstd` and `impl-zip` folders instead of an `impl` folder.
-* If your component needs to offer a dummy/empty version, it should live in the `impl-none` folder.
+* No-op implementations follow the alternate implementation layout; existing packages use names such as `impl-none` and `impl-noop`. Choose between a no-op component and an absent option according to [what consumers need](../how-to/components/optional-dependencies.md#choose-between-a-no-op-component-and-absence). Existing wrapper names do not consistently distinguish these behaviors.
 
 ## Package and constructor conventions
 
 - Keep the interface and all public types in `def`. Consumers should not need to import implementation packages.
 - Name implementation packages `<COMPONENT_NAME>impl`, or `<IMPL_NAME>impl` for an alternate implementation, and expose a `NewComponent` constructor.
-- Declare constructor dependencies in a public `Requires` struct and outputs in a public `Provides` struct. Keep their fields public so the Fx wrapper can use them.
+- Declare constructor dependencies in a plain exported `Requires` struct and outputs in a plain exported `Provides` struct. Export their fields so the Fx wrapper can use them. Do not embed `fx.In` or `fx.Out`; the constructor adapter supplies those mechanisms and rejects manually included Fx fields.
 - Return `Provides` from an infallible constructor, or `(Provides, error)` when construction can fail.
-- Confine Fx imports and references to the `fx` packages. Each `fx.go` must expose `func Module() fxutil.Module` and wrap the corresponding implementation.
-- Supply a `fx-none` wrapper when consumers need an absent optional implementation. See [optional dependencies](../how-to/components/optional-dependencies.md).
+- Keep production component implementations independent of Fx and `fxutil`; register their constructors in the `fx` packages. Tests may use Fx helpers directly. Each `fx.go` must expose `func Module() fxutil.Module` and return `fxutil.Component(...)`. Register implementation constructors with `fxutil.ProvideComponentConstructor(...)`.
+- Put value-group tags on fields in the plain `Requires` and `Provides` structs. Prefer these structs to `fx.Annotate` so dependencies, outputs, and tags remain readable together. The constructor adapter preserves these tags; see [value groups](../architecture/components/fx.md#value-groups).
+- Register `fxutil.ProvideOptional[T]()` explicitly when exposing a present component to optional consumers. To provide absence, register a provider returning `option.None[T]()` in the selected Fx wrapper. An `option.Option[T]` dependency still requires a provider; see [optional dependencies](../how-to/components/optional-dependencies.md).
 
 ## Mocks
 
@@ -50,13 +50,15 @@ Components must provide a mock implementation unless their public interface has 
 
 ## Go modules
 
-Go modules are optional. To make a component available outside this repository, create separate modules for its `def` package, the implementations being exported, and its mock package. Never put a Go module at the component root or in an Fx wrapper package.
+Go modules are optional. To make a component available outside this repository, create separate modules for its `def` package, the implementations being exported, and its mock package. For new components, do not put a Go module at the component root or in an Fx wrapper package. Existing components may have different module layouts.
 
 See [adding nested modules](../how-to/go/modules.md) for the procedure.
 
 ## Concurrency and lifecycle
 
 Components must be thread safe, tested, and documented. Public methods must be usable as soon as construction completes, although they may do nothing or drop data before the Agent finishes initialization. Document these behaviors and use [lifecycle hooks](../architecture/components/fx.md#lifecycle) for startup and shutdown work.
+
+Use `compdef.Lifecycle` and `compdef.Hook` in implementations. Ensure application wiring supplies lifecycle adaptation exactly once; `fxutil.Run` and `fxutil.OneShot` already include it. Direct callers must supply a lifecycle implementation. See the [Fx lifecycle explanation](../architecture/components/fx.md#lifecycle) for adapter choices and startup and shutdown ordering.
 
 ## Documentation
 

@@ -934,7 +934,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			}
 			// ignore the metric if it doesn't have a transformer
 			// or if it isn't mapped to a datadog metric name
-			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			}
 		}
 	}
 	for _, aggregator := range k.metricAggregators {
@@ -1274,7 +1276,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.metadataMetricsRegex.MatchString(name)
+		isMetadataMetric := k.shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
