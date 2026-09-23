@@ -169,6 +169,23 @@ Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...
 uv tool install git+https://github.com/DataDog/ddgl-cli
 ```
 
+Before using `ddgl`, ensure authentication and project discovery are configured.
+For a GitHub checkout without existing `ddgl` configuration, use:
+
+```bash
+set +x  # Do not expose tokens through shell tracing.
+export GITLAB_URL=https://gitlab.ddbuild.io
+export GITLAB_PROJECT_ID=DataDog/datadog-agent
+GITLAB_TOKEN="$(ddtool auth gitlab token)" && export GITLAB_TOKEN
+```
+
+Check that token retrieval succeeds before running `ddgl`. The command is
+`ddtool auth gitlab token`, not `ddtool auth token gitlab` (which issues an
+internal-service token rather than a GitLab OAuth token). Never print or commit
+the token. If GitLab login is required, follow `ddtool auth gitlab login`.
+The explicit project path is needed when `ddgl` cannot infer the GitLab project
+from a GitHub remote. Keep existing working authentication/configuration intact.
+
 For example:
  - `ddgl logs --name <pattern>` will fetch all logs for jobs in the current ref's latest pipeline that match the pattern
  - `ddgl logs --failed` will fetch all logs for _failed_ jobs in the current ref's latest pipeline
