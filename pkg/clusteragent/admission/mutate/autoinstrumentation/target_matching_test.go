@@ -60,7 +60,7 @@ func newMatchMutator(t *testing.T, yamlCfg string, wmeta workloadmeta.Component)
 	mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+	m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 	require.NoError(t, err)
 	return m
 }
