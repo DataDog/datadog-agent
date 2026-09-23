@@ -64,8 +64,8 @@ func isKubernetesRemotePolicyPath(path string) bool {
 	return apmPolicyKubernetesIDPattern.MatchString(policyIDMatches[1])
 }
 
-// subscribeRemoteConfig wires the remote-config client to the mutator so that
-// SSI policies delivered over remote config are evaluated after static targets.
+// subscribeRemoteConfig wires the remote-config client to the mutator. Matching
+// RC policies override static targets and are overridden by DDI and annotations.
 // RC policies are last-TRUE-wins on the wire order (default first, exceptions
 // after). It is a no-op when remote config is not available, in which case the
 // mutator keeps matching against its configuration baseline only. The wire

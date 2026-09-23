@@ -27,7 +27,7 @@ import (
 // NewAutoInstrumentation is a helper function to create a fully initialized webhook for SSI. Our webhook is made up of
 // several components, but consumers of this webhook should not need to care about how the webhook is wired together.
 // When on-demand instrumentation is enabled and rcClient is non-nil, the mutator also subscribes to remote-config SSI
-// policies (APM_POLICIES), evaluated after DDI and static targets with last-TRUE-wins among RC policies.
+// policies (APM_POLICIES). Source precedence is annotation, DDI, RC, static target, then inject-all.
 func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
