@@ -684,45 +684,19 @@ def get_git_dirty_files():
     return paths
 
 
-class FailingTask:
-    def __init__(self, name, dirty_files):
-        self.name = name
-        self.dirty_files = dirty_files
-
-
 @task
 def go_generate_check(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_proto],
-        [gen_mocks],
-    ]
-    failing_tasks = []
-    previous_dirty = set()
-
-    for task_entry in tasks:
-        task, args = task_entry[0], task_entry[1:]
-        task(ctx, *args)
-        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
-        # this is especially visible in the Gitlab job logs
-        # we flush to ensure correct separation between steps
-        sys.stdout.flush()
-        sys.stderr.flush()
-        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
-        if dirty_files:
-            failing_tasks.append(FailingTask(task.__name__, dirty_files))
-
-        previous_dirty.update(dirty_files)
-
-    if failing_tasks:
-        for ft in failing_tasks:
-            task = ft.name.replace("_", "-")
-            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
-            for file in ft.dirty_files:
-                print(f"* {file}")
+    # The other CWS generated files are guarded by their Bazel diff tests;
+    # mockery has none yet.
+    gen_mocks(ctx)
+    dirty_files = get_git_dirty_files()
+    if dirty_files:
+        print("Task `dda inv security-agent.gen-mocks` resulted in dirty files, please re-run it:")
+        for file in dirty_files:
+            print(f"* {file}")
         raise Exit(code=1)
 
 
