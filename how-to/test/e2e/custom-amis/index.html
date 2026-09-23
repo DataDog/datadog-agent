@@ -4304,19 +4304,23 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 <p>For manual QA the same switch is <code>dda inv aws.create-vm --latest-ami</code> (which sets <code>ddinfra:osImageIDUseLatest</code>). That is the right way to check whether a new upstream image breaks something, before bumping the pin.</p>
 </details>
 <h2 id="the-e2e-amis">The <code>-e2e</code> AMIs<a class="headerlink" href="#the-e2e-amis" title="Permanent link">&para;</a></h2>
-<p>Most OS types have an <code>-e2e</code> variant defined in <code>platforms.json</code>: </p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"ubuntu"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<p>Some OS types have an <code>-e2e</code> variant defined in <code>platforms.json</code>, distinct from the plain image:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"windows-server"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"x86_64"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"22-04"</span><span class="p">:</span><span class="w">     </span><span class="s2">"ami-0347d82d55205687d"</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"22-04-e2e"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ami-09bcb097bdb06fabf"</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"2022"</span><span class="p">:</span><span class="w">     </span><span class="s2">"ami-0fcc930391c87ec7b"</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"2022-e2e"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ami-0979cd4acf7874ba9"</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Both derive from the same upstream base image, but the <code>-e2e</code> one contains extra stuff: common test dependencies, maybe some config files etc. See <a href="../dependencies/#prebake-into-the-machine-image">Prebake into the machine image</a> for more details.</p>
+<div class="admonition tip">
+<p class="admonition-title">Some flavors have been fully consolidated</p>
+<p>Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have a real distinction: their plain and <code>-e2e</code> keys in <code>platforms.json</code> point at the <em>same</em> AMI ID, because the plain image is prebaked too. The <code>-e2e</code> descriptors are kept around only for code that still references them explicitly. Don't assume a version lacks prebaked dependencies just because it also has an <code>-e2e</code> sibling (or lacks one) — check the actual AMI IDs in <code>platforms.json</code> for the flavor/arch/version you care about.</p>
+</div>
 <div class="admonition danger">
-<p class="admonition-title">Prefer using the <code>-e2e</code> variant in new tests.</p>
-<p>Unless overriden, this should be the default on both Linux and Windows — <code>UbuntuDefault</code> is <code>Ubuntu2204E2E</code> — so a test that passes no OS at all gets the prebaked image. A test that explicitly asks for <code>e2eos.Ubuntu2204</code> opts <em>out</em> of it, usually by accident.</p>
-<p>If you need an extra dependency in your test, <strong>prefer adding it to the existing <code>-e2e</code> variant over creating your own fully-custom AMI</strong> if at all possible. Feel free to ask #agent-devx-help for help.</p>
+<p class="admonition-title">Prefer using the <code>-e2e</code> variant in new tests, where the two still differ.</p>
+<p>Unless overriden, this should be the default on both Linux and Windows — <code>UbuntuDefault</code> is <code>Ubuntu2204E2E</code> — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and <code>-e2e</code> images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts <em>out</em> of the prebaked image, usually by accident.</p>
+<p>If you need an extra dependency in your test, <strong>prefer adding it to the existing <code>-e2e</code> variant (or, where consolidated, the plain image) over creating your own fully-custom AMI</strong> if at all possible. Feel free to ask #agent-devx-help for help.</p>
 </div>
 <h2 id="adding-or-bumping-an-image">Adding or bumping an image<a class="headerlink" href="#adding-or-bumping-an-image" title="Permanent link">&para;</a></h2>
 <p>The build lives in <a href="https://github.com/ddoghq/ami-builder">ami-builder</a>; this repo only holds the resulting ID.</p>
