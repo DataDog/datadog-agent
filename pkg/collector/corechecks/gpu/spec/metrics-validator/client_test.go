@@ -8,6 +8,8 @@ package main
 import (
 	"slices"
 	"testing"
+
+	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 )
 
 func TestMinimumTagFiltersForClusters(t *testing.T) {
@@ -33,5 +35,40 @@ func TestMinimumTagFiltersForClusters(t *testing.T) {
 	want := []string{"datacenter:dc-b", "kube_cluster_name:target-a"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("minimumTagFiltersForClusters() = %v, want %v", got, want)
+	}
+}
+
+func TestAppendTagInventoryFilter(t *testing.T) {
+	got := appendTagInventoryFilter(
+		[]string{"datacenter:dc-b", "kube_cluster_name:target-a"},
+		"env:production",
+	)
+	want := []string{
+		"datacenter:dc-b,env:production",
+		"kube_cluster_name:target-a,env:production",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("appendTagInventoryFilter() = %v, want %v", got, want)
+	}
+}
+
+func TestTagInventoryFiltersKeepKubernetesScopePerExtraFilter(t *testing.T) {
+	config := gpuspec.GPUConfig{
+		Architecture: "ampere",
+		DeviceMode:   gpuspec.DeviceModePhysical,
+	}
+
+	got := tagInventoryFiltersForConfig(config, []string{
+		"datacenter:dc-b",
+		"kube_cluster_name:target-a",
+	})
+	want := []string{
+		"gpu_architecture:ampere,kube_cluster_name:*,gpu_slicing_mode:none,gpu_virtualization_mode:none,datacenter:dc-b",
+		"gpu_architecture:ampere,kube_cluster_name:*,gpu_slicing_mode:none,gpu_virtualization_mode:passthrough,datacenter:dc-b",
+		"gpu_architecture:ampere,gpu_slicing_mode:none,gpu_virtualization_mode:none,kube_cluster_name:target-a",
+		"gpu_architecture:ampere,gpu_slicing_mode:none,gpu_virtualization_mode:passthrough,kube_cluster_name:target-a",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("tagInventoryFiltersForConfig() = %v, want %v", got, want)
 	}
 }

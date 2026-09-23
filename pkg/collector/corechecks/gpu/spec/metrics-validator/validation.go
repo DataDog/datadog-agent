@@ -44,8 +44,8 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agent
 		log.Printf("targeting agent version %q", agentVersion)
 		log.Printf("using version-derived cluster metric filter %q", versionFilter.metricFilter)
 		log.Printf("using %d version-derived tag inventory filter(s): %q", len(versionFilter.tagFilters), versionFilter.tagFilters)
+		tagInventoryExtraFilters = appendTagInventoryFilter(versionFilter.tagFilters, metricFilter)
 		metricFilter = combineMetricFilters(versionFilter.metricFilter, metricFilter)
-		tagInventoryExtraFilters = versionFilter.tagFilters
 	}
 
 	configs := gpuspec.KnownGPUConfigs(specs)
@@ -228,35 +228,34 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []strin
 	// The metric all-tags endpoint accepts a comma-separated list of positive tag
 	// filters. Use equivalent positive scopes for physical GPUs, then query each
 	// selected cluster separately because repeated tag keys are ANDed, not ORed.
-	baseParts := []string{"gpu_architecture:" + config.Architecture}
-	hasClusterFilter := slices.ContainsFunc(extraFilters, func(filter string) bool {
-		return strings.HasPrefix(strings.TrimSpace(filter), "kube_cluster_name:")
-	})
-	if !hasClusterFilter {
-		baseParts = append(baseParts, "kube_cluster_name:*")
-	}
-	if config.NVLinkCapable != nil {
-		baseParts = append(baseParts, fmt.Sprintf("gpu_nvlink_capable:%t", *config.NVLinkCapable))
-	}
-	var configFilters []string
-	switch config.DeviceMode {
-	case gpuspec.DeviceModeMIG:
-		configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig"), ",")}
-	case gpuspec.DeviceModeVGPU:
-		configFilters = []string{strings.Join(append(baseParts, "gpu_virtualization_mode:*vgpu"), ",")}
-	default:
-		configFilters = []string{
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), ","),
-			strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), ","),
-		}
+	if len(extraFilters) == 0 {
+		extraFilters = []string{""}
 	}
 
-	if len(extraFilters) == 0 {
-		return configFilters
-	}
-	filters := make([]string, 0, len(configFilters)*len(extraFilters))
-	for _, configFilter := range configFilters {
-		for _, extraFilter := range extraFilters {
+	var filters []string
+	for _, extraFilter := range extraFilters {
+		baseParts := []string{"gpu_architecture:" + config.Architecture}
+		if !strings.HasPrefix(strings.TrimSpace(extraFilter), "kube_cluster_name:") {
+			baseParts = append(baseParts, "kube_cluster_name:*")
+		}
+		if config.NVLinkCapable != nil {
+			baseParts = append(baseParts, fmt.Sprintf("gpu_nvlink_capable:%t", *config.NVLinkCapable))
+		}
+
+		var configFilters []string
+		switch config.DeviceMode {
+		case gpuspec.DeviceModeMIG:
+			configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig"), ",")}
+		case gpuspec.DeviceModeVGPU:
+			configFilters = []string{strings.Join(append(baseParts, "gpu_virtualization_mode:*vgpu"), ",")}
+		default:
+			configFilters = []string{
+				strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:none"), ","),
+				strings.Join(append(slices.Clone(baseParts), "gpu_slicing_mode:none", "gpu_virtualization_mode:passthrough"), ","),
+			}
+		}
+
+		for _, configFilter := range configFilters {
 			if strings.TrimSpace(extraFilter) == "" {
 				filters = append(filters, configFilter)
 				continue
@@ -265,4 +264,19 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []strin
 		}
 	}
 	return filters
+}
+
+func appendTagInventoryFilter(filters []string, extraFilter string) []string {
+	if strings.TrimSpace(extraFilter) == "" {
+		return slices.Clone(filters)
+	}
+	combined := make([]string, 0, len(filters))
+	for _, filter := range filters {
+		if strings.TrimSpace(filter) == "" {
+			combined = append(combined, extraFilter)
+			continue
+		}
+		combined = append(combined, strings.Join([]string{filter, extraFilter}, ","))
+	}
+	return combined
 }
