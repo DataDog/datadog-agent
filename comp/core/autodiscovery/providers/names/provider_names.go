@@ -51,8 +51,6 @@ const (
 	PrometheusServices = "prometheus-services"
 	// PrometheusServicesEndpointSlices discovers Prometheus targets from EndpointSlice-backed services.
 	PrometheusServicesEndpointSlices = "prometheus-services-endpointslices"
-	// RemoteConfig delivers check configurations pushed from the Datadog backend via Remote Configuration.
-	RemoteConfig = "remote-config"
 	// SNMP autodiscovers SNMP devices on configured subnets.
 	SNMP = "snmp"
 	// Zookeeper discovers check configurations stored in a Zookeeper ZNode tree.
@@ -99,6 +97,5 @@ const (
 	PrometheusServicesRegisterName    = "prometheus_services"
 	PrometheusHTTPSDRegisterName      = "prometheus_http_sd"
 	InstrumentationChecksRegisterName = "instrumentation_checks"
-	RemoteConfigRegisterName          = "remote_config"
 	ZookeeperRegisterName             = "zookeeper"
 )
