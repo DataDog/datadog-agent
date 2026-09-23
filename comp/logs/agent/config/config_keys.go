@@ -180,9 +180,18 @@ func (l *LogsConfigKeys) foldspaceEnabled() bool {
 	return l.getConfig().GetBool(l.getConfigKey("foldspace.enabled"))
 }
 
+func (l *LogsConfigKeys) foldspaceDualShip() bool {
+	return l.getConfig().GetBool(l.getConfigKey("foldspace.dual_ship"))
+}
+
 // FoldspaceEnabled reports logs_config.foldspace.enabled.
 func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).foldspaceEnabled()
+}
+
+// FoldspaceDualShip reports logs_config.foldspace.dual_ship.
+func FoldspaceDualShip(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).foldspaceDualShip()
 }
 
 // ValidateFoldspace returns a startup error when foldspace is requested with
