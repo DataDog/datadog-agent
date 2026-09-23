@@ -40,6 +40,33 @@ write_source_file(
     out_file = "workload_protection_agent_config.schema.json",
 )
 
+# backend_<os>.schema.json is produced by reflecting the serializer types
+# carrying that platform's build tag, so each variant only builds on its own OS.
+[
+    [
+        run_binary(
+            name = "backend_{}_schema_gen".format(os),
+            srcs = ["//pkg/security/serializers:serializers_sources"],
+            outs = ["backend_{0}_schema_gen/backend_{0}.schema.json".format(os)],
+            args = [
+                "-serializers-dir=pkg/security/serializers",
+                "-output=$(execpath backend_{0}_schema_gen/backend_{0}.schema.json)".format(os),
+            ],
+            target_compatible_with = ["@platforms//os:" + os],
+            tool = "//pkg/security/generators/backend_doc",
+        ),
+        write_source_file(
+            name = "backend_{}_schema".format(os),
+            in_file = ":backend_{}_schema_gen".format(os),
+            out_file = "backend_{}.schema.json".format(os),
+        ),
+    ]
+    for os in [
+        "linux",
+        "windows",
+    ]
+]
+
 # Markdown doc generation: renders Jinja2 templates using the committed JSON
 # schemas as inputs. Platform-neutral — reads committed source files so it runs
 # on any OS without needing the Linux-only Go generator.
@@ -113,8 +140,8 @@ run_binary(
 
 # Umbrella target: updates all five CWS markdown docs in one shot using the
 # committed JSON schemas as inputs. Platform-neutral — can run on any OS.
-# The JSON schemas themselves are updated by backend_linux_schema /
-# backend_windows_schema (Linux-only) and workload_protection_agent_config_schema,
+# The JSON schemas themselves are updated by backend_linux_schema (Linux-only),
+# backend_windows_schema (Windows-only), and workload_protection_agent_config_schema,
 # called from cws_go_generate.
 write_source_files(
     name = "cws_docs",

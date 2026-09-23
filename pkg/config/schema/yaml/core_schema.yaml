@@ -8943,6 +8943,22 @@ properties:
         default: ${log_path}/security-agent.log
     tags:
     - full-agent-only:true
+  system_probe:
+    node_type: section
+    type: object
+    visibility: public
+    description: system-probe settings the core Agent owns and streams to system-probe.
+    properties:
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SYSTEM_PROBE_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for system-probe only.
+          Leave empty to use the global `log_level`.
   serializer_compressor_kind:
     node_type: setting
     type: string

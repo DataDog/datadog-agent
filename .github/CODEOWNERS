@@ -231,6 +231,7 @@
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                                 @DataDog/agent-build
+/.gitlab/windows/build/packaging/                                         @DataDog/fleet-automation @DataDog/windows-products
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
@@ -310,6 +311,7 @@
 /cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/vdi.d/                          @DataDog/windows-products
 /cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
 /cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
@@ -607,7 +609,6 @@
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-discovery @DataDog/agent-log-pipelines
-/comp/core/autodiscovery/providers/remote_config*.go                  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
@@ -668,6 +669,7 @@
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
+/pkg/collector/corechecks/vdi/                                        @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
 /pkg/collector/corechecks/telemetry                                   @DataDog/fleet-remediation
@@ -875,6 +877,7 @@
 /pkg/ssi/                                                             @DataDog/injection-platform
 /pkg/tagger/                                                          @DataDog/container-platform
 /pkg/windowsdriver/                                                   @DataDog/windows-products
+/pkg/zstd/                                                            @DataDog/agent-runtimes
 /comp/core/workloadmeta/collectors/internal/cloudfoundry              @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd                @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio                      @DataDog/container-platform @DataDog/container-integrations
