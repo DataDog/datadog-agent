@@ -33,7 +33,13 @@ const SCM_SERVICES_GO: &str =
 /// Gate keys all absent, so each one falls through to the Agent's schema default. Several
 /// of those default to true, which is why a default install leaves the gate open.
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
-const EMPTY_SYSPROBE_YAML: &str = "# no modules enabled\n";
+/// No module enabled, so the derived `system_probe_config.enabled` stays false on every OS.
+/// `discovery.enabled` is pinned for the reason given on `DISABLED_SYSPROBE_YAML`: left absent,
+/// its Linux default would open the system-probe half of the gate on the CI runner, and the
+/// open gate would stop proving that the core `process_config` defaults are what open it on
+/// the Windows install this describes.
+const EMPTY_SYSPROBE_YAML: &str =
+    concat!("# no modules enabled\n", "discovery:\n  enabled: false\n");
 
 /// Every gated key pinned false, which is what an operator who turned process collection
 /// off looks like. Each one has to be written out, since leaving one absent lets its
