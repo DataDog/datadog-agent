@@ -571,7 +571,15 @@ func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf
 
 		for _, payload := range nginxPayloads {
 			assertAgentDiscoveryPayload(c, payload, nginxIntegrationName)
-			assert.Empty(c, payload.ConfigFiles)
+
+			// This fixture runs the official image without -c, so the config
+			// file collector also reports the image's default nginx.conf
+			// alongside the env vars. Its content is dynamic (the entrypoint
+			// rewrites worker_processes to the host CPU count), so only the
+			// path is asserted here.
+			if assert.Len(c, payload.ConfigFiles, 1) {
+				assert.Equal(c, nginxDefaultContainerPath, payload.ConfigFiles[0].Path)
+			}
 
 			envVars := make(map[string]string, len(payload.EnvVars))
 			for _, envVar := range payload.EnvVars {
