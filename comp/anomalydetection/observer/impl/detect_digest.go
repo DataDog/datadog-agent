@@ -28,5 +28,5 @@ type detectDigest struct {
 // anomalyFingerprint produces a stable string identifying an anomaly's key fields.
 // Uses the same fields as anomalyDedupKey minus DetectorName (already on the digest).
 func anomalyFingerprint(a observerdef.Anomaly) string {
-	return fmt.Sprintf("%s|%d|%s", a.Source.Key(), a.Timestamp, a.Title)
+	return fmt.Sprintf("%s|%d|%s", formatSeriesDescriptor(a.Source), a.Timestamp, a.Title)
 }

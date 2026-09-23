@@ -70,3 +70,21 @@ func TestCompareSeriesDescriptorsMatchesLegacyKeyOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestAnomalyFingerprintPreservesLegacyFormat(t *testing.T) {
+	anomaly := observerdef.Anomaly{
+		Source: observerdef.SeriesDescriptor{
+			Namespace: "metrics",
+			Name:      "cpu",
+			Host:      "agent-a",
+			Tags:      []string{"team:agent", "env:prod"},
+			Aggregate: observerdef.AggregateSum,
+		},
+		Timestamp: 100,
+		Title:     "spike",
+	}
+
+	if got, want := anomalyFingerprint(anomaly), "metrics|cpu:sum|agent-a|env:prod,team:agent|100|spike"; got != want {
+		t.Fatalf("anomalyFingerprint() = %q, want %q", got, want)
+	}
+}

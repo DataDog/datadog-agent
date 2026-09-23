@@ -24,5 +24,5 @@ func anomalySourceIdentityFor(anomaly observerdef.Anomaly) anomalySourceIdentity
 			hasHandle: true,
 		}
 	}
-	return anomalySourceIdentity{fallback: anomaly.Source.Key()}
+	return anomalySourceIdentity{fallback: formatSeriesDescriptor(anomaly.Source)}
 }

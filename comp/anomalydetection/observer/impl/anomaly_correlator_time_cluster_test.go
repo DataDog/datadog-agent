@@ -39,6 +39,19 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	assert.Len(t, correlations[0].Members, 2)
 }
 
+func TestSortedUniqueMembersDeduplicatesReorderedTags(t *testing.T) {
+	anomalies := []observer.Anomaly{
+		{Source: observer.SeriesDescriptor{Name: "cpu", Tags: []string{"team:agent", "env:prod"}}},
+		{Source: observer.SeriesDescriptor{Name: "cpu", Tags: []string{"env:prod", "team:agent"}}},
+		{Source: observer.SeriesDescriptor{Name: "memory"}},
+	}
+
+	members := sortedUniqueMembers(anomalies)
+	require.Len(t, members, 2)
+	assert.Equal(t, "cpu", members[0].Name)
+	assert.Equal(t, "memory", members[1].Name)
+}
+
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,

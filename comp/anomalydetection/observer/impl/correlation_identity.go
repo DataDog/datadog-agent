@@ -12,19 +12,22 @@ import (
 )
 
 // sortedUniqueMembers extracts unique SeriesDescriptors from anomalies' Source
-// fields, deduplicating by Key() and sorting by String() for deterministic output.
+// fields, structurally deduplicating them and sorting by their legacy serialized
+// representation for deterministic output.
 func sortedUniqueMembers(anomalies []observer.Anomaly) []observer.SeriesDescriptor {
-	seen := make(map[string]observer.SeriesDescriptor)
+	members := make([]observer.SeriesDescriptor, 0, len(anomalies))
 	for _, a := range anomalies {
-		key := a.Source.Key()
-		if _, ok := seen[key]; !ok {
-			seen[key] = a.Source
+		members = append(members, a.Source)
+	}
+	sort.SliceStable(members, func(i, j int) bool {
+		return compareSeriesDescriptors(members[i], members[j]) < 0
+	})
+
+	unique := members[:0]
+	for _, member := range members {
+		if len(unique) == 0 || !seriesDescriptorsEqual(unique[len(unique)-1], member) {
+			unique = append(unique, member)
 		}
 	}
-	members := make([]observer.SeriesDescriptor, 0, len(seen))
-	for _, sd := range seen {
-		members = append(members, sd)
-	}
-	sort.Slice(members, func(i, j int) bool { return members[i].Key() < members[j].Key() })
-	return members
+	return unique
 }

@@ -220,6 +220,31 @@ func TestAnomalyDedupAndHistoryUseStorageHandleIdentity(t *testing.T) {
 	}
 }
 
+func TestAnomaliesForSourceIgnoresTagOrder(t *testing.T) {
+	e := newEngine(engineConfig{
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
+	})
+	e.acceptAnomaly(observerdef.Anomaly{
+		Source: observerdef.SeriesDescriptor{
+			Namespace: "metrics",
+			Name:      "cpu",
+			Tags:      []string{"team:agent", "env:prod"},
+		},
+		DetectorName: "detector",
+		Timestamp:    100,
+	})
+
+	anomalies := e.StateView().AnomaliesForSource(observerdef.SeriesDescriptor{
+		Namespace: "metrics",
+		Name:      "cpu",
+		Tags:      []string{"env:prod", "team:agent"},
+	})
+	if len(anomalies) != 1 {
+		t.Fatalf("anomalies matching reordered tags = %d, want 1", len(anomalies))
+	}
+}
+
 func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 	storageCfg := DefaultStorageConfig()
 	storageCfg.PointRetentionSecs = 100

@@ -258,15 +258,11 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
-		seen := make(map[string]bool)
-		for _, a := range cluster.anomalies {
-			seen[a.Source.Key()] = true
+		members := sortedUniqueMembers(cluster.anomalies)
+		sources := make([]string, len(members))
+		for i, member := range members {
+			sources[i] = formatSeriesDescriptor(member)
 		}
-		sources := make([]string, 0, len(seen))
-		for key := range seen {
-			sources = append(sources, key)
-		}
-		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
 			ID:           cluster.id,
 			Sources:      sources,

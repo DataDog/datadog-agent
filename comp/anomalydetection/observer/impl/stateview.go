@@ -111,11 +111,10 @@ func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 // AnomaliesForSource returns anomalies matching a specific SeriesDescriptor.
 // Computes on read from the raw anomaly set.
 func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
-	targetKey := sd.Key()
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
 	for _, a := range all {
-		if a.Source.Key() == targetKey {
+		if seriesDescriptorsEqual(a.Source, sd) {
 			result = append(result, a)
 		}
 	}
