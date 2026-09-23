@@ -7,7 +7,6 @@ package sysprobefunctional
 
 import (
 	"flag"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -45,11 +44,12 @@ func TestVMSuite(t *testing.T) {
 func (v *vmSuite) SetupSuite() {
 	t := v.T()
 
-	// Get the absolute path to the test assets directory
-	currDir, err := os.Getwd()
-	require.NoError(t, err)
+	// Resolve the test assets directory relative to this source file, not the process
+	// working directory: prebuilt Bazel test binaries run from the repo root.
+	_, srcfile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
 
-	v.testspath = filepath.Join(currDir, "artifacts")
+	v.testspath = filepath.Join(filepath.Dir(srcfile), "artifacts")
 }
 
 func (v *vmSuite) TestSystemProbeNPMSuite() {

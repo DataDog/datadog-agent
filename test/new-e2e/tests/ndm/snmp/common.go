@@ -6,6 +6,9 @@
 package snmp
 
 import (
+	"path"
+	"runtime"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,10 +17,15 @@ import (
 )
 
 func setupDevice(r *require.Assertions, vm *components.RemoteHost) {
-	err := vm.CopyFolder("compose/data", "/tmp/data")
+	// Anchor package-relative assets to this source file: prebuilt Bazel test
+	// binaries run from the repository root, so CWD-relative paths break.
+	_, thisFile, _, _ := runtime.Caller(0)
+	pkgDir := path.Dir(thisFile)
+
+	err := vm.CopyFolder(path.Join(pkgDir, "compose/data"), "/tmp/data")
 	r.NoError(err)
 
-	vm.CopyFile("compose-vm/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
+	vm.CopyFile(path.Join(pkgDir, "compose-vm/snmpCompose.yaml"), "/tmp/snmpCompose.yaml")
 
 	_, err = vm.Execute("docker-compose -f /tmp/snmpCompose.yaml up -d")
 	r.NoError(err)

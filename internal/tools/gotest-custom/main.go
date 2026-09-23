@@ -74,7 +74,6 @@ func main() {
 			}
 			args = append(args, parsedTestArgs...)
 			command := exec.Command("go", args...)
-			command.Dir = filepath.Join(cwd, "test/new-e2e", pkgNames[idx])
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stdout
 			errCmd := command.Run()
@@ -169,13 +168,13 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 	}
 
 	// Create extraction directory if it doesn't exist
-	if err := os.MkdirAll(extractPath, 0755); err != nil {
+	if err := os.MkdirAll(extractPath, 0o755); err != nil {
 		return nil, nil, fmt.Errorf("failed to create extraction directory: %v", err)
 	}
 
 	var binaries []string
 	var matchedPackages []string
-	var targetBinaries = make(map[string]bool)
+	targetBinaries := make(map[string]bool)
 
 	// For each target package, find matching binaries
 	for _, target := range packages {

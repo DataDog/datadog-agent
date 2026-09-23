@@ -11,14 +11,11 @@ import os
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
-import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -139,59 +136,6 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
-@contextmanager
-def _shared_orchestrion_jobserver():
-    """
-    Start a single `orchestrion server` and point `ORCHESTRION_JOBSERVER_URL` at it, so every `orchestrion go test -c`
-    invocation started underneath this context shares its package-resolution cache instead of each starting its own:
-    orchestrion only auto-shares a job server across invocations that reuse the same `go build` $WORK directory, which
-    independent top-level `orchestrion go test -c` processes never do.
-    """
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        log_file = os.path.join(tmp_dir, "server.log")
-        url_file = os.path.join(tmp_dir, "server.url")
-        with open(log_file, "wb") as log:
-            server = subprocess.Popen(
-                ["orchestrion", "server", f"-url-file={url_file}", "-inactivity-timeout=15m"],
-                stdout=log,
-                stderr=subprocess.STDOUT,
-            )
-        try:
-            timeout = datetime.timedelta(seconds=10)
-            deadline = time.monotonic() + timeout.total_seconds()
-            url = ""
-            while time.monotonic() < deadline:
-                if os.path.exists(url_file):
-                    url = Path(url_file).read_text().strip()
-                    if url:
-                        break
-                try:
-                    server.wait(timeout=0.1)
-                except subprocess.TimeoutExpired:
-                    continue
-                raise Exit(
-                    f"orchestrion server exited early with code {server.returncode}:\n{Path(log_file).read_text()}"
-                )
-            if not url:
-                raise Exit(
-                    f"orchestrion server did not report readiness within {timeout}:\n{Path(log_file).read_text()}"
-                )
-
-            with environ({"ORCHESTRION_JOBSERVER_URL": url}):
-                yield
-        finally:
-            # Orchestrion watches the url file and shuts itself down once it disappears.
-            if os.path.exists(url_file):
-                os.remove(url_file)
-            for escalate in lambda: None, server.terminate, server.kill:
-                escalate()
-                try:
-                    server.communicate(timeout=timeout.total_seconds())
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
-
-
 def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
     """
     Build a single test binary for the given package.
@@ -202,11 +146,37 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
         binary_path = output_path / binary_name
 
-        # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        # Build test binary with Bazel
+        target_name = f"{Path(pkg).name}_test"
+        target = f"//test/new-e2e/{pkg}:{target_name}"
 
-        result = ctx.run(cmd, hide=True)
+        # Stamp the git commit into the binaries (containers.GitCommit) the same way
+        # `go test -c -ldflags -X ...` used to: {STABLE_GIT_COMMIT} x_defs placeholders in the
+        # BUILD files are substituted at link time from the workspace status script, via --stamp.
+        workspace_status = Path(__file__).parent.parent / "bazel/tools/workspace_status.sh"
+        result = ctx.run(
+            f"bazel build --stamp --workspace_status_command={workspace_status} {target}",
+            hide=True,
+        )
         if result.ok:
+            # Locate the compiled test binary via cquery and copy it to the output path
+            cquery = ctx.run(f"bazel cquery --output=files {target}", hide=True)
+            if not cquery.ok:
+                with print_lock:
+                    print(f"  ✗ Failed to locate {binary_name}: {cquery.stderr}")
+                return (pkg, False, f"Failed to locate {binary_name}: {cquery.stderr}")
+            # Resolve the cquery-relative path against the execution root: the workspace
+            # `bazel-out` convenience symlink does not exist in CI (--noexperimental_convenience_symlinks)
+            execroot = ctx.run("bazel info execution_root", hide=True).stdout.strip()
+            built_binary = Path(execroot) / cquery.stdout.strip().splitlines()[-1]
+            if not built_binary.exists():
+                with print_lock:
+                    print(f"  ✗ Built binary not found at {built_binary} for {binary_name}")
+                return (pkg, False, f"Built binary not found at {built_binary}")
+            shutil.copyfile(built_binary, binary_path)
+            # shutil.copyfile doesn't preserve the executable bit: force it, otherwise
+            # the binaries uploaded to S3 lose +x and test2json fails with fork/exec permission denied
+            os.chmod(binary_path, 0o755)
             with print_lock:
                 print(f"  ✓ Built {binary_name}")
             return (pkg, True, f"Built {binary_name}")
@@ -250,7 +220,7 @@ def build_binaries(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    e2e_test_dir = Path("test/new-e2e/tests")
+    e2e_test_dir = Path("test/new-e2e/tests/")
     output_path = Path(output_dir).absolute()
 
     # Create output directory
@@ -280,7 +250,7 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
+    with ctx.cd("test/new-e2e"):
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {

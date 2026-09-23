@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -330,7 +331,11 @@ func validateEventSchema(t assert.TestingT, e *api.Event, schemaFileName string)
 		return
 	}
 
-	fs := os.DirFS("../../../../pkg/security/secl")
+	// Anchor the secl schemas to this source file: prebuilt Bazel test binaries run
+	// from the repository root, so CWD-relative paths break.
+	_, thisFile, _, _ := runtime.Caller(0)
+	seclDir := path.Join(path.Dir(thisFile), "..", "..", "..", "..", "pkg", "security", "secl")
+	fs := os.DirFS(seclDir)
 	documentLoader := gojsonschema.NewBytesLoader(b)
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///schemas/"+schemaFileName, http.FS(fs))
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)

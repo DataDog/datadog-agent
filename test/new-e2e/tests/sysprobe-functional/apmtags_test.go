@@ -8,7 +8,6 @@ package sysprobefunctional
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -107,11 +106,12 @@ var sites = []windows.IISSiteDefinition{
 func (v *apmvmSuite) SetupSuite() {
 	t := v.T()
 
-	// Get the absolute path to the test assets directory
-	currDir, err := os.Getwd()
-	require.NoError(t, err)
+	// Resolve the test assets directory relative to this source file, not the process
+	// working directory: prebuilt Bazel test binaries run from the repo root.
+	_, srcfile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
 
-	v.testspath = filepath.Join(currDir, "artifacts")
+	v.testspath = filepath.Join(filepath.Dir(srcfile), "artifacts")
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
@@ -121,7 +121,7 @@ func (v *apmvmSuite) SetupSuite() {
 	// get the remote host
 	vm := v.Env().RemoteHost
 
-	err = windows.InstallIIS(vm)
+	err := windows.InstallIIS(vm)
 	require.NoError(t, err)
 	// HEADSUP the paths are windows, but this will execute in linux. So fix the paths
 	t.Log("IIS Installed, continuing")
@@ -130,9 +130,9 @@ func (v *apmvmSuite) SetupSuite() {
 	// figure out where we're being executed from.  These paths should be in
 	// native path separators (i.e. not windows paths if executing in ci/on linux)
 
-	_, srcfile, _, ok := runtime.Caller(0)
+	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
+	exPath := filepath.Dir(thisFile)
 
 	for idx := range sites {
 		sites[idx].AssetsDir = path.Join(exPath, "assets")
@@ -148,6 +148,13 @@ func (v *apmvmSuite) SetupSuite() {
 // c:\tmp\inetpub\{siteName} for the other sites
 
 // pass sitename as empty string for default site
+// assetPath anchors a package-relative asset to this source file's directory:
+// prebuilt Bazel test binaries run from the repository root, not the package dir.
+func assetPath(rel string) string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), rel)
+}
+
 func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetfilename string) error {
 
 	sitepath := path.Join("c:", "inetpub", "wwwroot", targetfilename)
@@ -165,14 +172,14 @@ func copyFileToSiteRoot(host *components.RemoteHost, sitename, filename, targetf
 	}
 
 	// test this out.  Should copy path-relative to assets
-	host.CopyFile(filename, sitepath)
+	host.CopyFile(assetPath(filename), sitepath)
 	return nil
 }
 
 func copyFileToAppRoot(host *components.RemoteHost, app windows.IISApplicationDefinition, filename, targetfilename string) error {
 
 	apppath := path.Join(app.PhysicalPath, targetfilename)
-	host.CopyFile(filename, apppath)
+	host.CopyFile(assetPath(filename), apppath)
 	return nil
 }
 
@@ -228,11 +235,11 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 	removeIfExists(vm, clientAppConfig)
 
 	if test.clientJSONFile != "" {
-		vm.CopyFile(test.clientJSONFile, clientJSONFile)
+		vm.CopyFile(assetPath(test.clientJSONFile), clientJSONFile)
 	}
 
 	if test.clientAppConfig != "" {
-		vm.CopyFile(test.clientAppConfig, clientAppConfig)
+		vm.CopyFile(assetPath(test.clientAppConfig), clientAppConfig)
 	}
 
 	cleanSites(vm)
@@ -295,13 +302,13 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 
 	// copy test script
 	testScript := path.Join("c:", "users", "administrator", "test_tags.ps1")
-	vm.CopyFile("usmtest/test_tags.ps1", testScript)
+	vm.CopyFile(assetPath("usmtest/test_tags.ps1"), testScript)
 
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
-	vm.CopyFile("usmtest/littleget.exe", testExe)
+	vm.CopyFile(assetPath("usmtest/littleget.exe"), testExe)
 
 	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
-	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
+	vm.CopyFile(assetPath("usmtest/NamedPipeCmd.exe"), pipeExe)
 
 	pscommand := "%s %s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
