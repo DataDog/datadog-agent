@@ -563,9 +563,73 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-stable-1", pkg.StableConfigVersion)
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
-	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	assert.Equal(t, "config-exp-1", pkg.RunningConfigVersion, "RunningConfigVersion should track the active experiment config, not the stale env.ConfigID snapshot")
 	assert.Equal(t, coat.ProcessStateUnknown, pkg.ProcessStates[coat.ServiceIDDDOT], "ddot process state should report unknown without a procmgr collector")
 	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
+
+	pm.AssertExpectations(t)
+}
+
+func TestRefreshStateRunningConfigVersionFallback(t *testing.T) {
+	// No experiment running: RunningConfigVersion should track the promoted stable config on disk.
+	testPackageStates := map[string]repository.State{
+		"datadog-agent": {Stable: "7.50.0"},
+	}
+	testConfigStates := map[string]repository.State{
+		"datadog-agent": {Stable: "config-stable-1"},
+	}
+
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       testPackageStates,
+		ConfigStates: testConfigStates,
+	}, nil)
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	testEnv := &env.Env{
+		RemoteUpdates: true,
+		ConfigID:      "empty",
+	}
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		testEnv,
+		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	i := &testInstaller{
+		daemonImpl: daemon,
+		rcc:        rcc,
+		pm:         pm,
+		bm:         bm,
+	}
+	i.Start(context.Background())
+	defer i.Stop()
+
+	daemon.refreshState(context.Background())
+
+	require.Eventually(t, func() bool {
+		state := i.rcc.GetInstallerState()
+		return state != nil && len(state.Packages) > 0
+	}, 1*time.Second, 10*time.Millisecond)
+
+	state := i.rcc.GetInstallerState()
+	require.NotNil(t, state)
+	require.Len(t, state.Packages, 1)
+
+	pkg := state.Packages[0]
+	assert.Equal(t, "config-stable-1", pkg.RunningConfigVersion, "RunningConfigVersion should fall back to the on-disk stable config when no experiment is active")
 
 	pm.AssertExpectations(t)
 }

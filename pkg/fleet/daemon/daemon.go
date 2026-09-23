@@ -824,23 +824,33 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningVersions := map[string]string{
 		"datadog-agent": version.AgentPackageVersion,
 	}
-	runningConfigVersions := map[string]string{
-		"datadog-agent": d.env.ConfigID,
-	}
 	var ddotProcessState string
 	if _, ok := configAndPackageStates.States["datadog-agent"]; ok {
 		ddotProcessState = d.ddotProcessState(ctx)
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
+		configState := configAndPackageStates.ConfigStates[pkg]
+		// The currently running config version is whatever config is active on disk for this
+		// package right now (experiment takes precedence over stable), not d.env.ConfigID: that
+		// field is only a startup-time snapshot of the agent's own config_id and is never updated
+		// for the lifetime of the daemon process, so it goes stale as soon as a config experiment
+		// starts or is promoted without a daemon restart.
+		runningConfigVersion := configState.Stable
+		if configState.HasExperiment() {
+			runningConfigVersion = configState.Experiment
+		}
+		if runningConfigVersion == "" {
+			runningConfigVersion = d.env.ConfigID
+		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
-			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
+			StableConfigVersion:     configState.Stable,
+			ExperimentConfigVersion: configState.Experiment,
 			RunningVersion:          runningVersions[pkg],
-			RunningConfigVersion:    runningConfigVersions[pkg],
+			RunningConfigVersion:    runningConfigVersion,
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 		if pkg == "datadog-agent" {
