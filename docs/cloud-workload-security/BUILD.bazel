@@ -40,27 +40,58 @@ write_source_file(
     out_file = "workload_protection_agent_config.schema.json",
 )
 
-# backend_<os>.schema.json is produced by reflecting the serializer types
-# carrying that platform's build tag, so each variant only builds on its own OS.
+# backend_<os>.schema.json is produced by reflecting over the serializer types
+# compiled into the generator, so each variant needs a generator built for that
+# platform and therefore only builds on its own OS.
+run_binary(
+    name = "backend_linux_schema_gen",
+    srcs = ["//pkg/security/serializers:serializers_sources"],
+    outs = ["backend_linux_schema_gen/backend_linux.schema.json"],
+    args = [
+        "-serializers-dir=pkg/security/serializers",
+        "-output=$(execpath backend_linux_schema_gen/backend_linux.schema.json)",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    tool = "//pkg/security/generators/backend_doc",
+)
+
+# The Windows variant is the same generator, but it additionally honours
+# --//:wine=true: instead of requiring a Windows host, it runs a generator
+# cross-compiled for Windows under Wine, which lets the schema be refreshed from
+# a Linux or macOS machine. Off by default because it needs `wine` on the host
+# and the resulting action is not hermetic.
+run_binary(
+    name = "backend_windows_schema_gen",
+    srcs = ["//pkg/security/serializers:serializers_sources"] + select({
+        "//:is_wine": ["//pkg/security/generators/backend_doc:backend_doc_windows"],
+        "//conditions:default": [],
+    }),
+    outs = ["backend_windows_schema_gen/backend_windows.schema.json"],
+    # Under Wine the generator is passed to the wrapper as its first argument;
+    # natively it *is* the tool, so it takes only the generator's own flags.
+    args = select({
+        "//:is_wine": ["$(execpath //pkg/security/generators/backend_doc:backend_doc_windows)"],
+        "//conditions:default": [],
+    }) + [
+        "-serializers-dir=pkg/security/serializers",
+        "-output=$(execpath backend_windows_schema_gen/backend_windows.schema.json)",
+    ],
+    target_compatible_with = select({
+        "//:is_wine": [],
+        "//conditions:default": ["@platforms//os:windows"],
+    }),
+    tool = select({
+        "//:is_wine": "//bazel/tools/wine:wine_run",
+        "//conditions:default": "//pkg/security/generators/backend_doc",
+    }),
+)
+
 [
-    [
-        run_binary(
-            name = "backend_{}_schema_gen".format(os),
-            srcs = ["//pkg/security/serializers:serializers_sources"],
-            outs = ["backend_{0}_schema_gen/backend_{0}.schema.json".format(os)],
-            args = [
-                "-serializers-dir=pkg/security/serializers",
-                "-output=$(execpath backend_{0}_schema_gen/backend_{0}.schema.json)".format(os),
-            ],
-            target_compatible_with = ["@platforms//os:" + os],
-            tool = "//pkg/security/generators/backend_doc",
-        ),
-        write_source_file(
-            name = "backend_{}_schema".format(os),
-            in_file = ":backend_{}_schema_gen".format(os),
-            out_file = "backend_{}.schema.json".format(os),
-        ),
-    ]
+    write_source_file(
+        name = "backend_{}_schema".format(os),
+        in_file = ":backend_{}_schema_gen".format(os),
+        out_file = "backend_{}.schema.json".format(os),
+    )
     for os in [
         "linux",
         "windows",
@@ -141,8 +172,8 @@ run_binary(
 # Umbrella target: updates all five CWS markdown docs in one shot using the
 # committed JSON schemas as inputs. Platform-neutral — can run on any OS.
 # The JSON schemas themselves are updated by backend_linux_schema (Linux-only),
-# backend_windows_schema (Windows-only), and workload_protection_agent_config_schema,
-# called from cws_go_generate.
+# backend_windows_schema (Windows, or any host with --//:wine=true) and
+# workload_protection_agent_config_schema, called from cws_go_generate.
 write_source_files(
     name = "cws_docs",
     files = {
