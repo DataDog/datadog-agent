@@ -6,6 +6,7 @@
 package procmgr
 
 import (
+	"encoding/base64"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -39,6 +40,12 @@ const (
 
 type processProcmgrWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	cli     string
+	cfgPath string
+	// installedCfgBase64 is the base64 of the processes.d YAML as installed, the baseline every
+	// test starts from.
+	installedCfgBase64 string
 }
 
 func TestProcessAgentManagedByProcmgrWindows(t *testing.T) {
@@ -51,6 +58,77 @@ func TestProcessAgentManagedByProcmgrWindows(t *testing.T) {
 			),
 		),
 	))
+}
+
+func (s *processProcmgrWindowsSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	host := s.Env().RemoteHost
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	s.cli = joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
+	s.cfgPath = joinWindowsPath(installRoot, "processes.d", processProcmgrConfigFileName)
+
+	out, err := host.Execute(psReadFileBase64(s.cfgPath))
+	s.Require().NoError(err)
+	s.installedCfgBase64 = strings.TrimSpace(out)
+
+	// A host reused from an earlier run may still carry that run's mutation, and restoring
+	// it before every test would then keep the host broken.
+	decoded, err := base64.StdEncoding.DecodeString(s.installedCfgBase64)
+	s.Require().NoError(err)
+	s.Require().Contains(string(decoded), "stdout: inherit",
+		"%s does not look like the installed template, so it cannot serve as the baseline", s.cfgPath)
+}
+
+// BeforeTest puts the host back to the installed baseline, so no test depends on whether an
+// earlier test's cleanup succeeded. Tests run in name order on the same VM, so a failed
+// cleanup would otherwise fail every test after it for reasons unrelated to what it checks.
+func (s *processProcmgrWindowsSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	s.resetProcessAgent()
+}
+
+// resetProcessAgent clears the legacy SCM Environment value, restores the processes.d YAML,
+// and waits for process-agent to be Running.
+//
+// It starts process-agent only from Failed or Stopped, which are the states tests leave it
+// in. From Created it waits instead, because bringing process-agent up on its own is what
+// TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped checks.
+func (s *processProcmgrWindowsSuite) resetProcessAgent() {
+	host := s.Env().RemoteHost
+
+	out, err := host.Execute(psClearServiceEnvironment(processLegacySCMServiceName))
+	s.Require().NoError(err)
+	if strings.TrimSpace(out) == "Removed" {
+		// The value is read only at spawn, so a process started while it was set keeps it
+		// until it is spawned again.
+		if _, err := host.Execute(procmgrCmd(s.cli, "stop "+processProcessName)); err != nil {
+			s.T().Logf("stop after clearing the %s Environment value reported: %v", processLegacySCMServiceName, err)
+		}
+	}
+
+	// Every step is repeated on each attempt: dd-procmgr may still be starting on the first
+	// test, and writing identical bytes and reloading an unchanged config are no-ops.
+	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+		if _, err := host.Execute(psWriteFileBase64(s.cfgPath, s.installedCfgBase64)); !assert.NoError(ct, err) {
+			return
+		}
+		if _, err := host.Execute(procmgrCmd(s.cli, "reload")); !assert.NoError(ct, err) {
+			return
+		}
+		out, err := host.Execute(procmgrCmd(s.cli, "describe "+processProcessName))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		state := fieldValue(out, "State")
+		if state == "Failed" || state == "Stopped" {
+			_, err := host.Execute(procmgrCmd(s.cli, "start "+processProcessName))
+			assert.NoError(ct, err)
+		}
+		assert.Equal(ct, "Running", state, "process-agent should be Running before each test: %s", out)
+	}, 3*time.Minute, 5*time.Second)
 }
 
 // TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped is the end-to-end proof of the
@@ -106,14 +184,16 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
+	cli := s.cli
 
+	// BeforeTest repairs the host for the next test regardless. Failing here still points at
+	// the test that left it broken.
 	s.T().Cleanup(func() {
 		if _, err := host.Execute(psClearServiceEnvironment(processLegacySCMServiceName)); err != nil {
-			s.T().Logf("failed to clear the %s Environment value: %v", processLegacySCMServiceName, err)
+			s.T().Errorf("failed to clear the %s Environment value: %v", processLegacySCMServiceName, err)
 		}
 		if _, err := host.Execute(procmgrRespawn(cli, processProcessName)); err != nil {
-			s.T().Logf("failed to respawn %s: %v", processProcessName, err)
+			s.T().Errorf("failed to respawn %s: %v", processProcessName, err)
 		}
 	})
 
@@ -171,27 +251,13 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 // show is that the file on disk reaches the validator at all, so one violation is enough here.
 func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlMutation() {
 	host := s.Env().RemoteHost
-	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
-	require.NoError(s.T(), err)
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
-	cfgPath := joinWindowsPath(installRoot, "processes.d", processProcmgrConfigFileName)
-
 	// reload respawns a changed process only if it was running, so the validator is reached
-	// only from a running process-agent.
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"))
-	}, 2*time.Minute, 5*time.Second)
-
-	backup, err := host.Execute(psReadFileBase64(cfgPath))
-	require.NoError(s.T(), err)
-	backup = strings.TrimSpace(backup)
+	// only from a running process-agent. BeforeTest leaves it Running.
+	cli := s.cli
+	cfgPath := s.cfgPath
 
 	// A rejected privileged spawn leaves the process not running, so restoring the file is
 	// not enough on its own: reload restarts only processes that were running when their
@@ -202,7 +268,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	// for the deferred pass, so that error is logged rather than returned. The Running
 	// assertion below is what actually proves the restore worked.
 	restore := func() error {
-		if _, err := host.Execute(psWriteFileBase64(cfgPath, backup)); err != nil {
+		if _, err := host.Execute(psWriteFileBase64(cfgPath, s.installedCfgBase64)); err != nil {
 			return err
 		}
 		if _, err := host.Execute(procmgrCmd(cli, "reload")); err != nil {
@@ -215,7 +281,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	}
 	s.T().Cleanup(func() {
 		if err := restore(); err != nil {
-			s.T().Logf("failed to restore %s: %v", cfgPath, err)
+			s.T().Errorf("failed to restore %s: %v", cfgPath, err)
 		}
 	})
 
@@ -288,9 +354,13 @@ func psSetServiceEnvironment(service string, entries []string) string {
 		` -Name Environment -Type MultiString -Value @(` + strings.Join(quoted, ",") + `)`
 }
 
+// psClearServiceEnvironment prints Removed when there was a value to remove, and nothing
+// otherwise.
 func psClearServiceEnvironment(service string) string {
-	return `$ErrorActionPreference='Stop'; Remove-ItemProperty -LiteralPath ` + psServiceRegistryPath(service) +
-		` -Name Environment -ErrorAction SilentlyContinue`
+	key := psServiceRegistryPath(service)
+	return `$ErrorActionPreference='Stop'; if ($null -ne (Get-ItemProperty -LiteralPath ` + key +
+		` -Name Environment -ErrorAction SilentlyContinue)) { Remove-ItemProperty -LiteralPath ` + key +
+		` -Name Environment; 'Removed' }`
 }
 
 // psSelectStringLines returns the matching lines joined by newlines, or an empty string when
