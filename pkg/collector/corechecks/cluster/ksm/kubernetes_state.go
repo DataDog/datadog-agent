@@ -1515,30 +1515,41 @@ func ownerTags(kind, name string) ([]string, string) {
 	return []string{tagKey + ":" + name}, ""
 }
 
+var (
+	podLabelsMapperOverride = map[string]string{
+		"phase": "pod_phase",
+	}
+
+	ingressLabelsMapperOverride = map[string]string{
+		"host":         "kube_ingress_host",
+		"path":         "kube_ingress_path",
+		"service_name": "kube_service",
+		"service_port": "kube_service_port",
+	}
+
+	serviceLabelsMapperOverride = map[string]string{
+		"service": "kube_service",
+	}
+)
+
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
+// The returned map is shared and must not be modified by callers.
 // Current use-cases:
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return map[string]string{"phase": "pod_phase"}
+		return podLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_ingress") {
-		return map[string]string{
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		}
+		return ingressLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_service") {
-		return map[string]string{
-			"service": "kube_service",
-		}
+		return serviceLabelsMapperOverride
 	}
 	return nil
 }
