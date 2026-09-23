@@ -625,25 +625,30 @@ log_level: info`)
 func TestDataSecurityScanningRules(t *testing.T) {
 	assertClean(t,
 		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "\d+"}]`,
-		`scanning_rules: "********"`)
+		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "********"}]`)
 
 	assertClean(t,
-		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","license":"proprietary","pattern":"\\d+","proximity_keywords":{"included_keywords":["token"]}}],"scan_data":[]}`,
-		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":"********"`)
+		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","pattern":"\\d+","proximity_keywords":{"included_keywords":["token"]}},{"id":"rule-2","pattern":"a\"b"}],"scan_data":[]}`,
+		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","pattern":"********","proximity_keywords":{"included_keywords":["token"]}},{"id":"rule-2","pattern":"********"}],"scan_data":[]}`)
 
 	assertClean(t,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"license\":\"proprietary\"}]}"), } }`,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":"********"`)
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"pattern\":\"\\\\d+\"},{\"id\":\"rule-2\",\"pattern\":\"a\\\"b\"}]}"), } }`,
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"pattern\":\"********\"},{\"id\":\"rule-2\",\"pattern\":\"********\"}]}"), } }`)
+
+	// `pattern` outside of scanning rules is left untouched.
+	assertClean(t, `{"log_processing_rules":[{"pattern":"\\d+"}]}`, `{"log_processing_rules":[{"pattern":"\\d+"}]}`)
 
 	scrubbed, err := ScrubYamlString(`
 scanning_rules:
   - id: rule-1
-    license: proprietary
     pattern: '\d+'
+log_processing_rules:
+  - pattern: 'keep\s+me'
 task_id: task-1`)
 	require.NoError(t, err)
-	assert.Contains(t, scrubbed, `scanning_rules: "********"`)
-	assert.NotContains(t, scrubbed, "proprietary")
+	assert.Contains(t, scrubbed, `pattern: '********'`)
+	assert.Contains(t, scrubbed, `id: rule-1`)
+	assert.Contains(t, scrubbed, `keep\s+me`)
 	assert.NotContains(t, scrubbed, `\d+`)
 }
 

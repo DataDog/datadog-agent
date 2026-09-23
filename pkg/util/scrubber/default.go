@@ -195,18 +195,26 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
 
-	scanningRulesReplacer := matchYAMLKey(
-		`(scanning_rules)`,
-		[]string{"scanning_rules"},
-		[]byte(`$1 "********"`),
-	)
-	scanningRulesReplacer.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
+	// Scoped to scanning_rules: `pattern` is a common key elsewhere.
+	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
+		walk(&data, func(key string, _ any) (bool, any) {
+			return key == "pattern", defaultReplacement
+		})
+		return data
+	})
+	scanningRulesYaml.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
 
-	// Compact JSON form; RE2 cannot match nested arrays, so mask to end of line.
-	scanningRulesJSONReplacer := Replacer{
-		Regex:       regexp.MustCompile(`(\\?"scanning_rules\\?"\s*:)\s*[\[{].*`),
+	scanningRulesPatternJSONReplacer := Replacer{
+		Regex:       regexp.MustCompile(`("pattern"\s*:\s*)"(?:[^"\\]|\\.)*"`),
 		Hints:       []string{"scanning_rules"},
 		Repl:        []byte(`$1"********"`),
+		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
+	}
+	// JSON inside a Go-quoted string, as printed by integration.Config.Dump.
+	scanningRulesPatternQuotedJSONReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(\\"pattern\\"\s*:\s*)\\"(?:[^\\]|\\[^"\\]|\\\\(?:[^\\]|\\.))*\\"`),
+		Hints:       []string{"scanning_rules"},
+		Repl:        []byte(`$1\"********\"`),
 		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
 	}
 	certReplacer := Replacer{
@@ -363,8 +371,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, secretReplacer)
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
-	scrubber.AddReplacer(SingleLine, scanningRulesReplacer)
-	scrubber.AddReplacer(SingleLine, scanningRulesJSONReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
+	scrubber.AddReplacer(SingleLine, scanningRulesPatternJSONReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesPatternQuotedJSONReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)

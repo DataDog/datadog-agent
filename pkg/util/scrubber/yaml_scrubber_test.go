@@ -60,8 +60,10 @@ func TestScrubDataObj(t *testing.T) {
 				"task_id": "task-1",
 			},
 			expected: map[string]interface{}{
-				"scanning_rules": "********",
-				"task_id":        "task-1",
+				"scanning_rules": []interface{}{
+					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": "********"},
+				},
+				"task_id": "task-1",
 			},
 		},
 		{
