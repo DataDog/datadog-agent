@@ -12,8 +12,6 @@ package_aix-ppc64:
           - .gitlab/aix/common/**/*
           - .gitlab/aix/build/aix_packaging.yml
         compare_to: $COMPARE_TO_BRANCH
-      # TODO: uncomment once the job is stable enough
-      # allow_failure: false
     - !reference [.manual]
   script:
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
