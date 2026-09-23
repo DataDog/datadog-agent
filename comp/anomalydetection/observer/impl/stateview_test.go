@@ -221,8 +221,9 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 	}
 
 	withoutSourceRef := observerdef.Anomaly{
-		Source:       observerdef.SeriesDescriptor{Name: "rrcf.score"},
-		DetectorName: "rrcf",
+		Type:         observerdef.AnomalyTypeLog,
+		Source:       observerdef.SeriesDescriptor{Namespace: "logs", Name: "connection_error"},
+		DetectorName: "connection_error_extractor",
 		Title:        "spike",
 		Timestamp:    200,
 	}

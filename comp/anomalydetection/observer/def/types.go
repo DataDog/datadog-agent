@@ -216,7 +216,7 @@ type Anomaly struct {
 	Source SeriesDescriptor
 	// SourceRef is the storage handle for this anomaly's series, enabling
 	// direct compact ID lookups without string-key reconstruction. Nil for
-	// anomalies without a storage-backed series (e.g. log anomalies, RRCF).
+	// anomalies without a storage-backed series (e.g. log anomalies).
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
@@ -580,10 +580,6 @@ type StorageReader interface {
 	// the callback. Uses a pooled buffer internally so steady-state calls
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
-
-	// PointCount returns the number of raw data points for a series without
-	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(handle SeriesRef) int
 
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.

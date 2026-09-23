@@ -187,7 +187,7 @@ func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplet
 	}
 
 	// The first detector finds a metric-backed anomaly. The final detector
-	// models a detector such as RRCF, which has no per-series source refs.
+	// finishes without finding any additional noisy series.
 	sink.onEngineEvent(engineEvent{
 		kind: eventBaselineCompleted,
 		baselineCompleted: &baselineCompletedEvent{

@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. BOCPDConfig, RRCFConfig)
+	defaultConfig  any           // typed config value (e.g. BOCPDConfig, HoltResidualConfig)
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -210,21 +210,6 @@ func defaultCatalog() *componentCatalog {
 					cfg := defaults.(BOCPDConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("bocpd: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "rrcf",
-				displayName:    "RRCF",
-				kind:           componentDetector,
-				defaultConfig:  DefaultRRCFConfig(),
-				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(RRCFConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("rrcf: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -551,42 +536,9 @@ func kindString(k componentKind) string {
 	}
 }
 
-// statelessDetectorAllowlist enumerates catalog detectors that are explicitly
-// permitted to NOT implement observerdef.SeriesRemover. A stateless detector
-// keeps no per-series state (no posterior maps, no segment trackers, no
-// visible-count tracking) and therefore needs nothing freed when storage
-// evicts a series; the engine's fanOutSeriesRemoval safely no-ops on it.
-//
-// Any new entry added here is asserting "this detector is genuinely stateless
-// across detect calls". If a detector ever grows per-series memory (cache,
-// tracker, accumulator keyed by SeriesRef), it must implement SeriesRemover
-// and be removed from this list — otherwise its memory grows with the
-// cumulative number of series ever observed even after storage evicts them.
-var statelessDetectorAllowlist = map[string]struct{}{
-	// SeriesDetector implementations are wrapped at instantiation time by
-	// seriesDetectorAdapter, which itself implements SeriesRemover — so the
-	// raw SeriesDetector struct doesn't need to. The adapter handles teardown
-	// of its own lastVisibleCount cache and forwards to the wrapped detector
-	// only if it also satisfies SeriesRemover.
-	//
-	// Truly-stateless catalog Detectors are listed below.
-
-	// RRCF tracks a FIXED set of metric definitions configured at construction
-	// (RRCFConfig.Metrics, with DefaultRRCFMetrics() as the fallback). Its
-	// resolvedKeys / cursors maps are keyed by cursorKey (a metric definition
-	// identifier), not by ingested SeriesRef — so the map size is bounded by
-	// the configured metrics, not by storage cardinality. Adding storage-eviction
-	// fan-out would not free anything because RRCF state isn't keyed by SeriesRef.
-	// If RRCF is ever extended to track per-tag-combination state keyed by
-	// SeriesRef, this entry must be removed and RRCF must implement
-	// SeriesRemover.
-	"rrcf": {},
-}
-
 // validateDetectorTeardownContract checks that every detector entry in the
-// catalog either implements observerdef.SeriesRemover (so engine eviction
-// fan-out can free its per-series state) or is explicitly listed in
-// statelessDetectorAllowlist. Returns nil on success and a descriptive error
+// catalog implements observerdef.SeriesRemover so engine eviction fan-out can
+// free its per-series state. Returns nil on success and a descriptive error
 // on the first violator.
 //
 // Intended use: a unit test calls this against defaultCatalog() so any new
@@ -598,9 +550,6 @@ var statelessDetectorAllowlist = map[string]struct{}{
 func (c *componentCatalog) validateDetectorTeardownContract() error {
 	for _, entry := range c.entries {
 		if entry.kind != componentDetector {
-			continue
-		}
-		if _, allowed := statelessDetectorAllowlist[entry.name]; allowed {
 			continue
 		}
 		// Build the same instance Instantiate would. We use defaultConfig
@@ -621,7 +570,7 @@ func (c *componentCatalog) validateDetectorTeardownContract() error {
 			if _, ok := d.(observerdef.SeriesRemover); ok {
 				continue
 			}
-			return &detectorTeardownContractError{name: entry.name, reason: "detector neither implements observerdef.SeriesRemover nor is listed in statelessDetectorAllowlist"}
+			return &detectorTeardownContractError{name: entry.name, reason: "detector does not implement observerdef.SeriesRemover"}
 		}
 		return &detectorTeardownContractError{name: entry.name, reason: "factory product is neither observerdef.Detector nor observerdef.SeriesDetector"}
 	}

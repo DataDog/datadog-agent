@@ -780,19 +780,10 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	sv := api.tb.getStateView()
 
 	resolveCompactID := func(a observerdef.Anomaly) string {
 		if a.SourceRef != nil {
 			return a.SourceRef.CompactID()
-		}
-		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
-			storage := &stateViewStorage{sv: sv}
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", "", nil)
-			if compactID := storage.compactSeriesID(key); compactID != key {
-				return compactID
-			}
 		}
 		return a.Source.Key()
 	}

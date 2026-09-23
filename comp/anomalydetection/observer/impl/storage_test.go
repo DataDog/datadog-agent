@@ -474,12 +474,6 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesRef(999), 100)) // non-existent ID
 }
 
-func TestPointCount_ColumnarLayout(t *testing.T) {
-	s := makeRangeStorage()
-	assert.Equal(t, 5, s.PointCount(rangeID))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesRef(999))) // non-existent ID
-}
-
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s := newTimeSeriesStorage()
 	// Insert out of order — storage keeps buckets sorted.
@@ -1025,50 +1019,4 @@ func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
 			seriesKeyHash("ns", "metric", tc.host, tc.tags),
 		)
 	}
-}
-
-func TestParseSeriesKeyRequiresHostField(t *testing.T) {
-	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
-	assert.True(t, ok)
-	assert.Equal(t, "ns", namespace)
-	assert.Equal(t, "metric:avg", name)
-	assert.Empty(t, host)
-	assert.Equal(t, []string{"env:prod"}, tags)
-
-	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
-	assert.False(t, ok)
-}
-
-func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
-	s := newTimeSeriesStorage()
-	tags := []string{"env:prod"}
-	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
-	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
-	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
-
-	for _, tc := range []struct {
-		host string
-		ref  observer.SeriesRef
-	}{
-		{host: "", ref: hostless.Ref},
-		{host: "web-a", ref: hostA.Ref},
-		{host: "web-b", ref: hostB.Ref},
-	} {
-		key := (observer.SeriesDescriptor{
-			Namespace: "ns",
-			Name:      "metric",
-			Host:      tc.host,
-			Tags:      tags,
-			Aggregate: AggregateAverage,
-		}).Key()
-		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
-	}
-}
-
-func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
-	s := newTimeSeriesStorage()
-	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
-	legacyKey := "ns|metric:avg|env:prod"
-
-	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
 }

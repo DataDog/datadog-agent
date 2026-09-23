@@ -167,10 +167,6 @@ func (s *seriesListOnlyStorage) ForEachPoint(observer.SeriesRef, int64, int64, o
 	return false
 }
 
-func (s *seriesListOnlyStorage) PointCount(observer.SeriesRef) int {
-	return 0
-}
-
 func (s *seriesListOnlyStorage) PointCountUpTo(observer.SeriesRef, int64) int {
 	return 0
 }

@@ -300,11 +300,6 @@ func NewComponent(deps Requires) (Provides, error) {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
 		}
 	}
-	for _, detector := range detectors {
-		if sinkAware, ok := detector.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
-			sinkAware.SetObserverTelemetry(obsTelemetry)
-		}
-	}
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.

@@ -11,7 +11,7 @@ Go Server (:8080)                 React UI (:5173)
 │ (parquet/logs/demo)  │  HTTP   │ Toggle detectors     │
 │         ↓            │◄───────►│ Browse series tree   │
 │ Run detectors        │  JSON   │ View charts + zoom   │
-│ (BOCPD, RRCF, scans) │         │ Inspect anomalies    │
+│ (BOCPD, scans)       │         │ Inspect anomalies    │
 │         ↓            │         │ Click correlations   │
 │ Detect correlations  │         └──────────────────────┘
 └──────────────────────┘

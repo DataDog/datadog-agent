@@ -1031,18 +1031,6 @@ func (tb *Bench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) [
 	for _, a := range all {
 		if a.Source.Key() == targetKey {
 			result = append(result, a)
-			continue
-		}
-		if a.Source.Namespace != sd.Namespace && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			telemetrySD := observerdef.SeriesDescriptor{
-				Namespace: "telemetry",
-				Name:      telemetryName,
-				Aggregate: observerdef.AggregateAverage,
-			}
-			if telemetrySD.Key() == targetKey {
-				result = append(result, a)
-			}
 		}
 	}
 	return result

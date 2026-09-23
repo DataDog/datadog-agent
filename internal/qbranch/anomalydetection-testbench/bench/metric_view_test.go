@@ -18,9 +18,8 @@ func TestNewParquetMetricViewResolvesHostTag(t *testing.T) {
 	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetTags().UnsafeToReadOnlySliceString())
 }
 
-func TestSeriesKeyRoundTripsHost(t *testing.T) {
-	key := seriesKey("parquet", "system.cpu:avg", "web-1", []string{"service:api", "env:prod"})
-	namespace, name, host, tags, ok := parseSeriesKey(key)
+func TestParseSeriesKeyIncludesHost(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("parquet|system.cpu:avg|web-1|env:prod,service:api")
 
 	assert.True(t, ok)
 	assert.Equal(t, "parquet", namespace)

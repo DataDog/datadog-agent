@@ -5166,14 +5166,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          rrcf:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
           scanmw:
             node_type: section
             type: object

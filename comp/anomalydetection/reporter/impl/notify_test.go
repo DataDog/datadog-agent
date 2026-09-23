@@ -123,7 +123,6 @@ func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ 
 func (s *sumRangeStorage) ForEachPoint(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate, _ func(*observerdef.Series, observerdef.Point)) bool {
 	panic("not implemented")
 }
-func (s *sumRangeStorage) PointCount(_ observerdef.SeriesRef) int { panic("not implemented") }
 func (s *sumRangeStorage) PointCountUpTo(_ observerdef.SeriesRef, _ int64) int {
 	panic("not implemented")
 }
