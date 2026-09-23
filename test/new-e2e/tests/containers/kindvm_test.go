@@ -15,6 +15,7 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
 
 type kindSuite struct {
@@ -117,17 +118,26 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "kube_apiserver.storage_objects",
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^resource:.*`,
+	serverVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
+	suite.Require().NoError(err, "failed to request the Kubernetes server version")
+	k8sVersion, err := utilversion.ParseGeneric(serverVersion.GitVersion)
+	suite.Require().NoError(err, "failed to parse the Kubernetes server version")
+
+	// apiserver_storage_objects was deprecated in Kubernetes 1.34 and is hidden starting in 1.37.
+	// Its replacement, apiserver_resource_objects, is Alpha and intentionally unsupported here.
+	if !k8sVersion.AtLeast(utilversion.MajorMinor(1, 37)) {
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "kube_apiserver.storage_objects",
 			},
-			AcceptUnexpectedTags: true,
-		},
-	})
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					`^resource:.*`,
+				},
+				AcceptUnexpectedTags: true,
+			},
+		})
+	}
 
 	// Test `kube_controller_manager` check is properly working
 	suite.testMetric(&testMetricArgs{
