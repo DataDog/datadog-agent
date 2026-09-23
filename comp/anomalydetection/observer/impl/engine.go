@@ -485,8 +485,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
 			if m.HasLogContext && res.Ref >= 0 {
 				e.storage.SetLogContext(res.Ref, m.LogContext)
-				// Temporary adapter until reporters resolve LogContext lazily.
-				e.storage.SetContext(res.Ref, legacyMetricContext(m.LogContext, extractor.Name()))
 			}
 		}
 	}
@@ -496,32 +494,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	dataTimeSec := l.timestampMs / 1000
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
-}
-
-func legacyMetricContext(context observerdef.LogContext, source string) *observerdef.MetricContext {
-	var splitTags map[string]string
-	for _, dimension := range []struct {
-		key, value string
-	}{
-		{"source", context.Dimensions.Source},
-		{"service", context.Dimensions.Service},
-		{"env", context.Dimensions.Env},
-		{"host", context.Dimensions.Host},
-	} {
-		if dimension.value == "" {
-			continue
-		}
-		if splitTags == nil {
-			splitTags = make(map[string]string, 4)
-		}
-		splitTags[dimension.key] = dimension.value
-	}
-	return &observerdef.MetricContext{
-		Pattern:   context.Pattern,
-		Example:   context.Example,
-		Source:    source,
-		SplitTags: splitTags,
-	}
 }
 
 func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {
@@ -796,7 +768,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		for _, anomaly := range result.Anomalies {
-			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
 			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
@@ -881,20 +852,6 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 		}
 	}
 	return storageKeyForCompositeIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
-}
-
-// enrichAnomaly decorates an anomaly with context stored on the source series.
-// Context is written at ingest time via storage.SetContext when an extractor
-// emits a MetricOutput.Context; here we read it back in O(1).
-func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.SourceRef == nil {
-		return
-	}
-	ctx := e.storage.GetContext(a.SourceRef.Ref)
-	if ctx == nil {
-		return
-	}
-	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
@@ -1222,9 +1179,8 @@ func (e *engine) resetFull() {
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
 // telemetry, and correlations — but does NOT reset extractors. Used before
-// batch replay so that enrichAnomaly can still attach context (stored on
-// seriesStats) during replay. Detectors and correlators ARE reset so they
-// start from a clean slate and produce correct results.
+// batch replay while preserving storage-owned log context. Detectors and
+// correlators ARE reset so they start from a clean slate.
 func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
@@ -1242,7 +1198,7 @@ func (e *engine) resetAnalysisState() {
 		correlator.Reset()
 	}
 	// Extractors are intentionally NOT reset: their state was built during
-	// log ingestion and is needed by enrichAnomaly during replay.
+	// log ingestion and remains available to output renderers during replay.
 
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))

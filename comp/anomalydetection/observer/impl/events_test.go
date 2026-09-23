@@ -221,16 +221,14 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
-func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
-	ctx := &observerdef.MetricContext{
+func TestAdvanceKeepsLogContextInStorage(t *testing.T) {
+	context := observerdef.LogContext{
 		Pattern: "error <*> timeout",
 		Example: "very long example line that should still be attached as context without replacing the detector description",
-		Source:  "log_metrics_extractor",
 	}
 	storage := newTimeSeriesStorage()
-	// Add a series and store context on it via SetContext.
 	addRes := storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
-	storage.SetContext(addRes.Ref, ctx)
+	storage.SetLogContext(addRes.Ref, context)
 
 	anomalies := []observerdef.Anomaly{{
 		Source: observerdef.SeriesDescriptor{
@@ -259,19 +257,17 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	require.Len(t, anomalyEvents, 1)
 	got := anomalyEvents[0].anomalyCreated.anomaly
 	assert.Equal(t, "detector-authored description", got.Description)
-	require.NotNil(t, got.Context)
-	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
-	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
-	assert.Contains(t, got.Context.Example, "very long example line")
+	stored, ok := storage.GetLogContext(addRes.Ref)
+	require.True(t, ok)
+	assert.Equal(t, context, stored)
 }
 
-func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
+func TestSetExtractorsDoesNotClearStoredLogContext(t *testing.T) {
 	first := &stubExtractor{name: "first"}
 	second := &stubExtractor{name: "second"}
 	storage := newTimeSeriesStorage()
 	addRes := storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
-	// Store context directly on the series.
-	storage.SetContext(addRes.Ref, &observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
+	storage.SetLogContext(addRes.Ref, observerdef.LogContext{Pattern: "p2", Example: "e2"})
 
 	anomaly := observerdef.Anomaly{
 		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: testCompositeTags([]string{"service:api"})},
@@ -288,11 +284,12 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
 	result := e.Advance(2)
 	require.Len(t, result.anomalies, 1)
-	require.NotNil(t, result.anomalies[0].Context)
-	assert.Equal(t, "second", result.anomalies[0].Context.Source)
+	context, ok := storage.GetLogContext(addRes.Ref)
+	require.True(t, ok)
+	assert.Equal(t, "p2", context.Pattern)
 }
 
-func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
+func TestLogPatternExtractorStoresContextBySeriesRef(t *testing.T) {
 	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	extractor.config.MinClusterSizeBeforeEmit = 1
 	e := newEngine(engineConfig{
@@ -336,16 +333,13 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	}
 	require.NotEmpty(t, anomaly.Source.Name)
 
-	e.enrichAnomaly(&anomaly)
-	require.NotNil(t, anomaly.Context)
-	assert.Equal(t, "log_pattern_extractor", anomaly.Context.Source)
-	// Context carries the most-recently-emitted example for the series (SetContext overwrites).
-	// After two source-a logs merge into a wildcard cluster, the example is from the second log.
-	assert.NotEmpty(t, anomaly.Context.Example)
-	assert.Contains(t, anomaly.Context.Pattern, "*")
+	context, ok := e.storage.GetLogContext(anomaly.SourceRef.Ref)
+	require.True(t, ok)
+	assert.NotEmpty(t, context.Example)
+	assert.Contains(t, context.Pattern, "*")
 }
 
-func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {
+func TestAdvance_LogMetricAnomalyKeepsContextBySeriesIdentity(t *testing.T) {
 	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"}, []observerdef.Aggregate{observerdef.AggregateCount})
 	e := newEngine(engineConfig{
@@ -372,15 +366,10 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	require.NotNil(t, anomaly.SourceRef)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
 
-	require.NotNil(t, anomaly.Context)
-	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
-	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
-	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
-
 	stored, ok := e.storage.GetLogContext(anomaly.SourceRef.Ref)
 	require.True(t, ok)
-	assert.Equal(t, anomaly.Context.Pattern, stored.Pattern)
-	assert.Equal(t, anomaly.Context.Example, stored.Example)
+	assert.Equal(t, "GET /users/123 returned 500", stored.Example)
+	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), stored.Pattern)
 }
 
 func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {

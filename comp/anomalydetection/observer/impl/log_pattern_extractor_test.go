@@ -475,10 +475,10 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	require.Equal(t, 2, storage.TotalSeriesCount(),
 		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
 
-	// Surviving series must have context stored on them.
+	// Surviving series must have log context stored on them.
 	for _, meta := range storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
-		require.NotNil(t, storage.GetContext(meta.Ref),
-			"surviving series must have inline MetricContext (ref=%d)", meta.Ref)
+		_, ok := storage.GetLogContext(meta.Ref)
+		require.True(t, ok, "surviving series must have LogContext (ref=%d)", meta.Ref)
 	}
 }
 

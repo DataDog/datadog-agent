@@ -267,11 +267,8 @@ func TestClassifySubCategory_NewPatternForLogDerivedZeroBaseline(t *testing.T) {
 	// A log-pattern metric anomaly with BaselineMean=0 means the pattern
 	// didn't exist before — classify as new_pattern, not spike.
 	c := observerdef.ActiveCorrelation{Anomalies: []observerdef.Anomaly{{
-		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
-		Context: &observerdef.MetricContext{
-			Pattern: "connection refused",
-		},
+		Type:      observerdef.AnomalyTypeMetric,
+		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
 		DebugInfo: &observerdef.AnomalyDebugInfo{CurrentValue: 5, BaselineMean: 0},
 	}}}
 	assert.Equal(t, subCategoryNewPattern, classifyCorrelationSubCategory(c))
@@ -281,11 +278,8 @@ func TestClassifySubCategory_LogDerivedWithBaselineStaysAsSpikeOrDrop(t *testing
 	// Log-pattern metric anomaly with a real baseline behaves like a normal
 	// rate change: classified by direction, not as new_pattern.
 	c := observerdef.ActiveCorrelation{Anomalies: []observerdef.Anomaly{{
-		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
-		Context: &observerdef.MetricContext{
-			Pattern: "connection refused",
-		},
+		Type:      observerdef.AnomalyTypeMetric,
+		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
 		DebugInfo: &observerdef.AnomalyDebugInfo{CurrentValue: 50, BaselineMean: 5},
 	}}}
 	assert.Equal(t, subCategorySpike, classifyCorrelationSubCategory(c))

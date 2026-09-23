@@ -170,9 +170,8 @@ type seriesStats struct {
 	// tagInternFingerprint identifies the bounded interner entry retaining Tags.
 	// Zero means this series owns its original composite view directly.
 	tagInternFingerprint uint64
-	ref                  observer.SeriesRef      // compact numeric ID assigned on creation
-	context              *observer.MetricContext // legacy optional context; removed after migration
-	logContext           *observer.LogContext    // optional display metadata owned by this series
+	ref                  observer.SeriesRef   // compact numeric ID assigned on creation
+	logContext           *observer.LogContext // optional display metadata owned by this series
 	// supportedAggregations is a bit mask. Zero means all aggregations are
 	// supported; materialized log count buckets set only Average because each
 	// stored point is already one aggregated window count.
@@ -966,28 +965,6 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 		s.liveSeriesCount--
 	}
 	return true
-}
-
-// SetContext stores a MetricContext on the series identified by ref.
-// No-op when ref is out of range or the series has been removed.
-func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.MetricContext) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		stats.context = ctx
-	}
-}
-
-// GetContext returns the MetricContext stored on the series identified by ref.
-// Returns nil when ref is out of range, the series has been removed, or no
-// context was set.
-func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricContext {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		return stats.context
-	}
-	return nil
 }
 
 // SetLogContext stores display metadata on the series identified by ref. The

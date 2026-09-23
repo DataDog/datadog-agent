@@ -173,7 +173,6 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 				)
 				if state.hasLogContext && result.Ref >= 0 {
 					storage.SetLogContext(result.Ref, state.logContext)
-					storage.SetContext(result.Ref, legacyMetricContext(state.logContext, state.namespace))
 				}
 				if result.Ref >= 0 {
 					state.storageRef = result.Ref

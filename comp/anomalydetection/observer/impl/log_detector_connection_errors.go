@@ -31,7 +31,7 @@ func DefaultConnectionErrorExtractorConfig() ConnectionErrorExtractorConfig {
 }
 
 // ConnectionErrorExtractor detects connection errors in logs and emits a
-// connection.errors metric with inline MetricContext for anomaly enrichment.
+// connection.errors metric with storage-owned display context.
 type ConnectionErrorExtractor struct{}
 
 // Name returns the detector name.

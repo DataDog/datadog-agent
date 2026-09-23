@@ -42,10 +42,6 @@ func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.
 	}
 	return &meta
 }
-func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
-	return nil
-}
-
 func (s *sumRangeStorage) GetLogContext(ref observerdef.SeriesRef) (observerdef.LogContext, bool) {
 	context, ok := s.logContexts[ref]
 	return context, ok
@@ -157,10 +153,6 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorWithPattern(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
 		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-		Context: &observerdef.MetricContext{
-			Pattern: "C3:C8_C1",
-			Example: "ERROR: connection refused to db.prod:5432",
-		},
 	}
 	assert.True(t, IsLogDerivedAnomaly(a))
 }
@@ -170,19 +162,14 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
 		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-		Context: &observerdef.MetricContext{
-			Pattern: "",
-			Example: "some log line",
-		},
 	}
 	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
 	a := observerdef.Anomaly{
-		Type:    observerdef.AnomalyTypeMetric,
-		Source:  observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-		Context: nil,
+		Type:   observerdef.AnomalyTypeMetric,
+		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
 	}
 	assert.True(t, IsLogDerivedAnomaly(a))
 }
@@ -233,10 +220,6 @@ func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 			{
 				Type:   observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-				Context: &observerdef.MetricContext{
-					Pattern: "C3:C8_C1",
-					Example: "some log line",
-				},
 			},
 		},
 	}
@@ -286,9 +269,6 @@ func TestBuildEventTags_LogDerivedMetricAnomaly(t *testing.T) {
 				Type: observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{
 					Namespace: logPatternExtractorNamespace,
-				},
-				Context: &observerdef.MetricContext{
-					Pattern: "some log pattern",
 				},
 			},
 		},

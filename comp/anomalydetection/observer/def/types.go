@@ -223,11 +223,8 @@ type Anomaly struct {
 	DetectorName string
 	Title        string
 	Description  string
-	// Context carries optional enrichment about the originating signal, such as
-	// a synthesized pattern and example source data.
-	Context   *MetricContext
-	Timestamp int64    // when the anomaly was detected (unix seconds)
-	Score     *float64 // confidence/severity score (nil if not available)
+	Timestamp    int64    // when the anomaly was detected (unix seconds)
+	Score        *float64 // confidence/severity score (nil if not available)
 	// SamplingIntervalSec is the median interval between consecutive data points
 	// for the source series, in seconds. Set by scan detectors (ScanMW, ScanWelch)
 	// at detection time from the actual point buffer. Zero if unknown.
@@ -525,19 +522,6 @@ func AggregateString(agg Aggregate) string {
 	}
 }
 
-// MetricContext describes the origin of a synthesized metric.
-type MetricContext struct {
-	// Pattern is the normalized pattern that generated this metric (e.g. a log signature).
-	Pattern string
-	// Example is a recent raw input that matched the pattern.
-	Example string
-	// Source identifies the originating component or data stream.
-	Source string
-	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
-	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.
-	SplitTags map[string]string
-}
-
 // LogDimensions contains the dimensions used to partition log-pattern
 // clustering. They are stored as fields rather than a map because the set is
 // fixed and known at compile time.
@@ -585,10 +569,6 @@ type StorageReader interface {
 	// GetSeriesMeta returns metadata for one series ref, or nil if the series
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
-
-	// GetContext returns the legacy optional context associated with a series, or nil
-	// if the series has been evicted or has no context.
-	GetContext(ref SeriesRef) *MetricContext
 
 	// GetLogContext returns a value snapshot of display metadata associated with
 	// a log-derived series. ok is false when the series has been evicted or has

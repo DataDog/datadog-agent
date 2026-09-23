@@ -28,7 +28,7 @@ var benchmarkLogSink []recorderdef.LogData
 func TestScorerReportContributorNameUsesLogContext(t *testing.T) {
 	name := scorerReportContributorName(
 		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
-		&observerdef.MetricContext{Pattern: "ERROR <*>", Example: "ERROR: connection refused"},
+		observerdef.LogContext{Pattern: "ERROR <*>", Example: "ERROR: connection refused"},
 		observerdef.AggregateCount,
 	)
 
