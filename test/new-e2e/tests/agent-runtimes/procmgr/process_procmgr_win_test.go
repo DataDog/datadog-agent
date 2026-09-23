@@ -28,10 +28,9 @@ const (
 	processLegacySCMServiceName  = "datadog-process-agent"
 	processProcmgrConfigFileName = "datadog-agent-process.yaml"
 
-	// An inert DD_* name that exists only to prove the merge path ran. process-agent
-	// ignores it, so setting it cannot change what the Agent does.
-	legacySCMProbeEnvKey   = "DD_E2E_PROCMGR_LEGACY_SCM"
-	legacySCMProbeEnvValue = "merged-from-scm"
+	// The provisioned datadog.yaml leaves log_level at its info default, so a running
+	// process-agent can only report this level if it came through the merged environment.
+	legacySCMLogLevel = "warn"
 )
 
 type processProcmgrWindowsSuite struct {
@@ -114,7 +113,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	})
 
 	_, err = host.Execute(psSetServiceEnvironment(processLegacySCMServiceName, []string{
-		legacySCMProbeEnvKey + "=" + legacySCMProbeEnvValue,
+		"DD_LOG_LEVEL=" + legacySCMLogLevel,
 		`DD_FLEET_POLICIES_DIR=C:\stale\fleet\path`,
 	}))
 	require.NoError(s.T(), err)
@@ -124,17 +123,26 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	_, err = host.Execute(procmgrRespawn(cli, processProcessName))
 	require.NoError(s.T(), err)
 
-	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	// config get asks the running process-agent for its live logger level over IPC, so this
+	// holds only if the merged value reached the child's environment and took effect.
+	processAgentCLI := joinWindowsPath(installRoot, "bin", "agent", "process-agent.exe")
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
+		out, err := host.Execute(fmt.Sprintf(`& "%s" config get log_level`, processAgentCLI))
 		if !assert.NoError(ct, err) {
 			return
 		}
-		assert.Contains(ct, out, legacySCMProbeEnvKey,
-			"the allowed key should be merged from %s", processLegacySCMServiceName)
-		assert.NotContains(ct, out, "DD_FLEET_POLICIES_DIR",
-			"the denylisted key must never be merged into the child environment")
+		assert.Contains(ct, out, "log_level is set to: "+legacySCMLogLevel,
+			"process-agent should run with DD_LOG_LEVEL merged from %s", processLegacySCMServiceName)
 	}, 2*time.Minute, 5*time.Second)
+
+	// The merge log line is written after filtering, so it lists exactly the keys that were
+	// merged into the child.
+	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	out, err := host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
+	require.NoError(s.T(), err)
+	assert.Contains(s.T(), out, "DD_LOG_LEVEL")
+	assert.NotContains(s.T(), out, "DD_FLEET_POLICIES_DIR",
+		"the denylisted key must never be merged into the child environment")
 }
 
 // TestProcessAgentPrivilegedSpawnRejectsYamlMutation proves the on-disk processes.d YAML is
