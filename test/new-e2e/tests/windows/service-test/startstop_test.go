@@ -354,29 +354,38 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 	s.Require().NoError(err)
 	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
 
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err)
+	procmgrLog := filepath.Join(logsFolder, "dd-procmgr.log")
+
 	s.startAgent()
 	s.assertServiceState("Running", "dd-procmgr-service", nil)
 
+	// dd-procmgr serves RPCs before its start pass evaluates the gate, so neither the service
+	// state nor a Created process proves a decision was made. This line does: the start pass
+	// writes it when the gate is closed, and BeforeTest cleared the logs folder, so it cannot
+	// come from an earlier start.
 	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
-		out, err := host.Execute(
-			`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+		content, err := host.ReadFile(procmgrLog)
 		if !assert.NoError(ct, err) {
 			return
 		}
-		assert.Equal(ct, "Absent", strings.TrimSpace(out),
-			"dd-procmgr must not run process-agent when every process-agent config trigger is off")
+		assert.Contains(ct, string(content), "[datadog-agent-process] condition_config_any not met",
+			"dd-procmgr should evaluate the process-agent config gate and find it closed")
 	}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
 
-	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		state := procmgrDescribeField(out, "State")
-		assert.NotEmpty(ct, state, "describe output should report a State: %s", out)
-		assert.NotEqual(ct, "Running", state,
-			"dd-procmgr should not report a running process-agent when it is disabled in config")
-	}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	for end := time.Now().Add(30 * time.Second); time.Now().Before(end); time.Sleep(5 * time.Second) {
+		out, err := host.Execute(
+			`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+		s.Require().NoError(err)
+		s.Require().Equal("Absent", strings.TrimSpace(out),
+			"dd-procmgr must not run process-agent when every process-agent config trigger is off")
+
+		out, err = host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
+		s.Require().NoError(err)
+		s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+			"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
+	}
 }
 
 // procmgrDescribeField pulls a single "Label: value" field out of dd-procmgr describe output.
