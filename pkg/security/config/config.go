@@ -521,7 +521,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: SecurityProfileV2MaxDumpSize returns the V2-only max profile size in bytes.
 	// visibility: private
-	// default_value: 3072
+	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
