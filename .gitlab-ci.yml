@@ -1059,6 +1059,8 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
         - pkg/process/**/*
         - pkg/config/setup/process.go
