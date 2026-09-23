@@ -1393,6 +1393,20 @@ type raceInjectingConfig struct {
 	triggered bool
 }
 
+// atomicRacingConfig changes watchKey immediately before each conditional write.
+type atomicRacingConfig struct {
+	pkgconfigmodel.ReaderWriter
+	watchKey string
+	inject   func()
+}
+
+func (r *atomicRacingConfig) SetIfUnchanged(key string, oldValue, value any, source pkgconfigmodel.Source) bool {
+	if key == r.watchKey && r.inject != nil {
+		r.inject()
+	}
+	return r.ReaderWriter.SetIfUnchanged(key, oldValue, value, source)
+}
+
 func (r *raceInjectingConfig) GetStringMapStringSlice(key string) map[string][]string {
 	v := r.ReaderWriter.GetStringMapStringSlice(key)
 	if key == r.watchKey && !r.triggered {
@@ -1421,13 +1435,6 @@ type alwaysRevertingConfig struct {
 	revertTo map[string][]string
 }
 
-// casRacingConfig changes the watched value immediately before every compare-and-set.
-type casRacingConfig struct {
-	pkgconfigmodel.ReaderWriter
-	watchKey string
-	inject   func()
-}
-
 type failingProvider struct {
 	calls int
 }
@@ -1437,27 +1444,52 @@ func (p *failingProvider) GenerateAuthProof(context.Context, pkgconfigmodel.Read
 	return "", errors.New("proof failed")
 }
 
-func (r *casRacingConfig) SetIfSequenceID(key string, value any, source pkgconfigmodel.Source, expected uint64) bool {
-	if key == r.watchKey {
-		r.inject()
-	}
-	return r.ReaderWriter.SetIfSequenceID(key, value, source, expected)
+func TestAuthenticateRejectsRemovedAdditionalEndpointBeforeGeneratingProof(t *testing.T) {
+	t.Run("map shape", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		mockConfig.SetInTest("additional_endpoints", map[string][]string{})
+		provider := &failingProvider{}
+		instance := &authInstance{
+			provider:                     provider,
+			additionalEndpointDomain:     "https://removed.example.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			lastWrittenValue:             "DELA(org-uuid, aws)",
+			originalDirective:            "DELA(org-uuid, aws)",
+		}
+
+		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
+		require.ErrorIs(t, err, errWritebackTargetChanged)
+		assert.Zero(t, provider.calls)
+	})
+
+	t.Run("list shape", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		mockConfig.SetInTest("logs_config.additional_endpoints", []any{})
+		provider := &failingProvider{}
+		instance := &authInstance{
+			provider:                         provider,
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+			lastWrittenValue:                 "DELA(org-uuid, aws)",
+			originalDirective:                "DELA(org-uuid, aws)",
+		}
+
+		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
+		require.ErrorIs(t, err, errWritebackTargetChanged)
+		assert.Zero(t, provider.calls)
+	})
 }
 
-func TestMergeIntoAdditionalEndpointsGivesUpOnSustainedPreWriteRace(t *testing.T) {
+func TestMergeIntoAdditionalEndpointsIgnoresUnrelatedConfigUpdates(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
 		"https://our-org.datadoghq.com":     {"DELA(our-org-uuid, aws)"},
 		"https://sibling-org.datadoghq.com": {"sibling-v0"},
 	})
+	mockConfig.SetInTest("log_level", "info")
 
-	rotation := 0
-	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy := &raceInjectingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
 	racy.inject = func() {
-		rotation++
-		updated := mockConfig.GetStringMapStringSlice("additional_endpoints")
-		updated["https://sibling-org.datadoghq.com"] = []string{fmt.Sprintf("sibling-v%d", rotation)}
-		mockConfig.Set("additional_endpoints", updated, pkgconfigmodel.SourceSecret)
+		mockConfig.Set("log_level", "debug", pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	instance := &authInstance{
@@ -1466,13 +1498,34 @@ func TestMergeIntoAdditionalEndpointsGivesUpOnSustainedPreWriteRace(t *testing.T
 		lastWrittenValue:             "DELA(our-org-uuid, aws)",
 		originalDirective:            "DELA(our-org-uuid, aws)",
 	}
-	err := (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
-	require.ErrorIs(t, err, errWritebackConflict)
+	require.NoError(t, (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
-	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, got["https://our-org.datadoghq.com"])
-	assert.Equal(t, []string{"sibling-v3"}, got["https://sibling-org.datadoghq.com"])
-	assert.Equal(t, "DELA(our-org-uuid, aws)", instance.lastWrittenValue)
+	assert.Equal(t, []string{"resolved-key"}, got["https://our-org.datadoghq.com"])
+	assert.Equal(t, []string{"sibling-v0"}, got["https://sibling-org.datadoghq.com"])
+	assert.Equal(t, "debug", mockConfig.GetString("log_level"))
+}
+
+func TestMergeIntoAdditionalEndpointsUsesRawYAMLSnapshotForAtomicWrite(t *testing.T) {
+	mockConfig := mock.NewFromYAML(t, `
+additional_endpoints:
+  https://our-org.datadoghq.com:
+    - DELA(our-org-uuid, aws)
+  https://sibling-org.datadoghq.com:
+    - sibling-key
+`)
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://our-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+	}
+
+	require.NoError(t, (&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"resolved-key"}, got["https://our-org.datadoghq.com"])
+	assert.Equal(t, []string{"sibling-key"}, got["https://sibling-org.datadoghq.com"])
 }
 
 func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
@@ -1484,7 +1537,7 @@ func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
 	})
 
 	rotation := 0
-	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy := &atomicRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
 	racy.inject = func() {
 		rotation++
 		updated := mockConfig.GetStringMapStringSlice("additional_endpoints")
@@ -1517,7 +1570,7 @@ func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
 	comp.populateStatusInfo(stats)
 	assert.Equal(t, "Pending", stats["instances"].(map[string]map[string]any)["additional"]["Status"])
 
-	racy.inject = func() {}
+	racy.inject = nil
 	writeAttempted, err := comp.refreshOrRetryWriteback(context.Background(), instance)
 	require.NoError(t, err)
 	assert.True(t, writeAttempted)
@@ -1602,7 +1655,7 @@ func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testi
 	})
 
 	rotation := 0
-	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: configKey}
+	racy := &atomicRacingConfig{ReaderWriter: mockConfig, watchKey: configKey}
 	racy.inject = func() {
 		rotation++
 		entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
@@ -1668,8 +1721,8 @@ func (r *alwaysRevertingConfig) Set(key string, value any, source pkgconfigmodel
 	}
 }
 
-func (r *alwaysRevertingConfig) SetIfSequenceID(key string, value any, source pkgconfigmodel.Source, expected uint64) bool {
-	set := r.ReaderWriter.SetIfSequenceID(key, value, source, expected)
+func (r *alwaysRevertingConfig) SetIfUnchanged(key string, oldValue, value any, source pkgconfigmodel.Source) bool {
+	set := r.ReaderWriter.SetIfUnchanged(key, oldValue, value, source)
 	if set && key == r.watchKey {
 		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
 	}

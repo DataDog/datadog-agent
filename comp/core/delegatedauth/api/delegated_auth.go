@@ -101,17 +101,39 @@ func getAPIDomain(endpoint string) string {
 	return "https://api." + baseDomain
 }
 
-// resolveTokenURL builds the intake-key exchange URL for a given targetSite, falling back to the
-// agent's configured primary site when targetSite is empty.
+// resolveTokenURL builds the intake-key exchange URL for a given targetSite, including custom DNS
+// names and forwarders. Known Datadog targets are normalized to their HTTPS API domain; custom
+// explicit targets must use HTTPS. An empty targetSite falls back to the primary dd_url/site.
 func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) (string, error) {
+	explicitTarget := targetSite != ""
 	site := targetSite
 	if site == "" {
 		site = utils.GetInfraEndpoint(cfg)
-	} else if domainURLRegexp.FindStringSubmatch(hostOnly(site)) == nil {
-		return "", fmt.Errorf("delegated auth target %q is not a recognized Datadog domain", site)
 	}
 	site = getAPIDomain(site)
+	if !strings.Contains(site, "://") {
+		site = "https://" + site
+	}
+	if explicitTarget {
+		parsed, err := url.Parse(site)
+		if err != nil {
+			return "", fmt.Errorf("invalid delegated auth target %q: %w", site, err)
+		}
+		if parsed.Scheme != "https" || parsed.Host == "" {
+			return "", fmt.Errorf("delegated auth target %q must use HTTPS", site)
+		}
+	}
 	return fmt.Sprintf(tokenURLEndpoint, site), nil
+}
+
+func checkDelegatedAuthRedirect(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("delegated auth redirect target %q must use HTTPS", req.URL.String())
+	}
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return nil
 }
 
 // GetAPIKey performs the cloud auth exchange and returns an API key.
@@ -134,6 +156,9 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   httpClientTimeout,
+	}
+	if targetSite != "" {
+		client.CheckRedirect = checkDelegatedAuthRedirect
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {

@@ -8,6 +8,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -352,9 +354,27 @@ func TestResolveTokenURL(t *testing.T) {
 		assert.Equal(t, "https://api.datad0g.com/api/v2/intake-key", got)
 	})
 
-	t.Run("non-Datadog target is rejected", func(t *testing.T) {
-		_, err := resolveTokenURL(cfg, "https://example.com")
-		require.ErrorContains(t, err, "not a recognized Datadog domain")
+	t.Run("custom DNS target is preserved", func(t *testing.T) {
+		got, err := resolveTokenURL(cfg, "https://intake.example.com")
+		require.NoError(t, err)
+		assert.Equal(t, "https://intake.example.com/api/v2/intake-key", got)
+	})
+
+	t.Run("bare custom DNS target defaults to HTTPS", func(t *testing.T) {
+		got, err := resolveTokenURL(cfg, "intake.example.internal:8443")
+		require.NoError(t, err)
+		assert.Equal(t, "https://intake.example.internal:8443/api/v2/intake-key", got)
+	})
+
+	t.Run("custom DNS target rejects plaintext HTTP", func(t *testing.T) {
+		_, err := resolveTokenURL(cfg, "http://intake.example.com")
+		require.ErrorContains(t, err, "must use HTTPS")
+	})
+
+	t.Run("known Datadog HTTP target is upgraded to its HTTPS API domain", func(t *testing.T) {
+		got, err := resolveTokenURL(cfg, "http://agent.datadoghq.com")
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.datadoghq.com/api/v2/intake-key", got)
 	})
 
 	// The primary dd_url may legitimately point at an HTTP proxy.
@@ -364,6 +384,14 @@ func TestResolveTokenURL(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://my-proxy.internal/api/v2/intake-key", got)
 	})
+}
+
+func TestCheckDelegatedAuthRedirect(t *testing.T) {
+	httpsRequest := &http.Request{URL: &url.URL{Scheme: "https", Host: "intake.example.com"}}
+	require.NoError(t, checkDelegatedAuthRedirect(httpsRequest, nil))
+
+	httpRequest := &http.Request{URL: &url.URL{Scheme: "http", Host: "intake.example.com"}}
+	require.ErrorContains(t, checkDelegatedAuthRedirect(httpRequest, nil), "must use HTTPS")
 }
 
 func TestErrorDetail(t *testing.T) {

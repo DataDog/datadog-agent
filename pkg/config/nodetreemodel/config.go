@@ -230,22 +230,19 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.set(key, newValue, source, nil)
 }
 
-// SetIfSequenceID sets a value only if the config sequence still matches expectedSequenceID.
-func (c *ntmConfig) SetIfSequenceID(key string, newValue interface{}, source model.Source, expectedSequenceID uint64) bool {
-	return c.set(key, newValue, source, &expectedSequenceID)
+// SetIfUnchanged atomically updates source when key still resolves to oldValue. A true result means
+// the comparison matched; a higher-priority source may still determine the resolved value.
+func (c *ntmConfig) SetIfUnchanged(key string, oldValue, newValue interface{}, source model.Source) bool {
+	return c.set(key, newValue, source, &oldValue)
 }
 
-func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, expectedSequenceID *uint64) bool {
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, expectedValue *interface{}) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
-	if expectedSequenceID != nil && c.sequenceID != *expectedSequenceID {
-		c.Unlock()
-		return false
-	}
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
@@ -259,6 +256,11 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, e
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
+		c.Unlock()
+		return false
+	}
+	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
+	if expectedValue != nil && !reflect.DeepEqual(previousValue, *expectedValue) {
 		c.Unlock()
 		return false
 	}
@@ -285,8 +287,6 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, e
 
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
-
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff/v7"
+	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws"
@@ -792,6 +793,10 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
 func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *authInstance) (*string, error) {
+	if err := d.validateAdditionalEndpointTarget(instance); err != nil {
+		return nil, err
+	}
+
 	// Generate the cloud-specific auth proof
 	authProof, err := instance.provider.GenerateAuthProof(ctx, d.config, instance.authConfig)
 	if err != nil {
@@ -805,6 +810,52 @@ func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *aut
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}
 	return key, nil
+}
+
+// validateAdditionalEndpointTarget prevents refreshes from using an endpoint removed from config.
+func (d *delegatedAuthComponent) validateAdditionalEndpointTarget(instance *authInstance) error {
+	d.additionalEndpointsMu.Lock()
+	defer d.additionalEndpointsMu.Unlock()
+
+	switch {
+	case instance.additionalEndpointsListConfigKey != "":
+		entries, ok := common.NormalizeListShapeEntries(d.config.Get(instance.additionalEndpointsListConfigKey))
+		if !ok {
+			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
+		}
+		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
+			if entry, ok := entries[instance.listEntryIndex].(map[string]any); ok {
+				if _, matches := listEntryMatches(instance, entry); matches {
+					return nil
+				}
+			}
+		}
+		for _, entry := range entries {
+			if entry, ok := entry.(map[string]any); ok {
+				if _, matches := listEntryMatches(instance, entry); matches {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
+
+	case instance.additionalEndpointDomain != "":
+		keys := d.config.GetStringMapStringSlice(instance.additionalEndpointsConfigKey)[instance.additionalEndpointDomain]
+		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
+			value := keys[instance.additionalEndpointKeyIndex]
+			if value == instance.lastWrittenValue || value == instance.originalDirective {
+				return nil
+			}
+		}
+		for _, value := range keys {
+			if value == instance.lastWrittenValue || value == instance.originalDirective {
+				return nil
+			}
+		}
+		return fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, instance.additionalEndpointDomain)
+	}
+
+	return nil
 }
 
 // resolveTargetSite returns TargetSite if set, else AdditionalEndpointDomain, else empty (use primary site).
@@ -885,10 +936,11 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 	written := false
 	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		sequenceID := d.config.GetSequenceID()
-		endpoints := d.config.GetStringMapStringSlice(configKey)
-		if d.config.GetSequenceID() != sequenceID {
-			continue
+		currentValue := d.config.Get(configKey)
+		endpoints, err := cast.ToStringMapStringSliceE(currentValue)
+		if err != nil {
+			log.Warnf("Could not read map-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
+			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
 		}
 		merged := make(map[string][]string, len(endpoints))
 		for k, v := range endpoints {
@@ -935,7 +987,9 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 		merged[domain] = keys
 
-		if !d.config.SetIfSequenceID(configKey, merged, pkgconfigmodel.SourceSecret, sequenceID) {
+		// Set replaces the whole compound value. Commit only if this setting still matches the
+		// snapshot used to build merged; changes to unrelated settings do not matter.
+		if !d.config.SetIfUnchanged(configKey, currentValue, merged, pkgconfigmodel.SourceSecret) {
 			if lastAttempt {
 				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint '%s'; giving up after %d attempts, a later refresh will retry", configKey, domain, maxAdditionalEndpointsWriteAttempts)
 			}
@@ -947,7 +1001,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 			written = true
 			break
 		}
-		if d.config.GetSequenceID() == sequenceID {
+		if d.config.GetSource(configKey) != pkgconfigmodel.SourceSecret {
 			return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 		}
 		if lastAttempt {
@@ -978,16 +1032,12 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 	written := false
 	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		sequenceID := d.config.GetSequenceID()
-		entries, ok := common.NormalizeListShapeEntries(d.config.Get(configKey))
+		currentValue := d.config.Get(configKey)
+		entries, ok := common.NormalizeListShapeEntries(currentValue)
 		if !ok {
 			log.Warnf("Could not read list-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
 			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
 		}
-		if d.config.GetSequenceID() != sequenceID {
-			continue
-		}
-
 		merged := make([]any, len(entries))
 		copy(merged, entries)
 
@@ -1038,7 +1088,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 			return fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, configKey)
 		}
 
-		if !d.config.SetIfSequenceID(configKey, merged, pkgconfigmodel.SourceSecret, sequenceID) {
+		if !d.config.SetIfUnchanged(configKey, currentValue, merged, pkgconfigmodel.SourceSecret) {
 			if lastAttempt {
 				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
 			}
@@ -1052,7 +1102,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 			written = true
 			break
 		}
-		if d.config.GetSequenceID() == sequenceID {
+		if d.config.GetSource(configKey) != pkgconfigmodel.SourceSecret {
 			return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 		}
 		if lastAttempt {
