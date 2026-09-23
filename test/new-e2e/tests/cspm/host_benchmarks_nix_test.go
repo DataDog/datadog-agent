@@ -89,8 +89,6 @@ var ubuntu2404Bands = map[string]band{
 	"skipped": {0.09, 0.23},
 }
 
-// almalinux9 resolves the latest AMI rather than a pinned one, so its distribution can
-// drift with OS updates. Its band is wider (~10 points) and its golden stays informational.
 var almalinux9Bands = map[string]band{
 	"passed":  {0.38, 0.58},
 	"failed":  {0.29, 0.49},
