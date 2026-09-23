@@ -80,6 +80,18 @@ func (s *processProcmgrWindowsSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.Require().Contains(string(decoded), "stdout: inherit",
 		"%s does not look like the installed template, so it cannot serve as the baseline", s.cfgPath)
+
+	// This is the first half of the cutover proof, and it has to run before BeforeTest or
+	// any test calls start, since either would bring up a process-agent whose automatic
+	// spawn failed.
+	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+		out, err := host.Execute(procmgrCmd(s.cli, "describe "+processProcessName))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		assert.Equal(ct, "Running", fieldValue(out, "State"),
+			"dd-procmgr should bring process-agent up on its own on a default install: %s", out)
+	}, 2*time.Minute, 3*time.Second)
 }
 
 // BeforeTest puts the host back to the installed baseline, so no test depends on whether an
@@ -94,8 +106,7 @@ func (s *processProcmgrWindowsSuite) BeforeTest(suiteName, testName string) {
 // and waits for process-agent to be Running.
 //
 // It starts process-agent only from Failed or Stopped, which are the states tests leave it
-// in. From Created it waits instead, because bringing process-agent up on its own is what
-// TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped checks.
+// in. From any other state dd-procmgr is still acting on its own, so it waits.
 func (s *processProcmgrWindowsSuite) resetProcessAgent() {
 	host := s.Env().RemoteHost
 
@@ -136,6 +147,10 @@ func (s *processProcmgrWindowsSuite) resetProcessAgent() {
 // the core Agent leaves the legacy SCM service alone. Both halves have to hold at once.
 // Either one alone is a bug: only the first means two process-agents, only the second means
 // none at all.
+//
+// SetupSuite checks the first half, because BeforeTest may start process-agent itself and
+// so would hide an automatic spawn that failed. This test checks that the process is still
+// supervised and that the legacy service stayed down.
 func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
