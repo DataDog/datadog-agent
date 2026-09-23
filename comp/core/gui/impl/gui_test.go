@@ -6,14 +6,81 @@
 package guiimpl
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
+
+func TestGUIAddress(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		host string
+		want string
+	}{
+		{name: "default", want: "127.0.0.1:0"},
+		{name: "localhost", host: "localhost", want: "127.0.0.1:0"},
+		{name: "IPv4", host: "127.0.0.1", want: "127.0.0.1:0"},
+		{name: "IPv6", host: "::1", want: "[::1]:0"},
+		{name: "non-loopback", host: "192.0.2.1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenPath := filepath.Join(t.TempDir(), "auth_token")
+			require.NoError(t, os.WriteFile(tokenPath, []byte("test-auth-token"), 0600))
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"GUI_port":             0,
+				"auth_token_file_path": tokenPath,
+			})
+			if tt.host != "" {
+				cfg.SetInTest("GUI_host", tt.host)
+			}
+			lc := compdef.NewTestLifecycle(t)
+			provides := NewComponent(Requires{
+				Config:         cfg,
+				Log:            logmock.New(t),
+				Lc:             lc,
+				Ipc:            ipcmock.New(t),
+				SysprobeConfig: sysprobeconfigmock.NewMock(t),
+			})
+			component, ok := provides.Comp.Get()
+			if tt.want == "" {
+				require.False(t, ok)
+				lc.AssertHooksNumber(0)
+				return
+			}
+			require.True(t, ok)
+			g := component.(*gui)
+			require.Equal(t, tt.want, g.address)
+
+			// Exercise the default address through the component's lifecycle.
+			// Explicit IPv6 configuration is checked above without requiring IPv6 support.
+			if tt.want == "127.0.0.1:0" {
+				t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
+				require.NoError(t, lc.Start(context.Background()))
+				require.NotNil(t, g.listener)
+				require.Equal(t, "127.0.0.1", g.listener.Addr().(*net.TCPAddr).IP.String())
+				client := &http.Client{Timeout: 5 * time.Second}
+				resp, err := client.Get("http://" + g.listener.Addr().String() + "/")
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+			}
+		})
+	}
+}
 
 func Test_getAccessToken_intentTokenExpiry(t *testing.T) {
 	g := &gui{

@@ -4905,12 +4905,10 @@ properties:
   GUI_host:
     node_type: setting
     type: string
-    default: localhost
+    default: 127.0.0.1
     comment: |-
-      Agent GUI access host
-      'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
-      Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
-      By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+      Agent GUI access host. Must be a loopback IP address or localhost.
+      localhost is normalized to 127.0.0.1 for both the listener and browser launchers.
   additional_endpoints:
     node_type: setting
     type: object

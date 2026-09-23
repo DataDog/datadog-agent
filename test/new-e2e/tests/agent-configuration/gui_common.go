@@ -62,7 +62,7 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(guiPort)),
 		Path:   "/auth",
 		RawQuery: url.Values{
 			"intent": {intentToken},
@@ -86,7 +86,7 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	assert.Equal(t, cookies[0].Name, "accessToken", "GUI server didn't the accessToken cookie")
 
 	// Assert redirection to "/"
-	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
+	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("127.0.0.1", strconv.Itoa(guiPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
 
 	return guiClient
 }
@@ -98,7 +98,7 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(guiPort)),
 		Path:   "/",
 	}
 
@@ -136,7 +136,7 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 	traverse(doc)
 	for _, link := range links {
 		t.Logf("trying to reach asset %v", link)
-		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
+		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("127.0.0.1", strconv.Itoa(guiPort)), link)
 		resp, err := client.Get(fullLink)
 		assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
 		defer resp.Body.Close()
@@ -160,7 +160,7 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 func checkPingEndpoint(t *testing.T, client *http.Client) {
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(guiPort)),
 		Path:   "/agent/ping",
 	}
 

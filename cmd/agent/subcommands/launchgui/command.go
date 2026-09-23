@@ -9,7 +9,6 @@ package launchgui
 import (
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -20,8 +19,8 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -58,10 +57,7 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component, client ip
 		return errors.New("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
-	// Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
-	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
-	guiHost, err := system.IsLocalAddress(config.GetString("GUI_host"))
+	guiAddress, err := pkgconfighelper.GetGUIAddress(config)
 	if err != nil {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
@@ -75,8 +71,6 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component, client ip
 	if err != nil {
 		return err
 	}
-
-	guiAddress := net.JoinHostPort(guiHost, guiPort)
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
 	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))

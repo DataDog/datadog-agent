@@ -35,10 +35,10 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // intentTokenTTL bounds how long a single-use intent token stays valid. Intent
@@ -109,14 +109,14 @@ func NewComponent(deps Requires) Provides {
 		return p
 	}
 
-	guiHost, err := system.IsLocalAddress(deps.Config.GetString("GUI_host"))
+	guiAddress, err := pkgconfighelper.GetGUIAddress(deps.Config)
 	if err != nil {
 		deps.Log.Errorf("GUI server host is not a local address: %s", err)
 		return p
 	}
 
 	g := gui{
-		address:        net.JoinHostPort(guiHost, guiPort),
+		address:        guiAddress,
 		logger:         deps.Log,
 		intentTokens:   make(map[string]time.Time),
 		sysprobeConfig: deps.SysprobeConfig,

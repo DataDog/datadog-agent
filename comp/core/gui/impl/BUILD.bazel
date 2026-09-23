@@ -41,13 +41,13 @@ go_library(
         "//pkg/collector/check/stats",
         "//pkg/collector/corechecks",
         "//pkg/collector/python",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/template/html",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
         "//pkg/util/option",
-        "//pkg/util/system",
         "//pkg/version",
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         "@in_yaml_go_yaml_v3//:yaml",
@@ -80,15 +80,11 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/mock",
+        "//comp/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ] + select({
-        "@rules_go//go/platform:darwin": [
-            "//comp/core/sysprobeconfig/mock",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//comp/core/sysprobeconfig/mock",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Use a consistent loopback address when starting and opening the Agent GUI.

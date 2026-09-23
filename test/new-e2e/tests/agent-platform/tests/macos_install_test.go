@@ -233,7 +233,7 @@ func macosGUIAuthenticatedClient(t require.TestingT, host *components.RemoteHost
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
-	authURL := fmt.Sprintf("http://localhost:%d/auth?%s", macosGUIPort, url.Values{"intent": {string(intentToken)}}.Encode())
+	authURL := fmt.Sprintf("http://127.0.0.1:%d/auth?%s", macosGUIPort, url.Values{"intent": {string(intentToken)}}.Encode())
 	authResp, err := guiClient.Get(authURL)
 	require.NoError(t, err)
 	defer authResp.Body.Close()
@@ -290,7 +290,7 @@ func (m *macosInstallSuite) testAgentRestart(macosTestClient *common.MacOSTestCl
 	agentPIDBefore := macosLaunchdPID(m.T(), macosTestClient, "system/com.datadoghq.agent")
 	sysprobePIDBefore := macosLaunchdPID(m.T(), macosTestClient, "system/com.datadoghq.sysprobe")
 
-	restartReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://localhost:%d/agent/restart", macosGUIPort), nil)
+	restartReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/agent/restart", macosGUIPort), nil)
 	require.NoError(m.T(), err)
 	restartResp, err := guiClient.Do(restartReq)
 	require.NoError(m.T(), err)

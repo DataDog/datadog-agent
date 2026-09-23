@@ -34,7 +34,6 @@ go_library(
             "//pkg/diagnose/firewallscanner",
             "//pkg/diagnose/ports",
             "//pkg/util/log",
-            "//pkg/util/system",
             "//pkg/util/winutil",
             "//pkg/version",
             "@com_github_lxn_walk//:walk",

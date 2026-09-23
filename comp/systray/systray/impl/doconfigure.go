@@ -10,13 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -46,10 +45,7 @@ func doConfigure(s *systrayImpl) error {
 		return errors.New("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
-	// Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
-	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
-	guiHost, err := system.IsLocalAddress(s.config.GetString("GUI_host"))
+	guiAddress, err := pkgconfighelper.GetGUIAddress(s.config)
 	if err != nil {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
@@ -63,8 +59,6 @@ func doConfigure(s *systrayImpl) error {
 	if err != nil {
 		return err
 	}
-
-	guiAddress := net.JoinHostPort(guiHost, guiPort)
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
 	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))

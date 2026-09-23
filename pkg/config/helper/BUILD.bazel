@@ -5,6 +5,7 @@ go_library(
     name = "helper",
     srcs = [
         "env.go",
+        "gui_address.go",
         "helpers.go",
         "ipc_address.go",
         "set_tree.go",
@@ -23,6 +24,7 @@ go_library(
 dd_agent_go_test(
     name = "helper_test",
     srcs = [
+        "gui_address_test.go",
         "ipc_address_test.go",
         "set_tree_test.go",
     ],
