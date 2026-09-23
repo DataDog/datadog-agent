@@ -11,6 +11,7 @@ go_library(
         "//test/e2e-framework/cmd/internal/envconfig/agent",
         "//test/e2e-framework/cmd/internal/envconfig/fixtures",
         "//test/e2e-framework/cmd/internal/envconfig/workloads",
+        "//test/e2e-framework/testing/workloads/catalog",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

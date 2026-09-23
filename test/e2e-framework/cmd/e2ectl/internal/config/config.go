@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/workloads"
+	cat "github.com/DataDog/datadog-agent/test/e2e-framework/testing/workloads/catalog"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -247,10 +248,33 @@ func Example(base, description string, section, agentSection *yaml.Node, receive
 	env := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{str("base"), str(base)}}
 	env.Content = append(env.Content, fixtureNode.Content...)
 	env.Content = append(env.Content, str(base), section)
+	workloadsNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "workloads"}
+	workloadsNode.HeadComment = strings.Join([]string{
+		"workloads: test apps deployed into the environment (optional). Three forms:",
+		"  - app: a named workload from the framework catalog —",
+		"    " + strings.Join(cat.Names(), ", "),
+		"  - manifest: inline Kubernetes/Docker-compose YAML or a path to a file",
+		"  - image: a Docker image reference (container-native bases)",
+		"Example:",
+		"  workloads:",
+		"    - app: nginx",
+		"    - app: dogstatsd",
+		"    - manifest: |",
+		"        apiVersion: v1",
+		"        kind: Pod",
+		"        metadata:",
+		"          name: my-pod",
+		"        spec:",
+		"          containers:",
+		"            - name: app",
+		"              image: busybox",
+		"              command: [\"sleep\", \"3600\"]",
+	}, "\n")
 	root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", HeadComment: description + "\nGenerated starter config: review example values before provisioning.\nCredentials come from the runner profile, not this file.", Content: []*yaml.Node{
 		str("schema"), {Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprint(SchemaVersion)},
 		str("environment"), env,
 		str("agent"), agentNode,
+		workloadsNode, {Kind: yaml.ScalarNode, Tag: "!!null", Value: ""},
 	}}
 	return configschema.Encode(root)
 }
@@ -268,9 +292,13 @@ func errf(field, format string, args ...any) error {
 }
 
 // decodeWorkloadList decodes the workloads section (a YAML sequence) into
-// typed Workload entries with schema validation.
+// typed Workload entries with schema validation. A null node (an empty
+// `workloads:` key) is treated as absent.
 func decodeWorkloadList(n *yaml.Node) ([]workloads.Workload, error) {
 	if n == nil {
+		return nil, nil
+	}
+	if n.Kind == yaml.ScalarNode && n.Tag == "!!null" {
 		return nil, nil
 	}
 	if n.Kind != yaml.SequenceNode {

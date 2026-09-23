@@ -276,21 +276,49 @@ func DefaultSource(base string) string {
 }
 
 // Example returns the annotated starter agent section for a base: its default
-// source selection with comments explaining the three options.
+// source selection with a commented tour of every configurable field, marked
+// with the bases each works on.
 func Example(base string) (*yaml.Node, error) {
 	str := func(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
 	key := str(DefaultSourceField(base))
 	key.HeadComment = strings.Join([]string{
 		"Agent source — pick exactly ONE (or none for this base's default):",
-		"  source: true      build the Agent from this checkout (local, kind)",
-		"  pipeline: 123456  install the CI pipeline's DEB artifacts (host bases)",
-		"  version: \"7.x.y\"  install a released agent version (kind, eks, host bases)",
-		"Common fields work on every mechanism: config (extra datadog.yaml),",
-		"integrations (conf.d folder -> contents). values passes Helm chart",
-		"values and is supported on the Helm bases (kind, eks). Unsupported",
-		"source/base combinations are rejected with a pointer to the",
-		"alternatives.",
+		"  source: true       build the Agent from this checkout (local, kind)",
+		"  pipeline: 123456   install the CI pipeline's DEB artifacts (local, ec2-host, docker-host)",
+		"  version: \"7.x.y\"   install a released agent version (kind, eks, ec2-host, docker-host)",
+		"",
+		"config: extra datadog.yaml merged over the installer's generated one",
+		"  (local and host bases; on the Helm bases kind/eks express it as chart",
+		"  values under values -> datadog: instead). Example:",
+		"  config: |",
+		"    logs_enabled: true",
+		"    tags:",
+		"      - \"env:e2ectl\"",
+		"",
+		"integrations: conf.d folder name -> its conf.yaml contents (every base;",
+		"  rendered into datadog.confd on the Helm bases kind/eks). Example:",
+		"  integrations:",
+		"    nginx.d: |",
+		"      init_config:",
+		"      instances:",
+		"        - nginx_status_url: http://%%host%%/nginx_status",
 	}, "\n")
+	if base == "kind" || base == "eks" {
+		key.HeadComment += strings.Join([]string{
+			"",
+			"",
+			"values: extra Helm chart values deep-merged over the installer's defaults",
+			"  (kind/eks only) — every knob the Datadog Helm chart exposes works here.",
+			"  Example:",
+			"  values: |",
+			"    datadog:",
+			"      logs:",
+			"        enabled: true",
+			"        containerCollectAll: true",
+			"      apm:",
+			"        enabled: true",
+		}, "\n")
+	}
 	n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if base == "local" {
 		n.Content = append(n.Content, key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"})
