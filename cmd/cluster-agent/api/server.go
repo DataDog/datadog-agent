@@ -59,7 +59,12 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component) error {
+//
+// waitPodCollectionSynced, if not nil, blocks until the Cluster Agent's pod
+// collection has synced (or ctx is done). The kube metadata stream uses it to
+// send each node only the workloads with pods on it; without it, the stream
+// stays cluster-wide.
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component, waitPodCollectionSynced func(context.Context) bool) error {
 	// create the root HTTP router
 	router = http.NewServeMux()
 	apiRouter = http.NewServeMux()
@@ -129,7 +134,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
 		taggerServer:       taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
-		kubeMetadataServer: startKubeMetadataStreamer(ctx, w),
+		kubeMetadataServer: startKubeMetadataStreamer(ctx, w, waitPodCollectionSynced),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

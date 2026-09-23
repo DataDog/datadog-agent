@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    When the Cluster Agent collects pods (for example with
+    ``cluster_agent.collect_kubernetes_tags`` or workload autoscaling), it now
+    sends each Node Agent only the autoscalers of workloads that have a pod on
+    its node, instead of every autoscaled workload in the cluster. This reduces
+    the data each Node Agent receives and holds for the ``kube_autoscaler_kind``
+    tag. Without pod collection, the Cluster Agent keeps sending the full set.
+    When a workload gets its first pod on a node, the Node Agent may briefly see
+    that pod before learning its autoscalers; the tag follows once the Cluster
+    Agent has seen the pod scheduled.

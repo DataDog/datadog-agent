@@ -383,7 +383,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, autoscalingGate.WaitForPodCollectionSynced); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

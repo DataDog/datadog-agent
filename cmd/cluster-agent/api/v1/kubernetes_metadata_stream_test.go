@@ -9,6 +9,7 @@ package v1
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -897,38 +898,42 @@ func deploymentEntity(id string, kinds sets.Set[string]) *workloadmeta.Kubernete
 func TestProcessDeploymentEvents(t *testing.T) {
 	app := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "app"}
 	s := newMetadataSnapshot()
+	changed := func(eventType workloadmeta.EventType, deployment *workloadmeta.KubernetesDeployment) bool {
+		_, c := s.processDeploymentEvent(eventType, deployment)
+		return c
+	}
 
 	// A deployment without autoscalers is not tracked, and waking every node's
 	// stream for it would be wasted work.
-	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", nil)))
+	assert.False(t, changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", nil)))
 	assert.Empty(t, s.workloadAutoscalers)
 
-	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
+	assert.True(t, changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
 	assert.Equal(t, sets.New("hpa"), s.workloadAutoscalers[app])
 
 	// Same set again, e.g. the deployment reflector reporting an unrelated
 	// change: no wakeup.
-	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
+	assert.False(t, changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
 
-	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa", "vpa"))))
+	assert.True(t, changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa", "vpa"))))
 	assert.Equal(t, sets.New("hpa", "vpa"), s.workloadAutoscalers[app])
 
 	// The stored set must not alias the entity's: workloadmeta owns that one.
 	kinds := sets.New("wpa")
-	s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", kinds))
+	changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", kinds))
 	kinds.Insert("vpa")
 	assert.Equal(t, sets.New("wpa"), s.workloadAutoscalers[app])
 
 	// Cleared through a Set with an empty set, as the autoscaler collector does.
-	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New[string]())))
+	assert.True(t, changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New[string]())))
 	assert.Empty(t, s.workloadAutoscalers)
 
 	// An Unset for a deleted Deployment carries only its ID: the workload must
 	// still be identified, from the ID.
-	s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("keda")))
-	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)))
+	changed(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("keda")))
+	assert.True(t, changed(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)))
 	assert.Empty(t, s.workloadAutoscalers)
-	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)), "unset of an untracked deployment")
+	assert.False(t, changed(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)), "unset of an untracked deployment")
 }
 
 func TestComputeWorkloadAutoscalersDiff(t *testing.T) {
@@ -1071,4 +1076,137 @@ func TestStreamWorkloadMetadataThroughRealStore(t *testing.T) {
 	})
 	waitNotified("statefulset autoscaler removed")
 	assert.Empty(t, srv.buildMetadataSnapshot().workloadAutoscalers)
+}
+
+// TestPerNodeWorkloadFiltering goes through the real workloadmeta store: pods
+// from the Kubernetes API server source say where each workload runs, and each
+// node must receive only the autoscalers of its own workloads, and be woken up
+// only when those change.
+func TestPerNodeWorkloadFiltering(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	synced := make(chan struct{})
+	waitSynced := func(ctx context.Context) bool {
+		select {
+		case <-synced:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock, WithPerNodeWorkloadFiltering(waitSynced))
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	notified := map[string]<-chan struct{}{}
+	for _, node := range []string{"node-a", "node-b", "node-c"} {
+		notified[node] = srv.subscribeToNamespaceEvents(node)
+	}
+	srv.Start(ctx)
+
+	expectNotified := func(node, what string) {
+		t.Helper()
+		select {
+		case <-notified[node]:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s: timed out waiting for a notification: %s", node, what)
+		}
+	}
+	expectQuiet := func(node, what string) {
+		t.Helper()
+		select {
+		case <-notified[node]:
+			t.Fatalf("%s: unexpected notification: %s", node, what)
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+	drain := func() {
+		for _, ch := range notified {
+			for drained := false; !drained; {
+				select {
+				case <-ch:
+				case <-time.After(300 * time.Millisecond):
+					drained = true
+				}
+			}
+		}
+	}
+	workloads := func(node string) []string {
+		var names []string
+		for target := range srv.buildMetadataSnapshotForNode(node).workloadAutoscalers {
+			names = append(names, target.Name)
+		}
+		sort.Strings(names)
+		return names
+	}
+	setPod := func(uid, node, replicaSet string) {
+		wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+				EntityMeta: workloadmeta.EntityMeta{Name: uid, Namespace: "ns"},
+				Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: replicaSet}},
+				NodeName:   node,
+			},
+		}})
+	}
+	setKinds := func(deployment string, kinds sets.Set[string]) {
+		wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+			Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceKubeAutoscalers, Entity: deploymentEntity("ns/"+deployment, kinds),
+		}})
+	}
+
+	setKinds("app", sets.New("hpa"))
+	setKinds("other", sets.New("vpa"))
+	setPod("app-1", "node-a", "app-7d9f8b6c5d")
+	setPod("other-1", "node-b", "other-5c4b6d8f7")
+	drain()
+
+	// Before the pod collection has synced, placement may be incomplete: send
+	// everything, as without filtering, rather than risk starving a node.
+	assert.Equal(t, []string{"app", "other"}, workloads("node-a"))
+
+	close(synced)
+	for _, node := range []string{"node-a", "node-b", "node-c"} {
+		expectNotified(node, "switch to per-node filtering")
+	}
+	assert.Equal(t, []string{"app"}, workloads("node-a"))
+	assert.Equal(t, []string{"other"}, workloads("node-b"))
+	assert.Empty(t, workloads("node-c"))
+
+	// A pod not bound yet does not count; once bound, only its node hears it.
+	setPod("app-2", "", "app-7d9f8b6c5d")
+	expectQuiet("node-b", "unbound pod")
+	setPod("app-2", "node-b", "app-7d9f8b6c5d")
+	expectNotified("node-b", "app now has a pod on node-b")
+	expectQuiet("node-a", "app was already on node-a")
+	assert.Equal(t, []string{"app", "other"}, workloads("node-b"))
+
+	// A kinds change wakes only the nodes hosting the workload.
+	setKinds("app", sets.New("hpa", "vpa"))
+	expectNotified("node-a", "app kinds changed")
+	expectNotified("node-b", "app kinds changed")
+	expectQuiet("node-c", "app has no pod on node-c")
+
+	// The last pod of a workload leaving a node: that node only, and the
+	// workload leaves its snapshot, which the stream sends as an UNSET.
+	before := srv.buildMetadataSnapshotForNode("node-a")
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeUnset,
+		Source: workloadmeta.SourceKubeAPIServer,
+		Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "app-1"}},
+	}})
+	expectNotified("node-a", "app's last pod left node-a")
+	expectQuiet("node-b", "app still on node-b")
+	assert.Empty(t, workloads("node-a"))
+	diff := computeWorkloadAutoscalersDiff(before.workloadAutoscalers, srv.buildMetadataSnapshotForNode("node-a").workloadAutoscalers)
+	require.Len(t, diff, 1)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, diff[0].Type)
+	assert.Equal(t, "app", diff[0].Name)
+
+	// Pods of a workload without autoscalers move freely: nobody's view changes.
+	setPod("plain-1", "node-c", "plain-6b5d4c8f2")
+	expectQuiet("node-c", "non-autoscaled workload")
 }

@@ -15,8 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 )
 
-func startKubeMetadataStreamer(ctx context.Context, wmeta workloadmeta.Component) kubeMetadataStreamer {
-	srv := v1.NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), wmeta)
+func startKubeMetadataStreamer(ctx context.Context, wmeta workloadmeta.Component, waitPodCollectionSynced func(context.Context) bool) kubeMetadataStreamer {
+	var opts []v1.KubeMetadataStreamServerOption
+	if waitPodCollectionSynced != nil {
+		opts = append(opts, v1.WithPerNodeWorkloadFiltering(waitPodCollectionSynced))
+	}
+	srv := v1.NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), wmeta, opts...)
 	srv.Start(ctx)
 	return srv
 }

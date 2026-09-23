@@ -270,9 +270,10 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			reflector, store := newPodStore(wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
-			if autoscalingEnabled {
-				go c.markPodCollectionSyncedWhenReady(ctx, store)
-			}
+			// Reported whenever the store runs, not only for autoscaling:
+			// the kube metadata stream uses it to know pod placement is
+			// complete before filtering what it sends to each node.
+			go c.markPodCollectionSyncedWhenReady(ctx, store)
 		}
 	}
 
@@ -372,6 +373,9 @@ func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloa
 }
 
 func (c *collector) markPodCollectionSyncedWhenReady(ctx context.Context, store *reflectorStore) {
+	if c.autoscalingGate == nil {
+		return
+	}
 	if !cache.WaitForCacheSync(ctx.Done(), store.HasSynced) {
 		return
 	}

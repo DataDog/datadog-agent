@@ -13,6 +13,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func startKubeMetadataStreamer(_ context.Context, _ workloadmeta.Component) kubeMetadataStreamer {
+func startKubeMetadataStreamer(_ context.Context, _ workloadmeta.Component, _ func(context.Context) bool) kubeMetadataStreamer {
 	return nil
 }

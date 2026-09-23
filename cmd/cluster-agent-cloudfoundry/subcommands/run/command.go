@@ -239,7 +239,9 @@ func run(
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+	// No pod collection outside Kubernetes: the kube metadata stream stays
+	// cluster-wide (and is not served by this binary anyway).
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, nil); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

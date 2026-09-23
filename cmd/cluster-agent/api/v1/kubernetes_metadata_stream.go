@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
@@ -106,16 +107,56 @@ type KubeMetadataStreamServer struct {
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
 	// metadata for the same node concurrently.
 	namespaceSubscribers map[string][]chan struct{}
+
+	// Per-node workload filtering, see WithPerNodeWorkloadFiltering.
+	//
+	// workloadNodes counts, for every workload, its pods bound to each node.
+	// It covers all workloads, not only autoscaled ones, so that a workload
+	// gaining an autoscaler notifies exactly the nodes already hosting it.
+	// Guarded by metadataMutex, like podPlacements.
+	waitPodPlacementSynced func(context.Context) bool
+	filterByNode           atomic.Bool
+	podPlacements          map[string]podPlacement // pod UID -> placement
+	workloadNodes          map[kubernetes.WorkloadTarget]map[string]int
+}
+
+// podPlacement is where a pod runs and which workload owns it.
+type podPlacement struct {
+	node   string
+	target kubernetes.WorkloadTarget
+}
+
+// KubeMetadataStreamServerOption configures a KubeMetadataStreamServer.
+type KubeMetadataStreamServerOption func(*KubeMetadataStreamServer)
+
+// WithPerNodeWorkloadFiltering makes the server send each node only the
+// autoscalers of workloads that have a pod bound to that node, like pod to
+// service mappings, instead of every autoscaled workload in the cluster.
+//
+// Filtering needs to know where every pod runs, so it only starts once
+// waitSynced reports the Cluster Agent's pod collection has synced. Before
+// that, and without this option, workload autoscalers are sent cluster-wide:
+// filtering on incomplete placement data would starve nodes.
+func WithPerNodeWorkloadFiltering(waitSynced func(context.Context) bool) KubeMetadataStreamServerOption {
+	return func(srv *KubeMetadataStreamServer) {
+		srv.waitPodPlacementSynced = waitSynced
+	}
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
-func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component) *KubeMetadataStreamServer {
-	return &KubeMetadataStreamServer{
+func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, opts ...KubeMetadataStreamServerOption) *KubeMetadataStreamServer {
+	srv := &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
 		metadata:             newMetadataSnapshot(),
 		namespaceSubscribers: make(map[string][]chan struct{}),
+		podPlacements:        make(map[string]podPlacement),
+		workloadNodes:        make(map[kubernetes.WorkloadTarget]map[string]int),
 	}
+	for _, opt := range opts {
+		opt(srv)
+	}
+	return srv
 }
 
 func newMetadataSnapshot() metadataSnapshot {
@@ -152,6 +193,143 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 			}
 		}
 	}()
+
+	if srv.waitPodPlacementSynced != nil {
+		srv.startPodPlacementTracking(ctx)
+	}
+}
+
+// startPodPlacementTracking follows where pods run, and switches to per-node
+// filtering once the pod collection has synced.
+func (srv *KubeMetadataStreamServer) startPodPlacementTracking(ctx context.Context) {
+	// Only the Kubernetes API server source: it carries the node and the
+	// owners. The autoscaler collector also writes pods, but only their kinds.
+	ch := srv.wmeta.Subscribe(
+		wmetaSubscriberName+"-pods",
+		workloadmeta.NormalPriority,
+		workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceKubeAPIServer).
+			AddKind(workloadmeta.KindKubernetesPod).
+			Build(),
+	)
+	go func() {
+		defer srv.wmeta.Unsubscribe(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+				bundle.Acknowledge()
+				srv.processPodEvents(bundle.Events)
+			}
+		}
+	}()
+
+	go func() {
+		if !srv.waitPodPlacementSynced(ctx) {
+			return
+		}
+		srv.metadataMutex.Lock()
+		defer srv.metadataMutex.Unlock()
+		srv.filterByNode.Store(true)
+		log.Infof("Pod collection synced: sending each node only the autoscalers of its own workloads")
+		// Every stream re-diffs against what it last sent: the workloads of
+		// other nodes go out as UNSETs, so no full state is needed.
+		srv.notifyNamespaceSubscribers()
+	}()
+}
+
+// processPodEvents maintains workloadNodes, and notifies the nodes whose view
+// of autoscaled workloads changed.
+func (srv *KubeMetadataStreamServer) processPodEvents(events []workloadmeta.Event) {
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
+
+	affectedNodes := sets.New[string]()
+	for _, event := range events {
+		pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
+		if !ok {
+			continue
+		}
+
+		// A pod counts once it is bound to a node and owned by a workload.
+		var next podPlacement
+		placed := false
+		if event.Type == workloadmeta.EventTypeSet && pod.NodeName != "" {
+			if target, found := util.PodWorkloadTarget(pod); found {
+				next, placed = podPlacement{node: pod.NodeName, target: target}, true
+			}
+		}
+
+		previous, known := srv.podPlacements[pod.ID]
+		if known && placed && previous == next {
+			continue
+		}
+		if known {
+			delete(srv.podPlacements, pod.ID)
+			if srv.removePlacementLocked(previous) {
+				affectedNodes.Insert(previous.node)
+			}
+		}
+		if placed {
+			srv.podPlacements[pod.ID] = next
+			if srv.addPlacementLocked(next) {
+				affectedNodes.Insert(next.node)
+			}
+		}
+	}
+
+	if srv.filterByNode.Load() {
+		srv.notifyNodeSubscribersLocked(affectedNodes)
+	}
+}
+
+// addPlacementLocked records a pod of a workload on a node. It reports whether
+// that node's view changed: the workload is autoscaled and was not on it yet.
+func (srv *KubeMetadataStreamServer) addPlacementLocked(p podPlacement) bool {
+	nodes := srv.workloadNodes[p.target]
+	if nodes == nil {
+		nodes = make(map[string]int)
+		srv.workloadNodes[p.target] = nodes
+	}
+	nodes[p.node]++
+	_, autoscaled := srv.metadata.workloadAutoscalers[p.target]
+	return nodes[p.node] == 1 && autoscaled
+}
+
+// removePlacementLocked forgets a pod of a workload on a node. It reports
+// whether that node's view changed: the workload is autoscaled and this was
+// its last pod there.
+func (srv *KubeMetadataStreamServer) removePlacementLocked(p podPlacement) bool {
+	nodes := srv.workloadNodes[p.target]
+	if nodes[p.node] == 0 {
+		return false
+	}
+	nodes[p.node]--
+	if nodes[p.node] > 0 {
+		return false
+	}
+	delete(nodes, p.node)
+	if len(nodes) == 0 {
+		delete(srv.workloadNodes, p.target)
+	}
+	_, autoscaled := srv.metadata.workloadAutoscalers[p.target]
+	return autoscaled
+}
+
+// notifyNodeSubscribersLocked signals the streams of the given nodes only.
+func (srv *KubeMetadataStreamServer) notifyNodeSubscribersLocked(nodes sets.Set[string]) {
+	for node := range nodes {
+		for _, ch := range srv.namespaceSubscribers[node] {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	}
 }
 
 // StreamKubeMetadata streams pod-to-service mappings and namespace metadata to
@@ -167,7 +345,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentMetadataState := srv.buildMetadataSnapshot()
+	lastSentMetadataState := srv.buildMetadataSnapshotForNode(nodeName)
+	log.Debugf("Sending kube metadata full state to node %s: %d workload autoscalers (filtered by node: %t)",
+		nodeName, len(lastSentMetadataState.workloadAutoscalers), srv.filterByNode.Load())
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
@@ -220,7 +400,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentMetadataState := srv.buildMetadataSnapshot()
+			currentMetadataState := srv.buildMetadataSnapshotForNode(nodeName)
 			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
 			if metadataDiff.isEmpty() {
 				continue
@@ -265,7 +445,11 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	srv.metadataMutex.Lock()
 	defer srv.metadataMutex.Unlock()
 
+	// Namespace and Kueue changes concern every node. Workload autoscaler
+	// changes only concern the nodes hosting the workload, once filtering by
+	// node is on.
 	changed := false
+	var changedWorkloads []kubernetes.WorkloadTarget
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.KubernetesMetadata:
@@ -273,7 +457,7 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			// (StatefulSets, Argo Rollouts) share the entity kind.
 			if target, isWorkload := util.WorkloadTargetFromMetadata(entity); isWorkload {
 				if srv.metadata.processWorkloadAutoscalersEvent(event.Type, target, entity.AutoscalerKinds) {
-					changed = true
+					changedWorkloads = append(changedWorkloads, target)
 				}
 			} else if srv.metadata.processNamespaceEvent(event.Type, entity) {
 				changed = true
@@ -291,16 +475,25 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 				changed = true
 			}
 		case *workloadmeta.KubernetesDeployment:
-			if srv.metadata.processDeploymentEvent(event.Type, entity) {
-				changed = true
+			if target, workloadChanged := srv.metadata.processDeploymentEvent(event.Type, entity); workloadChanged {
+				changedWorkloads = append(changedWorkloads, target)
 			}
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
 	}
 
-	if changed {
+	switch {
+	case changed || (len(changedWorkloads) > 0 && !srv.filterByNode.Load()):
 		srv.notifyNamespaceSubscribers()
+	case len(changedWorkloads) > 0:
+		nodes := sets.New[string]()
+		for _, target := range changedWorkloads {
+			for node := range srv.workloadNodes[target] {
+				nodes.Insert(node)
+			}
+		}
+		srv.notifyNodeSubscribersLocked(nodes)
 	}
 }
 
@@ -402,17 +595,17 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 }
 
 // processDeploymentEvent tracks the autoscaler kinds acting on a Deployment.
-func (s *metadataSnapshot) processDeploymentEvent(eventType workloadmeta.EventType, deployment *workloadmeta.KubernetesDeployment) bool {
+func (s *metadataSnapshot) processDeploymentEvent(eventType workloadmeta.EventType, deployment *workloadmeta.KubernetesDeployment) (kubernetes.WorkloadTarget, bool) {
 	// Taken from the entity ID ("namespace/name"), not from EntityMeta: an
 	// Unset for a deleted Deployment carries only its ID, and a Deployment
 	// known only through its autoscalers has no metadata at all.
 	namespace, name, ok := strings.Cut(deployment.EntityID.ID, "/")
 	if !ok {
 		log.Errorf("Unexpected Deployment entity ID %q in kube metadata stream", deployment.EntityID.ID)
-		return false
+		return kubernetes.WorkloadTarget{}, false
 	}
 	target := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: namespace, Name: name}
-	return s.processWorkloadAutoscalersEvent(eventType, target, deployment.AutoscalerKinds)
+	return target, s.processWorkloadAutoscalersEvent(eventType, target, deployment.AutoscalerKinds)
 }
 
 // processWorkloadAutoscalersEvent tracks the autoscaler kinds acting on a
@@ -519,6 +712,25 @@ func (srv *KubeMetadataStreamServer) buildKueueResourceFlavorsSnapshot() map[str
 
 func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]kueueWorkloadEntry {
 	return srv.buildMetadataSnapshot().kueueWorkloads
+}
+
+// buildMetadataSnapshotForNode is what a node's stream sends: the cluster-wide
+// snapshot, with workload autoscalers restricted to the workloads that have a
+// pod on the node once filtering by node is on.
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshotForNode(nodeName string) metadataSnapshot {
+	snapshot := srv.buildMetadataSnapshot()
+	if !srv.filterByNode.Load() {
+		return snapshot
+	}
+
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+	for target := range snapshot.workloadAutoscalers {
+		if srv.workloadNodes[target][nodeName] == 0 {
+			delete(snapshot.workloadAutoscalers, target)
+		}
+	}
+	return snapshot
 }
 
 func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
