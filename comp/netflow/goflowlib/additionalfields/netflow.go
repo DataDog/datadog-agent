@@ -84,7 +84,7 @@ func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[u
 }
 
 // ProcessMessageNetFlowAdditionalFields collects additional fields from netflow packet using the given config
- func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping) ([]common.AdditionalFields, error) {
+func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping) ([]common.AdditionalFields, error) {
 	if len(fieldsConfig) == 0 {
 		return nil, nil
 	}
