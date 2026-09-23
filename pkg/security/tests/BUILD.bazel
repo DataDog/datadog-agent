@@ -233,6 +233,7 @@ dd_agent_go_test(
         "tracer_memfd_test.go",
         "umount_test.go",
         "unlink_test.go",
+        "unshare_test.go",
         "user_session_test.go",
         "usergroup_test.go",
         "utimes_test.go",

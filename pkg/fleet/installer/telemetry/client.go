@@ -40,6 +40,9 @@ type client struct {
 	client             httpClient
 	endpoints          []*endpoint
 	sendPayloadTimeout time.Duration
+	// siteSupportsTelemetry is false when the site has no telemetry intake backend
+	// (e.g. GovCloud), in which case payloads are dropped locally instead of being sent.
+	siteSupportsTelemetry bool
 
 	// we can pre-calculate the host payload structure at init time
 	baseEvent event
@@ -135,16 +138,17 @@ type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func newClient(httpClient httpClient, endpoints []*endpoint, service string, debug bool) *client {
+func newClient(httpClient httpClient, endpoints []*endpoint, service string, debug bool, siteSupportsTelemetry bool) *client {
 	info, err := host.Info()
 	if err != nil {
 		log.Errorf("failed to retrieve host info: %v", err)
 		info = &host.InfoStat{}
 	}
 	return &client{
-		client:             httpClient,
-		endpoints:          endpoints,
-		sendPayloadTimeout: defaultSendPayloadTimeout,
+		client:                httpClient,
+		endpoints:             endpoints,
+		sendPayloadTimeout:    defaultSendPayloadTimeout,
+		siteSupportsTelemetry: siteSupportsTelemetry,
 		baseEvent: event{
 			APIVersion: "v2",
 			DebugFlag:  debug,
@@ -209,6 +213,9 @@ func (c *client) sampleTraces(ts traces) traces {
 }
 
 func (c *client) sendPayload(requestType requestType, payload interface{}) {
+	if !c.siteSupportsTelemetry {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
 	defer cancel()
 

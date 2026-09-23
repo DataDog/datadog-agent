@@ -11,11 +11,11 @@ import (
 
 	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx"
 	"github.com/pulumi/pulumi-command/sdk/go/command"
-	"github.com/pulumi/pulumi-docker/sdk/v4/go/docker"
+	"github.com/pulumi/pulumi-docker/sdk/v5/go/docker"
 	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
-	"github.com/pulumi/pulumi-tls/sdk/v4/go/tls"
+	"github.com/pulumi/pulumi-tls/sdk/v5/go/tls"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

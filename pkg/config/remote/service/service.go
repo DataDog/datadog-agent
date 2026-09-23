@@ -1174,8 +1174,8 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 	return cachedTargetsMap, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
-	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
+func (s *CoreAgentService) apiKeyUpdateCallback() model.NotificationReceiver {
+	return func(setting string, _ model.Source, _, newvalue any, _ uint64, _ model.Source) {
 		if setting != "api_key" {
 			return
 		}

@@ -415,9 +415,10 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
+	apmTargetStore := instrumentationhandlers.NewAPMTargetStore()
 	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, apmTargetStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -709,6 +710,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
+			DDITargets:                   apmTargetStore,
 			RcClient:                     rcClient,
 		}
 
@@ -808,12 +810,13 @@ func loopbackOnly(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, apmStore *instrumentationhandlers.APMTargetStore) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
 		ServiceCheckTemplateStore: serviceTemplateStore,
+		APMTargetStore:            apmStore,
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {

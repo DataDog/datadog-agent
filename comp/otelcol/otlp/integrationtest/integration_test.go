@@ -235,7 +235,7 @@ func TestIntegration(t *testing.T) {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
-	waitForReadiness()
+	waitForReadiness(t)
 
 	// 3. Validate that pid file was created
 	_, err = os.Stat(pidfilePath)
@@ -248,9 +248,14 @@ func TestIntegration(t *testing.T) {
 	var spans []*pb.Span
 	var stats []*pb.ClientGroupedStats
 
-	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter
+	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter.
+	// Bail out rather than block forever: without a deadline a missing payload
+	// turns a test failure into a CI job timeout.
+	deadline := time.After(3 * time.Minute)
 	for len(spans) < 5 || len(stats) < 10 {
 		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for payloads: got %d/5 spans and %d/10 stats", len(spans), len(stats))
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
 			zr := getZstdReader(tracesBytes)
@@ -310,20 +315,25 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, app.Stop(stopCtx))
 }
 
-func waitForReadiness() {
+func waitForReadiness(t *testing.T) {
+	// Cap both the per-attempt backoff and the total wait: the exponential
+	// backoff alone reaches 34 minutes by attempt 11, which burns a CI runner
+	// instead of failing the test.
+	deadline := time.Now().Add(2 * time.Minute)
 	for i := 0; ; i++ {
 		resp, err := http.Get("http://localhost:13133") // default addr of the OTel collector health check extension
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
 		if err == nil && resp.StatusCode == 200 {
 			return
 		}
 		log.Print("health check failed, retrying ", i, err, resp)
-		t := time.Duration(math.Pow(2, float64(i)))
-		time.Sleep(t * time.Second)
+		if time.Now().After(deadline) {
+			t.Fatalf("collector never became ready: %v", err)
+		}
+		backoff := time.Duration(math.Min(math.Pow(2, float64(i)), 10)) * time.Second
+		time.Sleep(backoff)
 	}
 }
 

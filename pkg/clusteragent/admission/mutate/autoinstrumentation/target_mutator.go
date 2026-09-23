@@ -16,6 +16,7 @@ import (
 
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -37,6 +40,21 @@ const (
 	// AppliedPolicyEnvVar is the environment variable that contains the compact JSON of the policy that was applied to the pod.
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
+
+// allowedTracerConfigPrefixes are the env var name prefixes accepted for tracer configs supplied
+// via Targets, remote-config policies, or the tracer-configs annotation. This keeps the mechanism
+// from being used as a generic env var injector while still allowing DD_* and OTel-native OTEL_*
+// configuration (e.g. activating a tracer's OTel mode with OTEL_TRACES_EXPORTER).
+var allowedTracerConfigPrefixes = []string{"DD_", "OTEL_"}
+
+func hasAllowedTracerConfigPrefix(name string) bool {
+	for _, prefix := range allowedTracerConfigPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // policySet is matcher.policies aligned with injection targets by index, so a
 // match resolves directly to its injection config. An empty set (no targets, no
@@ -55,6 +73,7 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	ddiTargets                    DDITargetProvider
 	ssiEnabled                    bool
 
 	// staticPolicies is local targeting: explicit targets, or enabledNamespaces
@@ -70,7 +89,7 @@ type TargetMutator struct {
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
 // mutator also subscribes to remote-config SSI policies, which are evaluated after static targets.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -103,6 +122,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		ddiTargets:                    ddiTargets,
 		ssiEnabled:                    ssiEnabled,
 		staticPolicies:                staticPolicies,
 	}
@@ -175,13 +195,12 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			libVersions = pinnedLibraries.libs
 		}
 
-		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
-		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
-		// vars in the future, we could relax this requirement.
+		// Convert the tracer configs to env vars. We only allow DD_ and OTEL_ prefixed names to avoid
+		// this from being used as a generic env var injector.
 		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
 		for j, tc := range t.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = tc.AsEnvVar()
 		}
@@ -198,9 +217,9 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 	return internalTargets, nil
 }
 
-// SetRemotePolicies installs remote-config policies as a second last-TRUE-wins
-// phase after static targets. The wire order is already last-TRUE-wins (default
-// first, exceptions after) and is stored as-is.
+// SetRemotePolicies installs remote-config policies after DDI and static
+// configuration. The wire order is already last-TRUE-wins (default first,
+// exceptions after) and is stored as-is.
 func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
 	if len(ps) == 0 {
 		m.ClearRemotePolicies()
@@ -219,7 +238,7 @@ func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
 	return nil
 }
 
-// ClearRemotePolicies drops remote-config policies. Matching falls back to
+// ClearRemotePolicies drops remote-config policies. Matching falls back to DDI,
 // static targets, then the SSI inject-all default if there is no static targeting.
 func (m *TargetMutator) ClearRemotePolicies() {
 	m.remotePolicies.Store(nil)
@@ -244,8 +263,8 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 
 		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
 		for j, tc := range p.Outcome.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
 		}
@@ -295,7 +314,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 	// Check for the init_container mode's per-language init containers.
-	for _, lang := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		lang := language(supportedLang)
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
@@ -357,8 +377,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 }
 
 func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
-	// A policy-driven match (remote config) carries its information on a
-	// dedicated env var / annotation, distinct from configuration targets.
+	// A remote-config policy match carries its information on a dedicated env
+	// var / annotation, distinct from configuration targets.
 	envVarName := AppliedTargetEnvVar
 	annotationKey := annotation.AppliedTarget
 	if target.fromPolicy {
@@ -394,24 +414,24 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 	return m.getTarget(pod) != nil
 }
 
-// targetInternal is the injection configuration a matched policy resolves to.
-// It carries no selector: matching is delegated to the policy engine, which is
-// fed by policiesFromTargets for configuration targets and by remote config for
-// policies.
+// targetInternal is the injection configuration a matched target resolves to.
+// It carries no selector: matching is delegated to the policy engine for
+// static configuration targets and remote-config policies. DDI configuration
+// is resolved directly from its workload target.
 type targetInternal struct {
 	name            string
 	libVersions     []libInfo
 	envVars         []corev1.EnvVar
 	json            string
 	usesDefaultLibs bool
-	// fromPolicy is true when this internal target was derived from a policy
-	// (remote config) rather than a configuration target. It selects which
+	// fromPolicy is true when this internal target was derived from a
+	// remote-config policy rather than a configuration target. It selects which
 	// annotation/env var carries the applied information.
 	fromPolicy bool
 }
 
-// getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
-// Library annotations still short-circuit matching (GA precedence unchanged in this change).
+// getTarget determines which target to use for a given pod, including the tracing libraries to inject.
+// Precedence is annotation, DatadogInstrumentation, static config, remote config, then inject-all.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	target, _ := m.resolveTargetAndSSI(pod)
 	return target
@@ -427,24 +447,81 @@ func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, b
 	return matched, matched != nil
 }
 
-type annotationResult struct {
+type filterResult struct {
 	shouldContinue bool
 	target         *targetInternal
 }
 
+func (m *TargetMutator) getTargetFromDDI(pod *corev1.Pod) *filterResult {
+	if m.ddiTargets == nil {
+		return &filterResult{shouldContinue: true}
+	}
+
+	ref := metav1.GetControllerOf(pod)
+	if ref == nil {
+		return &filterResult{shouldContinue: true}
+	}
+	rootKind, rootName := kubernetes.ResolvePodRootOwner(ref.Kind, ref.Name, pod.Labels)
+	workload := ssi.DDICRTarget{Kind: rootKind, Namespace: pod.Namespace, Name: rootName}
+	config, ok := m.ddiTargets.GetTarget(workload)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+	if !config.Enabled {
+		return &filterResult{shouldContinue: false}
+	}
+
+	return &filterResult{shouldContinue: false, target: m.fromDDIAPMConfig(workload, config)}
+}
+
+func (m *TargetMutator) fromDDIAPMConfig(workload ssi.DDICRTarget, config ssi.DDIAPMConfig) *targetInternal {
+	libVersions := m.defaultLibVersions
+	usesDefaultLibs := true
+	if len(config.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(config.TracerVersions, m.containerRegistry, true)
+		libVersions = pinned.libs
+		usesDefaultLibs = pinned.areSetToDefaults
+	}
+
+	name := fmt.Sprintf("datadoginstrumentation:%s", config.CR)
+	payload := struct {
+		Name           string            `json:"name"`
+		Workload       ssi.DDICRTarget   `json:"workload"`
+		TracerVersions map[string]string `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar   `json:"ddTraceConfigs,omitempty"`
+	}{
+		Name:           name,
+		Workload:       workload,
+		TracerVersions: config.TracerVersions,
+		TracerConfigs:  config.TracerConfigs,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Warnf("error marshalling DDI target %q: %v", name, err)
+	}
+
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         config.TracerConfigs,
+		json:            string(data),
+		usesDefaultLibs: usesDefaultLibs,
+	}
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
 	if !enabledLabelExists && !m.mutateUnlabelled {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: true,
 			target:         nil,
 		}
@@ -453,7 +530,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
@@ -464,7 +541,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
@@ -473,25 +550,31 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	return &annotationResult{
+	return &filterResult{
 		shouldContinue: true,
 		target:         nil,
 	}
 }
 
-// getMatchingTarget: static targets first, then RC, then SSI inject-all if both
-// are absent. A matched deny returns nil and does not fall through.
+// getMatchingTarget evaluates each configuration source in priority order. A
+// matched deny returns nil and does not fall through to a lower-priority source.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
 	}
 
-	if t, matched := applyMatch(&m.staticPolicies, pod); matched {
-		return t
+	result := m.getTargetFromDDI(pod)
+	if !result.shouldContinue {
+		return result.target
 	}
+
+	static, staticMatched := applyMatch(&m.staticPolicies, pod)
 	remotePolicies := m.remotePolicies.Load()
 	if t, matched := applyMatch(remotePolicies, pod); matched {
 		return t
+	}
+	if staticMatched {
+		return static
 	}
 	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
 		return m.injectAll
@@ -636,7 +719,7 @@ func containsVolume(pod *corev1.Pod, volumeName string) bool {
 
 // extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
 // alongside the locally injected libraries. It is the annotation-based equivalent of a target's
-// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// ddTraceConfigs. Invalid input (malformed JSON or a name without an allowed prefix) is logged and skipped
 // rather than failing the mutation, mirroring the lenient handling of the other local SDK
 // injection annotations.
 func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
@@ -653,10 +736,10 @@ func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
 
 	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
 	for _, tc := range tracerConfigs {
-		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
-		// so this cannot be used as a generic env var injector.
-		if !strings.HasPrefix(tc.Name, "DD_") {
-			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ or OTEL_
+		// prefixed names so this cannot be used as a generic env var injector.
+		if !hasAllowedTracerConfigPrefix(tc.Name) {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_ or OTEL_, skipping", tc.Name, annotation.TracerConfigs)
 			continue
 		}
 		envVars = append(envVars, tc.AsEnvVar())
@@ -669,7 +752,8 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	libs := []libInfo{}
 
 	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		l := language(supportedLang)
 		// Check for a custom library image.
 		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
 		if found {

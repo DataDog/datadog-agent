@@ -282,6 +282,7 @@ struct imds_event_t {
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
+    u32 credential_source;
     u8 body[IMDS_MAX_LENGTH];
 };
 
@@ -347,6 +348,17 @@ struct mount_event_t {
     struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
     u32    source;
+};
+
+struct unshare_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct go_labels_context_t go_labels;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    u64 flags;
 };
 
 struct unshare_mntns_event_t {
@@ -628,6 +640,10 @@ struct capabilities_event_t {
     struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct capabilities_usage_t caps_usage;
+    // Usage is aggregated per proc_cache entry, while userspace resolves the process by pid: if it
+    // missed an fork or exec event that introduced this proc_cache entry, then the userspace cache has nothing for the pid
+    // and it might resolve to the wrong program/binary. The cookie is what lets it notice that this happens.
+    u64 cookie;
 };
 
 struct prctl_event_t {
@@ -653,6 +669,13 @@ struct tracer_memfd_seal_event_t {
     struct syscall_t syscall;
 
     u32 fd;
+};
+
+// Carries only the pid: user space answers this by resolving that process's OTEL context.
+struct otel_process_ctx_event_t {
+    struct kevent_t event;
+    u32 pid;
+    u32 padding;
 };
 
 struct sample_refresh_event_t {
@@ -701,6 +724,7 @@ union event_t {
     struct delete_module_event_t delete_module;
     struct mount_event_t mount;
     struct unshare_mntns_event_t unshare_mntns;
+    struct unshare_event_t unshare;
     struct mprotect_event_t mprotect;
     struct net_device_event_t net_device;
     struct veth_pair_event_t veth_pair;
@@ -725,6 +749,7 @@ union event_t {
     struct capabilities_event_t capabilities;
     struct prctl_event_t prctl;
     struct tracer_memfd_seal_event_t tracer_memfd_seal;
+    struct otel_process_ctx_event_t otel_process_ctx;
     struct sample_refresh_event_t sample_refresh;
     struct nop_event_t nop;
 };

@@ -57,7 +57,7 @@ type sampleCookieEntry struct {
 	imageTag      string
 }
 
-// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
+// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + connect_samples)
 // so the cookie LRU can hold mappings for every possible dedup entry.
 const sampleCookieMapSize = 4096
 
@@ -1088,7 +1088,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	}
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
 		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
 		return nil, errors.New("workload excluded")
 	}
@@ -1402,7 +1402,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, true, nil)
+		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 		if pce == nil {
 			continue
 		}
@@ -1477,7 +1477,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
+			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
