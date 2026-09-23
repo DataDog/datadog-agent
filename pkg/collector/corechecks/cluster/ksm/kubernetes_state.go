@@ -836,7 +836,8 @@ func (k *KSMCheck) Run() error {
 			}
 
 			if metricsStore != nil {
-				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+				// nil filters allow all families/metrics, letting Push share the store's slices instead of copying them
+				metrics := metricsStore.Push(nil, nil)
 				k.processMetrics(sender, metrics, labelJoiner, currentTime)
 				k.processTelemetry(metrics)
 			}
