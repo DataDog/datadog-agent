@@ -356,36 +356,44 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 
 	logsFolder, err := host.GetLogsFolder()
 	s.Require().NoError(err)
-	procmgrLog := filepath.Join(logsFolder, "dd-procmgr.log")
+	waitForLogLine := func(logFile, line, msg string) {
+		s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+			content, err := host.ReadFile(filepath.Join(logsFolder, logFile))
+			if !assert.NoError(ct, err) {
+				return
+			}
+			assert.Contains(ct, string(content), line, msg)
+		}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	}
 
 	s.startAgent()
 	s.assertServiceState("Running", "dd-procmgr-service", nil)
 
-	// dd-procmgr serves RPCs before its start pass evaluates the gate, so neither the service
-	// state nor a Created process proves a decision was made. This line does: the start pass
-	// writes it when the gate is closed, and BeforeTest cleared the logs folder, so it cannot
-	// come from an earlier start.
-	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
-		content, err := host.ReadFile(procmgrLog)
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Contains(ct, string(content), "[datadog-agent-process] condition_config_any not met",
-			"dd-procmgr should evaluate the process-agent config gate and find it closed")
-	}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	// Two launchers could start process-agent, and each decides after dd-procmgr-service is
+	// already Running, so the checks below are only meaningful once both have written their
+	// decision. BeforeTest cleared the logs folder, so neither line can come from an earlier
+	// start.
+	//
+	// dd-procmgr writes this during its start pass while holding the process table's write
+	// lock. describe takes the read lock, so a describe issued after the line appears reports
+	// the state the pass left behind.
+	waitForLogLine("dd-procmgr.log", "[datadog-agent-process] condition_config_any not met",
+		"dd-procmgr should evaluate the process-agent config gate and find it closed")
+	// The core Agent writes this once it has decided not to start the legacy
+	// datadog-process-agent service, whether suppressed by install policy or disabled by config.
+	waitForLogLine("agent.log", "Service process is disabled, not starting",
+		"the core Agent should decide not to start the legacy process-agent service")
 
-	for end := time.Now().Add(30 * time.Second); time.Now().Before(end); time.Sleep(5 * time.Second) {
-		out, err := host.Execute(
-			`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
-		s.Require().NoError(err)
-		s.Require().Equal("Absent", strings.TrimSpace(out),
-			"dd-procmgr must not run process-agent when every process-agent config trigger is off")
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
+	s.Require().NoError(err)
+	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
 
-		out, err = host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
-		s.Require().NoError(err)
-		s.Require().Equal("Created", procmgrDescribeField(out, "State"),
-			"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
-	}
+	out, err = host.Execute(
+		`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+	s.Require().NoError(err)
+	s.Require().Equal("Absent", strings.TrimSpace(out),
+		"process-agent must not run when every process-agent config trigger is off")
 }
 
 // procmgrDescribeField pulls a single "Label: value" field out of dd-procmgr describe output.
