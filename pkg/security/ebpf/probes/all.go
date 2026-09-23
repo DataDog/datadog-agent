@@ -341,6 +341,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: SyscallSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
+		editors["sampled_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		}
 	}
 
 	if opts.PathResolutionEnabled {

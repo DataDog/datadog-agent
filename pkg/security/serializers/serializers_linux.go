@@ -869,6 +869,10 @@ type EventSerializer struct {
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
 	ses := SyscallsEventSerializer{}
+	// Sample events carry a single syscall in SyscallID instead of the Syscalls drain bitmap.
+	if e.EventReason == model.SampleReason {
+		return &SyscallsEventSerializer{{ID: int(e.SyscallID), Name: model.Syscall(e.SyscallID).String()}}
+	}
 	for _, s := range e.Syscalls {
 		ses = append(ses, SyscallSerializer{
 			ID:   int(s),
@@ -1449,8 +1453,9 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent (drain form only)
-	if e.GetEventType() == model.SyscallsEventType && e.Syscalls.EventReason != model.SampleReason {
+	// add the syscalls from the event only for the top level parent. Skip sample events unless
+	// they are anomalies, otherwise the sampled syscall (in SyscallID) is never serialized.
+	if e.GetEventType() == model.SyscallsEventType && (e.Syscalls.EventReason != model.SampleReason || e.IsAnomalyDetectionEvent()) {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1936,7 +1941,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		if event.Syscalls.EventReason != model.SampleReason {
+		if event.Syscalls.EventReason != model.SampleReason || event.IsAnomalyDetectionEvent() {
 			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 		}
 	case model.DNSEventType:

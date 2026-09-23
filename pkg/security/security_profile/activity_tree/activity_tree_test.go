@@ -623,18 +623,18 @@ func TestSyscallsByImageTagID(t *testing.T) {
 	// A syscall shared by both processes of v1, one exclusive to each tag, and a node carrying
 	// both tags at once.
 	parent := &ProcessNode{NodeBase: NewNodeBase()}
-	parent.Syscalls = []*SyscallNode{
-		NewSyscallNode(1, now, v1, Runtime),
-		NewSyscallNode(60, now, v2, Runtime),
+	parent.Syscalls = map[int]*SyscallNode{
+		1:  NewSyscallNode(1, now, v1, Runtime),
+		60: NewSyscallNode(60, now, v2, Runtime),
 	}
 	child := &ProcessNode{NodeBase: NewNodeBase()}
-	child.Syscalls = []*SyscallNode{
-		NewSyscallNode(1, now, v1, Runtime),
-		NewSyscallNode(2, now, v1, Runtime),
+	child.Syscalls = map[int]*SyscallNode{
+		1: NewSyscallNode(1, now, v1, Runtime),
+		2: NewSyscallNode(2, now, v1, Runtime),
 	}
 	shared := NewSyscallNode(257, now, v1, Runtime)
 	shared.AppendImageTagID(v2, now)
-	child.Syscalls = append(child.Syscalls, shared)
+	child.Syscalls[shared.Syscall] = shared
 
 	parent.Children = []*ProcessNode{child}
 	tree.ProcessNodes = []*ProcessNode{parent}
@@ -654,7 +654,7 @@ func TestSyscallsByImageTagID_AfterImageTagEviction(t *testing.T) {
 
 	pn := &ProcessNode{NodeBase: NewNodeBase()}
 	pn.AppendImageTagID(v1, now)
-	pn.Syscalls = []*SyscallNode{NewSyscallNode(42, now, v1, Runtime)}
+	pn.Syscalls = map[int]*SyscallNode{42: NewSyscallNode(42, now, v1, Runtime)}
 	tree.ProcessNodes = []*ProcessNode{pn}
 
 	require.Equal(t, []uint32{42}, tree.SyscallsByImageTagID()[v1])

@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -470,7 +471,12 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.SubGraph, proce
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
 	var labelBuilder strings.Builder
 	labelBuilder.WriteString(tableHeader)
-	for i, s := range p.Syscalls {
+	syscallIDs := make([]int, 0, len(p.Syscalls))
+	for id := range p.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for i, id := range syscallIDs {
 		if i%5 == 0 {
 			if i != 0 {
 				labelBuilder.WriteString("</TD></TR>")
@@ -479,7 +485,7 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 		} else {
 			labelBuilder.WriteString(", ")
 		}
-		labelBuilder.WriteString(model.Syscall(s.Syscall).String())
+		labelBuilder.WriteString(model.Syscall(id).String())
 	}
 	labelBuilder.WriteString("</TD></TR>")
 	labelBuilder.WriteString("</TABLE>>")

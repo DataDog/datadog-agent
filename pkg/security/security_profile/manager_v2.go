@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	ebpfmanager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -191,9 +194,18 @@ type ManagerV2 struct {
 
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
+
+	// sampledCgroupsMap holds the container cgroup inodes the kernel syscall sampler is
+	// allowed to sample. Populated on container cgroup creation, cleared on deletion.
+	sampledCgroupsMap *ebpf.Map
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+
+	sampledCgroupsMap, err := managerhelper.Map(ebpf, "sampled_cgroups")
+	if err != nil {
+		return nil, err
+	}
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -270,6 +282,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		evictionNodesEvicted:        atomic.NewUint64(0),
 		containerFilters:            containerFilter,
 		imageExcluder:               imgExcluder,
+		sampledCgroupsMap:           sampledCgroupsMap,
 	}
 
 	m.initMetricsMap()
@@ -372,6 +385,13 @@ func (m *ManagerV2) Start(ctx context.Context) {
 		seclog.Errorf("failed to register cgroup deletion listener: %v", err)
 	}
 
+	// Register listener for cgroup creations to gate the kernel syscall sampler on containers
+	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
+			seclog.Errorf("failed to register cgroup creation listener: %v", err)
+		}
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -431,9 +451,29 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 	return time.NewTicker(10 * time.Second).C
 }
 
+// onCGroupCreated is called when a cgroup is created. For container cgroups it registers the
+// cgroup inode in the kernel sampled_cgroups map so the syscall sampler only runs for containers.
+func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	if cgce.IsContainerContextNull() {
+		return
+	}
+
+	inode := cgce.GetCGroupInode()
+	if err := m.sampledCgroupsMap.Put(inode, uint8(1)); err != nil {
+		seclog.Debugf("couldn't register cgroup inode %d in sampled_cgroups: %v", inode, err)
+	}
+}
+
 // onCGroupDeleted is called when a cgroup is deleted from the system
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
+
+	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled && !cgce.IsContainerContextNull() {
+		inode := cgce.GetCGroupInode()
+		if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Debugf("couldn't remove cgroup inode %d from sampled_cgroups: %v", inode, err)
+		}
+	}
 
 	// Remove from resolvedCgroups
 	m.resolvedCgroupsLock.Lock()
@@ -989,7 +1029,8 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	imageTag := secprof.GetTagValue("image_tag")
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest"
 	}
@@ -1556,6 +1597,8 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	entry, ok := m.sampleCookieMap.Get(cookie)
 	if !ok {
+		// Cookie never registered, usually because the first EVENT_SYSCALLS was dropped. Nothing
+		// to refresh; the kernel entry self-heals by re-sampling once it goes stale or is evicted.
 		m.sampleRefreshMisses.Inc()
 		return
 	}

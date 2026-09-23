@@ -160,7 +160,7 @@ type ProcessNode struct {
 	NetworkDevices map[model.NetworkDeviceContext]*NetworkDeviceNode
 
 	Sockets      []*SocketNode
-	Syscalls     []*SyscallNode
+	Syscalls     map[int]*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
 }
@@ -175,7 +175,6 @@ func (pn *ProcessNode) size() int64 {
 	// Backing arrays for direct-children slices. We charge for the slice slots only;
 	// the nodes pointed to are accounted for by their own size() invocations.
 	s += sliceBackingBytes(cap(pn.Sockets), unsafe.Sizeof((*SocketNode)(nil)))
-	s += sliceBackingBytes(cap(pn.Syscalls), unsafe.Sizeof((*SyscallNode)(nil)))
 	s += sliceBackingBytes(cap(pn.Capabilities), unsafe.Sizeof((*CapabilityNode)(nil)))
 	s += sliceBackingBytes(cap(pn.Children), unsafe.Sizeof((*ProcessNode)(nil)))
 	s += sliceBackingBytes(cap(pn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
@@ -186,6 +185,7 @@ func (pn *ProcessNode) size() int64 {
 	s += stringMapBytes(pn.DNSNames)
 	s += fixedKeyMapBytes(pn.IMDSEvents)
 	s += fixedKeyMapBytes(pn.NetworkDevices)
+	s += fixedKeyMapBytes(pn.Syscalls)
 	return s
 }
 
@@ -352,11 +352,9 @@ func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, sy
 	syscallID := int(e.Syscalls.SyscallID)
 	at := e.ResolveEventTime()
 
-	for _, existing := range pn.Syscalls {
-		if existing.Syscall == syscallID {
-			existing.AppendImageTagID(imageTagID, at)
-			return false, &existing.NodeBase
-		}
+	if existing, ok := pn.Syscalls[syscallID]; ok {
+		existing.AppendImageTagID(imageTagID, at)
+		return false, &existing.NodeBase
 	}
 
 	if dryRun {
@@ -364,7 +362,10 @@ func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, sy
 	}
 
 	sn := NewSyscallNode(syscallID, at, imageTagID, Runtime)
-	pn.Syscalls = append(pn.Syscalls, sn)
+	if pn.Syscalls == nil {
+		pn.Syscalls = make(map[int]*SyscallNode)
+	}
+	pn.Syscalls[syscallID] = sn
 	syscallMask[syscallID] = syscallID
 	stats.SyscallNodes++
 	stats.SizeBytes += sn.size()
@@ -374,13 +375,11 @@ func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, sy
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
-newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
-		for _, existingSyscall := range pn.Syscalls {
-			if existingSyscall.Syscall == int(newSyscall) {
-				existingSyscall.AppendImageTagID(imageTagID, e.ResolveEventTime())
-				continue newSyscallLoop
-			}
+		syscallID := int(newSyscall)
+		if existingSyscall, ok := pn.Syscalls[syscallID]; ok {
+			existingSyscall.AppendImageTagID(imageTagID, e.ResolveEventTime())
+			continue
 		}
 
 		hasNewSyscalls = true
@@ -388,9 +387,12 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		sn := NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTagID, Runtime)
-		pn.Syscalls = append(pn.Syscalls, sn)
-		syscallMask[int(newSyscall)] = int(newSyscall)
+		sn := NewSyscallNode(syscallID, e.ResolveEventTime(), imageTagID, Runtime)
+		if pn.Syscalls == nil {
+			pn.Syscalls = make(map[int]*SyscallNode)
+		}
+		pn.Syscalls[syscallID] = sn
+		syscallMask[syscallID] = syscallID
 		stats.SyscallNodes++
 		stats.SizeBytes += sn.size()
 	}
@@ -716,16 +718,14 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	}
 	pn.Sockets = newSockets
 
-	newSyscalls := []*SyscallNode{}
-	for _, scall := range pn.Syscalls {
+	for id, scall := range pn.Syscalls {
 		if shouldRemove := scall.EvictImageTag(imageTagID); !shouldRemove {
-			newSyscalls = append(newSyscalls, scall)
 			SyscallsMask[scall.Syscall] = scall.Syscall
 		} else {
 			removed += scall.size()
+			delete(pn.Syscalls, id)
 		}
 	}
-	pn.Syscalls = newSyscalls
 
 	var newCapabilities []*CapabilityNode
 	for _, capabilityNode := range pn.Capabilities {
@@ -799,12 +799,11 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	}
 
 	// Evict unused syscall nodes
-	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
-		syscallNode := pn.Syscalls[i]
+	for id, syscallNode := range pn.Syscalls {
 		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if syscallNode.SeenIsEmpty() {
 				removedBytes += syscallNode.size()
-				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
+				delete(pn.Syscalls, id)
 			}
 		}
 	}

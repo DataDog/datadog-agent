@@ -104,8 +104,10 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
-    // Workload profiles v2 syscall sampler.
-    if (!event->process.is_kworker) {
+    // Workload profiles v2 syscall sampler. Only sample container cgroups: userspace drops
+    // non-container events anyway, so gating here keeps systemd/host syscalls out of the
+    // sample LRU and rate limiter. The map is populated by userspace on container cgroup creation.
+    if (!event->process.is_kworker && bpf_map_lookup_elem(&sampled_cgroups, &event->cgroup.path_key.ino) != NULL) {
         struct pid_cache_t *pid_entry = get_pid_cache(pid);
         if (pid_entry != NULL) {
             u64 sample_cookie = 0;
