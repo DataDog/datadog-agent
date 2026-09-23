@@ -284,7 +284,7 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   the optional need in `.needs_fakeintake_publish`) so it never runs against a
   not-yet-published tag.
 - **Release branches never build or publish fakeintake.** The build/publish jobs
-  are skipped on release branches (`7.x.x`) and PRs targeting them
+  are skipped on release branches (`7.*.x`) and PRs targeting them
   (`.except_fakeintake_off_main` in `.gitlab-ci.yml`): a fakeintake change there
   is ignored — no rebuild, no publish, no e2e override; e2e runs against the
   branch's pinned image. **`version/VERSION` must never exceed main's** on such
