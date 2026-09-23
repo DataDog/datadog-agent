@@ -78,7 +78,7 @@ func TestCorrelationMembersSortForDisplayAndKeepHandlesAligned(t *testing.T) {
 		handles:     []*observer.QueryHandle{&memoryHandle, &cpuHandle},
 	}
 
-	sorted := members.sortedForDisplay()
+	sorted, _ := members.sortedForDisplay()
 	assert.Equal(t, []string{"cpu", "memory"}, []string{sorted.descriptors[0].Name, sorted.descriptors[1].Name})
 	assert.Equal(t, &cpuHandle, sorted.handles[0])
 	assert.Equal(t, &memoryHandle, sorted.handles[1])

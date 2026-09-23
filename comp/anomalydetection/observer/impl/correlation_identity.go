@@ -30,12 +30,7 @@ func uniqueMembers(anomalies []observer.Anomaly) correlationMembers {
 		if _, exists := seen[identity]; !exists {
 			seen[identity] = a.Source
 			members.descriptors = append(members.descriptors, a.Source)
-			if a.SourceRef == nil {
-				members.handles = append(members.handles, nil)
-			} else {
-				handle := *a.SourceRef
-				members.handles = append(members.handles, &handle)
-			}
+			members.handles = append(members.handles, a.SourceRef)
 		}
 	}
 	return members
@@ -44,22 +39,30 @@ func uniqueMembers(anomalies []observer.Anomaly) correlationMembers {
 // sortedForDisplay returns members in the legacy descriptor order. It is called
 // only while materializing correlation or debug output, never while ingesting
 // anomalies or deduplicating storage-backed identity.
-func (m correlationMembers) sortedForDisplay() correlationMembers {
+func (m correlationMembers) sortedForDisplay() (correlationMembers, []string) {
+	if len(m.descriptors) == 0 {
+		return m, nil
+	}
+
 	indices := make([]int, len(m.descriptors))
+	formatted := make([]string, len(m.descriptors))
 	for i := range indices {
 		indices[i] = i
+		formatted[i] = formatSeriesDescriptor(m.descriptors[i])
 	}
 	sort.Slice(indices, func(i, j int) bool {
-		return formatSeriesDescriptor(m.descriptors[indices[i]]) < formatSeriesDescriptor(m.descriptors[indices[j]])
+		return formatted[indices[i]] < formatted[indices[j]]
 	})
 
 	sorted := correlationMembers{
 		descriptors: make([]observer.SeriesDescriptor, len(m.descriptors)),
 		handles:     make([]*observer.QueryHandle, len(m.handles)),
 	}
+	sortedFormatted := make([]string, len(formatted))
 	for i, index := range indices {
 		sorted.descriptors[i] = m.descriptors[index]
 		sorted.handles[i] = m.handles[index]
+		sortedFormatted[i] = formatted[index]
 	}
-	return sorted
+	return sorted, sortedFormatted
 }
