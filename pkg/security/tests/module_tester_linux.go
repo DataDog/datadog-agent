@@ -113,6 +113,7 @@ event_monitoring_config:
     enabled: true
   capabilities_monitoring:
     enabled: {{ .CapabilitiesMonitoringEnabled }}
+    period: {{ .CapabilitiesMonitoringPeriod }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
@@ -162,7 +163,7 @@ runtime_security_config:
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
     v2:
-      enabled: false
+      enabled: {{ .EnableSecurityProfileV2 }}
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
@@ -1148,6 +1149,12 @@ type eventKeyValueFilter struct {
 //nolint:unused
 func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
+		// Events forwarded solely for activity dumps are skipped by the rule engine, so they must
+		// not satisfy probe-event assertions either. Security profile v2 force-enables open/connect
+		// sampling, which would otherwise deliver approver-discarded events here and break negative checks.
+		if event.IsSavedByActivityDumps() {
+			return false
+		}
 		for _, filter := range filters {
 			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
 				return false

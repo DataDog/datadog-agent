@@ -5,8 +5,15 @@ tests_aix-ppc64:
   # avoid blocking nightly pipelines on errors
   allow_failure: true
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_scheduled_main]
+    - changes:
+        paths:
+          - .gitlab/aix/common/**/*
+          - .gitlab/aix/test/aix_unit_tests.yml
+        compare_to: $COMPARE_TO_BRANCH
+      # TODO: uncomment once the job is stable enough
+      # allow_failure: false
     - when: manual
       variables:
         EXTRA_TEST_FLAGS: "--only-modified-packages"
@@ -14,11 +21,10 @@ tests_aix-ppc64:
     EXTRA_TEST_FLAGS: ""
   script:
     - 'echo "=== AIX: running unit tests ==="'
-    - >
-      ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST
-      "bash -c '
-        set -eu
-        cd $AIX_AGENT_SRC
-        . ./packaging/aix/lib/env.sh
-        python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=1
-      '"
+    - |
+      aix_run_cmd <<EOF
+      set -eux
+      cd $AIX_AGENT_SRC
+      . ./packaging/aix/lib/env.sh
+      python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=2
+      EOF

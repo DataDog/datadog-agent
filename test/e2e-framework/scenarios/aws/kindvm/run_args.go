@@ -25,13 +25,14 @@ const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
 
 // RunParams collects parameters for the Kind-on-VM scenario
 type RunParams struct {
-	Name                string
-	vmOptions           []ec2.VMOption
-	agentOptions        []kubernetesagentparams.Option
-	fakeintakeOptions   []fakeintake.Option
-	ciliumOptions       []cilium.Option
-	workloadAppFuncs    []kubecomp.WorkloadAppFunc
-	depWorkloadAppFuncs []kubecomp.AgentDependentWorkloadAppFunc
+	Name                     string
+	vmOptions                []ec2.VMOption
+	agentOptions             []kubernetesagentparams.Option
+	fakeintakeOptions        []fakeintake.Option
+	ciliumOptions            []cilium.Option
+	preAgentWorkloadAppFuncs []kubecomp.WorkloadAppFunc
+	workloadAppFuncs         []kubecomp.WorkloadAppFunc
+	depWorkloadAppFuncs      []kubecomp.AgentDependentWorkloadAppFunc
 
 	deployOperator     bool
 	operatorDDAOptions []agentwithoperatorparams.Option
@@ -59,17 +60,18 @@ type RunOption = func(*RunParams) error
 
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
-		Name:                defaultKindName,
-		vmOptions:           []ec2.VMOption{},
-		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
-		fakeintakeOptions:   []fakeintake.Option{},
-		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
-		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
-		operatorOptions:     []operatorparams.Option{},
-		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
-		deployDogstatsd:     false,
-		deployOperator:      false,
-		workerNodes:         []kubecomp.KindWorkerNode{},
+		Name:                     defaultKindName,
+		vmOptions:                []ec2.VMOption{},
+		agentOptions:             nil, // nil by default - Agent is only deployed when options are explicitly provided
+		fakeintakeOptions:        []fakeintake.Option{},
+		preAgentWorkloadAppFuncs: []kubecomp.WorkloadAppFunc{},
+		workloadAppFuncs:         []kubecomp.WorkloadAppFunc{},
+		depWorkloadAppFuncs:      []kubecomp.AgentDependentWorkloadAppFunc{},
+		operatorOptions:          []operatorparams.Option{},
+		operatorDDAOptions:       nil, // nil by default - DDA is only deployed when options are explicitly provided
+		deployDogstatsd:          false,
+		deployOperator:           false,
+		workerNodes:              []kubecomp.KindWorkerNode{},
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -119,6 +121,20 @@ func WithName(name string) RunOption { return func(p *RunParams) error { p.Name 
 // WithVMOptions sets VM options
 func WithVMOptions(opts ...ec2.VMOption) RunOption {
 	return func(p *RunParams) error { p.vmOptions = append(p.vmOptions, opts...); return nil }
+}
+
+// WithoutInternetAccess opts the Kind VM out of internet access: the account's default
+// security groups are replaced with the ones configured to block internet access (see
+// ec2.WithoutInternetAccess). This is opt-in: internet access remains the default, and
+// a suite only uses this once its bootstrap and image pulls work without internet.
+func WithoutInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithoutInternetAccess())
+}
+
+// WithInternetAccess explicitly opts the Kind VM into internet access, overriding a
+// WithoutInternetAccess option set earlier in the options list.
+func WithInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithInternetAccess())
 }
 
 // WithAgentOptions sets agent options
@@ -176,6 +192,14 @@ func WithDeployDogstatsd() RunOption {
 // WithDeployTestWorkload enables test workloads
 func WithDeployTestWorkload() RunOption {
 	return func(p *RunParams) error { p.deployTestWorkload = true; return nil }
+}
+
+// WithPreAgentWorkloadApp adds a workload app that must be ready before the Agent is installed.
+func WithPreAgentWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
+	return func(p *RunParams) error {
+		p.preAgentWorkloadAppFuncs = append(p.preAgentWorkloadAppFuncs, appFunc)
+		return nil
+	}
 }
 
 // WithWorkloadApp adds a workload app to the environment

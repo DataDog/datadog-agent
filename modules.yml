@@ -271,6 +271,7 @@ modules:
     used_by_otel: true
   pkg/remoteconfig/state:
     used_by_otel: true
+  pkg/security/resolvers/process/testdata: ignored
   pkg/security/secl: default
   pkg/security/seclwin:
     should_test_condition: never

@@ -41,8 +41,14 @@ const (
 	redisDefaultContainerName    = "redis-configfilesdiscovery-default"
 	redisEnvContainerName        = "redis-env-configfilesdiscovery"
 	redisExplicitContainerPath   = "/configfilesdiscovery/redis-explicit.conf"
+	redisNestedContainerPath     = "/configfilesdiscovery/nested.conf"
+	redisGlobAContainerPath      = "/configfilesdiscovery/conf.d/a.conf"
+	redisGlobBContainerPath      = "/configfilesdiscovery/conf.d/b.conf"
 	redisDefaultContainerPath    = "/etc/redis/redis.conf"
 	redisExplicitConfigFileName  = "redis-explicit.conf"
+	redisNestedConfigFileName    = "nested.conf"
+	redisGlobAConfigFileName     = "a.conf"
+	redisGlobBConfigFileName     = "b.conf"
 	redisDefaultConfigFileName   = "redis-default.conf"
 	redisExplicitStartScriptName = "start-redis.sh"
 	redisDefaultStartScriptName  = "start-default-redis.sh"
@@ -74,6 +80,21 @@ const (
 	postgresUser            = "configfilesdiscovery"
 )
 
+const (
+	pgbouncerContainerName   = "pgbouncer-env-configfilesdiscovery"
+	pgbouncerIntegrationName = "pgbouncer"
+)
+
+const (
+	sparkMasterContainerName  = "spark-driver-configfilesdiscovery-master"
+	sparkWorkerContainerName  = "spark-driver-configfilesdiscovery-worker"
+	sparkSubmitContainerName  = "spark-driver-configfilesdiscovery-submit"
+	sparkIntegrationName      = "spark"
+	sparkDriverMemory         = "2g"
+	sparkLocalDirs            = "/tmp/configfilesdiscovery-spark"
+	sparkRPCEncryptionEnabled = "no"
+)
+
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-redis.yaml
 var redisComposeTemplate string
 
@@ -83,10 +104,30 @@ var kafkaCompose string
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
 
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-pgbouncer.yaml
+var pgbouncerCompose string
+
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
+var sparkCompose string
+
 const redisExplicitConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
+include nested.conf
+include conf.d/*.conf
 # configfilesdiscovery-explicit-e2e-sentinel
+`
+
+const redisNestedConfig = `timeout 0
+# configfilesdiscovery-nested-e2e-sentinel
+`
+
+const redisGlobAConfig = `tcp-keepalive 300
+# configfilesdiscovery-glob-a-e2e-sentinel
+`
+
+const redisGlobBConfig = `databases 16
+# configfilesdiscovery-glob-b-e2e-sentinel
 `
 
 const redisDefaultConfig = `port 6379
@@ -150,10 +191,11 @@ type configFilesDiscoveryFixtureFile struct {
 }
 
 type configFilesDiscoveryContainerFixture struct {
-	integrationName     string
-	configDir           string
-	containerNames      []string
-	startContainerNames []string
+	integrationName       string
+	configDir             string
+	containerNames        []string
+	startContainerNames   []string
+	restartContainerNames []string
 }
 
 type configFilePayloadExpectation struct {
@@ -176,6 +218,8 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-pgbouncer", pulumi.String(pgbouncerCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-spark", pulumi.String(sparkCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
 			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR":    pulumi.String(kafkaConfigDir),
@@ -194,16 +238,41 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 }
 
 func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
-	return createConfigFilesDiscoveryFixtureFiles(
+	rootFiles, err := createConfigFilesDiscoveryFixtureFiles(
 		host,
 		redisConfigDir,
 		[]configFilesDiscoveryFixtureFile{
 			{name: redisExplicitConfigFileName, content: redisExplicitConfig},
+			{name: redisNestedConfigFileName, content: redisNestedConfig},
 			{name: redisDefaultConfigFileName, content: redisDefaultConfig},
 			{name: redisExplicitStartScriptName, content: redisExplicitStartScript},
 			{name: redisDefaultStartScriptName, content: redisDefaultStartScript},
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	fileManager := host.OS.FileManager()
+	confDir, err := fileManager.CreateDirectory(path.Join(redisConfigDir, "conf.d"), false)
+	if err != nil {
+		return nil, err
+	}
+	dependency := rootFiles
+	for _, file := range []configFilesDiscoveryFixtureFile{
+		{name: redisGlobAConfigFileName, content: redisGlobAConfig},
+		{name: redisGlobBConfigFileName, content: redisGlobBConfig},
+	} {
+		dependency, err = fileManager.CopyInlineFile(
+			pulumi.String(file.content),
+			path.Join(redisConfigDir, "conf.d", file.name),
+			utils.PulumiDependsOn(dependency, confDir),
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dependency, nil
 }
 
 func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
@@ -250,7 +319,10 @@ func (s *configFilesDiscoveryDockerSuite) prepareConfigFilesDiscoveryContainers(
 	t.Helper()
 
 	host := s.Env().RemoteHost
-	startFilePath := path.Join(fixture.configDir, startMarkerFileName)
+	startFilePath := ""
+	if fixture.configDir != "" {
+		startFilePath = path.Join(fixture.configDir, startMarkerFileName)
+	}
 	containerNames := strings.Join(fixture.containerNames, " ")
 	startContainerNames := containerNames
 	if len(fixture.startContainerNames) > 0 {
@@ -268,8 +340,10 @@ func (s *configFilesDiscoveryDockerSuite) prepareConfigFilesDiscoveryContainers(
 				}
 			}
 		}
-		if _, cleanupErr := host.Execute("sudo rm -f " + startFilePath); cleanupErr != nil {
-			t.Logf("failed to remove %s start file: %v", fixture.integrationName, cleanupErr)
+		if startFilePath != "" {
+			if _, cleanupErr := host.Execute("sudo rm -f " + startFilePath); cleanupErr != nil {
+				t.Logf("failed to remove %s start file: %v", fixture.integrationName, cleanupErr)
+			}
 		}
 		if _, cleanupErr := host.Execute("sudo docker restart " + containerNames); cleanupErr != nil {
 			t.Logf("failed to restart %s containers: %v", fixture.integrationName, cleanupErr)
@@ -278,14 +352,20 @@ func (s *configFilesDiscoveryDockerSuite) prepareConfigFilesDiscoveryContainers(
 
 	_, err := host.Execute("sudo docker stop " + containerNames)
 	require.NoError(t, err)
-	_, err = host.Execute("sudo rm -f " + startFilePath)
-	require.NoError(t, err)
+	if startFilePath != "" {
+		_, err = host.Execute("sudo rm -f " + startFilePath)
+		require.NoError(t, err)
+	}
 	require.Eventually(t, func() bool {
 		return !isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), fixture.integrationName)
 	}, time.Minute, time.Second, "%s AD config remained scheduled after its containers stopped", fixture.integrationName)
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	_, err = host.Execute("sudo docker start " + startContainerNames)
 	require.NoError(t, err)
+	if len(fixture.restartContainerNames) > 0 {
+		_, err = host.Execute("sudo docker restart " + strings.Join(fixture.restartContainerNames, " "))
+		require.NoError(t, err)
+	}
 
 	return startFilePath
 }
@@ -435,6 +515,92 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
 }
 
+func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutConfigFile() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: pgbouncerIntegrationName,
+		containerNames:  []string{pgbouncerContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), pgbouncerIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		pgbouncerPayloads := findEnvPayloads(payloads, pgbouncerIntegrationName)
+		if !assert.NotEmpty(c, pgbouncerPayloads, "no pgbouncer env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range pgbouncerPayloads {
+			assertAgentDiscoveryPayload(c, payload, pgbouncerIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "md5", envVars["AUTH_TYPE"])
+			assert.Equal(c, "postgres-configfilesdiscovery", envVars["DB_HOST"])
+			assert.Equal(c, postgresDBName, envVars["DB_NAME"])
+			assert.Equal(c, postgresUser, envVars["DB_USER"])
+			assert.Equal(c, "100", envVars["MAX_CLIENT_CONN"])
+			assert.Equal(c, "transaction", envVars["POOL_MODE"])
+			assert.NotContains(c, envVars, "DATABASE_URL")
+			assert.NotContains(c, envVars, "DB_PASSWORD")
+			assert.NotContains(c, envVars, "SERVER_RESET_QUERY")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for pgbouncer env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
+	t := s.T()
+	host := s.Env().RemoteHost
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName:       sparkIntegrationName,
+		containerNames:        []string{sparkMasterContainerName, sparkWorkerContainerName},
+		startContainerNames:   []string{sparkMasterContainerName, sparkWorkerContainerName},
+		restartContainerNames: []string{sparkSubmitContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		processes, processErr := host.Execute("sudo docker top " + sparkWorkerContainerName + " -eo pid,args")
+		if !assert.NoError(c, processErr) {
+			return
+		}
+		assert.Contains(c, processes, "org.apache.spark.deploy.worker.DriverWrapper")
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), sparkIntegrationName))
+	}, 2*time.Minute, 2*time.Second, "Spark Driver was not running after the cluster started")
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		sparkPayloads := findEnvPayloads(payloads, sparkIntegrationName)
+		if !assert.NotEmpty(c, sparkPayloads, "no Spark Driver env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range sparkPayloads {
+			assertAgentDiscoveryPayload(c, payload, sparkIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, sparkDriverMemory, envVars["SPARK_DRIVER_MEMORY"])
+			assert.Equal(c, sparkLocalDirs, envVars["SPARK_LOCAL_DIRS"])
+			assert.Equal(c, sparkRPCEncryptionEnabled, envVars["SPARK_RPC_ENCRYPTION_ENABLED"])
+			assert.NotContains(c, envVars, "SPARK_RPC_AUTHENTICATION_SECRET")
+			assert.NotContains(c, envVars, "SPARK_DAEMON_JAVA_OPTS")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for Spark Driver env discovery payload")
+}
+
 func (s *configFilesDiscoveryDockerSuite) TestKafkaDefaultConfigFileDiscovered() {
 	t := s.T()
 	host := s.Env().RemoteHost
@@ -554,6 +720,21 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 			path:     redisExplicitContainerPath,
 			content:  redisExplicitConfig,
 			sentinel: redisExplicitConfigSentinel,
+		},
+		{
+			path:     redisNestedContainerPath,
+			content:  redisNestedConfig,
+			sentinel: "configfilesdiscovery-nested-e2e-sentinel",
+		},
+		{
+			path:     redisGlobAContainerPath,
+			content:  redisGlobAConfig,
+			sentinel: "configfilesdiscovery-glob-a-e2e-sentinel",
+		},
+		{
+			path:     redisGlobBContainerPath,
+			content:  redisGlobBConfig,
+			sentinel: "configfilesdiscovery-glob-b-e2e-sentinel",
 		},
 		{
 			path:     redisDefaultContainerPath,
