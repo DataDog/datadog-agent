@@ -140,6 +140,13 @@ func TestValidatePackageIdentity(t *testing.T) {
 			},
 			expectError: "manifest version",
 		},
+		{
+			name: "FQN casing differs",
+			mutate: func(descriptor *Descriptor, manifest *Manifest) {
+				descriptor.FQN = strings.ToLower(descriptor.FQN)
+				manifest.FQN = strings.ToUpper(manifest.FQN)
+			},
+		},
 		{name: "valid identity"},
 	}
 
