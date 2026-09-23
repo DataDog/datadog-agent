@@ -1,5 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load(":pclntab_test.bzl", "pclntab_fixture")
 
 go_library(
     name = "bininspect",
@@ -47,17 +48,29 @@ go_library(
     }),
 )
 
+pclntab_fixture(
+    name = "pclntab_fixture",
+    srcs = ["testdata/pclntab_fixture.go"],
+    linkmode = "normal",
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 dd_agent_go_test(
     name = "bininspect_test",
     srcs = [
         "pclntab_test.go",
         "symbols_test.go",
     ],
-    data = ["//pkg/network/usm/testdata/site-packages/ddtrace:testdata"],
+    data = [
+        ":pclntab_fixture",
+        "//pkg/network/usm/testdata/site-packages/ddtrace:testdata",
+    ],
     embed = [":bininspect"],
-    # Use static linking to prevent symbol stripping. The test introspects the
-    # binary to look at its symbols.
-    static = "on",  # keep
+    env = {
+        "BININSPECT_PCLNTAB_FIXTURE": "$(rlocationpath :pclntab_fixture)",
+    },
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -66,6 +79,7 @@ dd_agent_go_test(
             "//pkg/util/safeelf",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@rules_go//go/runfiles",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/network/protocols/http/testutil",
@@ -73,6 +87,7 @@ dd_agent_go_test(
             "//pkg/util/safeelf",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),
